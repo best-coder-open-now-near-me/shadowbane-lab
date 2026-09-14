@@ -243,7 +243,7 @@ class ClientInputAdapter:
         return self._dispatch_plan(plan)
 
     def dispatch_movement_stop(self, *, correlation_id: str) -> DispatchResult:
-        """Cancel an active click-to-move lease through the guarded input path."""
+        """Report whether a verified immediate-stop input exists; never invent one."""
         try:
             plan = self._compiler.compile_movement_stop(correlation_id=correlation_id)
         except InputCompilationError as exc:

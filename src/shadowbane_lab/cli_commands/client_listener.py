@@ -58,6 +58,7 @@ from shadowbane_lab.manager import (
     WorkerTravelDestination,
     load_manager_manifest,
 )
+from shadowbane_lab.pve import attack_list_commands
 from shadowbane_lab.travel import (
     PhysicalPointerInteraction,
     SparseNavigationMap,
@@ -251,6 +252,20 @@ def _listen_for_go_commands(
                 active_operation_stop.trip()
 
     def submit_command(command: str) -> None:
+        words = command.strip().split(maxsplit=1)
+        if words and words[0].casefold() == "/blacklist":
+            # Runs on the existing command processor, outside the long-running
+            # PvE queue. Bind foreground lifetime now, not after another run ends.
+            try:
+                result = attack_list_commands.run_attack_list_command(command, guard)
+                _print_go_listener_event(
+                    "attack-list", as_json=as_json, command=command, result=result,
+                )
+            except (OSError, RuntimeError, ValueError) as exc:
+                _print_go_listener_event(
+                    "rejected", as_json=as_json, command=command, reason=str(exc),
+                )
+            return
         commands.put(command)
 
     def submit_pointer(interaction: PhysicalPointerInteraction) -> None:
@@ -886,6 +901,7 @@ def _print_go_listener_event(
     operation_state: str | None = None,
     hook_diagnostics: dict[str, int | str | None] | None = None,
     extension_router_diagnostics: dict[str, object] | None = None,
+    result: dict[str, object] | None = None,
 ) -> None:
     if as_json:
         payload = {"ok": event != "rejected", "event": event}
@@ -893,6 +909,8 @@ def _print_go_listener_event(
             payload["command"] = command
         if reason is not None:
             payload["reason"] = reason
+        if result is not None:
+            payload["result"] = result
         if resolved_name is not None:
             payload["resolved_name"] = resolved_name
         if lt is not None and lg is not None:
@@ -915,9 +933,36 @@ def _print_go_listener_event(
         return
     if event == "listening":
         print(
-            "Listening for foreground Shadowbane commands (/go, /zone, /pve, /stop).",
+            "Listening for foreground Shadowbane commands (/go, /zone, /pve, /blacklist, /stop).",
             flush=True,
         )
+    elif event == "attack-list":
+        assert result is not None
+        print(f"Attack list ({result['action']}):", flush=True)
+        for entry in result["entries"]:
+            identity_status = (
+                "identity unresolved" if entry.get("identity_status") != "saved_player"
+                else "saved player; current combat checks required"
+            )
+            party_status = {
+                "protected": "party protected",
+                "not_in_observed_roster": "not in observed party roster",
+            }.get(entry.get("party_status"), "party status unknown")
+            binding_status = {
+                "unresolved_identity": "identity unresolved",
+                "selection_unavailable": "selected player unavailable",
+                "different_selected_player": "another player selected",
+                "identity_conflict": "selected identity conflicts with saved name",
+                "party_unknown": "selected player matches; party unknown",
+                "party_protected": "selected player is party protected",
+                "selected_identity_matches": "selected identity matches; not attack permission",
+            }.get(entry.get("selected_binding"), "current binding not checked")
+            print(
+                f"  {entry['label']} - {entry['entry_id']} "
+                f"[{identity_status}; {party_status}; {binding_status}]", flush=True,
+            )
+        if not result["entries"]:
+            print("  Empty", flush=True)
     elif event == "stopped":
         print("Stopped listening for Shadowbane commands.", flush=True)
     elif event == "heartbeat":

@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from contextlib import ExitStack
 from pathlib import Path
 
+from shadowbane_lab.client_extension.movement_operation import NativeMovementOperation
 from shadowbane_lab.client_input import (
     ActionInputMapping,
     ArcaneClientPower,
@@ -16,7 +17,6 @@ from shadowbane_lab.client_input import (
     DecisionInputCompiler,
     ForegroundWindowGuard,
     GuardedInputExecutor,
-    MouseButton,
     PyAutoGuiBackend,
     StaticBindingPointResolver,
     StopSignal,
@@ -72,6 +72,12 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_identity_reader,
     open_windows_native_target_position_reader,
 )
+from shadowbane_lab.client_observation import native_group as native_party
+from shadowbane_lab.navigation_inspector.session import (
+    ObservedPositionSource,
+    optional_session,
+    pve_trace_sink,
+)
 from shadowbane_lab.pve import (
     PVE_TRACE_SCHEMA_VERSION,
     ClientPvEIntentDispatcher,
@@ -89,8 +95,9 @@ from shadowbane_lab.pve import (
     save_pve_trace_evidence,
 )
 from shadowbane_lab.travel import (
-    ClientTravelDecisionDispatcher,
     SparseNavigationMap,
+    TravelDecisionDispatcher,
+    WeightedAStarPlanner,
     load_active_zone_terrain_navigation,
 )
 
@@ -135,7 +142,14 @@ def _run_pve(
     retained_trace_steps: int = 2_000,
     native_character_population_profile_path: Path | None = None,
     navigation_map: SparseNavigationMap | None = None,
+    movement_dispatcher: TravelDecisionDispatcher | None = None,
 ) -> int:
+    if movement_dispatcher is not None and not isinstance(
+        movement_dispatcher, TravelDecisionDispatcher
+    ):
+        return _error(
+            "movement dispatcher must implement TravelDecisionDispatcher", as_json=as_json
+        )
     if not live:
         return _error("PvE execution requires the explicit --live flag", as_json=as_json)
     if isinstance(max_kills, bool) or not 1 <= max_kills <= 10:
@@ -199,8 +213,6 @@ def _run_pve(
         client_profile = load_calibration(client_profile_path)
         if not client_profile.live_input_enabled:
             raise ValueError("client profile is not enabled for live input")
-        if client_profile.movement.button is not MouseButton.RIGHT:
-            raise ValueError("PvE approach movement must use right-click input")
         controller = PvEController(
             PvEControllerConfig(
                 maximum_kills=max_kills,
@@ -284,6 +296,7 @@ def _run_pve(
             if native_character_population_profile_path is not None
             else load_bundled_native_character_population_profile()
         )
+        group_profile = native_party.load_bundled_native_group_profile()
         zone_profile = (
             None if navigation_cache_directory is None else load_bundled_native_zone_profile()
         )
@@ -299,6 +312,7 @@ def _run_pve(
             target_action_profile.executable_sha256,
             target_identity_profile.executable_sha256,
             character_population_profile.executable_sha256,
+            group_profile.executable_sha256,
         }
         if message_hud_profile is not None:
             native_profile_hashes.add(message_hud_profile.executable_sha256)
@@ -393,6 +407,9 @@ def _run_pve(
                     process_id=process_id,
                 )
             )
+            group_reader = stack.enter_context(
+                native_party.open_windows_native_group_reader(group_profile, process_id=process_id)
+            )
             active_navigation_map = navigation_map
             zone_reader = None
             if zone_profile is not None:
@@ -479,6 +496,7 @@ def _run_pve(
                 target_action_reader.process_id,
                 target_identity_reader.process_id,
                 population_reader.process_id,
+                group_reader.process_id,
             }
             if message_hud_profile is not None:
                 reader_process_ids.add(combat_reader.process_id)
@@ -486,6 +504,12 @@ def _run_pve(
                 reader_process_ids.add(zone_reader.process_id)
             if len(reader_process_ids) != 1:
                 raise ValueError("native PvE readers resolved different client processes")
+            if movement_dispatcher is None:
+                native_operation = stack.enter_context(
+                    NativeMovementOperation(guard, active_stop_signal)
+                )
+                movement_dispatcher = native_operation.dispatcher
+                active_stop_signal = native_operation
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
@@ -495,7 +519,10 @@ def _run_pve(
                 ),
             )
             adapter = ClientInputAdapter(
-                DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
+                DecisionInputCompiler(
+                    client_profile,
+                    StaticBindingPointResolver(),
+                ),
                 executor,
             )
             journal = (
@@ -517,28 +544,41 @@ def _run_pve(
                     )
                 )
             )
+            navigation_observer = stack.enter_context(optional_session(player_position_reader))
+            inspected_position_reader = player_position_reader
+            if navigation_observer is not None:
+                inspected_position_reader = ObservedPositionSource(
+                    player_position_reader,
+                    navigation_observer,
+                    zone_reader=zone_reader,
+                    map_zone=None if zone_reader is None else zone_observation.zone_token,
+                    provenance="sparse navigation cells; raster discontinuities; "
+                    "learned blockers; "
+                    "costs combine slope, water and uncertain object density",
+                )
             result = PvERunner(
                 controller=controller,
                 health_reader=health_reader,
                 player_vitals_reader=player_vitals_reader,
-                player_position_reader=player_position_reader,
+                player_position_reader=inspected_position_reader,
                 target_position_reader=target_position_reader,
                 target_action_reader=target_action_reader,
                 player_action_reader=target_action_reader,
                 target_identity_reader=target_identity_reader,
                 population_reader=population_reader,
+                group_reader=group_reader,
+                party_group_id=f"client:{process_id}:party",
                 combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 approach_controller=PvEApproachController(
                     navigation_map=active_navigation_map,
+                    planner=WeightedAStarPlanner(observer=navigation_observer),
                 ),
-                movement_dispatcher=ClientTravelDecisionDispatcher(adapter),
+                movement_dispatcher=movement_dispatcher,
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
                 maximum_retained_trace_steps=(retained_trace_steps if continuous else None),
-                trace_sink=(
-                    None if journal is None else lambda step: journal.append_step(step.as_dict())
-                ),
+                trace_sink=pve_trace_sink(journal, navigation_observer),
             ).run()
             if journal is not None:
                 journal.finish(
@@ -645,6 +685,8 @@ def _run_pve(
             "executable_sha256": health_profile.executable_sha256,
             "target_health_profile_id": health_profile.profile_id,
             "character_population_profile_id": character_population_profile.profile_id,
+            "party_profile_id": group_profile.profile_id,
+            "party_authority_mode": "passive",
             "player_vitals_profile_id": vitals_profile.profile_id,
             "player_position_profile_id": position_profile.profile_id,
             "target_position_profile_id": target_position_profile.profile_id,

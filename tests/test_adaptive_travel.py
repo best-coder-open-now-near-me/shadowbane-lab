@@ -76,7 +76,7 @@ class AStarTravelControllerTests(unittest.TestCase):
         assert controller.active_plan is not None
         self.assertGreater(len(controller.active_plan.destinations), 1)
 
-    def test_stall_marks_obstacle_and_replans_without_counting_hidden_escape(self) -> None:
+    def test_stall_backtracks_before_replanning_around_learned_obstacle(self) -> None:
         navigation = SparseNavigationMap(cell_size=10.0)
         controller = AStarTravelController(
             TravelDestination(95.0, 5.0, 5.0),
@@ -89,15 +89,56 @@ class AStarTravelControllerTests(unittest.TestCase):
         )
 
         first = controller.step(_observation(0, 5.0, 5.0))
-        second = controller.step(_observation(100, 5.0, 5.0))
+        backtrack = controller.step(_observation(100, 5.0, 5.0))
 
         self.assertEqual(1, first.click_count)
-        self.assertEqual(2, second.click_count)
-        self.assertEqual(TravelManeuver.DIRECT, second.maneuver)
-        self.assertEqual(1, controller.replan_count)
+        self.assertEqual(2, backtrack.click_count)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.maneuver)
+        assert backtrack.click_destination is not None
+        self.assertEqual(-5.0, backtrack.click_destination.x)
+        self.assertEqual(5.0, backtrack.click_destination.y)
+        self.assertEqual(0, backtrack.minimap_direction.y)
+        self.assertLess(backtrack.minimap_direction.x, 0.0)
+        self.assertEqual(0, controller.replan_count)
         self.assertTrue(navigation.blocked)
-        assert second.minimap_direction is not None
-        self.assertLess(second.minimap_direction.x, 0.0)
+
+        replanned = controller.step(_observation(200, -5.0, 5.0))
+
+        self.assertEqual(TravelManeuver.DIRECT, replanned.maneuver)
+        self.assertEqual(1, controller.replan_count)
+        self.assertEqual(3, replanned.click_count)
+
+    def test_nearly_cardinal_stall_blocks_corridor_cell_before_replan(self) -> None:
+        navigation = SparseNavigationMap(cell_size=20.0)
+        controller = AStarTravelController(
+            TravelDestination(88819.0, 45122.0, 5.0),
+            TravelControllerConfig(
+                click_interval_ms=100,
+                minimum_progress=5.0,
+                maximum_no_progress_clicks=1,
+            ),
+            StaticNavigationSource(navigation),
+        )
+
+        controller.step(_observation(0, 88818.8828125, 45040.55859375))
+        backtrack = controller.step(_observation(100, 88818.8828125, 45040.55859375))
+        replanned = controller.step(_observation(200, 88818.8828125, 45025.453125))
+
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.maneuver)
+        self.assertEqual(
+            frozenset({NavigationCell(4440, 2253)}),
+            navigation.learned_blocked,
+        )
+        self.assertEqual(TravelManeuver.DIRECT, replanned.maneuver)
+        self.assertEqual("astar_refined_final", controller.route_mode)
+        self.assertEqual(
+            frozenset({NavigationCell(8881, 4506)}),
+            navigation.refined_learned_blocked,
+        )
+        assert replanned.minimap_direction is not None
+        self.assertNotEqual(0.0, replanned.minimap_direction.x)
+        assert controller.active_plan is not None
+        self.assertGreater(len(controller.active_plan.destinations), 1)
 
     def test_far_destination_plans_to_receding_terrain_horizon(self) -> None:
         navigation = SparseNavigationMap(cell_size=10.0)

@@ -26,6 +26,8 @@ class ManagedDashboardApplication(Protocol):
 
     def status(self) -> dict[str, object]: ...
 
+    def supervise(self) -> None: ...
+
     def execute(
         self,
         action: str,
@@ -150,10 +152,16 @@ class LiveConfiguredManagerApplication:
         self._manifest = manifest
         self._application = factory(manifest)
         self._lock = threading.RLock()
+        self._active_actions = 0
+        self._supervision_lock = threading.RLock()
 
     def status(self) -> dict[str, object]:
         with self._lock:
-            reconciliation = self._ensure_capacity_for_current_instances()
+            reconciliation = (
+                self._ensure_capacity_for_current_instances()
+                if not self._active_actions
+                else {"issues": []}
+            )
             status = dict(self._application.status())
             slots = status.get("slots")
             all_slots = slots if isinstance(slots, list) else []
@@ -165,16 +173,11 @@ class LiveConfiguredManagerApplication:
             status["slots"] = active_slots
             status["open_count"] = len(active_slots)
             status["available_slot_count"] = sum(
-                isinstance(slot, dict) and slot.get("instance_id") is None
-                for slot in all_slots
+                isinstance(slot, dict) and slot.get("instance_id") is None for slot in all_slots
             )
-            tiled_slots = tuple(
-                client.window_tile is not None for client in self._manifest.clients
-            )
+            tiled_slots = tuple(client.window_tile is not None for client in self._manifest.clients)
             status["capacity_mode"] = (
-                "tiled" if all(tiled_slots) else (
-                    "mixed" if any(tiled_slots) else "isolated"
-                )
+                "tiled" if all(tiled_slots) else ("mixed" if any(tiled_slots) else "isolated")
             )
             status["can_add_client"] = self._has_free_slot(all_slots) or (
                 len(self._manifest.clients) < MAX_MANAGER_CLIENT_SLOTS
@@ -197,8 +200,7 @@ class LiveConfiguredManagerApplication:
                     and not self._has_free_slot(all_slots)
                     else (
                         "Mixed tiled and isolated slots cannot be expanded live."
-                        if status["capacity_mode"] == "mixed"
-                        and not self._has_free_slot(all_slots)
+                        if status["capacity_mode"] == "mixed" and not self._has_free_slot(all_slots)
                         else None
                     )
                 )
@@ -214,18 +216,29 @@ class LiveConfiguredManagerApplication:
         instance_id: str | None = None,
     ) -> dict[str, object]:
         with self._lock:
+            prepared = None
             if action == "add-client":
                 if client_id is not None or instance_id is not None:
                     raise DashboardError(
-                        "invalid-action-fields",
-                        "add-client does not accept client or instance identity fields.",
+                        "invalid-action-fields", "add-client takes no identity fields"
                     )
-                return self._add_client()
-            return self._application.execute(
-                action,
-                client_id=client_id,
-                instance_id=instance_id,
-            )
+                prepared = self._add_client()
+                client_id = prepared["client_id"]
+                action = "start"
+            application = self._application
+            self._active_actions += 1
+        try:
+            result = application.execute(action, client_id=client_id, instance_id=instance_id)
+            return prepared if prepared is not None else result
+        finally:
+            with self._lock:
+                self._active_actions -= 1
+
+    def supervise(self) -> None:
+        # Capacity preparation/dashboard work must not delay the existing graph's
+        # permits. The separate handover lock excludes replacement during renewal.
+        with self._supervision_lock:
+            self._application.supervise()
 
     def _add_client(self) -> dict[str, object]:
         self._ensure_capacity_for_current_instances()
@@ -240,9 +253,7 @@ class LiveConfiguredManagerApplication:
                     "client-limit-reached",
                     f"No more than {MAX_MANAGER_CLIENT_SLOTS} clients can be managed.",
                 )
-            tileless_slots = tuple(
-                client.window_tile is None for client in self._manifest.clients
-            )
+            tileless_slots = tuple(client.window_tile is None for client in self._manifest.clients)
             if all(tileless_slots):
                 client_id = self._provision_isolated_capacity(status)
                 runtime_provisioned = True
@@ -255,7 +266,6 @@ class LiveConfiguredManagerApplication:
                 self._expand_capacity(current_count + 1, status)
                 client_id = self._manifest.clients[-1].client_id
             expanded = True
-        self._application.execute("start", client_id=client_id)
         return {
             "ok": True,
             "action": "add-client",
@@ -356,6 +366,10 @@ class LiveConfiguredManagerApplication:
         configured: ManagerManifest,
         current_status: dict[str, object],
     ) -> None:
+        if self._active_actions:
+            raise DashboardError(
+                "manager-busy", "capacity replacement waits for active lifecycle actions"
+            )
         prior_bindings = self._bound_instances(current_status)
         candidate = self._factory(configured)
         candidate_status = candidate.status()
@@ -389,8 +403,9 @@ class LiveConfiguredManagerApplication:
             expected=self._manifest,
             replacement=configured,
         )
-        self._manifest = configured
-        self._application = candidate
+        with self._supervision_lock:
+            self._manifest = configured
+            self._application = candidate
 
     @staticmethod
     def _observed_instance_ids(slot: dict[str, object]) -> tuple[str, ...]:

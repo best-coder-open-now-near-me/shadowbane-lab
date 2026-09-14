@@ -12,7 +12,8 @@ import itertools
 import struct
 import sys
 import threading
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import IntEnum
 from types import MappingProxyType
@@ -20,12 +21,14 @@ from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.protocol import DispatchResult
 
+from . import movement_wire
+
 CLIENT_ACTION_CHANNEL_MAGIC = b"WBACTV1\0"
-CLIENT_ACTION_CHANNEL_SCHEMA_VERSION = 1
+CLIENT_ACTION_CHANNEL_SCHEMA_VERSION = 3
 CLIENT_ACTION_CHANNEL_HEADER_SIZE = 128
-CLIENT_ACTION_COMMAND_SLOT_SIZE = 192
+CLIENT_ACTION_COMMAND_SLOT_SIZE = 768
 CLIENT_ACTION_COMMAND_CAPACITY = 32
-CLIENT_ACTION_RESULT_SLOT_SIZE = 128
+CLIENT_ACTION_RESULT_SLOT_SIZE = 512
 CLIENT_ACTION_RESULT_CAPACITY = 64
 CLIENT_ACTION_PAYLOAD_VERSION = 1
 CLIENT_ACTION_ARGUMENT_CAPACITY = 96
@@ -36,10 +39,12 @@ CLIENT_ACTION_RESULT_RING_OFFSET = (
     CLIENT_ACTION_COMMAND_RING_OFFSET
     + CLIENT_ACTION_COMMAND_SLOT_SIZE * CLIENT_ACTION_COMMAND_CAPACITY
 )
-CLIENT_ACTION_CHANNEL_SIZE = (
+CLIENT_ACTION_STATUS_OFFSET = (
     CLIENT_ACTION_RESULT_RING_OFFSET
     + CLIENT_ACTION_RESULT_SLOT_SIZE * CLIENT_ACTION_RESULT_CAPACITY
 )
+
+CLIENT_ACTION_CHANNEL_SIZE = CLIENT_ACTION_STATUS_OFFSET + movement_wire.STATUS_SIZE
 
 CLIENT_ACTION_TRANSPORT_CAPABILITY = 1 << 0
 NATIVE_ACTION_DISPATCH_CAPABILITY = 1 << 1
@@ -56,9 +61,9 @@ _RESULT = struct.Struct("<qQqIIQII72s8s")
 
 if _HEADER.size != CLIENT_ACTION_CHANNEL_HEADER_SIZE:
     raise RuntimeError("native action header ABI size drifted")
-if _COMMAND.size != CLIENT_ACTION_COMMAND_SLOT_SIZE:
+if _COMMAND.size + 576 != CLIENT_ACTION_COMMAND_SLOT_SIZE:
     raise RuntimeError("native action command ABI size drifted")
-if _RESULT.size != CLIENT_ACTION_RESULT_SLOT_SIZE:
+if _RESULT.size + 384 != CLIENT_ACTION_RESULT_SLOT_SIZE:
     raise RuntimeError("native action result ABI size drifted")
 
 _COMMAND_WRITE_SEQUENCE_OFFSET = 48
@@ -281,11 +286,7 @@ class NativeActionCommand:
     ) -> bytes:
         if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence <= 0:
             raise ValueError("sequence must be a positive integer")
-        if (
-            isinstance(created_tick, bool)
-            or not isinstance(created_tick, int)
-            or created_tick <= 0
-        ):
+        if isinstance(created_tick, bool) or not isinstance(created_tick, int) or created_tick <= 0:
             raise ValueError("created_tick must be a positive integer")
         if (
             isinstance(deadline_tick, bool)
@@ -322,7 +323,37 @@ class NativeActionCommand:
             0,
             argument.ljust(CLIENT_ACTION_ARGUMENT_CAPACITY, b"\0"),
             power_identifier.ljust(CLIENT_ACTION_POWER_IDENTIFIER_CAPACITY, b"\0"),
+        ) + bytes(576)
+
+
+@dataclass(frozen=True, slots=True)
+class NativeMovementCommand:
+    command_id: int
+    kind: movement_wire.Verb
+    payload: movement_wire.Command
+
+    def encode_slot(self, *, sequence: int, created_tick: int, deadline_tick: int) -> bytes:
+        if type(self.command_id) is not int or not 0 < self.command_id < 2**64:
+            raise ValueError("movement command ID must be a positive uint64")
+        if not 0 < sequence < 2**63 or not 0 < created_tick <= deadline_tick < 2**64:
+            raise ValueError("invalid command sequence/deadline")
+        prefix = _COMMAND.pack(
+            0,
+            self.command_id,
+            self.kind,
+            CLIENT_ACTION_PAYLOAD_VERSION,
+            created_tick,
+            deadline_tick,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            bytes(96),
+            bytes(32),
         )
+        return prefix + self.payload.encode(self.kind)
 
 
 @dataclass(frozen=True, slots=True)
@@ -335,6 +366,7 @@ class NativeActionResult:
     observed_tick: int
     consumer_thread_id: int
     detail: str
+    movement_payload: bytes = b""
 
     @classmethod
     def decode_slot(cls, payload: bytes) -> NativeActionResult:
@@ -351,7 +383,7 @@ class NativeActionResult:
             detail_length,
             detail_bytes,
             reserved,
-        ) = _RESULT.unpack(payload)
+        ) = _RESULT.unpack(payload[: _RESULT.size])
         if result_sequence <= 0 or command_id <= 0 or command_sequence <= 0:
             raise NativeActionChannelError("result contains invalid sequence identity")
         try:
@@ -375,6 +407,7 @@ class NativeActionResult:
             observed_tick=observed_tick,
             consumer_thread_id=consumer_thread_id,
             detail=detail,
+            movement_payload=payload[_RESULT.size :],
         )
 
 
@@ -440,8 +473,11 @@ class _WindowsKernel:
         handle = ctypes.c_void_p
         dword = ctypes.c_uint32
         bool_type = ctypes.c_int
-        long_type = ctypes.c_long
-        longlong = ctypes.c_longlong
+
+        kernel.CreateMutexW.argtypes = [ctypes.c_void_p, bool_type, ctypes.c_wchar_p]
+        kernel.CreateMutexW.restype = handle
+        kernel.ReleaseMutex.argtypes = [handle]
+        kernel.ReleaseMutex.restype = bool_type
 
         kernel.OpenFileMappingW.argtypes = [dword, bool_type, ctypes.c_wchar_p]
         kernel.OpenFileMappingW.restype = handle
@@ -461,37 +497,51 @@ class _WindowsKernel:
         kernel.GetTickCount64.restype = ctypes.c_uint64
         kernel.GetCurrentProcessId.argtypes = []
         kernel.GetCurrentProcessId.restype = dword
-        kernel.InterlockedCompareExchange64.argtypes = [
-            ctypes.POINTER(longlong),
-            longlong,
-            longlong,
-        ]
-        kernel.InterlockedCompareExchange64.restype = longlong
-        kernel.InterlockedExchange64.argtypes = [ctypes.POINTER(longlong), longlong]
-        kernel.InterlockedExchange64.restype = longlong
-        kernel.InterlockedCompareExchange.argtypes = [
-            ctypes.POINTER(long_type),
-            long_type,
-            long_type,
-        ]
-        kernel.InterlockedCompareExchange.restype = long_type
-        kernel.InterlockedExchange.argtypes = [ctypes.POINTER(long_type), long_type]
-        kernel.InterlockedExchange.restype = long_type
-        kernel.InterlockedIncrement.argtypes = [ctypes.POINTER(long_type)]
-        kernel.InterlockedIncrement.restype = long_type
+        kernel.GetCurrentProcess.argtypes = []
+        kernel.GetCurrentProcess.restype = handle
+        kernel.GetProcessTimes.argtypes = [handle] + [ctypes.POINTER(ctypes.c_uint64)] * 4
+        kernel.GetProcessTimes.restype = bool_type
+        # Interlocked functions are compiler intrinsics, not kernel32 exports on
+        # 64-bit Windows. Aligned scalar loads/stores are atomic there; explicit
+        # Windows memory barriers provide publication ordering. RMW ownership is
+        # provided separately by the named producer mutex, never by these stores.
+        if ctypes.sizeof(ctypes.c_void_p) != 8:
+            raise NativeActionChannelUnavailable(
+                "native action transport requires a 64-bit Python host"
+            )
+        kernel.FlushProcessWriteBuffers.argtypes = []
+        kernel.FlushProcessWriteBuffers.restype = None
 
-    def open_file_mapping(self, name: str) -> int:
+    @contextmanager
+    def producer_lock(self, name: str, timeout_ms: int) -> Iterator[None]:
+        handle = self._checked_handle(
+            self._kernel.CreateMutexW(None, False, name), "CreateMutexW"
+        )
+        acquired = False
+        try:
+            result = self.wait(handle, timeout_ms)
+            # Abandonment transfers ownership after a producer process crashes.
+            acquired = result in {_WAIT_OBJECT_0, 0x80}
+            if not acquired:
+                raise NativeActionChannelBusy("native action producer transaction is busy")
+            yield
+        finally:
+            if acquired:
+                self._kernel.ReleaseMutex(ctypes.c_void_p(handle))
+            self.close_handle(handle)
+
+    def open_file_mapping(self, name: str, *, read_only: bool = False) -> int:
         handle = self._kernel.OpenFileMappingW(
-            _FILE_MAP_READ | _FILE_MAP_WRITE,
+            _FILE_MAP_READ if read_only else _FILE_MAP_READ | _FILE_MAP_WRITE,
             False,
             name,
         )
         return self._checked_handle(handle, "OpenFileMappingW")
 
-    def map_view(self, mapping: int, size: int) -> int:
+    def map_view(self, mapping: int, size: int, *, read_only: bool = False) -> int:
         view = self._kernel.MapViewOfFile(
             ctypes.c_void_p(mapping),
-            _FILE_MAP_READ | _FILE_MAP_WRITE,
+            _FILE_MAP_READ if read_only else _FILE_MAP_READ | _FILE_MAP_WRITE,
             0,
             0,
             size,
@@ -530,25 +580,41 @@ class _WindowsKernel:
     def process_id(self) -> int:
         return int(self._kernel.GetCurrentProcessId())
 
+    def process_identity(self) -> NativeClientProcessIdentity:
+        creation, exit_time, kernel_time, user_time = (ctypes.c_uint64() for _ in range(4))
+        if not self._kernel.GetProcessTimes(
+            self._kernel.GetCurrentProcess(), ctypes.byref(creation),
+            ctypes.byref(exit_time), ctypes.byref(kernel_time), ctypes.byref(user_time),
+        ):
+            self._raise_last_error("GetProcessTimes")
+        return NativeClientProcessIdentity(self.process_id(), creation.value)
+
+    def _load_scalar(self, address: int, scalar: type) -> int:
+        if address % ctypes.sizeof(scalar):
+            raise NativeActionChannelError("unaligned native action scalar")
+        self._kernel.FlushProcessWriteBuffers()
+        value = scalar.from_address(address).value
+        self._kernel.FlushProcessWriteBuffers()
+        return int(value)
+
+    def _store_scalar(self, address: int, value: int, scalar: type) -> int:
+        previous = self._load_scalar(address, scalar)
+        self._kernel.FlushProcessWriteBuffers()
+        scalar.from_address(address).value = value
+        self._kernel.FlushProcessWriteBuffers()
+        return previous
+
     def read_i64(self, address: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_longlong))
-        return int(self._kernel.InterlockedCompareExchange64(pointer, 0, 0))
+        return self._load_scalar(address, ctypes.c_int64)
 
     def exchange_i64(self, address: int, value: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_longlong))
-        return int(self._kernel.InterlockedExchange64(pointer, value))
+        return self._store_scalar(address, value, ctypes.c_int64)
 
     def read_i32(self, address: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
-        return int(self._kernel.InterlockedCompareExchange(pointer, 0, 0))
+        return self._load_scalar(address, ctypes.c_int32)
 
     def exchange_i32(self, address: int, value: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
-        return int(self._kernel.InterlockedExchange(pointer, value))
-
-    def increment_i32(self, address: int) -> int:
-        pointer = ctypes.cast(address, ctypes.POINTER(ctypes.c_long))
-        return int(self._kernel.InterlockedIncrement(pointer))
+        return self._store_scalar(address, value, ctypes.c_int32)
 
     @staticmethod
     def _checked_handle(value: object, operation: str) -> int:
@@ -592,11 +658,23 @@ class WindowsNativeActionCommandTransport:
         self._command_signal: int | None = None
         self._result_signal: int | None = None
         self._lock = threading.Lock()
+        self._lease_generation: int | None = None
+        self._producer_lock_name = self._identity.mapping_name + ".Producer"
         self._open()
 
     @property
     def process_identity(self) -> NativeClientProcessIdentity:
         return self._identity
+
+    @property
+    def host_process_identity(self) -> NativeClientProcessIdentity:
+        return self._kernel.process_identity()
+
+    @property
+    def host_lease_generation(self) -> int:
+        if self._lease_generation is None:
+            raise NativeActionChannelUnavailable("native action host lease is not owned")
+        return self._lease_generation
 
     @property
     def header(self) -> NativeActionChannelHeader:
@@ -616,15 +694,11 @@ class WindowsNativeActionCommandTransport:
         *,
         timeout_ms: int,
     ) -> NativeActionResult:
-        if not isinstance(command, NativeActionCommand):
-            raise ValueError("command must be NativeActionCommand")
-        if (
-            isinstance(timeout_ms, bool)
-            or not isinstance(timeout_ms, int)
-            or timeout_ms <= 0
-        ):
+        if not isinstance(command, (NativeActionCommand, NativeMovementCommand)):
+            raise ValueError("command must be a native action or movement command")
+        if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or timeout_ms <= 0:
             raise ValueError("timeout_ms must be positive")
-        with self._lock:
+        with self._lock, self._kernel.producer_lock(self._producer_lock_name, timeout_ms):
             self._renew_host_lease()
             write_sequence = self._read_i64(_COMMAND_WRITE_SEQUENCE_OFFSET)
             read_sequence = self._read_i64(_COMMAND_READ_SEQUENCE_OFFSET)
@@ -656,26 +730,40 @@ class WindowsNativeActionCommandTransport:
             ctypes.memmove(view + slot_offset, encoded, len(encoded))
             self._exchange_i64(slot_offset, sequence)
             self._exchange_i64(_COMMAND_WRITE_SEQUENCE_OFFSET, sequence)
-            self._kernel.set_event(
-                self._require_handle(self._command_signal, "command signal")
-            )
+            self._kernel.set_event(self._require_handle(self._command_signal, "command signal"))
             return self._wait_for_completion(
                 command_id=command.command_id,
                 command_sequence=sequence,
                 deadline_tick=deadline_tick,
             )
 
+    def renew_lease(self) -> None:
+        """Renew this lease only while alive; never claim or revive an expired host."""
+        with self._lock, self._kernel.producer_lock(
+            self._producer_lock_name, self._host_lease_timeout_ms
+        ):
+            now = self._kernel.tick_count()
+            heartbeat = self._read_i64(_HOST_HEARTBEAT_TICK_OFFSET)
+            if heartbeat <= 0 or now < heartbeat or now - heartbeat > self._host_lease_timeout_ms:
+                raise NativeActionChannelBusy("native action host lease expired")
+            self._renew_host_lease()
+
     def close(self) -> None:
         with self._lock:
             if self._view is not None:
                 try:
-                    if self._read_i32(_HOST_PROCESS_ID_OFFSET) == self._kernel.process_id():
-                        self._exchange_i64(_HOST_HEARTBEAT_TICK_OFFSET, 0)
-                        self._exchange_i32(_HOST_PROCESS_ID_OFFSET, 0)
+                    with self._kernel.producer_lock(
+                        self._producer_lock_name, self._host_lease_timeout_ms
+                    ):
+                        if self._owns_host_lease():
+                            self._exchange_i32(_HOST_PROCESS_ID_OFFSET, 0)
+                            self._exchange_i64(_HOST_HEARTBEAT_TICK_OFFSET, 0)
                 except NativeActionChannelError:
+                    # Expiry recovers a lease if another producer transaction is busy.
                     pass
                 self._kernel.unmap_view(self._view)
                 self._view = None
+            self._lease_generation = None
             for field_name in ("_result_signal", "_command_signal", "_mapping"):
                 handle = getattr(self, field_name)
                 if handle is not None:
@@ -708,26 +796,42 @@ class WindowsNativeActionCommandTransport:
             raise
 
     def _claim_host_lease(self) -> None:
-        now = self._kernel.tick_count()
-        existing_process_id = self._read_i32(_HOST_PROCESS_ID_OFFSET)
-        heartbeat = self._read_i64(_HOST_HEARTBEAT_TICK_OFFSET)
-        active = (
-            existing_process_id > 0
-            and heartbeat > 0
-            and now >= heartbeat
-            and now - heartbeat <= self._host_lease_timeout_ms
-        )
-        current_process_id = self._kernel.process_id()
-        if active and existing_process_id != current_process_id:
-            raise NativeActionChannelBusy(
-                f"native action channel is leased by host process {existing_process_id}"
+        with self._kernel.producer_lock(
+            self._producer_lock_name, self._host_lease_timeout_ms
+        ):
+            now = self._kernel.tick_count()
+            existing_process_id = self._read_i32(_HOST_PROCESS_ID_OFFSET)
+            heartbeat = self._read_i64(_HOST_HEARTBEAT_TICK_OFFSET)
+            active = (
+                existing_process_id > 0
+                and heartbeat > 0
+                and now >= heartbeat
+                and now - heartbeat <= self._host_lease_timeout_ms
             )
-        self._exchange_i32(_HOST_PROCESS_ID_OFFSET, current_process_id)
-        self._kernel.increment_i32(self._address(_HOST_LEASE_GENERATION_OFFSET))
-        self._exchange_i64(_HOST_HEARTBEAT_TICK_OFFSET, now)
+            if active:
+                raise NativeActionChannelBusy(
+                    f"native action channel is leased by host process {existing_process_id}"
+                )
+            generation = self._read_i32(_HOST_LEASE_GENERATION_OFFSET)
+            if generation < 0 or generation >= 2**31 - 1:
+                raise NativeActionChannelUnavailable("native action host generation exhausted")
+            # Publish PID last: the consumer cannot admit a partially claimed lease.
+            self._exchange_i32(_HOST_PROCESS_ID_OFFSET, 0)
+            self._exchange_i32(_HOST_LEASE_GENERATION_OFFSET, generation + 1)
+            self._exchange_i64(_HOST_HEARTBEAT_TICK_OFFSET, now)
+            self._exchange_i32(_HOST_PROCESS_ID_OFFSET, self._kernel.process_id())
+            self._lease_generation = generation + 1
+
+    def _owns_host_lease(self) -> bool:
+        return (
+            self._lease_generation is not None
+            and self._read_i32(_HOST_PROCESS_ID_OFFSET) == self._kernel.process_id()
+            and self._read_i32(_HOST_LEASE_GENERATION_OFFSET) == self._lease_generation
+        )
 
     def _renew_host_lease(self) -> None:
-        if self._read_i32(_HOST_PROCESS_ID_OFFSET) != self._kernel.process_id():
+        # Callers serialize the entire command publication/completion transaction.
+        if not self._owns_host_lease():
             raise NativeActionChannelBusy("native action channel host lease was lost")
         self._exchange_i64(_HOST_HEARTBEAT_TICK_OFFSET, self._kernel.tick_count())
 

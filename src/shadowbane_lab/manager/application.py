@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ntpath
 import threading
+from contextlib import ExitStack
 from math import isfinite
 from typing import Protocol
 
@@ -83,6 +84,7 @@ class WorkerStatusProvider(Protocol):
         *,
         instance_id: str | None,
         lifecycle_dispatch_enabled: bool,
+        renew_permit: bool = True,
     ) -> WorkerSlotHealthSnapshot: ...
 
     def revoke(self, client_id: str, *, reason: str) -> object: ...
@@ -247,11 +249,18 @@ class ManagerDashboardApplication:
         self._poll_seconds = _require_positive_finite(poll_seconds, "poll_seconds")
         self._configs = {config.client_id: config for config in manifest.clients}
         self._lock = threading.RLock()
+        self._slot_locks = {key: threading.RLock() for key in self._configs}
+        self._stopping = False
+        self._renewal_lock = threading.RLock()
 
     def reconcile_instances(self) -> dict[str, object]:
         """Adopt safe open clients and archive bindings after an exact process exit."""
 
-        with self._lock:
+        with self._lock, ExitStack() as held:
+            for lock in self._slot_locks.values():
+                if not lock.acquire(blocking=False):
+                    return {"adopted_client_ids": [], "archived_client_ids": [], "issues": []}
+                held.callback(lock.release)
             before = self._session.snapshot()
             if not isinstance(before, ManagerSessionSnapshot) or (
                 before.node_id != self._manifest.node_id
@@ -385,6 +394,7 @@ class ManagerDashboardApplication:
                     slot.client_id,
                     instance_id=None if binding is None else binding.instance_id,
                     lifecycle_dispatch_enabled=lifecycle_dispatch_enabled,
+                    renew_permit=False,
                 )
                 if not isinstance(worker, WorkerSlotHealthSnapshot):
                     raise RuntimeError("worker supervisor returned an invalid snapshot")
@@ -497,14 +507,46 @@ class ManagerDashboardApplication:
     ) -> dict[str, object]:
         """Execute one route-validated action and preserve exact binding ownership."""
 
-        with self._lock:
+        if action == "start-all":
+            self._require_global(action, client_id, instance_id)
+            for key in self._configs:
+                if self._session.status(key).instance_id is None:
+                    self.execute("start", client_id=key)
+            return {"ok": True, "action": action}
+        lock = self._slot_locks.get(client_id, self._lock)
+        with lock:
             try:
+                if self._stopping:
+                    raise DashboardError("manager-stopping", "manager is stopping")
                 self._execute(action, client_id=client_id, instance_id=instance_id)
             except DashboardError:
                 raise
             except (ManagerSessionError, OSError, RuntimeError, ValueError) as exc:
                 raise DashboardError("manager-action-failed", str(exc)) from exc
             return {"ok": True, "action": action}
+
+    def supervise(self) -> None:
+        """Renew permits independently of dashboard construction and launch polling."""
+        with self._renewal_lock:
+            registry = self._registry.inspect()
+            clients = {client.instance_id: client for client in registry.clients}
+            for client_id, lock in self._slot_locks.items():
+                if not lock.acquire(blocking=False):
+                    continue
+                try:
+                    slot = self._session.status(client_id)
+                    self._worker_supervisor.inspect(
+                        client_id,
+                        instance_id=slot.instance_id,
+                        lifecycle_dispatch_enabled=(
+                            slot.dispatch_enabled
+                            and not self._stopping
+                            and slot.instance_id in clients
+                            and _matches_config(clients[slot.instance_id], self._configs[client_id])
+                        ),
+                    )
+                finally:
+                    lock.release()
 
     def _execute(
         self,
@@ -597,7 +639,8 @@ class ManagerDashboardApplication:
     def revoke_all_workers(self, *, reason: str) -> None:
         """Fail closed synchronously before the manager process shuts down."""
 
-        with self._lock:
+        with self._renewal_lock:
+            self._stopping = True
             for config in self._manifest.clients:
                 self._worker_supervisor.revoke(config.client_id, reason=reason)
 
@@ -624,7 +667,7 @@ class ManagerDashboardApplication:
                 self._ensure_worker_for_slot(slot.client_id)
 
     def _ensure_worker_for_slot(self, client_id: str) -> None:
-        if self._worker_controller is None:
+        if self._stopping or self._worker_controller is None:
             return
         slot = self._session.status(client_id)
         if not isinstance(slot, ManagerSlotSnapshot) or slot.instance_id is None:

@@ -33,6 +33,15 @@ class NativeBuildCompatibilityTests(unittest.TestCase):
         self.assertTrue(native_layout_is_compatible(patched_20260831, bootstrapped_20260831))
         self.assertEqual(canonical, canonical_native_layout_sha256(bootstrapped_20260831))
 
+    def test_current_version_update_preserves_reviewed_layout(self) -> None:
+        for digest in (
+            "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff",
+            "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87",
+        ):
+            self.assertTrue(native_layout_is_compatible(
+                "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc", digest
+            ))
+
     def test_unreviewed_build_is_its_own_canonical_layout(self) -> None:
         digest = "ab" * 32
 

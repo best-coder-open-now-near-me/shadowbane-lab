@@ -460,21 +460,21 @@ class TravelControllerTests(unittest.TestCase):
         )
 
         direct = controller.step(_observation(0, 1000, 1000))
-        back_left = controller.step(_observation(1000, 1000, 1000))
+        backtrack = controller.step(_observation(1000, 1000, 1000))
         back_right = controller.step(_observation(2000, 800, 1000))
         sweep_left = controller.step(_observation(3000, 700, 1000))
         bypass_left = controller.step(_observation(4000, 700, 650))
         reacquired = controller.step(_observation(5000, 850, 650))
 
         self.assertEqual(TravelManeuver.DIRECT, direct.maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_BACK_LEFT, back_left.maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_BACK_RIGHT, back_right.maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_SWEEP_LEFT, sweep_left.maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_BYPASS_LEFT, bypass_left.maneuver)
         self.assertEqual(TravelManeuver.DIRECT, reacquired.maneuver)
         forward = direct.minimap_direction
         assert forward is not None
-        for escape in (back_left, back_right):
+        for escape in (backtrack, back_right):
             direction = escape.minimap_direction
             assert direction is not None
             self.assertLess(forward.x * direction.x + forward.y * direction.y, 0)
@@ -484,6 +484,65 @@ class TravelControllerTests(unittest.TestCase):
             forward.x * bypass_direction.x + forward.y * bypass_direction.y,
             0,
         )
+
+    def test_first_backtrack_reverses_measured_ingress_direction(self) -> None:
+        controller = TravelController(
+            parse_go_command("go 5000 1000"),
+            TravelControllerConfig(
+                click_interval_ms=1000,
+                minimum_progress=5,
+                maximum_no_progress_clicks=1,
+            ),
+        )
+
+        controller.step(_observation(0, 1000, 1000))
+        backtrack = controller.step(_observation(1000, 1000, 1010))
+
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.maneuver)
+        assert backtrack.minimap_direction is not None
+        self.assertAlmostEqual(0.0, backtrack.minimap_direction.x)
+        self.assertGreater(backtrack.minimap_direction.y, 0.0)
+        assert backtrack.click_destination is not None
+        self.assertEqual(1000.0, backtrack.click_destination.y)
+
+    def test_first_backtrack_distance_is_independent_of_direct_click_range(self) -> None:
+        controller = TravelController(
+            parse_go_command("go 5000 1000"),
+            TravelControllerConfig(
+                maximum_click_distance=50.0,
+                escape_backtrack_distance=10.0,
+                click_interval_ms=1000,
+                minimum_progress=5,
+                maximum_no_progress_clicks=1,
+            ),
+        )
+
+        controller.step(_observation(0, 1000, 1000))
+        backtrack = controller.step(_observation(1000, 1000, 1000))
+
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.maneuver)
+        assert backtrack.click_destination is not None
+        self.assertEqual(990.0, backtrack.click_destination.x)
+        self.assertEqual(1000.0, backtrack.click_destination.y)
+
+    def test_backtrack_distance_cannot_exceed_global_click_range(self) -> None:
+        controller = TravelController(
+            parse_go_command("go 5000 1000"),
+            TravelControllerConfig(
+                maximum_click_distance=6.0,
+                escape_backtrack_distance=10.0,
+                click_interval_ms=1000,
+                minimum_progress=5,
+                maximum_no_progress_clicks=1,
+            ),
+        )
+
+        controller.step(_observation(0, 1000, 1000))
+        backtrack = controller.step(_observation(1000, 1000, 1000))
+
+        assert backtrack.click_destination is not None
+        self.assertEqual(994.0, backtrack.click_destination.x)
+        self.assertEqual(1000.0, backtrack.click_destination.y)
 
     def test_stops_after_escape_budget_is_exhausted(self) -> None:
         controller = TravelController(
@@ -504,10 +563,7 @@ class TravelControllerTests(unittest.TestCase):
         bypass = controller.step(_observation(3000, 1000, 1000))
         stopped = controller.step(_observation(4000, 1000, 1000))
 
-        self.assertIn(
-            back.maneuver,
-            (TravelManeuver.ESCAPE_BACK_LEFT, TravelManeuver.ESCAPE_BACK_RIGHT),
-        )
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, back.maneuver)
         self.assertIn(
             sweep.maneuver,
             (TravelManeuver.ESCAPE_SWEEP_LEFT, TravelManeuver.ESCAPE_SWEEP_RIGHT),
@@ -537,11 +593,11 @@ class TravelControllerTests(unittest.TestCase):
             controller.step(_observation(now_ms, 1000, 1000)) for now_ms in range(1000, 6_000, 1000)
         )
 
-        self.assertEqual(TravelManeuver.ESCAPE_BACK_LEFT, decisions[1].maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, decisions[1].maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_SWEEP_LEFT, decisions[2].maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_SWEEP_RIGHT, decisions[3].maneuver)
         self.assertEqual(TravelManeuver.ESCAPE_BYPASS_RIGHT, decisions[4].maneuver)
-        self.assertEqual(TravelManeuver.ESCAPE_BACK_RIGHT, decisions[5].maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, decisions[5].maneuver)
 
     def test_manual_progress_reacquires_direct_during_escape(self) -> None:
         controller = TravelController(
@@ -582,7 +638,7 @@ class TravelControllerTests(unittest.TestCase):
         controller.step(_observation(3000, 2200, 1000))
         new_escape = controller.step(_observation(4000, 2200, 1000))
 
-        self.assertEqual(TravelManeuver.ESCAPE_BACK_LEFT, new_escape.maneuver)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, new_escape.maneuver)
 
     def test_progress_resets_no_progress_counter(self) -> None:
         controller = TravelController(
@@ -690,7 +746,7 @@ class TravelRunnerTests(unittest.TestCase):
                     _position(1000, 1000),
                     _position(1100, 1000),
                     _position(1200, 1000),
-                    _position(1300, 1000),
+                    *[_position(1300, 1000)] * 6,
                 ]
             ),
             player_vitals_reader=ConstantVitalsReader(),
@@ -707,8 +763,9 @@ class TravelRunnerTests(unittest.TestCase):
         self.assertEqual("destination_reached", result.terminal_reason)
         self.assertEqual(3, result.clicks)
         self.assertEqual(3, len(dispatcher.decisions))
-        self.assertEqual(1, len(dispatcher.stop_decisions))
-        self.assertTrue(result.stop_input_accepted)
+        self.assertEqual(0, len(dispatcher.stop_decisions))
+        self.assertIsNone(result.stop_input_accepted)
+        self.assertTrue(result.arrival_confirmed)
         self.assertEqual(1300, result.final_position.lt)
 
     def test_runner_stops_on_rejected_guarded_input(self) -> None:
@@ -738,37 +795,42 @@ class TravelRunnerTests(unittest.TestCase):
         self.assertEqual(TravelPhase.STOPPED, result.final_phase)
         self.assertEqual("guarded_input_rejected", result.terminal_reason)
 
-    def test_runner_fails_closed_when_terminal_stop_input_is_rejected(self) -> None:
-        class StopRejectingDispatcher(RecordingTravelDispatcher):
-            def stop_movement(self, decision):
-                self.stop_decisions.append(decision)
-                return DispatchResult(
-                    adapter_name="recording-travel",
-                    correlation_id=f"{decision.decision_id}:stop",
-                    accepted=False,
-                    reason="focus changed",
-                )
-
+    def test_runner_rejects_arrival_when_the_character_keeps_moving(self) -> None:
         clock = FakeClock()
-        dispatcher = StopRejectingDispatcher()
+        dispatcher = RecordingTravelDispatcher()
+        events = []
         result = TravelRunner(
-            controller=TravelController(
-                parse_go_command("go 1100 1000 25"),
-                TravelControllerConfig(click_interval_ms=200, minimum_progress=25),
+            controller=TravelController(parse_go_command("go 1100 1000 25")),
+            position_reader=SequencePositionReader(
+                [
+                    _position(1000, 1000),
+                    _position(1100, 1000),
+                    *[_position(1110 + index * 10, 1000) for index in range(30)],
+                ]
             ),
-            position_reader=SequencePositionReader([_position(1000, 1000), _position(1100, 1000)]),
             player_vitals_reader=ConstantVitalsReader(),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
-            poll_interval_ms=200,
             clock=clock,
             sleeper=clock.sleep,
+            observer=events.append,
         ).run()
-
         self.assertEqual(TravelPhase.STOPPED, result.final_phase)
-        self.assertEqual("movement_stop_rejected", result.terminal_reason)
-        self.assertFalse(result.stop_input_accepted)
-        self.assertEqual("focus changed", result.stop_input_reason)
+        self.assertEqual("arrival_not_settled", result.terminal_reason)
+        self.assertFalse(result.arrival_confirmed)
+        self.assertGreater(result.final_position.lt, 1200)
+        self.assertEqual([], dispatcher.stop_decisions)
+        self.assertFalse(any(event.event == "completion" for event in events))
+        self.assertTrue(
+            any(event.event == "observation" and event.position[0] > 1200 for event in events)
+        )
+
+    def test_click_destinations_preserve_short_distance_and_bound_long_distance(self) -> None:
+        for destination, expected in ((1045, 1045), (2000, 1050)):
+            controller = TravelController(parse_go_command(f"go {destination} 1000 5"))
+            decision = controller.step(_observation(0, 1000, 1000))
+            self.assertEqual(expected, decision.click_destination.x)
+            self.assertEqual(1000, decision.click_destination.y)
 
 
 if __name__ == "__main__":

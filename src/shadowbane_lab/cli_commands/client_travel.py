@@ -6,15 +6,10 @@ import json
 from contextlib import ExitStack
 from pathlib import Path
 
+from shadowbane_lab.client_extension.movement_operation import NativeMovementOperation
 from shadowbane_lab.client_input import (
     CalibrationLoadError,
-    ClientInputAdapter,
-    DecisionInputCompiler,
     ForegroundWindowGuard,
-    GuardedInputExecutor,
-    MouseButton,
-    PyAutoGuiBackend,
-    StaticBindingPointResolver,
     StopSignal,
     WindowGuardError,
     WindowsForegroundWindowInspector,
@@ -38,13 +33,14 @@ from shadowbane_lab.client_observation import (
     open_windows_native_player_vitals_reader,
     open_windows_native_runegate_registry_reader,
 )
+from shadowbane_lab.navigation_inspector.session import optional_session
 from shadowbane_lab.travel import (
     ActiveZoneTerrainNavigationSource,
     AStarTravelController,
-    ClientTravelDecisionDispatcher,
     SparseNavigationMap,
     TravelController,
     TravelControllerConfig,
+    TravelDecisionDispatcher,
     TravelDestination,
     TravelDestinationStateError,
     TravelPhase,
@@ -79,7 +75,14 @@ def _run_travel(
     client_process_id: int | None = None,
     navigation_cache_directory: Path | None = None,
     navigation_map: SparseNavigationMap | None = None,
+    movement_dispatcher: TravelDecisionDispatcher | None = None,
 ) -> int:
+    if movement_dispatcher is not None and not isinstance(
+        movement_dispatcher, TravelDecisionDispatcher
+    ):
+        return _error(
+            "movement dispatcher must implement TravelDecisionDispatcher", as_json=as_json
+        )
     if not live:
         return _error("travel execution requires the explicit --live flag", as_json=as_json)
     if radius is not None and not 5.0 <= radius <= 1_000.0:
@@ -112,8 +115,6 @@ def _run_travel(
         client_profile = load_calibration(client_profile_path)
         if not client_profile.live_input_enabled:
             raise ValueError("client profile is not enabled for live input")
-        if client_profile.movement.button is not MouseButton.RIGHT:
-            raise ValueError("travel profile movement must use right-click input")
         position_profile = (
             load_native_position_profile(native_position_profile_path)
             if native_position_profile_path is not None
@@ -189,8 +190,9 @@ def _run_travel(
                 raise ValueError(
                     "native position and player-vitals readers resolved different processes"
                 )
+            navigation_observer = stack.enter_context(optional_session(position_reader))
             if zone_profile is None:
-                controller = TravelController(plan, travel_config)
+                controller = TravelController(plan, travel_config, observer=navigation_observer)
             else:
                 assert navigation_cache_directory is not None
                 zone_reader = stack.enter_context(
@@ -209,6 +211,7 @@ def _run_travel(
                 terrain_source = ActiveZoneTerrainNavigationSource(
                     navigation_cache_directory,
                     zone_reader,
+                    observer=navigation_observer,
                     **terrain_source_arguments,
                 )
                 astar_controller = AStarTravelController(
@@ -219,27 +222,26 @@ def _run_travel(
                         WeightedAStarConfig(
                             obstacle_clearance_cells=0,
                             waypoint_radius_fraction=0.5,
-                        )
+                        ),
+                        observer=navigation_observer,
                     ),
                     plan_id=plan.plan_id,
                 )
                 controller = astar_controller
-            executor = GuardedInputExecutor(
-                guard=guard,
-                backend=PyAutoGuiBackend(),
-                stop_signal=active_stop_signal,
-            )
-            adapter = ClientInputAdapter(
-                DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
-                executor,
-            )
+            if movement_dispatcher is None:
+                native_operation = stack.enter_context(
+                    NativeMovementOperation(guard, active_stop_signal)
+                )
+                movement_dispatcher = native_operation.dispatcher
+                active_stop_signal = native_operation
             result = TravelRunner(
                 controller=controller,
                 position_reader=position_reader,
                 player_vitals_reader=player_vitals_reader,
-                dispatcher=ClientTravelDecisionDispatcher(adapter),
+                dispatcher=movement_dispatcher,
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
+                observer=navigation_observer,
             ).run()
     except (
         CalibrationLoadError,
@@ -261,6 +263,12 @@ def _run_travel(
             "at_ms": step.decision.now_ms,
             "distance_remaining": step.decision.distance_remaining,
             "maneuver": step.decision.maneuver.value,
+            "click_destination": None
+            if step.decision.click_destination is None
+            else {
+                "lt": step.decision.click_destination.x,
+                "lg": step.decision.click_destination.y,
+            },
             "accepted": step.input_accepted,
             "reason": step.input_reason,
         }
@@ -282,6 +290,7 @@ def _run_travel(
             }
         ),
         "clicks": result.clicks,
+        "arrival_confirmed": result.arrival_confirmed,
         "stop_input_accepted": result.stop_input_accepted,
         "stop_input_reason": result.stop_input_reason,
         "steps": len(result.trace),

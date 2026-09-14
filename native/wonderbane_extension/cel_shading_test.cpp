@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include <thread>
 
 namespace {
 
@@ -156,6 +157,93 @@ HGLRC WINAPI FakeCurrentContext() {
     return reinterpret_cast<HGLRC>(test_context);
 }
 
+std::array<float, 16U> test_camera_view{
+    0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 200, -40, 300, 1};
+std::array<float, 16U> test_camera_projection{
+    1, 0, 0, 0, 0, 1.5F, 0, 0, 0, 0, -1.01F, -1, 0, 0, -4, 0};
+std::array<int, 4U> test_camera_viewport{0, 0, 1920, 955};
+int test_camera_depth = 1;
+unsigned int test_camera_queries = 0;
+void APIENTRY FakeCameraFloats(unsigned int name, float* values) {
+    ++test_camera_queries;
+    const auto& source = name == 0x0BA6U ? test_camera_view : test_camera_projection;
+    std::memcpy(values, source.data(), sizeof(float) * source.size());
+}
+void APIENTRY FakeCameraIntegers(unsigned int name, int* values) {
+    ++test_camera_queries;
+    if (name == 0x0BA3U) *values = test_camera_depth;
+    else std::memcpy(values, test_camera_viewport.data(), sizeof(int) * test_camera_viewport.size());
+}
+
+bool CheckReviewedSceneCamera() {
+    using namespace wonderbane::extension;
+    g_get_current_context = reinterpret_cast<PVOID>(&FakeCurrentContext);
+    g_get_floatv = reinterpret_cast<PVOID>(&FakeCameraFloats);
+    g_get_integerv = reinterpret_cast<PVOID>(&FakeCameraIntegers);
+    const auto view = test_camera_view;
+    const auto projection = test_camera_projection;
+    const auto viewport = test_camera_viewport;
+    const auto begin = [&]() {
+        g_scene_frame = {};
+        g_scene_frame.boundary_mapping_verified = true;
+        g_main_scene_context = FakeCurrentContext();
+        test_camera_view = view; test_camera_projection = projection;
+        test_camera_viewport = viewport; test_camera_depth = 1;
+        ObserveMainSceneClear(&g_scene_frame);
+        BeginMainSceneCamera();
+    };
+    const auto world = []() {
+        (void)AdvanceSceneFrame(&g_scene_frame,
+            {DrawLayer::world_opaque, DrawClassificationReason::depth_writing_opaque});
+    };
+    const auto finish = [&]() {
+        GraphicsCameraState camera{};
+        return BeginReviewedSceneUiBoundary(&g_scene_frame) && FinishMainSceneCamera(&camera);
+    };
+    // The real queue pushes model-view, then loads object transforms. None of
+    // those temporary matrices can replace or poison the boundary-owned camera.
+    test_camera_queries = 0;
+    begin();
+    test_camera_depth = 2; test_camera_view[12] += 1000;
+    world();
+    test_camera_depth = 3; test_camera_view[0] = 0.5F;
+    world();
+    test_camera_depth = 1; test_camera_view = view;
+    bool ok = finish() && test_camera_queries == 8U;
+    GraphicsCameraState camera{};
+    ok = ok && !FinishMainSceneCamera(&camera);  // No second consumer.
+    for (int fault = 0; fault < 10; ++fault) {
+        begin(); world();
+        switch (fault) {
+        case 0: test_camera_view[12] += 1; break;
+        case 1: test_camera_projection[0] += 0.1F; break;
+        case 2: ++test_camera_viewport[2]; break;
+        case 3: test_camera_depth = 2; break;
+        case 4: ++test_context; break;
+        case 5: g_scene_frame.main_scene_invalidated = true; break;
+        case 6: ObserveMainSceneClear(&g_scene_frame); break;
+        case 7: g_scene_frame.boundary_mapping_verified = false; break;
+        case 8: g_immediate_primitive_open = true; break;
+        case 9: g_get_floatv = nullptr; break;
+        }
+        ok = !finish() && ok;
+        if (fault == 4) --test_context;
+        g_immediate_primitive_open = false;
+        g_get_floatv = reinterpret_cast<PVOID>(&FakeCameraFloats);
+    }
+    begin(); ok = !finish() && ok;  // Empty scene cannot supply a camera.
+    begin(); test_camera_depth = 2; BeginMainSceneCamera();
+    test_camera_depth = 1; world(); ok = !finish() && ok;
+    begin(); test_camera_view[0] = 2; BeginMainSceneCamera();
+    test_camera_view = view; world(); ok = !finish() && ok;
+    begin(); g_scene_frame = {}; world(); ok = !finish() && ok;  // Frame expired.
+    g_scene_frame = {}; g_main_scene_context = nullptr;
+    g_main_scene_camera_valid = false;
+    g_get_floatv = nullptr; g_get_integerv = nullptr; g_get_current_context = nullptr;
+    test_camera_view = view; test_camera_depth = 1;
+    return ok;
+}
+
 void APIENTRY FakeRestoreAttributes() { test_alpha_enabled = true; }
 void APIENTRY FakeExecuteList(unsigned int) { test_alpha_enabled = true; }
 void APIENTRY FakeFinishList() {}
@@ -257,7 +345,7 @@ bool CheckStateRestoreRegressions() {
     BeginDisplayListCapture(43U);
     test_alpha_enabled = false;  // A compile-and-execute list changed real state.
     const auto before_compile_query = test_query_count;
-    ok = ok && !RefreshFixedFunctionState() && test_query_count == before_compile_query;
+    ok = ok && !AreNativeDrawQueriesSafe() && !RefreshFixedFunctionState() && test_query_count == before_compile_query;
     StrongEndList();
     ok = ok && !g_fixed_function_state.valid && RefreshFixedFunctionState()
         && !g_fixed_function_state.alpha_test_enabled;
@@ -265,9 +353,9 @@ bool CheckStateRestoreRegressions() {
     g_immediate_primitive_open = true;
     const auto before_immediate_query = test_query_count;
     StrongCallList(44U);
-    ok = ok && !RefreshFixedFunctionState() && test_query_count == before_immediate_query;
+    ok = ok && !AreNativeDrawQueriesSafe() && !RefreshFixedFunctionState() && test_query_count == before_immediate_query;
     g_immediate_primitive_open = false;
-    ok = ok && RefreshFixedFunctionState() && g_fixed_function_state.alpha_test_enabled;
+    ok = ok && AreNativeDrawQueriesSafe() && RefreshFixedFunctionState() && g_fixed_function_state.alpha_test_enabled;
 
     ++test_context;
     test_alpha_enabled = false;
@@ -301,15 +389,50 @@ bool CheckOptionalImportPlans() {
     // The extension still needs its own glPopAttrib helper when no client IAT
     // slot exists. That helper must not look like a partially installed hook.
     g_pop_attrib = reinterpret_cast<PVOID>(&FakeRestoreAttributes);
+    const auto retained_original = g_original_pop_attrib;
     StopStrongCelShading();
-    ok = ok && g_pop_attrib == nullptr && g_original_pop_attrib == nullptr
+    ok = ok && g_pop_attrib == nullptr && g_original_pop_attrib == retained_original
         && g_pop_attrib_slot == nullptr;
     return ok;
 }
 
 }  // namespace
 
+HANDLE render_entered = nullptr;
+HANDLE render_release = nullptr;
+BOOL WINAPI HeldSwap(HDC) {
+    SetEvent(render_entered);
+    WaitForSingleObject(render_release, INFINITE);
+    return TRUE;
+}
+bool CheckInFlightCleanup() {
+    using namespace wonderbane::extension;
+    render_entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    render_release = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    g_original_swap_buffers = reinterpret_cast<PVOID>(&HeldSwap);
+    std::uint32_t imported = static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&StrongSwapBuffers));
+    g_swap_buffers_slot = &imported;
+    std::thread callback([] { StrongSwapBuffers(nullptr); });
+    WaitForSingleObject(render_entered, INFINITE);
+    if (TryAcquireSRWLockExclusive(&g_render_lifetime)) { std::abort(); }
+    HANDLE stop_entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    std::thread cleanup([&] { SetEvent(stop_entered); StopStrongCelShading(); });
+    WaitForSingleObject(stop_entered, INFINITE);
+    SetEvent(render_release);
+    callback.join(); cleanup.join();
+    const bool ok = !g_swap_buffers_slot
+        && imported == static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&HeldSwap))
+        && StrongSwapBuffers(nullptr) == TRUE;
+    StopStrongCelShading();
+    CloseHandle(stop_entered); CloseHandle(render_entered); CloseHandle(render_release);
+    return ok;
+}
+
 int wmain() {
+    if (!CheckInFlightCleanup()) { return Fail(L"in-flight renderer cleanup/call-through"); }
+    if (!CheckReviewedSceneCamera()) {
+        return Fail(L"reviewed scene camera ownership and nested world transforms");
+    }
     if (!CheckOptionalImportPlans()) {
         return Fail(L"optional import validation and helper-only rollback");
     }

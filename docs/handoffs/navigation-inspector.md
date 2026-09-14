@@ -1,8 +1,18 @@
 # Navigation inspector: developer and owner handoff
 
-Prepared 2026-09-04. Status: implementation brief; inspector not yet implemented
-or deployed by this handoff. The owner wants this surface before further
-pathfinding tuning, to support reliable `/go` and `/pve` movement.
+Current runtime update: [September 4 client patch and deployment](../client-update-20260904.md).
+The prepared client now uses game version 1.3.38.6 and source f0bad0e; use that receipt
+for live identities. Older runtime details below are historical. Next todo is login
+and the refined tree test.
+
+Prepared 2026-09-04. Implementation has started on `codex/navigation-inspector`;
+see the [implementation, usage and current todos](../navigation-inspector.md).
+Publisher, viewer, controls and replay are implemented in draft PR #27. Exact
+package validation is complete; the [acceptance receipt](../navigation-inspector-acceptance-20260904.md)
+identifies the tested source and package. The coordinated live acceptance remains pending. The
+starting-point terrain observations below are historical, not a fresh terrain audit.
+The owner wants this surface before further pathfinding tuning, to support
+reliable `/go` and `/pve` movement.
 
 ## Objective and starting point
 
@@ -45,8 +55,8 @@ Use one new implementation branch, suggested `codex/navigation-inspector`, from
 the containing review head. Check remote names before creating it. Use one
 isolated worktree when implementation begins; leave the normal checkout on main.
 Target the integration branch while #25 is open, then reconcile onto accepted
-main. Commit and push coherent checkpoints. No implementation branch or new
-worktree was created by this documentation handoff.
+main. Commit and push coherent checkpoints. Implementation now uses codex/navigation-inspector in its isolated worktree;
+PR #27 targets the integration branch. The normal checkout remains on main.
 
 ## Existing boundaries to extend
 
@@ -161,6 +171,182 @@ where it was deployed, live acceptance result, remaining limitations and next to
 A workflow, generated payload, version label or successful old target does not
 prove the feature is in the delivered binary.
 
-Next implementation todo: establish the diagnostic contract and capture both raw
-and smoothed plans plus real movement events, then complete the native viewer on
-that same branch. Terrain delivery remains a separate follow-up.
+At that checkpoint, the next todo was to use the verified package and receipts for the bounded live
+pass above with the owner. Planned geometry is explicitly
+projected until final terrain elevation is observed. Terrain delivery remains
+a separate follow-up; this package does not contain that repair.
+
+
+### Destination execution correction (active)
+
+The owner confirmed continued movement after the first camera-enabled `/go` run
+reported completion. A center click is not a verified immediate stop. The current
+full-radius directional actuator must be replaced by destination-aware clicks
+and observed arrival before more visual acceptance. See the dated acceptance record.
+
+The read-only minimap investigation identifies ArcMapHud object/control vtables
+at RVAs `0x116da48` / `0x116da0c`. Screen-to-world is `0x661010`; the inverse
+world-to-map function is `0x661270`. The projection uses parent-local child control
+ID `0x4a` when present, otherwise the parent rectangle. The observed content vtable `0x1169ec0` uses getter slot `+0x1c` -> thunk
+`0x8ddc` -> `0x56c3e0`, which copies the control's `+4` rectangle.
+The initially assumed generic getter `0x25167` is not this content-control slot. Scale is the float at `0x11661a4`
+(approximately 0.13) multiplied by live zoom at `+0x37c`. The center-position
+getter `0x661440` reads the same player pointer/position getter already owned by
+native position observation. LT increases to the right; LG increases upward.
+
+The verified running `3534418` client has parent rectangle `(1710,14,1920,224)`,
+child rectangle `(3,3,207,207)`, center `(1815,119)`, and zoom
+`2.078929901123047`. A 45-unit waypoint projects about 12 pixels from that center,
+whereas the old actuator always selects its 82-pixel radius. The native minimap
+reader and its projection tests were committed as `ab9b367`. The next source checkpoint
+wires both travel and PvE to bounded absolute destinations, verifies stationary arrival,
+and removes the assumed center-click stop. PvE observes settling on coherent frames
+without dropping combat actions. Regression tests cover pass-through overshoot, slow
+drift, changed/ambiguous geometry, coarse zoom, cancellation and action sequencing.
+That checkpoint was not yet deployed; the current installed state follows.
+
+The exact `8210ecf` package passed all local build/package gates and is installed
+in the existing testing runtime. Native DLLs are byte-identical to the camera
+package. Installed source, actual loaded DLL, process lifetime and the corrected
+live minimap reader all pass preflight; the panel/listener/recorder are reconnected.
+See the dated acceptance record for hashes and evidence locations.
+
+The short owner-assisted walk now passes: measured arrival was 0.409 units from
+the goal, with 5.243 seconds of stable post-arrival observations. All 17 measured
+trail segments were present and the owner confirmed the normal trail looked good.
+
+The subsequent slope run verified a 15.101-unit climb, stationary arrival and
+camera rotation, but the owner reported a mid-body line origin and said the same
+offset could have been hidden by the flat-view angle. Ground-contact alignment is
+therefore unverified on both surfaces.
+
+A fresh read-only sample after the VM restart established the exact relationship. The running
+client was PID 3544 with creation FILETIME `134330368496400834`; its executable, installed
+source and loaded DLL identities matched the `3534418` package. Across five samples the actor
+origin was about 28.518, the resolved ground height was 26.25, explicit height was zero and
+collision minimum Y was about -2.268. The client equation
+`actor_y = ground_y - collision_min_y + explicit_height` reconstructed every actor sample
+within `7.15e-7`. The collision minimum changed slightly with animation, so a fixed visual
+offset would be wrong. Evidence is retained as `ground-height-contract.json` under
+`navigation-inspector-3534418/resume-20260904-1915`.
+
+The reader now retains the canonical actor altitude for movement and optionally publishes the
+verified resolved ground height for inspector events. Invalid, unavailable, airborne or nested
+ground state falls back to the canonical position and cannot abort movement or PvE.
+
+Source `96d903675c123b1c5cf1cc4513ac345186bd4eae` was built into acceptance package
+`e3ed8b4c` (archive SHA-256
+`1b0fa714523a724f56648e5a499476a4ed6a362f68696624c40122ebd87d9bcd`). The wheel was
+installed without replacing the byte-identical native DLL. Live identity then verified the same
+client PID/creation time, updated Python source and loaded DLL. Panel 5200, listener 1352 and
+recorder 1452 were healthy with empty error logs. Five direct reader samples exposed resolved
+ground 26.25 while actor animation varied around 28.524.
+
+The corrected slope run captured 35 ground-height trail points spanning -4.569 to 6.182 with
+zero omissions or dropped observations. The owner confirmed perfect surface placement before
+the character reached water. This accepts slope ground alignment. The route itself is a retained
+failure: after reaching water it replanned and moved away from the requested destination, then
+ended `astar_route_not_found`. The active zone reported no terrain height layer, so that capture
+is useful evidence for the water/client-server navigation investigation and is not an accepted
+travel result. Evidence is under `resume-20260904-1915/ground-96d9036`, session
+`1388190087102714464`.
+
+A fresh dry-flat session then moved 18.555 units with no vertical ground change and arrived
+1.412 units from its five-unit-radius destination. It retained all ten ground trail samples and
+all nine events with zero omissions or drops. The owner confirmed the cyan line remained at the
+character's feet for the entire walk. Flat and slope ground alignment are now accepted. The
+first flat harness invocation used an invalid four-unit radius, sent no input and is retained only
+as a rejected preflight; session `2005051010612397357` is the valid pass.
+
+The first owner-assisted tree route captured the real failure. Normal-depth session
+`4060971429726872299` moved about two units into the tree, showed the learned blocker and retained
+67 trail samples plus 77 events with no omissions or drops. The A* wrapper was consuming the
+low-level escape decision to replan, so the physical escape never ran. The short goal also occupied
+the same 20-unit cell as the learned blocker; goal-cell exclusion consequently sent repeated
+northward clicks. X-ray session `7565812963352424179` reproduced the recovery-order defect with
+62 trail samples and 70 events and no data loss. X-ray visibility itself is not yet accepted.
+
+The correction now shared by `/go` and `/pve` records meaningful measured ingress, dispatches one
+straight click in its exact reverse after a confirmed stall, and only then replans around the
+learned blocker from the backed-out position. With no measured ingress it reverses the active route
+segment. Source `46ab5369265a3c07ac9971cd42230e9a526bdc97` passed the full acceptance build
+as package `fc54d331`; the dated record contains the package, wheel and unchanged DLL hashes.
+
+That wheel is installed in the existing exact client. Normal-depth session
+`238701332475333700` backed 11.934 units south after contacting the tree, replanned once around
+learned cell `(4440, 2253)`, then arrived 4.15 units from the farther north goal. It retained all
+42 trail samples and 31 events with no omissions or drops. The owner visually confirmed the
+backtrack and detour as very successful; the wider westward arc was the adjacent center on the
+20-unit grid and was accepted for that south-to-north scenario.
+
+The reverse-direction machine pass also succeeded once the goal was outside the collision cell:
+session `2218625880244719481` backed 12.879 units north, replanned west once and arrived 2.84
+units from the south goal. The owner did not observe the overlay, so x-ray visibility remains open.
+A subsequent watched run from farther south failed with repeated tree impacts. It learned northeast
+cell `(4441, 2253)` instead of north corridor cell `(4440, 2253)` because sub-unit LT rounding was
+promoted to a full diagonal fallback step. The source correction now chooses the first cell boundary
+crossed by the movement ray, and exact-coordinate plus end-to-end regressions pass.
+
+The owner selected local path refinement for finesse. The implementation retains the 20-unit
+coarse route as the global safety search, then uses a 10-unit grid for the first 120-unit segment
+after a learned collision. `/pve` uses the same fine planner from a learned collision to its current
+target. Exact live collisions block only the entered fine cell plus one fine-cell character
+clearance; saved navigation state schema 2 retains that precision and loads schema 1 conservatively.
+
+Foliage is rare but dense where present, and PvP must retain tactical movement inside it. Structural
+terrain blockers therefore fill all fine children, while foliage density remains a traversal cost
+copied into every fine child. A collision does not erase that cost from its neighboring children, so
+the planner may cross dense cover when that route is worthwhile without inventing a clear lane. The
+source and compatibility regressions pass 1,682 tests, 211 subtests, seven expected skips and Ruff.
+
+Next todo: package and deploy the refined source, then repeat the watched x-ray tree pass. Bounded
+PvE and overlay cost/scene checks follow. PR #27 stays draft and unmerged.
+
+The refined current-client route is now live-verified. Session `5218318916770432677` used the
+10-unit local grid after one collision, retained every one of its 46 trail points and 36 events,
+and settled 0.79 units from the goal. The owner accepted the replan granularity and visible x-ray
+diagnostic, but requested a smaller first pullback.
+
+Source `7e719d6fa2a524574e1813a0f76cfe1634b2440f` limits only the initial physical
+`escape_backtrack` click to 10 units. Package `776defa9` passed 1,685 Python tests, 211 subtests,
+eight expected skips, Ruff, both Win32 profiles and all 18 native tests per profile. Wheel
+SHA-256: `711bfe1c653a9c8b742d85ff6b80aaedcd9cf4df11b5ef1d47e340d6dd8266ef`.
+The wheel is installed in the same PID 1940 client; executable and loaded DLL hashes remain
+`bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87` and
+`65c67e8e05397b8acab5f3e01a4e566a1f7c75fcec99250c5a7bcb77ffee8fd2`.
+
+Watched session `5119146404273284310` exercised two stalls. Both backtrack destinations were
+exactly 10 units; measured retreats were 11.10 and 6.77 units. The refined map retained cells
+`(8882, 4504)` and `(8884, 4506)`, cleared the tree, and retained all 51 trail points and 56
+events with no omissions or drops. The owner accepted both pullbacks as tight enough. The route
+passed 0.41 units from its goal but settled 5.52 units away, so its terminal
+`arrival_not_settled` is retained as a separate five-unit-radius boundary miss.
+
+Current active todo: exercise production persistence and refinement as a cold/warm dense-terrain
+pair. Use an isolated empty learned map for the first approach, preserve its schema-2 output,
+restart the listener from that file, return to the same starting side, and repeat the same
+destination. Compare first-click route, contacts, backtracks, replans, learned cells, path grain
+and completion. Then proceed to bounded PvE and the remaining overlay cost/scene checks. PR #27
+stays draft and unmerged.
+
+The dense-terrain cold/restart/warm pair is accepted. At LT 85984.69 / LG 71111.93 in Ashfell
+Plain, the measured south corridor contained object-density cost in all eight center cells and 23
+cells across its three-cell width. The cold production-listener pass to LT 85985 / LG 70972 used
+an isolated empty learned map, made ten clicks, recovered from one stall with one 10-unit
+backtrack, replanned twice and arrived 3.047 units from the goal. Session
+`2107490049288739348` retained all 60 trail points and 37 events.
+
+The cold pass wrote schema 2 parent `(4298, 3554)` and refined cell `(8597, 7109)`. The listener
+was recreated from the saved file and verified its hash
+`d4f86ccdc32e5d289a66d2a902459b03c612bfc4db208363ce007d9f4ea35ddd`. From the same starting
+side, the identical warm route used five clicks with zero stalls, zero backtracks and zero
+pathfinding replans, arriving 3.155 units from the goal. The learned-map hash remained unchanged.
+Session `8352064271430055971` retained all 39 trail points and 16 events. Neither capture omitted
+trail/events or reported producer drops. The warm global plan conservatively avoided the learned
+20-unit parent through `(85970, 70990)` while retaining its precise 10-unit child in schema 2; the
+owner accepted this behavior.
+
+The isolated helpers were retired. The normal listener 1704, recorder 8688 and panel 7900 are
+restored against unchanged client PID 1940 and source `7e719d6`. Current active todo: bounded
+`/pve` approach, real stall/replan, camp return and cancellation, followed by overlay cost/scene
+checks and PR #27 integration. PR #27 remains draft and unmerged.

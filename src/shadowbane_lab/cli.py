@@ -292,19 +292,6 @@ _DOMAIN_EXPORTS = {
         "_capture_character_snapshot",
         "_snapshot_payload",
     ),
-    _manager_commands: (
-        "_inspect_manager",
-        "_manager_path_status",
-        "_preflight_manager",
-        "_configure_manager_slots",
-        "_configure_manager_build",
-        "_provision_manager_runtimes",
-        "_write_manager_pid_file",
-        "_remove_manager_pid_file",
-        "_run_manager_app",
-        "_run_manager_worker",
-        "_ExactWorkerEngineExecutor",
-    ),
     _client_inspection_commands: (
         "_inspect_client",
         "_print_snapshot",
@@ -403,16 +390,16 @@ _scan_character_text = _domain_facade(_character_commands, "_scan_character_text
 _scan_character_pointer = _domain_facade(_character_commands, "_scan_character_pointer")
 _capture_character_snapshot = _domain_facade(_character_commands, "_capture_character_snapshot")
 _snapshot_payload = _domain_facade(_character_commands, "_snapshot_payload")
-_inspect_manager = _domain_facade(_manager_commands, "_inspect_manager")
-_manager_path_status = _domain_facade(_manager_commands, "_manager_path_status")
-_preflight_manager = _domain_facade(_manager_commands, "_preflight_manager")
-_configure_manager_slots = _domain_facade(_manager_commands, "_configure_manager_slots")
-_configure_manager_build = _domain_facade(_manager_commands, "_configure_manager_build")
-_provision_manager_runtimes = _domain_facade(_manager_commands, "_provision_manager_runtimes")
-_write_manager_pid_file = _domain_facade(_manager_commands, "_write_manager_pid_file")
-_remove_manager_pid_file = _domain_facade(_manager_commands, "_remove_manager_pid_file")
-_run_manager_app = _domain_facade(_manager_commands, "_run_manager_app")
-_run_manager_worker = _domain_facade(_manager_commands, "_run_manager_worker")
+_inspect_manager = _manager_commands._inspect_manager
+_manager_path_status = _manager_commands._manager_path_status
+_preflight_manager = _manager_commands._preflight_manager
+_configure_manager_slots = _manager_commands._configure_manager_slots
+_configure_manager_build = _manager_commands._configure_manager_build
+_provision_manager_runtimes = _manager_commands._provision_manager_runtimes
+_write_manager_pid_file = _manager_commands._write_manager_pid_file
+_remove_manager_pid_file = _manager_commands._remove_manager_pid_file
+_run_manager_app = _manager_commands._run_manager_app
+_run_manager_worker = _manager_commands._run_manager_worker
 _ExactWorkerEngineExecutor = _manager_commands._ExactWorkerEngineExecutor
 _inspect_client = _domain_facade(_client_inspection_commands, "_inspect_client")
 _print_snapshot = _domain_facade(_client_inspection_commands, "_print_snapshot")
@@ -594,6 +581,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             worker_state_directory=arguments.worker_state_directory,
             client_id=arguments.client_id,
             instance_id=arguments.instance_id,
+            worker_id=arguments.worker_id,
             game_process_id=arguments.game_process_id,
             game_process_started_at_100ns=arguments.game_process_started_at_100ns,
             game_window_handle=arguments.game_window_handle,

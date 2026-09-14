@@ -21,6 +21,11 @@ from shadowbane_lab.pve.approach import (
     PvEApproachStatus,
     PvEApproachUpdate,
 )
+from shadowbane_lab.pve.authority_snapshot import (
+    NativeGroupSource,
+    build_native_party_authority_snapshot,
+    native_party_identity_signature,
+)
 from shadowbane_lab.pve.controller import PvEController as _BasePvEController
 from shadowbane_lab.pve.model import PvEObservation
 from shadowbane_lab.pve.runtime import (
@@ -79,6 +84,8 @@ class NativePvEObservationSource:
         player_action_reader: PlayerActionSource | None = None,
         target_identity_reader: TargetIdentitySource | None = None,
         population_reader: CharacterPopulationSource | None = None,
+        group_reader: NativeGroupSource | None = None,
+        party_group_id: str | None = None,
     ) -> None:
         if not isinstance(health_reader, TargetHealthSource):
             raise ValueError("health_reader must implement TargetHealthSource")
@@ -112,6 +119,20 @@ class NativePvEObservationSource:
             population_reader, CharacterPopulationSource
         ):
             raise ValueError("population_reader must implement CharacterPopulationSource")
+        if group_reader is not None:
+            if not isinstance(group_reader, NativeGroupSource):
+                raise ValueError("group_reader must implement NativeGroupSource")
+            if not isinstance(party_group_id, str) or not party_group_id.strip():
+                raise ValueError("group_reader requires a non-empty party_group_id")
+            ids = tuple(
+                self._process_id(r) for r in (health_reader, population_reader, group_reader)
+            )
+            if any(value is None for value in ids) or len(set(ids)) != 1:
+                raise ValueError(
+                    "party authority requires same-process health, population and group"
+                )
+        elif party_group_id is not None:
+            raise ValueError("party_group_id requires group_reader")
 
         process_ids = {
             process_id
@@ -139,6 +160,10 @@ class NativePvEObservationSource:
         self._player_action_reader = player_action_reader
         self._target_identity_reader = target_identity_reader
         self._population_reader = population_reader
+        self._group_reader = group_reader
+        self._party_group_id = party_group_id
+        self._authority_revision = 0
+        self._authority_process_id = self._process_id(group_reader)
         self._combat_log_reader = combat_log_reader
         self._parser = NativeCombatEventParser()
         self._selection_boundary_enabled = self._process_id(health_reader) is not None
@@ -164,6 +189,7 @@ class NativePvEObservationSource:
             raise ValueError("player_action_active must be boolean")
 
         target = self._health_reader.observe()
+        group_before = None if self._group_reader is None else self._group_reader.observe()
         population = (
             None if self._population_reader is None else self._population_reader.observe()
         )
@@ -190,6 +216,26 @@ class NativePvEObservationSource:
         )
         player = self._player_vitals_reader.observe()
 
+        authority_snapshot = None
+        if self._group_reader is not None:
+            group_after = self._group_reader.observe()
+            assert group_before is not None
+            if native_party_identity_signature(group_before) != native_party_identity_signature(
+                group_after
+            ):
+                raise PvEObservationCoherenceError("party roster changed during native PvE frame")
+            if any(
+                self._process_id(reader) != self._authority_process_id
+                for reader in (self._health_reader, self._population_reader, self._group_reader)
+            ):
+                raise PvEObservationCoherenceError("party authority process changed during frame")
+            assert population is not None
+            assert self._party_group_id is not None
+            authority_snapshot = build_native_party_authority_snapshot(
+                population, group_after, revision=self._authority_revision + 1,
+                party_group_id=self._party_group_id,
+            )
+
         if self._selection_boundary_enabled:
             boundary = self._health_reader.observe()
             if not self._same_selection(target, boundary):
@@ -214,6 +260,7 @@ class NativePvEObservationSource:
                 player_action=player_action,
                 target_identity=target_identity,
                 population=population,
+                authority_snapshot=authority_snapshot,
             )
         except ValueError as exc:
             message = str(exc)
@@ -225,6 +272,8 @@ class NativePvEObservationSource:
             self._parser.parse(entry)
             for entry in self._combat_log_reader.read_new_entries()
         )
+        if authority_snapshot is not None:
+            self._authority_revision = authority_snapshot.revision
         if not events:
             return observation
         return replace(observation, combat_events=events)
@@ -302,8 +351,11 @@ class _ObservationFrameBridge:
         self._source = source
         self._controller = controller
         self._frame: PvEObservation | None = None
+        self._completed_frame: PvEObservation | None = None
 
     def begin_frame(self) -> PvEObservation:
+        self._frame = None
+        self._completed_frame = None
         self._frame = self._source.observe(
             now_ms=0,
             target_action_active=self._controller.target_action_observation_active,
@@ -319,6 +371,7 @@ class _ObservationFrameBridge:
     def take_combat_entries(self) -> tuple[NativeCombatLogEntry, ...]:
         frame = self.require_frame()
         self._frame = None
+        self._completed_frame = frame
         return tuple(
             NativeCombatLogEntry(
                 sequence=event.sequence,
@@ -327,6 +380,17 @@ class _ObservationFrameBridge:
             )
             for event in frame.combat_events
         )
+
+    def complete_observation(self, **values) -> PvEObservation:
+        frame = self._completed_frame
+        self._completed_frame = None
+        if frame is None:
+            raise PvEObservationCoherenceError("no completed native frame for observation")
+        assembled = PvEObservation(**values)
+        expected = replace(frame, now_ms=assembled.now_ms, authority_snapshot=None)
+        if assembled != expected:
+            raise PvEObservationCoherenceError("runtime channels disagree with completed frame")
+        return replace(frame, now_ms=assembled.now_ms)
 
 
 class _FrameTargetHealthSource:
@@ -544,6 +608,8 @@ class PvERunner(_BasePvERunner):
         player_action_reader: PlayerActionSource | None = None,
         target_identity_reader: TargetIdentitySource | None = None,
         population_reader: CharacterPopulationSource | None = None,
+        group_reader: NativeGroupSource | None = None,
+        party_group_id: str | None = None,
         combat_log_reader: CombatLogSource,
         dispatcher: PvEIntentDispatcher,
         approach_controller: PvEApproachController | None = None,
@@ -567,9 +633,12 @@ class PvERunner(_BasePvERunner):
             player_action_reader=player_action_reader,
             target_identity_reader=target_identity_reader,
             population_reader=population_reader,
+            group_reader=group_reader,
+            party_group_id=party_group_id,
             combat_log_reader=combat_log_reader,
         )
         bridge = _ObservationFrameBridge(source, controller)
+        self._frame_bridge = bridge
         guarded_controller = _FailClosedController(controller)
         guarded_approach = (
             None
@@ -629,3 +698,6 @@ class PvERunner(_BasePvERunner):
     @property
     def observation_source(self) -> NativePvEObservationSource:
         return self._native_observation_source
+
+    def _build_observation(self, **values) -> PvEObservation:
+        return self._frame_bridge.complete_observation(**values)

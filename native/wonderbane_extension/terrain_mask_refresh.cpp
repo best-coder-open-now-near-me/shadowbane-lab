@@ -119,6 +119,31 @@ void StopTerrainMaskRefresh() noexcept {
 #endif
 }
 
+bool NormalizeOwnedTerrainMaskRefreshCode(std::uintptr_t image, std::uint32_t text_rva,
+    std::span<std::uint8_t> code, std::span<const std::uint8_t> disk) noexcept {
+#if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    (void)image; (void)text_rva; (void)code; (void)disk; return true;
+#else
+    RepairLock lock;
+    if (g_repair_state.load() != RepairState::active) { return true; }
+    if (code.size() != disk.size()) { return false; }
+    for (std::size_t i = 0; i < g_owned.size(); ++i) {
+        const auto& patch = terrain_mask_review::kPatches[i];
+        const auto& owned = g_owned[i];
+        if (patch.rva < text_rva || patch.rva - text_rva >= code.size()
+            || !owned.owned || owned.protection_pending || owned.flush_pending
+            || reinterpret_cast<std::uintptr_t>(owned.address) != image + patch.rva
+            || owned.original != patch.original || owned.replacement != patch.replacement
+            || disk[patch.rva - text_rva] != patch.original
+            || code[patch.rva - text_rva] != patch.replacement) { return false; }
+    }
+    for (const auto& patch : terrain_mask_review::kPatches) {
+        code[patch.rva - text_rva] = patch.original;
+    }
+    return true;
+#endif
+}
+
 const char* TerrainMaskRefreshStatusJson() noexcept {
     switch (g_repair_state.load()) {
     case RepairState::active:

@@ -4,11 +4,124 @@ Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
 
+## Current delivery status â€” September 12
+
+Active priority: [PvE/PvP attack-list delivery](pve-pvp-attack-list-plan.md).
+Blacklist means attack list, populated by commands or attributed responses.
+
+| State | Source and evidence | Scope |
+| --- | --- | --- |
+| Installed diagnostic, capture armed | Product 1.8.1 / wheel 0.3.1, `6e1485b`; [package, hashes and review](handoffs/targeted-action-diagnostic-1.8.1.md) | Original targeted-action key capture and current identity/attack-list command work. All package checks and seven CI jobs passed; no automatic retaliation. Next: supervised hit/miss calibration. |
+| Prior accepted client; old client copy retired | Product 1.7.8 / wheel 0.2.8, `97612e6`; [receipt and acceptance](handoffs/combined-candidate-1.7.8.md) | Movement/controller/chat baseline; focused user acceptance passed. Physical disconnect/reconnect remains unconfirmed. |
+| Verified package, not installed | Product 1.8.0 / wheel 0.3.0, `433dc81`; [package handoff](handoffs/combined-candidate-1.8.0.md) | Movement/camera/cancel remapping; package checks, seven CI jobs and independent source review passed. No live remapping acceptance. |
+| Included in 1.8.1 diagnostic package | Selected identity changes through `8552552` (cherry-picked; includes `ab8f440`) | Exact character keys, player/NPC classification, coherent party observations and positive pet ownership. No completed combat activation. |
+| In development | [Door interaction](handoffs/door-interaction.md) | Character-forward ranking and collection/collision dependencies only; native selection/cue/Interact unfinished. |
+| Deferred | Particles/native transparency | Unfinished and outside current combat scope. The visible character highlight was accepted as a baseline; ideal glow/material coverage remains separate. |
+
+Package validation, source review and live acceptance are distinct. No full visual
+bundle or PvP completion is claimed. The integration branch remains
+`codex/native-lifecycle-hardening`; main remains unchanged. No new installation
+is implied by later source commits. Reuse accepted navigation and movement evidence.
+
+## Vendor overlay — September 14
+
+`codex/vendor-rolling` (worktree `.worktrees/vendor-rolling`) contains vendor
+source through `6093942` and a merge of this integration owner's
+`542c632`. Review the overlay against `codex/native-lifecycle-hardening`;
+the eventual shared destination remains `main`. No vendor deployment or
+automatic dispatch is included. Queue/recipe observation and conservative affix
+filtering are implemented; Keep/inventory qualification, typed vendor dispatch,
+and bounded rolling jobs remain. See [vendor status and validation](vendor-rolling.md).
+Native build passed, with two existing transparency diagnostics still failing.
+The root checkout and other task worktrees are unchanged.
+
+## Historical candidate notes
+
+The entries below are historical snapshots, not current installation instructions.
+1.7.7 keyboard acceptance and controller detection findings were superseded by the
+1.7.8 installed baseline above. Retained candidate handoffs preserve their evidence.
+Earlier September 11 movement follow-up: installed diagnostic package 1.7.4 identified
+manual latching after native update gaps. Repair candidate 1.7.5 / wheel 0.2.5
+is built from `29ef530`, independently source-reviewed and locally package-verified;
+CI and connected acceptance status are tracked in
+[the 1.7.5 handoff](handoffs/combined-candidate-1.7.5.md). The existing integration
+branch remains the destination; main and the running diagnostic client are unchanged.
+
+Current September 6 candidate: `04b7bdb` (native 1.7.3 / wheel 0.2.3) passed
+all package/CI checks and independent focused review, and was installed with
+owner approval. It addresses the live terrain/movement conflict found in 1.7.2.
+See [the 1.7.3 handoff](handoffs/combined-candidate-1.7.3.md) for exact identities
+and pending in-world movement checks. Main remains unchanged.
+
+September 6 movement repair: exact package source `a98a6b3` (native 1.7.2 / wheel
+0.2.2) completes local package checks and independent source review. See
+[the current movement repair candidate](handoffs/combined-candidate-1.7.2.md)
+for exact hashes, CI status and the targeted connected check. VM deployment is
+not implied. Particles remain paused; newer PvP identity work is outside this package.
+
+Later September 6 update: the owner requires a visible selection effect. Native
+1.7.1 / wheel 0.2.1 is verified from `becc58fdb4b1ae51fa6c82617c42dceea41a9e94`, including cue
+source `2a9997316f0a11739e439d6aef71320ae020f790`. The earlier 1.7.0
+receipt below remains historical; it does not certify this change. Particles
+remain unavailable pending correct transparency; they do not block the cue update.
+See [the verified visible-selection candidate](handoffs/combined-candidate-1.7.1.md)
+for exact artifacts, executed gates and the coordinated acceptance update.
+
+September 6 verified candidate: native 1.7.0 / wheel 0.2.0, exact build source
+`89c3b1ecb7087c8da3d1de697b6dfb507682a8f8`. Package, installed controls and
+all final CI jobs verified; connected acceptance remains pending in the existing
+Sol testing task. World glow/particles are explicitly suppressed per owner scope.
+See [the exact candidate and single acceptance procedure](handoffs/combined-candidate-1.7.0.md).
+Later evidence-only commits are not the packaged source.
+
+
+Use `codex/native-lifecycle-hardening` for this batch's combined source and review;
+its separate checkout is `.worktrees/native-lifecycle-hardening`. Exact common
+base: `14d117e8c5194c6dff55dac608b2d3f683187d31`. The normal checkout remains
+`main`; do not reset or switch another developer's checkout. This does not
+supersede historical source/retirement records below or authorize main merge or VM deployment.
+
+The four feature source branches target this integration owner:
+`codex/particles-trails`, `codex/selected-character-cue`, `codex/sky-horizon`, and
+`codex/native-movement-controls`. GitHub metadata rechecked September 5: all
+four PRs (28-31) are merged checkpoints targeting `codex/native-lifecycle-hardening`,
+not open reviews of newer work. PR28 records merge `4e908b4`; PR29 records
+`5519a8e`. Later source deltas are integrated separately; exact inclusion and
+validation are recorded in the active handoff. A merged PR does not certify
+complete feature delivery, package identity or owner acceptance.
+Useful dependencies are merged during development. Features enter rolling owner
+candidates only when complete; newer movement work must not indefinitely delay
+completed older features. Shared scene/context/startup and manager ownership
+remain with the integration owner.
+
+See [the active source and validation handoff](handoffs/native-lifecycle-hardening.md)
+for exact included revisions, committed repairs and outstanding gates. The September 6 owner scope prioritizes artifact avoidance: world glow and
+particles/trails are conservatively suppressed, with explicit controls/status.
+Ideal native transparency remains deferred diagnostic evidence; required runtime
+fallback tests must execute and pass. See the updated shared acceptance plan. Movement now registers one native update/input runtime after shared startup,
+defaults disabled, and composes native stop, camera, steering, terrain-pick and
+drag with exact lifetime and HWND safety handling. Native preferences and the selected-client
+Graphics Lab settings entry are included. Manager operations now use immutable native
+grants, renewal and exact cleanup. Standalone live travel/PvE now use the same
+native authority, with no minimap movement fallback. No connected capability is certified. The exact verified wheel/DLL candidate identity is recorded in the September 6
+handoff above; no connected acceptance or deployment is claimed. Preserve all active branches/worktrees; retirement
+requires verified inclusion and applicable approval.
+
 ## Current handoffs and terrain follow-up
 
-The [navigation inspector handoff](handoffs/navigation-inspector.md) is the next
-movement-diagnostics slice for the developer and owner. It uses this integration
-review source while terrain delivery is reconciled separately.
+The navigation inspector is implemented on codex/navigation-inspector in
+[draft PR #27](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/27),
+targeting codex/integrate-current-development. Use that feature branch for inspector
+review and the integration branch for independent development. The inspector's
+publisher, native overlay, controls and saved evidence are outside the shared
+integration branch until PR #27 is accepted. See the [usage and validation record](navigation-inspector.md)
+and [developer/owner live handoff](handoffs/navigation-inspector.md). This inspector
+package excludes the separate terrain material repair. The normal checkout is
+clean on main; the inspector worktree is retained for live acceptance and review.
+
+Branch/worktree counts in the retirement section below are the cleanup snapshot.
+The active inspector adds one branch and one worktree; it is not an obsolete
+checkout to retire before acceptance.
 
 A later September 4 fetch found convergence at `031de7e` and the new terrain
 repair branch at `9287c9a` ([PR #26](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/26)).
@@ -128,3 +241,10 @@ to `codex/graphics-diagnostics-client` was removed without changing either tip.
 After merging the consolidated PR, fast-forward the main checkout, update this
 map's shared-base section, and review the outstanding deltas above. Retire only
 branches/worktrees whose history and local files are demonstrably preserved.
+
+## September 12 PvE/PvP priority
+
+The active delivery plan is [PvE/PvP attack-list integration](pve-pvp-attack-list-plan.md).
+Blacklist means the attack list, populated manually or through attributed responses.
+The plan retains applicable review follow-ups without making broad cleanup or unfinished
+visual/door features prerequisites. Identity changes through 8552552 are integrated; attack-list storage and chat editing are integrated. Durable player identity and command completion are active; response attribution and combat transitions remain pending.

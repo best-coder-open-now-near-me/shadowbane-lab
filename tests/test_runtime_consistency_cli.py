@@ -119,6 +119,14 @@ class RuntimeConsistencyCliTests(unittest.TestCase):
                     "shadowbane_lab.runtime_consistency.__main__.inspect_produced_deployment",
                     return_value=produced,
                 ),
+                # Keep the real child processes, but make this pipeline test's
+                # measured durations match its synthetic 100 ms baseline.
+                # Performance regression policy is tested with explicit samples.
+                patch(
+                    "shadowbane_lab.runtime_consistency.runner.time.perf_counter_ns",
+                    side_effect=[0, 100_000_000, 100_000_000, 200_000_000,
+                                 200_000_000, 300_000_000],
+                ),
                 redirect_stdout(output),
             ):
                 result = main(
@@ -141,6 +149,10 @@ class RuntimeConsistencyCliTests(unittest.TestCase):
 
         self.assertEqual(0, result)
         self.assertEqual(3, len(capture.observations))
+        self.assertTrue(all(
+            dict(item.metrics)["pipeline.wall_duration_ms"] == 100.0
+            for item in capture.observations
+        ))
         self.assertEqual("pass", report.status.value)
         self.assertTrue(json.loads(output.getvalue())["ok"])
 

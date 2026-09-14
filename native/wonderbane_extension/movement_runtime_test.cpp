@@ -1,0 +1,682 @@
+// Reuse the native backend's real call composition fixture. Native functions
+// are controlled test callees; Runtime, Controls, HWND capture and cancellation
+// execute production implementations, without opening a game process.
+#define main NativeBackendRegressionMain
+#include "movement_native_stop_test.cpp"
+#undef main
+#include "movement_runtime.cpp"
+#include <string>
+namespace wm = wonderbane::extension::movement;
+namespace {
+wm::NativeScene observed{}, parent_from{};
+bool alive = true, ui_blocked = false, text_blocked = false, device_connected = true;
+HWND focused = nullptr, bound_window = nullptr;
+std::array<SHORT, 256> physical_keys{};
+POINT pointer{0, 0}; XINPUT_GAMEPAD gamepad{};
+std::uint64_t clock_tick = 0;
+char interrupt_phase = 0;
+std::vector<char> native_order;
+int retired_updates = 0, original_keys = 0;
+DWORD startup_result = ERROR_SUCCESS;
+HWND WINAPI Focus() { return focused; }
+SHORT WINAPI PhysicalKey(int key) { return physical_keys[static_cast<std::size_t>(key)]; }
+BOOL WINAPI Cursor(LPPOINT out) { *out = pointer; return ClientToScreen(bound_window, out); }
+ULONGLONG WINAPI Clock() { clock_tick += 16; return clock_tick; }
+DWORD WINAPI Controller(DWORD, XINPUT_STATE* out) noexcept {
+    out->Gamepad = gamepad; return device_connected ? ERROR_SUCCESS : ERROR_DEVICE_NOT_CONNECTED;
+}
+DWORD WINAPI Capabilities(DWORD, DWORD, XINPUT_CAPABILITIES* out) noexcept {
+    out->Type = XINPUT_DEVTYPE_GAMEPAD; out->SubType = XINPUT_DEVSUBTYPE_GAMEPAD;
+    return device_connected ? ERROR_SUCCESS : ERROR_DEVICE_NOT_CONNECTED;
+}
+void __cdecl OriginalKey(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t) { ++original_keys; }
+bool Ui(void*, POINT, wm::NativeUiState& out) noexcept {
+    out.available = true; out.global_owned = ui_blocked;
+    out.keyboard_owned = out.pointer_owned = ui_blocked || text_blocked; return true;
+}
+void Interrupt(char phase) {
+    native_order.push_back(phase);
+    if (phase == interrupt_phase) {
+        interrupt_phase = 0;
+        SendMessageW(bound_window, WM_KILLFOCUS, 0, 0);
+    }
+}
+}
+namespace wonderbane::extension {
+std::vector<MovementInputRecord> input_diagnostics;
+bool MovementInputTraceEnabled() noexcept { return true; }
+void PublishMovementInputTrace(const MovementInputRecord& value) noexcept { input_diagnostics.push_back(value); }
+DWORD StartNativeMovementUpdates(const ProcessIdentity&, NativeMovementUpdate) noexcept { return startup_result; }
+void StopNativeMovementUpdates() noexcept { ++retired_updates; }
+namespace movement {
+bool NativeMovementLifetimeCurrent(const NativeScene& scene) noexcept {
+    return alive && scene.epoch && scene.epoch == observed.epoch && scene.actor == observed.actor
+        && scene.world == observed.world && scene.window == observed.window && scene.parent == observed.parent;
+}
+bool NativeMovementParentTransition(const NativeScene& before, const NativeScene& next) noexcept {
+    return alive && before.epoch && before.epoch == parent_from.epoch
+        && before.actor == next.actor && before.world == next.world && before.window == next.window
+        && before.identity == next.identity && before.parent != next.parent && next.epoch == observed.epoch;
+}
+bool ObserveNativeMovementLifetime(void* window, NativeScene& scene) noexcept {
+    scene = observed; return alive && reinterpret_cast<std::uintptr_t>(window) == observed.window;
+}
+bool StartNativeMovementLifetime(HWND) noexcept { return true; }
+void RetireNativeMovementLifetime() noexcept { alive = false; }
+struct NativeUiTestAccess { static void Bind(NativeUi& ui) { ui.bound_ = true; } };
+struct WindowsInputTestAccess {
+    static bool Bind(WindowsInput& input, HWND window, std::uint32_t* slot) {
+        input.platform_ = {&Focus, &PhysicalKey, &Cursor, &Controller, &Capabilities};
+        input.callbacks_.ui = &Ui;
+        return input.BindVerified(window, slot, &OriginalKey);
+    }
+};
+}
+}
+int main(int argc, char** argv) {
+    const std::string mode = argc > 1 ? argv[1] : "keyboard";
+    Fixture f(mode == "keyboard-cold-start" || mode == "keyboard-reversal" || mode == "manual-update-gap"); auto& rt = wm::runtime;
+    if (mode == "startup-hook-failure" || mode == "startup-hook-failure-ipc") {
+        FILETIME created{}, exited{}, kernel{}, user{};
+        GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user);
+        const wonderbane::extension::ProcessIdentity identity{GetCurrentProcessId(),
+            (std::uint64_t{created.dwHighDateTime} << 32) | created.dwLowDateTime};
+        Check(wonderbane::extension::StartClientActionCommandChannel(identity) == ERROR_SUCCESS, "startup failure channel available");
+        startup_result = ERROR_NOT_SUPPORTED;
+        Check(wm::StartNativeMovementControls(identity) == ERROR_NOT_SUPPORTED, "hook failure retained");
+        const auto& status = wonderbane::extension::command_channel_detail::g_runtime.storage->movement_status;
+        Check(status.sequence > 0 && !(status.sequence & 1) && status.process == identity.process_id
+            && status.creation == identity.creation_filetime_utc && status.window == 0
+            && status.flags == wm::wire::terminal && status.revision == 1,
+            "hook failure publishes readable exact-client terminal status without window or readiness");
+        if (mode == "startup-hook-failure-ipc") {
+            std::printf("%lu %llu %llu\n", static_cast<unsigned long>(identity.process_id),
+                static_cast<unsigned long long>(identity.creation_filetime_utc),
+                static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(f.window)));
+            std::fflush(stdout); (void)std::getchar();
+        }
+        wonderbane::extension::StopClientActionCommandChannel();return failures ? 1 : 0;
+    }
+    if (mode == "startup-unavailable") {
+        rt.process = {GetCurrentProcessId(), 42}; rt.Update(f.game_window.data());
+        wm::RuntimeSnapshot snapshot{};
+        Check(rt.terminal && !rt.initialized && retired_updates == 1 && wm::ReadNativeMovementControls(snapshot)
+            && snapshot.terminal && !snapshot.bindings_available,
+            "unsupported startup retires consumer and publishes unavailable without a guessed HWND");
+        return failures ? 1 : 0;
+    }
+    f.runtime_composition = f.basis_mode = true;
+    f.on_native = &Interrupt; focused = bound_window = f.window;
+    rt.window = f.window; rt.thread = GetCurrentThreadId(); rt.initialized = true; rt.clock = &Clock;
+    rt.process = {GetCurrentProcessId(), 42}; rt.settings.enabled = rt.settings.controller = true;
+    wm::NativeStopTestAccess::Bind(rt.native, f.base, f.window); rt.native.EndUpdate();
+    wm::NativeUiTestAccess::Bind(rt.ui);
+    observed = {reinterpret_cast<std::uintptr_t>(f.actor.data()), 0,
+        reinterpret_cast<std::uintptr_t>(f.world.data()), reinterpret_cast<std::uintptr_t>(f.game_window.data()), {17, 31}, 1};
+    std::uint32_t slot = reinterpret_cast<std::uint32_t>(&OriginalKey);
+    Check(wm::WindowsInputTestAccess::Bind(rt.input, f.window, &slot), "consumer input hook installed");
+    Check(rt.controls.Configure(rt.settings) == wm::Result::accepted && rt.input.Configure(rt.settings), "consumer settings configured");
+    const auto step = [&] { rt.Update(f.game_window.data()); };
+    step(); step();
+    if (mode == "ipc" || mode == "ipc-profile") {
+        FILETIME created{}, exited{}, kernel{}, user{};
+        Check(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) != FALSE, "IPC client lifetime");
+        rt.process = {GetCurrentProcessId(), (static_cast<std::uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime};
+        rt.clock = &GetTickCount64;
+        rt.settings.enabled = false;
+        Check(rt.controls.Configure(rt.settings) == wm::Result::accepted && rt.input.Configure(rt.settings),
+            "manual disabled retains native automation readiness");
+        Check(wonderbane::extension::StartClientActionCommandChannel(rt.process) == ERROR_SUCCESS, "IPC production channel");
+        step(); step(); rt.Publish();
+        std::printf("%lu %llu %llu\n", static_cast<unsigned long>(rt.process.process_id),
+            static_cast<unsigned long long>(rt.process.creation_filetime_utc),
+            static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(f.window))); std::fflush(stdout);
+        const auto expected_receipts = mode == "ipc-profile" ? 4 : 6;
+        const auto until = GetTickCount64() + 10000;
+        auto* storage = wonderbane::extension::command_channel_detail::g_runtime.storage;
+        while (GetTickCount64() < until && InterlockedCompareExchange64(&storage->header.result_read_sequence, 0, 0) < expected_receipts) {
+            step(); Sleep(5);
+        }
+        Check(storage->header.result_read_sequence == expected_receipts, "Python consumed correlated native receipts");
+        wonderbane::extension::StopClientActionCommandChannel(); rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "commands") {
+        auto lease = std::make_shared<wm::CommandLease>();
+        lease->process = OpenProcess(SYNCHRONIZE, FALSE, GetCurrentProcessId());
+        lease->host = {GetCurrentProcessId(), 9, 42};
+        bool lease_current = true; lease->context = &lease_current;
+        lease->validate = [](void* context, const wm::wire::Host&, std::uint64_t) noexcept { return *static_cast<bool*>(context); };
+        const auto make = [&](wm::wire::Verb verb, wm::Grant expected, unsigned char key) {
+            auto command = std::make_shared<wm::QueuedCommand>(); command->id = key; command->sequence = key;
+            command->deadline = 100000; command->verb = verb; command->lease = lease;
+            command->command.host = lease->host; command->command.window = reinterpret_cast<std::uintptr_t>(f.window);
+            command->command.expected = wm::wire::Encode(expected); command->command.request[0] = key;
+            command->command.settings = wm::wire::Encode(rt.settings); command->command.revision = rt.revision;
+            if (verb == wm::wire::Verb::acquire) {
+                std::memcpy(command->command.requested.worker, "worker", 6);
+                std::memcpy(command->command.requested.operation, "route", 5);
+            }
+            return command;
+        };
+        const auto run = [&](const std::shared_ptr<wm::QueuedCommand>& command) {
+            Check(wm::QueueMovementCommand(command), "command admitted once"); step();
+            Check(command->state.load() == 2, "owning update publishes receipt"); wm::ReleaseMovementCommand(command);
+        };
+        const auto original = rt.controls.Current(); auto acquire = make(wm::wire::Verb::acquire, original, 1);
+        run(acquire); const auto owned = rt.controls.Current();
+        Check(acquire->receipt.outcome == 0 && owned.owner == wm::Owner::automation, "queued acquire obtains native owner");
+        auto retry = make(wm::wire::Verb::acquire, original, 1); run(retry);
+        Check(retry->receipt.outcome == 0 && rt.controls.Current() == owned
+            && std::memcmp(&retry->receipt, &acquire->receipt, sizeof(retry->receipt)) == 0,
+            "ambiguous retry returns original immutable receipt without reacquisition");
+        auto moving = make(wm::wire::Verb::destination, owned, 5); moving->command.destination = {30, 0, -40}; run(moving);
+        Check(moving->receipt.outcome == 0 && f.destination.x == 130 && f.destination.z == -240,
+            "queued world move uses terrain hit transformed by native parent helper");
+        auto pause = make(wm::wire::Verb::pause, owned, 6); run(pause);
+        Check(pause->receipt.outcome == 0 && rt.controls.Current() == owned && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "pause cancels native movement while retaining operation grant");
+        auto resumed = make(wm::wire::Verb::destination, owned, 7); resumed->command.destination = {31, 0, -41}; run(resumed);
+        Check(resumed->receipt.outcome == 0 && rt.controls.Current() == owned, "next PvE approach uses same immutable grant");
+        auto delayed = make(wm::wire::Verb::stop, owned, 2);
+        physical_keys['W'] = static_cast<SHORT>(0x8000); run(delayed);
+        const auto manual = rt.controls.Current();
+        Check(delayed->receipt.outcome == static_cast<unsigned>(wm::Result::stale)
+            && manual.owner == wm::Owner::manual, "manual Tick precedes delayed automation stop");
+        lease_current = false; step(); Check(rt.controls.Current() == manual, "obsolete lease loss cannot stop manual owner");
+        physical_keys.fill(0); step(); lease_current = true;
+        auto expired = make(wm::wire::Verb::acquire, rt.controls.Current(), 3); expired->deadline = 1; run(expired);
+        Check(expired->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "expired command never reacquires");
+        auto replacement = make(wm::wire::Verb::acquire, rt.controls.Current(), 4); run(replacement);
+        Check(replacement->receipt.outcome == 0, "explicit new request resumes automation");
+        lease_current = false; step(); Check(rt.controls.Current().owner == wm::Owner::none, "current lease loss cancels its exact owner");
+        lease_current = true;
+        std::shared_ptr<wm::QueuedCommand> latest;
+        for (unsigned n = 0; n < 150; ++n) {
+            auto next = make(wm::wire::Verb::acquire, rt.controls.Current(), static_cast<unsigned char>(n + 10));
+            next->command.request[1] = 1; run(next); latest = next;
+            Check(next->receipt.outcome == 0 && rt.acquisitions.size() <= rt.acquisition_capacity,
+                "long operation sequence keeps bounded receipts");
+        }
+        auto latest_retry = make(wm::wire::Verb::acquire, {}, 200); latest_retry->command = latest->command; run(latest_retry);
+        Check(latest_retry->receipt.outcome == 0 && std::memcmp(&latest_retry->receipt, &latest->receipt, sizeof(latest->receipt)) == 0,
+            "latest ambiguous acquisition survives journal retirement");
+        auto old_retry = make(wm::wire::Verb::acquire, original, 1); run(old_retry);
+        Check(old_retry->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "evicted acquisition cannot mint authority");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "controller-cancel-failure" || mode == "controller-cancel-nested") {
+        gamepad.sThumbLY = 32767; step(); const auto old = rt.controls.Current();
+        const auto moves = f.moves;
+        if (mode == "controller-cancel-failure") { f.callback_mode = 9; }
+        else { interrupt_phase = 's'; }
+        gamepad.wButtons = XINPUT_GAMEPAD_B; step();
+        const auto cancelled = rt.controls.Current();
+        Check(f.moves == moves && cancelled.generation > old.generation
+            && !(rt.controls.DiagnosticState() & 2), "cancel failure never continues native movement and disarms controller");
+        if (mode == "controller-cancel-failure") {
+            Check((rt.controls.DiagnosticState() & 16) && !rt.controls.Ready()
+                && rt.controls.AuthorizesNativeStop(old), "failed cancel retains old stop responsibility and blocks readiness");
+        } else {
+            Check(cancelled.owner == Owner::none, "nested focus interruption retires cancel ownership");
+        }
+        Check(rt.controls.Stop(old) == Result::stale && rt.controls.AutomationDestination(old, {}) == Result::stale,
+            "old commands cannot act after cancel failure/interruption");
+        f.callback_mode = 0; step(); step();
+        if (mode == "controller-cancel-failure") {
+            gamepad = {}; step(); gamepad.sThumbLY = 32767; step();
+            Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+            Grant denied{};
+            Check(f.moves == moves && (rt.controls.DiagnosticState() & 16) && !rt.controls.Ready()
+                && rt.controls.AuthorizesNativeStop(old) && !rt.native.Available(),
+                "partly applied native cancel stays faulted with retained cleanup responsibility, even after neutral");
+            Check(rt.controls.AcquireAutomation(rt.controls.Current().generation, token, denied) == Result::unavailable,
+                "failed native cancel excludes a replacement automation writer");
+            Check(f.packet.references == 0, "failed cancel retains no native message references");
+            rt.input.Retire(); return failures ? 1 : 0;
+        }
+        Check(f.moves == moves && !(rt.controls.DiagnosticState() & 16)
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "retry completes native stop without resuming held cancel or movement");
+        gamepad = {}; step(); gamepad.sThumbLY = 32767; step();
+        const auto recovered = rt.controls.Current();
+        Check(f.moves == moves + 1 && recovered.owner == Owner::manual,
+            "neutral then fresh movement recovers after completed cancel cleanup");
+        Check(rt.controls.Stop(old) == Result::stale && rt.controls.Current() == recovered,
+            "old failed owner cannot cancel newly accepted movement");
+        gamepad = {}; step(); Check(f.packet.references == 0, "cancel failure paths release native message references");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "controller-profile") {
+        RuntimeSnapshot ticket{}; Check(ReadNativeMovementControls(ticket), "profile obtains exact revision ticket");
+        auto next = ticket.settings;
+        std::swap(next.controller_profile.bindings[0].control, next.controller_profile.bindings[1].control);
+        next.controller_profile.bindings[2] = {ControllerAction::cancel_movement, ControllerControl::left_trigger, 2};
+        gamepad.sThumbRX = 32767;
+        Check(ConfigureNativeMovementControls(ticket, next) == Result::accepted, "profile uses real atomic runtime configure");
+        step(); step(); Check(f.moves == 0, "profile apply with held remapped stick requires neutral");
+        gamepad = {}; step(); gamepad.sThumbRY = 32767; step();
+        Check(f.moves == 1 && rt.controls.Current().owner == Owner::manual, "remapped right stick actuates native steering");
+        const auto moving = rt.controls.Current();
+        gamepad.bLeftTrigger = 255; gamepad.wButtons = XINPUT_GAMEPAD_RIGHT_SHOULDER;
+        native_order.clear(); step();
+        Check(native_order == std::vector<char>{'s'} && rt.controls.Current().generation > moving.generation
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 5, "trigger plus shoulder invokes real native stop");
+        native_order.clear(); step(); Check(native_order.empty(), "held cancel does not repeat native actions");
+        gamepad.bLeftTrigger = 0; gamepad.wButtons = 0; step();
+        Check(f.moves == 1, "cancel release never resumes the held remapped stick");
+        gamepad = {}; step(); gamepad.sThumbRX = 32767; step();
+        device_connected = false; step();
+        Check(Get<std::uint32_t>(f.state.data(), 0x10) == 5, "disconnect stops remapped movement");
+        device_connected = true; step(); Check(!(rt.controls.DiagnosticState() & 2), "held reconnect cannot rearm remapped movement");
+        gamepad = {}; step(); gamepad.sThumbLX = 32767; const auto cameras = f.camera_calls; step();
+        Check(f.camera_calls > cameras && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "remapped left stick controls native camera without restarting movement");
+        Check(ConfigureNativeMovementControls(ticket, ticket.settings) == Result::stale,
+            "stale pre-profile ticket cannot restore old settings");
+        Check(original_keys == 0 && f.packet.references == 0, "profile actions generate no keys and release native messages");
+        gamepad = {}; step(); rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "controller-text") {
+        const auto key = [&](unsigned value, bool down) {
+            physical_keys[value] = down ? static_cast<SHORT>(0x8000) : 0;
+            reinterpret_cast<void(__cdecl*)(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t)>(slot)(value, 0, down, 0);
+        };
+        Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+        Grant route{};
+        Check(rt.native.BeginUpdate(f.game_window.data(), observed), "text route native phase");
+        Check(rt.controls.AcquireAutomation(rt.controls.Current().generation, token, route) == Result::accepted
+            && rt.controls.AutomationDestination(route, {30, 0, -40}) == Result::accepted, "route before text entry");
+        rt.native.EndUpdate();
+        text_blocked = true; step();
+        Check(rt.controls.Current().owner == Owner::none && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "text entry explicitly stops and retires automation");
+        Grant denied{};
+        Check(rt.controls.AcquireAutomation(rt.controls.Current().generation, token, denied) == Result::inhibited,
+            "text does not admit a delayed automation reacquisition");
+        gamepad.sThumbLX = 32767; gamepad.sThumbRX = 16000; step();
+        Check(rt.controls.Current().owner == Owner::manual && (rt.controls.DiagnosticState() & 2)
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 7, "controller takes native movement ownership during text");
+        const auto manual = rt.controls.Current();
+        Check(rt.controls.AutomationDestination(route, {1, 0, 1}) == Result::stale
+            && rt.controls.Stop(route, StopReason::release) == Result::stale
+            && rt.controls.Current() == manual, "obsolete automation move and stop cannot touch text controller owner");
+        const auto camera_before = f.camera_calls;
+        key('W', true); step(); key('W', false); step();
+        Check(original_keys == 2 && f.camera_calls > camera_before && rt.controls.Current() == manual,
+            "original typing remains paired while controller movement and camera continue");
+        gamepad = {}; native_order.clear(); step();
+        Check(native_order == std::vector<char>{'s'} && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "controller release in chat uses the real native stop");
+        const auto stopped = f.moves;
+        key('W', true); step();
+        Check(f.moves == stopped && !rt.controls.ConsumesKey('W'), "typed W never drives keyboard movement");
+        text_blocked = false; step();
+        Check(f.moves == stopped, "closing chat with W held cannot resume keyboard movement");
+        key('W', false); step(); key('W', true); step();
+        Check(f.moves == stopped + 1 && original_keys == 4, "neutral then fresh W recovers and suppresses native conflicting down");
+        key('W', false); step();
+        Check(original_keys == 4, "recovered movement key retains its suppressed release pair");
+        // A text transition cancels a pending drag without resetting live sticks.
+        SendMessageW(f.window, WM_XBUTTONDOWN, MAKEWPARAM(MK_XBUTTON1, XBUTTON1), MAKELPARAM(0, 0));
+        gamepad.sThumbLY = 32767; step(); text_blocked = true;
+        pointer = {20, 0}; SendMessageW(f.window, WM_MOUSEMOVE, MK_XBUTTON1, MAKELPARAM(20, 0)); step();
+        Check(GetCapture() != f.window, "text releases pending drag capture");
+        SendMessageW(f.window, WM_XBUTTONUP, MAKEWPARAM(0, XBUTTON1), MAKELPARAM(20, 0));
+        Check((rt.controls.DiagnosticState() & 2) && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
+            "held controller continues across text opening");
+        ui_blocked = true; step();
+        Check(rt.controls.Current().owner == Owner::none && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "real modal still stops controller during text");
+        ui_blocked = false; step(); step();
+        Check(!(rt.controls.DiagnosticState() & 2), "held controller cannot resume after modal closure");
+        gamepad = {}; step(); gamepad.sThumbLY = 32767; step();
+        SendMessageW(f.window, WM_KILLFOCUS, 0, 0);
+        Check(rt.controls.Current().owner == Owner::none && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "focus loss immediately stops native controller during text");
+        gamepad = {}; step(); step();
+        Check(f.packet.references == 0 && original_keys == 4, "controller and camera never synthesize original keys");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "controller-modal-rearm") {
+        gamepad.sThumbLY = 32767; step();
+        Check(rt.controls.Current().owner == Owner::manual && f.moves > 0, "controller moves before modal");
+        ui_blocked = true; step();
+        const auto moves = f.moves;
+        gamepad = {}; step(); step();
+        Check(rt.controls.Current().owner == Owner::none && f.moves == moves
+            && !(rt.controls.DiagnosticState() & 2), "neutral sticks cannot rearm while modal owns input");
+        ui_blocked = false; step(); step();
+        Check((rt.controls.DiagnosticState() & 2) && f.moves == moves,
+            "closed modal and connected neutral sample rearm controller without keyboard or mouse");
+        gamepad.sThumbLY = 32767; step();
+        Check(f.moves == moves + 1 && rt.controls.Current().owner == Owner::manual,
+            "fresh stick movement resumes after modal closure");
+        ui_blocked = true; step(); ui_blocked = false; step(); step();
+        const auto stopped = f.moves;
+        Check(!(rt.controls.DiagnosticState() & 2), "held movement stick cannot resume through modal closure");
+        gamepad.sThumbLY = 0; gamepad.sThumbRX = 32767; step();
+        Check(!(rt.controls.DiagnosticState() & 2) && f.moves == stopped,
+            "held camera stick also prevents reconnect/rearm");
+        gamepad = {}; step(); gamepad.sThumbLY = 32767; step();
+        Check(f.moves == stopped + 1, "both sticks neutral permit a fresh movement input");
+        gamepad = {}; step(); rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode.rfind("parent-", 0) == 0) {
+        const bool controller = mode == "parent-controller" || mode == "parent-controller-text", drag = mode == "parent-drag";
+        const bool unowned = mode == "parent-unowned" || mode == "parent-disabled";
+        if (unowned) {
+            if (mode == "parent-disabled") {
+                rt.settings.enabled = false;
+                Check(rt.controls.Configure(rt.settings) == Result::accepted && rt.input.Configure(rt.settings),
+                    "disabled manual controls leave native movement alone");
+            }
+        } else if (mode == "parent-automation") {
+            Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+            Grant route{};
+            Check(rt.native.BeginUpdate(f.game_window.data(), observed), "route parent test native phase");
+            Check(rt.controls.AcquireAutomation(rt.controls.Current().generation, token, route) == Result::accepted,
+                "route before parent transition");
+            Check(rt.controls.AutomationDestination(route, {30, 0, -40}) == Result::accepted, "route destination before parent transition");
+            rt.native.EndUpdate();
+        } else if (controller) { gamepad.sThumbLY = 32767; step(); }
+        else if (drag) {
+            f.real_pick_move = true;
+            SendMessageW(f.window, WM_XBUTTONDOWN, MAKEWPARAM(MK_XBUTTON1, XBUTTON1), MAKELPARAM(0, 0));
+            pointer = {20, 0}; SendMessageW(f.window, WM_MOUSEMOVE, MK_XBUTTON1, MAKELPARAM(20, 0)); step();
+        } else { physical_keys['W'] = static_cast<SHORT>(0x8000); step(); }
+        if (mode == "parent-controller-text") { text_blocked = true; step(); }
+        const auto old = rt.controls.Current(); const auto old_scene = observed;
+        const auto prior_destination = f.destination; const auto moves = f.moves, picks = f.ray_casts;
+        Check(unowned || old.owner != Owner::none, "parent test starts with native movement owner");
+        f.parent_basis_variant = true; parent_from = observed;
+        observed.parent = reinterpret_cast<std::uintptr_t>(f.alternate_world.data()); ++observed.epoch;
+        Put(f.pose.data(), 8, observed.parent);
+        if (mode == "parent-notice") { parent_from = {}; }
+        if (mode == "parent-actor") {
+            f.replacement = f.actor; observed.actor = reinterpret_cast<std::uintptr_t>(f.replacement.data());
+            Put(f.base, 0x16a2d98, observed.actor);
+        }
+        if (mode == "parent-identity") { ++observed.identity[0]; Put(f.actor.data(), 0x18, observed.identity); }
+        if (mode == "parent-ui") { ui_blocked = true; }
+        if (mode == "parent-focus") { focused = nullptr; }
+        if (mode == "parent-stop-failure") { f.callback_mode = 9; }
+        if (mode == "parent-nested-stop") { interrupt_phase = 's'; }
+        native_order.clear(); step();
+        const auto next = rt.controls.Current();
+        const bool continuous = mode == "parent-keyboard" || controller || drag;
+        if (continuous) {
+            Check(next.owner == Owner::manual && next.scene == observed.epoch && next.generation > old.generation
+                && f.moves == moves + 1 && native_order == std::vector<char>{'s', 'd'},
+                "parent transition stops fresh current actor before new manual actuation");
+            if (!drag) {
+                Check(std::abs(f.destination.x + prior_destination.x - 200) < 0.001F
+                    && std::abs(f.destination.z + prior_destination.z - 400) < 0.001F,
+                    "fresh camera basis uses new native parent frame");
+            } else { Check(f.ray_casts > picks && GetCapture() == f.window, "drag keeps capture but obtains fresh terrain pick"); }
+            if (mode == "parent-controller-text") {
+                Check((rt.controls.DiagnosticState() & 2) && (rt.sampled_diagnostic.gates & (8U | 16U | 256U)) == (8U | 16U | 256U),
+                    "text ownership coexists with armed controller and fresh native basis after parent change");
+                Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+                Grant denied{};
+                Check(rt.controls.AcquireAutomation(old.generation, token, denied) == Result::stale,
+                    "delayed old-generation automation cannot acquire after text parent continuation");
+            }
+            const auto after = f.moves; step(); Check(f.moves >= after && rt.controls.Current() == next,
+                "continuity is not repeatedly applied to the same epoch");
+            const auto before_stale = f.sends;
+            Check(rt.controls.Stop(old) == Result::stale && rt.controls.AutomationDestination(old, {}) == Result::stale,
+                "old epoch commands cannot mutate continued manual owner");
+            rt.ApplySafety({f.window, old_scene, old, StopReason::focus});
+            Check(rt.controls.Current() == next && f.sends == before_stale, "old safety stop cannot cancel new frame movement");
+            physical_keys.fill(0); gamepad = {};
+            if (drag) { SendMessageW(f.window, WM_XBUTTONUP, MAKEWPARAM(0, XBUTTON1), MAKELPARAM(20, 0)); }
+            step(); Check(Get<std::uint32_t>(f.state.data(), 0x10) == 5 && f.packet.references == 0,
+                "release still clears native movement after parent transition");
+        } else {
+            Check(next.owner == Owner::none && f.moves == moves,
+                "automation, safety loss, identity change or failed cleanup cannot continue held input");
+            if (unowned) {
+                Check(native_order.empty() && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
+                    "unowned/disabled ordinary native mouse movement is preserved across parent change");
+            }
+            if (mode == "parent-automation") {
+                Check(Get<std::uint32_t>(f.state.data(), 0x10) == 5 && f.request.state == 1
+                    && Get<Access::Map>(f.world.data(), 0xb8).size == 0,
+                    "parent transition cancels obsolete automation native work");
+            }
+            ui_blocked = false; focused = f.window; step();
+            Check(f.moves == moves, "restored gates do not revive held input or old route");
+        }
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "input-diagnostics") {
+        auto& events = wonderbane::extension::input_diagnostics;
+        events.clear();
+        const auto key = [&](std::uint32_t value, bool down) {
+            physical_keys[value] = down ? static_cast<SHORT>(0x8000) : 0;
+            reinterpret_cast<void(__cdecl*)(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t)>(slot)(value, 0, down, 0);
+        };
+        key('W', true); step();
+        const auto manual = rt.controls.Current();
+        key('D', true);
+        Check(!events.empty() && events.back().kind == 3 && events.back().key_event == (4U | 8U | 32U)
+            && events.back().keys == 9 && events.back().suppressed_keys == 9 && events.back().original_keys == 0
+            && events.back().generation == manual.generation,
+            "native second-key decision records W+D suppression without requiring revocation");
+        step(); Check(rt.controls.Current() == manual && rt.controls.Ready(), "diagonal remains one movement owner");
+        ui_blocked = true; step();
+        auto loss = std::find_if(events.rbegin(), events.rend(), [](const auto& e) { return e.kind == 2 && e.previous_owner == 2 && e.owner == 0; });
+        Check(loss != events.rend() && loss->reason == static_cast<unsigned>(StopReason::ui)
+            && loss->keys == 9 && (loss->gates & 8) && loss->sample_tick_ms != 0,
+            "owner-loss event captures exact UI reason and sampled diagonal input");
+        // A configured key forwarded for text input is distinguished from capture.
+        key('W', false); key('D', false); key('D', true);
+        Check(events.back().kind == 3 && !(events.back().key_event & 32) && (events.back().original_keys & 8),
+            "text-owned configured key records original-call forwarding decision");
+        key('D', false); ui_blocked = false; step();
+        key('W', true); key('D', true); step();
+        const auto held = rt.controls.Current();
+        clock_tick += 300; step();
+        Check(rt.controls.Current() == held && rt.controls.Ready() && events.back().interval_ms > 250
+            && events.back().keys == 9 && events.back().kind == 1,
+            "diagnostics expose manual update gap without incorrectly recording owner loss");
+        clock_tick = 0; step();
+        loss = std::find_if(events.rbegin(), events.rend(), [](const auto& e) { return e.kind == 2 && e.previous_owner == 2 && e.owner == 0; });
+        Check(loss != events.rend() && loss->reason == static_cast<unsigned>(StopReason::stalled)
+            && loss->keys == 9 && !(loss->gates & 8),
+            "clock regression remains a distinct hard inhibition event");
+        key('W', false); key('D', false); step();
+        key('W', true); step();
+        Check(rt.controls.Ready() && rt.controls.Current().owner == Owner::manual,
+            "diagnostics do not alter neutral re-arm or fresh movement");
+        key('W', false); step(); rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "manual-update-gap") {
+        for (const auto pair : {std::pair{'W', 'S'}, std::pair{'A', 'D'}}) {
+            physical_keys[pair.first] = static_cast<SHORT>(0x8000); step();
+            const auto owner = rt.controls.Current();
+            const auto moves = f.moves;
+            native_order.clear(); clock_tick += 266; step();
+            Check(rt.controls.Current() == owner && rt.controls.Ready() && f.moves == moves + 1
+                && native_order == std::vector<char>{'s', 'd'},
+                "delayed held key completes native stop before fresh native START");
+            physical_keys[pair.second] = static_cast<SHORT>(0x8000);
+            native_order.clear(); clock_tick += 282; step();
+            Check(rt.controls.Current() == owner && native_order == std::vector<char>{'s'}
+                && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+                "delayed opposing pair explicitly stops native movement without disarming");
+            physical_keys[pair.first] = 0; native_order.clear(); step();
+            Check(rt.controls.Current() == owner && native_order == std::vector<char>{'d'}
+                && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
+                "release one opposite immediately restarts remaining key through native path");
+            physical_keys.fill(0); native_order.clear(); clock_tick += 266; step();
+            Check(native_order == std::vector<char>{'s'} && f.packet.references == 0,
+                "fresh release after gap only stops with no message reference retained");
+        }
+        physical_keys['W'] = static_cast<SHORT>(0x8000); step();
+        gamepad.sThumbRX = 32767; const auto cameras = f.camera_calls;
+        clock_tick += 1000; step();
+        Check(f.camera_calls == cameras, "gap never accumulates native camera rotation");
+        gamepad.sThumbRX = 0;
+        const auto moves = f.moves; interrupt_phase = 's';
+        clock_tick += 266; step();
+        Check(f.moves == moves && rt.controls.Current().owner == Owner::none,
+            "nested focus loss during stale stop prevents fresh actuation");
+        clock_tick += 282; step();
+        Check(f.moves == moves, "held input cannot re-arm after nested interruption and another gap");
+        physical_keys.fill(0); step(); rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "keyboard-reversal") {
+        // Start backward from idle, then reverse without mouse initialization.
+        physical_keys['S'] = static_cast<SHORT>(0x8000); step();
+        Check(rt.controls.Ready() && rt.controls.Current().owner == Owner::manual && f.moves == 1,
+            "S independently starts native steering from cold idle");
+        const GroundPoint backward = f.destination;
+        physical_keys['S'] = 0; physical_keys['W'] = static_cast<SHORT>(0x8000); step();
+        const GroundPoint forward = f.destination;
+        Check(f.moves == 2 && rt.controls.Ready()
+            && std::abs(forward.x + backward.x - 200) < 0.001F
+            && std::abs(forward.z + backward.z - 400) < 0.001F,
+            "backward-to-forward reversal preserves opposite native directions");
+        physical_keys['S'] = static_cast<SHORT>(0x8000); step();
+        Check(f.moves == 2 && rt.controls.Ready() && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "overlapping W and S cancel through native stop without latching failure");
+        physical_keys['W'] = 0; step();
+        Check(f.moves == 3 && rt.controls.Ready() && f.destination.x == backward.x && f.destination.z == backward.z,
+            "releasing W while S remains held starts backward movement again");
+        // Pending and deferred native work must accept a reversal, and release
+        // must cancel that work rather than wait indefinitely for another click.
+        for (const bool deferred : {false, true}) {
+            physical_keys.fill(0); step();
+            Put(f.base, 0x16a1c00, reinterpret_cast<std::uintptr_t>(&f.request));
+            f.request.state = 1; f.pending_solve = !deferred; f.deferred_move = deferred;
+            const auto before = f.moves;
+            physical_keys['W'] = static_cast<SHORT>(0x8000); step(); step();
+            Check(f.moves == before + 1 && rt.controls.Ready(), "pending native work coalesces unchanged W");
+            physical_keys['W'] = 0; physical_keys['S'] = static_cast<SHORT>(0x8000); step();
+            Check(f.moves == before + 2 && rt.controls.Ready(), "S reversal replaces pending native steering without fault");
+            physical_keys.fill(0); step();
+            Check(rt.controls.Ready() && f.request.state == 1
+                && Get<Access::Map>(f.world.data(), 0xb8).size == 0,
+                "release cancels pending solver and deferred action after S reversal");
+            f.pending_solve = f.deferred_move = false;
+        }
+        physical_keys['S'] = static_cast<SHORT>(0x8000); step();
+        ui_blocked = true; step();
+        const auto before = f.moves;
+        ui_blocked = false; step();
+        Check(f.moves == before && rt.controls.Current().owner == Owner::none,
+            "held S does not resume after text-entry ownership ends");
+        physical_keys.fill(0); step();
+        physical_keys['W'] = static_cast<SHORT>(0x8000); step();
+        Check(f.moves == before + 1 && rt.controls.Ready() && rt.controls.Current().owner == Owner::manual,
+            "neutral then fresh W re-arms after interrupted S without mouse input");
+        physical_keys.fill(0); step();
+        Check(f.packet.references == 0 && f.marker_applies == 0,
+            "reversal/re-arm leaves no message or click-marker ownership");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
+    if (mode == "keyboard-cold-start") {
+        Check(rt.controls.Ready() && rt.controls.Current().owner == Owner::none && f.moves == 0 && f.sends == 0
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 5
+            && Get<std::uintptr_t>(f.base, 0x16a1c00) == 0
+            && Get<Access::Vector>(f.actor.data(), 0xc10).begin == nullptr
+            && Get<Access::Map>(f.world.data(), 0xb8).size == 0
+            && Get<Access::Map>(f.world.data(), 0xe8).size == 0
+            && Get<std::uintptr_t>(f.game_window.data(), 0x120) == 0,
+            "cold client starts idle without destination marker, path, pending solver or action");
+        for (unsigned attempt = 0; attempt != 3; ++attempt) {
+            const auto moves = f.moves, sends = f.sends;
+            // First and subsequent starts use only the physical keyboard sample.
+            // No AutomationDestination, mouse message or simulated native input.
+            physical_keys['W'] = static_cast<SHORT>(0x8000); step();
+            Check(rt.controls.Current().owner == Owner::manual && rt.controls.Ready()
+                && f.moves == moves + 1 && f.sends == sends + 1
+                && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
+                "first W and immediate restarts independently enter native moving state and publish START");
+            step(); Check(f.moves == moves + 2 && f.sends == sends + 1,
+                "held W updates without repeatedly publishing START");
+            physical_keys.fill(0); step();
+            Check(f.moves == moves + 2 && f.sends == sends + 2
+                && Get<std::uint32_t>(f.state.data(), 0x10) == 5 && f.packet.references == 0,
+                "W release uses native stop and returns to idle");
+            step(); Check(f.moves == moves + 2 && f.sends == sends + 2,
+                "released keyboard stays idle without a mouse bootstrap or automatic resume");
+        }
+        Check(f.marker_applies == 0 && f.ground_actor_releases == 0,
+            "keyboard-only starts never initialize or consume a click destination marker");
+        rt.input.Retire(); return failures ? 1 : 0;
+    }
+    Token token{}; std::memcpy(token.worker.data(), "worker", 6); std::memcpy(token.operation.data(), "route", 5);
+    Grant automation{};
+    Check(rt.native.BeginUpdate(f.game_window.data(), observed), "automation admission uses native owner phase");
+    Check(rt.controls.AcquireAutomation(rt.controls.Current().generation, token, automation) == Result::accepted, "existing route acquires ownership");
+    GroundPoint route_point{}; f.real_pick_move = true;
+    Check(rt.native.PickGround(0, 0, route_point)
+        && rt.controls.AutomationDestination(automation, {30, 0, -40}) == Result::accepted,
+        "automation owns an actual native movement before manual takeover");
+    rt.native.EndUpdate(); f.real_pick_move = false; f.moves = 0;
+    const auto drive = [&] {
+        if (mode == "controller") { gamepad.sThumbLY = 32767; }
+        else if (mode == "drag") {
+            f.real_pick_move = true;
+            SendMessageW(f.window, WM_XBUTTONDOWN, MAKEWPARAM(MK_XBUTTON1, XBUTTON1), MAKELPARAM(0, 0));
+            pointer = {20, 0}; SendMessageW(f.window, WM_MOUSEMOVE, MK_XBUTTON1, MAKELPARAM(20, 0));
+        } else { physical_keys['W'] = static_cast<SHORT>(0x8000); }
+        step();
+    };
+    if (mode == "nested-stop") { interrupt_phase = 's'; f.Arm(false); drive(); }
+    else if (mode == "nested-camera") { interrupt_phase = 'c'; gamepad.sThumbRX = 32767; drive(); }
+    else if (mode == "nested-move") { interrupt_phase = 'd'; drive(); }
+    else { drive(); }
+    if (mode.starts_with("nested-")) {
+        Check(rt.controls.Current().owner == Owner::none && f.moves == (mode == "nested-move" ? 1 : 0),
+              "nested HWND safety cancels before any later movement dispatch");
+        Check(Get<std::uint32_t>(f.state.data(), 0x10) == 5 && rt.pending_count == 0,
+              "nested safety drains production stopped state before consumer returns");
+        step(); Check(rt.controls.Current().owner == Owner::none, "nested safety disarms held controls");
+    } else {
+        Check(rt.controls.Current().owner == Owner::manual && f.moves >= 1, "manual input takes existing automation through native backend");
+        const auto manual = rt.controls.Current(); const auto sends = f.sends;
+        Check(rt.controls.AutomationDestination(automation, {}) == Result::stale
+            && rt.controls.Stop(automation) == Result::stale && f.sends == sends,
+            "delayed automation move and stop cannot affect accepted manual owner");
+        if (mode == "settings-stale") {
+            wm::RuntimeSnapshot expected{}; rt.Publish(); wm::ReadNativeMovementControls(expected);
+            expected.grant = automation;
+            Check(rt.Configure(expected, rt.settings) == Result::stale && rt.controls.Current() == manual
+                && f.sends == sends, "old settings ticket cannot cancel a new movement owner");
+        } else if (mode == "scene-stale") {
+            alive = false; rt.ApplySafety({f.window, observed, manual, StopReason::focus});
+            Check(rt.controls.Current().scene == 0 && f.sends == sends,
+                  "unverified retired lifetime discards authority without recapturing actor");
+        } else if (mode == "chat") {
+            ui_blocked = true; step();
+            Check(rt.controls.Current().owner == Owner::none && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+                  "chat entry stops native movement");
+            ui_blocked = false; const auto moves = f.moves; step();
+            Check(f.moves == moves, "held keys cannot resume on chat exit");
+        } else if (mode == "focus") {
+            SendMessageW(f.window, WM_KILLFOCUS, 0, 0);
+            Check(rt.controls.Current().owner == Owner::none && f.sends == sends + 1
+                && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+                "actual HWND focus event executes native stop without a later update");
+        } else if (mode == "stale") {
+            rt.ApplySafety({f.window, observed, automation, StopReason::focus});
+            Check(rt.controls.Current() == manual && f.sends == sends, "obsolete queued window stop cannot revoke new owner");
+        } else if (mode == "destroyed") {
+            const auto calls = f.state_calls; DestroyWindow(f.window); f.window = nullptr;
+            Check(rt.terminal && rt.controls.Current().scene == 0 && f.state_calls == calls && retired_updates == 1,
+                  "window destruction retires authority without native mutation after invalidation");
+        } else {
+            physical_keys.fill(0); gamepad = {};
+            if (mode == "drag") { SendMessageW(f.window, WM_XBUTTONUP, MAKEWPARAM(0, XBUTTON1), MAKELPARAM(20, 0)); }
+            step();
+            Check(Get<std::uint32_t>(f.state.data(), 0x10) == 5 && f.sends == sends + 1,
+                  "manual release follows actual native stop path");
+            const auto moves = f.moves; step(); Check(f.moves == moves, "release never resumes route");
+        }
+    }
+    if (!rt.terminal) { rt.input.Retire(); }
+    return failures ? 1 : 0;
+}

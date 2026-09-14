@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <mutex>
 
 namespace wonderbane::extension {
 namespace {
@@ -115,6 +116,25 @@ struct HookPlan {
     std::uint32_t capability;
 };
 
+// Entry leases cover the original call as well as telemetry writes. Recursion
+// through CRT/Win32 imports shares one lease on the same thread.
+SRWLOCK g_lifetime_lock = SRWLOCK_INIT;
+std::mutex g_lifecycle_mutex;
+thread_local unsigned g_lease_depth = 0;
+class CallbackLease {
+public:
+    CallbackLease() noexcept {
+        if (g_lease_depth++ == 0) { AcquireSRWLockShared(&g_lifetime_lock); }
+    }
+    ~CallbackLease() {
+        if (--g_lease_depth == 0) { ReleaseSRWLockShared(&g_lifetime_lock); }
+    }
+};
+class StorageMutation {
+public:
+    StorageMutation() noexcept { AcquireSRWLockExclusive(&g_lifetime_lock); }
+    ~StorageMutation() { ReleaseSRWLockExclusive(&g_lifetime_lock); }
+};
 HANDLE g_mapping = nullptr;
 PerformanceTelemetryStorage* g_storage = nullptr;
 SRWLOCK g_publish_lock = SRWLOCK_INIT;
@@ -299,7 +319,7 @@ TrackedFile* FindTracked(
 }
 
 void TrackHandle(const HANDLE handle, const CacheArchiveKind archive) noexcept {
-    if (handle == nullptr || handle == INVALID_HANDLE_VALUE || archive == CacheArchiveKind::none) {
+    if (g_storage == nullptr || handle == nullptr || handle == INVALID_HANDLE_VALUE || archive == CacheArchiveKind::none) {
         return;
     }
     AcquireSRWLockExclusive(&g_stream_lock);
@@ -313,7 +333,7 @@ void TrackHandle(const HANDLE handle, const CacheArchiveKind archive) noexcept {
 }
 
 void TrackFile(std::FILE* const stream, const CacheArchiveKind archive) noexcept {
-    if (stream == nullptr || archive == CacheArchiveKind::none) {
+    if (g_storage == nullptr || stream == nullptr || archive == CacheArchiveKind::none) {
         return;
     }
     AcquireSRWLockExclusive(&g_stream_lock);
@@ -331,6 +351,7 @@ bool SnapshotHandle(
     CacheArchiveKind* const archive,
     std::uint64_t* const offset
 ) noexcept {
+    if (g_storage == nullptr) { return false; }
     bool found = false;
     AcquireSRWLockShared(&g_stream_lock);
     TrackedHandle* const entry = FindTracked(g_handles, handle);
@@ -348,6 +369,7 @@ bool SnapshotFile(
     CacheArchiveKind* const archive,
     std::uint64_t* const offset
 ) noexcept {
+    if (g_storage == nullptr) { return false; }
     bool found = false;
     AcquireSRWLockShared(&g_stream_lock);
     TrackedFile* const entry = FindTracked(g_files, stream);
@@ -576,6 +598,7 @@ HANDLE WINAPI TelemetryCreateFileA(
     const DWORD flags_and_attributes,
     const HANDLE template_file
 ) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<CreateFileAFunction>(&g_original_create_file_a);
     if (original == nullptr) {
         SetLastError(ERROR_INVALID_FUNCTION);
@@ -605,6 +628,7 @@ BOOL WINAPI TelemetryReadFile(
     const LPDWORD completed_bytes,
     const LPOVERLAPPED overlapped
 ) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<ReadFileFunction>(&g_original_read_file);
     if (original == nullptr) {
         SetLastError(ERROR_INVALID_FUNCTION);
@@ -660,6 +684,7 @@ DWORD WINAPI TelemetrySetFilePointer(
     const PLONG distance_high,
     const DWORD move_method
 ) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<SetFilePointerFunction>(&g_original_set_file_pointer);
     if (original == nullptr) {
         SetLastError(ERROR_INVALID_FUNCTION);
@@ -695,6 +720,7 @@ DWORD WINAPI TelemetrySetFilePointer(
 }
 
 BOOL WINAPI TelemetryCloseHandle(const HANDLE object) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<CloseHandleFunction>(&g_original_close_handle);
     if (original == nullptr) {
         SetLastError(ERROR_INVALID_FUNCTION);
@@ -705,6 +731,7 @@ BOOL WINAPI TelemetryCloseHandle(const HANDLE object) noexcept {
 }
 
 std::FILE* __cdecl TelemetryFopen(const char* const file_name, const char* const mode) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<FopenFunction>(&g_original_fopen);
     if (original == nullptr) {
         errno = EINVAL;
@@ -721,6 +748,7 @@ std::FILE* __cdecl TelemetryWfopen(
     const wchar_t* const file_name,
     const wchar_t* const mode
 ) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<WfopenFunction>(&g_original_wfopen);
     if (original == nullptr) {
         errno = EINVAL;
@@ -739,6 +767,7 @@ std::size_t __cdecl TelemetryFread(
     const std::size_t element_count,
     std::FILE* const stream
 ) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<FreadFunction>(&g_original_fread);
     if (original == nullptr) {
         errno = EINVAL;
@@ -791,6 +820,7 @@ int __cdecl TelemetryFseek(
     const long offset,
     const int origin
 ) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<FseekFunction>(&g_original_fseek);
     if (original == nullptr) {
         errno = EINVAL;
@@ -821,6 +851,7 @@ int __cdecl TelemetryFseek(
 }
 
 int __cdecl TelemetryFclose(std::FILE* const stream) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<FcloseFunction>(&g_original_fclose);
     if (original == nullptr) {
         errno = EINVAL;
@@ -843,12 +874,13 @@ void PublishTexture(
     const unsigned int type,
     const void* const pixels
 ) noexcept {
+    if (g_storage == nullptr) { return; }
     const std::uint64_t bytes = EstimateTextureUploadBytes(width, height, format, type);
     const std::uint64_t frequency = g_storage->header.qpc_frequency;
     std::uint64_t pipeline_gap = 0U;
     CacheArchiveKind archive = CacheArchiveKind::none;
     if (
-        g_loader_context.completed_qpc != 0U
+        g_loader_context.completed_qpc >= g_storage->header.started_qpc
         && started >= g_loader_context.completed_qpc
         && frequency > 0U
         && started - g_loader_context.completed_qpc
@@ -904,6 +936,7 @@ void APIENTRY TelemetryTexImage2D(
     const unsigned int type,
     const void* const pixels
 ) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<GlTexImage2DFunction>(&g_original_tex_image_2d);
     if (original == nullptr) {
         return;
@@ -937,6 +970,7 @@ void APIENTRY TelemetryTexSubImage2D(
     const unsigned int type,
     const void* const pixels
 ) noexcept {
+    const CallbackLease lease;
     const auto original = LoadFunction<GlTexSubImage2DFunction>(&g_original_tex_sub_image_2d);
     if (original == nullptr) {
         return;
@@ -980,20 +1014,6 @@ bool RestoreHook(HookPlan& plan) noexcept {
     }
     *plan.slot_storage = nullptr;
     return true;
-}
-
-void ClearOriginalFunctions() noexcept {
-    InterlockedExchangePointer(&g_original_create_file_a, nullptr);
-    InterlockedExchangePointer(&g_original_read_file, nullptr);
-    InterlockedExchangePointer(&g_original_set_file_pointer, nullptr);
-    InterlockedExchangePointer(&g_original_close_handle, nullptr);
-    InterlockedExchangePointer(&g_original_fopen, nullptr);
-    InterlockedExchangePointer(&g_original_wfopen, nullptr);
-    InterlockedExchangePointer(&g_original_fread, nullptr);
-    InterlockedExchangePointer(&g_original_fseek, nullptr);
-    InterlockedExchangePointer(&g_original_fclose, nullptr);
-    InterlockedExchangePointer(&g_original_tex_image_2d, nullptr);
-    InterlockedExchangePointer(&g_original_tex_sub_image_2d, nullptr);
 }
 
 std::array<HookPlan, kPerformanceHookCount> HookPlans() noexcept {
@@ -1092,17 +1112,11 @@ DWORD InstallHooks(const std::uint32_t capability_flags) noexcept {
             static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(plan.replacement))
         );
         if (result != ERROR_SUCCESS) {
-            bool restored = true;
             for (std::size_t index = installed; index > 0U; --index) {
                 HookPlan& installed_plan = plans[installed_indices[index - 1U]];
                 if (RestoreHook(installed_plan)) {
                     InterlockedDecrement(&g_storage->header.active_hook_count);
-                } else {
-                    restored = false;
                 }
-            }
-            if (restored) {
-                ClearOriginalFunctions();
             }
             return result;
         }
@@ -1112,6 +1126,8 @@ DWORD InstallHooks(const std::uint32_t capability_flags) noexcept {
     }
     return ERROR_SUCCESS;
 }
+
+void StopTelemetryOwned() noexcept;
 
 void CleanupMapping() noexcept {
     if (g_storage != nullptr) {
@@ -1197,6 +1213,8 @@ DWORD StartPerformanceTelemetry(
     const ProcessIdentity& identity,
     const PerformanceTelemetryProfile profile
 ) noexcept {
+    const std::lock_guard<std::mutex> lifecycle(g_lifecycle_mutex);
+    const StorageMutation mutation;
     if (
         identity.process_id == 0U
         || identity.creation_filetime_utc == 0U
@@ -1284,12 +1302,13 @@ DWORD StartPerformanceTelemetry(
     MemoryBarrier();
     result = InstallHooks(capability_flags);
     if (result != ERROR_SUCCESS) {
-        StopPerformanceTelemetry();
+        StopTelemetryOwned();
     }
     return result;
 }
 
 std::uint64_t BeginPerformancePresent() noexcept {
+    const CallbackLease lease;
     if (g_storage == nullptr) {
         return 0U;
     }
@@ -1310,7 +1329,8 @@ void ObservePerformancePresent(
     const std::uint64_t started_qpc,
     const bool succeeded
 ) noexcept {
-    if (g_storage == nullptr || started_qpc == 0U) {
+    const CallbackLease lease;
+    if (g_storage == nullptr || started_qpc < g_storage->header.started_qpc) {
         return;
     }
     const std::uint64_t completed_qpc = QueryCounter();
@@ -1369,7 +1389,8 @@ void ObservePerformancePresent(
     }
 }
 
-void StopPerformanceTelemetry() noexcept {
+namespace {
+void StopTelemetryOwned() noexcept {
     auto plans = HookPlans();
     bool restored = true;
     for (std::size_t index = plans.size(); index > 0U; --index) {
@@ -1386,7 +1407,7 @@ void StopPerformanceTelemetry() noexcept {
     if (!restored) {
         return;
     }
-    ClearOriginalFunctions();
+    // Original API addresses remain valid for callbacks dispatched before restore.
     AcquireSRWLockExclusive(&g_stream_lock);
     g_handles = {};
     g_files = {};
@@ -1398,6 +1419,14 @@ void StopPerformanceTelemetry() noexcept {
     g_previous_present_qpc = 0U;
     InterlockedExchange(&g_profile, static_cast<LONG>(PerformanceTelemetryProfile::disabled));
     CleanupMapping();
+}
+
+}  // namespace
+
+void StopPerformanceTelemetry() noexcept {
+    const std::lock_guard<std::mutex> lifecycle(g_lifecycle_mutex);
+    const StorageMutation mutation;
+    StopTelemetryOwned();
 }
 
 }  // namespace wonderbane::extension

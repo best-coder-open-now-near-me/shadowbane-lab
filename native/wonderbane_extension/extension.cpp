@@ -1,8 +1,15 @@
+#include "movement_boundary_trace.h"
+#include "targeted_action_trace.h"
+#include "movement_runtime.h"
 #include "camera_observation.h"
 #include "cel_shading.h"
 #include "extension_api.h"
 #include "event_channel.h"
 #include "graphics_control.h"
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+#include "navigation_channel.h"
+#include "effects_runtime.h"
+#endif
 #include "graphics_status.h"
 #include "performance_telemetry.h"
 #include "world_map_capture.h"
@@ -22,7 +29,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.6.13";
+constexpr char kExtensionVersion[] = "1.8.1";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -374,6 +381,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         bool graphics_status_started = false;
         bool renderer_started = false;
         bool camera_observation_started = false;
+        bool movement_trace_started = false;
         bool performance_telemetry_started = false;
         if (result == ERROR_SUCCESS && !kDiagnosticsOnly) {
             result = wonderbane::extension::InitializeEventChannel(
@@ -401,10 +409,24 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             result = wonderbane::extension::StartGraphicsStatusPublication();
             graphics_status_started = result == ERROR_SUCCESS;
         }
+        if (result == ERROR_SUCCESS && is_client) {
+            // Optional passive tracing cannot disable an otherwise working client.
+            (void)wonderbane::extension::StartTargetedActionTrace(identity);
+            const DWORD trace_result = wonderbane::extension::StartMovementBoundaryTrace(identity);
+            movement_trace_started = trace_result == ERROR_SUCCESS;
+            if (!movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
+        }
         if (result == ERROR_SUCCESS && is_client && !kDiagnosticsOnly) {
             result = wonderbane::extension::StartGraphicsControl();
             graphics_control_started = result == ERROR_SUCCESS;
         }
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        if (result == ERROR_SUCCESS && is_client) {
+            // Optional diagnostics must never disable the ordinary renderer.
+            (void)wonderbane::extension::StartNavigationChannel(identity);
+            (void)wonderbane::extension::StartEffects(identity);
+        }
+#endif
         if (result == ERROR_SUCCESS && is_client) {
 #if defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
             result = wonderbane::extension::StartGraphicsPresentObservation();
@@ -426,16 +448,26 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             && performance_profile
                 != wonderbane::extension::PerformanceTelemetryProfile::disabled
         ) {
-            result = wonderbane::extension::StartPerformanceTelemetry(
+            // Instrumentation owns its failure rollback. An unavailable optional
+            // mapping/import must not tear down a working client renderer.
+            const DWORD telemetry_result = wonderbane::extension::StartPerformanceTelemetry(
                 identity,
                 performance_profile
             );
-            performance_telemetry_started = result == ERROR_SUCCESS;
+            performance_telemetry_started = telemetry_result == ERROR_SUCCESS;
         }
         if (result == ERROR_SUCCESS) {
             result = WriteHeartbeat(identity);
         }
+        if (result == ERROR_SUCCESS && is_client) {
+            // Optional native controls publish unavailable on unsupported binding.
+            // Register only after shared startup succeeds; ordinary disable keeps
+            // the owning-update consumer alive for safe re-enable.
+            (void)wonderbane::extension::movement::StartNativeMovementControls(identity);
+        }
         if (result != ERROR_SUCCESS) {
+            wonderbane::extension::StopTargetedActionTrace();
+            if (movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
             if (performance_telemetry_started) {
                 wonderbane::extension::StopPerformanceTelemetry();
             }
@@ -449,6 +481,10 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
                 wonderbane::extension::StopStrongCelShading();
 #endif
             }
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            wonderbane::extension::StopEffects();
+            wonderbane::extension::StopNavigationChannel();
+#endif
             if (graphics_control_started) {
                 wonderbane::extension::StopGraphicsControl();
             }

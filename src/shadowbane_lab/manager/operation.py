@@ -10,14 +10,15 @@ import time
 import uuid
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from math import isfinite
 from pathlib import Path
 from typing import NoReturn
 
+from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
+
 from .manifest import ManagerManifest
-from .record_store import exclusive_record_lock, publish_atomic_record
 from .worker import WorkerDispatchPermit
 
 WORKER_OPERATION_SCHEMA_VERSION = 1
@@ -846,7 +847,16 @@ class WorkerOperationLedger:
                 assert isinstance(existing, WorkerOperation)
                 if existing.deduplication_id != operation.deduplication_id:
                     continue
-                if existing != operation:
+                # A transport retry may regenerate its envelope ID/timestamps.
+                # Compare exact target and requested work, then retain the first
+                # envelope, deadline and receipt; a retry cannot extend or replay it.
+                retry = replace(
+                    operation,
+                    operation_id=existing.operation_id,
+                    issued_at=existing.issued_at,
+                    expires_at=existing.expires_at,
+                )
+                if existing != retry:
                     raise WorkerOperationLedgerError(
                         "deduplication_id is already owned by a different immutable operation"
                     )
@@ -905,6 +915,59 @@ class WorkerOperationLedger:
         observed_at = _finite_time(now, "now")
         with self._transaction(directory):
             return self._prune_terminal_unlocked(directory, observed_at)
+
+    def claim_for_execution(self, operation: WorkerOperation, *, now: float) -> bool:
+        """Atomically activate one immutable operation, once across worker contenders.
+
+        A crashed ACTIVE claimant is never replayed implicitly: its exact worker
+        lifetime and receipt remain evidence for explicit interruption/recovery.
+        """
+        if not isinstance(operation, WorkerOperation):
+            raise ValueError("operation must be WorkerOperation")
+        observed_at = _finite_time(now, "now")
+        directory = self._directory(operation.client_id)
+        with self._transaction(directory):
+            stored = self._read(
+                directory / f"{operation.operation_id}.json", loads_worker_operation
+            )
+            if stored != operation:
+                raise WorkerOperationLedgerError("claim does not own its immutable operation")
+            current = self._inspect_receipt_unlocked(directory, operation.operation_id)
+            if current is not None and (
+                current.state is WorkerOperationState.ACTIVE or current.state.terminal
+            ):
+                return False
+            if operation.expires_at <= observed_at:
+                self._publish_receipt_unlocked(
+                    directory,
+                    WorkerOperationReceipt.for_operation(
+                        operation,
+                        WorkerOperationState.EXPIRED,
+                        observed_at=observed_at,
+                        detail="operation expired before worker activation",
+                    ),
+                )
+                return False
+            if current is None:
+                self._publish_receipt_unlocked(
+                    directory,
+                    WorkerOperationReceipt.for_operation(
+                        operation,
+                        WorkerOperationState.ACCEPTED,
+                        observed_at=observed_at,
+                        detail="accepted by exact per-client worker",
+                    ),
+                )
+            self._publish_receipt_unlocked(
+                directory,
+                WorkerOperationReceipt.for_operation(
+                    operation,
+                    WorkerOperationState.ACTIVE,
+                    observed_at=observed_at,
+                    detail="executing through the exact worker dispatch gate",
+                ),
+            )
+            return True
 
     def pending_for(
         self,

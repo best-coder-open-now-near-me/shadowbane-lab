@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shadowbane-lab"
-version = "0.1.0"
+version = "0.3.1"
 description = "Deterministic simulation and bot-policy tooling for Shadowbane"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
+shadowbane-navigation-inspector = "shadowbane_lab.navigation_inspector.app:main"
 shadowbane-lab = "shadowbane_lab.cli:main"
 shadowbane-runtime-consistency = "shadowbane_lab.runtime_consistency.__main__:main"
 shadowbane-terrain-audit = "shadowbane_lab.world_data.terrain_seam_cli:main"
@@ -46,6 +47,7 @@ test = [
 where = ["src"]
 
 [tool.setuptools.package-data]
+"shadowbane_lab.navigation_inspector" = ["build_identity.json"]
 "shadowbane_lab.rulesets" = ["data/*.json"]
 "shadowbane_lab.differential" = ["data/*.json"]
 "shadowbane_lab.client_observation" = ["data/*.json"]
@@ -69,3 +71,6 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 pythonpath = ["src", "tests"]
 testpaths = ["tests"]
+
+[tool.setuptools.data-files]
+"share/shadowbane-lab/sky-horizon" = ["assets/sky-horizon/clear-day.sky", "assets/sky-horizon/clear-day.json", "assets/sky-horizon/manifest.json"]

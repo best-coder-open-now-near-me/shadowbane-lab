@@ -25,7 +25,10 @@ from .control import (
     normalize_fixed_accent_controls,
     target_process_is_alive,
 )
+from .effects_panel import EffectsPanel
 from .presets import GraphicsPresetStore
+from .selected_cue import CuePanel
+from .sky_panel import SkyPanel
 
 _BACKGROUND = "#171b22"
 _PANEL = "#202630"
@@ -71,6 +74,12 @@ class GraphicsLabApp:
         style = ttk.Style(self.root)
         style.theme_use("clam")
         style.configure(".", background=_BACKGROUND, foreground=_TEXT)
+        style.configure("Target.TCombobox", foreground="black")
+        style.map(
+            "Target.TCombobox",
+            foreground=[("readonly", "black")],
+            selectforeground=[("readonly", "black")],
+        )
         style.configure("TFrame", background=_BACKGROUND)
         style.configure("Panel.TFrame", background=_PANEL)
         style.configure(
@@ -149,13 +158,20 @@ class GraphicsLabApp:
         target_row = ttk.Frame(container)
         target_row.pack(fill="x", pady=(0, 8))
         self.target_combo = ttk.Combobox(
-            target_row, textvariable=self.target_var, state="readonly"
+            target_row, textvariable=self.target_var, state="readonly", style="Target.TCombobox"
+        )
+        popdown = self.root.tk.call("ttk::combobox::PopdownWindow", str(self.target_combo))
+        self.root.tk.call(
+            f"{popdown}.f.l", "configure", "-foreground", "black", "-selectforeground", "black"
         )
         self.target_combo.pack(side="left", fill="x", expand=True)
         self.target_combo.bind("<<ComboboxSelected>>", self._connect_selected)
         ttk.Button(target_row, text="Refresh", command=self.refresh_targets).pack(
             side="left", padx=(8, 0)
         )
+        ttk.Button(
+            target_row, text="Movement controls", command=self._open_movement_controls
+        ).pack(side="left", padx=(8, 0))
         self.status_label = ttk.Label(
             container, textvariable=self.status_var, style="Muted.TLabel"
         )
@@ -168,9 +184,12 @@ class GraphicsLabApp:
         notebook.add(outline_tab, text="Outlines")
         notebook.add(lighting_tab, text="Cel lighting")
         notebook.add(preset_tab, text="Presets")
+        self.effects_panel = EffectsPanel(notebook)
+        self.sky_panel = SkyPanel(notebook)
         self._build_outline_tab(outline_tab)
         self._build_lighting_tab(lighting_tab)
         self._build_preset_tab(preset_tab)
+        self.cue_panel = CuePanel(notebook, lambda: self.client.target if self.client else None)
 
     def _build_outline_tab(self, parent: ttk.Frame) -> None:
         ttk.Checkbutton(
@@ -378,10 +397,27 @@ class GraphicsLabApp:
         if 0 <= index < len(self.targets):
             self._connect_target(self.targets[index])
 
+    def _open_movement_controls(self) -> None:
+        from shadowbane_lab.client_extension.movement_settings import (
+            open_native_movement_settings,
+        )
+
+        if self.client is None:
+            self._show_status("Select a connected client first", error=True)
+            return
+        try:
+            open_native_movement_settings(self.client.target)
+        except (OSError, RuntimeError, ValueError) as error:
+            self._show_status(str(error), error=True)
+            return
+        self._show_status("Movement settings requested in the selected client")
+
     def _connect_target(self, target: GraphicsControlTarget) -> None:
         self._disconnect()
         try:
             self.client = GraphicsControlClient(target)
+            self.effects_panel.connect(target)
+            self.sky_panel.connect(target)
         except (OSError, RuntimeError, ValueError) as error:
             self.client = None
             self._show_status(f"Attach failed: {error}", error=True)
@@ -411,6 +447,10 @@ class GraphicsLabApp:
         )
 
     def _disconnect(self) -> None:
+        self.effects_panel.disconnect()
+        self.sky_panel.disconnect()
+        if hasattr(self, "cue_panel"):
+            self.cue_panel.disconnect()
         if self.client is not None:
             self.client.close()
             self.client = None
@@ -611,6 +651,7 @@ class GraphicsLabApp:
         if self._apply_after is not None:
             self.root.after_cancel(self._apply_after)
         self._disconnect()
+        self.cue_panel.close()
         self.root.destroy()
 
 

@@ -207,8 +207,13 @@ class PvEController(_BasePvEController):
             raise ValueError("observation must be PvEObservation")
         self._active_step_target_rejections.clear()
         authority = None
-        if self._target_authority_evaluator is not None:
-            authority = self._target_authority_evaluator.evaluate(observation)
+        evaluator = self._target_authority_evaluator
+        if evaluator is None and observation.authority_snapshot is not None:
+            from shadowbane_lab.pve.authority_snapshot import SnapshotPvETargetAuthorityEvaluator
+
+            evaluator = SnapshotPvETargetAuthorityEvaluator(observation.authority_snapshot)
+        if evaluator is not None:
+            authority = evaluator.evaluate(observation)
             if not isinstance(authority, PvETargetAuthorityDecision):
                 raise ValueError(
                     "target authority evaluator must return PvETargetAuthorityDecision"

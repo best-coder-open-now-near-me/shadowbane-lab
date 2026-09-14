@@ -1,14 +1,23 @@
 #include "cel_shading.h"
+#include "render_lifetime.h"
+#include "sky_runtime.h"
+#include <string_view>
 #include "banded_lighting.h"
 #include "depth_edges.h"
 #include "fixed_function_state.h"
 #include "graphics_control.h"
 #include "graphics_status.h"
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+#include "navigation_viewer.h"
+#include "effects_runtime.h"
+#include "selected_cue_runtime.h"
+#endif
 #include "terrain_trace.h"
 #include "terrain_mask_refresh.h"
 #include "import_hook.h"
 #include "performance_telemetry.h"
 #include "scene_frame.h"
+#include "scene_draw.h"
 #include "reviewed_scene_boundary.h"
 #include "display_list_state_commands.h"
 
@@ -227,6 +236,8 @@ thread_local std::array<float, 16U> g_immediate_scene_projection{};
 thread_local std::array<int, 4U> g_immediate_scene_viewport{};
 thread_local SceneFrameState g_scene_frame{};
 thread_local HGLRC g_main_scene_context = nullptr;
+thread_local GraphicsCameraState g_main_scene_camera{};
+thread_local bool g_main_scene_camera_valid = false;
 thread_local FixedFunctionStateMirror g_fixed_function_state{};
 thread_local HGLRC g_fixed_function_context = nullptr;
 
@@ -293,14 +304,23 @@ void MarkCompiledListStateChange() noexcept {
     }
 }
 
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+#define WB_OBSERVE_SKY_UPLOAD(name) \
+    if constexpr (std::string_view(#name) == "LoadMatrixf") { \
+        ObserveSkyCameraUpload(reinterpret_cast<std::uintptr_t>(_ReturnAddress()), \
+            !g_active_display_list_capture.active && !g_immediate_primitive_open); }
+#else
+#define WB_OBSERVE_SKY_UPLOAD(name)
+#endif
 #define WB_DECLARE_LIST_STATE_HOOK(name, parameters, arguments) \
     PVOID volatile g_list_original_##name = nullptr; \
     std::uint32_t* g_list_slot_##name = nullptr; \
     void APIENTRY ListState##name parameters noexcept { \
+        const RenderCallbackLease lease; \
         MarkCompiledListStateChange(); \
         const auto original = LoadFunction<decltype(&ListState##name)>( \
             &g_list_original_##name); \
-        if (original != nullptr) { original arguments; } \
+        if (original != nullptr) { original arguments; WB_OBSERVE_SKY_UPLOAD(name) } \
     }
 WB_LIST_STATE_COMMANDS(WB_DECLARE_LIST_STATE_HOOK)
 #undef WB_DECLARE_LIST_STATE_HOOK
@@ -1436,25 +1456,12 @@ void DrawWithSilhouette(
         );
     }
     if (source_state.depth_writes) {
-        const auto get_integerv = LoadFunction<GlGetIntegerv>(&g_get_integerv);
-        int model_view_stack_depth = 0;
-        if (get_integerv != nullptr) {
-            get_integerv(kGlModelViewStackDepth, &model_view_stack_depth);
-            ObserveGraphicsCameraState(
-                model_view.data(),
-                model_view.size(),
-                projection.data(),
-                projection.size(),
-                viewport.data(),
-                viewport.size(),
-                model_view_stack_depth
-            );
-        }
         MarkDepthEdgeSceneDraw();
     }
 }
 
 void APIENTRY StrongShadeModel(const unsigned int mode) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlShadeModel>(&g_original_shade_model);
     if (original != nullptr) {
@@ -1481,7 +1488,11 @@ bool CurrentProjection(
 }
 
 void APIENTRY StrongBegin(const unsigned int mode) noexcept {
+    const RenderCallbackLease lease;
     const bool compiling = IsCompilingDisplayListOnCurrentThread();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    if (!compiling && !g_immediate_primitive_open) ObserveSelectedCueLegacyGeometry();
+#endif
     TerrainTraceDraw(TerrainSubmission::immediate,
         reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, 0, -1, 0U, 0U,
         false, !compiling && !g_immediate_primitive_open);
@@ -1522,27 +1533,6 @@ void APIENTRY StrongBegin(const unsigned int mode) noexcept {
                         &g_viewport_height, 0, 0
                     )),
                 };
-                if (NeedsGraphicsCameraStateObservation()) {
-                    const auto get_floatv = LoadFunction<GlGetFloatv>(
-                        &g_get_floatv
-                    );
-                    const auto get_integerv = LoadFunction<GlGetIntegerv>(
-                        &g_get_integerv
-                    );
-                    std::array<float, 16U> view{};
-                    int model_view_stack_depth = 0;
-                    if (get_floatv != nullptr && get_integerv != nullptr) {
-                        get_floatv(kGlModelViewMatrix, view.data());
-                        get_integerv(kGlModelViewStackDepth, &model_view_stack_depth);
-                        ObserveGraphicsCameraState(
-                            view.data(), view.size(),
-                            projection.data(), projection.size(),
-                            g_immediate_scene_viewport.data(),
-                            g_immediate_scene_viewport.size(),
-                            model_view_stack_depth
-                        );
-                    }
-                }
             }
         }
         original(mode);
@@ -1551,6 +1541,7 @@ void APIENTRY StrongBegin(const unsigned int mode) noexcept {
 }
 
 void APIENTRY StrongEnd() noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlEnd>(&g_original_end);
     if (original != nullptr) {
         original();
@@ -1566,6 +1557,7 @@ void APIENTRY StrongEnd() noexcept {
 }
 
 void APIENTRY StrongNewList(const unsigned int list, const unsigned int mode) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlNewList>(&g_original_new_list);
     if (original != nullptr) {
         BeginDisplayListCapture(list);
@@ -1574,6 +1566,7 @@ void APIENTRY StrongNewList(const unsigned int list, const unsigned int mode) no
 }
 
 void APIENTRY StrongEndList() noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlEndList>(&g_original_end_list);
     if (original != nullptr) {
         original();
@@ -1585,6 +1578,7 @@ void APIENTRY StrongEndList() noexcept {
 }
 
 void APIENTRY StrongVertex3f(const float x, const float y, const float z) noexcept {
+    const RenderCallbackLease lease;
     CaptureDisplayListVertex(x, y, z);
     const auto original = LoadFunction<GlVertex3f>(&g_original_vertex_3f);
     if (original != nullptr) {
@@ -1593,6 +1587,7 @@ void APIENTRY StrongVertex3f(const float x, const float y, const float z) noexce
 }
 
 void APIENTRY StrongDeleteLists(const unsigned int list, const int range) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlDeleteLists>(&g_original_delete_lists);
     if (original != nullptr) {
         original(list, range);
@@ -1606,6 +1601,7 @@ void APIENTRY StrongViewport(
     const int width,
     const int height
 ) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlViewport>(&g_original_viewport);
     if (original != nullptr) {
@@ -1619,7 +1615,56 @@ void APIENTRY StrongViewport(
     }
 }
 
+// The reviewed main clear and pre-UI boundary bracket the world queue.
+// That queue pushes model-view before drawing, so per-draw stack-depth-one
+// sampling misses terrain and can observe unrelated objects. Only a matching
+// outer view at both owned boundaries may become the current scene camera.
+bool ReadOuterSceneCamera(GraphicsCameraState* const camera) noexcept {
+    const auto get_floatv = LoadFunction<GlGetFloatv>(&g_get_floatv);
+    const auto get_integerv = LoadFunction<GlGetIntegerv>(&g_get_integerv);
+    if (camera == nullptr || get_floatv == nullptr || get_integerv == nullptr
+        || g_immediate_primitive_open || IsCompilingDisplayListOnCurrentThread()) return false;
+    int depth = 0;
+    get_integerv(kGlModelViewStackDepth, &depth);
+    if (depth != 1) return false;
+    std::array<float, 16U> view{}, projection{};
+    std::array<int, 4U> viewport{};
+    get_floatv(kGlModelViewMatrix, view.data());
+    get_floatv(kGlProjectionMatrix, projection.data());
+    get_integerv(0x0BA2U, viewport.data());
+    return BuildGraphicsCameraState(view.data(), view.size(), projection.data(),
+        projection.size(), viewport.data(), viewport.size(), camera);
+}
+
+void BeginMainSceneCamera() noexcept {
+    g_main_scene_camera_valid = g_scene_frame.boundary_mapping_verified
+        && g_scene_frame.main_scene_start_count == 1U
+        && !g_scene_frame.main_scene_invalidated && g_main_scene_context != nullptr
+        && ReadOuterSceneCamera(&g_main_scene_camera);
+}
+
+bool FinishMainSceneCamera(GraphicsCameraState* const camera) noexcept {
+    const bool candidate = g_main_scene_camera_valid;
+    g_main_scene_camera_valid = false;  // A boundary can consume it only once.
+    const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
+    GraphicsCameraState restored{};
+    if (!candidate || camera == nullptr || !g_scene_frame.boundary_mapping_verified
+        || g_scene_frame.main_scene_start_count != 1U || g_scene_frame.boundary_count != 1U
+        || g_scene_frame.main_scene_world_draw_count == 0U || g_scene_frame.main_scene_invalidated
+        || current_context == nullptr || g_main_scene_context == nullptr
+        || current_context() != g_main_scene_context || !ReadOuterSceneCamera(&restored)
+        || std::memcmp(restored.view_matrix, g_main_scene_camera.view_matrix,
+            sizeof(restored.view_matrix)) != 0
+        || std::memcmp(restored.projection_matrix, g_main_scene_camera.projection_matrix,
+            sizeof(restored.projection_matrix)) != 0
+        || std::memcmp(restored.viewport, g_main_scene_camera.viewport,
+            sizeof(restored.viewport)) != 0) return false;
+    *camera = restored;
+    return true;
+}
+
 __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept {
+    const RenderCallbackLease lease;
     const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
     const auto original = LoadFunction<GlClearBuffers>(&g_original_clear);
     if (original == nullptr) { return; }
@@ -1628,18 +1673,28 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
     TerrainTraceClear(g_scene_mapping_verified && !g_immediate_primitive_open
         && (mask == 0x4100U || mask == 0x4500U)
         && IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva), mask);
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    if (!g_scene_mapping_verified || (mask != 0x4100U && mask != 0x4500U)
+        || !IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva)) DiscardSkyScene();
+#endif
     if ((mask & 0x100U) != 0U) {
+        g_main_scene_camera_valid = false;
         DiscardPendingDepthEdgeScene();
         if (g_scene_frame.main_scene_start_count > 0U) {
             g_scene_frame.main_scene_invalidated = true;
         }
     }
     if (g_scene_mapping_verified && (mask == 0x4100U || mask == 0x4500U)
+        && !g_immediate_primitive_open
         && IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva)) {
         const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
         g_main_scene_context = current_context != nullptr ? current_context() : nullptr;
         g_scene_frame.boundary_mapping_verified = true;
         ObserveMainSceneClear(&g_scene_frame);
+        BeginMainSceneCamera();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        BeginSelectedCueScene(g_main_scene_camera_valid ? &g_main_scene_camera : nullptr);
+#endif
         std::array<float, 16U> projection{};
         std::array<int, 4U> viewport{};
         bool perspective = false;
@@ -1650,15 +1705,23 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
                 viewport.data(), viewport.size())) {
             g_scene_frame.main_scene_invalidated = true;
         }
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        BeginSkyBackground(g_main_scene_camera_valid ? &g_main_scene_camera : nullptr,
+            g_scene_frame.main_scene_start_count == 1U && !g_scene_frame.main_scene_invalidated);
+#endif
     }
 }
 
 __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
     if (mode == 0x1701U && g_scene_mapping_verified
         && !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
         && IsReviewedSceneCall(caller, g_scene_image_base, kSceneUiReturnRva)) {
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        DiscardSkyScene();
+#endif
         TerrainTraceDone3d();
         const auto current_context = LoadFunction<WglGetCurrentContext>(&g_get_current_context);
         if (current_context == nullptr || g_main_scene_context == nullptr
@@ -1666,7 +1729,19 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
             g_scene_frame.main_scene_invalidated = true;
         }
         if (BeginReviewedSceneUiBoundary(&g_scene_frame)) {
+            GraphicsCameraState camera{};
+            const bool scene_camera_valid = FinishMainSceneCamera(&camera);
+            if (scene_camera_valid) {
+                ObserveGraphicsCameraState(camera.view_matrix, 16U,
+                    camera.projection_matrix, 16U, camera.viewport, 4U, 1);
+            }
             g_scene_frame.composite_succeeded = CompositeDepthEdgesBeforeUi();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            FinishSelectedCueScene(scene_camera_valid ? &camera : nullptr);
+            DrawEffects(scene_camera_valid ? &camera : nullptr,
+                IsWorldEnhancementCompositionSafe());
+            DrawNavigationInspector();
+#endif
         }
         // Even when capture is unavailable, this verified call marks UI
         // ownership. Never start modifying perspective UI widgets afterward.
@@ -1682,6 +1757,7 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
 }
 
 void APIENTRY StrongCallList(const unsigned int list) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlCallList>(&g_original_call_list);
     if (original != nullptr) {
         if (IsCompilingDisplayListOnCurrentThread()) {
@@ -1702,6 +1778,9 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
             original(list);
             return;
         }
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        if (!g_immediate_primitive_open) ObserveSelectedCueLegacyGeometry();
+#endif
         const bool stable = IsDisplayListSourceStateStable(list);
         TerrainTraceDraw(TerrainSubmission::list,
             reinterpret_cast<std::uintptr_t>(_ReturnAddress()), 0U, 0, -1, 0U, list,
@@ -1729,12 +1808,17 @@ void APIENTRY StrongCallList(const unsigned int list) noexcept {
 void APIENTRY StrongCallLists(
     const int count, const unsigned int type, const void* const lists
 ) noexcept {
+    const RenderCallbackLease lease;
     TerrainTraceDraw(TerrainSubmission::lists,
         reinterpret_cast<std::uintptr_t>(_ReturnAddress()), 0U, 0, count, type, 0U,
         false, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlCallLists>(&g_original_call_lists);
     if (original != nullptr) {
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        if (!IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open)
+            ObserveSelectedCueLegacyGeometry();
+#endif
         original(count, type, lists);
         if (!IsCompilingDisplayListOnCurrentThread()) {
             InvalidateObservedFixedFunctionState();
@@ -1747,13 +1831,28 @@ void APIENTRY StrongDrawArrays(
     const int first,
     const int count
 ) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlDrawArrays>(&g_original_draw_arrays);
     if (original != nullptr) {
         TerrainTraceDraw(TerrainSubmission::arrays,
             reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, first, count, 0U, 0U,
             true, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
-        const auto draw = [original, mode, first, count]() noexcept {
+        auto native_draw = [original, mode, first, count]() noexcept {
             original(mode, first, count);
+        };
+        auto draw = [&native_draw, mode, count]() noexcept {
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            if (!IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
+                && count >= 3 && IsFilledPrimitiveMode(mode)) {
+                // Apply selection material at the original submission's native order.
+                // The cue wrapper owns exactly one call-through, including rejection.
+                DrawSelectedCueGeometry([](void* callback) noexcept {
+                    (*static_cast<decltype(native_draw)*>(callback))();
+                }, &native_draw);
+                return;
+            }
+#endif
+            native_draw();
         };
         if (IsCompilingDisplayListOnCurrentThread()) {
             MarkCompiledListStateChange();
@@ -1784,13 +1883,28 @@ void APIENTRY StrongDrawElements(
     const unsigned int type,
     const void* const indices
 ) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlDrawElements>(&g_original_draw_elements);
     if (original != nullptr) {
         TerrainTraceDraw(TerrainSubmission::elements,
             reinterpret_cast<std::uintptr_t>(_ReturnAddress()), mode, 0, count, type, 0U,
             true, !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open);
-        const auto draw = [original, mode, count, type, indices]() noexcept {
+        auto native_draw = [original, mode, count, type, indices]() noexcept {
             original(mode, count, type, indices);
+        };
+        auto draw = [&native_draw, mode, count]() noexcept {
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            if (!IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open
+                && count >= 3 && IsFilledPrimitiveMode(mode)) {
+                // Apply selection material at the original submission's native order.
+                // The cue wrapper owns exactly one call-through, including rejection.
+                DrawSelectedCueGeometry([](void* callback) noexcept {
+                    (*static_cast<decltype(native_draw)*>(callback))();
+                }, &native_draw);
+                return;
+            }
+#endif
+            native_draw();
         };
         if (IsCompilingDisplayListOnCurrentThread()) {
             MarkCompiledListStateChange();
@@ -1816,17 +1930,27 @@ void APIENTRY StrongDrawElements(
 }
 
 BOOL WINAPI StrongSwapBuffers(const HDC device_context) noexcept {
+    const RenderCallbackLease lease;
     const std::uint64_t performance_started_qpc = BeginPerformancePresent();
     if (TerrainTracePresent()) { RequestGraphicsStatusPublish(); }
     ApplyPendingGraphicsControl();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    if (g_scene_frame.boundary_count != 1U || g_scene_frame.main_scene_invalidated)
+        DrawEffects(nullptr, false);
+#endif
     ReportSceneFrameClassification(g_scene_frame);
     ObserveGraphicsPresent();
     const auto original = LoadFunction<GdiSwapBuffers>(&g_original_swap_buffers);
     const BOOL result = original != nullptr ? original(device_context) : FALSE;
     EndDepthEdgeFrame();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    EndSelectedCueFrame();
+    EndSkyFrame();
+#endif
     g_scene_frame = {};
     g_scene_frame.boundary_mapping_verified = g_scene_mapping_verified;
     g_main_scene_context = nullptr;
+    g_main_scene_camera_valid = false;
     InvalidateFixedFunctionState(&g_fixed_function_state);
     ObservePerformancePresent(performance_started_qpc, result != FALSE);
     return result;
@@ -1914,7 +2038,7 @@ bool RestoreHook(
 ) noexcept {
     std::uint32_t* const slot = *slot_storage;
     PVOID const original = LoadFunction<PVOID>(original_storage);
-    if (slot == nullptr && original == nullptr) {
+    if (slot == nullptr) {
         return true;
     }
     if (slot == nullptr || original == nullptr) {
@@ -1934,11 +2058,15 @@ bool RestoreHook(
         return false;
     }
     *slot_storage = nullptr;
-    InterlockedExchangePointer(original_storage, nullptr);
+    // Keep original call-through for a callback dispatched before restoration.
     return true;
 }
 
 }  // namespace
+
+bool AreNativeDrawQueriesSafe() noexcept {
+    return !IsCompilingDisplayListOnCurrentThread() && !g_immediate_primitive_open;
+}
 
 bool IsPerspectiveProjectionMatrix(
     const float* const matrix,
@@ -2072,6 +2200,7 @@ void APIENTRY StrongVertexPointer(
     const int stride,
     const void* const pointer
 ) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlVertexPointer>(&g_original_vertex_pointer);
     if (original != nullptr) {
         original(size, type, stride, pointer);
@@ -2088,6 +2217,7 @@ void APIENTRY StrongTexCoordPointer(
     const int stride,
     const void* const pointer
 ) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlTexCoordPointer>(
         &g_original_tex_coord_pointer
     );
@@ -2101,6 +2231,7 @@ void APIENTRY StrongTexCoordPointer(
 }
 
 void APIENTRY StrongEnable(const unsigned int capability) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlEnable>(&g_enable);
     if (original != nullptr) {
@@ -2112,6 +2243,7 @@ void APIENTRY StrongEnable(const unsigned int capability) noexcept {
 }
 
 void APIENTRY StrongDisable(const unsigned int capability) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlDisable>(&g_disable);
     if (original != nullptr) {
@@ -2123,6 +2255,7 @@ void APIENTRY StrongDisable(const unsigned int capability) noexcept {
 }
 
 void APIENTRY StrongDepthMask(const unsigned char flag) noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlDepthMask>(&g_depth_mask);
     if (original != nullptr) {
@@ -2136,6 +2269,7 @@ void APIENTRY StrongDepthMask(const unsigned char flag) noexcept {
 }
 
 void APIENTRY StrongPopAttrib() noexcept {
+    const RenderCallbackLease lease;
     MarkCompiledListStateChange();
     const auto original = LoadFunction<GlPopAttrib>(&g_original_pop_attrib);
     if (original != nullptr) {
@@ -2149,6 +2283,7 @@ void APIENTRY StrongPopAttrib() noexcept {
 }
 
 void APIENTRY StrongEnableClientState(const unsigned int array) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlEnableClientState>(
         &g_original_enable_client_state
     );
@@ -2163,6 +2298,7 @@ void APIENTRY StrongEnableClientState(const unsigned int array) noexcept {
 }
 
 void APIENTRY StrongDisableClientState(const unsigned int array) noexcept {
+    const RenderCallbackLease lease;
     const auto original = LoadFunction<GlDisableClientState>(
         &g_original_disable_client_state
     );
@@ -2331,7 +2467,7 @@ DWORD InstallGraphicsPresentHook(
     ) {
         return ERROR_INVALID_PARAMETER;
     }
-    if (g_swap_buffers_slot != nullptr || g_original_swap_buffers != nullptr) {
+    if (g_swap_buffers_slot != nullptr) {
         return ERROR_ALREADY_INITIALIZED;
     }
     const HMODULE gdi = GetModuleHandleW(L"GDI32.dll");
@@ -2380,7 +2516,7 @@ DWORD InstallGraphicsPresentHook(
         if (*slot == static_cast<std::uint32_t>(replacement_address)) {
             g_swap_buffers_slot = slot;
         } else {
-            InterlockedExchangePointer(&g_original_swap_buffers, nullptr);
+            // No published slot; retain resolved call-through for prior dispatch.
         }
         StopGraphicsPresentObservation();
         return hook_result;
@@ -2390,12 +2526,11 @@ DWORD InstallGraphicsPresentHook(
 }
 
 DWORD StartGraphicsPresentObservation() noexcept {
+    const RenderLifecycleMutation mutation;
     static_assert(sizeof(void*) == sizeof(std::uint32_t));
     if (
         g_shade_model_slot != nullptr
-        || g_original_shade_model != nullptr
         || g_swap_buffers_slot != nullptr
-        || g_original_swap_buffers != nullptr
     ) {
         return ERROR_ALREADY_INITIALIZED;
     }
@@ -2424,6 +2559,7 @@ DWORD StartGraphicsPresentObservation() noexcept {
 }
 
 void StopGraphicsPresentObservation() noexcept {
+    const RenderLifecycleMutation mutation;
     RestoreHook(
         &g_swap_buffers_slot,
         &g_original_swap_buffers,
@@ -2432,9 +2568,10 @@ void StopGraphicsPresentObservation() noexcept {
 }
 
 DWORD StartStrongCelShading() noexcept {
+    const RenderLifecycleMutation mutation;
     static_assert(sizeof(void*) == sizeof(std::uint32_t));
 #define WB_CHECK_LIST_STATE_HOOK(name, parameters, arguments) \
-    if (g_list_slot_##name != nullptr || g_list_original_##name != nullptr) { \
+    if (g_list_slot_##name != nullptr) { \
         return ERROR_ALREADY_INITIALIZED; \
     }
     WB_LIST_STATE_COMMANDS(WB_CHECK_LIST_STATE_HOOK)
@@ -2463,30 +2600,10 @@ DWORD StartStrongCelShading() noexcept {
         || g_depth_mask_slot != nullptr
         || g_pop_attrib_slot != nullptr
         || g_swap_buffers_slot != nullptr
-        || g_original_shade_model != nullptr
-        || g_original_begin != nullptr
-        || g_original_end != nullptr
-        || g_original_call_list != nullptr
-        || g_original_call_lists != nullptr
-        || g_original_new_list != nullptr
-        || g_original_end_list != nullptr
-        || g_original_vertex_3f != nullptr
-        || g_original_delete_lists != nullptr
-        || g_original_viewport != nullptr
-        || g_original_matrix_mode != nullptr
-        || g_original_clear != nullptr
-        || g_original_draw_arrays != nullptr
-        || g_original_draw_elements != nullptr
-        || g_original_vertex_pointer != nullptr
-        || g_original_tex_coord_pointer != nullptr
-        || g_original_enable_client_state != nullptr
-        || g_original_disable_client_state != nullptr
-        || g_original_swap_buffers != nullptr
         || g_get_floatv != nullptr
         || g_get_booleanv != nullptr
         || g_push_attrib != nullptr
         || g_pop_attrib != nullptr
-        || g_original_pop_attrib != nullptr
         || g_push_matrix != nullptr
         || g_pop_matrix != nullptr
         || g_translatef != nullptr
@@ -2696,10 +2813,14 @@ DWORD StartStrongCelShading() noexcept {
     }};
     auto* const image = reinterpret_cast<std::uint8_t*>(executable);
     const auto image_base = reinterpret_cast<std::uintptr_t>(image);
-    const bool reviewed_executable = GraphicsExecutableSha256Matches(
-        "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
-        || GraphicsExecutableSha256Matches(
-            "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+    const char* reviewed_hash = nullptr;
+    for (const char* candidate : kReviewedSceneExecutableHashes) {
+        if (GraphicsExecutableSha256Matches(candidate)) {
+            reviewed_hash = candidate;
+            break;
+        }
+    }
+    const bool reviewed_executable = reviewed_hash != nullptr;
     const bool reviewed_code = reviewed_executable
         && nt->OptionalHeader.SizeOfImage >= kSceneDisplayRva + kSceneDisplaySize
         && IsReadableMemoryRange(image + kSceneDisplayRva, kSceneDisplaySize)
@@ -2778,6 +2899,7 @@ DWORD StartStrongCelShading() noexcept {
     g_scene_frame = {};
     g_scene_frame.boundary_mapping_verified = g_scene_mapping_verified;
     g_main_scene_context = nullptr;
+    g_main_scene_camera_valid = false;
     g_fixed_function_state = {};
     g_fixed_function_context = nullptr;
     ResetBandedLighting();
@@ -2800,7 +2922,7 @@ DWORD StartStrongCelShading() noexcept {
             if (*plan.slot == replacement_address) {
                 *plan.slot_storage = plan.slot;
             } else {
-                InterlockedExchangePointer(plan.original_storage, nullptr);
+                // Resolved originals remain callable after rollback.
             }
             StopStrongCelShading();
             return result;
@@ -2817,24 +2939,26 @@ DWORD StartStrongCelShading() noexcept {
         return present_result;
     }
     if (g_scene_mapping_verified) {
-        StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage,
-            GraphicsExecutableSha256Matches(
-                "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
-                ? "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc"
-                : "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        (void)StartSelectedCue(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
+        (void)StartSky(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
+#endif
+        StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
         wchar_t status_path[MAX_PATH]{};
         if (GetGraphicsStatusPath(status_path, MAX_PATH) == ERROR_SUCCESS) {
             StartTerrainTrace(status_path, image_base, nt->OptionalHeader.SizeOfImage,
-                GraphicsExecutableSha256Matches(
-                    "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc")
-                    ? "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc"
-                    : "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8");
+                reviewed_hash);
         }
     }
     return ERROR_SUCCESS;
 }
 
 void StopStrongCelShading() noexcept {
+    const RenderLifecycleMutation mutation;
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    StopSelectedCue();
+    StopSky();
+#endif
     StopTerrainMaskRefresh();
     StopTerrainTrace();
     bool restored = true;
@@ -2994,9 +3118,13 @@ void StopStrongCelShading() noexcept {
         restored = false;
     }
     if (restored) {
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+        StopEffects();
+#endif
         g_scene_mapping_verified = false;
         g_scene_image_base = 0U;
         g_main_scene_context = nullptr;
+        g_main_scene_camera_valid = false;
         InterlockedExchangePointer(&g_get_current_context, nullptr);
         ClearDisplayListBounds();
         InterlockedExchange(&g_viewport_height, 0);

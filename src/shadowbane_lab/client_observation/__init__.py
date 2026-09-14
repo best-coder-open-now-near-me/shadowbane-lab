@@ -81,6 +81,7 @@ from shadowbane_lab.client_observation.native_message_hud import (
 )
 from shadowbane_lab.client_observation.native_population import (
     NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION,
+    NativeCharacterKind,
     NativeCharacterObservation,
     NativeCharacterPopulationCompatibilityError,
     NativeCharacterPopulationError,
@@ -96,6 +97,7 @@ from shadowbane_lab.client_observation.native_population import (
 )
 from shadowbane_lab.client_observation.native_position import (
     NATIVE_POSITION_PROFILE_SCHEMA_VERSION,
+    NativeGroundedPlayerPositionObservation,
     NativePlayerPositionCompatibilityError,
     NativePlayerPositionError,
     NativePlayerPositionObservation,
@@ -313,6 +315,7 @@ __all__ = [
     "NATIVE_MESSAGE_HUD_PROFILE_SCHEMA_VERSION",
     "NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION",
     "NativeCharacterObservation",
+    "NativeCharacterKind",
     "NativeCharacterPopulationCompatibilityError",
     "NativeCharacterPopulationError",
     "NativeCharacterPopulationObservation",
@@ -348,6 +351,7 @@ __all__ = [
     "NativeGroupProfile",
     "NativeGroupProfileLoadError",
     "NativeGroupReadError",
+    "NativeGroundedPlayerPositionObservation",
     "NativeGroupReader",
     "NativeHealthProfileLoadError",
     "NativeMemoryRegion",

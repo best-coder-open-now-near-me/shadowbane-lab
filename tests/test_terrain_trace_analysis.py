@@ -86,7 +86,13 @@ def _payload() -> dict:
     }
 
 
-@pytest.mark.parametrize("version", ["1.6.12", "1.6.13"])
+@pytest.mark.parametrize(
+    "version",
+    [
+        "1.6.12", "1.6.13", "1.7.0", "1.7.1", "1.7.2", "1.7.3",
+        "1.7.4", "1.7.5", "1.7.6", "1.7.7", "1.7.8", "1.8.0", "1.8.1",
+    ]
+)
 def test_analyzer_attributes_reviewed_terrain_roles_without_claiming_asset_ids(version):
     payload = _payload()
     payload["extension_version"] = version
@@ -222,3 +228,24 @@ def test_analyzer_cli_reports_unknown_profile_without_rewriting_trace(tmp_path, 
     assert analysis.main([str(path)]) == 1
     assert json.loads(capsys.readouterr().out)["status"] == "not_analyzed"
     assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("enriched", [False, True])
+def test_existing_consumer_accepts_additive_transmission_state(enriched):
+    payload = _payload()
+    original = copy.deepcopy(payload)
+    if enriched:
+        for draw in payload["draws"]:
+            draw["transmission_state"] = {
+                "unavailable": -1,
+                "program": -1,
+                "framebuffer": 0,
+                "blend_rgb_alpha_factors_equations": [770, 771, 1, 0, 32774, 32774],
+                "stencil_enable_front_back": [0, 519, 255, 0, 255, 7680, 7680, 7680]
+                + [-1] * 7,
+                "color_write_rgba": [1, 1, 1, 0],
+            }
+    assert analysis.analyze_terrain_trace(payload) == analysis.analyze_terrain_trace(original)
+    assert [row["state"] for row in payload["draws"]] == [
+        row["state"] for row in original["draws"]
+    ]

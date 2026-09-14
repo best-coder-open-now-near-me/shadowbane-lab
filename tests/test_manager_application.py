@@ -209,6 +209,7 @@ class _StaticWorkerSupervisor:
         *,
         instance_id: str | None,
         lifecycle_dispatch_enabled: bool,
+        renew_permit: bool = True,
     ) -> WorkerSlotHealthSnapshot:
         if instance_id is None:
             return WorkerSlotHealthSnapshot(
@@ -276,9 +277,7 @@ class _RecordingExtensionStatus:
             extension_version="1.0.0",
             abi_version=1,
             initialized_at_filetime_utc=process_creation_filetime_utc + 1,
-            heartbeat_file_name=(
-                f"heartbeat-{process_id}-{process_creation_filetime_utc}.json"
-            ),
+            heartbeat_file_name=(f"heartbeat-{process_id}-{process_creation_filetime_utc}.json"),
         )
 
 
@@ -699,7 +698,7 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
 
         self.assertEqual(
             [
-                ("start-all", 12.0, 0.25),
+                ("start", "client-02", 12.0, 0.25),
                 ("refresh",),
                 ("tile-all",),
                 ("start", "client-02", 12.0, 0.25),

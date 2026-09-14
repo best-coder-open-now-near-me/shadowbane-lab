@@ -2,18 +2,40 @@
 
 ## Delivery and integration
 
-Branch: `codex/vendor-rolling`, based on
-`codex/integrate-current-development@f2a5ca1`. The shared destination is
-`main` after the integration dependency is reviewed. This source is not merged
-or deployed. The main project checkout stays on `main`; development and local
-evidence are in `.worktrees/vendor-rolling`.
+Branch: `codex/vendor-rolling`, developed in
+`.worktrees/vendor-rolling`. The original base was
+`codex/integrate-current-development@f2a5ca1`; the September 14 dependency
+merge includes `codex/native-lifecycle-hardening@542c632`.
+Review this vendor overlay against `codex/native-lifecycle-hardening`, then
+integrate into `main` after dependency and feature review. Neither the vendor
+overlay nor this dependency merge is a deployment. The normal checkout stays
+on `main`.
 
-The implementation includes the strict offline ITEMPRODUCTION decoder and a
-bounded native crafting tracer with a post-resume observation callback. Live
-rolling automation remains unfinished. The native capture path is still under
-live qualification; there is no verified dispatch adapter, complete queue reader,
-or resource-budget controller in this delivery. Do not treat this decoder as a
-live automation capability or register it as one.
+Implemented: strict crafting decoding, bounded passive tracing, deposit item
+decoding, conservative affix assessment, and a rooted current-menu queue and
+selected-recipe reader. Live manual Create and cooking-to-complete transitions
+have been observed. Automatic rolling is unfinished: no verified dispatch
+adapter, authoritative inventory reconciliation, or resource-budget controller
+is enabled. Observer success must not be advertised as automation capability.
+
+The dependency provides current native UI-thread, process/session lifetime and
+typed command ownership infrastructure. Its movement authority does not grant
+permission to craft or discard items. Vendor commands need their own typed
+admission and receipts.
+
+### September 14 dependency validation
+
+Source checkpoint before merge: `6093942`. Native source is unchanged from
+dependency `542c632`. Win32 Release compilation succeeded. Of 144 default
+CTest cases, 139 passed, three fixture-dependent cases skipped, and two inherited
+transparency diagnostics failed:
+`wonderbane_extension_selected_cue_native_transparency` and
+`wonderbane_extension_effects_native_transparency`. These failures remain
+open; this is not a fully passing native suite. The three skipped binding/image
+cases subsequently passed with the reviewed private original and prepared client
+fixtures. All 72 focused vendor, crafting, inventory, debug-event, affix and
+policy Python tests passed; whole-tree Ruff and staged whitespace checks passed.
+Build output and fixture binaries remain private ignored artifacts.
 
 ## Verified upstream boundary
 
@@ -76,16 +98,12 @@ tests prove the upstream grammar only; no live capture has been promoted.
 
 ## Remaining implementation
 
-1. **Active: verify a manual roll on shadowbane-testing.** Bind the process
-   lifetime and executable hash; capture opening management, requesting one
-   random roll, cooking, completion, and keeping the item. Identify the native
-   crafting message and dispatch functions through signatures and call paths.
-   Existing ArcMerchantMessage vendor-dialog breakpoints cannot capture this
-   different message class simply by changing an opcode.
-2. Add the verified native observation path and complete MANAGENPC queue/
-   inventory snapshots. Keep callbacks bounded; publish immutable events through
-   the extension event channel. Bind observations to process lifetime, vendor,
-   item, sequence, and capture time, with explicit gaps and reconnect handling.
+1. **Complete:** qualify native Create and read the selected recipe and owned
+   production slots, including cooking and completion, on shadowbane-testing.
+2. **Active:** qualify Keep's native receiver and complete current-vendor inventory
+   reconciliation. Deposit message decoding is implemented but does not prove
+   that the client applied the inventory transition. Publish immutable native
+   observations with process/session/vendor identity and explicit observation gaps.
 3. Add typed crafting commands through the existing manager admission and native
    action boundaries. Recheck vendor access, identity, fresh queue capacity,
    inventory capacity, and gold/material limits immediately before dispatch.

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from shadowbane_lab.manager.record_store import (
+from shadowbane_lab.record_store import (
     exclusive_record_lock,
     publish_atomic_record,
 )
@@ -70,7 +70,7 @@ class ManagerRecordStoreTests(unittest.TestCase):
 
             with (
                 patch.object(Path, "replace", intermittently_locked),
-                patch("shadowbane_lab.manager.record_store.sleep") as retry_sleep,
+                patch("shadowbane_lab.record_store.sleep") as retry_sleep,
             ):
                 publish_atomic_record(target, b"permit", temporary_label="dispatch")
 
@@ -88,7 +88,7 @@ class ManagerRecordStoreTests(unittest.TestCase):
 
             with (
                 patch.object(Path, "replace", fail_replace),
-                patch("shadowbane_lab.manager.record_store.sleep") as retry_sleep,
+                patch("shadowbane_lab.record_store.sleep") as retry_sleep,
                 self.assertRaisesRegex(OSError, "not a transient reader lock"),
             ):
                 publish_atomic_record(target, b"next", temporary_label="receipt")

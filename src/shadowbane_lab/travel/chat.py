@@ -95,11 +95,14 @@ class GoChatCommandAssembler:
             for command in (
                 "/go",
                 "/pve",
+                "/blacklist",
                 "/stop",
                 "/zone",
                 *GoChatCommandAssembler._DIRECT_COMMAND_ALIASES,
             )
         ):
+            return True
+        if normalized.startswith("/blacklist "):
             return True
         if normalized.startswith("/go "):
             return True
@@ -126,6 +129,8 @@ class GoChatCommandAssembler:
             normalized == "/go"
             or normalized.startswith("/go ")
             or normalized.rstrip() == "/pve"
+            or normalized.rstrip() == "/blacklist"
+            or normalized.startswith("/blacklist ")
             or normalized.rstrip() == "/stop"
             or normalized.rstrip() == "/zone"
             or normalized.startswith("/zone ")

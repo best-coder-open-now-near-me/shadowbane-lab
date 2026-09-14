@@ -1,4 +1,5 @@
-#include "performance_telemetry.h"
+#include "performance_telemetry.cpp"
+#include <thread>
 
 #include <Windows.h>
 
@@ -15,7 +16,53 @@ int Fail(const char* const detail) {
 
 }  // namespace
 
+HANDLE callback_entered = nullptr;
+HANDLE callback_release = nullptr;
+BOOL WINAPI HeldRead(HANDLE, LPVOID, DWORD, LPDWORD bytes, LPOVERLAPPED) {
+    SetEvent(callback_entered);
+    WaitForSingleObject(callback_release, INFINITE);
+    *bytes = 1;
+    return TRUE;
+}
+
+int LifetimeRegression() {
+    using namespace wonderbane::extension;
+    callback_entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    callback_release = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    if (StartPerformanceTelemetry({GetCurrentProcessId(), 12345}, PerformanceTelemetryProfile::frame)
+        != ERROR_SUCCESS) { return Fail("lifetime mapping start"); }
+    InterlockedExchangePointer(&g_original_read_file, reinterpret_cast<PVOID>(&HeldRead));
+    const HANDLE tracked = reinterpret_cast<HANDLE>(123);
+    TrackHandle(tracked, CacheArchiveKind::textures);
+    std::thread callback([&] { DWORD bytes = 0; TelemetryReadFile(tracked, nullptr, 1, &bytes, nullptr); });
+    WaitForSingleObject(callback_entered, INFINITE);
+    // The original call is deliberately blocked: the production entry lease
+    // must still own storage, including while cleanup waits to acquire it.
+    if (TryAcquireSRWLockExclusive(&g_lifetime_lock)) { std::abort(); }
+    HANDLE stop_entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+    std::thread cleanup([&] { SetEvent(stop_entered); StopPerformanceTelemetry(); });
+    WaitForSingleObject(stop_entered, INFINITE);
+    SetEvent(callback_release);
+    callback.join(); cleanup.join();
+    if (g_storage != nullptr || LoadFunction<PVOID>(&g_original_read_file) == nullptr) {
+        return Fail("cleanup storage/call-through lifetime");
+    }
+    DWORD bytes = 0;
+    if (!TelemetryReadFile(tracked, nullptr, 1, &bytes, nullptr) || bytes != 1) {
+        return Fail("already dispatched callback after restore");
+    }
+    StopPerformanceTelemetry();
+    if (StartPerformanceTelemetry({GetCurrentProcessId(), 12345}, PerformanceTelemetryProfile::frame)
+        != ERROR_SUCCESS) { return Fail("replacement generation"); }
+    ObservePerformancePresent(1, true);
+    if (g_storage->header.frame_count != 0) { return Fail("previous present entered replacement"); }
+    StopPerformanceTelemetry();
+    CloseHandle(stop_entered); CloseHandle(callback_entered); CloseHandle(callback_release);
+    return 0;
+}
+
 int main() {
+    if (LifetimeRegression() != 0) { return 1; }
     using wonderbane::extension::CacheArchiveKind;
     using wonderbane::extension::ClassifyCacheArchivePath;
     using wonderbane::extension::EstimateTextureUploadBytes;

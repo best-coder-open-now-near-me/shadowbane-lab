@@ -2,7 +2,7 @@ import io
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -41,10 +41,7 @@ from tests.test_client_input_executor import _valid_snapshot
 
 class ClientCliTests(unittest.TestCase):
     def test_world_map_close_plan_discovers_matching_character_configs(self) -> None:
-        config = (
-            'BEGINHOTKEYS\nKEY= "M" FALSE FALSE FALSE 48 0 0 "WorldMap"\n'
-            "ENDHOTKEYS\n"
-        )
+        config = 'BEGINHOTKEYS\nKEY= "M" FALSE FALSE FALSE 48 0 0 "WorldMap"\nENDHOTKEYS\n'
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in (
@@ -60,12 +57,14 @@ class ClientCliTests(unittest.TestCase):
 
     def test_worker_cancel_acknowledges_without_touching_client_input(self) -> None:
         executor = object.__new__(_ExactWorkerEngineExecutor)
-        executor._binding = SimpleNamespace(instance_id="instance-101")
+        executor._binding = SimpleNamespace(
+            instance_id="instance-101", client_id="client", worker_id="worker"
+        )
         stop_signal = MagicMock()
 
         result = executor.execute(
             SimpleNamespace(
-                instance_id="instance-101",
+                instance_id="instance-101", client_id="client", worker_id="worker",
                 kind=WorkerOperationKind.CANCEL,
             ),
             stop_signal=stop_signal,
@@ -1028,6 +1027,17 @@ class ClientCliTests(unittest.TestCase):
         self.assertTrue(learned_state_saved)
 
     def test_travel_binds_native_readers_to_the_guarded_client_process(self) -> None:
+        self._assert_travel_process_binding()
+
+    def test_travel_uses_injected_movement_without_minimap_or_mouse_backend(self) -> None:
+        self._assert_travel_process_binding(native_movement=True)
+
+    def _assert_travel_process_binding(self, *, native_movement: bool = False) -> None:
+        movement_dispatcher = (
+            SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock())
+            if native_movement
+            else None
+        )
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
         snapshot = WindowSnapshot(
@@ -1048,6 +1058,7 @@ class ClientCliTests(unittest.TestCase):
         vitals_profile = SimpleNamespace(executable_sha256="ab" * 32)
         position_reader = MagicMock()
         position_reader.process_id = 4320
+        position_reader.executable_sha256 = "cd" * 32
         position_reader.__enter__.return_value = position_reader
         vitals_reader = MagicMock()
         vitals_reader.process_id = 4320
@@ -1058,6 +1069,7 @@ class ClientCliTests(unittest.TestCase):
             final_position=NativePlayerPositionObservation(1000, 2000, 10),
             trace=(),
             clicks=1,
+            arrival_confirmed=True,
             stop_input_accepted=None,
             stop_input_reason=None,
         )
@@ -1088,8 +1100,15 @@ class ClientCliTests(unittest.TestCase):
             patch(
                 "shadowbane_lab.cli.PyAutoGuiBackend",
                 return_value=RecordingInputBackend(),
-            ),
+            ) as mouse_backend,
             patch("shadowbane_lab.cli.TravelRunner") as travel_runner,
+            patch(
+                "shadowbane_lab.cli_commands.client_travel.NativeMovementOperation",
+            ) as native_operation,
+            patch(
+                "shadowbane_lab.cli_commands.client_travel.optional_session",
+                return_value=nullcontext(None),
+            ) as inspector_session,
             redirect_stdout(output),
         ):
             travel_runner.return_value.run.return_value = completed_run
@@ -1109,8 +1128,20 @@ class ClientCliTests(unittest.TestCase):
                 as_json=True,
                 stop_signal=EventEmergencyStop(),
                 client_process_id=4320,
+                movement_dispatcher=movement_dispatcher,
             )
 
+        if native_movement:
+            self.assertIs(travel_runner.call_args.kwargs["dispatcher"], movement_dispatcher)
+            native_operation.assert_not_called()
+            mouse_backend.assert_not_called()
+        else:
+            owned = native_operation.return_value.__enter__.return_value
+            self.assertIs(travel_runner.call_args.kwargs["dispatcher"], owned.dispatcher)
+            self.assertIs(travel_runner.call_args.kwargs["stop_signal"], owned)
+            native_operation.return_value.__exit__.assert_called_once()
+        mouse_backend.assert_not_called()
+        inspector_session.assert_called_once_with(position_reader)
         self.assertEqual(0, result)
         open_position.assert_called_once_with(position_profile, process_id=4320)
         open_vitals.assert_called_once_with(vitals_profile, process_id=4320)
@@ -1156,6 +1187,7 @@ class ClientCliTests(unittest.TestCase):
             final_position=NativePlayerPositionObservation(1000, 2000, 10),
             trace=(),
             clicks=4,
+            arrival_confirmed=True,
             stop_input_accepted=None,
             stop_input_reason=None,
         )
@@ -1204,6 +1236,9 @@ class ClientCliTests(unittest.TestCase):
                 return_value=RecordingInputBackend(),
             ),
             patch("shadowbane_lab.cli.TravelRunner") as travel_runner,
+            patch(
+                "shadowbane_lab.cli_commands.client_travel.NativeMovementOperation",
+            ),
             redirect_stdout(output),
         ):
             cache = Path(directory) / "cache"
@@ -1244,7 +1279,7 @@ class ClientCliTests(unittest.TestCase):
             payload["pathfinding"],
         )
         open_zone.assert_called_once_with(native_profile, process_id=4320)
-        terrain_factory.assert_called_once_with(cache, zone_reader)
+        terrain_factory.assert_called_once_with(cache, zone_reader, observer=None)
         self.assertIs(
             astar_controller,
             travel_runner.call_args.kwargs["controller"],
@@ -1263,7 +1298,10 @@ class ClientCliTests(unittest.TestCase):
     def test_pve_auto_resolves_character_and_records_binding_before_starting(self) -> None:
         self._assert_pve_process_binding(policy="proc-assassin")
 
-    def _assert_pve_process_binding(self, *, policy: str) -> None:
+    def test_pve_uses_injected_movement_without_minimap(self) -> None:
+        self._assert_pve_process_binding(policy="basic", native_movement=True)
+
+    def _assert_pve_process_binding(self, *, policy: str, native_movement: bool = False) -> None:
         from shadowbane_lab.client_input.character_config import CharacterConfigSession
         from shadowbane_lab.client_observation.native_character_config import (
             NativeCharacterConfigReader,
@@ -1271,6 +1309,11 @@ class ClientCliTests(unittest.TestCase):
         from tests.test_active_character_config import CharacterMemory, write_profile
         from tests.test_arcane_hotbar import _CAPTURED_HOTBAR
 
+        movement_dispatcher = (
+            SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock())
+            if native_movement
+            else None
+        )
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
         snapshot = WindowSnapshot(
@@ -1292,6 +1335,10 @@ class ClientCliTests(unittest.TestCase):
             SimpleNamespace(executable_sha256="ab" * 32, profile_id=f"profile-{index}")
             for index in range(9)
         )
+        group_profile = SimpleNamespace(executable_sha256="ab" * 32, profile_id="party-test")
+        group_reader = MagicMock()
+        group_reader.process_id = 4320
+        group_reader.__enter__.return_value = group_reader
         readers = tuple(MagicMock() for _ in range(9))
         for reader in readers:
             reader.process_id = 4320
@@ -1410,9 +1457,30 @@ class ClientCliTests(unittest.TestCase):
                     return_value=RecordingInputBackend(),
                 ),
                 patch("shadowbane_lab.cli.PvERunner") as pve_runner,
+                patch(
+                    "shadowbane_lab.cli_commands.client_pve.native_party.load_bundled_native_group_profile",
+                    return_value=group_profile,
+                ),
+                patch(
+                    "shadowbane_lab.cli_commands.client_pve.native_party.open_windows_native_group_reader",
+                    return_value=group_reader,
+                ) as open_group,
+                patch(
+                    "shadowbane_lab.cli_commands.client_pve.NativeMovementOperation",
+                ) as native_operation,
+                patch(
+                    "shadowbane_lab.cli_commands.client_pve.optional_session",
+                    return_value=nullcontext(None),
+                ) as inspector_session,
                 redirect_stdout(output),
             ):
                 emergency_stop.return_value.__enter__.return_value = EventEmergencyStop()
+                # Runtime protocols use static attribute lookup on Python 3.12+.
+                # Model the owned operation explicitly rather than MagicMock's __getattr__.
+                native_operation.return_value.__enter__.return_value = SimpleNamespace(
+                    dispatcher=SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock()),
+                    is_set=injected_stop.is_set,
+                )
                 pve_runner.return_value.run.return_value = completed_run
                 result = _run_pve(
                     client_profile_path=template,
@@ -1434,6 +1502,11 @@ class ClientCliTests(unittest.TestCase):
                     evidence_output_path=evidence_output,
                     stop_signal=injected_stop,
                     client_process_id=4320,
+                    movement_dispatcher=movement_dispatcher,
+                )
+                self.assertEqual(0, result, output.getvalue())
+                inspector_session.assert_called_once_with(
+                    open_position.return_value.__enter__.return_value
                 )
                 saved_evidence = json.loads(evidence_output.read_text(encoding="utf-8"))
 
@@ -1460,6 +1533,21 @@ class ClientCliTests(unittest.TestCase):
                     open_character.assert_not_called()
                     self.assertIsNone(saved_evidence["character_config"])
 
+        if native_movement:
+            self.assertIs(pve_runner.call_args.kwargs["movement_dispatcher"], movement_dispatcher)
+            native_operation.assert_not_called()
+        else:
+            owned = native_operation.return_value.__enter__.return_value
+            self.assertIs(pve_runner.call_args.kwargs["movement_dispatcher"], owned.dispatcher)
+            self.assertIs(pve_runner.call_args.kwargs["stop_signal"], owned)
+            self.assertIs(
+                pve_runner.call_args.kwargs["dispatcher"]._adapter._executor._stop_signal, owned
+            )
+            native_operation.return_value.__exit__.assert_called_once()
+        open_group.assert_called_once_with(group_profile, process_id=4320)
+        self.assertIs(pve_runner.call_args.kwargs["group_reader"], group_reader)
+        self.assertEqual(pve_runner.call_args.kwargs["party_group_id"], "client:4320:party")
+        group_reader.__exit__.assert_called_once()
         self.assertEqual(0, result)
         self.assertEqual(1, saved_evidence["trace_schema_version"])
         self.assertEqual(4320, saved_evidence["native_observation"]["process_id"])

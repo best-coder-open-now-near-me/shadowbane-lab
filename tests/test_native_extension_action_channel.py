@@ -130,7 +130,7 @@ class NativeActionAbiTests(unittest.TestCase):
             created_tick=100,
             deadline_tick=500,
         )
-        fields = struct.unpack("<qQIIQQiiiIII96s32s", payload)
+        fields = struct.unpack("<qQIIQQiiiIII96s32s", payload[:192])
 
         self.assertEqual(CLIENT_ACTION_COMMAND_SLOT_SIZE, len(payload))
         self.assertEqual(0, fields[0])
@@ -157,7 +157,7 @@ class NativeActionAbiTests(unittest.TestCase):
             created_tick=100,
             deadline_tick=500,
         )
-        fields = struct.unpack("<qQIIQQiiiIII96s32s", payload)
+        fields = struct.unpack("<qQIIQQiiiIII96s32s", payload[:192])
 
         self.assertEqual(NativeActionCommandKind.LEARNED_POWER, fields[2])
         self.assertEqual((0, 0, 0), fields[6:9])

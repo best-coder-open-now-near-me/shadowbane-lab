@@ -24,7 +24,7 @@ git switch -c codex/describe-the-change
 ```
 
 While the candidate is awaiting review, dependent work can use
-`origin/codex/integrate-current-development` as an explicit base. Record that
+`origin/codex/native-lifecycle-hardening` as an explicit base. Record that
 dependency in its PR. Never assume the currently checked-out topic is current.
 
 ## Keep independent tasks in separate checkouts
@@ -69,8 +69,8 @@ certify their exact commit only.
 git fetch origin --prune
 git branch -a --contains <commit-sha>
 git log --all --oneline -- path/to/file
-git log origin/main..origin/codex/integrate-current-development --oneline
-git rev-list --left-right --count origin/main...origin/codex/integrate-current-development
+git log origin/main..origin/codex/native-lifecycle-hardening --oneline
+git rev-list --left-right --count origin/main...origin/codex/native-lifecycle-hardening
 ```
 
 A branch being pushed does not mean it was merged into `main`. Compare ancestry
@@ -82,3 +82,14 @@ Store local scratch files and captures under ignored `artifacts/`; keep useful
 source in its owning module. Never use a blanket clean, hard reset, force push,
 or bulk branch deletion to hide unfinished work. Verify retained remote ancestry
 and preserve dirty files before retiring a checkout.
+
+
+The combined candidate requires the cue's visible native-material gate and the
+effects runtime suppression tests. Run required native tests with `ctest -C Release -LE
+stretch-diagnostic --output-on-failure`. Run `ctest -C Release -L stretch-diagnostic
+--output-on-failure` separately to retain the deferred ideal-transparency pixel
+counterexamples. Those diagnostics may fail; they do not certify visible world
+glow or particles/trails. The existing package builder executes both groups,
+rejects missing/skipped required fallback tests, and records diagnostic findings
+separately from required failures. Never substitute a diagnostic pass for a
+required runtime gate.

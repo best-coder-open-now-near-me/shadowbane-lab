@@ -12,7 +12,7 @@ import os
 import subprocess
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from math import isfinite
 from typing import Protocol
@@ -27,6 +27,17 @@ from .window_control import WindowRectangle
 
 class SupervisorError(RuntimeError):
     """Base class for lifecycle-supervisor failures."""
+
+
+class UnverifiedLaunchError(SupervisorError):
+    """A created process remains owned by the launcher but lacks a verified lifetime."""
+
+    def __init__(self, process_id: int) -> None:
+        self.process_id = process_id
+        super().__init__(
+            f"launched process PID {process_id} could not be verified; "
+            "explicit attach retries verification without launching again"
+        )
 
 
 class RegistryContractError(SupervisorError):
@@ -541,6 +552,7 @@ class SubprocessLauncher:
         if not callable(getattr(self._process_inspector, "inspect", None)):
             raise ValueError("process_inspector must provide inspect(process_id)")
         self._children: dict[int, subprocess.Popen[bytes]] = {}
+        self._children_lock = threading.Lock()
 
     def launch(self, command: ReviewedLaunchCommand) -> LaunchReceipt:
         if not isinstance(command, ReviewedLaunchCommand):
@@ -560,23 +572,31 @@ class SubprocessLauncher:
             shell=False,
             **({} if launch_environment is None else {"env": launch_environment}),
         )
-        self._children[process.pid] = process
-        lifetime = self._process_inspector.inspect(process.pid)
-        if lifetime is None or lifetime.process_id != process.pid:
-            raise SupervisorError(
-                "launched process lifetime could not be verified; explicit attach is required"
-            )
-        return LaunchReceipt(
-            process_id=lifetime.process_id,
-            process_started_at_100ns=lifetime.process_started_at_100ns,
-        )
+        with self._children_lock:
+            self._children[process.pid] = process
+        return self.recover(process.pid)
+
+    def recover(self, process_id: int) -> LaunchReceipt:
+        """Verify only a retained Popen lifetime, never a numeric PID alone."""
+        with self._children_lock:
+            process = self._children.get(process_id)
+        if process is None or process.poll() is not None:
+            raise UnverifiedLaunchError(process_id)
+        try:
+            lifetime = self._process_inspector.inspect(process_id)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise UnverifiedLaunchError(process_id) from exc
+        if lifetime is None or lifetime.process_id != process_id or process.poll() is not None:
+            raise UnverifiedLaunchError(process_id)
+        return LaunchReceipt(lifetime.process_id, lifetime.process_started_at_100ns)
 
     def _reap_finished_children(self) -> None:
-        self._children = {
-            process_id: process
-            for process_id, process in self._children.items()
-            if process.poll() is None
-        }
+        with self._children_lock:
+            self._children = {
+                process_id: process
+                for process_id, process in self._children.items()
+                if process.poll() is None
+            }
 
 
 class SystemMonotonicClock:
@@ -647,6 +667,8 @@ class ClientLifecycleSupervisor:
         if not callable(getattr(self._process_inspector, "inspect", None)):
             raise ValueError("process_inspector must provide inspect(process_id)")
         self._bindings: dict[str, _ManagedBinding] = {}
+        self._instance_locks: dict[str, threading.RLock] = {}
+        self._pending_launches: dict[str, LaunchReceipt | UnverifiedLaunchError | None] = {}
         self._lock = threading.RLock()
 
     def attach(
@@ -657,42 +679,45 @@ class ClientLifecycleSupervisor:
     ) -> ManagedClientSnapshot:
         """Attach to one client, requiring an exact ID when filters are ambiguous."""
 
-        with self._lock:
-            snapshot = self._read_snapshot(selector)
-            if snapshot.rejected:
-                raise UnsafeClientIdentityError(
-                    f"{len(snapshot.rejected)} matching window(s) lack complete identity"
-                )
-            if not snapshot.clients:
-                raise NoMatchingClientError("no matching pre-existing client was found")
-            if instance_id is not None:
-                _require_canonical_text(instance_id, "instance_id")
-                matches = tuple(
-                    client for client in snapshot.clients if client.instance_id == instance_id
-                )
-                if not matches:
-                    raise NoMatchingClientError(
-                        f"registered client {instance_id!r} did not match the selector"
-                    )
-                if len(matches) != 1:
-                    raise AmbiguousClientError(f"registered client {instance_id!r} was not unique")
-                return self._bind(
-                    selector,
-                    matches[0],
-                    launch_receipt=None,
-                    launch_provenance=None,
-                )
-            if len(snapshot.clients) != 1:
-                raise AmbiguousClientError(
-                    f"found {len(snapshot.clients)} pre-existing clients; "
-                    "select an exact instance_id"
-                )
-            return self._bind(
-                selector,
-                snapshot.clients[0],
-                launch_receipt=None,
-                launch_provenance=None,
+        snapshot = self._read_safe_snapshot(selector)
+        if not snapshot.clients:
+            raise NoMatchingClientError("no matching pre-existing client was found")
+        if instance_id is not None:
+            _require_canonical_text(instance_id, "instance_id")
+            matches = tuple(
+                client for client in snapshot.clients if client.instance_id == instance_id
             )
+        else:
+            matches = snapshot.clients
+        if not matches:
+            raise NoMatchingClientError(
+                f"registered client {instance_id!r} did not match the selector"
+            )
+        if len(matches) != 1:
+            raise AmbiguousClientError("select one exact instance_id for explicit attach")
+        client = matches[0]
+        key = repr(selector)
+        with self._lock:
+            pending = self._pending_launches.get(key)
+        receipt = pending if isinstance(pending, LaunchReceipt) else None
+        if isinstance(pending, UnverifiedLaunchError):
+            recover = getattr(self._launcher, "recover", None)
+            if not callable(recover):
+                raise pending
+            receipt = recover(pending.process_id)
+        provenance = self._launch_provenance(client, receipt) if receipt is not None else None
+        with self._lock:
+            if self._pending_launches.get(key) is not pending:
+                raise SupervisorError("launch recovery ownership changed during attachment")
+            result = self._bind(
+                selector,
+                client,
+                launch_receipt=receipt if provenance is not None else None,
+                launch_provenance=provenance,
+            )
+            if provenance is not None:
+                del self._pending_launches[key]
+            return result
 
     def launch_and_attach(
         self,
@@ -715,84 +740,135 @@ class ClientLifecycleSupervisor:
         if not isinstance(command, ReviewedLaunchCommand):
             raise ValueError("command must be ReviewedLaunchCommand")
 
+        key = repr(selector)
         with self._lock:
+            if key in self._pending_launches:
+                raise SupervisorError(
+                    "a prior launch is pending or requires explicit attachment recovery"
+                )
+            self._pending_launches[key] = None
+        try:
             baseline = self._read_safe_snapshot(selector)
-            unowned_baseline = tuple(
-                client
-                for client in baseline.clients
-                if not self._binding_owns_exact_identity(client)
-            )
-            if unowned_baseline:
-                raise UnownedLaunchBaselineError(
-                    "launch baseline contains matching client(s) not owned by this supervisor; "
-                    "explicit attach is required: "
-                    + ", ".join(client.instance_id for client in unowned_baseline)
+            with self._lock:
+                unowned_baseline = tuple(
+                    client
+                    for client in baseline.clients
+                    if not self._binding_owns_exact_identity(client)
                 )
-            baseline_by_id = {client.instance_id: client for client in baseline.clients}
+                if unowned_baseline:
+                    raise UnownedLaunchBaselineError(
+                        "launch baseline contains matching client(s) not owned by this supervisor; "
+                        "explicit attach is required: "
+                        + ", ".join(client.instance_id for client in unowned_baseline)
+                    )
+                baseline_by_id = {client.instance_id: client for client in baseline.clients}
+        except Exception:
+            # No process has been created yet; this reservation is safe to release.
+            with self._lock:
+                del self._pending_launches[key]
+            raise
+        # Retain the reservation on uncertain launch/attachment failure. A receipt
+        # records a process we created even when no usable window ever appears.
+        try:
             receipt = self._launcher.launch(command)
-            if not isinstance(receipt, LaunchReceipt):
-                raise SupervisorError("launcher must return LaunchReceipt")
+        except UnverifiedLaunchError as exc:
+            with self._lock:
+                self._pending_launches[key] = exc
+            raise
+        except OSError:
+            # Popen failure creates no child; SubprocessLauncher wraps all
+            # post-creation observation failures as UnverifiedLaunchError.
+            if isinstance(self._launcher, SubprocessLauncher):
+                with self._lock:
+                    del self._pending_launches[key]
+            raise
+        if not isinstance(receipt, LaunchReceipt):
+            raise SupervisorError("launcher must return LaunchReceipt")
 
-            deadline = self._now() + timeout_seconds
-            while True:
-                current = self._read_safe_snapshot(selector)
-                current_by_id = {client.instance_id: client for client in current.clients}
-                missing = tuple(sorted(set(baseline_by_id) - set(current_by_id)))
-                if missing:
-                    raise StaleManagedClientError(
-                        "baseline client identities disappeared during launch: "
-                        + ", ".join(missing)
-                    )
-                for instance_id, baseline_client in baseline_by_id.items():
-                    if _immutable_identity(current_by_id[instance_id]) != _immutable_identity(
-                        baseline_client
-                    ):
-                        raise StaleManagedClientError(
-                            f"baseline client identity changed during launch: {instance_id}"
-                        )
-
-                new_clients = tuple(
-                    client for client in current.clients if client.instance_id not in baseline_by_id
+        with self._lock:
+            self._pending_launches[key] = receipt
+        deadline = self._now() + timeout_seconds
+        while True:
+            current = self._read_safe_snapshot(selector)
+            current_by_id = {client.instance_id: client for client in current.clients}
+            missing = tuple(sorted(set(baseline_by_id) - set(current_by_id)))
+            if missing:
+                raise StaleManagedClientError(
+                    "baseline client identities disappeared during launch: " + ", ".join(missing)
                 )
-                proven: list[tuple[ClientInstanceSnapshot, LaunchProvenance]] = []
-                unproven: list[ClientInstanceSnapshot] = []
-                for client in new_clients:
-                    provenance = self._launch_provenance(client, receipt)
-                    if provenance is None:
-                        unproven.append(client)
-                    else:
-                        proven.append((client, provenance))
-                if unproven:
-                    raise UnprovenLaunchProvenanceError(
-                        "new matching client(s) were not the reviewed launch process or a "
-                        "verified live descendant; explicit attach is required: "
-                        + ", ".join(client.instance_id for client in unproven)
+            for instance_id, baseline_client in baseline_by_id.items():
+                if _immutable_identity(current_by_id[instance_id]) != _immutable_identity(
+                    baseline_client
+                ):
+                    raise StaleManagedClientError(
+                        f"baseline client identity changed during launch: {instance_id}"
                     )
-                if len(proven) > 1:
-                    raise AmbiguousClientError(
-                        f"launch produced {len(proven)} provenance-matched clients"
-                    )
-                if len(proven) == 1:
-                    client, provenance = proven[0]
-                    return self._bind(
+
+            new_clients = tuple(
+                client for client in current.clients if client.instance_id not in baseline_by_id
+            )
+            proven: list[tuple[ClientInstanceSnapshot, LaunchProvenance]] = []
+            unproven: list[ClientInstanceSnapshot] = []
+            for client in new_clients:
+                provenance = self._launch_provenance(client, receipt)
+                if provenance is None:
+                    unproven.append(client)
+                else:
+                    proven.append((client, provenance))
+            if unproven:
+                raise UnprovenLaunchProvenanceError(
+                    "new matching client(s) were not the reviewed launch process or a "
+                    "verified live descendant; explicit attach is required: "
+                    + ", ".join(client.instance_id for client in unproven)
+                )
+            if len(proven) > 1:
+                raise AmbiguousClientError(
+                    f"launch produced {len(proven)} provenance-matched clients"
+                )
+            if len(proven) == 1:
+                client, provenance = proven[0]
+                with self._lock:
+                    self._reject_managed_duplicate(client)
+                    result = self._bind(
                         selector,
                         client,
                         launch_receipt=receipt,
                         launch_provenance=provenance,
                     )
+                    del self._pending_launches[key]
+                    return result
 
-                now = self._now()
-                remaining = deadline - now
-                if remaining <= 0:
-                    raise LaunchTimeoutError(
-                        "launch produced no new matching client before the timeout"
-                    )
-                self._sleeper.sleep(min(float(poll_seconds), remaining))
+            now = self._now()
+            remaining = deadline - now
+            if remaining <= 0:
+                raise LaunchTimeoutError(
+                    f"launch PID {receipt.process_id}/{receipt.process_started_at_100ns} "
+                    "produced no new matching client before the timeout; "
+                    "explicit attach can recover"
+                )
+            self._sleeper.sleep(min(float(poll_seconds), remaining))
+
+    def _instance_lock(self, instance_id: str) -> threading.RLock:
+        with self._lock:
+            self._require_binding(instance_id)
+            return self._instance_locks.setdefault(instance_id, threading.RLock())
+
+    def _observe_binding(self, instance_id: str) -> _ManagedBinding:
+        # Caller owns only this instance. Publish an observation atomically after
+        # blocking registry/process inspection, and reject changed ownership.
+        with self._lock:
+            original = self._require_binding(instance_id)
+            candidate = replace(original)
+        observed = self._refresh_binding(candidate)
+        with self._lock:
+            if self._require_binding(instance_id) is not original:
+                raise StaleManagedClientError("binding changed during observation")
+            self._bindings[instance_id] = observed
+            return observed
 
     def pause(self, instance_id: str) -> ManagedClientSnapshot:
-        """Disable manager dispatch without suspending the operating-system process."""
-
-        with self._lock:
+        """Disable dispatch without suspending the operating-system process."""
+        with self._instance_lock(instance_id), self._lock:
             binding = self._require_binding(instance_id)
             if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
                 raise StaleManagedClientError(binding.status_detail or "client binding is stale")
@@ -804,35 +880,30 @@ class ClientLifecycleSupervisor:
             return binding.snapshot()
 
     def resume(self, instance_id: str) -> ManagedClientSnapshot:
-        """Re-enable dispatch only after re-verifying the immutable client identity."""
-
-        with self._lock:
-            binding = self._require_binding(instance_id)
-            if binding.state in {
-                ManagedClientState.CLOSE_REQUESTED,
-                ManagedClientState.EXITED,
-            }:
-                raise InvalidLifecycleTransitionError("cannot resume after close was requested")
-            binding = self._refresh_binding(binding)
-            if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
-                raise StaleManagedClientError(binding.status_detail or "client binding is stale")
-            binding.state = ManagedClientState.ATTACHED
-            binding.dispatch_enabled = True
-            binding.status_detail = None
-            return binding.snapshot()
+        with self._instance_lock(instance_id):
+            with self._lock:
+                binding = self._require_binding(instance_id)
+                if binding.state in {ManagedClientState.CLOSE_REQUESTED, ManagedClientState.EXITED}:
+                    raise InvalidLifecycleTransitionError("cannot resume after close was requested")
+            binding = self._observe_binding(instance_id)
+            with self._lock:
+                if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
+                    raise StaleManagedClientError(
+                        binding.status_detail or "client binding is stale"
+                    )
+                binding.state = ManagedClientState.ATTACHED
+                binding.dispatch_enabled = True
+                binding.status_detail = None
+                return binding.snapshot()
 
     def refresh(self, instance_id: str) -> ManagedClientSnapshot:
-        """Refresh one status, permanently failing its dispatch closed if identity is stale."""
-
-        with self._lock:
-            return self._refresh_binding(self._require_binding(instance_id)).snapshot()
+        with self._instance_lock(instance_id):
+            binding = self._observe_binding(instance_id)
+            with self._lock:
+                return binding.snapshot()
 
     def dispatch_is_enabled(self, instance_id: str) -> bool:
-        """Revalidate an immutable binding before authorizing any manager dispatch."""
-
-        with self._lock:
-            binding = self._refresh_binding(self._require_binding(instance_id))
-            return binding.dispatch_enabled
+        return self.refresh(instance_id).dispatch_enabled
 
     def status(self, instance_id: str) -> ManagedClientSnapshot:
         with self._lock:
@@ -840,14 +911,10 @@ class ClientLifecycleSupervisor:
 
     def snapshots(self) -> tuple[ManagedClientSnapshot, ...]:
         with self._lock:
-            return tuple(
-                self._bindings[instance_id].snapshot() for instance_id in sorted(self._bindings)
-            )
+            return tuple(self._bindings[key].snapshot() for key in sorted(self._bindings))
 
     def detach(self, instance_id: str) -> ManagedClientSnapshot:
-        """Forget a binding without closing, killing, or suspending its process."""
-
-        with self._lock:
+        with self._instance_lock(instance_id), self._lock:
             binding = self._require_binding(instance_id)
             del self._bindings[instance_id]
             binding.state = ManagedClientState.DETACHED
@@ -856,46 +923,47 @@ class ClientLifecycleSupervisor:
             return binding.snapshot()
 
     def request_close(self, instance_id: str) -> ManagedClientSnapshot:
-        """Disable dispatch and request a graceful window close through the controller."""
-
-        with self._lock:
+        """Reserve this lifetime, disable dispatch, then perform the verified close."""
+        with self._instance_lock(instance_id):
             if self._window_controller is None:
                 raise WindowControllerUnavailableError("no window controller is configured")
-            binding = self._require_binding(instance_id)
-            if binding.state in {
-                ManagedClientState.CLOSE_REQUESTED,
-                ManagedClientState.EXITED,
-            }:
-                raise InvalidLifecycleTransitionError("close was already requested")
-            binding = self._refresh_binding(binding)
-            if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
-                raise StaleManagedClientError(binding.status_detail or "client binding is stale")
-            binding.state = ManagedClientState.PAUSED
-            binding.dispatch_enabled = False
-            binding.status_detail = "graceful close request pending"
+            with self._lock:
+                if self._require_binding(instance_id).state in {
+                    ManagedClientState.CLOSE_REQUESTED,
+                    ManagedClientState.EXITED,
+                }:
+                    raise InvalidLifecycleTransitionError("close was already requested")
+            binding = self._observe_binding(instance_id)
+            with self._lock:
+                if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
+                    raise StaleManagedClientError(
+                        binding.status_detail or "client binding is stale"
+                    )
+                binding.state = ManagedClientState.PAUSED
+                binding.dispatch_enabled = False
+                binding.status_detail = "graceful close request pending"
+                expected = binding.client
             try:
-                current = self._window_controller.request_graceful_close(binding.client)
+                current = self._window_controller.request_graceful_close(expected)
             except Exception as exc:
-                binding.status_detail = f"graceful close request failed: {exc}"
+                with self._lock:
+                    binding.status_detail = f"graceful close request failed: {exc}"
                 raise SupervisorError(binding.status_detail) from exc
-            self._accept_window_result(binding, current)
-            binding.state = ManagedClientState.CLOSE_REQUESTED
-            binding.status_detail = "graceful close requested"
-            return binding.snapshot()
+            with self._lock:
+                if self._require_binding(instance_id) is not binding:
+                    raise StaleManagedClientError("binding changed during window close")
+                self._accept_window_result(binding, current)
+                binding.state = ManagedClientState.CLOSE_REQUESTED
+                binding.status_detail = "graceful close requested"
+                return binding.snapshot()
 
-    def tile(
-        self,
-        instance_id: str,
-        rectangle: WindowRectangle,
-    ) -> ManagedClientSnapshot:
-        """Place one verified window without activating it or changing its Z-order."""
-
-        with self._lock:
+    def tile(self, instance_id: str, rectangle: WindowRectangle) -> ManagedClientSnapshot:
+        with self._instance_lock(instance_id):
             if self._window_controller is None:
                 raise WindowControllerUnavailableError("no window controller is configured")
             if not isinstance(rectangle, WindowRectangle):
                 raise ValueError("rectangle must be WindowRectangle")
-            binding = self._refresh_binding(self._require_binding(instance_id))
+            binding = self._observe_binding(instance_id)
             if binding.state in {ManagedClientState.STALE, ManagedClientState.EXITED}:
                 raise StaleManagedClientError(binding.status_detail or "client binding is stale")
             if binding.state is ManagedClientState.CLOSE_REQUESTED:
@@ -906,8 +974,11 @@ class ClientLifecycleSupervisor:
                 current = self._window_controller.tile(binding.client, rectangle)
             except Exception as exc:
                 raise SupervisorError(f"window tile failed: {exc}") from exc
-            self._accept_window_result(binding, current)
-            return binding.snapshot()
+            with self._lock:
+                if self._require_binding(instance_id) is not binding:
+                    raise StaleManagedClientError("binding changed during window tile")
+                self._accept_window_result(binding, current)
+                return binding.snapshot()
 
     def _bind(
         self,
