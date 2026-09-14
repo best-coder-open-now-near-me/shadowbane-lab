@@ -28,11 +28,14 @@ is implied by later source commits. Reuse accepted navigation and movement evide
 `codex/vendor-rolling` (worktree `.worktrees/vendor-rolling`) contains vendor
 work through dependency `542c632` plus native dispatch and a durable host batch.
 The integration destination is `codex/native-lifecycle-hardening`, followed by
-reviewed `main`; this vendor work is not merged or installed. Manual Create,
+reviewed `main`; this vendor work is not merged or running. Manual Create,
 Keep and owned inventory are qualified. Native typed commands, strict wire and
 capacity-aware queue filling are implemented and tested, including rank growth.
-Next: versioned package/live automatic qualification, then completed-item policy
-integration. See [vendor status and validation](vendor-rolling.md).
+Package 1.8.2 / wheel 0.3.2 from `8aad37f` passed local required gates and all
+seven CI jobs. A separate test runtime is prepared and verified, not launched. Next:
+live automatic qualification, then completed-item policy integration. See
+[exact vendor package](handoffs/vendor-rolling-1.8.2.md) and
+[vendor status and validation](vendor-rolling.md).
 
 ## Historical candidate notes
 

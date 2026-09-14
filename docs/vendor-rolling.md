@@ -537,7 +537,7 @@ Validation now includes recipe/vendor changes during reads and active-list
 membership. Next: the native UI-thread command path and bounded job controller;
 the existing in-progress item can support completion verification.
 
-## Selected vendor ownership â€” September 14
+## Selected vendor ownership — September 14
 
 Queue snapshot schema 3 now follows the current ArcCityAssetManager's selected
 ArcHirelingEntry at +0x384, checks vtable RVA 0x1169518, and reads its identity
@@ -671,3 +671,17 @@ the actual channel, controller growth and bounded reader cases. No new package
 is installed and no automatic game commands have been issued. Next: versioned
 package validation and live queue-fill qualification, followed by completed-item
 assessment/Keep integration. Junk remains unqualified and unavailable.
+
+## Versioned package prepared for live qualification - September 14
+
+The exact source `8aad37f` produced product 1.8.2 / wheel 0.3.2. Full Python,
+both required native profiles, explicit private image bindings, IPC, installed
+wheel checks and all seven CI jobs passed. The two known rendering diagnostics
+remain recorded. See [exact package handoff](handoffs/vendor-rolling-1.8.2.md)
+for hashes, counts, private artifact locations and remaining live work.
+
+A fresh read of the existing 1.8.1 test client confirmed Malik now has three
+empty slots. The random recipe window was not open. No automatic command was
+sent. The separate guest runtime is prepared and verified; current game/shortcuts
+remain unchanged. Next: close the current game, launch 1.8.2, login and perform
+the first native capacity-aware batch, then finish completed-item integration.
