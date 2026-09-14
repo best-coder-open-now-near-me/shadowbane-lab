@@ -99,3 +99,21 @@ lifetime and loaded DLL. They have not been executed. Existing shortcuts and the
 running 1.8.1 client (PID 988, lifetime 134338345902905271) remain unchanged.
 The immediate required user step is closing that game so the new DLL can load
 on restart; the agent can then launch the prepared version for user login.
+
+## Verified launch - September 14
+
+After the owner closed the prior client, the prepared 1.8.2 client launched.
+The matching 32-bit verifier confirmed the loaded full DLL against the package
+hash above. Exact process identifiers and launch evidence remain guest-local.
+An initial 64-bit module query exposed only WOW64 support modules; the game was
+not restarted in response. The local launcher now uses the matching verifier.
+
+A read-only INSPECT request timed out before the client entered the world;
+no Create, Keep or Junk request was sent. Independent observation confirmed
+the pre-world state. Vendor command qualification remains pending login and
+recipe selection. A successful DLL load does not certify command execution.
+
+Next: log in as Treehugger, open Malik's random Gilded Scepter recipe before
+Create, verify fresh native inspection and current capacity, then run one
+durable fill-slots batch. Existing desktop shortcuts remain unchanged pending
+the live test. Automatic completed-item handling remains unfinished.

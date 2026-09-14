@@ -685,3 +685,9 @@ empty slots. The random recipe window was not open. No automatic command was
 sent. The separate guest runtime is prepared and verified; current game/shortcuts
 remain unchanged. Next: close the current game, launch 1.8.2, login and perform
 the first native capacity-aware batch, then finish completed-item integration.
+
+The owner closed the prior client and the prepared 1.8.2 game is now running.
+The matching 32-bit verifier confirmed its exact DLL. Runtime identifiers and
+launch evidence remain guest-local. Initial native inspection timed out before
+world entry; no mutation was issued. Next: login as Treehugger, select Malik's
+random Gilded Scepter recipe, verify inspection and run the current-capacity batch.
