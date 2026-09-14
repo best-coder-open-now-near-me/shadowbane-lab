@@ -32,8 +32,9 @@ The new instance has no crafting job. Prior failure journals remain untouched.
 Private packages are in `artifacts/vendor-host-0.3.10`; runtime receipts and
 crash evidence remain in the existing private VM diagnostics locations.
 
-Remote Python 3.11/3.12/3.13, quality and PowerShell syntax checks passed;
-both native profiles are still running.
+All seven remote CI jobs passed, including Python 3.11/3.12/3.13, quality,
+PowerShell syntax and both native profiles.
+Run: https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/34908924352.
 Active: wait for the owner to log in and open the random recipe, then arm
 the bounded request/reply trace against this fresh game lifetime.
 
