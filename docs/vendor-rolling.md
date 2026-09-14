@@ -300,3 +300,26 @@ arguments and reads recipe/count/vendor state from its receiver. These are
 static candidates, not an approved callable profile. Next is qualifying that
 receiver and call contract, completing queue/inventory observations, and adding
 typed command admission before a bounded rolling job may invoke production.
+
+## Send-path qualification follow-up
+
+A final manual Create was captured at the crafting serializer with the expected
+random-recipe request. The candidate UI produce entry at RVA 0x6D7590 was not
+hit. Its receiver and call contract therefore remain unqualified for this
+Create-button workflow. Further static inspection found another recipe builder
+at RVA 0x63CE40 that reads the creation HUD's selected item, modifiers, count,
+and slot mode, then forwards to its owner. Neither candidate is enabled for
+dispatch; the next call-path capture should include bounded caller-stack context
+at the serializer to avoid inferring the active builder from static xrefs alone.
+
+At the end of this exploratory trace, DebugActiveProcessStop returned Windows
+error 5 (Access is denied). A subsequent read-only CheckRemoteDebuggerPresent
+succeeded and reported false; the same process lifetime remained visible and
+foreground. No debugger remained attached and no automated game action was
+issued. Keep this diagnostic outcome explicit rather than claiming every trace
+detached without an error.
+
+The source branch is an observation-hook checkpoint. Remaining work is the
+qualified native send adapter, complete inventory/queue decoding, and bounded
+rolling jobs with keep rules and resource limits. Raw diagnostic artifacts remain
+in their private local/VM locations and are excluded from the source push.
