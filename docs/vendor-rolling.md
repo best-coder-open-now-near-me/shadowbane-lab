@@ -119,7 +119,8 @@ tests prove the upstream grammar only; no live capture has been promoted.
 4. **Complete in host source:** manager start/pause/resume/stop controls for one
    capacity batch, exact worker capability admission, cooking/inventory progress,
    stale-job rejection and durable phase recovery.
-5. **Active:** package and qualify the manager integration. Then qualify native
+5. **Active:** qualify the first manager-started batch. Host 0.3.4 packaging,
+   installation and read-only dashboard/worker checks passed. Then qualify native
    window opening, inventory capacity/paging, resources, full affix evidence and
    disposal before enabling recurring jobs. Never blindly retry pending actions.
 
@@ -800,3 +801,17 @@ diff whitespace checks passed. New coverage includes full worker Create/Keep,
 rank growth, duplicate starts, stale jobs/permits, older-worker rejection,
 HTTP authentication, last-moment dispatch revocation and crash reconciliation.
 Exact-source host packaging and installed-manager read-only qualification are next.
+
+
+## Installed manager checkpoint
+
+The final host 0.3.4 from `1e804da` is installed in a separate host environment.
+A dedicated dashboard attached the existing test game, and an authenticated
+status check verified one healthy exact worker with vendor capability, an empty
+operation queue and no current vendor job. The final dashboard page is served
+with the full-width vendor control row; browser launch was requested. No new
+roll, Keep or discard was sent, and the native game remained running unchanged.
+
+See [host 0.3.4 handoff](handoffs/vendor-manager-0.3.4.md) for the final package
+checksum, validation and active todo. Next is the first manager-started batch;
+full affix capture/disposal, native window opening and recurring jobs remain pending.
