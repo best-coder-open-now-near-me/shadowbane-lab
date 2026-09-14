@@ -323,3 +323,23 @@ The source branch is an observation-hook checkpoint. Remaining work is the
 qualified native send adapter, complete inventory/queue decoding, and bounded
 rolling jobs with keep rules and resource limits. Raw diagnostic artifacts remain
 in their private local/VM locations and are excluded from the source push.
+
+
+## Bounded caller evidence and creation HUD
+
+The native tracer now accepts `capture_callers=True` (CLI `--capture-callers`).
+It pairs entry-time return-address candidates with each completed message,
+including nested calls and interleaved threads. Reads stop at 16 addresses,
+malformed or non-increasing frame pointers, unreadable memory, or a 1 MiB stack
+window. No stack arguments are journaled. These are diagnostic candidates,
+not a verified unwind or dispatch permission; optimized frames may be absent.
+Callbacks still run after the client resumes. Thirty-one focused crafting and
+debugger tests pass, and whole-tree Ruff passes.
+
+Opening the actual recipe form identified one live ArcItemCreationHud with
+vtable RVA 0x116BF7C. Its selected vendor, random modifier sentinels, modification
+table, quantity one, and single-slot flag agree with the user's Gilded Scepter
+selection. Static inspection resolves its owner forwarder to RVA 0x6D3240,
+which sets PRODUCE and the building reference before queueing the message.
+The next live qualification must associate the Create entry, this receiver,
+outgoing request, and server reply. No native send adapter is enabled yet.

@@ -726,6 +726,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _client_inspection_commands.trace_native_crafting(
             arguments.process_id, arguments.output, timeout_seconds=arguments.timeout_seconds,
             max_messages=arguments.max_messages, as_json=arguments.json,
+            capture_callers=arguments.capture_callers,
         )
     if arguments.command == "client" and arguments.client_command == "decode-crafting":
         return _client_inspection_commands.decode_crafting(

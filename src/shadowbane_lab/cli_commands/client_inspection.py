@@ -1353,7 +1353,8 @@ def _observe_native_training(profile_path: Path | None, *, as_json: bool) -> int
 
 
 def trace_native_crafting(
-    process_id: int, output: Path, *, timeout_seconds: float, max_messages: int, as_json: bool
+    process_id: int, output: Path, *, timeout_seconds: float, max_messages: int, as_json: bool,
+    capture_callers: bool = False,
 ) -> int:
     from shadowbane_lab.client_observation.native_crafting import open_native_crafting_tracer
 
@@ -1361,6 +1362,7 @@ def trace_native_crafting(
         tracer = open_native_crafting_tracer(process_id)
         summary = tracer.trace(
             output, timeout_seconds=timeout_seconds, max_messages=max_messages,
+            capture_callers=capture_callers,
             armed_callback=lambda: print(
                 f"Crafting trace armed for PID {process_id}; no game input is sent.",
                 file=sys.stderr, flush=True,

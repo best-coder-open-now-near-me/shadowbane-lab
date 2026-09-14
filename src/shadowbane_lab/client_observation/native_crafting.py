@@ -10,9 +10,10 @@ import json
 import math
 import struct
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
+from shadowbane_lab.client_observation.native_health import NativeTargetHealthReadError
 from shadowbane_lab.client_observation.native_vendor_dialog import (
     NativeVendorDialogCaptureError,
     NativeVendorDialogCompatibilityError,
@@ -111,6 +112,54 @@ def decode_crafting_object(
     return result
 
 
+def capture_crafting_callers(
+    backend: NativeVendorDialogDebugBackend, registers: Mapping[str, int]
+) -> dict[str, object]:
+    """Capture return-address candidates at function entry, never stack arguments.
+
+    Frame pointers are only diagnostic hints: optimized callers may omit them.
+    Bound reads to 16 addresses and the first MiB above ESP; stop on malformed
+    chains or unreadable memory without losing the crafting observation.
+    """
+    addresses: list[int] = []
+    result: dict[str, object] = {
+        "method": "x86_frame_pointer_candidates",
+        "return_addresses": addresses,
+    }
+
+    def finish(reason: str) -> dict[str, object]:
+        result["stop_reason"] = reason
+        return result
+
+    esp, frame = registers.get("esp"), registers.get("ebp")
+    if type(esp) is not int or not 0x10000 <= esp <= 0x7FFFFFFC or esp % 4:
+        return finish("invalid_stack_pointer")
+    upper = min(esp + 0x100000, 0x80000000)
+    try:
+        caller = struct.unpack("<I", _exact(backend, esp, 4))[0]
+        if not 0x10000 <= caller < 0x80000000:
+            return finish("invalid_return_address")
+        addresses.append(caller)
+        previous = esp
+        while len(addresses) < 16:
+            if frame == 0:
+                return finish("chain_end")
+            if (
+                type(frame) is not int
+                or frame % 4
+                or not previous + 4 <= frame <= upper - 8
+            ):
+                return finish("invalid_frame_pointer")
+            next_frame, caller = struct.unpack("<II", _exact(backend, frame, 8))
+            if not 0x10000 <= caller < 0x80000000:
+                return finish("invalid_return_address")
+            addresses.append(caller)
+            previous, frame = frame, next_frame
+        return finish("frame_limit")
+    except (NativeTargetHealthReadError, NativeVendorDialogCaptureError, OSError):
+        return finish("unreadable_stack")
+
+
 class NativeCraftingTracer:
     """Own a bounded trace and deliver copied observations after resuming the client.
 
@@ -145,10 +194,11 @@ class NativeCraftingTracer:
         max_messages: int = 32,
         on_message: Callable[[dict[str, object]], None] | None = None,
         armed_callback: Callable[[], None] | None = None,
+        capture_callers: bool = False,
     ) -> dict[str, object]:
         b = self.backend
         count = 0
-        pending: dict[tuple[str, int], list[int]] = {}
+        pending: dict[tuple[str, int], list[tuple[int, dict[str, object] | None]]] = {}
         try:
             if (
                 isinstance(timeout_seconds, bool)
@@ -159,6 +209,8 @@ class NativeCraftingTracer:
                 raise ValueError("timeout_seconds must be finite and within (0, 300]")
             if type(max_messages) is not int or not 1 <= max_messages <= 4096:
                 raise ValueError("max_messages must be an integer in [1, 4096]")
+            if type(capture_callers) is not bool:
+                raise ValueError("capture_callers must be a boolean")
             self._validate()
             identity = {
                 "process_id": b.pid,
@@ -177,6 +229,7 @@ class NativeCraftingTracer:
                     {
                         "schema_version": NATIVE_CRAFTING_SCHEMA_VERSION,
                         "record_type": "session_start",
+                        "capture_callers": capture_callers,
                         **identity,
                     }
                 )
@@ -211,13 +264,17 @@ class NativeCraftingTracer:
                                     raise NativeVendorDialogCaptureError(
                                         "crafting nesting exceeded"
                                     )
-                                stack.append(hit.registers["ecx"])
+                                callers = (
+                                    capture_crafting_callers(b, hit.registers)
+                                    if capture_callers else None
+                                )
+                                stack.append((hit.registers["ecx"], callers))
                             else:
                                 if not stack:
                                     raise NativeVendorDialogCaptureError(
                                         "crafting completion without entry"
                                     )
-                                address = stack.pop()
+                                address, callers = stack.pop()
                                 message = decode_crafting_object(b, address)
                                 count += 1
                                 record = {
@@ -235,6 +292,8 @@ class NativeCraftingTracer:
                                     "observed_at_unix_ns": time.time_ns(),
                                     "message": message,
                                 }
+                                if callers is not None:
+                                    record["callers"] = callers
                         finally:
                             b.continue_hit(hit)
                         if record is not None:

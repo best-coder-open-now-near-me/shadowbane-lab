@@ -9,6 +9,7 @@ from shadowbane_lab.client_observation.native_crafting import (
     CRAFTING_EXECUTABLE_HASHES,
     CRAFTING_VTABLE_RVA,
     NativeCraftingTracer,
+    capture_crafting_callers,
     decode_crafting_object,
 )
 from shadowbane_lab.client_observation.native_vendor_dialog import (
@@ -65,14 +66,14 @@ class Backend:
     def wait_for_hit(self, timeout_ms):
         return self.hits.pop(0) if self.hits else None
 
-    def add_hit(self, role, *, thread=8, pid=77):
+    def add_hit(self, role, *, thread=8, pid=77, registers=None):
         self.hits.append(
             NativeVendorDialogDebugHit(
                 role,
                 pid,
                 thread,
                 self.base_address + CRAFTING_BREAKPOINTS[role][0],
-                {"ecx": 0x200000},
+                {"ecx": 0x200000, **(registers or {})},
             )
         )
 
@@ -151,7 +152,73 @@ class NativeCraftingTests(unittest.TestCase):
         self.assertEqual(1, summary["message_count"])
         self.assertEqual(123, records[0]["process_creation_filetime_utc"])
         self.assertEqual("server_to_client", records[0]["direction"])
+        self.assertNotIn("callers", records[0])
         self.assertEqual("session_end", journal[-1]["record_type"])
+        self.assertTrue(b.closed)
+
+    def test_caller_chain_is_bounded_and_stops_before_cycles_or_remote_reads(self):
+        for next_frame, reason in (
+            (0, "chain_end"),
+            (0x500010, "invalid_frame_pointer"),
+            (0x500000, "invalid_frame_pointer"),
+            (0x500015, "invalid_frame_pointer"),
+            (0x700000, "invalid_frame_pointer"),
+        ):
+            with self.subTest(next_frame=next_frame):
+                b = Backend()
+                b.memory[0x500000] = struct.pack("<I", 0x401234)
+                b.memory[0x500010] = struct.pack("<II", next_frame, 0x402345)
+                evidence = capture_crafting_callers(b, {"esp": 0x500000, "ebp": 0x500010})
+                self.assertEqual([0x401234, 0x402345], evidence["return_addresses"])
+                self.assertEqual(reason, evidence["stop_reason"])
+        b = Backend()
+        b.memory[0x500000] = struct.pack("<I", 0x401234)
+        for i in range(1, 16):
+            b.memory[0x500000 + i * 16] = struct.pack(
+                "<II", 0x500000 + (i + 1) * 16, 0x401000 + i
+            )
+        evidence = capture_crafting_callers(b, {"esp": 0x500000, "ebp": 0x500010})
+        self.assertEqual(16, len(evidence["return_addresses"]))
+        self.assertEqual("frame_limit", evidence["stop_reason"])
+
+    def test_caller_capture_validates_stack_and_preserves_read_failure(self):
+        for esp in (None, True, 0, 0x500001, 0x80000000):
+            evidence = capture_crafting_callers(Backend(), {"esp": esp})
+            self.assertEqual([], evidence["return_addresses"])
+            self.assertEqual("invalid_stack_pointer", evidence["stop_reason"])
+        b = Backend()
+        b.memory[0x500000] = b"x"
+        evidence = capture_crafting_callers(b, {"esp": 0x500000})
+        self.assertEqual("unreadable_stack", evidence["stop_reason"])
+        for address in (0, 0x80000000):
+            b.memory[0x500000] = struct.pack("<I", address)
+            evidence = capture_crafting_callers(b, {"esp": 0x500000})
+            self.assertEqual("invalid_return_address", evidence["stop_reason"])
+
+    def test_caller_evidence_pairs_nested_threads_and_resumes_before_callback(self):
+        b = Backend()
+        for esp, caller in ((0x500000, 0x401111), (0x600000, 0x402222)):
+            b.memory[esp] = struct.pack("<I", caller)
+        b.add_hit("outbound_entry", registers={"esp": 0x500000, "ebp": 0})
+        b.add_hit("outbound_entry", registers={"esp": 0x600000, "ebp": 0})
+        b.add_hit("inbound_entry", thread=9)
+        b.add_hit("outbound_complete")
+        b.add_hit("inbound_complete", thread=9)
+        b.add_hit("outbound_complete")
+        records = []
+
+        def callback(record):
+            self.assertIn(len(b.continued), (4, 5, 6))
+            records.append(record)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            NativeCraftingTracer(b).trace(
+                Path(tmp) / "trace.jsonl", max_messages=3,
+                capture_callers=True, on_message=callback,
+            )
+        self.assertEqual([0x402222], records[0]["callers"]["return_addresses"])
+        self.assertEqual("invalid_stack_pointer", records[1]["callers"]["stop_reason"])
+        self.assertEqual([0x401111], records[2]["callers"]["return_addresses"])
         self.assertTrue(b.closed)
 
     def test_unknown_build_and_changed_signature_never_attach(self):

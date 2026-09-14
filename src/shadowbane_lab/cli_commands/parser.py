@@ -784,6 +784,10 @@ def _parser() -> argparse.ArgumentParser:
     trace_crafting.add_argument("--output", required=True, type=Path)
     trace_crafting.add_argument("--timeout-seconds", type=float, default=60)
     trace_crafting.add_argument("--max-messages", type=int, default=32)
+    trace_crafting.add_argument(
+        "--capture-callers", action="store_true",
+        help="include bounded return-address candidates for send-path qualification",
+    )
     trace_crafting.add_argument("--json", action="store_true")
 
     decode_crafting = client_commands.add_parser(
