@@ -36,13 +36,13 @@ class Backend:
         for offset, value in {
             0: self.base_address + CRAFTING_VTABLE_RVA,
             0x70: 8,
-            0x78: 5,
-            0x7C: 100,
-            0x80: 42,
-            0x84: 200,
-            0xC0: 6,
-            0xC4: 0xFFFFFFFF,
-            0xCC: 1234,
+            0x78: 100,
+            0x7C: 8,
+            0x80: 200,
+            0x84: 42,
+            0xC0: 0xFFFFFFFF,
+            0xC4: 40,
+            0xC8: 1234,
             0x10C: 9000,
         }.items():
             struct.pack_into("<I", raw, offset, value)
@@ -83,12 +83,36 @@ class NativeCraftingTests(unittest.TestCase):
         result = decode_crafting_object(b, 0x200000)
         self.assertEqual(200, result["vendor"]["object_id"])
         self.assertEqual(0xFFFFFFFF, result["roll"]["item"]["object_id"])
-        self.assertEqual(1234, result["roll"]["template"]["object_id"])
+        self.assertEqual(1234, result["roll"]["template_id"])
         self.assertEqual(9000, result["strongbox_gold"])
         raw = bytearray(b.memory[0x200000])
         raw[0x11C] = 0
         b.memory[0x200000] = bytes(raw)
         self.assertNotIn("strongbox_gold", decode_crafting_object(b, 0x200000))
+
+    def test_live_layout_keeps_zero_single_request_and_decodes_cache_ids(self):
+        b = Backend()
+        raw = bytearray(b.memory[0x200000])
+        for offset, value in {
+            0x70: 1,
+            0x78: 100,
+            0x7C: 8,
+            0x80: 200,
+            0x84: 42,
+            0x88: 26990,
+            0x8C: 0,
+            0x90: 0,
+            0x94: 12,
+        }.items():
+            struct.pack_into("<I", raw, offset, value)
+        b.memory[0x200000] = bytes(raw)
+        result = decode_crafting_object(b, 0x200000)
+        self.assertEqual({"object_id": 100, "object_type": 8}, result["building"])
+        self.assertEqual({"object_id": 200, "object_type": 42}, result["vendor"])
+        self.assertEqual({"object_id": 26990, "object_type": 0}, result["item_or_template"])
+        self.assertEqual(0, result["quantity_raw"])
+        self.assertEqual(12, result["production_marker_raw"])
+        self.assertEqual(0, result["multiple_slot_request"])
 
     def test_allocated_empty_name_does_not_read_zero_bytes(self):
         # The live client can retain a valid buffer after clearing its name.

@@ -250,3 +250,23 @@ was reattached to PID 988 using a fresh guest journal
 C:/Users/tester/native-crafting-completion-20260914.jsonl. No second production
 request was made. Next: reconcile the old scepter in inventory and decode the
 new roll's result. The initial produce payload remains unverified.
+
+## Native observation schema 2
+
+Live qualification exposed a native/wire layout difference: ArcCacheID stores
+ID before type in memory, while the wire pair is type then ID. Schema 2 corrects
+the native object-reference labels. Schema-1 captures must not be used for command
+admission. The roll's template ID and remaining count are now separate fields
+instead of a misleading template object reference.
+
+The common scalar fields are named quantity_raw and production_marker_raw.
+A zero raw count can represent a single-slot request; ForgeManager normalizes it
+to one. Consumers must not treat the raw value as the accepted job count.
+
+The observer has now exercised JUNK, PRODUCE, and cooking CONFIRM_PRODUCE.
+Eighteen crafting tests and whole-tree Ruff pass. Completion observation,
+inventory reconciliation, and an admitted production dispatcher remain open.
+The latest observer is detached; reattachment awaits approval to use the test
+VM's provisioned credentials after automatic approval review blocked that access.
+Raw captures remain private. This checkpoint changes only source, synthetic
+regression coverage, and these implementation notes.

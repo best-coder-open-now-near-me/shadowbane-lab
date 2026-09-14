@@ -27,6 +27,7 @@ CRAFTING_EXECUTABLE_HASHES = frozenset(
         "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87",
     }
 )
+NATIVE_CRAFTING_SCHEMA_VERSION = 2
 CRAFTING_VTABLE_RVA = 0x115BFD8
 CRAFTING_OBJECT_BYTES = 0x120
 CRAFTING_BREAKPOINTS = {
@@ -56,7 +57,8 @@ def decode_crafting_object(
         return struct.unpack_from("<I", raw, offset)[0]
 
     def reference(offset: int) -> dict[str, int]:
-        return {"object_type": word(offset), "object_id": word(offset + 4)}
+        # ArcCacheID stores ID then type in memory; its wire serializer reverses them.
+        return {"object_id": word(offset), "object_type": word(offset + 4)}
 
     if word(0) != backend.base_address + CRAFTING_VTABLE_RVA:
         raise NativeVendorDialogCaptureError("crafting message vtable mismatch")
@@ -81,8 +83,8 @@ def decode_crafting_object(
         "building": reference(0x78),
         "vendor": reference(0x80),
         "item_or_template": reference(0x88),
-        "quantity": word(0x90),
-        "production_token": word(0x94),
+        "quantity_raw": word(0x90),
+        "production_marker_raw": word(0x94),
         "prefix_token": word(0x98),
         "suffix_token": word(0x9C),
         "name": name,
@@ -93,7 +95,8 @@ def decode_crafting_object(
     if action == 8:
         result["roll"] = {
             "item": reference(0xC0),
-            "template": reference(0xC8),
+            "template_id": word(0xC8),
+            "remaining_count": word(0xCC),
             "value": word(0xD0),
             "seconds_remaining": word(0xD4),
             "duration_seconds": word(0xD8),
@@ -170,7 +173,13 @@ class NativeCraftingTracer:
                     journal.write(json.dumps(record, sort_keys=True) + "\n")
                     journal.flush()
 
-                emit({"schema_version": 1, "record_type": "session_start", **identity})
+                emit(
+                    {
+                        "schema_version": NATIVE_CRAFTING_SCHEMA_VERSION,
+                        "record_type": "session_start",
+                        **identity,
+                    }
+                )
                 b.attach(
                     {
                         role: b.base_address + value[0]
@@ -212,7 +221,7 @@ class NativeCraftingTracer:
                                 message = decode_crafting_object(b, address)
                                 count += 1
                                 record = {
-                                    "schema_version": 1,
+                                    "schema_version": NATIVE_CRAFTING_SCHEMA_VERSION,
                                     "record_type": "crafting_message",
                                     **identity,
                                     "sequence": count,
@@ -233,7 +242,7 @@ class NativeCraftingTracer:
                             if on_message:
                                 on_message(record)
                     summary = {
-                        "schema_version": 1,
+                        "schema_version": NATIVE_CRAFTING_SCHEMA_VERSION,
                         "record_type": "session_end",
                         **identity,
                         "message_count": count,
