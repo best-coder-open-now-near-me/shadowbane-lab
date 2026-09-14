@@ -87,7 +87,7 @@ class Snapshot:
         return bool(
             self.recipe and self.item_template == 26990
             and self.prefix == self.suffix == 3362971591 and self.mode == 1
-            and self.table == 12 and self.quantity == 1 and self.multiple == 0
+            and self.table == 12 and self.quantity == 1 and self.multiple in (0, 1)
         )
 
     def encode(self) -> bytes:

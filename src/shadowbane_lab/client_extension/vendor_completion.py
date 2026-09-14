@@ -36,6 +36,46 @@ def _read_record(path: Path, limit: int = 1024 * 1024) -> bytes:
     return data
 
 
+def _observed_requests(batch: dict, initial: Snapshot, items: list) -> bool:
+    """Validate one-to-one legacy receipts or the complete multiple-slot chain."""
+    requests = batch.get("requests")
+    if not isinstance(requests, list) or not requests:
+        return False
+    if any(not isinstance(r, dict) or r.get("state") != "observed" for r in requests):
+        return False
+    if batch["schema_version"] == 1:
+        return not initial.multiple and [r.get("item_id") for r in requests] == items
+    if initial.multiple != 1:
+        return False
+    seen = _items(initial)
+    flattened = []
+    keys = set()
+    capacity = len(initial.slots)
+    try:
+        for request in requests:
+            key = str(uuid.UUID(request["request_key"]))
+            expected = Snapshot.decode(bytes.fromhex(request["expected_snapshot"]))
+            additions = request["item_ids"]
+            count = request["expected_item_count"]
+            if (
+                key in keys or not expected.random_scepter or expected.multiple != 1
+                or _owner(expected) != _owner(initial) or len(expected.slots) < capacity
+                or _items(expected) != seen
+                or type(count) is not int or count != expected.free_slots or not count
+                or not isinstance(additions, list) or len(additions) != count
+                or any(type(item) is not int or not 0 < item < 2**32 for item in additions)
+                or len(set(additions)) != count or seen & set(additions)
+            ):
+                return False
+            keys.add(key)
+            capacity = len(expected.slots)
+            seen.update(additions)
+            flattened.extend(additions)
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
+    return flattened == items
+
+
 def _decisions(batch: dict, capture: Path | None) -> dict[int, dict]:
     decisions = {
         item: {"disposition": "keep", "reason": "unknown_affix_preserved"}
@@ -98,7 +138,7 @@ def keep_completed_batch(
     initial = Snapshot.decode(bytes.fromhex(batch["initial_snapshot"]))
     items = batch["items"]
     if (
-        batch.get("schema_version") != 1
+        batch.get("schema_version") not in (1, 2)
         or batch.get("operation") != "fill_available_slots"
         or batch.get("state") != "complete"
         or not initial.random_scepter
@@ -110,9 +150,7 @@ def keep_completed_batch(
         or any(type(item) is not int or not 0 < item < 2**32 for item in items)
         or len(set(items)) != len(items)
         or set(items) & _items(initial)
-        or len(batch["requests"]) != len(items)
-        or [r.get("item_id") for r in batch["requests"]] != items
-        or any(r.get("state") != "observed" for r in batch["requests"])
+        or not _observed_requests(batch, initial, items)
     ):
         raise ValueError("expected an observed batch belonging to this live client")
     decisions = _decisions(batch, capture)

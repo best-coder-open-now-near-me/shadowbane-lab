@@ -868,3 +868,9 @@ All 2153 host tests and 571 subtests passed with 14 environment skips. The new
 tests cover recovery, permanent denial, missing files, size bounds and expiry
 during a read. The game stayed running with all three production slots empty.
 Host 0.3.6 installation and the first manager-created batch remain active.
+
+## Quantity-one multiple-slot support
+
+The live manual trace and native 1.8.3 / host 0.3.11 implementation are tracked in
+[the multiple-slot handoff](handoffs/vendor-multiple-1.8.3.md). One request filled
+three free slots; automated dispatch on the new native build is not yet live-qualified.

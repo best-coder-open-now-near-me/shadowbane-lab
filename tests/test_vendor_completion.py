@@ -8,7 +8,7 @@ from unittest.mock import patch
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped, fill_available_slots
 from shadowbane_lab.client_extension.vendor_completion import keep_completed_batch
 from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, READY, Outcome, Slot
-from tests.test_vendor_batch import Session, receipt
+from tests.test_vendor_batch import MultipleSession, Session, receipt
 
 
 class KeepSession:
@@ -236,3 +236,43 @@ class VendorCompletionTests(unittest.TestCase):
         self.assertEqual(
             "unknown_affix_preserved", result["decisions"][self.created["items"][0]]["reason"]
         )
+
+
+class MultipleCompletionTests(unittest.TestCase):
+    def test_complete_multiple_request_keeps_every_unknown_once(self):
+        with tempfile.TemporaryDirectory() as d:
+            batch, journal = Path(d) / "batch.json", Path(d) / "keep.json"
+            created = MultipleSession(batch)
+            record = fill_available_slots(created, batch, 2517204, sleeper=lambda _: None)
+            session = KeepSession(created, journal)
+            result = keep_completed_batch(session, batch, journal)
+            self.assertEqual(record["items"], result["kept"])
+            self.assertEqual(record["items"], session.calls)
+            self.assertEqual(3, session.state.free_slots)
+
+    def test_malformed_multiple_receipts_never_authorize_keep(self):
+        import copy
+        with tempfile.TemporaryDirectory() as d:
+            batch, journal = Path(d) / "batch.json", Path(d) / "keep.json"
+            created = MultipleSession(batch)
+            record = fill_available_slots(created, batch, 2517204, sleeper=lambda _: None)
+            mutations = (
+                lambda r: r["requests"][0].update(expected_item_count=2),
+                lambda r: r["requests"][0].update(expected_item_count=True),
+                lambda r: r["requests"][0].update(item_ids=[101, 101, 103]),
+                lambda r: r["requests"][0].update(item_ids=[101, 102]),
+                lambda r: r["requests"][0].update(item_ids=[101, 102, 999]),
+                lambda r: r["requests"][0].update(expected_snapshot="bad"),
+                lambda r: r["requests"][0].update(state="submitted"),
+                lambda r: r.update(schema_version=1),
+                lambda r: r["requests"].append(dict(r["requests"][0])),
+            )
+            for mutation in mutations:
+                changed = copy.deepcopy(record)
+                mutation(changed)
+                batch.write_text(json.dumps(changed))
+                session = KeepSession(created, journal)
+                with self.subTest(changed=changed), self.assertRaises(ValueError):
+                    keep_completed_batch(session, batch, journal)
+                self.assertEqual([], session.calls)
+                self.assertFalse(journal.exists())

@@ -48,15 +48,22 @@ public:
             if (revision_ == UINT64_MAX) { uncertain_ = true; current_ = {}; return; }
             snapshot.revision = ++revision_;
         }
+        const auto previous = current_;
         current_ = valid ? snapshot : wire::Snapshot{};
         if (!pending_ || uncertain_) { return; }
         const auto& before = pending_->command.expected;
         if (!valid || !SameOwner(before, current_) || current_.count < before.count) { uncertain_ = true; return; }
         std::uint32_t new_item = 0;
         if (pending_->verb == wire::Verb::create) {
-            std::size_t additions = 0;
-            for (std::size_t i = 0; i < before.count; ++i) {
-                if (before.slots[i].item && !Contains(current_, before.slots[i].item)) {
+            std::size_t additions = 0, expected = before.multiple ? 0 : 1;
+            if (before.multiple) {
+                for (std::size_t i = 0; i < before.count; ++i) {
+                    if (!before.slots[i].state) { ++expected; }
+                }
+            }
+            // Partial batch arrivals must remain present until the whole request completes.
+            for (std::size_t i = 0; i < previous.count; ++i) {
+                if (previous.slots[i].item && !Contains(current_, previous.slots[i].item)) {
                     uncertain_ = true; return;
                 }
             }
@@ -64,8 +71,9 @@ public:
                 const auto item = current_.slots[i].item;
                 if (item && !Contains(before, item)) { ++additions; new_item = item; }
             }
-            if (additions > 1) { uncertain_ = true; return; }
-            if (!additions) { return; }
+            if (additions > expected) { uncertain_ = true; return; }
+            if (additions < expected) { return; }
+            // transition_item represents one member; the correlated snapshot contains all additions.
         } else {
             if (Contains(current_, pending_->command.item) || !kept_in_inventory) { return; }
             new_item = pending_->command.item;

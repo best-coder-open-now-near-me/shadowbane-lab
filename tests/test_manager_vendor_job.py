@@ -9,7 +9,7 @@ from unittest.mock import patch
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
 from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, READY, Outcome, Slot
 from shadowbane_lab.manager.vendor_job import VendorJobStore, run_vendor_job
-from tests.test_vendor_batch import Session, receipt
+from tests.test_vendor_batch import MultipleSession, Session, receipt
 
 
 class JobSession(Session):
@@ -56,6 +56,16 @@ class JobSession(Session):
             inventory=900,
             slots=tuple(replace(s, state=2) if s.item else s for s in self.state.slots),
         )
+
+
+class MultipleJobSession(JobSession, MultipleSession):
+    def __init__(self, store):
+        JobSession.__init__(self, store)
+        self.state = replace(self.state, multiple=1)
+        self.close_recipe = True
+        self.partial_timeout = False
+        self.expected_count = 0
+        self.arrivals = 0
 
 
 class FocusJobSession(JobSession):
@@ -107,6 +117,17 @@ class VendorJobTests(unittest.TestCase):
         summary = self.store.summary()
         self.assertNotIn("initial_snapshot", summary)
         self.assertNotIn("process_id", summary)
+
+    def test_multiple_batch_closes_recipe_then_keeps_all_items(self):
+        self.session = MultipleJobSession(self.store)
+        result = self.run_job()
+        self.assertEqual(("complete", 3, 3, 0), (
+            result["state"], result["created"], result["kept"], result["excluded"],
+        ))
+        self.assertEqual(1, len(self.session.calls))
+        self.assertEqual(3, len(self.session.keeps))
+        self.assertEqual(0, self.session.state.recipe)
+        self.assertEqual(3, self.session.state.free_slots)
 
     def test_pause_finishes_pending_receipt_then_prevents_next_create(self):
         pauses = []

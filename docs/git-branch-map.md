@@ -51,7 +51,10 @@ reconciliation. Source `e26a5e3` is installed and its exact worker/game binding
 passed read-only checks. The focus wait was observed, but its first Create
 remains unconfirmed. Host 0.3.10 corrects launch validation for the exact
 client-written crash log. Source `1aee8d5` is installed; the exact runtime
-reopened and passed worker/binding checks. The fresh-session trace is next.
+reopened and passed worker/binding checks. A fresh manual multiple-slot trace
+confirmed one quantity-1 request filling three free slots. Native 1.8.3 / host
+0.3.11 support is now implemented; package and installed qualification remain.
+See [multiple-slot handoff](handoffs/vendor-multiple-1.8.3.md).
 Then native window opening and exclusion/disposal/resources remain.
 See [current manager handoff](handoffs/vendor-manager-0.3.10.md),
 [exact vendor package](handoffs/vendor-rolling-1.8.2.md) and

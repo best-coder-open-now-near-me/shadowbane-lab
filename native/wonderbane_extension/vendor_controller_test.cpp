@@ -73,6 +73,55 @@ int main(int argc, char**) {
         assert((r.flags & w::ready) && r.transition_item == 123 && r.snapshot.count == 4);
         assert(Is(c.Execute(w::Verb::create, Command(c, 3), true, true, f), w::Outcome::submitted));
     }
+
+    for (bool burst : {false, true}) {
+        v::Controller c; Fake f; auto s = Snapshot(); s.multiple = 1;
+        c.Observe(s, true, false); const auto command = Command(c);
+        assert(Is(c.Execute(w::Verb::create, command, true, true, f), w::Outcome::submitted));
+        auto probe = Command(c, 9); probe.expected = {};
+        if (!burst) {
+            s.slots[0] = {600, 123, 1}; c.Observe(s, true, false);
+            auto r = c.Execute(w::Verb::inspect, probe, true, true, f);
+            assert((r.flags & w::in_flight) && !r.transition_item);
+            assert(Is(c.Execute(w::Verb::create, Command(c, 2), true, true, f), w::Outcome::pending));
+        }
+        s.slots[0] = {600, 123, 1}; s.slots[1] = {700, 124, 1};
+        s.recipe = 0; s.quantity = 0; s.multiple = 0;
+        c.Observe(s, true, false);
+        const auto r = c.Execute(w::Verb::inspect, probe, true, true, f);
+        assert((r.flags & w::ready) && r.transition_request == command.request && r.transition_item == 124);
+        assert(Is(c.Execute(w::Verb::create, command, true, true, f), w::Outcome::submitted));
+        assert(f.calls == 1);
+    }
+    // Once observed, a partial arrival cannot disappear, even if another replaces it.
+    for (int failure = 0; failure < 5; ++failure) {
+        v::Controller c; Fake f; auto s = Snapshot(); s.multiple = 1;
+        c.Observe(s, true, false);
+        assert(Is(c.Execute(w::Verb::create, Command(c), true, true, f), w::Outcome::submitted));
+        s.slots[0] = {600, 123, 1}; c.Observe(s, true, false);
+        if (failure == 0) { s.slots[0] = {600, 125, 1}; }
+        if (failure == 1) { s.count = 3; s.slots[1] = {700, 124, 1}; s.slots[2] = {800, 125, 1}; }
+        if (failure == 2) { ++s.vendor; }
+        if (failure == 3) { s.count = 1; s.slots[1] = {}; }
+        c.Observe(s, failure != 4, false);
+        auto probe = Command(c, 9); probe.expected = {};
+        assert(c.Execute(w::Verb::inspect, probe, true, true, f).flags & w::unresolved);
+        assert(f.calls == 1);
+    }
+    // Occupied slots are excluded; newly unlocked slots do not change a pending request's size.
+    {
+        v::Controller c; Fake f; auto s = Snapshot(); s.multiple = 1;
+        s.slots[0] = {600, 100, 2}; c.Observe(s, true, false);
+        const auto command = Command(c);
+        assert(Is(c.Execute(w::Verb::create, command, true, true, f), w::Outcome::submitted));
+        s.count = 3; s.slots[2] = {800, 0, 0}; c.Observe(s, true, false);
+        s.slots[1] = {700, 123, 1}; c.Observe(s, true, false);
+        auto probe = Command(c, 9); probe.expected = {};
+        const auto r = c.Execute(w::Verb::inspect, probe, true, true, f);
+        assert((r.flags & w::ready) && r.transition_request == command.request);
+        assert(Is(c.Execute(w::Verb::create, Command(c, 2), true, true, f), w::Outcome::submitted));
+        assert(f.calls == 2);
+    }
     for (int failure = 0; failure < 4; ++failure) {
         v::Controller c; Fake f; c.Observe(Snapshot(), true, false);
         assert(Is(c.Execute(w::Verb::create, Command(c), true, true, f), w::Outcome::submitted));
@@ -117,5 +166,8 @@ int main(int argc, char**) {
         s = Snapshot(); s.revision = 1; s.slots[0].state = 1; assert(!w::ValidSnapshot(s));
         s = Snapshot(); s.revision = 1; s.count = 17; assert(!w::ValidSnapshot(s));
         s = Snapshot(); s.revision = 1; s.quantity = 2; assert(!w::RandomScepter(s));
+        s.multiple = 1; assert(!w::RandomScepter(s));
+        s.quantity = 1; assert(w::RandomScepter(s));
+        s.multiple = 2; assert(!w::RandomScepter(s));
     }
 }

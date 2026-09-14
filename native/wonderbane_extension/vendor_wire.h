@@ -58,7 +58,7 @@ inline bool ValidSnapshot(const Snapshot& s) noexcept {
 }
 inline bool RandomScepter(const Snapshot& s) noexcept {
     return s.recipe && s.item_template == 26990 && s.prefix == 3362971591U
-        && s.suffix == s.prefix && s.mode == 1 && s.table == 12 && s.quantity == 1 && !s.multiple;
+        && s.suffix == s.prefix && s.mode == 1 && s.table == 12 && s.quantity == 1 && s.multiple <= 1;
 }
 inline bool Valid(Verb verb, const Command& c) noexcept {
     if (!movement::wire::Valid(c.host) || !c.window || c.window > UINT32_MAX

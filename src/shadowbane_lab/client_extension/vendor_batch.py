@@ -73,7 +73,7 @@ def fill_available_slots(
             raise VendorBatchStopped("vendor ownership or production changed before filling")
         baseline = _items(initial)
         record = {
-            "schema_version": 1, "operation": "fill_available_slots",
+            "schema_version": 2 if initial.multiple else 1, "operation": "fill_available_slots",
             "batch_id": str(uuid.uuid4()), "state": "running",
             "vendor_id": vendor_id, "window": first.window,
             "process_id": session.identity.process_id,
@@ -94,8 +94,11 @@ def fill_available_slots(
             if (
                 receipt.outcome != Outcome.OBSERVED or receipt.window != first.window
                 or _owner(s) != _owner(initial) or len(s.slots) < record["capacity"]
-                or not s.random_scepter or receipt.flags & UNRESOLVED
-                or (not pending and not receipt.flags & READY)
+                or receipt.flags & UNRESOLVED
+                or (not pending and (
+                    not s.random_scepter or s.multiple != initial.multiple
+                    or not receipt.flags & READY or receipt.flags & IN_FLIGHT
+                ))
             ):
                 raise VendorBatchStopped("vendor, session, recipe, or operation authority changed")
             if len(s.slots) > record["capacity"]:
@@ -127,6 +130,9 @@ def fill_available_slots(
                     "request_key": request_key, "state": "prepared",
                     "expected_snapshot": fresh.encode().hex(),
                 }
+                expected_count = fresh.free_slots if fresh.multiple else 1
+                if initial.multiple:
+                    request["expected_item_count"] = expected_count
                 record["requests"].append(request)
                 save()  # Must reach disk before any path can submit Create.
                 result = session.create(fresh, request_key)
@@ -147,6 +153,7 @@ def fill_available_slots(
                 request["state"] = "submitted"
                 save()
                 deadline = clock() + acceptance_timeout
+                seen_items = expected_items
                 while True:
                     if cancelled():
                         record["state"] = "cancelled_pending"
@@ -157,25 +164,36 @@ def fill_available_slots(
                         raise VendorBatchStopped("Create timed out; outcome is uncertain")
                     receipt = session.inspect()
                     observed = require_current(receipt, pending=True)
+                    observed_items = _items(observed)
+                    new_items = observed_items - expected_items
+                    if not seen_items <= observed_items or len(new_items) > expected_count:
+                        raise VendorBatchStopped("ambiguous production transition")
+                    seen_items = observed_items
                     if receipt.transition_request == request_key:
-                        new_item = receipt.transition_item
                         if (
-                            not new_item or new_item in expected_items
-                            or _items(observed) != expected_items | {new_item}
+                            len(new_items) != expected_count
+                            or receipt.transition_item not in new_items
                             or observed.free_slots != (
-                                record["planned_rolls"] - len(record["items"]) - 1
+                                record["planned_rolls"] - len(record["items"]) - expected_count
                             )
                             or receipt.flags & (IN_FLIGHT | UNRESOLVED)
                         ):
                             raise VendorBatchStopped("ambiguous production transition")
                         request["state"] = "observed"
-                        request["item_id"] = new_item
-                        record["items"].append(new_item)
+                        if initial.multiple:
+                            request["item_ids"] = sorted(new_items)
+                        else:
+                            request["item_id"] = receipt.transition_item
+                        record["items"].extend(sorted(new_items))
                         save()
                         break
                     if not receipt.flags & IN_FLIGHT:
                         raise VendorBatchStopped("native request ownership was lost")
                     sleeper(0.1)
+                # Multiple Create may close its recipe. A full correlated queue
+                # completes this capacity batch without demanding another recipe.
+                if initial.multiple and not observed.free_slots:
+                    break
             record["state"] = "complete"
             save()
             return record

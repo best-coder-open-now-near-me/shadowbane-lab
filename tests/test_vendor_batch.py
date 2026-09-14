@@ -84,6 +84,47 @@ class Session:
         return receipt(self.state, request_key, Outcome.SUBMITTED, IN_FLIGHT)
 
 
+class MultipleSession(Session):
+    """Server confirmations arrive separately; native publishes only a full batch."""
+    def __init__(self, path, *, close_recipe=True, partial_timeout=False):
+        super().__init__(path)
+        self.state = replace(snapshot((Slot(600), Slot(700), Slot(800))), multiple=1)
+        self.close_recipe = close_recipe
+        self.partial_timeout = partial_timeout
+        self.expected_count = 0
+        self.arrivals = 0
+
+    def create(self, expected, request_key):
+        result = super().create(expected, request_key)
+        self.expected_count = expected.free_slots
+        self.arrivals = 0
+        saved = json.loads(self.path.read_text())
+        assert saved["schema_version"] == 2
+        assert saved["requests"][-1]["expected_item_count"] == expected.free_slots
+        return result
+
+    def inspect(self):
+        if not self.pending:
+            return receipt(self.state, item=self.last_transition[0],
+                           transition=self.last_transition[1])
+        if self.partial_timeout and self.arrivals:
+            return receipt(self.state, flags=IN_FLIGHT)
+        self.next_item += 1
+        self.arrivals += 1
+        slots = list(self.state.slots)
+        index = next(i for i, s in enumerate(slots) if not s.item)
+        slots[index] = replace(slots[index], item=self.next_item, state=1)
+        self.state = replace(self.state, revision=self.state.revision + 1, slots=tuple(slots))
+        if self.close_recipe:
+            self.state = replace(self.state, recipe=0, quantity=0, multiple=0)
+        if self.arrivals < self.expected_count:
+            return receipt(self.state, flags=IN_FLIGHT)
+        self.last_transition = (self.next_item, self.pending)
+        self.pending = None
+        return receipt(self.state, item=self.last_transition[0],
+                       transition=self.last_transition[1])
+
+
 class VendorWireTests(unittest.TestCase):
     def test_snapshot_roundtrip_and_command_size(self):
         s = snapshot()
@@ -109,6 +150,8 @@ class VendorWireTests(unittest.TestCase):
         for verb, expected, item in (
             (Verb.INSPECT, snapshot(), 0),
             (Verb.CREATE, replace(snapshot(), quantity=2), 0),
+            (Verb.CREATE, replace(snapshot(), quantity=2, multiple=1), 0),
+            (Verb.CREATE, replace(snapshot(), multiple=2), 0),
             (Verb.CREATE, Snapshot(), 0), (Verb.KEEP, snapshot(), 0),
         ):
             with self.subTest(verb=verb), self.assertRaises(ValueError):
@@ -278,3 +321,85 @@ class VendorBatchTests(unittest.TestCase):
             ), self.assertRaises(OSError):
                 self.run_batch(path, session)
             self.assertEqual([], session.calls)
+
+
+class MultipleBatchTests(unittest.TestCase):
+    def run_batch(self, path, session, **kwargs):
+        tick = [0.0]
+        def sleep(delay):
+            tick[0] += delay
+        return fill_available_slots(
+            session, path, 2517204, clock=lambda: tick[0], sleeper=sleep,
+            acceptance_timeout=2, **kwargs,
+        )
+
+    def test_partial_arrivals_close_recipe_and_one_durable_request_for_all_free_slots(self):
+        for capacity, occupied in ((3, 0), (3, 2), (16, 0)):
+            with (
+                self.subTest(capacity=capacity, occupied=occupied),
+                tempfile.TemporaryDirectory() as d,
+            ):
+                path = Path(d) / "batch.json"
+                session = MultipleSession(path)
+                session.state = replace(session.state, slots=tuple(
+                    Slot(600 + i * 100, 50 + i, 1) if i < occupied else Slot(600 + i * 100)
+                    for i in range(capacity)
+                ))
+                result = self.run_batch(path, session)
+                self.assertEqual("complete", result["state"])
+                self.assertEqual(1, len(session.calls))
+                self.assertEqual(capacity - occupied, len(result["items"]))
+                self.assertEqual(result["items"], result["requests"][0]["item_ids"])
+                self.assertEqual(0, session.state.recipe)
+                with self.assertRaises(VendorBatchStopped):
+                    self.run_batch(path, session)
+                self.assertEqual(1, len(session.calls))
+
+    def test_partial_timeout_never_retries_or_publishes_partial_success(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "batch.json"
+            session = MultipleSession(path, partial_timeout=True)
+            with self.assertRaises(VendorBatchStopped):
+                self.run_batch(path, session)
+            record = json.loads(path.read_text())
+            self.assertEqual("uncertain", record["state"])
+            self.assertEqual([], record["items"])
+            self.assertEqual(1, len(session.calls))
+
+    def test_premature_receipt_and_disappearing_partial_item_stop(self):
+        for premature in (True, False):
+            with self.subTest(premature=premature), tempfile.TemporaryDirectory() as d:
+                path = Path(d) / "batch.json"
+                session = MultipleSession(path)
+                original = session.inspect
+                def inspect(session=session, premature=premature, original=original):
+                    if session.arrivals == 1 and not premature:
+                        session.state = replace(session.state, slots=(
+                            Slot(600), *session.state.slots[1:],
+                        ))
+                    observed = original()
+                    if premature and session.pending:
+                        return replace(observed, flags=READY, transition_item=101,
+                                       transition_request=session.pending)
+                    return observed
+                session.inspect = inspect
+                with self.assertRaises(VendorBatchStopped):
+                    self.run_batch(path, session)
+                self.assertEqual("uncertain", json.loads(path.read_text())["state"])
+                self.assertEqual(1, len(session.calls))
+
+    def test_rank_growth_does_not_expand_the_inflight_request(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "batch.json"
+            session = MultipleSession(path, close_recipe=False)
+            original = session.inspect
+            def inspect():
+                if session.pending and len(session.state.slots) == 3:
+                    session.state = replace(session.state, slots=(*session.state.slots, Slot(900)))
+                return original()
+            session.inspect = inspect
+            result = self.run_batch(path, session)
+            self.assertEqual("complete", result["state"])
+            self.assertEqual([3, 1], [r["expected_item_count"] for r in result["requests"]])
+            self.assertEqual(4, len(result["items"]))
+            self.assertEqual([3, 4], result["capacity_history"])

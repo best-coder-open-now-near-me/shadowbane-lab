@@ -234,6 +234,13 @@ class VendorRecipeBindingTests(unittest.TestCase):
         self.assertTrue(recipe["qualified_random_scepter"])
         self.assertFalse(out["command_admitted"])
 
+    def test_quantity_one_multiple_slot_recipe_is_qualified(self):
+        m = add_recipe(fixture())
+        m.put(CREATION + 0x3D8, "<I", 1)
+        recipe = read_native_vendor_queue(m)["creation_recipe"]
+        self.assertTrue(recipe["qualified_random_scepter"])
+        self.assertTrue(recipe["multiple_slots"])
+
     def test_absent_or_unselected_recipe_does_not_invent_readiness(self):
         self.assertIsNone(read_native_vendor_queue(fixture())["creation_recipe"])
         m = add_recipe(fixture())
@@ -246,7 +253,7 @@ class VendorRecipeBindingTests(unittest.TestCase):
         for address, value in (
             (TEMPLATE + 0x10, 123), (CREATION + 0x400, 0), (CREATION + 0x404, 0),
             (CREATION + 0x40C, 0), (CREATION + 0x434, 0),
-            (CREATION + 0x47C, 13), (CREATION + 0x4D4, 2), (CREATION + 0x3D8, 1),
+            (CREATION + 0x47C, 13), (CREATION + 0x4D4, 2),
         ):
             m = add_recipe(fixture())
             m.put(address, "<I", value)

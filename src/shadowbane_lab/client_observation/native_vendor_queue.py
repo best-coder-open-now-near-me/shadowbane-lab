@@ -146,7 +146,7 @@ def _creation_recipe(
     random_scepter = (
         template == {"object_id": 26990, "object_type": 0}
         and sentinel == prefix == suffix == 3362971591
-        and mode == 1 and modtable == 12 and quantity == 1 and multiple == 0
+        and mode == 1 and modtable == 12 and quantity == 1 and multiple in (0, 1)
     )
     return {
         "window_address": hud, "vendor": {"object_id": vendor_id, "object_type": vendor_type},
