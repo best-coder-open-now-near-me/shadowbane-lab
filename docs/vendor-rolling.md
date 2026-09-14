@@ -8,9 +8,10 @@ Branch: `codex/vendor-rolling`, based on
 or deployed. The main project checkout stays on `main`; development and local
 evidence are in `.worktrees/vendor-rolling`.
 
-The implemented slice is the strict, offline ITEMPRODUCTION observation decoder
-and its CLI. Live rolling automation remains unfinished. There is no verified
-WonderBane crafting native profile, dispatch adapter, complete queue reader,
+The implementation includes the strict offline ITEMPRODUCTION decoder and a
+bounded native crafting tracer with a post-resume observation callback. Live
+rolling automation remains unfinished. The native capture path is still under
+live qualification; there is no verified dispatch adapter, complete queue reader,
 or resource-budget controller in this delivery. Do not treat this decoder as a
 live automation capability or register it as one.
 
@@ -141,3 +142,47 @@ vendor wire, native vendor-dialog regressions), whole-tree Ruff passes, and
 `git diff --check` passes. The local environment has no pytest module; the
 equivalent focused unittest suite was run directly. CI's broader matrix and
 live crafting acceptance are not claimed.
+
+
+## Native capture API and September 14 test
+
+`NativeCraftingTracer.trace` uses the existing hardware debugger backend, requires
+an inspected executable hash plus all four instruction signatures, pairs nested
+entry/completion events per thread, and reads only a bounded message object and
+name. Every hit resumes in a finally block; consumers receive copied observations
+after resume. Closing the trace detaches on success, timeout, or error. A quiet
+trace and incomplete invocations remain explicit and do not certify live behavior.
+The callback is an observation extension point; it supplies no dispatch authority.
+
+```powershell
+python -m shadowbane_lab.cli client trace-native-crafting --process-id 6016 --output .\artifacts\crafting.jsonl --timeout-seconds 120 --json
+```
+
+Use the current process ID; 6016 belongs only to this recorded session. Existing
+evidence files are never overwritten. Timeout is capped at five minutes and the
+default message limit is 32. No process is selected implicitly.
+
+The user prepared Treehugger in City of Root, with Malik the Irekei Sage and
+So'skath the Lizardman Sage in the Feudal Magic Shop. Two random Gilded Scepters
+finished as Taripontor Gilded Scepter of Cruelty and Gilded Scepter of Potential.
+The observed client was the 1.8.1 test package, PID 6016, creation FILETIME
+134338323268126976, executable hash bb63469e... (full hash in the supported set).
+
+The desktop tool still failed to start, but guest diagnostics and the existing
+GuardedInputExecutor worked. One COMPLETE click on the Cruelty scepter opened a
+confirmation; Yes keeps the item, No junks it, and Cancel dismisses the dialog.
+A single guarded Yes click closed the dialog. The item remained listed and no
+crafting stream messages were observed at the candidate breakpoints. This is an
+**unconfirmed transaction**, not a successful keep. Do not blindly retry it.
+Reconcile the vendor inventory and qualify the actual dispatch path first.
+
+The input preconditions pinned PID, creation FILETIME, HWND 196744, exact
+1920x955 client bounds, foreground ownership, and a fresh comparison of the
+observed item/confirmation image. The existing live-input and emergency-stop
+guards remained active. No junk action or new roll request was sent.
+
+Local captures and runners are in the task worktree's
+`artifacts/vendor-protocol/`. The staged diagnostic observer and reference images
+are in the test diagnostics share's `vendor-rolling-20260914/`; guest journals are
+under `C:/Users/tester/native-crafting-*-20260914.jsonl`. These are private
+diagnostics, not installed client binaries or shared source.

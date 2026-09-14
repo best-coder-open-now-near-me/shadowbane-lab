@@ -777,6 +777,15 @@ def _parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
+    trace_crafting = client_commands.add_parser(
+        "trace-native-crafting", help="capture native crafting messages without sending actions"
+    )
+    trace_crafting.add_argument("--process-id", required=True, type=int)
+    trace_crafting.add_argument("--output", required=True, type=Path)
+    trace_crafting.add_argument("--timeout-seconds", type=float, default=60)
+    trace_crafting.add_argument("--max-messages", type=int, default=32)
+    trace_crafting.add_argument("--json", action="store_true")
+
     decode_crafting = client_commands.add_parser(
         "decode-crafting", help="decode one plaintext crafting message offline (no live input)"
     )

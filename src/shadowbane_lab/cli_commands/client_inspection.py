@@ -1352,6 +1352,28 @@ def _observe_native_training(profile_path: Path | None, *, as_json: bool) -> int
     return 0
 
 
+def trace_native_crafting(
+    process_id: int, output: Path, *, timeout_seconds: float, max_messages: int, as_json: bool
+) -> int:
+    from shadowbane_lab.client_observation.native_crafting import open_native_crafting_tracer
+
+    try:
+        tracer = open_native_crafting_tracer(process_id)
+        summary = tracer.trace(
+            output, timeout_seconds=timeout_seconds, max_messages=max_messages,
+            armed_callback=lambda: print(
+                f"Crafting trace armed for PID {process_id}; no game input is sent.",
+                file=sys.stderr, flush=True,
+            ),
+        )
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _error(f"native crafting trace failed: {exc}", as_json=as_json)
+    # A quiet trace is valid evidence, but is not a successful live verification.
+    captured = summary["message_count"] > 0 and summary["incomplete_invocations"] == 0
+    print(json.dumps({"ok": captured, "summary": summary}, sort_keys=True))
+    return 0 if captured else 2
+
+
 def decode_crafting(path: Path, *, direction: str, as_json: bool) -> int:
     from shadowbane_lab.client_observation.crafting_wire import (
         MAX_CRAFTING_PAYLOAD_BYTES,

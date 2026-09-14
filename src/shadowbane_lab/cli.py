@@ -722,6 +722,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _observe_native_progression(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-training":
         return _observe_native_training(arguments.profile, as_json=arguments.json)
+    if arguments.command == "client" and arguments.client_command == "trace-native-crafting":
+        return _client_inspection_commands.trace_native_crafting(
+            arguments.process_id, arguments.output, timeout_seconds=arguments.timeout_seconds,
+            max_messages=arguments.max_messages, as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "decode-crafting":
         return _client_inspection_commands.decode_crafting(
             arguments.payload, direction=arguments.direction, as_json=arguments.json
