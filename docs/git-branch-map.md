@@ -36,11 +36,14 @@ seven CI jobs. The separate test runtime is running with its exact DLL verified.
 The first live automatic batch filled three free slots with distinct verified
 queue additions. Host-only 0.3.3 from `25dd627` then finalized all three using
 automatic Keep with independent inventory confirmation. Native 1.8.2 remained
-unchanged. Host 0.3.4 adds manager controls, durable bounded jobs and exact-worker
-capability admission. The exact-source `1e804da` host is installed; the separate
-test dashboard and worker passed read-only qualification, with no new batch run.
-Next: first manager-run batch, then window opening and exclusion/disposal/resources.
-See [manager host handoff](handoffs/vendor-manager-0.3.4.md),
+unchanged. Installed host 0.3.6 from `4a5a9b0` completed its first manager-started
+three-item batch with two reviewed, pre-Keep recoveries. Independent inventory
+reads confirmed all three retained items and empty production. Live Pause/Resume
+kept the same job and item count. This is assisted qualification, not an
+uninterrupted unattended run. Host 0.3.7 source hardens read-only inspection;
+its deployment and uninterrupted acceptance remain pending, along with the
+unexplained dispatch interruption, window opening and exclusion/disposal/resources.
+See [current manager handoff](handoffs/vendor-manager-0.3.6.md),
 [exact vendor package](handoffs/vendor-rolling-1.8.2.md) and
 [vendor status and validation](vendor-rolling.md).
 

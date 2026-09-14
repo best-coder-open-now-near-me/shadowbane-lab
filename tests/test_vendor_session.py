@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from shadowbane_lab.client_extension.action_channel import (
     NativeActionChannelError,
+    NativeActionChannelTimeout,
     NativeActionResult,
     NativeActionResultStage,
     NativeClientProcessIdentity,
@@ -85,6 +86,80 @@ class VendorSessionTests(unittest.TestCase):
                     self.assertEqual(1, len(session._transport.commands))
                 finally:
                     session.close()
+
+
+    def test_only_read_only_expired_lease_is_retried_with_fresh_identity(self):
+        with patch(
+            "shadowbane_lab.client_extension.vendor_session.channel."
+            "WindowsNativeActionCommandTransport", Transport,
+        ), patch("shadowbane_lab.client_extension.vendor_session.time.sleep"):
+            session = NativeVendorSession(NativeClientProcessIdentity(988, 12345), 1000)
+            original = session._transport.submit
+
+            def submit(command, original=original, **kwargs):
+                result = original(command, **kwargs)
+                if len(session._transport.commands) == 1:
+                    return replace(result, stage=NativeActionResultStage.FAILED,
+                                   error_code=13, detail="invalid_or_expired_vendor_lease")
+                return result
+
+            session._transport.submit = submit
+            self.assertEqual(Outcome.OBSERVED, session.inspect().outcome)
+            commands = session._transport.commands
+            self.assertEqual([Verb.INSPECT, Verb.INSPECT], [c.kind for c in commands])
+            self.assertNotEqual(commands[0].command_id, commands[1].command_id)
+            self.assertNotEqual(commands[0].payload.request_key, commands[1].payload.request_key)
+            session.close()
+
+    def test_failed_inspection_is_bounded_and_mutations_are_never_retried(self):
+        for verb in (Verb.INSPECT, Verb.CREATE, Verb.KEEP):
+            with self.subTest(verb=verb), patch(
+                "shadowbane_lab.client_extension.vendor_session.channel."
+                "WindowsNativeActionCommandTransport", Transport,
+            ), patch("shadowbane_lab.client_extension.vendor_session.time.sleep"):
+                session = NativeVendorSession(NativeClientProcessIdentity(988, 12345), 1000)
+                original = session._transport.submit
+
+                def submit(command, original=original, **kwargs):
+                    return replace(original(command, **kwargs),
+                                   stage=NativeActionResultStage.FAILED, error_code=13,
+                                   detail="invalid_or_expired_vendor_lease")
+
+                session._transport.submit = submit
+                with self.assertRaisesRegex(NativeActionChannelError, "expired_vendor_lease"):
+                    if verb == Verb.INSPECT:
+                        session.inspect()
+                    elif verb == Verb.CREATE:
+                        session.create(snapshot(), KEY)
+                    else:
+                        session.keep(snapshot(), 42, KEY)
+                self.assertEqual(3 if verb == Verb.INSPECT else 1,
+                                 len(session._transport.commands))
+                session.close()
+
+
+    def test_inspection_timeout_is_bounded_and_unknown_service_is_not_retried(self):
+        for mode in ("timeout", "unknown"):
+            with self.subTest(mode=mode), patch(
+                "shadowbane_lab.client_extension.vendor_session.channel."
+                "WindowsNativeActionCommandTransport", Transport,
+            ), patch("shadowbane_lab.client_extension.vendor_session.time.sleep"):
+                session = NativeVendorSession(NativeClientProcessIdentity(988, 12345), 1000)
+                original = session._transport.submit
+
+                def submit(command, original=original, mode=mode, **kwargs):
+                    result = original(command, **kwargs)
+                    if mode == "timeout":
+                        raise NativeActionChannelTimeout("inspection timed out")
+                    return replace(result, stage=NativeActionResultStage.FAILED,
+                                   error_code=13, detail="unknown_command_kind")
+
+                session._transport.submit = submit
+                with self.assertRaises(NativeActionChannelError):
+                    session.inspect()
+                self.assertEqual(3 if mode == "timeout" else 1,
+                                 len(session._transport.commands))
+                session.close()
 
 
 class VendorCrossLanguageTests(unittest.TestCase):

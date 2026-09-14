@@ -19,9 +19,10 @@ Create produced a separately correlated queue addition, and an independent
 read confirmed all three items cooking. The completed batch was subsequently
 finalized by automatic Keep; all three items were independently confirmed in
 the owned inventory. No automatic Junk has run.
-The complete rolling system remains unfinished: manager job controls, full
-inventory/resource capacity and destructive-action qualification
-are pending. Unknown affixes remain protected by the exclusion policy.
+The complete rolling system remains unfinished: uninterrupted manager completion,
+native window opening, full inventory/resource capacity, complete affix evidence
+and destructive-action qualification are pending. Manager controls are implemented.
+Unknown affixes remain protected by the exclusion policy.
 
 The dependency provides current native UI-thread, process/session lifetime and
 typed command ownership infrastructure. Its movement authority does not grant
@@ -119,10 +120,17 @@ tests prove the upstream grammar only; no live capture has been promoted.
 4. **Complete in host source:** manager start/pause/resume/stop controls for one
    capacity batch, exact worker capability admission, cooking/inventory progress,
    stale-job rejection and durable phase recovery.
-5. **Active:** qualify the first manager-started batch. Host 0.3.4 packaging,
-   installation and read-only dashboard/worker checks passed. Then qualify native
-   window opening, inventory capacity/paging, resources, full affix evidence and
-   disposal before enabling recurring jobs. Never blindly retry pending actions.
+5. **Complete with reviewed recovery:** installed host 0.3.6 filled three slots,
+   passed live Pause/Resume, and automatically kept all three items. Independent
+   inventory confirmed the result. Two pre-Keep interruptions required evidence
+   review; no mutation was replayed. This does not qualify uninterrupted operation.
+6. **Active:** deploy the host 0.3.7 read-only inspection correction and diagnose
+   the separate dispatch interruption before uninterrupted manager acceptance.
+   Then qualify native window opening, inventory capacity/paging, resources,
+   full affix evidence and disposal before enabling recurring jobs.
+
+Current installed state: [host 0.3.6 handoff](handoffs/vendor-manager-0.3.6.md).
+The dated checkpoints below retain their historical scope.
 
 
 Local research files and VM screenshots are under

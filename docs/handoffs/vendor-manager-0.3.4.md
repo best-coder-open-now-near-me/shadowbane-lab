@@ -1,5 +1,7 @@
 # Vendor manager host 0.3.4
 
+Historical checkpoint, superseded by [installed host 0.3.6](vendor-manager-0.3.6.md).
+
 Source: `1e804daafcf18cd16d967fdb3250d520058c592f`.
 Feature branch: `codex/vendor-rolling`.
 Integration destination: `codex/native-lifecycle-hardening`, followed by reviewed

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import itertools
+import time
 import uuid
 from dataclasses import dataclass
 
@@ -30,6 +31,10 @@ class NativeVendorCommand:
         ) + self.payload.encode(self.kind)
 
 
+class _RetryableInspectionError(channel.NativeActionChannelUnavailable):
+    """A rejected read-only observation; never used for Create or Keep."""
+
+
 class NativeVendorSession:
     def __init__(self, identity: channel.NativeClientProcessIdentity, window: int):
         if type(window) is not int or not 0 < window < 2**32:
@@ -54,8 +59,17 @@ class NativeVendorSession:
             NativeVendorCommand(next(self._ids), verb, command), timeout_ms=750
         )
         if result.detail != "native_vendor_receipt_v1":
-            raise channel.NativeActionChannelUnavailable(
-                "this client has no qualified vendor command service"
+            error = (
+                _RetryableInspectionError
+                if verb == Verb.INSPECT
+                and result.stage == channel.NativeActionResultStage.FAILED
+                and result.error_code == 13
+                and result.detail == "invalid_or_expired_vendor_lease"
+                else channel.NativeActionChannelUnavailable
+            )
+            raise error(
+                f"vendor {verb.name.lower()} failed: {result.detail} "
+                f"(stage={result.stage.name}, error={result.error_code})"
             )
         receipt = Receipt.decode(result.movement_payload)
         if (
@@ -69,7 +83,16 @@ class NativeVendorSession:
         return receipt
 
     def inspect(self) -> Receipt:
-        return self._submit(Verb.INSPECT, str(uuid.uuid4()))
+        # Only observation can be repeated. Every attempt has a fresh request
+        # identity and still passes the native lifetime/lease/receipt checks.
+        for attempt in range(3):
+            try:
+                return self._submit(Verb.INSPECT, str(uuid.uuid4()))
+            except (_RetryableInspectionError, channel.NativeActionChannelTimeout):
+                if attempt == 2:
+                    raise
+                time.sleep(0.05)
+        raise AssertionError("unreachable inspection retry")
 
     def create(self, expected: Snapshot, request_key: str) -> Receipt:
         return self._submit(Verb.CREATE, request_key, expected)
