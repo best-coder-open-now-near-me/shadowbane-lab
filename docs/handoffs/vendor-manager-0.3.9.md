@@ -82,4 +82,3 @@ The latest idle inspection found the vendor management menu closed and the
 action unresolved. No new request, reset or recovery was attempted. The owner
 has been asked to reopen Malik's management menu without crafting or completing
 anything. Next: check the current queue and ownership before further diagnostics.
-

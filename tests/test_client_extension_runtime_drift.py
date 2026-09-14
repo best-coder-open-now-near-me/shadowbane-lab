@@ -9,6 +9,7 @@ from shadowbane_lab.client_extension.runtime_drift import (
 class RuntimeDriftPolicyTests(unittest.TestCase):
     def test_reviewed_exact_and_per_instance_paths_are_allowed_case_insensitively(self) -> None:
         self.assertTrue(is_reviewed_runtime_mutable_path("Config/ArcanePref.cfg"))
+        self.assertTrue(is_reviewed_runtime_mutable_path("Logs/Crash.txt"))
         self.assertTrue(
             is_reviewed_runtime_mutable_path(
                 "config/screen_game_1024x768_primary_WonderBane.cfg"
@@ -21,6 +22,8 @@ class RuntimeDriftPolicyTests(unittest.TestCase):
             "config/nested/screen_game_1024x768_wonderbane.cfg",
             "config/screen_game_wonderbane.cfg/extra",
             "logs/other.txt",
+            "logs/crash.txt.dll",
+            "logs/nested/crash.txt",
         ):
             with self.subTest(path=path):
                 self.assertFalse(is_reviewed_runtime_mutable_path(path))

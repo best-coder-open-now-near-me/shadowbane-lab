@@ -107,13 +107,18 @@ def _manifest(source: bytes, extension: bytes) -> PatchManifest:
     )
 
 
-def _freeze(root: Path, executable: bytes) -> tuple[Path, Path]:
+def _freeze(
+    root: Path, executable: bytes, *, crash_log: bytes | None = None,
+) -> tuple[Path, Path]:
     source = root / "official"
     source.mkdir()
     (source / "sb.exe").write_bytes(executable)
     (source / "Config").mkdir()
     (source / "Config" / "ArcaneIP.cfg").write_text("SERVER=fixture\n", encoding="utf-8")
     (source / "Config" / "ArcanePref.cfg").write_text("PREF=fixture\n", encoding="utf-8")
+    if crash_log is not None:
+        (source / "Logs").mkdir()
+        (source / "Logs" / "crash.txt").write_bytes(crash_log)
     frozen = root / "frozen"
     freeze_client_baseline(
         source,
@@ -125,6 +130,32 @@ def _freeze(root: Path, executable: bytes) -> tuple[Path, Path]:
 
 
 class ClientExtensionPackageTests(unittest.TestCase):
+    def test_launch_preserves_changed_crash_log_without_allowing_neighbor_code(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, extension = _source_executable(), _extension_dll()
+            _, frozen = _freeze(root, source, crash_log=b"earlier crash\n")
+            extension_path = root / "wonderbane-extension.dll"
+            extension_path.write_bytes(extension)
+            destination = root / "working"
+            evidence = prepare_patched_client_copy(
+                frozen, destination, _manifest(source, extension), extension_path,
+            ).evidence
+            crash = destination / "Logs" / "crash.txt"
+            crash.write_bytes(b"earlier crash\nnew crash\n")
+            self.assertEqual(evidence, verify_launchable_patched_client_copy(destination))
+            self.assertEqual(b"earlier crash\nnew crash\n", crash.read_bytes())
+
+            neighbor = destination / "Logs" / "crash.txt.dll"
+            neighbor.write_bytes(b"unreviewed code")
+            with self.assertRaisesRegex(ClientPatchPackageError, "added:Logs/crash.txt.dll"):
+                verify_launchable_patched_client_copy(destination)
+            neighbor.unlink()
+            executable = destination / "sb.exe"
+            executable.write_bytes(executable.read_bytes() + b"unreviewed change")
+            with self.assertRaises(ClientPatchPackageError):
+                verify_launchable_patched_client_copy(destination)
+
     def test_launch_verification_allows_only_classified_runtime_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

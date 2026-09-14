@@ -48,9 +48,11 @@ one uninterrupted three-item manager batch: all Create/Keep receipts and indepen
 inventory were confirmed, with one Start and no Resume or repair. Unknowns were
 kept. Host 0.3.9 adds a tested foreground readiness wait with pending receipt
 reconciliation. Source `e26a5e3` is installed and its exact worker/game binding
-passed read-only checks; live dashboard focus handoff qualification is next.
+passed read-only checks. The focus wait was observed, but its first Create
+remains unconfirmed. Host 0.3.10 corrects launch validation for the exact
+client-written crash log; installation and the fresh-session trace are next.
 Then native window opening and exclusion/disposal/resources remain.
-See [current manager handoff](handoffs/vendor-manager-0.3.9.md),
+See [current manager handoff](handoffs/vendor-manager-0.3.10.md),
 [exact vendor package](handoffs/vendor-rolling-1.8.2.md) and
 [vendor status and validation](vendor-rolling.md).
 

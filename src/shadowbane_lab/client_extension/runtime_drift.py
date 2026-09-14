@@ -16,6 +16,7 @@ _RUNTIME_MUTABLE_EXACT_PATHS = frozenset(
         "doublefusion/engine.log",
         "doublefusion/user.var",
         "logs/debug.txt",
+        "logs/crash.txt",
     }
 )
 
