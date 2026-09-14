@@ -34,8 +34,9 @@ The exact-commit archive embeds the installed source identity. Full local host
 validation passed 2159 tests and 576 subtests, with 14 explicit environment skips.
 Ruff and whitespace checks passed. Focused tests verify first-cause retention,
 fresh strict permit checks, durable cancellation reasons, and vendor behavior.
-Remote Python 3.11/3.12/3.13, quality and PowerShell checks passed. The two
-native-profile jobs for the source checkpoint are still running at this checkpoint.
+All seven remote CI jobs for installed source `5c7ccfe` passed, including
+Python 3.11/3.12/3.13, both native profiles, quality and PowerShell syntax.
+Run: https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/34862945306.
 
 Private exact-source packages remain in `artifacts/vendor-host-0.3.7` and
 `artifacts/vendor-host-0.3.8` under the task worktree. VM installation and passive
