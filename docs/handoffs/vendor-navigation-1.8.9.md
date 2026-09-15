@@ -76,3 +76,40 @@ Next active todo: build/stage the exact full 1.8.9 / host 0.3.18 package, then a
 after confirmed game closure, verify loaded hash and read-only action mapping,
 and run one new discovery after login. Recipe/inventory navigation and bounded
 town scheduling remain unfinished. Unknown affixes remain kept; disposal stays off.
+
+## Exact package staged and verified
+
+Source `7870b3fbb9f9f6b002f0df37eb5bfe543dcac8f9` is pushed. Exact package directory:
+`E:/Projects/shadowbane/artifacts/vendor-packages/5d6badf3`.
+All required full and diagnostics-only native suites, real IPC/image checks,
+installed entry points and vendor/navigation contracts passed. The isolated source
+host suite passed 2,265 tests with 15 skips. The two previously deferred graphics
+transparency diagnostics remain recorded separately for each profile. Whole-tree
+Ruff passed. All 61 archive artifacts were independently hash-verified.
+
+- Package SHA-256: c293b409be9b92eedde05fc4688859ff236dd25c2c50170afaf2d1fe6e9383f6.
+- **Full-profile DLL** SHA-256: 46f195e9a323d37f2f7197491d54ae0d8bb8280f92d591e9fc7ed1dde3dbeaa6.
+- Host 0.3.18 wheel SHA-256: d116970b1f0e744bb5a3e3ef6f7aaeb62840aa30de8ef874ff0df5eedc6b9ae1.
+- Prepared game hash remains b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3.
+
+All seven CI jobs passed:
+https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/34977110026.
+
+The full-profile payload, exact authored bootstrap manifest, hash plan and rollback
+updater are staged under host diagnostics `vendor-1.8.9-7870b3f` and guest runtime
+`upgrades/1.8.9-7870b3f/payload`. Host environment `host-0.3.18` is installed.
+The updater's guest read-only dry run passed against installed full 1.8.8; the
+running game, launchers and manager still use 1.8.8/0.3.17. The update plan and
+updater explicitly require the full profile and its archive-derived DLL hash.
+No game or job mutation occurred during staging. Python and PowerShell syntax
+checks passed. Guest prepare.json and validation.json are copied to host evidence;
+validation.json is UTF-16 from Windows PowerShell redirection.
+
+The user has been asked to close Shadowbane. Next active todo: after confirmation,
+verify the exact idle manager and game exit, apply this staged updater, update the
+existing dashboard shortcut from host-0.3.17 to host-0.3.18 with a backup, and
+relaunch through the same game shortcut. Verify exact loaded full DLL and open its
+action mapping read-only with matching PID/creation time before requesting login.
+After verified Treehugger login, issue a fresh guarded scan with a new intent file
+in this upgrade directory. Never replay earlier failed requests. Do not rebuild
+from a documentation-only successor commit. Town automation remains unfinished.
