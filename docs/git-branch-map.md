@@ -27,7 +27,8 @@ is implied by later source commits. Reuse accepted navigation and movement evide
 
 September 15 client update: the normal Downloads game is now 1.3.38.7 while
 Vendor Test remains 1.3.38.6. Native 1.8.7 / host 0.3.16 add reviewed exact-build
-compatibility; packaging and migration precede further login/discovery tests.
+compatibility. Exact package from c64eb0d is verified; VM migration awaits the
+pending direct connection-credential approval before further login/discovery tests.
 See [client update and remaining work](client-update-20260915.md).
 
 Current owner priority: [town building/vendor selection and automatic window control](town-vendor-plan.md).

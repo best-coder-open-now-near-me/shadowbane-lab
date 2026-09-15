@@ -68,3 +68,12 @@ recipe/inventory opening, durable selections and multi-vendor scheduling, then
 complete multi-building qualification. Preserve unknown affixes, exclude only
 confirmed Tier 1-2 affixes, and use one fresh-capacity batch per selected vendor.
 Captures, credentials, binaries, packages and rollback files remain outside Git.
+
+## September 15 login blocker
+
+The desktop shortcut still launches this reviewed runtime, but the normal client
+in Downloads has been patched to 1.3.38.7. This runtime is still based on 1.3.38.6,
+explaining the user's patch-required login report. Corrected discovery has not run.
+The exact 1.8.7 / host 0.3.16 replacement from c64eb0d has passed packaging and is
+preserved privately on the host, awaiting VM connection approval and migration.
+See [updated client review, package hashes and next steps](../client-update-20260915.md).

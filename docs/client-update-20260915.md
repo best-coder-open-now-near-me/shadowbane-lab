@@ -66,3 +66,44 @@ approval recorded in the town-vendor handoff. No migration is installed yet.
 Then resume corrected automatic building/vendor discovery; recipe/inventory
 opening, durable selections, town scheduling and multi-building qualification
 remain unfinished. Never replay old crafting or discovery journals.
+
+## Exact package ready; VM installation pending
+
+Source c64eb0da18b45127488a61fcdd792bb51a8a73e5 is committed and pushed.
+The first package attempt (51df4142, source a684e55) caught the remaining native
+API version declaration and is not a usable package. c64eb0d fixes it.
+
+Verified package: E:/Projects/shadowbane/artifacts/vendor-packages/e52a5732.
+Archive SHA-256: a9b89dd8cd7f0e257fe96a180dc1f8c7a28921c68434a2e5ca9c9a7f4d983280.
+Full DLL SHA-256: 79edb54d7cfaab4b2c3ef98ec3a254e94b2ed5dde9a456a806016fd87fbced1c.
+Host wheel SHA-256: d5ec7cc70075c7819a4c5d88816b6a90e1ae39a7663445292040aa2c40f33159.
+
+All 61 recorded artifacts and the archive CRC were independently checked.
+Clean-source host tests: 2,261 passed, 14 skipped; Ruff passed. Both native
+profiles passed required gates, actual updated original/prepared image checks,
+real IPC, installed host and vendor navigation contract checks. The new verifier
+also passed the earlier 1.3.38.6 original/prepared pair. The two known deferred
+ideal-transparency findings remain unchanged; this is a diagnostic package.
+The launch guard passed matching, changed and missing original-file checks.
+
+Private replacement payload: E:/virtual-machines/shadowbane-testing/diagnostics/
+vendor-1.8.7-c64eb0d. It contains the exact DLL, wheel, prepared sb.exe, authored
+bootstrap manifest, launch guard and package-verification.json. It is on the host
+only; no guest files, running game, dashboard or jobs were modified this turn.
+The guard is not wired into the current desktop shortcut yet.
+
+CI: https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/34953416615.
+Six of seven jobs passed at the last check; native full was still running.
+
+The saved-credential connection was rejected, then rejected again after checking
+and citing the existing September 14 authorization. The reviewer said repository
+documentation could not establish that authorization. A direct, scoped approval
+question is pending with the user; no alternate authentication route was attempted.
+
+Next active todo: finish the VM update after connection approval. Compare normal
+static game data with the frozen baseline, read the current launcher, adapt the
+existing rollback updater for both executable and DLL, preserve all eight crafting
+and three failed-discovery records, wire the guard and verify the same shortcut.
+Confirm the game has exited before replacement. Then verify loaded identities,
+login and resume one new corrected building/vendor discovery operation.
+The previously installed 1.8.6/.15 runtime remains unchanged.
