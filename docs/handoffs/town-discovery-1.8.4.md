@@ -4,9 +4,9 @@ Source: c268cc0124f64af54a8d068a8e778ff297fb7b38 on codex/vendor-rolling.
 Integration destination: codex/native-lifecycle-hardening, then reviewed main.
 The feature is pushed, not merged. The normal project checkout remains on main.
 
-Current: native 1.8.4 activation is verified. The first discovery stopped before
-native publication; a host 0.3.13 admission fix is validated and awaiting its
-host-only update/live retry. See the correction section below.
+Current: native 1.8.4 / host 0.3.13 is installed. Automatic City Command opening
+and a stable 11-building nearby roster are live-qualified. Crafting-vendor
+association, complete town coverage and automatic vendor switching remain next.
 
 ## Delivered behavior and remaining scope
 
@@ -148,3 +148,29 @@ remain; a fresh operation will verify the corrected path.
 
 The correction passed 2203 host tests, 14 skipped and 680 subtests, plus
 whole-tree Ruff. Native binaries are unchanged.
+
+## Live discovery qualified
+
+Native 1.8.4 / host 0.3.13 is installed. The host-only restart preserved the
+running game and existing crafting records. The new manager/worker binding
+passed readiness and exact identity checks. A fresh discovery operation completed
+with a submitted City Command open receipt and an independently verified stable
+roster of 11 nearby buildings. The user also confirmed seeing the window. No
+manual menu opening, Create, Keep, disposal or building-setting operation was
+needed for this check.
+
+Both previously observed workshop buildings are present. All returned nested
+hireling collections were empty; this does not prove absence of crafting vendors.
+City Command also owns guard/protection/settings controls. Qualify the separate
+building-management path before treating its cache as a crafting-vendor roster.
+
+Host 0.3.13 source is 8352bd2e7ebe5ae81d566cfb67f70be98e4967d2. Its exact
+wheel-from-sdist and installed source/transport verification passed. All seven
+CI jobs passed: https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/34920716669
+The desktop launch paths now use this host; the native launch source remains
+c268cc0. Prior hosts, rollback files and both discovery records remain private.
+
+Next: building-to-crafting-vendor association, automatic building/vendor
+switching, then the saved town plan and scheduler. Full town coverage remains
+unverified. Source is pushed to codex/vendor-rolling and remains unmerged into
+codex/native-lifecycle-hardening, the documented integration destination.

@@ -29,15 +29,12 @@ Current owner priority: [town building/vendor selection and automatic window con
 The last single-vendor job is in review before Keep; do not replay it.
 Current-building hireling observation is implemented and tested. The broader
 city roster and automatic window selection remain the active discovery work.
-The nearby-building cache reader is also implemented and tested; populated live
-validation is pending. Its source is a nearby-asset response, not complete town
-coverage. VM credential use is now explicitly authorized and verified. Native
-1.8.4 city-window inspection/open commands are implemented, not installed;
-host 0.3.12 adds coordinated nearby discovery. The exact c268cc0 package passed
-all seven CI jobs and is now installed with its loaded DLL verified. The first
-live check caught a host command-admission omission before native publication;
-host 0.3.13 fixes it with a real shared-memory regression. Its live retry is next.
-See [package and activation handoff](handoffs/town-discovery-1.8.4.md).
+Native 1.8.4 from c268cc0 / host 0.3.13 from 8352bd2 is installed. Automatic
+City Command opening and an independently verified stable roster of 11 nearby
+buildings are live-qualified; the user also confirmed the visible window.
+Both exact-source checkpoints passed all seven CI jobs. Crafting-vendor
+association, complete town coverage and automatic building/vendor switching
+remain unfinished. See [package and live handoff](handoffs/town-discovery-1.8.4.md).
 
 `codex/vendor-rolling` (worktree `.worktrees/vendor-rolling`) contains vendor
 work through dependency `542c632` plus native dispatch and a durable host batch.

@@ -271,3 +271,11 @@ Host 0.3.13 corrects that integration boundary with a real Windows shared-memory
 regression. Full host validation: 2203 passed, 14 skipped, 680 subtests; Ruff
 passed. Retry through the updated manager remains the next active todo; no
 additional game restart or manual vendor-window setup is required.
+
+The corrected host is installed and its new discovery operation succeeded:
+automatic City Command open, independently verified 11-building nearby cache,
+and user confirmation of the visible window. Both known workshops are present.
+Nested hireling collections are empty and City Command also owns guard settings;
+crafting-vendor association remains unqualified. The active todo is the separate
+building-management/hireling acquisition path, followed by automatic switching
+and the saved town plan. See the live handoff.
