@@ -46,7 +46,14 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
     s.selected_entry = r.Word(s.manager + 0x384);
     if (s.selected_entry) {
         r.Require(s.selected_entry, static_cast<std::uint32_t>(base + 0x1169518));
+        r.Require(s.selected_entry + 8, 9);
         s.vendor = r.Key(s.selected_entry + 0x10);
+        const auto populated = (r.Word(s.selected_entry + 0x6c) >> 8) & 0xff;
+        // AssetManagement can select a vacancy while loading its roster.
+        // Retain its pointer for snapshot equality, but never invent a vendor key.
+        if (populated > 1 || (populated ? !wire::Typed(s.vendor, 42) : s.vendor != wire::Key{})) {
+            return false;
+        }
     }
     for (const auto hud : {s.building_hud, s.vendor_hud}) {
         if (hud) { r.Require(hud, static_cast<std::uint32_t>(base + 0x116a058)); r.Require(hud + 0x104, s.manager); }

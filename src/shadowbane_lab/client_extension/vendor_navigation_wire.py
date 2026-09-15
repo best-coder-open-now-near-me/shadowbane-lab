@@ -77,11 +77,13 @@ class Snapshot:
             and not (self.building_id and self.building_type == 8)
             or (self.vendor_id, self.vendor_type) != (0, 0)
             and not (self.vendor_id and self.vendor_type == 42)
-            or bool(self.selected_entry) != bool(self.vendor_id)
+            or self.vendor_id and not self.selected_entry
             or self.visible & 1
             and not (self.building_hud and self.initialized and self.mode == 6 and self.building_id)
             or self.visible & 2
-            and not (self.vendor_hud and self.selected_entry and self.building_id)
+            and not (
+                self.vendor_hud and self.selected_entry and self.vendor_id and self.building_id
+            )
         ):
             raise ValueError("invalid vendor navigation snapshot")
         return _SNAPSHOT.pack(*values, bytes(16))

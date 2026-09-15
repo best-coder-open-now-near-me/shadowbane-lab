@@ -45,6 +45,17 @@ int main() {
     std::uint32_t found = 0;
     auto find = [&] { return n::FindVendorControl(base, s, {777, 42}, found); };
     assert(find() && found == control);
+    word(manager + 0x384, empty);
+    assert(capture() && s.selected_entry == empty && s.vendor == n::wire::Key{});
+    assert(n::wire::Opened(s, n::wire::Verb::building, {123, 8}) && find());
+    assert(!n::wire::Opened(s, n::wire::Verb::vendor, {123, 8}, {777, 42}));
+    word(empty + 0x10, 777); assert(!capture()); word(empty + 0x10, 0);
+    word(empty + 0x6c, 0x100); assert(!capture());
+    word(empty + 0x6c, 0x200); assert(!capture()); word(empty + 0x6c, 0);
+    word(empty + 8, 8); assert(!capture()); word(empty + 8, 9);
+    word(manager + 0x384, entry); assert(capture() && s.vendor[0] == 777);
+    word(entry + 0x14, 8); assert(!capture()); word(entry + 0x14, 42);
+    word(manager + 0x384, 0); assert(capture());
     word(control + 0x1a8, 1); assert(!find()); word(control + 0x1a8, 0);
     word(control + 0x458, list + 4); assert(!find()); word(control + 0x458, list);
     word(control + 0x3bc, hud + 4); assert(!find()); word(control + 0x3bc, hud);

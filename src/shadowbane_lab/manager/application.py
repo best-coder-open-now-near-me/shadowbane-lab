@@ -258,22 +258,26 @@ class ManagerDashboardApplication:
     def reconcile_instances(self) -> dict[str, object]:
         """Adopt safe open clients and archive bindings after an exact process exit."""
 
+        # Session refresh publishes each exact binding atomically under its own
+        # lifecycle lock. Keep its potentially slow process checks outside the
+        # application slot locks, so independent renewal can validate the current
+        # binding against fresh inventory while dashboard reconciliation waits.
+        before = self._session.snapshot()
+        if not isinstance(before, ManagerSessionSnapshot) or (
+            before.node_id != self._manifest.node_id
+        ):
+            raise RuntimeError("manager session returned an invalid snapshot")
+        issues: list[dict[str, str]] = []
+        try:
+            self._session.refresh()
+        except (ManagerSessionError, OSError, RuntimeError, ValueError) as exc:
+            issues.append({"client_id": "manager", "detail": str(exc)})
+
         with self._lock, ExitStack() as held:
             for lock in self._slot_locks.values():
                 if not lock.acquire(blocking=False):
-                    return {"adopted_client_ids": [], "archived_client_ids": [], "issues": []}
+                    return {"adopted_client_ids": [], "archived_client_ids": [], "issues": issues}
                 held.callback(lock.release)
-            before = self._session.snapshot()
-            if not isinstance(before, ManagerSessionSnapshot) or (
-                before.node_id != self._manifest.node_id
-            ):
-                raise RuntimeError("manager session returned an invalid snapshot")
-            issues: list[dict[str, str]] = []
-            try:
-                self._session.refresh()
-            except (ManagerSessionError, OSError, RuntimeError, ValueError) as exc:
-                issues.append({"client_id": "manager", "detail": str(exc)})
-
             current = self._session.snapshot()
             if not isinstance(current, ManagerSessionSnapshot) or (
                 current.node_id != self._manifest.node_id

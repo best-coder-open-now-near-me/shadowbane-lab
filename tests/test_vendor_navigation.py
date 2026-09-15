@@ -119,6 +119,18 @@ class VendorNavigationWireTests(unittest.TestCase):
             with self.subTest(command=command), self.assertRaises(ValueError):
                 command.encode(verb)
 
+    def test_selected_vacancy_is_a_building_response_but_not_a_vendor(self):
+        vacancy = replace(OPENED, selected_entry=400, capacity=3, occupied=2)
+        self.assertEqual(vacancy, Snapshot.decode(vacancy.encode()))
+        self.assertTrue(vacancy.opened(123))
+        self.assertFalse(vacancy.opened(123, 777))
+        self.assertEqual(
+            576, len(Command(Host(1, 1, 1), 1000, KEY, vacancy, 123, 777).encode(Verb.VENDOR))
+        )
+        with self.assertRaises(ValueError):
+            replace(vacancy, vendor_hud=500, visible=3).encode()
+        self.assertFalse(replace(vacancy, active_manager=999).opened(123))
+
     def test_corrupt_receipts_fail_closed(self):
         raw = _RECEIPT.pack(
             uuid.UUID(KEY).bytes,

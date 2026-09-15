@@ -77,7 +77,7 @@ class Session:
                 building_type=8,
                 capacity=1,
                 occupied=1,
-                selected_entry=400 if vendor else 0,
+                selected_entry=400 if vendor else (350 if self.mode == "vacancy" else 0),
                 vendor_id=vendor,
                 vendor_type=42 if vendor else 0,
                 vendor_hud=500 if vendor else 0,
@@ -152,8 +152,10 @@ def fixture(tmp_path):
     )
 
 
-def test_two_buildings_and_vendors_are_verified_without_touching_crafting(fixture):
+@pytest.mark.parametrize("mode", ["", "vacancy"])
+def test_two_buildings_and_vendors_are_verified_without_touching_crafting(fixture, mode):
     f = fixture
+    f.session.mode = mode
     f.store.root.mkdir(parents=True)
     current = f.store.root / "current.json"
     current.write_text('{"job_id":"existing-review"}')

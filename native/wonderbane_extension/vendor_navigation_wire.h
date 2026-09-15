@@ -42,9 +42,9 @@ inline bool ValidSnapshot(const Snapshot& s) noexcept {
         && s.occupied <= s.capacity && s.capacity <= 128
         && (s.building == Key{} || Typed(s.building, 8))
         && (s.vendor == Key{} || Typed(s.vendor, 42))
-        && ((s.selected_entry == 0) == (s.vendor == Key{}))
+        && (s.vendor == Key{} || s.selected_entry)
         && (!(s.visible & 1) || (s.building_hud && s.initialized && s.mode == 6 && Typed(s.building, 8)))
-        && (!(s.visible & 2) || (s.vendor_hud && s.selected_entry && Typed(s.building, 8)))
+        && (!(s.visible & 2) || (s.vendor_hud && s.selected_entry && Typed(s.vendor, 42) && Typed(s.building, 8)))
         && movement::wire::Zero(s.reserved, sizeof(s.reserved));
 }
 inline bool Opened(const Snapshot& s, Verb verb, Key building, Key vendor = {}) noexcept {

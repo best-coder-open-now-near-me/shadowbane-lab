@@ -1,4 +1,6 @@
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import Mock
 
 from shadowbane_lab.client_extension.runtime_status import (
@@ -409,6 +411,58 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
             [("client-01", first.instance_id), ("client-02", second.instance_id)],
             controller.starts,
         )
+
+    def test_slow_reconciliation_does_not_starve_exact_worker_renewal(self) -> None:
+        for scenario in ("healthy", "paused", "exited", "replaced"):
+            with self.subTest(scenario=scenario):
+                bound = _client("instance-101", 101)
+                session = _RecordingSession(ManagerSessionSnapshot(
+                    node_id=NODE_ID,
+                    slots=(_slot("client-01", instance_id=bound.instance_id), _slot("client-02")),
+                ))
+                application, registry = _application(session, bound)
+                worker = registry.worker_supervisor
+                worker.inspect = Mock(wraps=worker.inspect)
+                entered, release = threading.Event(), threading.Event()
+                original = session.refresh
+
+                def slow_refresh(entered=entered, release=release, original=original):
+                    entered.set()
+                    if not release.wait(5):
+                        raise RuntimeError("test refresh was not released")
+                    return original()
+
+                session.refresh = slow_refresh
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    pending = pool.submit(application.reconcile_instances)
+                    try:
+                        self.assertTrue(entered.wait(2))
+                        if scenario == "paused":
+                            session.snapshot_value = ManagerSessionSnapshot(
+                                node_id=NODE_ID,
+                                slots=(
+                                    _slot("client-01", instance_id=bound.instance_id,
+                                          state=ManagerSlotState.PAUSED),
+                                    _slot("client-02"),
+                                ),
+                            )
+                        elif scenario in {"exited", "replaced"}:
+                            registry.snapshot = ClientRegistrySnapshot(
+                                node_id=NODE_ID,
+                                clients=(
+                                    () if scenario == "exited" else (_client("instance-202", 202),)
+                                ),
+                            )
+                        application.supervise()
+                        calls = [call for call in worker.inspect.call_args_list
+                                 if call.args == ("client-01",)]
+                        self.assertEqual(1, len(calls))
+                        self.assertEqual(scenario == "healthy",
+                                         calls[0].kwargs["lifecycle_dispatch_enabled"])
+                        self.assertEqual(bound.instance_id, calls[0].kwargs["instance_id"])
+                    finally:
+                        release.set()
+                    pending.result(timeout=2)
 
     def test_reconciliation_releases_worker_after_verified_exit(self) -> None:
         bound = _client("instance-101", 101)

@@ -4,7 +4,7 @@ Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
 
-## Current delivery status — September 12
+## Current delivery status â€” September 12
 
 Active priority: [PvE/PvP attack-list delivery](pve-pvp-attack-list-plan.md).
 Blacklist means attack list, populated by commands or attributed responses.
@@ -23,15 +23,15 @@ bundle or PvP completion is claimed. The integration branch remains
 `codex/native-lifecycle-hardening`; main remains unchanged. No new installation
 is implied by later source commits. Reuse accepted navigation and movement evidence.
 
-## Vendor overlay — September 14
+## Vendor overlay â€” September 14
 
-September 15 client update: the normal Downloads game is now 1.3.38.7 while
-Vendor Test remains 1.3.38.6. Native 1.8.7 / host 0.3.16 add reviewed exact-build
-compatibility. Exact package from c64eb0d passed all seven CI jobs and is now
-installed and launched with both changed official game assets. The desktop
-shortcuts and matching worker are verified. Login and corrected discovery remain
-pending; historical jobs are preserved. The connection approval block is resolved.
-See [client update and remaining work](client-update-20260915.md).
+September 15: reviewed game 1.3.38.7 / native 1.8.7 / host 0.3.16 is installed,
+and Treehugger's login succeeded. Automatic discovery found 11 buildings and
+opened Tree of Life, but selected-vacancy recognition and a permit expiry stopped
+verification. Native 1.8.8 / host 0.3.17 correct the vacancy state and a reproduced
+renewal starvation path. Source validation passed; exact packaging and activation
+remain next. Historical jobs and the stopped request remain preserved.
+See [current correction and next work](handoffs/vendor-navigation-1.8.8.md).
 
 Current owner priority: [town building/vendor selection and automatic window control](town-vendor-plan.md).
 The last single-vendor job is in review before Keep; do not replay it.
