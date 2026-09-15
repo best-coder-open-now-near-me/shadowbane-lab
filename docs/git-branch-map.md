@@ -44,7 +44,10 @@ worker binding verified; eight existing crafting records are unchanged. See the
 building/vendor discovery qualification remains incomplete. The first scan found
 11 buildings but all opens rejected a wrongly signed native Z bound before
 dispatch. Native 1.8.6 / host 0.3.15 corrects that bound and zero-result reporting;
-its exact package is next. The failed scan is retained without replay.
+Source bc73085 passed exact packaging and all seven CI jobs and is now installed.
+The failed scan is retained without replay. The corrected game is launched;
+login and discovery qualification are next. See the
+[corrective activation](handoffs/vendor-navigation-1.8.6.md).
 See [building navigation](handoffs/building-vendor-navigation.md) for the source
 boundaries, checks and next automatic selection work.
 Both exact-source checkpoints passed all seven CI jobs. Crafting-vendor

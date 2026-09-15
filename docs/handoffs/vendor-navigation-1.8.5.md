@@ -116,3 +116,7 @@ build passed; whole-tree Ruff passed. Exact package validation is next.
 Native 1.8.5 / host 0.3.14 remains installed until the correction is staged.
 The active todo remains live automatic building/vendor discovery; no manual
 vendor-window setup is needed.
+
+The correction is now packaged, installed and launched as native 1.8.6 / host
+0.3.15 from bc73085. All seven CI jobs and exact package gates passed. See the
+[current activation and next discovery check](vendor-navigation-1.8.6.md).
