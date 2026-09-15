@@ -69,6 +69,31 @@ facts, not a callable public API or authorization to send arbitrary actions.
   building identities; its nested hirelings are not yet qualified as the
   crafting roster. Do not dispatch its guard/settings actions as navigation.
 
+## Retained building target ownership
+
+The vendor branch now includes the published native movement ownership changes
+from 6998292, fc6b8fe and dfa766a as e7ca4a4, b637e47 and 4ad7d81.
+Their 44 lifetime/collection checks passed locally. They do not activate the
+optional door collection observer.
+
+The building target adapter queries retained native world results near the
+current world position, selects exactly one management key, and transfers that
+owned reference to the normal target setter before fixed action 0x57c. Management
+identity is at object +0x780, distinct from world identity +0x18. It rejects
+duplicates, unreadable candidates, wrong thread, stale scene/admission and
+unexpected position getters. Query bounds cover loaded structures within 1,024
+world units; this is not full-city coverage or a claim that distant buildings
+are accessible. Native query/release callbacks run outside extension read leases.
+Uncertain native ownership is quarantined; selection is never replayed locally.
+
+The adapter is compiled but not yet connected to the command runtime or installed.
+Its native test covers distinct management/world keys, duplicate results,
+reference consumption, query/release/selection invalidation, wrong thread,
+unsupported position/parent state, dispatch rejection and native faults.
+The extension and test compile with warnings as errors; the native test and
+56 package-gate tests pass. Typed navigation commands, response correlation and
+live qualification are the next part of the same production slice.
+
 ## Active todos
 
 1. Active: finish discovery through automatic exact-building selection and

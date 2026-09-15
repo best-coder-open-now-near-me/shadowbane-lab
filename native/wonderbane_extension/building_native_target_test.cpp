@@ -1,0 +1,130 @@
+#include "building_native_target.h"
+#undef NDEBUG
+#include <cassert>
+#include <cstring>
+#include <map>
+#include <stdexcept>
+#include <thread>
+#include <vector>
+namespace n = wonderbane::extension::vendor_navigation;
+namespace m = wonderbane::extension::movement;
+using O = wonderbane::extension::vendor::wire::Outcome;
+namespace {
+bool live = true, admitted = true;
+std::uintptr_t base = 0;
+int selections = 0, dispatches = 0, queries = 0, allocations = 0;
+bool invalidate_query = false, invalidate_release = false, invalidate_select = false;
+bool throw_select = false, reject_dispatch = false, fault_query = false;
+std::vector<void*> objects;
+std::map<void*, int> references;
+void Word(std::uintptr_t at, std::uint32_t value) { std::memcpy(reinterpret_cast<void*>(at), &value, 4); }
+bool Admit(void*) noexcept { return admitted; }
+}
+namespace wonderbane::extension::movement {
+bool NativeMovementLifetimeCurrent(const NativeScene& s) noexcept { return live && s.epoch == 1; }
+bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { return false; }
+}
+namespace wonderbane::extension::vendor_navigation {
+struct BuildingTargetTestAccess {
+    using Node = BuildingTarget::Node;
+    using List = BuildingTarget::List;
+    static List* __fastcall Construct(List* list, void*, const unsigned char*) {
+        list->sentinel = new Node{}; ++allocations;
+        list->sentinel->next = list->sentinel->previous = list->sentinel; return list;
+    }
+    static void __fastcall Query(void*, void*, const m::GroundPoint* minimum,
+        const m::GroundPoint* maximum, List* list) {
+        ++queries;
+        assert(minimum->x == 976 && minimum->z == 1976 && maximum->x == 3024 && maximum->z == 4024);
+        if (fault_query) { throw std::runtime_error("query fault"); }
+        for (auto* object : objects) {
+            auto* node = new Node{list->sentinel, list->sentinel->previous, object}; ++allocations;
+            list->sentinel->previous->next = node; list->sentinel->previous = node; ++references[object];
+        }
+        if (invalidate_query) { live = false; }
+    }
+    static void __fastcall Release(void** slot, void*, void*) {
+        if (*slot) { assert(references[*slot] > 0); --references[*slot]; *slot = nullptr; }
+        if (invalidate_release) { live = false; }
+    }
+    static void __cdecl Pool(void* value, std::uint32_t size) {
+        assert(size == sizeof(Node)); delete static_cast<Node*>(value); --allocations;
+    }
+    static void __cdecl Select(void* object) {
+        ++selections; assert(references[object] == 1); --references[object];
+        Word(base + 0x16a2da4, reinterpret_cast<std::uintptr_t>(object));
+        if (invalidate_select) { live = false; }
+        if (throw_select) { throw std::runtime_error("after selection"); }
+    }
+    static bool __cdecl Dispatch(const void* value, void* root) {
+        ++dispatches; assert(root == reinterpret_cast<void*>(base + 0x1000));
+        const auto* words = static_cast<const std::uint32_t*>(value);
+        assert(words[0] == 0x57c);
+        for (int i = 1; i < 9; ++i) { assert(words[i] == 0); }
+        return !reject_dispatch;
+    }
+    static void Bind(BuildingTarget& target, HWND window) {
+        target.base_ = base; target.window_ = window; target.thread_ = GetCurrentThreadId();
+        target.calls_.construct = reinterpret_cast<decltype(target.calls_.construct)>(&Construct);
+        target.calls_.query = reinterpret_cast<decltype(target.calls_.query)>(&Query);
+        target.calls_.release = reinterpret_cast<decltype(target.calls_.release)>(&Release);
+        target.calls_.pool_return = &Pool; target.calls_.select = &Select; target.calls_.dispatch = &Dispatch;
+    }
+    static void DisposeQuarantine(BuildingTarget& target) {
+        // Test-only disposal after checking that native uncertain cleanup is never retried.
+        if (target.list_.sentinel) { delete target.list_.sentinel; --allocations; }
+    }
+};
+}
+int main() {
+    auto* memory = static_cast<unsigned char*>(VirtualAlloc(nullptr, 0x1800000, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE));
+    assert(memory); base = reinterpret_cast<std::uintptr_t>(memory);
+    const auto window = CreateWindowExW(0, L"STATIC", L"building-target-test", 0, 0, 0, 1, 1,
+        HWND_MESSAGE, nullptr, GetModuleHandleW(nullptr), nullptr);
+    assert(window);
+    m::NativeScene scene{}; scene.epoch = 1; scene.window = base + 0x1000;
+    scene.actor = base + 0x2000; scene.world = base + 0x3000;
+    Word(scene.actor, base + 0x4000); Word(base + 0x4058, base + 0xa3d0);
+    Word(scene.actor + 0x4b0, base + 0x5000); Word(base + 0x5000, base + 0x6000);
+    const m::GroundPoint world{2000, 40, 3000}, local{2, 3, 4};
+    std::memcpy(memory + 0x6020, &world, sizeof(world));
+    std::memcpy(memory + 0x6048, &local, sizeof(local));
+    auto* first = memory + 0x8000; auto* second = memory + 0x9000;
+    Word(reinterpret_cast<std::uintptr_t>(first), base + 0x1177c0c);
+    Word(reinterpret_cast<std::uintptr_t>(second), base + 0x1177c0c);
+    Word(reinterpret_cast<std::uintptr_t>(first) + 0x780, 123);
+    Word(reinterpret_cast<std::uintptr_t>(first) + 0x784, 8);
+    Word(reinterpret_cast<std::uintptr_t>(first) + 0x18, 999);
+    Word(reinterpret_cast<std::uintptr_t>(second) + 0x18, 123); // World identity is a decoy.
+    Word(reinterpret_cast<std::uintptr_t>(second) + 0x780, 456);
+    Word(reinterpret_cast<std::uintptr_t>(second) + 0x784, 8);
+    auto run = [&](O expected) {
+        n::BuildingTarget target; n::BuildingTargetTestAccess::Bind(target, window);
+        assert(target.Open(scene, {123, 8}, &Admit, nullptr) == expected);
+        if (throw_select || fault_query) {
+            assert(!target.Available()); const auto count = queries;
+            assert(target.Open(scene, {123, 8}, &Admit, nullptr) == O::unavailable && queries == count);
+            n::BuildingTargetTestAccess::DisposeQuarantine(target);
+        }
+        assert(!allocations);
+        for (const auto& [object, count] : references) { (void)object; assert(count == 0); }
+    };
+    objects = {second, first}; run(O::submitted); assert(selections == 1 && dispatches == 1);
+    objects = {second}; run(O::unavailable); assert(selections == 1);
+    objects = {first, first}; run(O::unavailable); assert(selections == 1);
+    objects = {first, second}; invalidate_query = true; run(O::stale); invalidate_query = false; live = true;
+    invalidate_release = true; run(O::stale); invalidate_release = false; live = true;
+    assert(selections == 1 && dispatches == 1);
+    admitted = false; const auto before = queries; run(O::stale); admitted = true; assert(queries == before);
+    Word(base + 0x4058, 0); run(O::stale); Word(base + 0x4058, base + 0xa3d0);
+    Word(base + 0x6008, 4); run(O::stale); Word(base + 0x6008, 0);
+    invalidate_select = true; run(O::uncertain); invalidate_select = false; live = true;
+    assert(selections == 2 && dispatches == 1);
+    reject_dispatch = true; run(O::uncertain); reject_dispatch = false;
+    throw_select = true; run(O::uncertain); throw_select = false;
+    fault_query = true; run(O::unavailable); fault_query = false;
+    n::BuildingTarget target; n::BuildingTargetTestAccess::Bind(target, window);
+    assert(target.Open(scene, {123, 42}, &Admit, nullptr) == O::invalid);
+    std::thread foreign([&] { assert(target.Open(scene, {123, 8}, &Admit, nullptr) == O::unavailable); }); foreign.join();
+    assert(DestroyWindow(window)); assert(VirtualFree(memory, 0, MEM_RELEASE));
+}
