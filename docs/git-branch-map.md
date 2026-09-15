@@ -54,12 +54,13 @@ client-written crash log. Source `1aee8d5` is installed; the exact runtime
 reopened and passed worker/binding checks. A fresh manual multiple-slot trace
 confirmed one quantity-1 request filling three free slots. Native 1.8.3 / host
 0.3.11 support is implemented and its exact package from `bd08ffc` passed all
-required local gates and seven CI jobs. The isolated VM runtime is prepared and
-verified but has not launched;
-automatic multiple-slot live qualification remains.
+required local gates and seven CI jobs. The isolated VM runtime has launched;
+loaded DLL, matching manager/worker binding and both desktop shortcuts are
+verified. Automatic multiple-slot live qualification remains pending login and
+recipe selection.
 See [multiple-slot handoff](handoffs/vendor-multiple-1.8.3.md).
 Then native window opening and exclusion/disposal/resources remain.
-See [current manager handoff](handoffs/vendor-manager-0.3.10.md),
+See [previous manager handoff](handoffs/vendor-manager-0.3.10.md),
 [exact vendor package](handoffs/vendor-rolling-1.8.2.md) and
 [vendor status and validation](vendor-rolling.md).
 

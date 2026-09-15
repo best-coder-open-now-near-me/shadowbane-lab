@@ -2,7 +2,9 @@
 
 Branch: `codex/vendor-rolling`. Integration destination:
 `codex/native-lifecycle-hardening`, then reviewed `main`. This work is not merged.
-The installed test runtime remains native 1.8.2 / host 0.3.10.
+The test runtime is now native 1.8.3 / host 0.3.11. Launch, loaded DLL,
+manager/worker binding and desktop shortcuts are verified; the live multiple-slot
+job remains pending login and recipe selection.
 
 ## Live basis
 
@@ -102,3 +104,26 @@ manager startup, or game launch has occurred.
 Next: close the current game, switch the game/manager to the candidate,
 then qualify one automatic multiple-slot batch and Keep. Existing old-instance
 journals remain private and must never be resumed against a new process.
+
+## Verified launch and manager switch
+
+The owner closed the previous game. The prepared client launched at
+2026-09-15T00:12:47Z (September 14 locally), loaded the exact full DLL above, and
+preserved current settings through the one-time import. The private launch
+receipt binds the new executable, process lifetime and window.
+
+The old manager had no discovered clients after that game closed. Its exact
+process and manifest were checked before stopping it. A fresh host 0.3.11 manager
+uses the candidate's separate manifest, token and worker-state directory. The
+installed host source, healthy worker, vendor capability, new game lifetime and
+window all passed verification. No crafting job was submitted or resumed.
+
+Both existing test VM desktop links, WonderBane Vendor Test and WonderBane Vendor
+Dashboard, now target the new runtime. Their old copies are preserved privately
+under the candidate's vendor-manager/previous-shortcuts directory. The dashboard
+opener supplies the candidate's authentication token without exposing it.
+
+The immediate queue read did not find a valid in-world game root, so it could not
+inspect Malik or the earlier manual items. Next: log in as Treehugger and open
+Malik's quantity-1 random Gilded Scepter recipe in Create Multiple Items, inspect
+current production, then qualify one automatic capacity batch and Keep.
