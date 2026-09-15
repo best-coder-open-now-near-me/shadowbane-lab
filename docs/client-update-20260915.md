@@ -107,3 +107,53 @@ and three failed-discovery records, wire the guard and verify the same shortcut.
 Confirm the game has exited before replacement. Then verify loaded identities,
 login and resume one new corrected building/vendor discovery operation.
 The previously installed 1.8.6/.15 runtime remains unchanged.
+
+## Installed and launched
+
+The owner reaffirmed the existing saved test VM setup credential authorization
+with "you know the answer" in response to the scoped approval question. The same
+connection succeeded. The earlier connection block is resolved; no alternate
+credential source or connection method was introduced.
+
+All seven CI jobs for c64eb0d passed. Comparing the complete normal Downloads
+client with the frozen baseline found 228 identical files and no added files.
+Besides sb.exe, the actual changed game assets were cache/CObjects.cache and
+Config/Config.wpak; remaining differences were client-written settings/logs and
+DoubleFusion data. The update includes both assets, while retaining user settings.
+
+- CObjects.cache SHA-256: 3d7c1467d4ac8abfea3fa2d5acdc887e3557a13fd23f12f2da3dc42c9ca2f9af.
+- Config.wpak SHA-256: 1c1e6273dde7d950cd2d44ab8fb703d023590819e8d761b307f72f6c27633f6b.
+
+Shadowbane was already closed. After the new host and payload passed a read-only
+dry run, the exact idle manager (zero client slots) was stopped. The updater
+verified the entire existing runtime, backed up eight files, replaced exactly
+four client inventory entries (EXE, DLL and two game assets), updated package
+metadata/launchers, and reverified the complete installed inventory. Eleven
+historical vendor/discovery records and sixteen .cfg files matched their saved
+hashes at installation. All eight rollback copies passed hash verification.
+No crafting, Keep, disposal or discovery operation was issued.
+
+The existing desktop WonderBane Vendor Test shortcut now launches prepared
+1.3.38.7 from C:/ShadowbaneLab-Guided/vendor-1.8.3-bd08ffc/client/sb.exe.
+The retained directory label is not the game/extension version. Its launcher
+pins and invokes the new official-client drift guard before startup and displays
+a clear update-needed message if the normal original EXE changes again.
+WonderBane Vendor Dashboard now uses host-0.3.16; its prior shortcut is backed up.
+
+Fresh launch: PID 6916, creation FILETIME 134339397355274201, HWND 787324.
+The loaded EXE and DLL hashes match this exact package. Manager/worker status
+independently confirms this process lifetime, native 1.8.7, one healthy worker,
+and no queued or active operation. Refresh identity before subsequent actions.
+The user has been asked to log Treehugger into Rooty; login acceptance is pending.
+
+Private activation evidence is in vendor-1.8.7-c64eb0d under the diagnostics
+share; guest rollback and receipts are under upgrades/1.8.7-c64eb0d in the runtime.
+activation-verification.json and activation-launch-receipt.json supersede the
+host-payload-only status. Keep original rollback/captures and the failed package
+attempt for traceability; none are in Git. Source remains outside the shared
+integration branch. The normal main checkout stays untouched.
+
+Next active todo: verify successful login and run one fresh corrected automatic
+building/vendor discovery through host-0.3.16 against this new exact identity.
+Then finish recipe/inventory opening, durable town selections and scheduling.
+Do not replay historical jobs or infer that town-wide automation is complete.

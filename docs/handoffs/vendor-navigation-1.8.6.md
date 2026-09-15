@@ -75,5 +75,7 @@ The desktop shortcut still launches this reviewed runtime, but the normal client
 in Downloads has been patched to 1.3.38.7. This runtime is still based on 1.3.38.6,
 explaining the user's patch-required login report. Corrected discovery has not run.
 The exact 1.8.7 / host 0.3.16 replacement from c64eb0d has passed packaging and is
-preserved privately on the host, awaiting VM connection approval and migration.
+installed and launched following renewed connection approval. Both changed
+official game assets are included, and the same desktop shortcuts are verified.
+Login and fresh corrected discovery remain pending.
 See [updated client review, package hashes and next steps](../client-update-20260915.md).
