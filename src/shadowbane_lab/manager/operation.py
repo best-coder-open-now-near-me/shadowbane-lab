@@ -237,7 +237,7 @@ class WorkerOperation:
             _fail("kind must be WorkerOperationKind")
         _command(self.command)
         if self.kind is WorkerOperationKind.VENDOR and re.fullmatch(
-            r"vendor (?:start|resume [0-9a-f]{32})", self.command
+            r"vendor (?:start|discover|resume [0-9a-f]{32})", self.command
         ) is None:
             _fail("invalid vendor job command")
         if self.destination is not None and not isinstance(

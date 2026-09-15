@@ -69,6 +69,27 @@ class VendorControlTests(unittest.TestCase):
             job_id=current["job_id"] if current and action != "vendor-start" else None,
         )
 
+    def test_discovery_uses_same_ledger_and_cannot_overlap(self):
+        self.control.execute("vendor-discover", CLIENT_ID, INSTANCE_ID)
+        records = self.operations.inspect_slot(CLIENT_ID)
+        self.assertEqual("vendor discover", records[0].operation.command)
+        self.assertEqual(records[0].operation,
+                         loads_worker_operation(json.dumps(records[0].operation.to_dict())))
+        with self.assertRaises(VendorBatchStopped):
+            self.control.execute("vendor-discover", CLIENT_ID, INSTANCE_ID)
+        with self.assertRaises(VendorBatchStopped):
+            self.execute("vendor-start")
+        self.assertIsNone(self.store.current())
+
+    def test_discovery_requires_matching_new_worker_capability(self):
+        path = self.store.root / "city-window-capability.json"
+        payload = json.loads(path.read_text())
+        payload["worker_id"] = "other-worker"
+        path.write_text(json.dumps(payload))
+        with self.assertRaisesRegex(VendorBatchStopped, "city-window capable"):
+            self.control.execute("vendor-discover", CLIENT_ID, INSTANCE_ID)
+        self.assertFalse(self.operations.inspect_slot(CLIENT_ID))
+
     def test_start_uses_exact_ledger_and_duplicate_click_cannot_queue_another_batch(self):
         self.execute("vendor-start")
         records = self.operations.inspect_slot(CLIENT_ID)

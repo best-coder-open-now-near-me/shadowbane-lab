@@ -19,6 +19,7 @@ from .operation import (
     WorkerOperationState,
     new_worker_operation,
 )
+from .vendor_discovery import discovery_summary, open_city_session, run_discovery
 from .vendor_job import TERMINAL, VendorJobStore, _write, run_vendor_job
 
 
@@ -35,11 +36,15 @@ class ManagerVendorControl:
     def summary(self, client_id, instance_id):
         return self.store(client_id, instance_id).summary() if instance_id else None
 
+    def discovery_summary(self, client_id, instance_id):
+        return discovery_summary(self.store(client_id, instance_id)) if instance_id else None
+
     def execute(self, action, client_id, instance_id, *, job_id=None):
         store = self.store(client_id, instance_id)
         with exclusive_record_lock(store.root / "admission.lock"):
             current = store.current()
-            if action != "vendor-start" and (not current or current["job_id"] != job_id):
+            if (action not in {"vendor-start", "vendor-discover"}
+                    and (not current or current["job_id"] != job_id)):
                 raise VendorBatchStopped("the selected vendor batch changed; refresh its controls")
             if action in {"vendor-pause", "vendor-stop"}:
                 if not current:
@@ -72,7 +77,7 @@ class ManagerVendorControl:
                     except TimeoutError:
                         pass
                 return
-            if action not in {"vendor-start", "vendor-resume"}:
+            if action not in {"vendor-start", "vendor-resume", "vendor-discover"}:
                 raise ValueError("unknown vendor action")
             permit = self.permits.inspect_permit(client_id)
             now = self.clock()
@@ -117,7 +122,16 @@ class ManagerVendorControl:
                     and not s.receipt.state.terminal
                 )
             ]
-            if action == "vendor-start":
+            if action == "vendor-discover":
+                if inflight or current and current["state"] not in TERMINAL:
+                    raise VendorBatchStopped("another operation owns this worker")
+                city_capability = dict(expected_capability, capability="city_window_v1")
+                city_path = store.root / "city-window-capability.json"
+                if (not city_path.exists()
+                        or json.loads(_read_record(city_path, 1024)) != city_capability):
+                    raise VendorBatchStopped("restart the worker with the city-window capable host")
+                command = "vendor discover"
+            elif action == "vendor-start":
                 if inflight or current and current["state"] not in {"complete", "stopped"}:
                     raise VendorBatchStopped(
                         "finish, resume, or review the current operation first"
@@ -167,8 +181,10 @@ def open_vendor_session(binding):
 
 
 class VendorWorkerExecutor:
-    def __init__(self, root, node_id, binding, *, session_factory=open_vendor_session):
+    def __init__(self, root, node_id, binding, *, session_factory=open_vendor_session,
+                 city_session_factory=open_city_session):
         self.node_id = node_id
+        self.city_session_factory = city_session_factory
         self.root, self.binding, self.session_factory = Path(root), binding, session_factory
 
     def initialize(self, worker_id, process):
@@ -185,6 +201,15 @@ class VendorWorkerExecutor:
                 "capability": "vendor_batch_v1",
                 "worker_id": worker_id,
                 "process_id": process.process_id,
+                "process_started_at_100ns": process.process_started_at_100ns,
+            },
+        )
+
+        _write(
+            store.root / "city-window-capability.json",
+            {
+                "schema_version": 1, "capability": "city_window_v1",
+                "worker_id": worker_id, "process_id": process.process_id,
                 "process_started_at_100ns": process.process_started_at_100ns,
             },
         )
@@ -206,6 +231,17 @@ class VendorWorkerExecutor:
             binding.client_id,
             binding.instance_id,
         )
+        if operation.command == "vendor discover":
+            if stop_signal.is_set():
+                return WorkerOperationExecution(WorkerOperationState.CANCELLED, "Discovery paused.")
+            session = self.city_session_factory(binding)
+            try:
+                record = run_discovery(
+                    store, binding, operation, session, cancelled=stop_signal.is_set,
+                )
+            finally:
+                session.close()
+            return WorkerOperationExecution(WorkerOperationState.SUCCEEDED, record["detail"])
         resume = operation.command.startswith("vendor resume ")
         if resume:
             current = store.current()

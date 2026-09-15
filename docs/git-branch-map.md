@@ -33,7 +33,8 @@ The nearby-building cache reader is also implemented and tested; populated live
 validation is pending. Its source is a nearby-asset response, not complete town
 coverage. VM credential use is now explicitly authorized and verified. Native
 1.8.4 city-window inspection/open commands are implemented, not installed;
-host integration and populated live qualification are next in the town plan.
+host 0.3.12 adds coordinated nearby discovery. Exact packaging and populated
+live qualification are next in the town plan.
 
 `codex/vendor-rolling` (worktree `.worktrees/vendor-rolling`) contains vendor
 work through dependency `542c632` plus native dispatch and a durable host batch.

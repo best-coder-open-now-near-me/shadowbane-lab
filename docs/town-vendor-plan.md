@@ -221,3 +221,31 @@ not installed yet. Next: host wire/session and coordinated invocation, broader
 native validation, exact package preparation and live City Command qualification.
 The first discovery todo remains active; the native open action is a supporting
 part of its automatic acquisition path.
+
+## Coordinated discovery host checkpoint
+
+Host 0.3.12 adds strict City Command wire/session support and a "Find nearby
+buildings" dashboard action. Admission requires the current healthy worker
+permit and its city-window capability record, refuses overlapping operations,
+and uses the existing worker operation ledger. The operation waits up to 60
+seconds for readiness/focus, opens at most once, then observes loading and
+checks the nearby reader against the same game identity, scene and native
+building count. Cancellation stops further dispatch. Unknown, changed or timed
+out results are recorded for review without repeating the open request.
+
+Discovery owns separate immutable operation files under the instance's
+vendor-jobs/discovery directory and a small nearby-summary.json for the
+dashboard. It uses the same execution lock as crafting, preserves existing
+crafting journals, and never turns observed hirelings into production commands.
+The full roster stays in the operation record; the dashboard reports nearby
+counts and explicitly leaves full town coverage unverified.
+
+Native and Python snapshot/command/receipt bytes agree against the compiled
+fixture. Focus waits, cancelled work, uncertain opening, changed scene/roster,
+repeat operation execution, receipt mismatches, stale capabilities and
+overlapping-operation admission have focused coverage. Required native tests:
+148 passed-or-skipped (145 executed successfully, three private-image checks
+skipped pending the exact builder). Full host run: 2199 passed, 15 skipped,
+680 subtests, with one missed native API version constant; that constant was
+corrected and the 34 affected/focused tests plus 25 subtests then passed.
+Whole-tree Ruff passed. Exact packaging and live installation remain next.

@@ -29,7 +29,7 @@ _GLOBAL_ACTIONS = frozenset({"add-client", "start-all", "refresh", "tile-all"})
 _CLIENT_ACTIONS_WITHOUT_INSTANCE = frozenset({"start"})
 _CLIENT_ACTIONS_WITH_INSTANCE = frozenset({
     "attach", "tile", "pause", "resume", "detach", "close",
-    "vendor-start", "vendor-pause", "vendor-resume", "vendor-stop",
+    "vendor-start", "vendor-pause", "vendor-resume", "vendor-stop", "vendor-discover",
 })
 _ALL_ACTIONS = _GLOBAL_ACTIONS | _CLIENT_ACTIONS_WITHOUT_INSTANCE | _CLIENT_ACTIONS_WITH_INSTANCE
 

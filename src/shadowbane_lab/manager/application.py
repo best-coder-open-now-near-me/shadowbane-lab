@@ -422,6 +422,12 @@ class ManagerDashboardApplication:
                         slot.client_id, None if binding is None else binding.instance_id,
                     )
                 )
+                payload["nearby_discovery"] = (
+                    None if self._vendor_control is None
+                    else self._vendor_control.discovery_summary(
+                        slot.client_id, None if binding is None else binding.instance_id,
+                    )
+                )
                 payload["vendor_available"] = self._vendor_control is not None
                 payload["binding"] = None if binding is None else _client_summary(binding)
                 payload["candidates"] = [
@@ -623,7 +629,8 @@ class ManagerDashboardApplication:
             self._ensure_worker_for_slot(client_id)
             return
         self._require_exact_binding(client_id, instance_id)
-        if action in {"vendor-start", "vendor-pause", "vendor-resume", "vendor-stop"}:
+        if action in {"vendor-start", "vendor-pause", "vendor-resume", "vendor-stop",
+                      "vendor-discover"}:
             if self._vendor_control is None:
                 raise DashboardError("vendor-unavailable", "Vendor jobs are not configured.")
             self._vendor_control.execute(action, client_id, instance_id, job_id=job_id)
