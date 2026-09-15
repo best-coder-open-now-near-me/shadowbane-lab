@@ -64,6 +64,17 @@ class CraftingAssessmentTests(unittest.TestCase):
                 record["message"]["roll"]["template_id"] = 1
             self.assertIsNone(assess_native_crafting_roll(record).suffix.tier)
 
+    def test_updated_client_keeps_unqualified_affix_tokens(self):
+        record = result()
+        record["executable_sha256"] = (
+            "b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3"
+        )
+        assessment = assess_native_crafting_roll(record)
+        self.assertEqual(RollDisposition.KEEP, assessment.disposition)
+        self.assertEqual("unknown_affix_preserved", assessment.reason)
+        self.assertIsNone(assessment.suffix.tier)
+        self.assertFalse(assessment.command_admitted)
+
     def test_cooking_errors_and_conflicting_completion_wait(self):
         for progress, complete, seconds, error in (
             (1, 0, 599, 0), (1, 1, 0, 0), (0, 0, 0, 0), (0, 1, 1, 0), (0, 1, 0, 1),

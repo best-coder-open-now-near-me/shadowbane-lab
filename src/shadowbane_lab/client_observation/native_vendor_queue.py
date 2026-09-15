@@ -13,8 +13,8 @@ from shadowbane_lab.client_observation.native_vendor_dialog import (
     NativeVendorDialogCaptureError,
     NativeVendorDialogCompatibilityError,
 )
+from shadowbane_lab.client_observation.reviewed_vendor_builds import REVIEWED_VENDOR_EXECUTABLES
 
-_QUEUE_BUILD = "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
 _WINDOW_RVA = 0x16A7BFC
 _WINDOW_VTABLE = 0x1174884
 _MANAGER_VTABLE = 0x1171ADC
@@ -238,7 +238,7 @@ def read_native_vendor_queue(memory: VendorQueueMemory) -> dict[str, object]:
     """
     if (
         memory.executable_name.casefold() != "sb.exe" or memory.pointer_size != 4
-        or memory.executable_sha256 != _QUEUE_BUILD
+        or memory.executable_sha256 not in REVIEWED_VENDOR_EXECUTABLES
     ):
         raise NativeVendorDialogCompatibilityError("unqualified vendor queue executable")
     lifetime = memory.process_creation_filetime_utc

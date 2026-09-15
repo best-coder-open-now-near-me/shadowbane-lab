@@ -110,6 +110,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_vendor_dialog_tracer,
     open_windows_native_world_map_reader,
 )
+from shadowbane_lab.client_observation.reviewed_vendor_builds import REVIEWED_VENDOR_EXECUTABLES
 from shadowbane_lab.progression import (
     audit_proc_assassin_training,
     irekei_proc_assassin_roadmap,
@@ -1635,9 +1636,8 @@ def fill_vendor_slots(
     try:
         memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", process_id)
         try:
-            if memory.executable_sha256 != (
-                "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
-            ) or not memory.process_creation_filetime_utc:
+            if (memory.executable_sha256 not in REVIEWED_VENDOR_EXECUTABLES
+                    or not memory.process_creation_filetime_utc):
                 raise ValueError("the vendor command build or process lifetime is unqualified")
             identity = NativeClientProcessIdentity(process_id, memory.process_creation_filetime_utc)
         finally:
@@ -1672,8 +1672,7 @@ def keep_vendor_batch(
         memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", identity.process_id)
         try:
             if memory.process_creation_filetime_utc != identity.creation_filetime_utc or (
-                memory.executable_sha256 !=
-                "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+                memory.executable_sha256 not in REVIEWED_VENDOR_EXECUTABLES
             ):
                 raise ValueError("the batch client lifetime or build changed")
         finally:

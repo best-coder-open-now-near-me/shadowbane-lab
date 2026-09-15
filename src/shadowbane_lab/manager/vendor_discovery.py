@@ -14,6 +14,7 @@ from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProce
 from shadowbane_lab.client_observation.native_nearby_vendor_roster import (
     read_native_nearby_vendor_roster,
 )
+from shadowbane_lab.client_observation.reviewed_vendor_builds import REVIEWED_VENDOR_EXECUTABLES
 from shadowbane_lab.record_store import exclusive_record_lock
 
 from .vendor_job import _write
@@ -24,7 +25,7 @@ def _memory(binding):
     if (
         memory.process_creation_filetime_utc != binding.game_process_started_at_100ns
         or memory.executable_sha256
-        != "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+        not in REVIEWED_VENDOR_EXECUTABLES
     ):
         memory.close()
         raise VendorBatchStopped("the discovery client identity or build changed")

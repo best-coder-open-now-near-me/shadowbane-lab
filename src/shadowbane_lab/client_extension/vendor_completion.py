@@ -10,6 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
+from shadowbane_lab.client_observation.reviewed_vendor_builds import REVIEWED_VENDOR_EXECUTABLES
 from shadowbane_lab.equipment.crafting_assessment import assess_native_crafting_roll
 from shadowbane_lab.record_store import (
     exclusive_record_lock,
@@ -100,7 +101,7 @@ def _decisions(batch: dict, capture: Path | None) -> dict[int, dict]:
             or message.get("roll", {}).get("template_id") != 26990
             or message.get("roll", {}).get("item", {}).get("object_type") != 40
             or record.get("executable_sha256")
-            != "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+            not in REVIEWED_VENDOR_EXECUTABLES
         ):
             raise ValueError("completion evidence does not belong to this batch")
         assessment = assess_native_crafting_roll(record).to_dict()

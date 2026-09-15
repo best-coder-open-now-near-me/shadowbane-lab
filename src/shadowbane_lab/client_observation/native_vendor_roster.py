@@ -8,13 +8,13 @@ from __future__ import annotations
 import struct
 from typing import Literal
 
+from shadowbane_lab.client_observation.reviewed_vendor_builds import REVIEWED_VENDOR_EXECUTABLES
+
 from .native_vendor_dialog import (
     NativeVendorDialogCaptureError,
     NativeVendorDialogCompatibilityError,
 )
 from .native_vendor_queue import VendorQueueMemory, _ReadSet
-
-_BUILD = "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
 
 
 def _text(r: _ReadSet, address: int) -> str:
@@ -53,7 +53,7 @@ def read_native_vendor_roster(
     building_menu = window == "building"
     if (
         memory.executable_name.casefold() != "sb.exe"
-        or memory.executable_sha256 != _BUILD or memory.pointer_size != 4
+        or memory.executable_sha256 not in REVIEWED_VENDOR_EXECUTABLES or memory.pointer_size != 4
     ):
         raise NativeVendorDialogCompatibilityError("unsupported building roster executable")
     r = _ReadSet(memory)

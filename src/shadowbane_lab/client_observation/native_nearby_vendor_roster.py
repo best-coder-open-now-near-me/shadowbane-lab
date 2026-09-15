@@ -13,7 +13,8 @@ from .native_vendor_dialog import (
     NativeVendorDialogCompatibilityError,
 )
 from .native_vendor_queue import VendorQueueMemory, _ReadSet
-from .native_vendor_roster import _BUILD, _text
+from .native_vendor_roster import _text
+from .reviewed_vendor_builds import REVIEWED_VENDOR_EXECUTABLES
 
 
 def _tree(r: _ReadSet, address: int, limit: int, budget: list[int]):
@@ -66,7 +67,7 @@ def read_native_nearby_vendor_roster(memory: VendorQueueMemory) -> dict[str, obj
     """Observe one consistent nearby cache; never silently infer town coverage."""
     if (
         memory.executable_name.casefold() != "sb.exe"
-        or memory.executable_sha256 != _BUILD or memory.pointer_size != 4
+        or memory.executable_sha256 not in REVIEWED_VENDOR_EXECUTABLES or memory.pointer_size != 4
     ):
         raise NativeVendorDialogCompatibilityError("unsupported nearby roster executable")
     r = _ReadSet(memory)

@@ -235,8 +235,9 @@ int RunProbe(int argc, wchar_t** argv) {
         std::vector<unsigned char> bytes(static_cast<std::size_t>(size));
         file.seekg(0);
         Require(static_cast<bool>(file.read(reinterpret_cast<char*>(bytes.data()), size)), "short read");
-        Require(Digest(bytes.data(), bytes.size()) ==
-            "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff",
+        const auto digest = Digest(bytes.data(), bytes.size());
+        Require(digest == "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff"
+            || digest == "ac9ca46467997667d49b85cd6076954813a72b56f71e2ad85a4085f3a9f391ca",
             "unsupported executable");
         struct Segment { std::size_t offset; std::size_t size; const char* sha256; };
         constexpr std::array segments{

@@ -7,7 +7,7 @@ See docs/active-character-profile.md for the offline mapping evidence.
 from __future__ import annotations
 
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .native_health import ReadOnlyProcessMemory
 from .native_object import NativeObjectKey
@@ -47,6 +47,12 @@ REVIEWED_CHARACTER_CONFIG_LAYOUTS = (
         name_offset=0xC48,
         server_offset=0xC90,
     ),
+)
+
+# Exact load/save, selected-player and string routines are unchanged in 1.3.38.7.
+REVIEWED_CHARACTER_CONFIG_LAYOUTS += (
+    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
+            executable_sha256="b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3"),
 )
 
 
@@ -104,9 +110,9 @@ class NativeCharacterConfigReader:
 
     def observe_selected_player(self) -> SelectedPlayerIdentity:
         """Exact-image remote-player identity, bracketed by local and selection reads."""
-        if self.process.executable_sha256.lower() != (
-            "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
-        ):
+        if self.process.executable_sha256.lower() not in {
+            layout.executable_sha256 for layout in REVIEWED_CHARACTER_CONFIG_LAYOUTS[1:]
+        }:
             raise ActiveCharacterError("selected-player identity is not reviewed for this image")
         local = self.observe()
         slot = self.process.base_address + 0x16A2DA4

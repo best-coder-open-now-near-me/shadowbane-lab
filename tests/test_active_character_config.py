@@ -369,9 +369,13 @@ def test_pve_ambiguous_or_unavailable_identity_never_opens_input_backend():
     runner.assert_not_called()
 
 
-def test_current_prepared_image_uses_reviewed_identity_layout(tmp_path):
+@pytest.mark.parametrize("digest", [
+    "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87",
+    "b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3",
+])
+def test_current_prepared_image_uses_reviewed_identity_layout(tmp_path, digest):
     memory = CharacterMemory(tmp_path)
-    memory.executable_sha256 = "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+    memory.executable_sha256 = digest
     identity = NativeCharacterConfigReader(memory).observe()
     assert identity.character_name == "testercle"
     assert identity.server_name == "Wonderbane"

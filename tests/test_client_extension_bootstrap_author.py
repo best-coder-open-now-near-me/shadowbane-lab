@@ -5,6 +5,7 @@ import json
 import struct
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from shadowbane_lab.client_extension.bootstrap_author import (
@@ -208,3 +209,15 @@ def test_current_version_update_uses_reviewed_bootstrap_layout():
     assert profile.profile_id == "wonderbane-1.3.38.6-feb351f0"
     assert profile.text == WONDERBANE_1_0_5_55FB_PROFILE.text
     assert profile.entry_point_rva == WONDERBANE_1_0_5_55FB_PROFILE.entry_point_rva
+
+
+def test_september15_update_uses_exact_reviewed_bootstrap_layout():
+    profile = resolve_reviewed_bootstrap_profile(
+        "ac9ca46467997667d49b85cd6076954813a72b56f71e2ad85a4085f3a9f391ca"
+    )
+    previous = resolve_reviewed_bootstrap_profile(
+        "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff"
+    )
+    assert profile.profile_id == "wonderbane-1.3.38.7-ac9ca464"
+    assert replace(profile, profile_id=previous.profile_id,
+                   source_sha256=previous.source_sha256) == previous

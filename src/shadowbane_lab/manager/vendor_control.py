@@ -11,6 +11,7 @@ from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
 from shadowbane_lab.client_extension.vendor_completion import _read_record
 from shadowbane_lab.client_extension.vendor_session import NativeVendorSession
 from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
+from shadowbane_lab.client_observation.reviewed_vendor_builds import REVIEWED_VENDOR_EXECUTABLES
 from shadowbane_lab.record_store import exclusive_record_lock
 
 from .operation import (
@@ -174,7 +175,7 @@ def open_vendor_session(binding):
         if (
             memory.process_creation_filetime_utc != binding.game_process_started_at_100ns
             or memory.executable_sha256
-            != "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87"
+            not in REVIEWED_VENDOR_EXECUTABLES
         ):
             raise VendorBatchStopped("the vendor client lifetime or executable is unqualified")
     finally:
