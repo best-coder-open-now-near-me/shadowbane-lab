@@ -25,13 +25,12 @@ is implied by later source commits. Reuse accepted navigation and movement evide
 
 ## Vendor overlay — September 14
 
-September 15: source a440cfd (native 1.8.8 / host 0.3.17) passed all package
-gates and seven CI jobs. The deployment accidentally selected the diagnostics-only
-DLL, so a fresh scan failed before any native command with a missing action
-channel. The correct full-profile DLL is now staged in the VM and its dry run
-passed; the user has been asked to close the game for replacement. The prior
-crash remains unexplained. Credentials are explicitly authorized and historical
-jobs/settings are preserved. See [current correction and next work](handoffs/vendor-navigation-1.8.8.md).
+September 15: the correct full native 1.8.8 / host 0.3.17 is installed and its
+action mapping is verified. A live scan confirmed the selected-vacancy fix and
+healthy permission renewal, but Tree of Life's secondary panel changes the
+last-dispatched-manager global and prevented window confirmation. Source 1.8.9 /
+0.3.18 corrects that ownership check; focused tests passed and packaging is next.
+No failed request was replayed. See [current correction and next work](handoffs/vendor-navigation-1.8.9.md).
 
 Current owner priority: [town building/vendor selection and automatic window control](town-vendor-plan.md).
 The last single-vendor job is in review before Keep; do not replay it.

@@ -48,7 +48,11 @@ inline bool ValidSnapshot(const Snapshot& s) noexcept {
         && movement::wire::Zero(s.reserved, sizeof(s.reserved));
 }
 inline bool Opened(const Snapshot& s, Verb verb, Key building, Key vendor = {}) noexcept {
-    return s.active_manager == s.manager && !s.offline && s.building == building
+    // The dispatcher global tracks its last manager, not HUD ownership. Tree
+    // of Life's ordinary secondary action 0x515 changes it while this building
+    // HUD remains open. Capture validates the rooted manager, HUD backlink and
+    // live stack membership; retain the global only for snapshot equality.
+    return !s.offline && s.building == building
         && (verb == Verb::building ? (s.visible & 1) != 0
             : verb == Verb::vendor && (s.visible & 2) && s.vendor == vendor);
 }

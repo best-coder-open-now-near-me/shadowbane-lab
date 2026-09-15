@@ -39,7 +39,7 @@ int main(int argc, char**) {
     assert(Is(controller.Execute(w::Verb::building, next, true, true, 11, invoker), w::Outcome::pending));
     assert(invoker.calls == 1);
     auto state = State(); state.mode = 6; state.building_hud = 300; state.initialized = state.visible = 1;
-    state.building = {456, 8}; state.active_manager = state.manager;
+    state.building = {456, 8}; state.active_manager = 600; // Secondary action owner.
     controller.Observe(state, true, 100); assert(controller.Busy()); // Wrong response cannot resolve.
     state.selected_entry = 350; // A selected vacancy still permits building confirmation.
     state.building = command.building; controller.Observe(state, true, 101); assert(!controller.Busy());

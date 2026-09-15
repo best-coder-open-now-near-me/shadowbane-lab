@@ -49,8 +49,7 @@ class Snapshot:
 
     def opened(self, building_id: int, vendor_id: int = 0) -> bool:
         return bool(
-            self.active_manager == self.manager
-            and not self.offline
+            not self.offline
             and self.building_id == building_id
             and self.building_type == 8
             and (

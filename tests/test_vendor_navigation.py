@@ -129,7 +129,19 @@ class VendorNavigationWireTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             replace(vacancy, vendor_hud=500, visible=3).encode()
-        self.assertFalse(replace(vacancy, active_manager=999).opened(123))
+        self.assertTrue(replace(vacancy, active_manager=999).opened(123))
+
+    def test_secondary_action_manager_does_not_replace_visible_hud_ownership(self):
+        building = replace(OPENED, active_manager=999)
+        vendor = replace(building, selected_entry=400, vendor_hud=500, visible=3,
+                         vendor_id=777, vendor_type=42)
+        self.assertTrue(building.opened(123))
+        self.assertTrue(vendor.opened(123, 777))
+        self.assertFalse(replace(building, visible=0).opened(123))
+        self.assertFalse(replace(vendor, visible=1).opened(123, 777))
+        self.assertFalse(replace(vendor, offline=1).opened(123, 777))
+        self.assertFalse(vendor.opened(456, 777))
+        self.assertFalse(vendor.opened(123, 888))
 
     def test_corrupt_receipts_fail_closed(self):
         raw = _RECEIPT.pack(

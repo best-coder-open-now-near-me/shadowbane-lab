@@ -69,7 +69,7 @@ class Session:
             self.state = replace(
                 self.state,
                 revision=self.state.revision + 1,
-                active_manager=200,
+                active_manager=900 if self.mode == "secondary" else 200,
                 mode=6,
                 building_hud=300,
                 initialized=1,
@@ -77,7 +77,9 @@ class Session:
                 building_type=8,
                 capacity=1,
                 occupied=1,
-                selected_entry=400 if vendor else (350 if self.mode == "vacancy" else 0),
+                selected_entry=(
+                    400 if vendor else (350 if self.mode in {"vacancy", "secondary"} else 0)
+                ),
                 vendor_id=vendor,
                 vendor_type=42 if vendor else 0,
                 vendor_hud=500 if vendor else 0,
@@ -152,7 +154,7 @@ def fixture(tmp_path):
     )
 
 
-@pytest.mark.parametrize("mode", ["", "vacancy"])
+@pytest.mark.parametrize("mode", ["", "vacancy", "secondary"])
 def test_two_buildings_and_vendors_are_verified_without_touching_crafting(fixture, mode):
     f = fixture
     f.session.mode = mode

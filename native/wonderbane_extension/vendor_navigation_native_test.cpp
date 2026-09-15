@@ -24,7 +24,8 @@ int main() {
     assert(capture() && !s.visible); // No manual menu prerequisite.
     word(manager + 0x68, hud); word(manager + 0xd0, 6); word(manager + 0x48, 1);
     word(hud, base + 0x116a058); word(hud + 0x104, manager);
-    word(base + 0x16a7c1c, manager); word(head, node); word(head + 4, node);
+    // A secondary panel may be the last dispatched manager while this HUD lives.
+    word(base + 0x16a7c1c, base + 0xf000); word(head, node); word(head + 4, node);
     word(node, head); word(node + 4, head); word(node + 8, hud);
     word(manager + 0xf0, 123); word(manager + 0xf4, 8);
     word(manager + 0xf8, 123); word(manager + 0xfc, 8);
