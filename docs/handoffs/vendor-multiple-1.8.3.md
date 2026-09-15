@@ -4,7 +4,7 @@ Branch: `codex/vendor-rolling`. Integration destination:
 `codex/native-lifecycle-hardening`, then reviewed `main`. This work is not merged.
 The test runtime is now native 1.8.3 / host 0.3.11. Launch, loaded DLL,
 manager/worker binding and desktop shortcuts are verified; the live multiple-slot
-job remains pending login and recipe selection.
+Create has passed with one free slot. Automatic Keep of that item is pending.
 
 ## Live basis
 
@@ -127,3 +127,25 @@ The immediate queue read did not find a valid in-world game root, so it could no
 inspect Malik or the earlier manual items. Next: log in as Treehugger and open
 Malik's quantity-1 random Gilded Scepter recipe in Create Multiple Items, inspect
 current production, then qualify one automatic capacity batch and Keep.
+
+## First automatic multiple-mode Create
+
+After login, independent observation found Malik at capacity four: three
+completed items from the manual trace and one empty slot. The random Gilded
+Scepter recipe was in multiple-slot mode, quantity 1. Exact process/window,
+building, vendor, recipe, foreground readiness and idle-operation checks passed.
+
+One manager Start submitted one native Create. The schema-2 journal recorded
+expected_item_count 1 and one observed item. An independent queue read matched
+that item as cooking and confirmed all three pre-existing completed items remained.
+This verifies automatic dispatch through the multiple-mode path with one free
+slot; it is not yet an automatic multi-addition qualification.
+
+The live job remains cooking with no Keep sent. The owner was asked to open
+Malik's Inventory for inventory-confirmed automatic Keep. No manual item was
+adopted and no disposal or replacement batch was started. Private evidence:
+vendor-manager/multiple-start-request.json, multiple-live-observation.json,
+multiple-qualified.json and the native manager's per-job journals.
+
+Next: verify this item's automatic Keep, then qualify automatic multiple-mode
+Create with several free slots when capacity is available.

@@ -56,8 +56,9 @@ confirmed one quantity-1 request filling three free slots. Native 1.8.3 / host
 0.3.11 support is implemented and its exact package from `bd08ffc` passed all
 required local gates and seven CI jobs. The isolated VM runtime has launched;
 loaded DLL, matching manager/worker binding and both desktop shortcuts are
-verified. Automatic multiple-slot live qualification remains pending login and
-recipe selection.
+verified. The first automatic multiple-mode Create filled the one available slot,
+with an independently matched queue item and the three manual items preserved.
+Its automatic Keep and a future automatic multi-addition batch remain pending.
 See [multiple-slot handoff](handoffs/vendor-multiple-1.8.3.md).
 Then native window opening and exclusion/disposal/resources remain.
 See [previous manager handoff](handoffs/vendor-manager-0.3.10.md),
