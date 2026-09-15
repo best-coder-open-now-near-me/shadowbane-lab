@@ -37,7 +37,9 @@ building selection (e3967ee), and typed owner-thread building/hireling commands
 (28a3328). The native movement ownership dependencies through dfa766a are retained
 as e7ca4a4, b637e47 and 4ad7d81. The current native 1.8.5 / host 0.3.14 candidate
 connects automatic building/vendor visits to the dashboard discovery operation.
-It is not installed or live-qualified; package validation is next.
+Source 89a4489 passed exact package validation and all seven CI jobs. Its
+reversible test VM update is staged, not active or live-qualified. See the
+[activation handoff](handoffs/vendor-navigation-1.8.5.md); game closure is next.
 See [building navigation](handoffs/building-vendor-navigation.md) for the source
 boundaries, checks and next automatic selection work.
 Both exact-source checkpoints passed all seven CI jobs. Crafting-vendor

@@ -117,7 +117,7 @@ tests. Tests cover native byte layouts, real producer-lease queue publication,
 expiry before owner execution, receipt correlation, exact-key response resolution,
 duplicate suppression and late-response uncertainty. No game action was sent;
 the installed extension remains 1.8.4 with host 0.3.13. Host transport/session and manager operation journaling are now implemented below.
-Package validation and live qualification remain.
+Exact package validation is complete; live qualification remains.
 
 ## Host navigation release candidate
 
@@ -142,8 +142,9 @@ transport, byte agreement with the native fixture, producer-lease loss,
 two-building/vendor traversal, durable intent before publication, no replay after
 interruption, cancellations, unavailable targets and independent roster mismatch.
 The package builder also requires installed-wheel agreement with both native
-profiles. Packaging and live qualification are pending; keep the currently
-installed native 1.8.4 / host 0.3.13 runtime until that candidate is verified.
+profiles. Packaging and reversible test VM staging are complete for source 89a4489;
+activation awaits game closure. See [activation handoff](vendor-navigation-1.8.5.md).
+The active runtime remains native 1.8.4 / host 0.3.13.
 
 ## Active todos
 
