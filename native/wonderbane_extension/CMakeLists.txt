@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.3 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.4 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -34,6 +34,7 @@ add_library(
   movement_runtime.cpp
   vendor_runtime.cpp
   vendor_native.cpp
+  city_window_native.cpp
   movement_settings.cpp
   movement_native_image.cpp
   movement_lifetime.cpp
@@ -1154,4 +1155,28 @@ if(BUILD_TESTING)
   target_compile_definitions(wonderbane_extension_vendor_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_vendor_channel_test PRIVATE /W4 /WX /permissive- /utf-8)
   add_test(NAME wonderbane_extension_vendor_channel COMMAND wonderbane_extension_vendor_channel_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_city_window_controller_test city_window_controller_test.cpp)
+  target_compile_features(wonderbane_extension_city_window_controller_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_city_window_controller_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_city_window_controller_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_city_window_controller COMMAND wonderbane_extension_city_window_controller_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_city_window_native_test city_window_native_test.cpp city_window_native.cpp)
+  target_compile_features(wonderbane_extension_city_window_native_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_city_window_native_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_city_window_native_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_city_window_native COMMAND wonderbane_extension_city_window_native_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_city_window_channel_test city_window_channel_test.cpp movement_controls.cpp)
+  target_compile_features(wonderbane_extension_city_window_channel_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_city_window_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_city_window_channel_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_city_window_channel COMMAND wonderbane_extension_city_window_channel_test)
 endif()

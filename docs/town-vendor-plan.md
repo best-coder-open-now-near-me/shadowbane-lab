@@ -191,3 +191,33 @@ establish town coverage and actor association. Next implement the ordinary
 city-window request and building/vendor switching through the existing owner
 thread and correlated receipts, then connect the durable town plan and selection
 UI. No Select all/Start control should claim full-town coverage from this cache.
+
+## City-window native command checkpoint
+
+The owner explicitly authorized use of the saved test VM setup credential on
+September 14. The same read-only verification then ran successfully and reported
+"city command window is not initialized". The earlier credential-use review
+block is resolved. Populated live roster validation remains pending.
+
+Native 1.8.4 source now provides typed City Command inspection/open operations
+(transport kinds 11/12), separate from crafting and movement commands. The
+ordinary action dispatcher at RVA 0x7CA9C0 maps fixed action 0x334 to its city
+manager branch at RVA 0x7CBD9B. That branch installs the active manager at
+RVA 0x16A7C1C before calling Open(root). The implementation uses that ordinary
+branch; it does not expose an arbitrary native address or action identifier.
+
+The existing owner-thread service captures a fresh city-window state, checks the
+exact HWND, current scene and producer lease, and blocks opening while crafting
+is pending or unresolved. Requests have strict padding/identity checks,
+expiry-before-execution handling and non-evicting deduplication. A repeated
+request cannot reopen the window; an already visible active City Command is a
+no-op. A submitted receipt verifies the local window opened, not server roster
+freshness, permissions, or town completeness. No items or building settings
+are changed by this operation.
+
+The extension builds with warnings as errors. All six focused native city-window
+and existing vendor controller/memory/channel tests pass. This native slice is
+not installed yet. Next: host wire/session and coordinated invocation, broader
+native validation, exact package preparation and live City Command qualification.
+The first discovery todo remains active; the native open action is a supporting
+part of its automatic acquisition path.

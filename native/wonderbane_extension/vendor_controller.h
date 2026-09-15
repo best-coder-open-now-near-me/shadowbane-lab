@@ -36,6 +36,7 @@ class Controller {
         return result;
     }
 public:
+    bool Busy() const noexcept { return pending_ || uncertain_; }
     const wire::Snapshot& Current() const noexcept { return current_; }
     std::uint32_t PendingKeep() const noexcept {
         return pending_ && pending_->verb == wire::Verb::keep ? pending_->command.item : 0;
