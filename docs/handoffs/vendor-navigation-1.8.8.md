@@ -105,3 +105,48 @@ inspect its guest dry-run receipt; verify game exit and the exact idle manager,
 then apply, update the existing dashboard shortcut, relaunch and verify identities.
 Do not regenerate the package from a documentation-only successor commit. After
 login, run a new guarded discovery operation and retain all historical requests.
+
+## Installed, then recovered after a game exit
+
+The user explicitly answered "Approved; Shadowbane is closed" to the scoped
+question authorizing this VM's saved password from its unattended-install XML
+for access, installation and continued testing. The same established connection
+then succeeded. That approval block is resolved; do not ask for it again for
+this scope. All seven CI jobs for a440cfd passed.
+
+Guest staging and the read-only updater dry run passed. With no sb.exe running
+and the manager reporting zero slots, the exact manager PID 6272 / FILETIME
+134339397794679601 was stopped. The updater changed one client inventory entry
+(the DLL), updated package metadata and host launch paths, verified five rollback
+copies and preserved all 41 tracked JSON/settings files. The dashboard desktop
+shortcut now uses host-0.3.17; its previous shortcut has a separate backup.
+The official-client drift guard and patched game/asset hashes remain intact.
+
+Initial launch was PID 5828 / FILETIME 134339465852996366, HWND 4457430.
+The loaded DLL hash, native 1.8.8 and exact healthy worker binding were verified.
+After the user entered the world, a guarded fresh discovery was prepared, but
+the user reported the game crashed before it submitted a request. Read-only
+inspection found no new preflight, start request, response or discovery journal;
+the latest records were still the earlier terminal 1.8.7 operation. No request
+was replayed. The interrupted script is now pinned to the exited PID/lifetime
+so a delayed invocation cannot act on a replacement client.
+
+A recent Application-log check found no sb.exe event 1000/1001 to explain the
+exit. Do not classify the cause as either automation-related or unrelated.
+The manager released the dead client and reported zero slots. The same desktop
+launcher reopened the verified client; no game or job files were reset.
+
+Current recovery launch: PID 6532, FILETIME 134339469942878355, HWND 394352,
+instance client-9481a8c69158cfc5d50bdb13523117a37cd86054a7cc6d6f8e69b5ed128dc9a9.
+The exact loaded DLL is efef80b69c3e227000d3871309ad3f33299d298b16cc594b01cb732eb353ed18.
+Worker 5452 / FILETIME 134339469971652010 is healthy, native 1.8.8 is initialized,
+and no operation is queued or active. Root mode was 3 at the check; the user has
+been asked to log Treehugger back into Rooty, without opening any menus.
+Refresh all identities before the next action.
+
+Private activation, crash-followup and crash-relaunch-verification receipts are
+in the existing vendor-1.8.8-a440cfd diagnostics and guest upgrades directories.
+The package source remains a440cfd, not this documentation successor.
+Next active todo: verify the new in-world identity and run one fresh manager-owned
+building/vendor scan; then complete automatic recipe/inventory navigation and
+bounded town scheduling. Historical crafting and discovery records remain intact.
