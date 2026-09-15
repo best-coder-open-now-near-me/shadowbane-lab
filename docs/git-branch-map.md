@@ -4,7 +4,7 @@ Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
 
-## Current delivery status — September 12
+## Current delivery status â€” September 12
 
 Active priority: [PvE/PvP attack-list delivery](pve-pvp-attack-list-plan.md).
 Blacklist means attack list, populated by commands or attributed responses.
@@ -23,7 +23,7 @@ bundle or PvP completion is claimed. The integration branch remains
 `codex/native-lifecycle-hardening`; main remains unchanged. No new installation
 is implied by later source commits. Reuse accepted navigation and movement evidence.
 
-## Vendor overlay — September 14
+## Vendor overlay â€” September 14
 
 Current owner priority: [town building/vendor selection and automatic window control](town-vendor-plan.md).
 The last single-vendor job is in review before Keep; do not replay it.
@@ -33,8 +33,10 @@ The nearby-building cache reader is also implemented and tested; populated live
 validation is pending. Its source is a nearby-asset response, not complete town
 coverage. VM credential use is now explicitly authorized and verified. Native
 1.8.4 city-window inspection/open commands are implemented, not installed;
-host 0.3.12 adds coordinated nearby discovery. Exact packaging and populated
-live qualification are next in the town plan.
+host 0.3.12 adds coordinated nearby discovery. The exact c268cc0 package and
+reversible VM preparation are verified, with all seven CI jobs passing. Activation
+waits for the running game to close; populated live qualification follows. See
+[package and activation handoff](handoffs/town-discovery-1.8.4.md).
 
 `codex/vendor-rolling` (worktree `.worktrees/vendor-rolling`) contains vendor
 work through dependency `542c632` plus native dispatch and a durable host batch.

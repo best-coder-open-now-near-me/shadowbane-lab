@@ -249,3 +249,18 @@ skipped pending the exact builder). Full host run: 2199 passed, 15 skipped,
 680 subtests, with one missed native API version constant; that constant was
 corrected and the 34 affected/focused tests plus 25 subtests then passed.
 Whole-tree Ruff passed. Exact packaging and live installation remain next.
+
+## Exact discovery package prepared
+
+The exact c268cc0 package (native 1.8.4 / host 0.3.12) passed both required
+native profiles, private image checks, packaging/installed gates, installed
+City Command byte agreement, full Python/Ruff checks and all seven CI jobs.
+Package and reversible VM update preparation are complete; activation waits for
+the running game to close. The existing game/manager remain on 1.8.3 / 0.3.11.
+Host 0.3.12 is staged alongside the old environment and its exact source identity
+and proposed one-entry client inventory update passed read-only verification.
+
+See [exact package and activation handoff](handoffs/town-discovery-1.8.4.md).
+The discovery todo remains active: live nearby roster qualification is next,
+followed by town membership/completeness/access and automatic building/vendor
+selection. No manual recipe window is needed for the new discovery operation.
