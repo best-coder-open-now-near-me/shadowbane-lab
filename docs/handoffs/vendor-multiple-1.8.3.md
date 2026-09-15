@@ -149,3 +149,11 @@ multiple-qualified.json and the native manager's per-job journals.
 
 Next: verify this item's automatic Keep, then qualify automatic multiple-mode
 Create with several free slots when capacity is available.
+
+## Priority change: town-wide management
+
+The item completed, but the manager stopped in review with an ownership/operation
+change before any Keep. The live queue still contains all four items and Inventory
+was not observed. The owner redirected work to selecting buildings and operating
+all vendors in town. The [town plan](../town-vendor-plan.md) is now the active
+sequence; this job stays preserved and is not replayed.

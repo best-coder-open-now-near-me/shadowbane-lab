@@ -25,6 +25,9 @@ is implied by later source commits. Reuse accepted navigation and movement evide
 
 ## Vendor overlay — September 14
 
+Current owner priority: [town building/vendor selection and automatic window control](town-vendor-plan.md).
+The last single-vendor job is in review before Keep; do not replay it.
+
 `codex/vendor-rolling` (worktree `.worktrees/vendor-rolling`) contains vendor
 work through dependency `542c632` plus native dispatch and a durable host batch.
 The integration destination is `codex/native-lifecycle-hardening`, followed by
