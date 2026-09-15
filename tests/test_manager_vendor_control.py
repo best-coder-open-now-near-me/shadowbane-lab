@@ -90,6 +90,15 @@ class VendorControlTests(unittest.TestCase):
             self.control.execute("vendor-discover", CLIENT_ID, INSTANCE_ID)
         self.assertFalse(self.operations.inspect_slot(CLIENT_ID))
 
+    def test_discovery_requires_matching_navigation_worker(self):
+        path = self.store.root / "vendor-navigation-capability.json"
+        payload = json.loads(path.read_text())
+        payload["worker_id"] = "other-worker"
+        path.write_text(json.dumps(payload))
+        with self.assertRaisesRegex(VendorBatchStopped, "vendor-navigation host"):
+            self.control.execute("vendor-discover", CLIENT_ID, INSTANCE_ID)
+        self.assertFalse(self.operations.inspect_slot(CLIENT_ID))
+
     def test_start_uses_exact_ledger_and_duplicate_click_cannot_queue_another_batch(self):
         self.execute("vendor-start")
         records = self.operations.inspect_slot(CLIENT_ID)
@@ -212,6 +221,35 @@ class VendorExecutorTests(unittest.TestCase):
             _permit(), WorkerOperationKind.VENDOR, "vendor start", now=100
         )
         self.stop = threading.Event()
+
+    def test_discovery_closes_city_lease_before_navigation_and_closes_on_failure(self):
+        city = Mock()
+        navigation = Mock()
+        city_closed = []
+
+        def open_navigation(binding):
+            self.assertEqual(self.binding, binding)
+            self.assertEqual([True], city_closed)
+            return navigation
+
+        city.close.side_effect = lambda: city_closed.append(True)
+        executor = VendorWorkerExecutor(
+            self.root, NODE_ID, self.binding, city_session_factory=lambda _: city,
+            navigation_session_factory=open_navigation,
+        )
+        operation = replace(self.op, command="vendor discover")
+        with (
+            patch("shadowbane_lab.manager.vendor_control.run_discovery",
+                  return_value={"state": "complete"}) as nearby,
+            patch("shadowbane_lab.manager.vendor_control.run_building_discovery",
+                  side_effect=VendorBatchStopped("window requires review")) as buildings,
+        ):
+            with self.assertRaisesRegex(VendorBatchStopped, "requires review"):
+                executor.execute(operation, stop_signal=self.stop)
+            nearby.assert_called_once()
+            buildings.assert_called_once()
+        navigation.close.assert_called_once()
+        self.factory.assert_not_called()
 
     def test_executor_runs_whole_batch_and_always_closes_native_session(self):
         original = self.session.inspect

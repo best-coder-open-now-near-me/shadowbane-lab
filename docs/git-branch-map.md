@@ -32,8 +32,12 @@ city roster and automatic window selection remain the active discovery work.
 Native 1.8.4 from c268cc0 / host 0.3.13 from 8352bd2 is installed. Automatic
 City Command opening and an independently verified stable roster of 11 nearby
 buildings are live-qualified; the user also confirmed the visible window.
-A later source-only reader checkpoint adds building-menu hireling discovery
-before selecting an individual vendor; it is not installed or live-qualified.
+Later source checkpoints add building-menu hireling discovery, retained exact-key
+building selection (e3967ee), and typed owner-thread building/hireling commands
+(28a3328). The native movement ownership dependencies through dfa766a are retained
+as e7ca4a4, b637e47 and 4ad7d81. The current native 1.8.5 / host 0.3.14 candidate
+connects automatic building/vendor visits to the dashboard discovery operation.
+It is not installed or live-qualified; package validation is next.
 See [building navigation](handoffs/building-vendor-navigation.md) for the source
 boundaries, checks and next automatic selection work.
 Both exact-source checkpoints passed all seven CI jobs. Crafting-vendor

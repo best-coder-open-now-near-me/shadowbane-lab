@@ -543,6 +543,14 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             "tests/fixtures/navigation-inspector-v1.hex",
             "tests/fixtures/navigation-inspector-controls-v1.hex",
             "src/shadowbane_lab/navigation_inspector/build_identity.json",
+            "native/wonderbane_extension/vendor_navigation_wire.h",
+            "native/wonderbane_extension/vendor_navigation_native.cpp",
+            "native/wonderbane_extension/building_native_target.cpp",
+            "src/shadowbane_lab/client_extension/vendor_navigation_wire.py",
+            "src/shadowbane_lab/client_extension/vendor_navigation_session.py",
+            "src/shadowbane_lab/manager/vendor_navigation.py",
+            "tests/test_vendor_navigation.py",
+            "tests/test_vendor_building_discovery.py",
             "scripts/build_navigation_inspector_package.py",
         ):
             if not any(name.endswith("/" + relative) for name in names):
@@ -651,6 +659,31 @@ assert s.empty and s.free_slots == 0
 assert len(vendor_wire.Command(vendor_wire.Host(1, 1, 1), 1,
     "12345678-1234-5678-9abc-def0123456f0").encode(vendor_wire.Verb.INSPECT)) == 576
 """], cwd=output)
+    run("installed-vendor-navigation-contract", [python, "-c", """
+import pathlib, subprocess, sys
+from shadowbane_lab.client_extension import vendor_navigation_wire as wire
+from shadowbane_lab.client_extension import vendor_navigation_session as session
+from shadowbane_lab.manager import vendor_navigation as manager
+installed_root = pathlib.Path(sys.prefix).resolve()
+for module in (wire, session, manager):
+    assert pathlib.Path(module.__file__).resolve().is_relative_to(installed_root)
+for fixture in sys.argv[1:]:
+    state, command, receipt = [
+        bytes.fromhex(line)
+        for line in subprocess.check_output([fixture, "wire"], text=True).splitlines()
+    ]
+    expected = wire.Snapshot(1, 1, 100, 200)
+    key = "01000000-0000-0000-0000-000000000000"
+    assert state == expected.encode()
+    assert command == wire.Command(wire.Host(1, 1, 1), 1000, key, expected, 123).encode(
+        wire.Verb.BUILDING
+    )
+    result = wire.Receipt.decode(receipt)
+    assert result.snapshot == expected and result.outcome == wire.Outcome.SUBMITTED
+    assert result.flags == wire.IN_FLIGHT and result.transition_request == key
+""", output / "nf/Release/wonderbane_extension_vendor_navigation_controller_test.exe",
+         output / "nd/Release/wonderbane_extension_vendor_navigation_controller_test.exe"],
+        cwd=output)
     run("installed-targeted-action-reader", [python, "-c", """
 import pathlib, struct, sys
 from shadowbane_lab.client_extension import targeted_action_trace as trace

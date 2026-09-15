@@ -116,8 +116,34 @@ passed, plus the separate building-target ownership test and 74 package-gate hos
 tests. Tests cover native byte layouts, real producer-lease queue publication,
 expiry before owner execution, receipt correlation, exact-key response resolution,
 duplicate suppression and late-response uncertainty. No game action was sent;
-the installed extension remains 1.8.4 with host 0.3.13. Host transport/session,
-manager operation journaling, package validation and live qualification remain.
+the installed extension remains 1.8.4 with host 0.3.13. Host transport/session and manager operation journaling are now implemented below.
+Package validation and live qualification remain.
+
+## Host navigation release candidate
+
+Native 1.8.5 / host 0.3.14 is a source candidate, not installed yet. The dashboard
+**Find buildings and vendors** operation first records the nearby City Command
+cache, closes its producer transport, then visits each cached building and opens
+its populated hirelings by exact key. Each opening has a saved UUID and expected
+state before publication. An independently read building/vendor roster is checked
+against unchanged native state and the exact process lifetime. A native refusal
+before entry may be recorded as unavailable and skipped. Uncertain calls, changed
+owners, conflicting responses and timeouts stop without replay.
+
+Empty visible building menus and unavailable buildings remain explicitly
+unverified; they never establish complete town coverage. Discovery uses a separate
+navigation journal and leaves crafting jobs and items unchanged. The worker's
+new navigation capability must match its current process identity. City and
+navigation sessions cannot own producer leases simultaneously.
+
+Validation: full host suite 2,252 passed, 13 skipped; whole-tree Ruff passed.
+Focused integration checks include both commands crossing the actual host
+transport, byte agreement with the native fixture, producer-lease loss,
+two-building/vendor traversal, durable intent before publication, no replay after
+interruption, cancellations, unavailable targets and independent roster mismatch.
+The package builder also requires installed-wheel agreement with both native
+profiles. Packaging and live qualification are pending; keep the currently
+installed native 1.8.4 / host 0.3.13 runtime until that candidate is verified.
 
 ## Active todos
 

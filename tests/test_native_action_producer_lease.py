@@ -253,3 +253,83 @@ def test_city_session_uses_production_transport_and_shared_memory_ring(monkeypat
     finally:
         transport._command_signal = None
         _close(transport, memory)
+
+def test_navigation_session_uses_production_transport_and_shared_memory_ring(monkeypatch):
+    """The session mock must not hide admission/publication failures in submit()."""
+    import itertools
+    import struct
+
+    from shadowbane_lab.client_extension.vendor_navigation_session import (
+        NativeVendorNavigationSession,
+    )
+    from shadowbane_lab.client_extension.vendor_navigation_wire import (
+        _RECEIPT,
+        MAGIC,
+        READY,
+        Outcome,
+        Snapshot,
+        Verb,
+    )
+
+    transport, memory = _transport("Local\\WonderBane.NavigationTransportTest." + uuid.uuid4().hex)
+    state = Snapshot(1, 1, 100, 200, active_manager=200, mode=6,
+                     building_hud=300, visible=1, initialized=1,
+                     building_id=123, building_type=8)
+    seen = []
+    session = None
+
+    def consume(_event):
+        sequence = transport._read_i64(channel._COMMAND_WRITE_SEQUENCE_OFFSET)
+        offset = channel.CLIENT_ACTION_COMMAND_RING_OFFSET + (sequence - 1) * 768
+        raw = bytes(memory[offset:offset + 768])
+        header = channel._COMMAND.unpack(raw[:192])
+        assert header[0] == sequence
+        verb = Verb(header[2])
+        assert header[4] > 0 and header[5] == header[4] + 750
+        assert raw[232:328] == (Snapshot() if verb == Verb.INSPECT else state).encode()
+        if verb == Verb.VENDOR:
+            assert struct.unpack("<4I", raw[328:344]) == (123, 8, 777, 42)
+        seen.append(verb)
+        reply = _RECEIPT.pack(
+            raw[216:232], raw[192:208], struct.unpack("<Q", raw[208:216])[0],
+            Outcome.OBSERVED if verb == Verb.INSPECT else Outcome.SUBMITTED,
+            READY if verb == Verb.INSPECT else 0, state.encode(), bytes(16), MAGIC, bytes(220),
+        )
+        detail = b"native_vendor_navigation_receipt_v1"
+        result = channel._RESULT.pack(
+            sequence, header[1], sequence,
+            channel.NativeActionResultStage.SUBMITTED_TO_CLIENT, 0,
+            transport._kernel.tick_count(), 77, len(detail), detail, bytes(8),
+        ) + reply
+        result_offset = channel.CLIENT_ACTION_RESULT_RING_OFFSET + (sequence - 1) * 512
+        memory[result_offset:result_offset + 512] = result
+        transport._exchange_i64(channel._COMMAND_READ_SEQUENCE_OFFSET, sequence)
+        transport._exchange_i64(channel._RESULT_WRITE_SEQUENCE_OFFSET, sequence)
+
+    try:
+        transport._claim_host_lease()
+        transport._command_signal = 17  # notification is handled by the fixture peer
+        monkeypatch.setattr(transport._kernel, "set_event", consume)
+        session = NativeVendorNavigationSession.__new__(NativeVendorNavigationSession)
+        session.identity = channel.NativeClientProcessIdentity(988, 123)
+        session.window = 1000
+        session._transport, session._ids, session._closed = transport, itertools.count(1), False
+        before = session.inspect()
+        assert before.snapshot == state and before.flags == READY
+        opened = session.open_building(before.snapshot, 123, str(uuid.uuid4()))
+        assert opened.outcome == Outcome.SUBMITTED
+        selected = session.open_vendor(before.snapshot, 123, 777, str(uuid.uuid4()))
+        assert selected.outcome == Outcome.SUBMITTED
+        assert seen == [Verb.INSPECT, Verb.BUILDING, Verb.VENDOR]
+        assert transport._read_i64(channel._RESULT_READ_SEQUENCE_OFFSET) == 3
+        with pytest.raises(ValueError, match="command must be"):
+            transport.submit(object(), timeout_ms=750)
+        assert transport._read_i64(channel._COMMAND_WRITE_SEQUENCE_OFFSET) == 3
+        transport._exchange_i32(channel._HOST_LEASE_GENERATION_OFFSET,
+                                transport.host_lease_generation + 1)
+        with pytest.raises(channel.NativeActionChannelBusy, match="lease was lost"):
+            session.open_building(before.snapshot, 123, str(uuid.uuid4()))
+        assert seen == [Verb.INSPECT, Verb.BUILDING, Verb.VENDOR]
+    finally:
+        transport._command_signal = None
+        _close(transport, memory)

@@ -21,6 +21,7 @@ from .operation import (
 )
 from .vendor_discovery import discovery_summary, open_city_session, run_discovery
 from .vendor_job import TERMINAL, VendorJobStore, _write, run_vendor_job
+from .vendor_navigation import open_navigation_session, run_building_discovery
 
 
 class ManagerVendorControl:
@@ -130,6 +131,13 @@ class ManagerVendorControl:
                 if (not city_path.exists()
                         or json.loads(_read_record(city_path, 1024)) != city_capability):
                     raise VendorBatchStopped("restart the worker with the city-window capable host")
+                navigation_capability = dict(expected_capability, capability="vendor_navigation_v1")
+                navigation_path = store.root / "vendor-navigation-capability.json"
+                if (
+                    not navigation_path.exists()
+                    or json.loads(_read_record(navigation_path, 1024)) != navigation_capability
+                ):
+                    raise VendorBatchStopped("restart the worker with the vendor-navigation host")
                 command = "vendor discover"
             elif action == "vendor-start":
                 if inflight or current and current["state"] not in {"complete", "stopped"}:
@@ -182,9 +190,11 @@ def open_vendor_session(binding):
 
 class VendorWorkerExecutor:
     def __init__(self, root, node_id, binding, *, session_factory=open_vendor_session,
-                 city_session_factory=open_city_session):
+                 city_session_factory=open_city_session,
+                 navigation_session_factory=open_navigation_session):
         self.node_id = node_id
         self.city_session_factory = city_session_factory
+        self.navigation_session_factory = navigation_session_factory
         self.root, self.binding, self.session_factory = Path(root), binding, session_factory
 
     def initialize(self, worker_id, process):
@@ -209,6 +219,15 @@ class VendorWorkerExecutor:
             store.root / "city-window-capability.json",
             {
                 "schema_version": 1, "capability": "city_window_v1",
+                "worker_id": worker_id, "process_id": process.process_id,
+                "process_started_at_100ns": process.process_started_at_100ns,
+            },
+        )
+
+        _write(
+            store.root / "vendor-navigation-capability.json",
+            {
+                "schema_version": 1, "capability": "vendor_navigation_v1",
                 "worker_id": worker_id, "process_id": process.process_id,
                 "process_started_at_100ns": process.process_started_at_100ns,
             },
@@ -241,6 +260,16 @@ class VendorWorkerExecutor:
                 )
             finally:
                 session.close()
+            # Close the city transport before claiming a new native producer lease.
+            if stop_signal.is_set():
+                return WorkerOperationExecution(WorkerOperationState.CANCELLED, "Discovery paused.")
+            navigation = self.navigation_session_factory(binding)
+            try:
+                record = run_building_discovery(
+                    store, binding, operation, navigation, record, cancelled=stop_signal.is_set,
+                )
+            finally:
+                navigation.close()
             return WorkerOperationExecution(WorkerOperationState.SUCCEEDED, record["detail"])
         resume = operation.command.startswith("vendor resume ")
         if resume:

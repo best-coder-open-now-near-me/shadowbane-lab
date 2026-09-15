@@ -354,7 +354,7 @@
           const finished = !vendor || ["complete", "stopped"].includes(vendor.state);
           const review = vendor?.state === "review";
           const choices = [
-            ["Find nearby buildings", "vendor-discover", (finished || review) && slot.dispatch_enabled],
+            ["Find buildings and vendors", "vendor-discover", (finished || review) && slot.dispatch_enabled],
             ["Roll available slots", "vendor-start", finished && slot.dispatch_enabled],
             ["Pause rolling", "vendor-pause", !finished && !review && vendor.control === "run"],
             ["Resume rolling", "vendor-resume", !finished && !review && slot.dispatch_enabled],
