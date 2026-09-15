@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstring>
 #include <map>
+#include <limits>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -11,6 +12,7 @@ namespace m = wonderbane::extension::movement;
 using O = wonderbane::extension::vendor::wire::Outcome;
 namespace {
 bool live = true, admitted = true;
+m::GroundPoint expected_minimum{976, -2000, -4024}, expected_maximum{3024, 20000, -1976};
 std::uintptr_t base = 0;
 int selections = 0, dispatches = 0, queries = 0, allocations = 0;
 bool invalidate_query = false, invalidate_release = false, invalidate_select = false;
@@ -35,7 +37,8 @@ struct BuildingTargetTestAccess {
     static void __fastcall Query(void*, void*, const m::GroundPoint* minimum,
         const m::GroundPoint* maximum, List* list) {
         ++queries;
-        assert(minimum->x == 976 && minimum->z == 1976 && maximum->x == 3024 && maximum->z == 4024);
+        assert(minimum->x == expected_minimum.x && minimum->y == expected_minimum.y && minimum->z == expected_minimum.z);
+        assert(maximum->x == expected_maximum.x && maximum->y == expected_maximum.y && maximum->z == expected_maximum.z);
         if (fault_query) { throw std::runtime_error("query fault"); }
         for (auto* object : objects) {
             auto* node = new Node{list->sentinel, list->sentinel->previous, object}; ++allocations;
@@ -86,7 +89,7 @@ int main() {
     scene.actor = base + 0x2000; scene.world = base + 0x3000;
     Word(scene.actor, base + 0x4000); Word(base + 0x4058, base + 0xa3d0);
     Word(scene.actor + 0x4b0, base + 0x5000); Word(base + 0x5000, base + 0x6000);
-    const m::GroundPoint world{2000, 40, 3000}, local{2, 3, 4};
+    const m::GroundPoint world{2000, 40, -3000}, local{2, 3, 4};
     std::memcpy(memory + 0x6020, &world, sizeof(world));
     std::memcpy(memory + 0x6048, &local, sizeof(local));
     auto* first = memory + 0x8000; auto* second = memory + 0x9000;
@@ -126,5 +129,28 @@ int main() {
     n::BuildingTarget target; n::BuildingTargetTestAccess::Bind(target, window);
     assert(target.Open(scene, {123, 42}, &Admit, nullptr) == O::invalid);
     std::thread foreign([&] { assert(target.Open(scene, {123, 8}, &Admit, nullptr) == O::unavailable); }); foreign.join();
+    // Live Rooty coordinates use negative native Z. Query remains bounded around
+    // the world pose, independently of the local pose or map-coordinate signs.
+    objects = {first};
+    auto position_case = [&](m::GroundPoint point, m::GroundPoint minimum, m::GroundPoint maximum) {
+        std::memcpy(memory + 0x6020, &point, sizeof(point));
+        expected_minimum = minimum; expected_maximum = maximum;
+        const auto before_queries = queries, before_selections = selections;
+        run(O::submitted);
+        assert(queries == before_queries + 1 && selections == before_selections + 1);
+    };
+    position_case({79332.4453125f, 424.59521484375f, -52546.484375f},
+        {78308.4453125f, -2000, -53570.484375f}, {80356.4453125f, 20000, -51522.484375f});
+    position_case({0, 40, 0}, {0, -2000, -1024}, {1024, 20000, 0});
+    position_case({200000, 40, -200000}, {198976, -2000, -200000}, {200000, 20000, -198976});
+    for (const auto point : {m::GroundPoint{2000, 40, 1}, m::GroundPoint{2000, 40, -200001},
+            m::GroundPoint{-1, 40, -3000}, m::GroundPoint{200001, 40, -3000},
+            m::GroundPoint{2000, 40, std::numeric_limits<float>::quiet_NaN()},
+            m::GroundPoint{2000, 40, -std::numeric_limits<float>::infinity()}}) {
+        std::memcpy(memory + 0x6020, &point, sizeof(point));
+        const auto before_queries = queries, before_selections = selections;
+        run(O::stale);
+        assert(queries == before_queries && selections == before_selections);
+    }
     assert(DestroyWindow(window)); assert(VirtualFree(memory, 0, MEM_RELEASE));
 }

@@ -165,6 +165,10 @@ def run_building_discovery(
             if opened.outcome in (Outcome.UNAVAILABLE, Outcome.STALE):
                 attempt["state"] = "not_submitted"
                 save()
+                if opened.outcome == Outcome.STALE:
+                    raise VendorBatchStopped(
+                        "The game state changed before window opening; discovery stopped."
+                    )
                 raise _NotSubmitted(
                     "The requested window was unavailable; no action was submitted."
                 )
@@ -258,6 +262,11 @@ def run_building_discovery(
                     else "partial"
                 )
                 save()
+            if not record["vendors"]:
+                raise VendorBatchStopped(
+                    "No vendor windows were verified; "
+                    "review building access and discovery readiness."
+                )
             save(
                 "complete",
                 f"Verified {record['vendors']} vendor windows across "

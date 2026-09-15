@@ -92,3 +92,27 @@ Do not rerun activation or launch. Refresh all identities before live actions.
 The user has been asked to log Treehugger into Rooty and leave the game in front.
 Login confirmation and the first automatic building/vendor discovery are next.
 No Create, Keep, disposal or navigation request has been sent since activation.
+
+## First live discovery and coordinate correction
+
+After the user logged Treehugger into Rooty, manager operation
+operation-f61bdc3d6d324a4696e3933a38e68a31 independently found 11 nearby buildings.
+Every building open returned STALE before selection/dispatch. No vendor window,
+Create, Keep or disposal was submitted. Its original operation record is retained.
+
+A read-only actor/pose check confirmed the reviewed getter and stable scene,
+but native Z was -52546.484375. The new building adapter incorrectly required
+positive Z. Existing native movement and attachment code use x in [0,200000]
+and z in [-200000,0]; this correction uses that established convention and
+clamps the local query to those bounds. Tests include the observed Rooty pose,
+both map corners, positive/out-of-range Z and non-finite values, while preserving
+all ownership and callback invalidation checks.
+
+Native 1.8.6 / host 0.3.15 is the corrective source candidate. The manager now
+stops on a stale opening receipt instead of skipping every candidate, and a
+scan with zero verified vendor windows produces review rather than success.
+The focused host checks passed (38); the native building-target test and extension
+build passed; whole-tree Ruff passed. Exact package validation is next.
+Native 1.8.5 / host 0.3.14 remains installed until the correction is staged.
+The active todo remains live automatic building/vendor discovery; no manual
+vendor-window setup is needed.

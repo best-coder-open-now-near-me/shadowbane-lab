@@ -59,7 +59,9 @@ class Session:
         if self.mode == "exception":
             raise OSError("interrupted native call")
         outcome = Outcome.SUBMITTED
-        if self.mode == "unavailable" and building == 123:
+        if self.mode == "stale":
+            outcome = Outcome.STALE
+        elif self.mode == "all_unavailable" or self.mode == "unavailable" and building == 123:
             outcome = Outcome.UNAVAILABLE
         elif self.mode == "uncertain":
             outcome = Outcome.UNCERTAIN
@@ -197,7 +199,10 @@ def test_unavailable_before_native_entry_can_skip_to_next_building(fixture):
 def test_empty_window_does_not_claim_complete_empty_roster(fixture):
     f = fixture
     f.session.mode = "empty"
-    result = f.run()
+    with pytest.raises(VendorBatchStopped, match="No vendor windows"):
+        f.run()
+    result = json.loads(f.path.read_text())
+    assert result["state"] == "review"
     assert result["vendors"] == result["buildings_verified"] == 0
     assert not result["roster_complete"]
     assert all(row["state"] == "no_visible_hirelings" for row in result["roster"])
@@ -248,3 +253,27 @@ def test_foreign_nearby_discovery_never_opens(fixture):
     with pytest.raises(VendorBatchStopped, match="another client"):
         fixture.run()
     assert not fixture.session.calls
+
+
+def test_stale_window_stops_instead_of_skipping_every_building(fixture):
+    f = fixture
+    f.session.mode = "stale"
+    with pytest.raises(VendorBatchStopped, match="state changed"):
+        f.run()
+    saved = json.loads(f.path.read_text())
+    assert saved["state"] == "review"
+    assert len(f.session.calls) == 1
+    assert saved["attempts"][0]["state"] == "not_submitted"
+    assert saved["attempts"][0]["outcome"] == "STALE"
+    with pytest.raises(VendorBatchStopped, match="already attempted"):
+        f.run()
+    assert len(f.session.calls) == 1
+
+
+def test_all_unavailable_is_review_not_success(fixture):
+    fixture.session.mode = "all_unavailable"
+    with pytest.raises(VendorBatchStopped, match="No vendor windows"):
+        fixture.run()
+    saved = json.loads(fixture.path.read_text())
+    assert saved["state"] == "review" and saved["vendors"] == 0
+    assert all(row["state"] == "unavailable" for row in saved["roster"])

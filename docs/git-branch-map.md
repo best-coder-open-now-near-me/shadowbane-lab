@@ -41,7 +41,10 @@ Source 89a4489 passed exact package validation and all seven CI jobs.
 Native 1.8.5 / host 0.3.14 is now installed, with exact loaded DLL and healthy
 worker binding verified; eight existing crafting records are unchanged. See the
 [activation handoff](handoffs/vendor-navigation-1.8.5.md). Login and automatic
-building/vendor discovery qualification are next; this path is not live-qualified.
+building/vendor discovery qualification remains incomplete. The first scan found
+11 buildings but all opens rejected a wrongly signed native Z bound before
+dispatch. Native 1.8.6 / host 0.3.15 corrects that bound and zero-result reporting;
+its exact package is next. The failed scan is retained without replay.
 See [building navigation](handoffs/building-vendor-navigation.md) for the source
 boundaries, checks and next automatic selection work.
 Both exact-source checkpoints passed all seven CI jobs. Crafting-vendor

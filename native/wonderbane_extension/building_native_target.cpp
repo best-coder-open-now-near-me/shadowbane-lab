@@ -38,7 +38,7 @@ bool BuildingTarget::Position(const movement::NativeScene& scene, movement::Grou
         && Read(scene.actor + 0x4b0, component) && Read(component, pose)
         && Read(pose + 8, parent) && parent == scene.parent && Read(pose + 0x20, point)
         && std::isfinite(point.x) && std::isfinite(point.y) && std::isfinite(point.z)
-        && point.x >= 0 && point.x <= 200000 && point.z >= 0 && point.z <= 200000
+        && point.x >= 0 && point.x <= 200000 && point.z <= 0 && point.z >= -200000
         && point.y >= -2000 && point.y <= 20000;
 }
 bool BuildingTarget::KeyOf(void* value, Key& key) const noexcept {
@@ -74,11 +74,12 @@ O BuildingTarget::Run(const movement::NativeScene& scene, Key key, Admission adm
     if (!Current(scene, admit, context) || !Position(scene, origin)) { return O::stale; }
     unsigned char allocator = 0;
     calls_.construct(&list_, &allocator);
+    // Native north/south Z is negative (map LG uses the opposite sign).
     // Loaded nearby structures only. Never claim city completeness or path access.
     const movement::GroundPoint minimum{(std::max)(0.0f, origin.x - 1024), -2000,
-        (std::max)(0.0f, origin.z - 1024)};
+        (std::max)(-200000.0f, origin.z - 1024)};
     const movement::GroundPoint maximum{(std::min)(200000.0f, origin.x + 1024), 20000,
-        (std::min)(200000.0f, origin.z + 1024)};
+        (std::min)(0.0f, origin.z + 1024)};
     if (!Current(scene, admit, context)) { Clear(); return O::stale; }
     // The ordinary query acquires the native world lock and retains each result.
     // No extension collection lease is held across this callback or its cleanup.
