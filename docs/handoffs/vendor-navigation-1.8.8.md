@@ -62,3 +62,46 @@ A new game lifetime permits a fresh discovery operation; historical journals
 remain preserved. After discovery, finish recipe/inventory opening, durable town
 selections and the bounded multi-vendor scheduler. Unknown affixes remain kept;
 automatic disposal is still unqualified and disabled.
+
+## Exact package checkpoint
+
+Source `a440cfdbfcbfe30bd0aa3b6c9619110bf7fa3efe` is pushed. The exact-source
+package is `E:/Projects/shadowbane/artifacts/vendor-packages/01bbe98a/`.
+All required full and diagnostics-only native gates, real IPC/image checks,
+installed host entry points and installed vendor/navigation contracts passed.
+The isolated source archive ran 2,264 host tests, with 14 expected skips (the
+worktree additionally has the built native byte-agreement fixture).
+The two previously deferred native transparency diagnostics remain recorded in
+each profile; this remains a diagnostic package, not full graphics acceptance.
+All 61 packaged artifacts were independently checked against archive hashes.
+
+- Package SHA-256: 6104a8d9c1ad96082cacdb2ed7fe3f37bbcc6e45ff39270e2fd4707326413365.
+- Diagnostics DLL SHA-256: efef80b69c3e227000d3871309ad3f33299d298b16cc594b01cb732eb353ed18.
+- Host wheel SHA-256: 31daf5b21bc6ca40a81bdd385b45c3f9205504a4b7165d425ccd5e58c448227b.
+- Prepared game SHA-256 remains b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3.
+
+Host-only payload, exact authored manifest, checksummed plan and reversible updater
+are in `E:/virtual-machines/shadowbane-testing/diagnostics/vendor-1.8.8-a440cfd`.
+Python compilation and PowerShell parsing passed. This replaces only the DLL in
+the client inventory, preserves the official-client drift guard and both patched
+game assets, updates host launch paths and saves rollback copies. It checks
+historical job/discovery records and settings before/after application. It refuses
+to apply with Shadowbane or the manager running. No guest staging or installation
+has occurred; guest dry-run validation is still required.
+
+CI: https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/34964383768.
+Five jobs passed at this checkpoint; both native jobs were still running.
+
+Automatic approval review rejected a later read-only VM connection and then
+rejected the identical retry citing the existing authorization. Its stated reason
+was that reading the plaintext saved password from the unattended-install XML for
+guest authentication lacked sufficiently specific user authorization; it rejected
+"you know the answer" as insufficient. No alternate credential source or connection
+route was attempted. An explicit question now asks permission for that exact saved
+credential use to install and verify this update, and asks when the game is closed.
+
+Next active todo: obtain that response, stage using prepare-town-update.ps1 and
+inspect its guest dry-run receipt; verify game exit and the exact idle manager,
+then apply, update the existing dashboard shortcut, relaunch and verify identities.
+Do not regenerate the package from a documentation-only successor commit. After
+login, run a new guarded discovery operation and retain all historical requests.
