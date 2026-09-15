@@ -41,11 +41,11 @@ connection timed out. Do not rerun preparation. Eight existing crafting records
 are hashed in upgrades/1.8.5-89a4489/crafting-before.json for later comparison.
 No existing crafting operation was resumed or edited.
 
-## Next activation
+## Activation procedure
 
-The user has been asked to close Shadowbane; confirmation is pending. Confirm
-actual process exit before replacing its loaded extension. Do not ask for any
-manual vendor-menu setup.
+The user confirmed closure; actual process exit was verified before activation.
+Installation and launch steps below are complete; discovery in step 5 remains.
+See the activation result below. Do not ask for manual vendor-menu setup.
 
 1. Check current game/manager identities and operation status. Detach the idle
    worker through the manager and stop only the verified idle manager.
@@ -69,3 +69,26 @@ complete multi-building qualification. Keep unknown affixes, exclude only
 confirmed Tier 1-2 affixes, and use one fresh-capacity batch per selected vendor.
 Private captures, credentials, client binaries, packages and rollback files stay
 outside Git.
+
+## Activation result
+
+Native 1.8.5 and host 0.3.14 from 89a4489 are installed. The verified idle
+manager was stopped only after the game exited. The updater verified the full
+client inventory and all five rollback files. The eight pre-existing crafting
+records match their saved hashes. The existing Vendor Dashboard shortcut now
+uses host-0.3.14, with its original shortcut retained beside the rollback files.
+
+The reviewed launcher started game PID 500, creation 134339213925830451,
+HWND 2097324. Its fresh launch receipt records the exact release source and
+DLL hash above. The manager reports extension 1.8.5 and a healthy, single worker
+bound to that exact game lifetime: worker-9039aa1efef9446c9b425cb455dd17e8,
+PID 3020, creation 134339214834368612. There is no active or queued operation.
+The worker started automatically; a conditional manual-start helper stopped
+before making any request when it detected that worker already existed.
+
+The launcher connection timed out after spawning the detached processes; the
+completed launch receipt and manager readiness were independently verified.
+Do not rerun activation or launch. Refresh all identities before live actions.
+The user has been asked to log Treehugger into Rooty and leave the game in front.
+Login confirmation and the first automatic building/vendor discovery are next.
+No Create, Keep, disposal or navigation request has been sent since activation.

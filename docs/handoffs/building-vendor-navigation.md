@@ -142,9 +142,10 @@ transport, byte agreement with the native fixture, producer-lease loss,
 two-building/vendor traversal, durable intent before publication, no replay after
 interruption, cancellations, unavailable targets and independent roster mismatch.
 The package builder also requires installed-wheel agreement with both native
-profiles. Packaging and reversible test VM staging are complete for source 89a4489;
-activation awaits game closure. See [activation handoff](vendor-navigation-1.8.5.md).
-The active runtime remains native 1.8.4 / host 0.3.13.
+profiles. Packaging and reversible activation are complete for source 89a4489.
+The active runtime is native 1.8.5 / host 0.3.14, with exact loaded DLL and
+worker binding verified and all eight old crafting records unchanged. See
+[activation handoff](vendor-navigation-1.8.5.md). Login and live discovery are next.
 
 ## Active todos
 
