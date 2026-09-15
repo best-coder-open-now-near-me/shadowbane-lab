@@ -86,13 +86,38 @@ world units; this is not full-city coverage or a claim that distant buildings
 are accessible. Native query/release callbacks run outside extension read leases.
 Uncertain native ownership is quarantined; selection is never replayed locally.
 
-The adapter is compiled but not yet connected to the command runtime or installed.
+The adapter is connected to the typed navigation command runtime in source, but
+not installed on the test VM.
 Its native test covers distinct management/world keys, duplicate results,
 reference consumption, query/release/selection invalidation, wrong thread,
 unsupported position/parent state, dispatch rejection and native faults.
 The extension and test compile with warnings as errors; the native test and
-56 package-gate tests pass. Typed navigation commands, response correlation and
-live qualification are the next part of the same production slice.
+56 package-gate tests pass. Host manager coordination and live qualification remain part of this slice.
+
+## Native navigation command checkpoint
+
+Commands 13/14/15 inspect, open an exact building, or open an exact hireling.
+They carry the producer lease, HWND, UUID and full expected scene/window state.
+The owning UI thread revalidates admission at native callback boundaries.
+Building opening uses the retained target adapter; hireling opening resolves the
+exact populated row in the complete visible building roster and calls the normal
+semantic left-button handler at RVA 0x61c6e0. Vacancies, duplicate IDs, changed
+counts, wrong controls/backlinks and disabled controls cannot become targets.
+
+Submission is distinct from an observed response. The controller blocks further
+navigation while waiting, resolves only the exact requested window/key in the
+same scene, and latches uncertainty on timeout, scene replacement or uncertain
+native entry. Late responses cannot silently clear that latch. Request records
+are bounded and never evicted/replayed. Navigation also blocks City Command and
+crafting actions until resolved, and existing unresolved crafting blocks opening.
+
+All native targets compiled. Eleven navigation/existing command regression cases
+passed, plus the separate building-target ownership test and 74 package-gate host
+tests. Tests cover native byte layouts, real producer-lease queue publication,
+expiry before owner execution, receipt correlation, exact-key response resolution,
+duplicate suppression and late-response uncertainty. No game action was sent;
+the installed extension remains 1.8.4 with host 0.3.13. Host transport/session,
+manager operation journaling, package validation and live qualification remain.
 
 ## Active todos
 

@@ -37,6 +37,9 @@ DIAGNOSTIC_TRANSPARENCY_FAILURES = frozenset({
 
 REQUIRED_VENDOR_TESTS = frozenset({
     "wonderbane_extension_building_target",
+    "wonderbane_extension_vendor_navigation_controller",
+    "wonderbane_extension_vendor_navigation_native",
+    "wonderbane_extension_vendor_navigation_channel",
     "wonderbane_extension_vendor_controller",
     "wonderbane_extension_vendor_native",
     "wonderbane_extension_vendor_channel",
@@ -253,6 +256,7 @@ def main() -> int:
             "movement_lifetime.cpp",
             "door_native_collection.cpp",
             "building_native_target.cpp",
+            "vendor_navigation_native.cpp",
             "movement_native_stop.cpp",
             "movement_native_ui.cpp",
             "movement_windows_input.cpp",

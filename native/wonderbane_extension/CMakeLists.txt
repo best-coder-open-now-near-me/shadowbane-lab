@@ -36,6 +36,7 @@ add_library(
   vendor_native.cpp
   city_window_native.cpp
   building_native_target.cpp
+  vendor_navigation_native.cpp
   movement_settings.cpp
   movement_native_image.cpp
   movement_lifetime.cpp
@@ -1196,4 +1197,31 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_building_target_test PRIVATE /W4 /WX /permissive- /utf-8)
   add_test(NAME wonderbane_extension_building_target COMMAND wonderbane_extension_building_target_test)
   set_tests_properties(wonderbane_extension_building_target PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_vendor_navigation_controller_test vendor_navigation_controller_test.cpp)
+  target_compile_features(wonderbane_extension_vendor_navigation_controller_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_vendor_navigation_controller_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_vendor_navigation_controller_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_vendor_navigation_controller COMMAND wonderbane_extension_vendor_navigation_controller_test)
+  set_tests_properties(wonderbane_extension_vendor_navigation_controller PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_vendor_navigation_native_test vendor_navigation_native_test.cpp vendor_navigation_native.cpp)
+  target_compile_features(wonderbane_extension_vendor_navigation_native_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_vendor_navigation_native_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_vendor_navigation_native_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_vendor_navigation_native COMMAND wonderbane_extension_vendor_navigation_native_test)
+  set_tests_properties(wonderbane_extension_vendor_navigation_native PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_vendor_navigation_channel_test vendor_navigation_channel_test.cpp movement_controls.cpp)
+  target_compile_features(wonderbane_extension_vendor_navigation_channel_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_vendor_navigation_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_vendor_navigation_channel_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_vendor_navigation_channel COMMAND wonderbane_extension_vendor_navigation_channel_test)
+  set_tests_properties(wonderbane_extension_vendor_navigation_channel PROPERTIES TIMEOUT 15)
 endif()
