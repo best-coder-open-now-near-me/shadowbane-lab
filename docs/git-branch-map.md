@@ -27,6 +27,8 @@ is implied by later source commits. Reuse accepted navigation and movement evide
 
 Current owner priority: [town building/vendor selection and automatic window control](town-vendor-plan.md).
 The last single-vendor job is in review before Keep; do not replay it.
+Current-building hireling observation is implemented and tested. The broader
+city roster and automatic window selection remain the active discovery work.
 
 `codex/vendor-rolling` (worktree `.worktrees/vendor-rolling`) contains vendor
 work through dependency `542c632` plus native dispatch and a durable host batch.

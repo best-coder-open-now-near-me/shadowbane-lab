@@ -1365,6 +1365,29 @@ def _observe_native_training(profile_path: Path | None, *, as_json: bool) -> int
     return 0
 
 
+def observe_native_vendor_roster(process_id: int, *, as_json: bool) -> int:
+    from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
+    from shadowbane_lab.client_observation.native_vendor_roster import read_native_vendor_roster
+
+    try:
+        memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", process_id)
+        try:
+            snapshot = read_native_vendor_roster(memory)
+        finally:
+            memory.close()
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _error(f"native building roster unavailable: {exc}", as_json=as_json)
+    if as_json:
+        print(json.dumps({"ok": True, "snapshot": snapshot}, sort_keys=True))
+    else:
+        print(f"{snapshot['building_name'] or 'Unnamed building'}: "
+              f"{len(snapshot['vendors'])} visible hirelings.")
+        for row in snapshot["vendors"]:
+            print(f"  {row['display_name']} - {row['service_label']}")
+        print("Visible roster only; town completeness and management permission are unverified.")
+    return 0
+
+
 def observe_native_vendor_queue(process_id: int, *, as_json: bool) -> int:
     from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
     from shadowbane_lab.client_observation.native_vendor_queue import read_native_vendor_queue

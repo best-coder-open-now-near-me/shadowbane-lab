@@ -97,3 +97,36 @@ remains unqualified. A town run does not add unlimited replacement batches.
 The interrupted single-vendor Keep qualification is retained as unfinished
 evidence and will be revisited through the automatic window lifecycle. No
 additional manual crafting roll is required for discovery.
+
+## Building-to-hireling reader checkpoint
+
+Implemented `client observe-native-vendor-roster --process-id PID --json`.
+It reads the current building identity and label, the displayed owner label,
+and every visible hireling's native ID, name and service label. A selected
+hireling, production recipe and Inventory are not required. The command is
+read-only and closes its handle on success and failure.
+
+The exact client constructor initializes ArcHirelingEntry strings at +0x30 and
++0x48. The observed buffers are UTF-16. The active ArcCityAssetManager owns the
+management HUD; its list controls own the hireling entries. The reader checks
+all back-pointers, exact types, unique hireling IDs, matching building selection,
+bounded buffers/collections and a reverse consistency pass. Unknown service rows
+are excluded. Missing rosters are unavailable, not a successful empty result.
+It does not infer management rights from the displayed owner name, or claim
+town/building roster completeness.
+
+A private live probe identified building ma-helm with two distinct hirelings:
+So'hegho (Lizardman Medium Armorer) and Xelvin (Irekei Helmsmith). This confirms
+building-to-hireling membership independent of the earlier actor census. The
+subsequent staged production reader found the management window closed and
+correctly refused the read; that reader's successful live check remains pending.
+The installed host is unchanged. Native constructors and probe evidence remain
+private under artifacts/vendor-protocol and the test runtime's vendor-manager.
+
+Validation: 28 focused roster/queue tests and 81 subtests passed; full host suite
+2178 passed, 15 skipped, 614 subtests. Whole-tree Ruff passed.
+
+The first todo remains active: this is the current-building membership portion.
+Broader city building discovery, roster completeness/access, and automatic
+window selection remain unqualified. Do not expose town Start from this partial
+discovery alone.
