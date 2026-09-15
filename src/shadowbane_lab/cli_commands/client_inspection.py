@@ -1365,6 +1365,32 @@ def _observe_native_training(profile_path: Path | None, *, as_json: bool) -> int
     return 0
 
 
+def observe_native_nearby_vendors(process_id: int, *, as_json: bool) -> int:
+    from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
+    from shadowbane_lab.client_observation.native_nearby_vendor_roster import (
+        read_native_nearby_vendor_roster,
+    )
+
+    try:
+        memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", process_id)
+        try:
+            snapshot = read_native_nearby_vendor_roster(memory)
+        finally:
+            memory.close()
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _error(f"native nearby roster unavailable: {exc}", as_json=as_json)
+    if as_json:
+        print(json.dumps({"ok": True, "snapshot": snapshot}, sort_keys=True))
+    else:
+        for building in snapshot["buildings"]:
+            print(f"{building['display_name'] or 'Unnamed building'}: "
+                  f"{len(building['vendors'])} hirelings.")
+            for vendor in building["vendors"]:
+                print(f"  {vendor['display_name'] or 'Unnamed hireling'}")
+        print("Nearby cache only; town coverage, response freshness and access are unverified.")
+    return 0
+
+
 def observe_native_vendor_roster(process_id: int, *, as_json: bool) -> int:
     from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
     from shadowbane_lab.client_observation.native_vendor_roster import read_native_vendor_roster

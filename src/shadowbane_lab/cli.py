@@ -710,6 +710,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _observe_native_progression(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "observe-native-training":
         return _observe_native_training(arguments.profile, as_json=arguments.json)
+    if (arguments.command == "client"
+            and arguments.client_command == "observe-native-nearby-vendors"):
+        return _client_inspection_commands.observe_native_nearby_vendors(
+            arguments.process_id, as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "observe-native-vendor-roster":
         return _client_inspection_commands.observe_native_vendor_roster(
             arguments.process_id, as_json=arguments.json,

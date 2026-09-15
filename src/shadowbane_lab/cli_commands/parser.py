@@ -777,6 +777,12 @@ def _parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit machine-readable JSON"
     )
 
+    observe_nearby_roster = client_commands.add_parser(
+        "observe-native-nearby-vendors", help="read cached nearby buildings and hirelings"
+    )
+    observe_nearby_roster.add_argument("--process-id", required=True, type=int)
+    observe_nearby_roster.add_argument("--json", action="store_true")
+
     observe_vendor_roster = client_commands.add_parser(
         "observe-native-vendor-roster", help="read the active building and its visible hirelings"
     )

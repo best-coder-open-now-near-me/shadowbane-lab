@@ -29,6 +29,9 @@ Current owner priority: [town building/vendor selection and automatic window con
 The last single-vendor job is in review before Keep; do not replay it.
 Current-building hireling observation is implemented and tested. The broader
 city roster and automatic window selection remain the active discovery work.
+The nearby-building cache reader is also implemented and tested; populated live
+validation is pending. Its source is a nearby-asset response, not complete town
+coverage. See the town plan for the VM credential-use review block and next steps.
 
 `codex/vendor-rolling` (worktree `.worktrees/vendor-rolling`) contains vendor
 work through dependency `542c632` plus native dispatch and a durable host batch.

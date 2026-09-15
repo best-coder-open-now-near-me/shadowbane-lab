@@ -130,3 +130,64 @@ The first todo remains active: this is the current-building membership portion.
 Broader city building discovery, roster completeness/access, and automatic
 window selection remain unqualified. Do not expose town Start from this partial
 discovery alone.
+
+## Nearby-building source checkpoint
+
+Implemented `client observe-native-nearby-vendors --process-id PID --json`.
+It copies the active City Command window's building cache and each building's
+nested hireling keys and labels. It does not require selecting each building or
+vendor. Stable building and hireling IDs remain separate from actor IDs.
+
+Static inspection established these exact-build paths (RVAs, not runtime
+addresses):
+
+- Game-window initialization at 0x794830 constructs ArcCityCommandManager through
+  thunk 0x00F56A / constructor 0x6EB430 and stores it at root+0xD4. Root+0xA8 is a
+  different manager and must not be used for this roster.
+- City-command manager type 0x1171BCC owns its window at +0x4C and primary cache
+  at +0x74. The +0x80 collection is a filtered subset, not a second town roster.
+- Ordinary opening constructs the CityCommand HUD (0x1166234), installs its
+  owner backlink and calls request routine 0x6F10A0. That routine creates
+  ArcCityAssetMessage and sets mode 14. Response handler 0x3E7580 handles mode 15,
+  inserts the returned records and completes the UI update.
+- Response parsing constructs ArcCityInfoBlock (0x117A7A8): display text +8,
+  primary key +0x20, nested hireling map +0x38. The parser constructs
+  ArcHirelingInfoBlock (0x117A7BC) with text +4; its map owns each hireling key.
+- Both maps use null child pointers, header root/+4, extrema/+8/+0xC,
+  node parent/+4, children/+8/+0xC, key/+0x10 and payload/+0x18.
+- The response's empty-result text explicitly refers to nearby assets.
+  This is not evidence of complete Rooty membership or an unrestricted remote
+  building-management capability.
+
+The reader checks the exact executable, in-world state, manager/HUD types,
+active HUD ownership, initialized management mode, response-pending flag,
+bounded trees, parent links, counts, extrema, unique keys/payloads and UTF-16
+strings. It rechecks all copied memory in reverse order. Empty top-level caches
+are unavailable, not proof of zero manageable buildings. Buildings with a
+valid empty hireling map are retained. All town-completeness, fresh-response,
+management-permission and command-admission claims remain false.
+
+A read-only live header probe confirmed root+0xD4 and both empty collections.
+It did not observe populated building/hireling records. The staged source
+reader's subsequent live check was blocked by automatic approval review:
+the existing VM authentication wrapper reads a saved setup password, and the
+reviewer requires explicit authorization for that credential use. Do not retry
+through another wrapper or source. No native calls, new jobs or item actions
+were performed. Installed native 1.8.3 / host 0.3.11 remain unchanged.
+
+Validation: 36 focused tests and 126 subtests passed; full host suite 2187
+passed, 14 skipped, 659 subtests. Whole-tree Ruff passed. Prior checkpoint
+dcfae1b CI succeeded (run 34915881138). Source-reader live success remains
+unqualified; fixtures are not live acceptance.
+
+Private evidence stays in artifacts/vendor-protocol/city-*.txt and the existing
+test diagnostic share's town-command-collections.json. The staged reader and
+verify-nearby-roster.py remain in that same private share for qualification;
+they are not a replacement installed package. No credentials, client binaries
+or raw process captures are included in source delivery.
+
+The first todo remains active: verify populated nearby membership and freshness,
+establish town coverage and actor association. Next implement the ordinary
+city-window request and building/vendor switching through the existing owner
+thread and correlated receipts, then connect the durable town plan and selection
+UI. No Select all/Start control should claim full-town coverage from this cache.
