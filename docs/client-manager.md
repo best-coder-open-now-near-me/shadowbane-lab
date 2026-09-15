@@ -414,3 +414,8 @@ The manager refuses vendor submission to older workers, even if their heartbeat
 is healthy. Restart the worker through the existing detach/attach lifecycle after
 updating the host; the game itself does not need a restart. The host does not
 replay jobs automatically after a manager/worker restart.
+
+Native 1.8.3 and host 0.3.11 additionally support Create Multiple Items with
+quantity 1: one request fills the observed free slots. Larger quantities remain
+unsupported. This path requires restarting the game with the new native DLL as
+well as upgrading the manager. See [package and live qualification status](handoffs/vendor-multiple-1.8.3.md).

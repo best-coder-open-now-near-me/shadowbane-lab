@@ -48,7 +48,7 @@ Native 1.8.3 is required for multiple-slot automatic dispatch. Native 1.8.2
 rejects that command without dispatch; a host upgrade alone is insufficient.
 No wire envelope size or command number changed.
 
-## Validation and remaining work
+## Initial source validation
 
 The focused suite passed 74 tests plus 106 subtests. The full host run passed
 2170 tests with 15 skips and 597 subtests, with one version-consistency failure;
@@ -57,7 +57,48 @@ surfaces. Whole-tree Ruff passed. The Win32 full build passed all 142 executed r
 native tests; three image-binding tests skipped without their private inputs and
 will run explicitly in the exact package builder.
 
-Next: complete native gates, build the exact committed package, qualify installed
-multiple-slot Create and Keep against a fresh process. Preserve the three manual
+Those native/package gates are complete in the receipt below. Installed live
+multiple-slot Create and Keep remain pending against a fresh process. Preserve the three manual
 diagnostic items; do not fabricate a manager journal to adopt them. Native window
 opening and exclusion/disposal/resources remain broader unfinished vendor work.
+
+## Exact package - September 14
+
+Packaged source: `bd08ffc33b768e7ea934f89613c12e819a075d20`.
+Private package: `E:/Projects/shadowbane/artifacts/vendor-packages/111da90e`.
+All 60 manifest file hashes/sizes and ZIP CRC verified.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| ZIP | 6b116601cb3e58a5959b955b0c3e26a0495992c3b62371b5ba4b65ebab1fb289 |
+| Full DLL | c6189c4256345d385203a1a5787f52aecc989a40c20dff47fcf587c1458ea055 |
+| Host wheel | cc0210a489006a4101a24ba3b9dcdd01f754ff12f30136d18a77712a04eb1958 |
+| Bootstrap manifest for sb.exe | 8a802184e9d7ed762a5ed70026764714726f4e6dc811969567a8be47e7fca227 |
+
+The exact builder passed 2171 Python tests (12 skips), whole-tree Ruff, both
+Win32 profiles' 142 executed required native tests, explicit private image-binding
+checks, IPC suites, and installed-wheel contracts. The two known ideal-transparency
+diagnostics still fail in both profiles and remain recorded separately; they do
+not qualify unrelated graphics work.
+
+All seven [CI jobs passed](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/34911296025)
+for the packaged source. The source is pushed to the feature branch; no merge or
+PR is implied.
+
+VM preparation uses a new `C:/ShadowbaneLab-Guided/vendor-1.8.3-bd08ffc`
+directory because S has insufficient free space for another full client.
+The original game and manager remain untouched. The candidate launcher imports
+current Config settings once after the old game closes, preserves the baseline
+Config archive, and verifies package and loaded DLL identity. No new game has
+been launched. Private staged inputs/scripts:
+`E:/virtual-machines/shadowbane-testing/diagnostics/vendor-1.8.3-bd08ffc`.
+
+Preparation completed at 2026-09-15T00:07:37Z (September 14 locally).
+The installed wheel/source and DLL version/hash were independently rechecked.
+The old game process remained running unchanged. About 897 MiB remains on C.
+The candidate launcher is staged and syntax-checked; no shortcut switch, new
+manager startup, or game launch has occurred.
+
+Next: close the current game, switch the game/manager to the candidate,
+then qualify one automatic multiple-slot batch and Keep. Existing old-instance
+journals remain private and must never be resumed against a new process.
