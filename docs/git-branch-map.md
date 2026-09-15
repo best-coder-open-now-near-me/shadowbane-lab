@@ -32,6 +32,10 @@ city roster and automatic window selection remain the active discovery work.
 Native 1.8.4 from c268cc0 / host 0.3.13 from 8352bd2 is installed. Automatic
 City Command opening and an independently verified stable roster of 11 nearby
 buildings are live-qualified; the user also confirmed the visible window.
+A later source-only reader checkpoint adds building-menu hireling discovery
+before selecting an individual vendor; it is not installed or live-qualified.
+See [building navigation](handoffs/building-vendor-navigation.md) for the source
+boundaries, checks and next automatic selection work.
 Both exact-source checkpoints passed all seven CI jobs. Crafting-vendor
 association, complete town coverage and automatic building/vendor switching
 remain unfinished. See [package and live handoff](handoffs/town-discovery-1.8.4.md).

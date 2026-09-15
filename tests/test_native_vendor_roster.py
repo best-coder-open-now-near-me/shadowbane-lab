@@ -129,3 +129,99 @@ class NativeVendorRosterTests(unittest.TestCase):
             m.close.assert_called_once_with()
             self.assertEqual(not fail, json.loads(output.getvalue())["ok"])
             self.assertEqual(not fail, status == 0)
+
+
+def building_roster_fixture():
+    m = roster_fixture()
+    m.put(MANAGER + 0x78, "<I", 0)  # No individual vendor window exists.
+    for address, value in ((MANAGER + 0x68, HUD), (MANAGER + 0x48, 1),
+                           (MANAGER + 0xD0, 6), (MANAGER + 0x380, 2),
+                           (MANAGER + 0x37C, 2)):
+        m.put(address, "<I", value)
+    for entry in (ENTRY, SECOND_ENTRY):
+        m.put(entry + 8, "<I", 9)
+        m.put(entry + 0x6C, "<I", 0x100)
+    return m
+
+
+class BuildingVendorRosterTests(unittest.TestCase):
+    def test_building_menu_discovers_hirelings_before_vendor_selection(self):
+        m = building_roster_fixture()
+        out = read_native_vendor_roster(m, window="building")
+        self.assertEqual("building", out["source_window"])
+        self.assertEqual([101, 102], [r["vendor"]["object_id"] for r in out["vendors"]])
+        self.assertEqual(2, out["hireling_slots"])
+        self.assertEqual(0, out["vacant_hireling_slots"])
+        self.assertFalse(out["roster_complete"])
+        self.assertNotIn((MANAGER + 0x78, 4), m.reads)
+        self.assertNotIn((MANAGER + 0x384, 4), m.reads)
+
+    def test_vacancy_is_not_a_vendor_or_production_capacity(self):
+        m = building_roster_fixture()
+        m.put(SECOND_ENTRY + 0x10, "<II", 0, 0)
+        m.put(SECOND_ENTRY + 0x6C, "<I", 0)
+        m.put(MANAGER + 0x37C, "<I", 1)
+        out = read_native_vendor_roster(m, window="building")
+        self.assertEqual(1, len(out["vendors"]))
+        self.assertEqual(1, out["vacant_hireling_slots"])
+        self.assertNotIn("production_slots", out)
+
+    def test_stale_partial_or_wrong_window_cannot_supply_membership(self):
+        for address, value in (
+            (MANAGER + 0xD0, 3), (MANAGER + 0x48, 0), (MANAGER + 0x68, 0),
+            (MANAGER + 0xD8, 1), (HUD + 0x104, MANAGER + 4),
+            (0x190100 + 8, HUD + 4), (MANAGER + 0x380, 3),
+            (MANAGER + 0x380, 129), (MANAGER + 0x37C, 1),
+            (MANAGER + 0x37C, 3), (SECOND_ENTRY + 0x6C, 0x200),
+            (SECOND_ENTRY + 0x6C, 0), (SECOND_ENTRY + 0x10, 0),
+            (SECOND_ENTRY + 8, 8),
+            (SECOND_ENTRY + 0x14, 40), (SECOND_ENTRY + 0x10, 101),
+            (MANAGER + 0xF8, 999),
+        ):
+            with self.subTest(address=address, value=value):
+                m = building_roster_fixture()
+                m.put(address, "<I", value)
+                with self.assertRaises(NativeVendorDialogCaptureError):
+                    read_native_vendor_roster(m, window="building")
+
+    def test_list_and_occupancy_are_rechecked_after_copy(self):
+        for address in (MANAGER + 0x380, MANAGER + 0x37C, ENTRY + 0x6C):
+            m = building_roster_fixture()
+            m.change = (address, 4, bytes(4))
+            with self.subTest(address=address), self.assertRaises(NativeVendorDialogCaptureError):
+                read_native_vendor_roster(m, window="building")
+
+    def test_all_vacant_does_not_claim_a_complete_empty_vendor_roster(self):
+        m = building_roster_fixture()
+        for entry in (ENTRY, SECOND_ENTRY):
+            m.put(entry + 0x10, "<II", 0, 0)
+            m.put(entry + 0x6C, "<I", 0)
+        m.put(MANAGER + 0x37C, "<I", 0)
+        with self.assertRaises(NativeVendorDialogCaptureError):
+            read_native_vendor_roster(m, window="building")
+
+    def test_invalid_window_fails_before_memory_access(self):
+        m = building_roster_fixture()
+        with self.assertRaises(ValueError):
+            read_native_vendor_roster(m, window="unknown")
+        self.assertEqual({}, m.reads)
+
+    def test_cli_building_source_and_handle_cleanup(self):
+        from shadowbane_lab.cli import main
+        from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
+        for fail in (False, True):
+            m = building_roster_fixture()
+            m.close = Mock()
+            if fail:
+                m.put(MANAGER + 0x68, "<I", 0)
+            output = io.StringIO()
+            with patch.object(WindowsReadOnlyProcessMemory, "open_for_process",
+                              return_value=m), redirect_stdout(output):
+                status = main(["client", "observe-native-vendor-roster",
+                               "--process-id", "988", "--window", "building", "--json"])
+            m.close.assert_called_once_with()
+            result = json.loads(output.getvalue())
+            self.assertEqual(not fail, result["ok"])
+            self.assertEqual(not fail, status == 0)
+            if not fail:
+                self.assertEqual("building", result["snapshot"]["source_window"])

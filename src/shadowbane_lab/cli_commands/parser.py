@@ -788,6 +788,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     observe_vendor_roster.add_argument("--process-id", required=True, type=int)
     observe_vendor_roster.add_argument("--json", action="store_true")
+    observe_vendor_roster.add_argument(
+        "--window", choices=("vendor", "building"), default="vendor",
+        help="read the vendor menu or the building menu before selecting a vendor",
+    )
 
     observe_vendor_queue = client_commands.add_parser(
         "observe-native-vendor-queue", help="read the current vendor menu's production slots"

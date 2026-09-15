@@ -717,7 +717,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if arguments.command == "client" and arguments.client_command == "observe-native-vendor-roster":
         return _client_inspection_commands.observe_native_vendor_roster(
-            arguments.process_id, as_json=arguments.json,
+            arguments.process_id, as_json=arguments.json, window=arguments.window,
         )
     if arguments.command == "client" and arguments.client_command == "observe-native-vendor-queue":
         return _client_inspection_commands.observe_native_vendor_queue(

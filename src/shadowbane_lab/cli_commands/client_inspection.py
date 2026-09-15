@@ -1391,14 +1391,14 @@ def observe_native_nearby_vendors(process_id: int, *, as_json: bool) -> int:
     return 0
 
 
-def observe_native_vendor_roster(process_id: int, *, as_json: bool) -> int:
+def observe_native_vendor_roster(process_id: int, *, as_json: bool, window: str = "vendor") -> int:
     from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
     from shadowbane_lab.client_observation.native_vendor_roster import read_native_vendor_roster
 
     try:
         memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", process_id)
         try:
-            snapshot = read_native_vendor_roster(memory)
+            snapshot = read_native_vendor_roster(memory, window=window)
         finally:
             memory.close()
     except (OSError, ValueError, RuntimeError) as exc:

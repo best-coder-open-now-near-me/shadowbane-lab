@@ -279,3 +279,14 @@ Nested hireling collections are empty and City Command also owns guard settings;
 crafting-vendor association remains unqualified. The active todo is the separate
 building-management/hireling acquisition path, followed by automatic switching
 and the saved town plan. See the live handoff.
+
+
+## Building-menu roster checkpoint
+
+The reader now supports the building's AssetManagement menu before an individual
+vendor is selected, with exact ownership, occupied/vacant hireling counts and
+stable-copy checks. Full host validation: 2,209 passed, 12 skipped; whole-tree
+Ruff passed. Positive live building-menu qualification remains pending; the
+installed runtime is unchanged. The active discovery todo now proceeds to
+reference-safe automatic building selection and hireling opening. See the
+[building navigation source handoff](handoffs/building-vendor-navigation.md).
