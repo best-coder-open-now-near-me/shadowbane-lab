@@ -150,3 +150,33 @@ The package source remains a440cfd, not this documentation successor.
 Next active todo: verify the new in-world identity and run one fresh manager-owned
 building/vendor scan; then complete automatic recipe/inventory navigation and
 bounded town scheduling. Historical crafting and discovery records remain intact.
+
+## Full-profile deployment correction pending
+
+After login on PID 6532, fresh operation
+`operation-0c0a4fb272f84ca7a3995d22757286b7` failed before creating a discovery
+journal or submitting any native window command: OpenFileMappingW error 2.
+This exposed an agent deployment error: the selected DLL was the diagnostics-only
+artifact, while vendor commands require the full profile's event/action channel.
+The preceding 1.8.7 installation used the full profile. A package's diagnostic
+purpose does not mean its diagnostics-only DLL is the vendor runtime.
+
+The correct **full** 1.8.8 DLL from the same fully validated a440cfd package has
+SHA-256 c535161bb49aa86f3c8719885206d822f2d9e6379678c44bd075e9028b7ccd4a.
+Its archive artifact and bootstrap manifest were reverified. No rebuild or host
+version change is needed. Its manifest SHA-256 is
+61a57f78eefdbb4f4548b12c85a5fd8135937d17404e536e03fc2829b98498aa.
+
+A separate correction payload is now staged in both host diagnostics and guest
+`upgrades/1.8.8-full-a440cfd/payload`. The update plan and updater explicitly
+require the full profile and that exact DLL hash. The guest read-only dry run
+passed against the currently installed diagnostics DLL. Application will change
+one client inventory entry plus package/launcher metadata, with rollback and
+preservation checks. Existing host-0.3.17, official game and settings stay intact.
+The user has been asked to close the game for replacement; it is not applied yet.
+
+Next active todo: verify closure and the exact idle manager, apply the staged
+full-profile correction, restart and verify the action mapping exists as well as
+ABI/version/loaded hash before asking for login. Then run a fresh discovery; do
+not replay the failed operation. The earlier crash remains unexplained and did
+not have a submitted scan. Source and live qualification remain separate.

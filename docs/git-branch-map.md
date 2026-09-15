@@ -25,13 +25,13 @@ is implied by later source commits. Reuse accepted navigation and movement evide
 
 ## Vendor overlay — September 14
 
-September 15: reviewed game 1.3.38.7 / native 1.8.8 / host 0.3.17 from a440cfd
-is installed and verified. All package gates and seven CI jobs passed. The vacancy
-recognition and renewal starvation corrections are awaiting live discovery
-qualification. The user reported a game crash before the new scan submitted a
-request; the same client is reopened and its replacement worker is healthy.
-Login is pending. Saved setup-XML credential approval is explicit and resolved;
-41 tracked job/settings files are preserved. See [current recovery and next work](handoffs/vendor-navigation-1.8.8.md).
+September 15: source a440cfd (native 1.8.8 / host 0.3.17) passed all package
+gates and seven CI jobs. The deployment accidentally selected the diagnostics-only
+DLL, so a fresh scan failed before any native command with a missing action
+channel. The correct full-profile DLL is now staged in the VM and its dry run
+passed; the user has been asked to close the game for replacement. The prior
+crash remains unexplained. Credentials are explicitly authorized and historical
+jobs/settings are preserved. See [current correction and next work](handoffs/vendor-navigation-1.8.8.md).
 
 Current owner priority: [town building/vendor selection and automatic window control](town-vendor-plan.md).
 The last single-vendor job is in review before Keep; do not replay it.
