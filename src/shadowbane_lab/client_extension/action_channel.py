@@ -694,12 +694,14 @@ class WindowsNativeActionCommandTransport:
         *,
         timeout_ms: int,
     ) -> NativeActionResult:
+        from .city_window_session import NativeCityWindowCommand
         from .vendor_session import NativeVendorCommand
 
         if not isinstance(
-            command, (NativeActionCommand, NativeMovementCommand, NativeVendorCommand)
+            command, (NativeActionCommand, NativeMovementCommand,
+                      NativeVendorCommand, NativeCityWindowCommand)
         ):
-            raise ValueError("command must be a native action, movement, or vendor command")
+            raise ValueError("command must be a supported native command")
         if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or timeout_ms <= 0:
             raise ValueError("timeout_ms must be positive")
         with self._lock, self._kernel.producer_lock(self._producer_lock_name, timeout_ms):

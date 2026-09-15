@@ -1,8 +1,12 @@
-# Town discovery 1.8.4 / host 0.3.12
+# Town discovery 1.8.4 / host 0.3.12 and 0.3.13
 
 Source: c268cc0124f64af54a8d068a8e778ff297fb7b38 on codex/vendor-rolling.
 Integration destination: codex/native-lifecycle-hardening, then reviewed main.
 The feature is pushed, not merged. The normal project checkout remains on main.
+
+Current: native 1.8.4 activation is verified. The first discovery stopped before
+native publication; a host 0.3.13 admission fix is validated and awaiting its
+host-only update/live retry. See the correction section below.
 
 ## Delivered behavior and remaining scope
 
@@ -118,3 +122,29 @@ No further manual vendor-menu preparation is required for discovery.
 
 No automatic Create, Keep, disposal, travel or building-setting mutation is part
 of this update or its first discovery check.
+
+## Activation and host transport correction
+
+Native 1.8.4 from c268cc0 is now installed and running. The new launch receipt
+and the loaded DLL hash matched the package. Host 0.3.12 is active, with a healthy
+exact worker/game binding. Both desktop launch paths were checked; the dashboard
+shortcut now targets the new host. All eight retained old vendor-job files
+matched their pre-update hashes. The old game and manager were already closed;
+no game or worker was forcibly stopped for native installation.
+
+The first manager discovery operation failed before native publication:
+WindowsNativeActionCommandTransport's explicit command-type admission omitted
+NativeCityWindowCommand. The operation's durable review record is retained;
+there was no City Command Open, Create, Keep or disposal. The earlier session
+tests substituted the transport and therefore missed that integration boundary.
+
+Host 0.3.13 includes the missing typed admission. A regression now uses the real
+Windows producer mutex, shared memory, command publication and receipt reader
+with a fixture consumer; it failed at the observed admission error before the
+fix and passes afterwards for Inspect/Open, malformed input and lost lease.
+The native DLL/protocol is unchanged, so this correction needs only a manager/
+worker restart and no further game restart. The failed discovery record must
+remain; a fresh operation will verify the corrected path.
+
+The correction passed 2203 host tests, 14 skipped and 680 subtests, plus
+whole-tree Ruff. Native binaries are unchanged.

@@ -264,3 +264,10 @@ See [exact package and activation handoff](handoffs/town-discovery-1.8.4.md).
 The discovery todo remains active: live nearby roster qualification is next,
 followed by town membership/completeness/access and automatic building/vendor
 selection. No manual recipe window is needed for the new discovery operation.
+
+Native 1.8.4 activation is now verified. The first live discovery failed before
+native publication because shared host transport admission omitted the new type.
+Host 0.3.13 corrects that integration boundary with a real Windows shared-memory
+regression. Full host validation: 2203 passed, 14 skipped, 680 subtests; Ruff
+passed. Retry through the updated manager remains the next active todo; no
+additional game restart or manual vendor-window setup is required.

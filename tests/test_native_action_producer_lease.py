@@ -181,3 +181,75 @@ def test_host_identity_exposes_exact_current_process_lifetime():
     assert first.process_id == kernel.process_id()
     assert first.creation_filetime_utc > 0
     assert kernel.process_identity() == first
+
+
+def test_city_session_uses_production_transport_and_shared_memory_ring(monkeypatch):
+    """The session mock must not hide admission/publication failures in submit()."""
+    import itertools
+    import struct
+
+    from shadowbane_lab.client_extension.city_window_session import NativeCityWindowSession
+    from shadowbane_lab.client_extension.city_window_wire import (
+        _RECEIPT,
+        MAGIC,
+        READY,
+        Outcome,
+        Snapshot,
+        Verb,
+    )
+
+    transport, memory = _transport("Local\\WonderBane.CityTransportTest." + uuid.uuid4().hex)
+    state = Snapshot(1, 1, 100, 200)
+    seen = []
+    session = None
+
+    def consume(_event):
+        sequence = transport._read_i64(channel._COMMAND_WRITE_SEQUENCE_OFFSET)
+        offset = channel.CLIENT_ACTION_COMMAND_RING_OFFSET + (sequence - 1) * 768
+        raw = bytes(memory[offset:offset + 768])
+        header = channel._COMMAND.unpack(raw[:192])
+        assert header[0] == sequence
+        verb = Verb(header[2])
+        assert header[4] > 0 and header[5] == header[4] + 750
+        assert raw[232:296] == (Snapshot() if verb == Verb.INSPECT else state).encode()
+        seen.append(verb)
+        reply = _RECEIPT.pack(
+            raw[216:232], raw[192:208], struct.unpack("<Q", raw[208:216])[0],
+            Outcome.OBSERVED if verb == Verb.INSPECT else Outcome.SUBMITTED,
+            READY if verb == Verb.INSPECT else 0, state.encode(), MAGIC, bytes(268),
+        )
+        detail = b"native_city_window_receipt_v1"
+        result = channel._RESULT.pack(
+            sequence, header[1], sequence,
+            channel.NativeActionResultStage.SUBMITTED_TO_CLIENT, 0,
+            transport._kernel.tick_count(), 77, len(detail), detail, bytes(8),
+        ) + reply
+        result_offset = channel.CLIENT_ACTION_RESULT_RING_OFFSET + (sequence - 1) * 512
+        memory[result_offset:result_offset + 512] = result
+        transport._exchange_i64(channel._COMMAND_READ_SEQUENCE_OFFSET, sequence)
+        transport._exchange_i64(channel._RESULT_WRITE_SEQUENCE_OFFSET, sequence)
+
+    try:
+        transport._claim_host_lease()
+        transport._command_signal = 17  # notification is handled by the fixture peer
+        monkeypatch.setattr(transport._kernel, "set_event", consume)
+        session = NativeCityWindowSession.__new__(NativeCityWindowSession)
+        session.identity = channel.NativeClientProcessIdentity(988, 123)
+        session.window = 1000
+        session._transport, session._ids, session._closed = transport, itertools.count(1), False
+        before = session.inspect()
+        assert before.snapshot == state and before.flags == READY
+        assert session.open(before.snapshot, str(uuid.uuid4())).outcome == Outcome.SUBMITTED
+        assert seen == [Verb.INSPECT, Verb.OPEN]
+        assert transport._read_i64(channel._RESULT_READ_SEQUENCE_OFFSET) == 2
+        with pytest.raises(ValueError, match="command must be"):
+            transport.submit(object(), timeout_ms=750)
+        assert transport._read_i64(channel._COMMAND_WRITE_SEQUENCE_OFFSET) == 2
+        transport._exchange_i32(channel._HOST_LEASE_GENERATION_OFFSET,
+                                transport.host_lease_generation + 1)
+        with pytest.raises(channel.NativeActionChannelBusy, match="lease was lost"):
+            session.open(before.snapshot, str(uuid.uuid4()))
+        assert seen == [Verb.INSPECT, Verb.OPEN]
+    finally:
+        transport._command_signal = None
+        _close(transport, memory)
