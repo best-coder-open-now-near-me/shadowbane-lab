@@ -30,8 +30,10 @@ action mapping is verified. A live scan confirmed the selected-vacancy fix and
 healthy permission renewal, but Tree of Life's secondary panel changes the
 last-dispatched-manager global and prevented window confirmation. Source 1.8.9 /
 0.3.18 corrects that ownership check. Exact source 7870b3f passed package checks
-and all seven CI jobs; the full-profile payload is staged in the VM and its dry
-run passed. Game closure is requested before activation. No failed request was replayed. See [current correction and next work](handoffs/vendor-navigation-1.8.9.md).
+and all seven CI jobs. Following confirmed closure, full native 1.8.9 / host
+0.3.18 is installed and relaunched; the exact DLL hash, healthy worker and
+read-only action mapping are verified. Crafting journals are unchanged. Login
+and one fresh town scan are next. No failed request was replayed. See [current correction and next work](handoffs/vendor-navigation-1.8.9.md).
 
 Current owner priority: [town building/vendor selection and automatic window control](town-vendor-plan.md).
 The last single-vendor job is in review before Keep; do not replay it.

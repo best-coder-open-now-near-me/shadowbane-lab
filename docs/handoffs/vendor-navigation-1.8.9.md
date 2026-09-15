@@ -113,3 +113,32 @@ action mapping read-only with matching PID/creation time before requesting login
 After verified Treehugger login, issue a fresh guarded scan with a new intent file
 in this upgrade directory. Never replay earlier failed requests. Do not rebuild
 from a documentation-only successor commit. Town automation remains unfinished.
+
+## Activated after confirmed closure
+
+The user confirmed Shadowbane was closed. Fresh manager status had no slots;
+manager PID 892 / creation 134339474790612939 was verified before stopping it.
+The staged updater applied successfully and preserved all 56 retained files,
+including crafting journals. Its five-file rollback and the previous desktop
+dashboard shortcut are retained under upgrades/1.8.9-7870b3f.
+The existing dashboard shortcut now targets host-0.3.18. The unchanged game
+shortcut relaunched through its reviewed launcher; the dashboard restarted
+without opening a browser or taking focus.
+
+Activation evidence confirms source 7870b3f and the exact full DLL hash above:
+
+- Game PID 8580, creation FILETIME 134339629094953274, HWND 918400.
+- Instance client-3f219142fba424a5dcceba45d7284b8a15a4f9440cbabbaf1c2d1dcb008ecf64.
+- Native extension 1.8.9 initialized; host 0.3.18 has a healthy, exact-bound worker.
+- The native action mapping opened read-only and its decoded header matched
+  that PID and creation time, with capability_flags 1. No command was sent.
+- Manager has no active or queued operation. No previous request was replayed.
+
+Private activation-verification.json, update-receipt.json and retained-files.json
+are preserved in both the guest upgrade directory and host diagnostics
+vendor-1.8.9-7870b3f. These checks certify activation, not in-world discovery.
+The user has been asked to log Treehugger into Rooty and leave the game in front;
+no menu setup is needed. Next active todo: verify that live identity and run one
+fresh discovery with a new intent file pinned to this exact lifetime. Recipe and
+inventory navigation, bounded town scheduling, and affix disposal qualification
+remain unfinished. Unknowns remain kept and automatic disposal stays disabled.
