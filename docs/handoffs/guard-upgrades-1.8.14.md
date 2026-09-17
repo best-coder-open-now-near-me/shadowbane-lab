@@ -47,11 +47,15 @@ artifact hashes and the package archive were independently verified. The same
 two pre-existing graphics transparency diagnostics fail in each profile and
 remain recorded; this is not whole-product acceptance.
 
-Guest preparation and read-only update validation passed. Host 0.3.23 is staged
-in its separate environment; the running game remains 1.8.13 / host 0.3.22.
-Historical journals, including the unresolved quote opening, must remain intact.
+Guest preparation and read-only update validation passed. After confirmed game
+closure, the exact idle test manager was stopped and the staged update applied.
+All 143 retained records/settings were unchanged; rollback files remain local.
+The existing dashboard shortcut now uses host 0.3.23, and the same game shortcut
+launched the verified full 1.8.14 extension. Loaded version/hash, installed source,
+fresh process identity, read-only action mapping and healthy guard-capable manager
+were verified. No game action was submitted during activation. Historical
+journals, including the unresolved quote opening, remain retained without replay.
 
-Active todo: await game closure, apply the staged update and verify the loaded
-extension and exact new process binding. Then qualify discovery and automatic
-funding in a fresh session. Maximum-rank proof, full-town coverage and integration
+Active todo: user login beside the Seneschal and initial View Resources opening,
+then qualify discovery and automatic funding in the fresh session. Maximum-rank proof, full-town coverage and integration
 remain unfinished. No automatic gold transfer or upgrade has yet been qualified.
