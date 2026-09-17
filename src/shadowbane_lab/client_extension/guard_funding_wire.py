@@ -19,6 +19,7 @@ _RECEIPT = struct.Struct("<16s16sQII96s16sI220s")
 class Verb(IntEnum):
     INSPECT = 19
     TRANSFER = 20
+    OPEN_QUOTE = 21
 
 
 class Direction(IntEnum):
@@ -63,6 +64,19 @@ class Snapshot:
             and self.quote
             and 0 < amount <= self.limit
             and amount <= 2**31 - 1 - (self.purse if self.direction == 1 else self.balance)
+        )
+
+    @property
+    def can_open(self) -> bool:
+        self.encode()
+        return bool(
+            not self.empty
+            and not self.quote
+            and (
+                (self.balance > self.reserve and self.purse < 2**31 - 1)
+                if self.direction == 1
+                else (self.purse and self.balance < 2**31 - 1)
+            )
         )
 
     def encode(self) -> bytes:
@@ -163,6 +177,10 @@ class Command:
             )
         ):
             raise ValueError("funding command requires an eligible quote and amount")
+        if verb == Verb.OPEN_QUOTE and (
+            self.amount or self.direction != self.expected.direction or not self.expected.can_open
+        ):
+            raise ValueError("quote opening requires an idle funded source")
         return _COMMAND.pack(
             self.host.encode(),
             self.window,
@@ -191,6 +209,19 @@ class Command:
         if result.encode(verb) != data:
             raise ValueError("noncanonical funding command")
         return result
+
+    def opened(self, state: Snapshot) -> bool:
+        self.encode(Verb.OPEN_QUOTE)
+        state.encode()
+        before = self.expected
+        return bool(
+            not state.empty
+            and before.same_owner(state)
+            and state.quote
+            and state.balance == before.balance
+            and state.purse == before.purse
+            and state.reserve == before.reserve
+        )
 
     def confirmed(self, state: Snapshot) -> bool:
         self.encode(Verb.TRANSFER)

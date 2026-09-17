@@ -5,7 +5,7 @@ namespace wonderbane::extension::guard_funding {
 class Invoker {
 public:
     virtual ~Invoker() = default;
-    virtual wire::Outcome Transfer(const wire::Command&) noexcept = 0;
+    virtual wire::Outcome Transfer(wire::Verb, const wire::Command&) noexcept = 0;
 };
 class Controller {
     struct Record { wire::Command command; wire::Receipt receipt; };
@@ -13,6 +13,7 @@ class Controller {
     std::array<wire::Snapshot, 2> current_{};
     std::uint64_t revision_ = 0, deadline_ = 0;
     wire::Command transition_{};
+    wire::Verb transition_verb_ = wire::Verb::transfer;
     bool pending_ = false, unresolved_ = false;
     wire::Receipt Receipt(const wire::Command& c, wire::Outcome outcome, bool ready) const noexcept {
         wire::Receipt r{}; r.request = c.request; r.host = c.host; r.window = c.window;
@@ -41,6 +42,11 @@ public:
             unresolved_ = true; return;
         }
         if (!valid) { return; }
+        if (transition_verb_ == wire::Verb::open_quote) {
+            if (s.balance != before.balance || s.purse != before.purse) { unresolved_ = true; return; }
+            if (wire::Opened(transition_, s)) { pending_ = false; }
+            return;
+        }
         const auto balance = direction == 1 ? before.balance - transition_.amount : before.balance + transition_.amount;
         const auto purse = direction == 1 ? before.purse + transition_.amount : before.purse - transition_.amount;
         if ((s.balance != before.balance && s.balance != balance) || (s.purse != before.purse && s.purse != purse)) {
@@ -63,13 +69,13 @@ public:
         const auto& current = current_[c.direction - 1];
         if (!ready || !wire::ValidSnapshot(current)) { return Receipt(c, O::unavailable, false); }
         if (!wire::Equal(c.expected, current)) { return Receipt(c, O::stale, true); }
-        if (!wire::Eligible(current, c.amount)) { return Receipt(c, O::invalid, true); }
+        if (verb == wire::Verb::transfer ? !wire::Eligible(current, c.amount) : !wire::EligibleOpen(current)) { return Receipt(c, O::invalid, true); }
         if (records_.size() >= 4096 || now > UINT64_MAX - 15000) { return Receipt(c, O::exhausted, false); }
         try {
             auto [it, inserted] = records_.emplace(c.request, Record{c, Receipt(c, O::uncertain, false)});
             if (!inserted) { return Receipt(c, O::invalid, false); }
-            transition_ = c; pending_ = true; deadline_ = now + 15000;
-            const auto outcome = invoker.Transfer(c);
+            transition_ = c; transition_verb_ = verb; pending_ = true; deadline_ = now + 15000;
+            const auto outcome = invoker.Transfer(verb, c);
             if (outcome == O::stale || outcome == O::unavailable) { pending_ = false; }
             else if (outcome != O::submitted) { unresolved_ = true; }
             it->second.receipt = Receipt(c, outcome, false); return it->second.receipt;

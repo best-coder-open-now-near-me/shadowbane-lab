@@ -7,7 +7,7 @@ namespace f = wonderbane::extension::guard_funding;
 using O = f::wire::Outcome;
 struct Fake final : f::Invoker {
     unsigned calls = 0; O outcome = O::submitted;
-    O Transfer(const f::wire::Command&) noexcept override { ++calls; return outcome; }
+    O Transfer(f::wire::Verb, const f::wire::Command&) noexcept override { ++calls; return outcome; }
 };
 f::wire::Snapshot State(std::uint32_t direction = 1) {
     f::wire::Snapshot s{}; s.scene = 1; s.revision = 1; s.root = 100; s.actor = 200; s.character = {300, 1};
@@ -35,9 +35,14 @@ void Hex(const void* data, std::size_t size) {
 }
 int main(int argc, char** argv) {
     Fake invoker;
-    if (argc == 2 && std::string_view(argv[1]) == "wire") {
-        f::Controller controller; const auto c = Command(); controller.Observe(1, c.expected, true, 1);
-        const auto receipt = controller.Execute(f::wire::Verb::transfer, c, true, true, 1, invoker);
+    if (argc == 2 && (std::string_view(argv[1]) == "wire" || std::string_view(argv[1]) == "wire-open")) {
+        f::Controller controller; auto c = Command(); auto verb = f::wire::Verb::transfer;
+        if (std::string_view(argv[1]) == "wire-open") {
+            c.expected.quote = c.expected.limit = c.expected.entered = c.expected.accept = c.expected.cancel = c.expected.helper = 0;
+            c.amount = 0; verb = f::wire::Verb::open_quote;
+        }
+        controller.Observe(1, c.expected, true, 1);
+        const auto receipt = controller.Execute(verb, c, true, true, 1, invoker);
         Hex(&c.expected, sizeof(c.expected)); Hex(&c, sizeof(c)); Hex(&receipt, sizeof(receipt)); return 0;
     }
     for (std::uint32_t direction : {1U, 2U}) {
@@ -83,6 +88,23 @@ int main(int argc, char** argv) {
         over = c; over.expected.entered = over.expected.limit + 1; assert(!f::wire::Valid(f::wire::Verb::transfer, over));
         if (direction == 1) { over = c; over.expected.purse = INT32_MAX; assert(!f::wire::Valid(f::wire::Verb::transfer, over)); }
         else { over = c; over.expected.balance = INT32_MAX; assert(!f::wire::Valid(f::wire::Verb::transfer, over)); }
+    }
+    for (std::uint32_t direction : {1U, 2U}) {
+        f::Controller opening; Fake calls; auto c = Command(direction);
+        c.expected.quote = c.expected.limit = c.expected.entered = c.expected.accept = c.expected.cancel = c.expected.helper = 0;
+        c.amount = 0; assert(f::wire::Valid(f::wire::Verb::open_quote, c));
+        opening.Observe(direction, c.expected, true, 1);
+        const auto submitted = opening.Execute(f::wire::Verb::open_quote, c, true, true, 1, calls);
+        assert(Outcome(submitted) == O::submitted && opening.Busy() && calls.calls == 1);
+        opening.Observe(direction, State(direction), true, 2);
+        assert(!opening.Busy());
+        const auto repeated = opening.Execute(f::wire::Verb::open_quote, c, true, true, 3, calls);
+        assert(!std::memcmp(&submitted, &repeated, sizeof(submitted)) && calls.calls == 1);
+        f::Controller changed; changed.Observe(direction, c.expected, true, 1);
+        changed.Execute(f::wire::Verb::open_quote, c, true, true, 1, calls);
+        auto wrong = State(direction); ++wrong.balance;
+        changed.Observe(direction, wrong, true, 2);
+        assert(changed.Busy() && !changed.NeedsObservation(direction));
     }
     f::Controller stale; auto c = Command(); stale.Observe(1, c.expected, true, 1);
     ++c.expected.balance; ++c.expected.limit;

@@ -152,14 +152,17 @@ public:
             && GetForegroundWindow() == self.window_ && !IsIconic(self.window_)
             && movement::NativeMovementLifetimeCurrent(self.scene_);
     }
-    guard_funding::wire::Outcome Transfer(const guard_funding::wire::Command& c) noexcept override {
+    guard_funding::wire::Outcome Transfer(guard_funding::wire::Verb verb, const guard_funding::wire::Command& c) noexcept override {
         using O = guard_funding::wire::Outcome;
         if (!Admit(this)) { return O::stale; }
         guard_funding::wire::Snapshot fresh{}; bool top = false;
         if (!guard_funding::Capture(image_base, scene_, c.direction, fresh, top) || !top) { return O::stale; }
         fresh.revision = c.expected.revision;
         if (!guard_funding::wire::Equal(fresh, c.expected)) { return O::stale; }
-        return guard_funding::Invoke(image_base, scene_, c, &Admit, this) ? O::submitted : O::uncertain;
+        const bool invoked = verb == guard_funding::wire::Verb::open_quote
+            ? guard_funding::InvokeOpen(image_base, scene_, c, &Admit, this)
+            : guard_funding::Invoke(image_base, scene_, c, &Admit, this);
+        return invoked ? O::submitted : O::uncertain;
     }
 };
 void Update(void* root, HWND window) noexcept {

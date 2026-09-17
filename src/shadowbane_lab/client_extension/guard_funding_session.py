@@ -84,6 +84,8 @@ class NativeGuardFundingSession:
         )
         command = Command(host, self.window, request_key, expected or Snapshot(), direction, amount)
 
+        command.encode(verb)  # Reject wrong operation/amount before persisting an intent.
+
         def dispatch() -> Receipt:
             result = transport.submit(
                 NativeGuardFundingCommand(next(self._ids), verb, command), timeout_ms=750
@@ -115,9 +117,9 @@ class NativeGuardFundingSession:
                 )
             return receipt
 
-        if verb == Verb.TRANSFER:
+        if verb in (Verb.TRANSFER, Verb.OPEN_QUOTE):
             if self._journal is None:
-                raise GuardSpendingStopped("Gold transfers require a durable spending journal.")
+                raise GuardSpendingStopped("Funding actions require a durable spending journal.")
             return self._journal.submit(self.identity, command, dispatch)
         receipt = dispatch()
         if self._journal is not None:
@@ -135,6 +137,9 @@ class NativeGuardFundingSession:
                     raise
                 time.sleep(0.05)
         raise AssertionError("unreachable inspection retry")
+
+    def open_quote(self, expected: Snapshot, request_key: str) -> Receipt:
+        return self._submit(Verb.OPEN_QUOTE, request_key, expected, direction=expected.direction)
 
     def transfer(self, expected: Snapshot, amount: int, request_key: str) -> Receipt:
         return self._submit(

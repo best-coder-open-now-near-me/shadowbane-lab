@@ -24,6 +24,8 @@ Receipt = upgrade.Receipt | funding.Receipt
 def _codec(operation: str):
     if operation == "upgrade":
         return upgrade.Command, upgrade.Verb.UPGRADE, upgrade.Receipt
+    if operation == "open_quote":
+        return funding.Command, funding.Verb.OPEN_QUOTE, funding.Receipt
     if operation == "transfer":
         return funding.Command, funding.Verb.TRANSFER, funding.Receipt
     raise GuardSpendingStopped("unknown guard spending operation")
@@ -33,7 +35,7 @@ def _operation(command: Command) -> str:
     if type(command) is upgrade.Command:
         return "upgrade"
     if type(command) is funding.Command:
-        return "transfer"
+        return "transfer" if command.amount else "open_quote"
     raise ValueError("unsupported guard spending command")
 
 
@@ -77,7 +79,11 @@ def _confirmed(command: Command, receipt: Receipt) -> bool:
             receipt.outcome == Outcome.OBSERVED
             and receipt.transition_request == command.request_key
             and not receipt.flags & (IN_FLIGHT | UNRESOLVED)
-            and command.confirmed(receipt.snapshot)
+            and (
+                command.confirmed(receipt.snapshot)
+                if command.amount
+                else command.opened(receipt.snapshot)
+            )
         )
     before, after = command.expected, receipt.snapshot
     a, b = before.navigation, after.navigation

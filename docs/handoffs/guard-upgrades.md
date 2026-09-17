@@ -77,8 +77,10 @@ Static evidence, RVAs in reviewed source executable ac9ca464:
   retain unresolved outcomes across restarts and block duplicate/new spending.
 - [x] Implement native/host withdrawal and deposit from exact owned quotes, with
   current purse checks, two-sided receipts, and one durable spending gate.
-- [ ] Active: open the required warehouse/deposit quotes automatically through
-  owned controls, then connect the town funding and upgrade loop.
+- [x] Open withdrawal/deposit amount windows through their owned warehouse or
+  building controls, with single-Gold selection and durable preparation receipts.
+- [ ] Active: connect exact warehouse/building traversal to the town funding and
+  upgrade loop; verify city coverage instead of assuming nearby rows are complete.
 - [ ] Qualify automatic navigation across guard structures and other guard types.
 - [ ] Connect the durable guard journal to the maximum-rank scheduler
   with finite work per pass; retain every uncertain action without replay.
@@ -384,3 +386,39 @@ city identities or balances. No deployment or live agent transfer occurred.
 Next: automatic quote opening, town traversal and finite maximum-rank passes,
 manager progress/review controls, coherent packaging, and live qualification.
 The user should not be asked to repeat already-qualified manual transfers.
+
+## Automatic amount-window opening checkpoint
+
+The user opened Tower Junction management. Bounded read-only inspection verified
+its enabled, visible BTNDEPOSIT control with action 0x586 and zero parameter.
+The warehouse WITHDRAW control is action 0x1008; its ordinary handler copies the
+selected resource set before opening the first quote. Selection is not inferred
+from the currently displayed resource or amount. No agent UI action or transfer
+was sent during this identification.
+
+Funding opcode 21 now opens an amount window from its already-owned parent panel.
+It requires an exact closed-quote snapshot, available funds, foreground/top-panel
+ownership and the current producer/scene lease. Warehouse opening selects the exact
+owned Gold row through the ordinary list handler, rechecks the entire snapshot,
+requires the selection set to contain only that same entry, then activates the
+owned WITHDRAW button. A nonempty pending withdrawal set blocks capture/actions.
+Structure opening uses only BTNDEPOSIT/action 0x586; Withdraw, Upgrade, Abandon and
+Destroy are not admitted. Opening itself carries amount zero and cannot transfer.
+
+The native controller requires the exact resulting quote under unchanged ownership,
+balances, reserve and purse. Opening has immutable request receipts and shares
+exclusion with spending/navigation. The host open_quote method records preparation
+in the same persistent journal (operation open_quote) and requires its correlated
+observation before transfer. A lost response or unresolved opening is retained;
+it is not silently replayed after restart. A transfer remains a separate positive
+amount command and performs its existing setter/recapture/balance checks.
+
+Validation: full Win32 extension build, all 14 focused native suites and 224 focused
+Python tests pass, plus targeted Ruff. Native/host bytes match for both transfer
+and open-quote commands. Fixtures test the ordinary row/button callback signatures,
+wrong resource selection, deposit-vs-withdraw action identity, changed balances,
+reused requests, lost replies, and opening followed by transfer. This does not
+qualify live automated opening or full town navigation. No runtime update was
+installed and no live gold moved. Next is the persistent town traversal/scheduler,
+including warehouse access and demonstrable coverage, followed by manager controls
+and a coherent versioned live qualification.

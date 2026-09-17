@@ -298,3 +298,98 @@ def test_inspection_correlation_and_no_journal_cannot_spend(tmp_path):
         client.transfer(STATE, 100, KEY)
     assert len(client._transport.commands) == before
     client.close()
+
+
+CLOSED = replace(STATE, quote=0, limit=0, entered=0, accept=0, cancel=0, helper=0)
+OPEN = replace(COMMAND, expected=CLOSED, amount=0)
+OPEN_SUBMITTED = replace(SUBMITTED, snapshot=CLOSED)
+OPENED = replace(FINISHED, snapshot=STATE)
+
+
+def test_native_host_quote_opening_bytes_agree():
+    exe = (
+        Path(__file__).resolve().parents[1]
+        / "artifacts/vendor-native-build/Release"
+        / "wonderbane_extension_guard_funding_controller_test.exe"
+    )
+    if not exe.exists():
+        pytest.skip("native funding fixture not built")
+    state, command, receipt = [
+        bytes.fromhex(line)
+        for line in subprocess.check_output([str(exe), "wire-open"], text=True).splitlines()
+    ]
+    assert state == CLOSED.encode()
+    assert command == OPEN.encode(Verb.OPEN_QUOTE)
+    assert Receipt.decode(receipt) == OPEN_SUBMITTED
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"amount": 1},
+        {"expected": STATE},
+        {"direction": 2},
+        {"expected": replace(CLOSED, balance=50)},
+        {"expected": replace(CLOSED, purse=2**31 - 1)},
+    ],
+)
+def test_quote_opening_never_admits_a_transfer_or_existing_quote(change):
+    with pytest.raises(ValueError):
+        replace(OPEN, **change).encode(Verb.OPEN_QUOTE)
+
+
+def test_quote_opening_is_durable_and_requires_unchanged_funds(tmp_path):
+    journal = GuardSpendingJournal(tmp_path)
+    journal.submit(IDENTITY, OPEN, lambda: OPEN_SUBMITTED)
+    assert_blocked(journal, COMMAND)
+    record = json.loads(journal._path(KEY).read_text())
+    assert record["operation"] == "open_quote"
+    journal.observe(IDENTITY, replace(OPENED, snapshot=replace(STATE, purse=499)))
+    assert_blocked(journal, COMMAND)
+    journal.observe(IDENTITY, OPENED)
+    assert json.loads(journal.active.read_text()) == {"request_key": None}
+    command = replace(COMMAND, request_key=str(uuid.uuid4()))
+    journal.submit(IDENTITY, command, lambda: replace(SUBMITTED, request_key=command.request_key))
+    assert_blocked(journal, UPGRADE)
+
+
+def test_quote_open_timeout_blocks_transfer_after_restart(tmp_path):
+    journal = GuardSpendingJournal(tmp_path)
+    with pytest.raises(TimeoutError):
+        journal.submit(IDENTITY, OPEN, Mock(side_effect=TimeoutError()))
+    journal = GuardSpendingJournal(tmp_path)
+    journal.observe(IDENTITY, OPENED)
+    assert_blocked(journal, COMMAND)
+
+
+def test_session_open_quote_uses_distinct_non_spending_command(tmp_path):
+    class OpeningTransport(Transport):
+        def submit(self, command, *, timeout_ms):
+            result = super().submit(command, timeout_ms=timeout_ms)
+            receipt = OPEN_SUBMITTED if command.kind == Verb.OPEN_QUOTE else OPENED
+            return replace(
+                result,
+                movement_payload=replace(receipt, request_key=command.payload.request_key).encode(),
+            )
+
+    with patch(
+        "shadowbane_lab.client_extension.guard_funding_session.channel."
+        "WindowsNativeActionCommandTransport",
+        OpeningTransport,
+    ):
+        client = NativeGuardFundingSession(IDENTITY, 1000, journal=GuardSpendingJournal(tmp_path))
+        assert client.open_quote(CLOSED, KEY) == OPEN_SUBMITTED
+        assert client._transport.commands[-1].kind == Verb.OPEN_QUOTE
+        assert client._transport.commands[-1].payload.amount == 0
+        assert client.inspect(Direction.WAREHOUSE).snapshot == STATE
+        assert json.loads(client._journal.active.read_text()) == {"request_key": None}
+        client.close()
+
+
+def test_zero_transfer_cannot_be_persisted_as_quote_opening(tmp_path):
+    client = session(tmp_path)
+    with pytest.raises(ValueError):
+        client.transfer(CLOSED, 0, KEY)
+    assert not client._transport.commands
+    assert not client._journal.root.exists()
+    client.close()

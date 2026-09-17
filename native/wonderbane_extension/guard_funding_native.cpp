@@ -88,7 +88,20 @@ bool Reserve(Reader& r, std::uintptr_t p, std::uint32_t wanted, std::uint32_t& m
     for (std::size_t i = 0; i < count && r.Word(high + 12); ++i) { high = r.Word(high + 12); }
     return r.ok && low == first && high == last;
 }
+bool EmptySelection(Reader& r, std::uintptr_t address) noexcept {
+    const auto head = r.Word(address);
+    return !r.Word(address + 4) && !r.Word(head + 4)
+        && r.Word(head + 8) == head && r.Word(head + 12) == head && r.ok;
+}
+bool GoldSelected(Reader& r, std::uintptr_t warehouse, std::uint32_t entry) noexcept {
+    const auto head = r.Word(warehouse + 0x3c4), count = r.Word(warehouse + 0x3c8);
+    const auto node = r.Word(head + 4);
+    return count == 1 && node && node != head && r.Word(head + 8) == node && r.Word(head + 12) == node
+        && r.Word(node + 4) == head && !r.Word(node + 8) && !r.Word(node + 12)
+        && r.Word(node + 0x10) == entry && r.ok;
+}
 bool Warehouse(Reader& r, std::uintptr_t base, wire::Snapshot& s) noexcept {
+    if (!EmptySelection(r, s.hud + 0x3dc)) { return false; }
     s.manager = s.hud; s.source_object = r.Word(s.hud + 0x378);
     r.Require(s.source_object, static_cast<std::uint32_t>(base + 0x114165c));
     s.source = r.Key(s.source_object + 0x18); s.quote = r.Word(s.hud + 0x10c);
@@ -156,6 +169,45 @@ bool Quote(Reader& r, std::uintptr_t base, wire::Snapshot& s) noexcept {
     if (amount > INT32_MAX) { return false; }
     s.entered = static_cast<std::uint32_t>(amount); return r.ok;
 }
+bool FindOpenControl(Reader& r, std::uintptr_t base, const wire::Snapshot& s,
+    std::uint32_t& button, std::uint32_t& gold_control, std::uint32_t& gold_entry) noexcept {
+    button = gold_control = gold_entry = 0;
+    std::array<std::uint32_t, 512> children{}; const auto count = r.Vector(s.hud + 0x54, children);
+    for (std::size_t i = 0; r.ok && i < count; ++i) {
+        const auto child = children[i]; r.Require(child + 0x3bc, s.hud);
+        if (r.Name(child + 0x164, s.direction == 1 ? L"WITHDRAW" : L"BTNDEPOSIT", s.direction == 1 ? 8 : 10)) {
+            if (button) { return false; } button = child;
+            r.Require(child, static_cast<std::uint32_t>(base + 0x1169ec0));
+            r.Require(child + 0x1d0, s.direction == 1 ? 0x1008 : 0x586); r.Require(child + 0x1d4, 0);
+            r.Require(child + 0x1a8, 0);
+            if ((r.Word(child + 0x304) >> 8) & 0xff) { return false; }
+        }
+        if (s.direction != 1 || !r.Name(child + 0x164, L"WAREHOUSE_INV", 13)) { continue; }
+        r.Require(child, static_cast<std::uint32_t>(base + 0x116acf0));
+        std::array<std::uint32_t, 1024> rows{}; const auto row_count = r.Vector(child + 0x408, rows);
+        for (std::size_t j = 0; r.ok && j < row_count; ++j) {
+            const auto control = rows[j], entry = r.Word(control + 0x44c);
+            if (r.Word(entry + 0x20) != s.resource) { continue; }
+            if (gold_control) { return false; }
+            r.Require(control, static_cast<std::uint32_t>(base + 0x116aebc));
+            r.Require(control + 0x3bc, s.hud); r.Require(control + 0x458, child);
+            r.Require(control + 0x1a8, 0);
+            if ((r.Word(control + 0x304) >> 8) & 0xff) { return false; }
+            r.Require(entry, static_cast<std::uint32_t>(base + 0x116f258));
+            if (!r.Name(entry + 0x30, L"Gold", 4)) { return false; }
+            gold_control = control; gold_entry = entry;
+        }
+    }
+    return r.ok && button && (s.direction == 2 || (gold_control && gold_entry));
+}
+bool Click(std::uintptr_t base, std::uint32_t control, bool row) noexcept {
+    __try {
+        using Callback = bool (__thiscall*)(void*, std::uint32_t, std::uint32_t);
+        const bool result = reinterpret_cast<Callback>(base + (row ? 0x61c6e0 : 0x5f5440))(
+            reinterpret_cast<void*>(control), row ? 1 : 0, 0);
+        return !row || result;
+    } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
 bool SetAmount(std::uintptr_t base, std::uint32_t quote, std::uint32_t amount) noexcept {
     __try {
         using Setter = void (__thiscall*)(void*, std::uint32_t);
@@ -218,8 +270,25 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, std::uint3
     const auto active = [&](std::uint32_t hud) { return std::find(huds.begin(), huds.begin() + count, hud) != huds.begin() + count; };
     if (!active(s.hud) || (s.quote && (!active(s.quote) || !Quote(r, base, s)))) { return false; }
     if (!r.ok || !wire::ValidSnapshot(s) || !movement::NativeMovementLifetimeCurrent(scene)) { return false; }
-    top = count && huds[0] == s.quote;
+    top = count && huds[0] == (s.quote ? s.quote : s.hud);
     s.revision = 0; out = s; return true;
+}
+bool InvokeOpen(std::uintptr_t base, const movement::NativeScene& scene, const wire::Command& c,
+    Admission admit, void* context) noexcept {
+    if (!wire::Valid(wire::Verb::open_quote, c) || !admit || !admit(context)) { return false; }
+    wire::Snapshot fresh{}; bool top = false;
+    if (!Capture(base, scene, c.direction, fresh, top) || !top) { return false; }
+    fresh.revision = c.expected.revision;
+    if (!wire::Equal(fresh, c.expected)) { return false; }
+    Reader r; std::uint32_t button = 0, row = 0, entry = 0;
+    if (!FindOpenControl(r, base, fresh, button, row, entry)) { return false; }
+    if (c.direction == 1 && !Click(base, row, true)) { return false; }
+    if (!Capture(base, scene, c.direction, fresh, top) || !top) { return false; }
+    fresh.revision = c.expected.revision;
+    if (!wire::Equal(fresh, c.expected) || !FindOpenControl(r, base, fresh, button, row, entry)
+        || (c.direction == 1 && !GoldSelected(r, fresh.hud, entry))
+        || !admit(context) || !movement::NativeMovementLifetimeCurrent(scene)) { return false; }
+    return Click(base, button, false);
 }
 bool Invoke(std::uintptr_t base, const movement::NativeScene& scene, const wire::Command& c,
     Admission admit, void* context) noexcept {

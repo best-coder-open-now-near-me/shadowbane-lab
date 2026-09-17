@@ -3,7 +3,7 @@
 namespace wonderbane::extension::guard_funding::wire {
 using Outcome = vendor::wire::Outcome;
 using Key = vendor_navigation::wire::Key;
-enum class Verb : std::uint32_t { inspect = 19, transfer = 20 };
+enum class Verb : std::uint32_t { inspect = 19, transfer = 20, open_quote = 21 };
 enum class Direction : std::uint32_t { warehouse = 1, structure = 2 };
 constexpr std::uint32_t magic = 0x57424631, ready = 1, in_flight = 2, unresolved = 4;
 #pragma pack(push, 1)
@@ -54,6 +54,10 @@ inline bool Eligible(const Snapshot& s, std::uint32_t amount) noexcept {
     return ValidSnapshot(s) && s.quote && amount && amount <= s.limit
         && (s.direction == 1 ? amount <= INT32_MAX - s.purse : amount <= INT32_MAX - s.balance);
 }
+inline bool EligibleOpen(const Snapshot& s) noexcept {
+    return ValidSnapshot(s) && !s.quote && (s.direction == 1
+        ? s.balance > s.reserve && s.purse < INT32_MAX : s.purse && s.balance < INT32_MAX);
+}
 inline bool SameOwner(const Snapshot& a, const Snapshot& b) noexcept {
     return a.scene == b.scene && a.root == b.root && a.actor == b.actor && a.character == b.character
         && a.manager == b.manager && a.hud == b.hud && a.source_object == b.source_object
@@ -65,11 +69,17 @@ inline bool Confirmed(const Command& c, const Snapshot& s) noexcept {
         ? s.balance == c.expected.balance - c.amount && s.purse == c.expected.purse + c.amount
         : s.balance == c.expected.balance + c.amount && s.purse == c.expected.purse - c.amount;
 }
+inline bool Opened(const Command& c, const Snapshot& s) noexcept {
+    return ValidSnapshot(s) && SameOwner(c.expected, s) && s.quote
+        && s.balance == c.expected.balance && s.purse == c.expected.purse
+        && s.reserve == c.expected.reserve;
+}
 inline bool Valid(Verb verb, const Command& c) noexcept {
     if (!movement::wire::Valid(c.host) || !c.window || c.window > UINT32_MAX
         || !DirectionValid(c.direction) || movement::wire::Zero(c.request.data(), c.request.size())
         || !movement::wire::Zero(c.reserved, sizeof(c.reserved))) { return false; }
     if (verb == Verb::inspect) { return !c.amount && movement::wire::Zero(&c.expected, sizeof(c.expected)); }
+    if (verb == Verb::open_quote) { return !c.amount && c.direction == c.expected.direction && EligibleOpen(c.expected); }
     return verb == Verb::transfer && c.direction == c.expected.direction && Eligible(c.expected, c.amount);
 }
 }

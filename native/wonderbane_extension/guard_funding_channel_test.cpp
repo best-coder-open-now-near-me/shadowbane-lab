@@ -39,6 +39,10 @@ int main() {
             s.accept = 1100; s.cancel = 1200; s.helper = 1300;
             payload.amount = kind == 21 ? 951 : 100;
             slot.kind = 20;
+            if (kind == 22) {
+                s.quote = s.limit = s.entered = s.accept = s.cancel = s.helper = 0;
+                payload.amount = 0; slot.kind = 21;
+            }
         }
         std::memcpy(&slot.movement, &payload, sizeof(payload));
         InterlockedExchange64(&slot.committed_sequence, static_cast<LONG64>(sequence));
@@ -80,6 +84,12 @@ int main() {
     publish(5, false, 21); // An excessive withdrawal never reaches the owning thread.
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
     assert(!v::Take() && storage.results[4].stage == static_cast<unsigned>(ClientActionResultStage::failed));
+    publish(6, false, 22);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
+    command = v::Take(); assert(command && command->verb == v::wire::Verb::open_quote && !command->command.amount);
+    receipt.request = command->command.request; v::Complete(command, receipt);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
+    assert(!v::Take() && storage.header.command_read_sequence == 6);
     SetEvent(release_worker);
     StopClientActionCommandChannel();
     CloseHandle(entered); CloseHandle(release_worker);
