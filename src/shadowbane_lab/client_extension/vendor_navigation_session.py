@@ -8,6 +8,7 @@ import uuid
 from dataclasses import dataclass
 
 from . import action_channel as channel
+from .guard_spending_journal import GuardSpendingJournal
 from .movement_wire import Host
 from .vendor_navigation_wire import Command, Outcome, Receipt, Snapshot, Verb
 
@@ -50,10 +51,14 @@ class _RetryableInspectionError(channel.NativeActionChannelUnavailable):
 
 
 class NativeVendorNavigationSession:
-    def __init__(self, identity: channel.NativeClientProcessIdentity, window: int):
+    def __init__(
+        self, identity: channel.NativeClientProcessIdentity, window: int, *,
+        journal: GuardSpendingJournal | None = None,
+    ):
         if type(window) is not int or not 0 < window < 2**32:
             raise ValueError("an exact client HWND is required")
         self.identity, self.window = identity, window
+        self._journal = journal
         self._transport = channel.WindowsNativeActionCommandTransport(identity)
         self._ids = itertools.count(1)
         self._closed = False
@@ -76,34 +81,48 @@ class NativeVendorNavigationSession:
         command = Command(
             host, self.window, request_key, expected or Snapshot(), building_id, vendor_id
         )
-        result = transport.submit(
-            NativeVendorNavigationCommand(next(self._ids), verb, command), timeout_ms=750
-        )
-        if result.detail != "native_vendor_navigation_receipt_v2":
-            error = (
-                _RetryableInspectionError
-                if verb == Verb.INSPECT
-                and result.stage == channel.NativeActionResultStage.FAILED
-                and result.error_code == 13
-                and result.detail == "invalid_or_expired_vendor_navigation_lease"
-                else channel.NativeActionChannelUnavailable
+        command.encode(verb)
+
+        def dispatch() -> Receipt:
+            result = transport.submit(
+                NativeVendorNavigationCommand(next(self._ids), verb, command), timeout_ms=750
             )
-            raise error(
-                f"vendor_navigation {verb.name.lower()} failed: {result.detail} "
-                f"(stage={result.stage.name}, error={result.error_code})"
+            if result.detail != "native_vendor_navigation_receipt_v2":
+                error = (
+                    _RetryableInspectionError
+                    if verb == Verb.INSPECT
+                    and result.stage == channel.NativeActionResultStage.FAILED
+                    and result.error_code == 13
+                    and result.detail == "invalid_or_expired_vendor_navigation_lease"
+                    else channel.NativeActionChannelUnavailable
+                )
+                raise error(
+                    f"vendor_navigation {verb.name.lower()} failed: {result.detail} "
+                    f"(stage={result.stage.name}, error={result.error_code})"
+                )
+            receipt = Receipt.decode(result.movement_payload)
+            if (
+                receipt.host != host
+                or receipt.window != self.window
+                or receipt.request_key != request_key
+            ):
+                raise channel.NativeActionChannelError(
+                    "vendor_navigation receipt correlation mismatch"
+                )
+            accepted = receipt.outcome in (Outcome.OBSERVED, Outcome.SUBMITTED)
+            if accepted != result.stage.accepted_submission or accepted != (result.error_code == 0):
+                raise channel.NativeActionChannelError(
+                    "vendor navigation receipt contradicts transport result"
+                )
+            return receipt
+
+        if self._journal is not None and verb != Verb.INSPECT:
+            return self._journal.submit(
+                self.identity, command, dispatch, navigation_verb=verb,
             )
-        receipt = Receipt.decode(result.movement_payload)
-        if (
-            receipt.host != host
-            or receipt.window != self.window
-            or receipt.request_key != request_key
-        ):
-            raise channel.NativeActionChannelError("vendor_navigation receipt correlation mismatch")
-        accepted = receipt.outcome in (Outcome.OBSERVED, Outcome.SUBMITTED)
-        if accepted != result.stage.accepted_submission or accepted != (result.error_code == 0):
-            raise channel.NativeActionChannelError(
-                "vendor navigation receipt contradicts transport result"
-            )
+        receipt = dispatch()
+        if self._journal is not None:
+            self._journal.observe(self.identity, receipt)
         return receipt
 
     def inspect(self) -> Receipt:

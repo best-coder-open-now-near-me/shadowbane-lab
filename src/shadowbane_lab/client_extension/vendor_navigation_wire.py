@@ -160,6 +160,36 @@ class Command:
             bytes(424),
         )
 
+    @classmethod
+    def decode(cls, data: bytes, verb: Verb) -> Command:
+        if len(data) != 576:
+            raise ValueError("invalid navigation command size")
+        host, window, key, state, building, building_type, target, target_type, padding = (
+            _COMMAND.unpack(data)
+        )
+        if any(padding):
+            raise ValueError("nonzero navigation command padding")
+        result = cls(Host.decode(host), window, str(uuid.UUID(bytes=key)),
+                     Snapshot.decode(state), building, target)
+        # Re-encoding also checks both key types against the requested verb.
+        if result.encode(verb) != data:
+            raise ValueError("noncanonical navigation command")
+        return result
+
+    def opened(self, verb: Verb, state: Snapshot) -> bool:
+        self.encode(verb)
+        state.encode()
+        before = self.expected
+        if state.empty or (state.scene, state.root, state.manager) != (
+            before.scene, before.root, before.manager
+        ):
+            return False
+        if verb == Verb.WAREHOUSE:
+            return state.warehouse_opened(self.building_id, self.vendor_id)
+        return verb in (Verb.BUILDING, Verb.GUARD, Verb.VENDOR) and state.opened(
+            self.building_id, self.vendor_id, hireling_type=37 if verb == Verb.GUARD else 42
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class Receipt:
@@ -170,6 +200,17 @@ class Receipt:
     flags: int
     snapshot: Snapshot
     transition_request: str | None = None
+
+    def encode(self) -> bytes:
+        data = _RECEIPT.pack(
+            request_bytes(self.request_key), self.host.encode(), self.window,
+            self.outcome, self.flags, self.snapshot.encode(),
+            request_bytes(self.transition_request) if self.transition_request else bytes(16),
+            MAGIC, bytes(220),
+        )
+        if type(self).decode(data) != self:
+            raise ValueError("noncanonical navigation receipt")
+        return data
 
     @classmethod
     def decode(cls, data: bytes) -> Receipt:

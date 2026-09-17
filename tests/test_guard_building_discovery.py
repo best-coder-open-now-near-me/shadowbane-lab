@@ -291,3 +291,22 @@ def test_two_stage_discovery_holds_one_producer_and_closes_on_failure(setup, fai
     with pytest.raises(VendorBatchStopped, match="already attempted"):
         run_guard_discovery(f.store, f.binding, f.operation, **kwargs)
     assert len(f.session.calls) == calls
+
+
+def test_pending_guard_action_stops_discovery_before_opening_city(setup):
+    from shadowbane_lab.client_extension.guard_spending_journal import (
+        GuardSpendingJournal,
+        GuardSpendingStopped,
+    )
+    from shadowbane_lab.manager.guard_discovery import run_guard_discovery
+    from tests.test_guard_upgrade_journal import COMMAND, IDENTITY, SUBMITTED
+
+    journal = GuardSpendingJournal(setup.store.root)
+    journal.submit(IDENTITY, COMMAND, lambda: SUBMITTED)
+    city, navigation = Mock(), Mock()
+    with pytest.raises(GuardSpendingStopped, match="earlier guard action"):
+        run_guard_discovery(setup.store, setup.binding, setup.operation,
+                            cancelled=lambda: False, city_session_factory=city,
+                            navigation_session_factory=navigation)
+    city.assert_not_called()
+    navigation.assert_not_called()

@@ -234,6 +234,7 @@ def test_city_session_uses_production_transport_and_shared_memory_ring(monkeypat
         transport._command_signal = 17  # notification is handled by the fixture peer
         monkeypatch.setattr(transport._kernel, "set_event", consume)
         session = NativeCityWindowSession.__new__(NativeCityWindowSession)
+        session._journal = None
         session.identity = channel.NativeClientProcessIdentity(988, 123)
         session.window = 1000
         session._transport, session._ids, session._closed = transport, itertools.count(1), False
@@ -311,6 +312,7 @@ def test_navigation_session_uses_production_transport_and_shared_memory_ring(mon
         transport._command_signal = 17  # notification is handled by the fixture peer
         monkeypatch.setattr(transport._kernel, "set_event", consume)
         session = NativeVendorNavigationSession.__new__(NativeVendorNavigationSession)
+        session._journal = None
         session.identity = channel.NativeClientProcessIdentity(988, 123)
         session.window = 1000
         session._transport, session._ids, session._closed = transport, itertools.count(1), False

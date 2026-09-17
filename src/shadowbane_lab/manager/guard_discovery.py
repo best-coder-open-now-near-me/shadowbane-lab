@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 
+from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
 from shadowbane_lab.client_observation.native_building_hirelings import (
     read_native_building_hirelings,
 )
@@ -55,7 +56,7 @@ def read_guard_candidates(binding):
 def run_guard_discovery(
     store, binding, operation, *, cancelled,
     city_session_factory=open_city_session,
-    navigation_session_factory=open_navigation_session,
+    navigation_session_factory=None,
     candidate_reader=read_guard_candidates, roster_reader=read_guard_roster,
     clock=time.monotonic, sleep=time.sleep,
 ):
@@ -66,6 +67,8 @@ def run_guard_discovery(
     handoff occurs only after the previous stage completes, respecting the single
     producer lease; failure never proceeds to the next stage or replays an open.
     """
+    journal = GuardSpendingJournal(store.root)
+    journal.assert_idle()
     city = city_session_factory(binding)
     try:
         nearby = _run_discovery(
@@ -74,7 +77,10 @@ def run_guard_discovery(
         )
     finally:
         city.close()
-    navigation = navigation_session_factory(binding)
+    navigation = (
+        open_navigation_session(binding, journal=journal)
+        if navigation_session_factory is None else navigation_session_factory(binding)
+    )
     try:
         return run_guard_building_discovery(
             store, binding, operation, navigation, nearby, cancelled=cancelled,

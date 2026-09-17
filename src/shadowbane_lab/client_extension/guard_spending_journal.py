@@ -15,13 +15,23 @@ from shadowbane_lab.record_store import (
 
 from . import guard_funding_wire as funding
 from . import guard_upgrade_wire as upgrade
+from . import vendor_navigation_wire as navigation
 from .guard_upgrade_wire import IN_FLIGHT, UNRESOLVED, Outcome
 
-Command = upgrade.Command | funding.Command
-Receipt = upgrade.Receipt | funding.Receipt
+Command = upgrade.Command | funding.Command | navigation.Command
+Receipt = upgrade.Receipt | funding.Receipt | navigation.Receipt
+
+
+_NAVIGATION = {
+    "navigate_building": navigation.Verb.BUILDING,
+    "navigate_guard": navigation.Verb.GUARD,
+    "navigate_warehouse": navigation.Verb.WAREHOUSE,
+}
 
 
 def _codec(operation: str):
+    if operation in _NAVIGATION:
+        return navigation.Command, _NAVIGATION[operation], navigation.Receipt
     if operation == "upgrade":
         return upgrade.Command, upgrade.Verb.UPGRADE, upgrade.Receipt
     if operation == "open_quote":
@@ -31,7 +41,14 @@ def _codec(operation: str):
     raise GuardSpendingStopped("unknown guard spending operation")
 
 
-def _operation(command: Command) -> str:
+def _operation(command: Command, navigation_verb: navigation.Verb | None = None) -> str:
+    if type(command) is navigation.Command:
+        for operation, verb in _NAVIGATION.items():
+            if navigation_verb == verb:
+                return operation
+        raise ValueError("an explicit guard navigation verb is required")
+    if navigation_verb is not None:
+        raise ValueError("a spending command cannot carry a navigation verb")
     if type(command) is upgrade.Command:
         return "upgrade"
     if type(command) is funding.Command:
@@ -40,7 +57,11 @@ def _operation(command: Command) -> str:
 
 
 def _receipt(command: Command, data: str) -> Receipt:
-    return _codec(_operation(command))[2].decode(bytes.fromhex(data))
+    codec = (
+        navigation.Receipt
+        if type(command) is navigation.Command else _codec(_operation(command))[2]
+    )
+    return codec.decode(bytes.fromhex(data))
 
 
 class GuardSpendingStopped(RuntimeError):
@@ -71,9 +92,16 @@ def _read(path: Path) -> dict:
     return record
 
 
-def _confirmed(command: Command, receipt: Receipt) -> bool:
-    if type(receipt) is not _codec(_operation(command))[2]:
+def _confirmed(command: Command, receipt: Receipt, operation: str) -> bool:
+    if type(receipt) is not _codec(operation)[2]:
         return False
+    if type(command) is navigation.Command:
+        return (
+            receipt.outcome == Outcome.OBSERVED
+            and receipt.transition_request == command.request_key
+            and not receipt.flags & (IN_FLIGHT | UNRESOLVED)
+            and command.opened(_NAVIGATION[operation], receipt.snapshot)
+        )
     if isinstance(command, funding.Command):
         return (
             receipt.outcome == Outcome.OBSERVED
@@ -182,7 +210,7 @@ class GuardSpendingJournal:
                 completed.host != command.host
                 or completed.window != command.window
                 or submitted.outcome != Outcome.SUBMITTED
-                or not _confirmed(command, completed)
+                or not _confirmed(command, completed, record["operation"])
             ):
                 raise GuardSpendingStopped("guard completion is not correlated")
         return record, command
@@ -211,6 +239,11 @@ class GuardSpendingJournal:
                 Outcome.INVALID,
                 Outcome.EXHAUSTED,
             )
+            # Opening an already-owned exact window performs no native action.
+            # Its correlated OBSERVED submission is terminal, unlike an upgrade.
+            terminal |= type(command) is navigation.Command and _confirmed(
+                command, receipt, record["operation"]
+            )
             # A rejection carrying unresolved/pending state cannot release spending.
             terminal &= (
                 not receipt.flags & (IN_FLIGHT | UNRESOLVED) or record["completion"] is not None
@@ -220,9 +253,17 @@ class GuardSpendingJournal:
             return None
         return record, command
 
-    def submit(self, identity, command: Command, dispatch) -> Receipt:
+    def assert_idle(self) -> None:
+        with exclusive_record_lock(self.lock):
+            if self._pending() is not None:
+                raise GuardSpendingStopped("An earlier guard action needs review or completion.")
+
+    def submit(
+        self, identity, command: Command, dispatch, *,
+        navigation_verb: navigation.Verb | None = None,
+    ) -> Receipt:
         # Encode before creating any files, and retain the exact host lease too.
-        operation = _operation(command)
+        operation = _operation(command, navigation_verb)
         encoded = command.encode(_codec(operation)[1])
         _request(command.request_key)
         if (
@@ -293,7 +334,9 @@ class GuardSpendingJournal:
             if record["submission"] is None:
                 return  # Lost submission reply is retained for review, never inferred.
             submitted = _receipt(command, record["submission"])
-            if submitted.outcome != Outcome.SUBMITTED or not _confirmed(command, receipt):
+            if submitted.outcome != Outcome.SUBMITTED or not _confirmed(
+                command, receipt, record["operation"]
+            ):
                 return
             record["completion"] = receipt.encode().hex()
             _write(self._path(command.request_key), record)

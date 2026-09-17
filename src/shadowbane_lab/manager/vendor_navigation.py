@@ -21,11 +21,11 @@ from .vendor_discovery import _memory
 from .vendor_job import _write
 
 
-def open_navigation_session(binding):
+def open_navigation_session(binding, *, journal=None):
     _memory(binding).close()
     return NativeVendorNavigationSession(
         NativeClientProcessIdentity(binding.game_process_id, binding.game_process_started_at_100ns),
-        binding.game_window_handle,
+        binding.game_window_handle, journal=journal,
     )
 
 

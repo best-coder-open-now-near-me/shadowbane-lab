@@ -577,3 +577,31 @@ Current todos:
   coverage, coherent versioned deployment and live end-to-end qualification.
 Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
 -> reviewed main. No build from this checkpoint is installed or merged into main.
+
+
+## Unified guard navigation and spending journal
+
+Guard navigation can now use the same GuardSpendingJournal as quote opening,
+withdrawals, deposits and upgrades. Distinct navigate_building, navigate_guard
+and navigate_warehouse operations retain exact command bytes, native host lease,
+process lifetime and correlated receipts before advancing. Navigation commands
+and receipts now have strict encode/decode round trips; the recorded operation
+supplies the verb and validates both typed keys. Already-open, exactly correlated
+navigation is a terminal no-op; an OBSERVED upgrade is never treated that way.
+Lost replies, mismatched sources, scene/lease changes, pending flags and unresolved
+responses keep the gate closed across worker/client restarts. No new request is
+allowed to bypass the gate by choosing a different operation. UUIDs never replay.
+
+The production guard-discovery factory now supplies this journal to navigation
+and checks it before opening City Command. Vendor discovery keeps its existing
+own durable records; the vendor job path is not migrated or resumed. The persistent
+funding worker must use this same journal for every navigation session and retain
+each producer until correlated completion before opening the next session.
+
+Validation: 396 focused Python tests and targeted Ruff pass. New cases cover all
+three navigation verbs, intent-before-dispatch, already-open completion, lost
+replies across restarts, source/scene/lease/type mismatch, operation crossing,
+command corruption and pending action rejection before city discovery. Native
+source is unchanged from 54f2b57. No runtime was installed and no live game action
+was sent. Next active todo: persistent warehouse-to-building funding and upgrade
+sequencing, then manager controls, town coverage and versioned live qualification.
