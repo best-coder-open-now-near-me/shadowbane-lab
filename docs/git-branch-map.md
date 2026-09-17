@@ -43,12 +43,14 @@ lane, with the unresolved old request retained and no replay. Warehouse resource
 are now live-observed and distinct from hireling management Inventory. Exact-key
 warehouse access is source-tested with version-3 navigation/guard receipts and
 front-window confirmation; ship
-host/native together. Full-town coverage and scheduling remain unfinished; no new
-build is deployed. Guard navigation now shares the durable spending gate, so lost
+host/native together. Full-town coverage remains unfinished; no new build is deployed. Guard navigation now shares the durable spending gate, so lost
 window replies block transfers/upgrades across restarts. The persistent funding
 cycle now joins exact guard quotes, shortfall withdrawal, structure deposit and
-upgrade confirmation under one execution lock and journal. Next is town guard
-planning/scheduling and manager admission. Review this lane into
+upgrade confirmation under one execution lock and journal. Process-bound guard plans
+now retain discovery digests and exact warehouse/guard keys. A persistent queue
+rotates guards, waits for ranks, records confirmed gold totals, and recovers only
+fully confirmed cycles without replay. No-offer remains unverified maximum rank.
+Next is manager admission/controls, followed by coherent deployment and live testing. Review this lane into
 `codex/vendor-rolling`, then the documented integration destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.

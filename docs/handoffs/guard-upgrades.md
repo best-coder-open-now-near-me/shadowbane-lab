@@ -678,3 +678,54 @@ Current todos:
   demonstrable town coverage, coherent deployment and live end-to-end validation.
 Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
 -> reviewed main. Source/fixture validation does not imply installed acceptance.
+
+
+## Persistent guard plans and rank scheduling
+
+Funding cycle source checkpoint 087be51 is pushed. The next source slice adds
+GuardUpgradePlan and GuardJobStore/run_guard_upgrade_job as the permanent queue
+boundary. Plans derive type-37 guard keys from retained guard-discovery and
+guard-navigation records, pin both file digests and the exact observed warehouse
+snapshot, and require the same instance, PID creation, scene/root and complete
+owned rosters. Duplicate display names never select a target. Inaccessible
+buildings and unverified guard windows remain excluded coverage; loaded nearby
+candidates still do not establish city membership or full-town coverage.
+
+The queue records a fresh funding-cycle ID before calling its transaction, rotates
+through admitted guards, and waits five minutes by default between rank checks
+(one-minute minimum, configurable up to one hour). It holds a runner lock while
+active, with native sessions opened only by individual cycles. Existing progress
+waits; an unaffordable guard does not prevent checking another cheaper or already
+funded guard. All confirmed withdrawals, deposits and upgrade debits are accounted
+from the retained cycle file. After an accepted upgrade, its prior rank plus one
+becomes the minimum required before any later funding/spending for that guard.
+A disappearing progress bar without that rank increase stops for review.
+
+A worker restart can reconcile a fully confirmed outstanding cycle exactly once;
+accounting and clearing its active marker are one atomic record replacement.
+Missing, partial, mismatched or unresolved cycles require review and cannot be
+bypassed with a new job ID. Confirmed partial movements remain in the cycle and
+shared journal even when the queue stops. Pause takes effect between transactions;
+Stop/worker cancellation interrupts work, retaining uncertain actions for review.
+No-offer and insufficient-gold results remain explicit; no state falsely claims
+maximum rank or completion of all guards in town.
+
+Validation uses persistent files plus the actual spending journal and wire codecs.
+The queue suite covers source/lifetime/scene/roster changes, partial candidate
+coverage, identical building/guard names, fair rank checks, unaffordable offers,
+pause/resume/stop, recovery exactly once, unrecoverable interrupted cycles and lost
+withdrawal replies. End-to-end fixture cases execute two real funding cycles over
+rank increases and stop a second debit when the rank does not advance. Broader
+host regression: all 452 affected tests pass; Ruff and the source diff check pass. Native source is
+unchanged; no runtime install or live gold/upgrade action was performed.
+
+Current todos (supersedes the previous active list):
+- Complete: warehouse/navigation primitives, shared journal, funding transaction,
+  exact discovered guard plans and persistent rank scheduling source.
+- Active: manager worker admission, controls and progress for guard jobs.
+- Pending: maximum-rank completion qualification, demonstrable town coverage,
+  coherent host/native packaging/deployment and live end-to-end validation.
+
+Integration remains codex/guard-upgrades -> codex/vendor-rolling ->
+codex/native-lifecycle-hardening -> reviewed main. This lane is not merged or
+installed. The normal main checkout and old vendor jobs remain untouched.

@@ -230,6 +230,10 @@ class _Cycle:
         self.save()
         if before.upgrading:
             return "waiting", "This guard is already upgrading."
+        if before.rank < self.record["minimum_rank"]:
+            raise GuardFundingCycleStopped(
+                "The previously accepted guard upgrade has not reached its expected rank."
+            )
         if not before.can_upgrade or not before.cost or before.control_flags != 3:
             return "unavailable", "No eligible upgrade is offered; maximum rank is unverified."
         if before.funds < before.cost:
@@ -272,6 +276,7 @@ class _Cycle:
 def run_guard_funding_cycle(
     store, binding, operation, target: GuardFundingTarget, *, cancelled,
     session_factory=open_guard_cycle_session, clock=time.monotonic, sleep=time.sleep,
+    minimum_rank=1,
 ):
     """Execute one freshly quoted guard upgrade, preserving all intermediate receipts.
 
@@ -281,6 +286,8 @@ def run_guard_funding_cycle(
     """
     if not isinstance(target, GuardFundingTarget):
         raise ValueError("a validated guard funding target is required")
+    if type(minimum_rank) is not int or not 0 < minimum_rank < 2**32 - 1:
+        raise ValueError("a valid minimum guard rank is required")
     if not re.fullmatch(r"operation-[0-9a-f]{32}", operation.operation_id):
         raise ValueError("a canonical worker operation is required")
     if (target.process_id, target.creation) != (
@@ -302,6 +309,7 @@ def run_guard_funding_cycle(
             "process_creation_filetime_utc": binding.game_process_started_at_100ns,
             "window": binding.game_window_handle,
             "state": "running", "phase": "navigation", "actions": [],
+            "minimum_rank": minimum_rank,
             "withdrawn": 0, "deposited": 0, "spent": 0,
         }
         def save():
