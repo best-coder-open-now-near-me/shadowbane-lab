@@ -35,6 +35,7 @@ add_library(
   vendor_runtime.cpp
   vendor_native.cpp
   guard_upgrade_native.cpp
+  guard_funding_native.cpp
   city_window_native.cpp
   building_native_target.cpp
   vendor_navigation_native.cpp
@@ -1243,4 +1244,31 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_guard_upgrade_channel_test PRIVATE /W4 /WX /permissive- /utf-8)
   add_test(NAME wonderbane_extension_guard_upgrade_channel COMMAND wonderbane_extension_guard_upgrade_channel_test)
   set_tests_properties(wonderbane_extension_guard_upgrade_channel PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_guard_funding_native_test guard_funding_native_test.cpp guard_funding_native.cpp)
+  target_compile_features(wonderbane_extension_guard_funding_native_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_guard_funding_native_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_guard_funding_native_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_guard_funding_native COMMAND wonderbane_extension_guard_funding_native_test)
+  set_tests_properties(wonderbane_extension_guard_funding_native PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_guard_funding_controller_test guard_funding_controller_test.cpp)
+  target_compile_features(wonderbane_extension_guard_funding_controller_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_guard_funding_controller_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_guard_funding_controller_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_guard_funding_controller COMMAND wonderbane_extension_guard_funding_controller_test)
+  set_tests_properties(wonderbane_extension_guard_funding_controller PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_guard_funding_channel_test guard_funding_channel_test.cpp movement_controls.cpp)
+  target_compile_features(wonderbane_extension_guard_funding_channel_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_guard_funding_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_guard_funding_channel_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_guard_funding_channel COMMAND wonderbane_extension_guard_funding_channel_test)
+  set_tests_properties(wonderbane_extension_guard_funding_channel PROPERTIES TIMEOUT 15)
 endif()

@@ -321,3 +321,32 @@ identities and amounts, and require both balance changes before proceeding. Then
 connect shared spending exclusion, town traversal, maximum-rank passes, manager
 progress and a coherent versioned deployment. The warehouse quote was read only;
 no agent withdrawal, deposit or guard upgrade has run.
+
+## Native funding command checkpoint
+
+The native funding boundary adds inspect/transfer opcodes 19/20 with a typed
+warehouse-withdrawal or structure-deposit direction. Its snapshot binds the
+character/scene, exact source hireling or destination structure, resource, current
+balance/reserve/purse, owned quote and controls. The purse is read through the
+reviewed accessor on the game owner thread after validating its interface slots;
+that traversal runs on demand, not on every idle frame. Warehouse Gold is matched
+to one unique named resource row and its exact ID, never an inferred missing row.
+
+Transfer admission requires a fresh matching quote, requested amount within its
+current limit, reserve protection and no signed balance overflow. The ordinary
+amount setter is followed by a complete recapture before confirmation. Withdrawal
+uses the owned ACCEPT callback (event zero); deposit calls the ordinary mode-13
+handler. Local callback completion is only submission. Both balances must move by
+the exact amount in opposite directions and the quote must close under unchanged
+ownership. Partial changes remain pending; contradictory changes, identity/reserve
+changes or timeout latch unresolved. Immutable UUID receipts prevent resubmission.
+Funding, guard upgrades, crafting, city opening and navigation share exclusion.
+
+Validation: full Win32 DLL build with warnings as errors and 14 focused native
+funding/guard/vendor/navigation/city suites. Funding fixtures cover real owned
+HUD/roster/map layouts, purse access, failed amount setters, stale input, both
+ordinary callback signatures, wrong keys, reserve/overflow limits, partial receipts,
+lease expiration and duplicate UUIDs. These are fixture executions, not live gold
+transfers. No new native build is installed. Next is the host funding session and
+one persistent spending gate shared with upgrades, then automatic quote opening,
+town traversal, scheduler/dashboard integration and versioned live qualification.
