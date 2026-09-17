@@ -46,6 +46,16 @@ REQUIRED_VENDOR_TESTS = frozenset({
 })
 
 
+REQUIRED_GUARD_TESTS = frozenset({
+    "wonderbane_extension_guard_upgrade_native",
+    "wonderbane_extension_guard_upgrade_controller",
+    "wonderbane_extension_guard_upgrade_channel",
+    "wonderbane_extension_guard_funding_native",
+    "wonderbane_extension_guard_funding_controller",
+    "wonderbane_extension_guard_funding_channel",
+})
+
+
 REQUIRED_TARGETED_ACTION_TESTS = frozenset({
     "wonderbane_extension_targeted_action_trace",
     "wonderbane_extension_targeted_action_trace_rollback",
@@ -257,6 +267,8 @@ def main() -> int:
             "door_native_collection.cpp",
             "building_native_target.cpp",
             "vendor_navigation_native.cpp",
+            "guard_upgrade_native.cpp",
+            "guard_funding_native.cpp",
             "movement_native_stop.cpp",
             "movement_native_ui.cpp",
             "movement_windows_input.cpp",
@@ -374,6 +386,7 @@ def main() -> int:
         }
         required_native_tests.update(REQUIRED_TARGETED_ACTION_TESTS)
         required_native_tests.update(REQUIRED_VENDOR_TESTS)
+        required_native_tests.update(REQUIRED_GUARD_TESTS)
         profile_failures = validate_native_results(
             native_results, required_native_tests,
             diagnostic=False, exit_code=native_exit,

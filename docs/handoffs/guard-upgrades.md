@@ -763,3 +763,16 @@ no command, gold movement or upgrade was sent. Host/native remain installed at
 0.3.18/1.8.9. Next active todo is a coherent versioned package, followed by restart
 and live qualification. Town coverage and positive maximum-rank detection remain
 unfinished. Do not reset or reuse old native requests or crafting journals.
+
+
+## Versioned source for coherent packaging
+
+Manager checkpoint 85a2215 is pushed. The packaging source is now host 0.3.19 and
+full extension 1.8.10. It contains WBN3/WBG3 navigation/guard receipts and WBF1
+funding receipts, and must replace host/native together after game closure.
+The package builder now requires all six guard native/controller/channel suites
+to execute exactly once and pass for both profiles, and checks that guard native
+sources each have one runtime owner. The existing packaging workflow retains its
+full Python/Ruff, Win32, real IPC, installed-wheel and image-binding gates.
+Versioning is not a deployment or live acceptance claim. The existing 0.3.18/1.8.9
+runtime and its unresolved PID 9428 navigation remain untouched.
