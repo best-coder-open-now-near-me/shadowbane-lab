@@ -790,3 +790,15 @@ for activation. See [package validation and next steps](guard-upgrades-1.8.10.md
 Current active todo: activate the verified package after confirmed game closure,
 then qualify the live funding/guard sequence. Full-town coverage and positive
 maximum-rank qualification remain pending. Do not rebuild a documentation-only tip.
+
+## Activated 1.8.10 guard manager
+
+The staged full extension 1.8.10 / host 0.3.19 update is now activated through the
+existing shortcuts. Read-only loaded-artifact and process-lifetime checks passed;
+the manager has a healthy worker and exposes the guard controls. Historical
+journals were preserved. No game actions or gold movement were sent by activation.
+
+Active todo: live funding/guard qualification after login. Positive maximum-rank
+evidence, full-town coverage and review/integration remain pending. See the
+[current handoff](guard-upgrades-1.8.10.md). Private activation/rollback evidence
+remains in local task artifacts.

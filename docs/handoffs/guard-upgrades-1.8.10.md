@@ -29,15 +29,19 @@ complete town census.
 
 ## Next steps
 
-The coherent host/native update is prepared but not activated. The user has been
-asked to close the running game before replacing its loaded extension. Next:
-activate the verified package, verify loaded identity, then qualify the live
-funding/guard sequence. Keep the existing shortcuts and historical journals.
-Do not replay unresolved actions or rebuild a later documentation-only commit.
+The coherent host/native update is activated. The existing shortcuts were kept,
+the dashboard now selects host 0.3.19, and the launched game reports full extension
+1.8.10. Read-only verification matched the loaded artifact and native action
+channel to the new game-process lifetime. The manager reports a healthy worker
+and available guard controls. Activation preserved historical journals and did
+not submit game actions or move gold.
+
+Next: qualify the live funding/guard sequence after login. Do not replay unresolved
+actions or rebuild a later documentation-only commit.
 
 Local activation instructions, rollback information, exact file hashes and build
 logs are retained in the ignored task artifacts. No private deployment records
 or binaries are included in this source handoff.
 
-Remaining after activation: live qualification, positive maximum-rank evidence,
+Remaining: live qualification, positive maximum-rank evidence,
 full-town membership/coverage, and review/integration into the shared branch.
