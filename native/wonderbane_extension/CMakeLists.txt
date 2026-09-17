@@ -34,6 +34,7 @@ add_library(
   movement_runtime.cpp
   vendor_runtime.cpp
   vendor_native.cpp
+  guard_upgrade_native.cpp
   city_window_native.cpp
   building_native_target.cpp
   vendor_navigation_native.cpp
@@ -1209,7 +1210,7 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  add_executable(wonderbane_extension_vendor_navigation_native_test vendor_navigation_native_test.cpp vendor_navigation_native.cpp)
+  add_executable(wonderbane_extension_vendor_navigation_native_test vendor_navigation_native_test.cpp vendor_navigation_native.cpp guard_upgrade_native.cpp)
   target_compile_features(wonderbane_extension_vendor_navigation_native_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_vendor_navigation_native_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_vendor_navigation_native_test PRIVATE /W4 /WX /permissive- /utf-8)
@@ -1224,4 +1225,22 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_vendor_navigation_channel_test PRIVATE /W4 /WX /permissive- /utf-8)
   add_test(NAME wonderbane_extension_vendor_navigation_channel COMMAND wonderbane_extension_vendor_navigation_channel_test)
   set_tests_properties(wonderbane_extension_vendor_navigation_channel PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_guard_upgrade_controller_test guard_upgrade_controller_test.cpp)
+  target_compile_features(wonderbane_extension_guard_upgrade_controller_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_guard_upgrade_controller_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_guard_upgrade_controller_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_guard_upgrade_controller COMMAND wonderbane_extension_guard_upgrade_controller_test)
+  set_tests_properties(wonderbane_extension_guard_upgrade_controller PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_guard_upgrade_channel_test guard_upgrade_channel_test.cpp movement_controls.cpp)
+  target_compile_features(wonderbane_extension_guard_upgrade_channel_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_guard_upgrade_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_guard_upgrade_channel_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_guard_upgrade_channel COMMAND wonderbane_extension_guard_upgrade_channel_test)
+  set_tests_properties(wonderbane_extension_guard_upgrade_channel PROPERTIES TIMEOUT 15)
 endif()

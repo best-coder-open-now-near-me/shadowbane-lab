@@ -14,8 +14,8 @@ current costs and funds for each request; avoid already-upgrading or maximum-ran
 guards. Do not infer a shared town balance from one building's funds or assume
 all guard types use the same cost. The user identified warehouse gold as the funding source after confirming the
 structure has no upgrade funds. Warehouse withdrawal and structure deposits
-are now required parts of the feature; their limits and outcomes still need
-qualification. Do not claim that a button's availability establishes enough money.
+are required parts of the feature. The user-operated bounded transfer is
+qualified; automatic transfer commands and durable receipts remain unfinished. Do not claim that a button's availability establishes enough money.
 
 ## Completed observation slice
 
@@ -50,8 +50,9 @@ Static evidence, RVAs in reviewed source executable ac9ca464:
 - Displayed building funds come from manager +0x1cc at 0x6d3e1d. This is not
   evidence about the player's purse, a guild bank, or funds in other structures.
 - The ordinary confirmation text is CityAssetMessage:UpgradeHireling at
-  string RVA 0x1348c80. Its handler, request/response and timer acceptance
-  still need qualification; no raw native request or force-upgrade path is used.
+  string RVA 0x1348c80. The ordinary handler is now traced and implemented in the native command
+  boundary below; automatic submission still needs live qualification. No raw
+  packet construction or force-upgrade path is used.
 
 ## Validation and current todos
 
@@ -68,11 +69,13 @@ Static evidence, RVAs in reviewed source executable ac9ca464:
   deposit, vendor roster and production-queue tests pass, and targeted Ruff passes.
 - [x] Add native and host guard navigation with distinct type-37 admission,
   exact-key response correlation and immutable duplicate-request receipts.
-- [ ] Active: implement funding and upgrade commands with correlated receipts
-  and character/scene ownership.
+- [x] Implement native/host funded guard-upgrade commands, ordinary confirmation
+  callback, exact before-state admission and correlated observed progress/debit.
+- [ ] Active: implement automatic warehouse withdrawal/structure deposit and
+  durable host receipts with character/scene ownership.
 - [ ] Qualify automatic navigation across guard structures and other guard types.
-- [ ] Implement typed upgrade commands, durable per-guard receipts, no-replay
-  handling, funding checks and a maximum-rank scheduler with finite work per pass.
+- [ ] Connect durable per-guard host receipts and the maximum-rank scheduler
+  with finite work per pass; retain every uncertain action without replay.
 - [ ] Present progress and unresolved/blocked guards in the manager; validate the
   full flow and integrate through the branches above.
 
@@ -205,3 +208,46 @@ pass, including native/host byte agreement; targeted Ruff passes. This is source
 validation only. Keep the installed 1.8.9 extension until the complete funding and
 upgrade flow is ready for a versioned deployment. No automatic guard or gold
 action has been run.
+
+## Funded guard-upgrade command source checkpoint
+
+The dedicated native and host wire protocol uses inspect opcode 17 and upgrade
+opcode 18. The 128-byte snapshot embeds the exact navigation/scene identity plus
+selected rank, price, displayed structure balance, upgrade flags and named
+control identities. Upgrading guards, visible progress bars, unavailable controls,
+unfunded requests, stale scenes and type-42 crafting vendors are rejected.
+The final invocation re-reads ownership, state, foreground and producer lease
+on the owning game thread. A guard action in flight or unresolved also blocks
+other navigation/crafting actions from replacing its context.
+
+Static trace: live BTNUPGRADE's first action at control +0x1d0 is 0x58b, with
+zero parameter at +0x1d4. Dispatch 0x6ca396 creates UpgradeHireling confirmation
+in manager mode 20. Its ordinary Yes action 0x458 reaches 0x6c5e3a, which calls
+thunk 0x92a0 -> 0x6d7c70. That void method uses manager +0x384 for the selected
+hireling and +0xf8 for the displayed building, and emits the ordinary upgrade
+request. The native integration calls this ordinary confirmed action after its
+own exact typed/cost/funds checks. It does not call the adjacent mode-19 method.
+
+Each native request UUID retains its original receipt for the process lifetime.
+An accepted local invocation is only submitted. Subsequent observation must
+match the same scene, manager, building, guard and controls, with the exact
+quoted debit plus visible upgrading progress or a one-rank increase. Partial
+observations remain pending; contradictory balances/identity/ranks or a 15-second
+response timeout latch unresolved. A late response does not clear the latch.
+Host upgrade timeouts never retry automatically. Native receipts are not durable
+across a client restart; the unfinished host transaction journal must be completed
+before exposing this flow through the dashboard.
+
+Purse getter research: the observed player +0x688 interface has vtable RVA
+0x11415e4; slot +4 resolves via 0x1c49f to 0x4bc10. It obtains an inventory gold
+object through slot zero (0x1686f -> 0x4bc70), then reads that object's +0x690.
+Do not incorrectly read player +0x690 as purse gold. This accessor has not been
+invoked by the agent. Warehouse withdrawal builder 0x69e380 configures ACCEPT
+action 0x1009 and CANCEL 0x100b; this is separate from structure deposit mode 13.
+
+Validation: full Win32 extension build, all 11 native guard/navigation/vendor/city
+suites, focused Python protocol/observation/action-channel regressions and Ruff.
+A bounded read of the existing live menu still showed the prior guard upgrading;
+no second request was sent. No new DLL or host is installed and no automatic
+funding or upgrade operation has run. Keep native 1.8.9 installed until the full
+funding/journal/scheduler flow has a versioned, validated deployment.

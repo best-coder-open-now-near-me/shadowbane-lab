@@ -695,12 +695,14 @@ class WindowsNativeActionCommandTransport:
         timeout_ms: int,
     ) -> NativeActionResult:
         from .city_window_session import NativeCityWindowCommand
+        from .guard_upgrade_session import NativeGuardUpgradeCommand
         from .vendor_navigation_session import NativeVendorNavigationCommand
         from .vendor_session import NativeVendorCommand
 
         if not isinstance(
             command, (NativeActionCommand, NativeMovementCommand,
-                      NativeVendorCommand, NativeCityWindowCommand, NativeVendorNavigationCommand)
+                      NativeVendorCommand, NativeCityWindowCommand, NativeVendorNavigationCommand,
+                      NativeGuardUpgradeCommand)
         ):
             raise ValueError("command must be a supported native command")
         if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or timeout_ms <= 0:

@@ -1,7 +1,9 @@
 #include "vendor_navigation_native.h"
+#include "guard_upgrade_native.h"
 #undef NDEBUG
 #include <cassert>
 #include <cstring>
+#include <cwchar>
 namespace n = wonderbane::extension::vendor_navigation;
 namespace m = wonderbane::extension::movement;
 bool live = true;
@@ -86,5 +88,43 @@ int main() {
     live = false; assert(!capture()); live = true;
     assert(capture() && find());
     assert(!n::InvokeVendor(base, {}, {777, 42}));
+    const auto ghud = base + 0x11000, gnode = base + 0x12000, children = base + 0x13000;
+    word(manager + 0x78, ghud); word(manager + 0x50, 1); word(manager + 0x384, entry);
+    word(entry + 0x14, 37); word(entry + 0x28, 1);
+    word(ghud, base + 0x116a058); word(ghud + 0x104, manager);
+    word(head, gnode); word(gnode, node); word(gnode + 4, head); word(gnode + 8, ghud);
+    word(node + 4, gnode);
+    vector(ghud + 0x54, children, 3);
+    const wchar_t* names[] = {L"BTNUPGRADE", L"SLIDEUPGRADE", L"BTNUPGRADECOST"};
+    for (unsigned i = 0; i < 3; ++i) {
+        const auto button = base + 0x14000 + 0x1000 * i, text = base + 0x17000 + 0x100 * i;
+        const auto length = static_cast<unsigned>(std::wcslen(names[i]) * 2);
+        word(children + 4 * i, button); word(button, base + 0x1169ec0); word(button + 0x3bc, ghud);
+        std::memcpy(reinterpret_cast<void*>(text), names[i], length);
+        word(button + 0x168, text); word(button + 0x16c, text + length); word(button + 0x170, text + length);
+    }
+    const auto upgrade = base + 0x14000, progress = base + 0x15000;
+    word(upgrade + 0x1d0, 0x58b); word(progress + 0x304, 0x100);
+    word(manager + 0x274, 100); word(manager + 0x1cc, 150); word(manager + 0x2ac, 0x100);
+    namespace g = wonderbane::extension::guard_upgrade;
+    g::wire::Snapshot guard{}; bool top = false;
+    auto capture_guard = [&] { const bool ok = g::Capture(base, scene, guard, top); guard.navigation.revision = 1; return ok; };
+    assert(capture_guard() && top && g::wire::Eligible(guard));
+    word(manager + 0x2ac, 0x101); assert(capture_guard() && !g::wire::Eligible(guard));
+    word(progress + 0x304, 0); assert(capture_guard() && guard.control_flags == 7);
+    word(manager + 0x2ac, 0x100); assert(capture_guard() && !g::wire::Eligible(guard));
+    word(progress + 0x304, 0x100); word(manager + 0x1cc, 99);
+    assert(capture_guard() && !g::wire::Eligible(guard));
+    word(manager + 0x1cc, 150);
+    word(upgrade + 0x1d0, 0x58a); assert(!capture_guard()); word(upgrade + 0x1d0, 0x58b);
+    word(upgrade + 0x1d4, 20); assert(!capture_guard()); word(upgrade + 0x1d4, 0);
+    word(base + 0x16000 + 0x3bc, hud); assert(!capture_guard()); word(base + 0x16000 + 0x3bc, ghud);
+    word(manager + 0x50, 0); assert(!capture_guard()); word(manager + 0x50, 1);
+    word(entry + 0x14, 42); assert(!capture_guard()); word(entry + 0x14, 37);
+    word(manager + 0x2ac, 0x200); assert(!capture_guard()); word(manager + 0x2ac, 0x100);
+    word(children + 8, upgrade); assert(!capture_guard()); word(children + 8, base + 0x16000);
+    assert(capture_guard() && g::wire::Eligible(guard));
+    live = false; assert(!capture_guard()); live = true;
+    assert(!g::Invoke(base, {}));
     assert(VirtualFree(memory, 0, MEM_RELEASE));
 }

@@ -27,13 +27,13 @@ is implied by later source commits. Reuse accepted navigation and movement evide
 
 `codex/guard-upgrades` starts at vendor checkpoint `61e6fd8` in its own worktree.
 The user wants guards upgraded toward maximum rank as available gold permits.
-A live-qualified read-only guard observer and CLI are implemented; commands,
-town coverage, funding behavior and scheduling remain unfinished. The user
-confirmed warehouse-to-structure funding is required. Withdrawal limits and quote
-ownership are observed, including revalidation after a character switch. A
-user-operated bounded deposit and guard upgrade start are now verified. Typed
-input deposit observation is implemented; 100 focused tests pass. Next are native
-action integration and the town scheduler. Review this lane into
+Read-only guard/deposit observers are live-qualified. Native/host source now
+supports distinct guard navigation and funded guard-upgrade commands with exact
+ownership, quoted-cost admission, immutable submission receipts and observed
+progress/debit correlation. A user-operated warehouse withdrawal, structure
+deposit and upgrade start are verified. Automatic funding, durable host receipts,
+town coverage and scheduling remain unfinished; no new build is deployed.
+Next is warehouse/structure transfer integration, then the durable town scheduler. Review this lane into
 `codex/vendor-rolling`, then the documented integration destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.
