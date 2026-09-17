@@ -483,3 +483,46 @@ Current todos:
 Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
 -> reviewed main. This feature lane remains outside main; review/integration and
 live qualification are still required before claiming delivery of bulk upgrades.
+
+
+## Hireling activation correction after warehouse navigation
+
+The user opened warehouse building management. Read-only ownership checks found
+one Seneschal row and a ready native navigation channel. One exact hireling-open
+request was durably recorded in the guest's guard-qualification directory before
+submission. The installed extension reported SUBMITTED but the selected row and
+building snapshot remained unchanged; its correlated transition timed out and
+latched IN_FLIGHT|UNRESOLVED. The host record is retained as review. No request
+was repeated, reset or cleared, and no gold or upgrade action was sent.
+
+Static inspection explains the failure: row handler RVA 0x61c6e0 with event 1
+sets the selected control, then dispatches that event's action mapping. The live
+row has empty mappings for both event 1 and event 0. Event 1 therefore only
+selects; the activation handler at RVA 0x61c7f0 supplies the default 0x4ce action
+only for event 0. The action getter at RVA 0x5ce080 indexes 36-byte descriptors
+from control+0x1d0. Context label strings are at +0x144, whereas +0x164 names the
+control; the game's persistent main context menu is not warehouse access.
+
+Source navigation now uses the ordinary list selection setter RVA 0x613520
+(list, exact_control), which only assigns list+0x404, then rechecks full owned
+roster membership, selection and action mapping before ordinary event-zero
+activation at RVA 0x61c7f0(control, 0). Only default or explicit 0x4ce activation
+with zero numeric arguments is admitted; other mapped actions and hidden rows
+are rejected. Funding's Gold-row selection remains selection-only, as intended.
+This correction applies to both vendor and guard navigation.
+
+Validation: full Win32 extension build, all 14 focused native suites and 361
+focused Python tests pass. New native callback fixtures prove activation of an
+already-selected row, selection followed by activation, type-37/type-42 dispatch,
+and rejection of different actions, hidden controls, failed selection, detached
+ownership and action changes before activation. The correction is not installed;
+the current game's unresolved attempt must remain retained. No live retry is
+appropriate in that process. A normal client restart during a coherent versioned
+update will supply a new lifetime, without rewriting historical receipts.
+
+Private evidence remains in the guest's guard-qualification/
+warehouse-open-seneschal-20260917.json and host artifacts/guard-upgrades/
+warehouse-context-20260917.png and warehouse-seneschal-result-20260917.png.
+Those artifacts are not source deliverables and were not added to Git.
+Next: inspect the Seneschal's own menu to identify resource-inventory access,
+then finish warehouse traversal and funding/upgrade scheduling before deployment.

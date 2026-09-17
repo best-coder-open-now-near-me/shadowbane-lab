@@ -37,7 +37,9 @@ Native/host funding from owned quotes now checks the live purse, reserve and bot
 balance changes. Quote opening, transfers and upgrades share one durable spending gate. Amount
 windows can now open through verified parent-panel controls. Complete building
 roster observation and typed nearby guard discovery/traversal are source-tested;
-the open-building reader is live-qualified. Full-town coverage and scheduling
+the open-building reader is live-qualified. A live warehouse navigation attempt
+identified a selection-versus-activation defect; its tested native fix is in this
+lane, with the unresolved old request retained and no replay. Full-town coverage and scheduling
 remain unfinished; no new build is deployed. Next is warehouse parent-panel
 access and the durable funding/upgrade scheduler. Review this lane into
 `codex/vendor-rolling`, then the documented integration destination and main.

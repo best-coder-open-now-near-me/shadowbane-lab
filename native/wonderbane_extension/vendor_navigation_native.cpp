@@ -105,7 +105,7 @@ bool FindHirelingControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key
             for (std::size_t k = 0; k < occupied; ++k) { if (keys[k] == key) { return false; } }
             keys[occupied++] = key;
             if (key == wanted) {
-                if (found || r.Word(control + 0x1a8)) { return false; }
+                if (found || r.Word(control + 0x1a8) || (r.Word(control + 0x304) & 0xff00)) { return false; }
                 found = control;
             }
         }
@@ -115,11 +115,25 @@ bool FindHirelingControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key
 bool InvokeHireling(std::uintptr_t base, const wire::Snapshot& s, wire::Key key) noexcept {
     std::uint32_t control = 0;
     if (!FindHirelingControl(base, s, key, control)) { return false; }
+    Reader r;
+    // Event zero is activation. Event one only selects the row when its action
+    // map is empty, so its successful return cannot mean the hireling was opened.
+    const auto action = r.Word(control + 0x1d0);
+    if ((action && action != 0x4ce) || r.Word(control + 0x1d4) || r.Word(control + 0x1d8)) { return false; }
+    const auto list = r.Word(control + 0x458);
+    if (!r.ok) { return false; }
     __try {
-        // Ordinary semantic left-button handler: selects the exact native list
-        // entry, then propagates its menu action. No row-index or pointer writes.
-        using Click = bool (__thiscall*)(void*, std::uint32_t, std::uint32_t);
-        return reinterpret_cast<Click>(base + 0x61c6e0)(reinterpret_cast<void*>(control), 1, 0);
+        // The ordinary list setter only assigns its selected control (+0x404).
+        // Recheck owned membership before activating; never use a row index or
+        // an action copied from some other menu.
+        using Select = void (__thiscall*)(void*, void*);
+        reinterpret_cast<Select>(base + 0x613520)(reinterpret_cast<void*>(list), reinterpret_cast<void*>(control));
+        std::uint32_t checked = 0;
+        if (!FindHirelingControl(base, s, key, checked) || checked != control
+            || r.Word(list + 0x404) != control || r.Word(control + 0x1d0) != action
+            || r.Word(control + 0x1d4) || r.Word(control + 0x1d8) || !r.ok) { return false; }
+        using Activate = bool (__thiscall*)(void*, std::uint32_t);
+        return reinterpret_cast<Activate>(base + 0x61c7f0)(reinterpret_cast<void*>(control), 0);
     } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
 
