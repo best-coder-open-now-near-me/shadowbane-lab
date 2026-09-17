@@ -802,3 +802,15 @@ Active todo: live funding/guard qualification after login. Positive maximum-rank
 evidence, full-town coverage and review/integration remain pending. See the
 [current handoff](guard-upgrades-1.8.10.md). Private activation/rollback evidence
 remains in local task artifacts.
+
+## Menu timing correction activated
+
+Packaged source c1472a6 increases only the bounded navigation response window,
+without resubmitting requests or weakening gold/upgrade confirmation. Full source,
+required native and installed-package validation passed. The corrected full
+extension 1.8.11 / host 0.3.20 is activated and verified through the existing
+shortcuts. See the [current handoff](guard-upgrades-1.8.11.md).
+
+Active todo: resume live funding qualification after login beside the Seneschal.
+The retained unresolved menu request was not reset. No gold was moved. Full-town
+coverage, positive maximum-rank evidence and review/integration remain pending.

@@ -62,5 +62,5 @@ entry still block later actions; a matching late window cannot clear uncertainty
 Tests exercise delayed building/vendor/guard/warehouse responses, delayed full
 funding traversal, discovery without repeated opens, and unchanged spending timeout.
 
-Active: validate/package/stage this correction before requesting game closure.
-The installed version remains 1.8.10 / 0.3.19 until explicit activation.
+Correction validation and activation are complete. The installed version is now
+1.8.11 / 0.3.20. See the [current correction handoff](guard-upgrades-1.8.11.md).
