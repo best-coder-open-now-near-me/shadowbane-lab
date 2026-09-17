@@ -1,6 +1,7 @@
 # Warehouse return ownership: 1.8.12 / 0.3.21
 
-Branch: codex/guard-upgrades. Integration destination: codex/vendor-rolling,
+Branch: codex/guard-upgrades. Exact packaged source: 27c7288 (pushed).
+Integration destination: codex/vendor-rolling,
 then codex/native-lifecycle-hardening, then reviewed main. Not merged; the normal
 main checkout remains untouched. This source follows installed 1.8.11 / 0.3.20.
 
@@ -31,11 +32,22 @@ and durable spending/request records remain unchanged. No wire format changed.
 
 Focused native ownership and HUD snapshot tests passed, including no spatial NPC
 result, wrong/missing/replaced sources, stale admission, failed range, retention
-fault, opening fault and old HUD closure during opening. Full package validation,
-activation and live return qualification are pending.
+fault, opening fault and old HUD closure during opening. The exact-source package
+passed 2,675 host tests (18 skipped), whole-source lint, required native tests in
+both profiles, actual reviewed-image binding, real IPC and installed entry-point,
+panel and wire checks. Six extra installed guard/funding comparisons passed.
+All 61 package artifacts and the archive were independently hash verified.
+Two pre-existing stretch transparency diagnostics remain unresolved per profile;
+this is a diagnostic qualification package, not whole-product acceptance.
 
-Active todo: package and stage the coherent runtime update, then activate after
-game closure and qualify a warehouse return. Next: the complete live funding and
+The full DLL and host package are staged in the test VM. Guest preparation and
+read-only updater validation passed against the existing runtime. The game and
+launcher remain unchanged; 1.8.11 / 0.3.20 is still running. The updater preserves
+all historical worker JSON records, including unresolved requests, and keeps
+rollback copies when applied. Private artifacts retain hashes and exact steps.
+
+Active todo: await confirmed game closure, activate the verified update, then
+qualify a warehouse return. Next: the complete live funding and
 guard-upgrade sequence. Positive maximum-rank evidence, full-town coverage and
 review/integration remain unfinished. No automatic gold transfer or guard upgrade
 has been submitted during this qualification. Retain all old unresolved requests.

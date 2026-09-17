@@ -55,8 +55,9 @@ The manager now admits guard work through exact worker permits and exposes
 discovery, exact prepared-plan start, pause/resume/stop and confirmed progress.
 Full native 1.8.11 / host 0.3.20 is installed and verified. Live building navigation
 and the warehouse panel's retained NPC ownership are confirmed. Source 1.8.12 /
-0.3.21 uses that exact owned NPC for warehouse return visits; packaging and live
-qualification are next. Maximum-rank and full-town evidence remain unfinished.
+0.3.21 (source 27c7288) uses that exact owned NPC for warehouse return visits.
+Package and guest staging checks passed; activation awaits game closure, then
+live return qualification. Maximum-rank and full-town evidence remain unfinished.
 See [warehouse return ownership and next work](handoffs/guard-upgrades-1.8.12.md).
 Review this lane into `codex/vendor-rolling`, then the documented integration
 destination and main.
