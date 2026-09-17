@@ -793,6 +793,13 @@ def _parser() -> argparse.ArgumentParser:
         help="read the vendor menu or the building menu before selecting a vendor",
     )
 
+    observe_guard_upgrade = client_commands.add_parser(
+        "observe-native-guard-upgrade",
+        help="inspect the selected guard's upgrade and building roster",
+    )
+    observe_guard_upgrade.add_argument("--process-id", required=True, type=int)
+    observe_guard_upgrade.add_argument("--json", action="store_true")
+
     observe_vendor_queue = client_commands.add_parser(
         "observe-native-vendor-queue", help="read the current vendor menu's production slots"
     )

@@ -1692,3 +1692,27 @@ def keep_vendor_batch(
         print(f"Kept {summary['kept']} items; "
               f"{summary['excluded']} excluded items remain in production.")
     return 0 if result["state"] == "complete" else 2
+
+
+def observe_native_guard_upgrade(process_id: int, *, as_json: bool) -> int:
+    from shadowbane_lab.client_observation.native_guard_upgrade import read_native_guard_upgrade
+    from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
+
+    try:
+        memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", process_id)
+        try:
+            snapshot = read_native_guard_upgrade(memory)
+        finally:
+            memory.close()
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _error(f"native guard upgrade unavailable: {exc}", as_json=as_json)
+    if as_json:
+        print(json.dumps({"ok": True, "snapshot": snapshot}, sort_keys=True))
+    else:
+        print(f"{snapshot['building_name']}: {len(snapshot['hirelings'])} hirelings.")
+        for row in snapshot["hirelings"]:
+            print(f"  {row['display_name']}: rank {row['rank']}")
+        print(f"Selected guard upgrade: {snapshot['upgrade_cost_gold']:,} gold; "
+              f"in progress: {snapshot['upgrade_in_progress']}.")
+        print("Observation only; no upgrade requested and town coverage is unverified.")
+    return 0

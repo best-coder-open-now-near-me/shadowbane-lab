@@ -23,6 +23,18 @@ bundle or PvP completion is claimed. The integration branch remains
 `codex/native-lifecycle-hardening`; main remains unchanged. No new installation
 is implied by later source commits. Reuse accepted navigation and movement evidence.
 
+## Guard-upgrade detour — September 17
+
+`codex/guard-upgrades` starts at vendor checkpoint `61e6fd8` in its own worktree.
+The user wants guards upgraded toward maximum rank as available gold permits.
+A live-qualified read-only guard observer and CLI are implemented; commands,
+town coverage, funding behavior and scheduling remain unfinished. The user
+confirmed warehouse-to-structure funding is required. Next are withdrawal limits
+and structure deposits, followed by one upgrade's server-response qualification. Review this lane into
+`codex/vendor-rolling`, then the documented integration destination and main.
+See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
+The normal main checkout and unfinished vendor branch remain untouched.
+
 ## Vendor overlay — September 14
 
 September 15: the correct full native 1.8.8 / host 0.3.17 is installed and its
