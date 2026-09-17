@@ -121,6 +121,16 @@ int main() {
     f::wire::Snapshot s{}; bool top = false;
     auto capture = [&](std::uint32_t direction = 1) { bool ok = f::Capture(base, scene, direction, s, top); s.revision = 1; return ok; };
     assert(capture() && top && s.balance == 1000 && s.reserve == 50 && s.purse == 500 && s.entered == 950);
+    const auto channel = base + 0x80000, channel_node = base + 0x81000;
+    Word(channel, base + 0x11659d8); Word(channel_node + 8, channel);
+    Word(head, channel_node); Word(channel_node + 4, head); Word(channel_node, qnode);
+    Word(qnode + 4, channel_node);
+    assert(capture() && top); // Chat ordering does not block a verified transaction window.
+    Word(channel, base + 0x1168044); assert(capture() && !top); // An amount dialog still blocks.
+    Word(channel, base + 0x1174884); assert(capture() && !top); // Unknown HUDs still block.
+    Word(channel_node, channel_node); assert(!capture()); // Still validate the complete owned list.
+    Word(channel_node, qnode); Word(head, qnode); Word(qnode + 4, head);
+    assert(capture() && top);
     const auto warehouse = s;
     for (const auto [address, replacement] : {
         std::pair{owner + 0x1c, 8U}, {quote + 0x388, 124U}, {quote + 0x108, owner},

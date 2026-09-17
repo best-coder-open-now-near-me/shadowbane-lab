@@ -182,6 +182,16 @@ int main() {
     g::wire::Snapshot guard{}; bool top = false;
     auto capture_guard = [&] { const bool ok = g::Capture(base, scene, guard, top); guard.navigation.revision = 1; return ok; };
     assert(capture_guard() && top && g::wire::Eligible(guard));
+    const auto channel = base + 0x80000, channel_node = base + 0x81000;
+    word(channel, base + 0x11659d8); word(channel_node + 8, channel);
+    word(head, channel_node); word(channel_node + 4, head); word(channel_node, gnode);
+    word(gnode + 4, channel_node);
+    assert(capture_guard() && top); // Chat ordering does not block a verified transaction window.
+    word(channel, base + 0x1168044); assert(capture_guard() && !top); // An amount dialog still blocks.
+    word(channel, base + 0x1174884); assert(capture_guard() && !top); // Unknown HUDs still block.
+    word(channel_node, channel_node); assert(!capture_guard()); // Still validate the complete owned list.
+    word(channel_node, gnode); word(head, gnode); word(gnode + 4, head);
+    assert(capture_guard() && top);
     word(manager + 0x2ac, 0x101); assert(capture_guard() && !g::wire::Eligible(guard));
     word(progress + 0x304, 0); assert(capture_guard() && guard.control_flags == 7);
     word(manager + 0x2ac, 0x100); assert(capture_guard() && !g::wire::Eligible(guard));

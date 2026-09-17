@@ -69,8 +69,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
         }
         if (progress && !hidden) { s.control_flags |= 4; }
     }
-    const auto head = r.Word(n.root + 0x20), node = r.Word(head);
-    top = r.Word(node + 8) == n.vendor_hud;
+    top = n.front_hud && n.front_hud == n.vendor_hud;
     if (!r.ok || !cost_control || !wire::ValidSnapshot(s) || !movement::NativeMovementLifetimeCurrent(scene)) {
         top = false; return false;
     }

@@ -56,9 +56,11 @@ discovery, exact prepared-plan start, pause/resume/stop and confirmed progress.
 Full native 1.8.12 / host 0.3.21 (source 27c7288) is installed and verified.
 The warehouse panel's retained NPC ownership is confirmed; the correction uses
 that exact owned NPC for return visits. Package, guest activation, loaded module
-and manager checks passed. User login and live return qualification are next.
+and manager checks passed. Live return qualification found a chat window ahead
+of the opened tower; the unresolved request is retained. Source 1.8.13 / 0.3.22
+corrects chat ordering across native transactions; packaging is next.
 Maximum-rank and full-town evidence remain unfinished.
-See [warehouse return ownership and next work](handoffs/guard-upgrades-1.8.12.md).
+See [chat ordering correction and next work](handoffs/guard-upgrades-1.8.13.md).
 Review this lane into `codex/vendor-rolling`, then the documented integration
 destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).

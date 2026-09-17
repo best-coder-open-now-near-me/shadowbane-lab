@@ -45,6 +45,16 @@ int main() {
     w::Snapshot s{}; bool inventory = false, top = false;
     auto capture = [&]() { return v::Capture(base, scene, s, 0, inventory, top); };
     assert(capture() && top && !inventory && w::RandomScepter(s));
+    const auto channel = base + 0x80000, channel_node = base + 0x81000;
+    word(channel, base + 0x11659d8); word(channel_node + 8, channel);
+    word(head, channel_node); word(channel_node + 4, head); word(channel_node, node);
+    word(node + 4, channel_node);
+    assert(capture() && top); // Chat ordering does not block a verified transaction window.
+    word(channel, base + 0x1168044); assert(capture() && !top); // An amount dialog still blocks.
+    word(channel, base + 0x1174884); assert(capture() && !top); // Unknown HUDs still block.
+    word(channel_node, channel_node); assert(!capture()); // Still validate the complete owned list.
+    word(channel_node, node); word(head, node); word(node + 4, head);
+    assert(capture() && top);
     assert(s.count == 1 && s.slots[0].state == 0 && s.vendor == 2517204);
     word(entry + 0x10, 4294925624U); word(entry + 0x14, 40); word(entry + 0x58, 0x10101);
     assert(capture() && s.slots[0].state == 2);

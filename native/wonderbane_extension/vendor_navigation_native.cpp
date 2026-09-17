@@ -1,3 +1,4 @@
+#include "native_hud_order.h"
 #include "vendor_navigation_native.h"
 #include <array>
 #include <cstring>
@@ -65,7 +66,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
         if (count == seen.size()) { return false; }
         const auto hud = r.Word(node + 8);
         for (std::size_t i = 0; i < count; ++i) { if (seen[i] == node || huds[i] == hud) { return false; } }
-        if (!count) { s.front_hud = hud; }
+        ObserveActionFront(s.front_hud, base, hud, r.Word(hud));
         seen[count] = node; huds[count++] = hud; r.Require(node + 4, previous);
         if (hud && hud == s.building_hud) { s.visible |= 1; }
         if (hud && hud == s.vendor_hud) { s.visible |= 2; }

@@ -1,3 +1,4 @@
+#include "native_hud_order.h"
 #include "guard_funding_native.h"
 #include <algorithm>
 #include <array>
@@ -241,10 +242,12 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, std::uint3
     const auto head = r.Word(s.root + 0x20), tail = r.Word(head + 4);
     auto node = r.Word(head), previous = head;
     std::array<std::uint32_t, 128> nodes{}, huds{}; std::size_t count = 0;
+    std::uint32_t front = 0;
     while (r.ok && node != head) {
         if (count == nodes.size()) { return false; }
         const auto hud = r.Word(node + 8);
         if (!hud) { return false; }
+        ObserveActionFront(front, base, hud, r.Word(hud));
         for (std::size_t i = 0; i < count; ++i) { if (nodes[i] == node || huds[i] == hud) { return false; } }
         nodes[count] = node; huds[count++] = hud;
         r.Require(node + 4, previous); previous = node; node = r.Word(node);
@@ -270,7 +273,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, std::uint3
     const auto active = [&](std::uint32_t hud) { return std::find(huds.begin(), huds.begin() + count, hud) != huds.begin() + count; };
     if (!active(s.hud) || (s.quote && (!active(s.quote) || !Quote(r, base, s)))) { return false; }
     if (!r.ok || !wire::ValidSnapshot(s) || !movement::NativeMovementLifetimeCurrent(scene)) { return false; }
-    top = count && huds[0] == (s.quote ? s.quote : s.hud);
+    top = front && front == (s.quote ? s.quote : s.hud);
     s.revision = 0; out = s; return true;
 }
 bool InvokeOpen(std::uintptr_t base, const movement::NativeScene& scene, const wire::Command& c,

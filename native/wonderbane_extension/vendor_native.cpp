@@ -1,3 +1,4 @@
+#include "native_hud_order.h"
 #include "vendor_native.h"
 #include <algorithm>
 #include <array>
@@ -51,6 +52,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
     s.vendor = r.Word(s.hireling + 0x10); r.Require(s.hireling + 0x14, 42);
     std::array<std::uint32_t, 128> huds{}, nodes{};
     std::size_t hud_count = 0;
+    std::uint32_t front = 0;
     const auto head = r.Word(s.root + 0x20), tail = r.Word(head + 4);
     auto node = r.Word(head), previous = head;
     while (r.ok && node != head) {
@@ -58,6 +60,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
         for (std::size_t i = 0; i < hud_count; ++i) { if (nodes[i] == node) { return false; } }
         r.Require(node + 4, previous); nodes[hud_count] = node;
         const auto hud = r.Word(node + 8);
+        ObserveActionFront(front, base, hud, r.Word(hud));
         for (std::size_t i = 0; i < hud_count; ++i) { if (huds[i] == hud) { return false; } }
         huds[hud_count++] = hud; previous = node; node = r.Word(node);
     }
@@ -133,7 +136,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
             }
         }
     }
-    top_menu = huds[0] == s.menu || huds[0] == s.recipe || huds[0] == s.inventory;
+    top_menu = front && (front == s.menu || front == s.recipe || front == s.inventory);
     std::sort(s.slots.begin(), s.slots.begin() + s.count, [](const auto& a, const auto& b) { return a.entry < b.entry; });
     s.revision = 1;
     if (!r.ok || !wire::ValidSnapshot(s) || !movement::NativeMovementLifetimeCurrent(scene)) { return false; }

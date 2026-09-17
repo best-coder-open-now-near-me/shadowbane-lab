@@ -49,8 +49,8 @@ read-only action-channel process identity all passed. All 108 retained records
 and settings were unchanged; rollback copies and private verification receipts
 remain local. No game action was submitted during activation.
 
-Active todo: user login beside the Seneschal and initial View Resources opening,
-then qualify automatic warehouse return. Next: the complete live funding and
-guard-upgrade sequence. Positive maximum-rank evidence, full-town coverage and
-review/integration remain unfinished. No automatic gold transfer or guard upgrade
-has been submitted during this qualification. Retain all old unresolved requests.
+Live follow-up submitted one tower open. The owned tower roster appeared, but
+chat stayed ahead of it in the active HUD list, so the front-window requirement
+left the request unresolved. No return or spending followed. The request is
+retained without retry. See [chat window ordering](guard-upgrades-1.8.13.md) for
+the consistent native correction and remaining work.
