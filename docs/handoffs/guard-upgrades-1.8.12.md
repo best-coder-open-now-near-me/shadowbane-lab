@@ -40,14 +40,17 @@ All 61 package artifacts and the archive were independently hash verified.
 Two pre-existing stretch transparency diagnostics remain unresolved per profile;
 this is a diagnostic qualification package, not whole-product acceptance.
 
-The full DLL and host package are staged in the test VM. Guest preparation and
-read-only updater validation passed against the existing runtime. The game and
-launcher remain unchanged; 1.8.11 / 0.3.20 is still running. The updater preserves
-all historical worker JSON records, including unresolved requests, and keeps
-rollback copies when applied. Private artifacts retain hashes and exact steps.
+The full DLL and host package are activated after confirmed game closure. The
+idle test manager was restarted automatically; the user did not need to close
+its window. The same desktop game shortcut launched the exact verified full
+1.8.12 extension, and the dashboard shortcut now uses host 0.3.21. Loaded DLL
+version/hash, installed host source, healthy guard-capable manager and matching
+read-only action-channel process identity all passed. All 108 retained records
+and settings were unchanged; rollback copies and private verification receipts
+remain local. No game action was submitted during activation.
 
-Active todo: await confirmed game closure, activate the verified update, then
-qualify a warehouse return. Next: the complete live funding and
+Active todo: user login beside the Seneschal and initial View Resources opening,
+then qualify automatic warehouse return. Next: the complete live funding and
 guard-upgrade sequence. Positive maximum-rank evidence, full-town coverage and
 review/integration remain unfinished. No automatic gold transfer or guard upgrade
 has been submitted during this qualification. Retain all old unresolved requests.
