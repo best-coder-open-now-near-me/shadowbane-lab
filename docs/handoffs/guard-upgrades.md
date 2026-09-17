@@ -814,3 +814,12 @@ shortcuts. See the [current handoff](guard-upgrades-1.8.11.md).
 Active todo: resume live funding qualification after login beside the Seneschal.
 The retained unresolved menu request was not reset. No gold was moved. Full-town
 coverage, positive maximum-rank evidence and review/integration remain pending.
+
+## Warehouse return access remains unqualified
+
+The corrected runtime confirmed building opening, but resource opening was
+unavailable even beside the exact Seneschal. Spending remains stopped. Current
+active work is the owned warehouse panel's NPC reference and automatic return
+path; the user has been asked to leave View Resources open, with no withdrawal.
+See the [current qualification status](guard-upgrades-1.8.11.md). No further
+runtime update has been prepared or requested.
