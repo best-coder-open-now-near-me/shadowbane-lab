@@ -10,7 +10,7 @@ from enum import IntEnum
 from .movement_wire import Host, request_bytes
 from .vendor_wire import Outcome, uint
 
-MAGIC, READY, IN_FLIGHT, UNRESOLVED = 0x57424E32, 1, 2, 4
+MAGIC, READY, IN_FLIGHT, UNRESOLVED = 0x57424E33, 1, 2, 4
 _SNAPSHOT = struct.Struct("<QQ20I")
 _COMMAND = struct.Struct("<16sQ16s96s4I424s")
 _RECEIPT = struct.Struct("<16s16sQII96s16sI220s")
@@ -30,7 +30,7 @@ class Snapshot:
     revision: int = 0
     root: int = 0
     manager: int = 0
-    active_manager: int = 0
+    front_hud: int = 0
     mode: int = 0
     building_hud: int = 0
     vendor_hud: int = 0
@@ -53,6 +53,10 @@ class Snapshot:
     def empty(self) -> bool:
         return self == Snapshot()
 
+    def owns_building(self, building_id: int) -> bool:
+        return bool(not self.offline and self.building_id == building_id
+                    and self.building_type == 8 and self.visible & 1)
+
     def opened(self, building_id: int, vendor_id: int = 0, *, hireling_type: int = 42) -> bool:
         return bool(
             not self.offline
@@ -60,17 +64,19 @@ class Snapshot:
             and self.building_type == 8
             and (
                 self.visible & 2
+                and self.front_hud == self.vendor_hud
                 and self.vendor_id == vendor_id
                 and self.vendor_type == hireling_type
                 and hireling_type in (37, 42)
                 if vendor_id
-                else self.visible & 1
+                else self.visible & 1 and self.front_hud == self.building_hud
             )
         )
 
     def warehouse_opened(self, building_id: int, source_id: int) -> bool:
         return bool(
             not self.offline and self.building_id == building_id and self.building_type == 8
+            and self.front_hud == self.warehouse_hud
             and self.warehouse_hud and self.warehouse_object
             and self.warehouse_id == source_id and source_id and self.warehouse_type == 42
         )
@@ -145,7 +151,7 @@ class Command:
         elif verb == Verb.BUILDING and self.vendor_id:
             raise ValueError("building opening cannot carry a vendor")
         elif verb in (Verb.VENDOR, Verb.GUARD, Verb.WAREHOUSE) and (
-            not self.vendor_id or not self.expected.opened(self.building_id)
+            not self.vendor_id or not self.expected.owns_building(self.building_id)
         ):
             raise ValueError("hireling opening needs its active building window")
         return _COMMAND.pack(

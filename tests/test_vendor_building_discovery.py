@@ -69,7 +69,7 @@ class Session:
             self.state = replace(
                 self.state,
                 revision=self.state.revision + 1,
-                active_manager=900 if self.mode == "secondary" else 200,
+                front_hud=500 if vendor else 300,
                 mode=6,
                 building_hud=300,
                 initialized=1,

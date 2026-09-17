@@ -41,7 +41,8 @@ the open-building reader is live-qualified. A live warehouse navigation attempt
 identified a selection-versus-activation defect; its tested native fix is in this
 lane, with the unresolved old request retained and no replay. Warehouse resources
 are now live-observed and distinct from hireling management Inventory. Exact-key
-warehouse access is source-tested with version-2 navigation/guard receipts; ship
+warehouse access is source-tested with version-3 navigation/guard receipts and
+front-window confirmation; ship
 host/native together. Full-town coverage and scheduling remain unfinished; no new
 build is deployed. Guard navigation now shares the durable spending gate, so lost
 window replies block transfers/upgrades across restarts. Next is the persistent

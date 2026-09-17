@@ -605,3 +605,28 @@ command corruption and pending action rejection before city discovery. Native
 source is unchanged from 54f2b57. No runtime was installed and no live game action
 was sent. Next active todo: persistent warehouse-to-building funding and upgrade
 sequencing, then manager controls, town coverage and versioned live qualification.
+
+
+## Front-window readiness before funding
+
+Sequence review found that navigation treated any owned visible HUD as already
+open even when another panel was in front. Funding and guard actions correctly
+require their HUD on top, so that no-op could strand a warehouse/building handoff.
+Navigation now records the first owned HUD-stack member as front_hud, replacing
+the unused last-dispatched-manager field. OwnsBuilding remains a separate parent
+roster admission check, while successful building/hireling/warehouse navigation
+requires the exact target HUD in front. An existing background window therefore
+uses its ordinary opening path and waits for the actual front-window response.
+No arbitrary focus message or OS-input helper was introduced.
+
+This changes word 24 of the snapshot: navigation receipts are now WBN3 and guard
+receipts WBG3. Host/native ship together; prior receipt meanings are rejected.
+The fixed command/snapshot sizes are unchanged. Historical checkpoints above
+record their then-current formats; version 3 is the current source contract.
+
+Validation: full Win32 DLL build, all 15 focused native suites and 397 affected
+Python tests pass. Cases include all four navigation verbs already present behind
+another window, foreground correlation, parent-roster admission behind a hireling,
+wrong-source warehouse responses and a journal that stays pending for a background
+panel. No runtime update or live action occurred. Next remains the persistent
+funding/upgrade sequence, manager integration and coherent live qualification.

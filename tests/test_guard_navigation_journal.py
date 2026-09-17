@@ -30,9 +30,9 @@ from tests.test_guard_upgrade_journal import (
 from tests.test_vendor_navigation import KEY, OPENED, STATE, Transport
 
 HOST = nav.Host(1, 1, 1)
-WAREHOUSE = replace(OPENED, warehouse_hud=800, warehouse_object=900,
+WAREHOUSE = replace(OPENED, warehouse_hud=800, warehouse_object=900, front_hud=800,
                     warehouse_id=777, warehouse_type=42)
-GUARD = replace(OPENED, visible=3, vendor_hud=600, selected_entry=700,
+GUARD = replace(OPENED, visible=3, vendor_hud=600, front_hud=600, selected_entry=700,
                 vendor_id=777, vendor_type=37)
 CASES = [(nav.Verb.BUILDING, STATE, 0, OPENED),
          (nav.Verb.GUARD, OPENED, 777, GUARD),
@@ -106,7 +106,8 @@ def test_lost_navigation_reply_cannot_be_inferred_or_cleared_after_restart(
 
 
 @pytest.mark.parametrize("change", ["warehouse", "building", "scene", "manager", "type",
-                                    "lease", "request", "pending", "unresolved", "lifetime"])
+                                    "lease", "request", "pending", "unresolved", "lifetime",
+                                    "background"])
 def test_wrong_or_partial_warehouse_response_never_unlocks_spending(tmp_path, change):
     journal = GuardSpendingJournal(tmp_path)
     c = command()
@@ -114,7 +115,9 @@ def test_wrong_or_partial_warehouse_response_never_unlocks_spending(tmp_path, ch
                    navigation_verb=nav.Verb.WAREHOUSE)
     r = receipt(c, WAREHOUSE)
     identity = IDENTITY
-    if change in ("warehouse", "building", "scene", "manager"):
+    if change == "background":
+        r = replace(r, snapshot=replace(WAREHOUSE, front_hud=999))
+    elif change in ("warehouse", "building", "scene", "manager"):
         field = {"warehouse": "warehouse_id", "building": "building_id"}.get(change, change)
         r = replace(r, snapshot=replace(WAREHOUSE, **{field: 999}))
     elif change == "type":

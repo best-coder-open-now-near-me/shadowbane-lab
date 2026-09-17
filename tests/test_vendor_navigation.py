@@ -33,7 +33,7 @@ OPENED = replace(
     STATE,
     revision=2,
     building_hud=300,
-    active_manager=200,
+    front_hud=300,
     mode=6,
     visible=1,
     initialized=1,
@@ -86,7 +86,7 @@ class Transport:
             0,
             100,
             5760,
-            "native_vendor_navigation_receipt_v2",
+            "native_vendor_navigation_receipt_v3",
             payload,
         )
 
@@ -130,15 +130,21 @@ class VendorNavigationWireTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             replace(vacancy, vendor_hud=500, visible=3).encode()
-        self.assertTrue(replace(vacancy, active_manager=999).opened(123))
+        self.assertFalse(replace(vacancy, front_hud=999).opened(123))
 
-    def test_secondary_action_manager_does_not_replace_visible_hud_ownership(self):
-        building = replace(OPENED, active_manager=999)
+    def test_owned_windows_must_be_in_front_to_complete_navigation(self):
+        building = OPENED
         vendor = replace(
-            building, selected_entry=400, vendor_hud=500, visible=3, vendor_id=777, vendor_type=42
+            building, selected_entry=400, vendor_hud=500, front_hud=500, visible=3,
+            vendor_id=777, vendor_type=42
         )
         self.assertTrue(building.opened(123))
         self.assertTrue(vendor.opened(123, 777))
+        self.assertTrue(vendor.owns_building(123))
+        self.assertFalse(vendor.opened(123))
+        self.assertFalse(replace(vendor, front_hud=999).opened(123, 777))
+        # Another hireling may still be selected from the owned parent roster.
+        Command(Host(1, 1, 1), 1000, KEY, vendor, 123, 778).encode(Verb.VENDOR)
         self.assertFalse(replace(building, visible=0).opened(123))
         self.assertFalse(replace(vendor, visible=1).opened(123, 777))
         self.assertFalse(replace(vendor, offline=1).opened(123, 777))
@@ -147,7 +153,8 @@ class VendorNavigationWireTests(unittest.TestCase):
 
     def test_guard_and_vendor_keys_remain_distinct(self):
         guard = replace(
-            OPENED, selected_entry=400, vendor_hud=500, visible=3, vendor_id=777, vendor_type=37
+            OPENED, selected_entry=400, vendor_hud=500, front_hud=500, visible=3,
+            vendor_id=777, vendor_type=37
         )
         self.assertEqual(guard, Snapshot.decode(guard.encode()))
         self.assertTrue(guard.opened(123, 777, hireling_type=37))
@@ -170,10 +177,11 @@ class VendorNavigationWireTests(unittest.TestCase):
                 Command(Host(1, 1, 1), 1000, KEY, state, building, target).encode(Verb.GUARD)
 
     def test_warehouse_source_is_separate_from_management_inventory(self):
-        state = replace(OPENED, warehouse_hud=800, warehouse_object=900,
+        state = replace(OPENED, warehouse_hud=800, warehouse_object=900, front_hud=800,
                         warehouse_id=777, warehouse_type=42)
         self.assertEqual(state, Snapshot.decode(state.encode()))
         self.assertTrue(state.warehouse_opened(123, 777))
+        self.assertFalse(replace(state, front_hud=999).warehouse_opened(123, 777))
         self.assertFalse(OPENED.warehouse_opened(123, 777))
         for building, source in ((456, 777), (123, 778), (123, 0)):
             self.assertFalse(state.warehouse_opened(building, source))
@@ -202,10 +210,11 @@ class VendorNavigationWireTests(unittest.TestCase):
             bytes(220),
         )
         self.assertEqual(receipt(), Receipt.decode(raw))
-        legacy = bytearray(raw)
-        struct.pack_into("<I", legacy, 160, 0x57424E31)
-        with self.assertRaises(ValueError):
-            Receipt.decode(bytes(legacy))
+        for old_magic in (0x57424E31, 0x57424E32):
+            legacy = bytearray(raw)
+            struct.pack_into("<I", legacy, 160, old_magic)
+            with self.assertRaises(ValueError):
+                Receipt.decode(bytes(legacy))
         for offset in (0, 44, 160, 164):
             data = bytearray(raw)
             if offset == 0:
@@ -248,7 +257,7 @@ class VendorNavigationWireTests(unittest.TestCase):
         state, command, raw = [bytes.fromhex(line) for line in
                                subprocess.check_output([str(exe), "wire", "warehouse"],
                                                        text=True).splitlines()]
-        expected = replace(OPENED, revision=1, active_manager=0, warehouse_hud=600,
+        expected = replace(OPENED, revision=1, front_hud=600, warehouse_hud=600,
                            warehouse_object=700, warehouse_id=777, warehouse_type=42)
         self.assertEqual(expected.encode(), state)
         self.assertEqual(Command(Host(1, 1, 1), 1000, KEY, expected, 123, 777)

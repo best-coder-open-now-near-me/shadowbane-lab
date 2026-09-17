@@ -234,7 +234,6 @@ def test_city_session_uses_production_transport_and_shared_memory_ring(monkeypat
         transport._command_signal = 17  # notification is handled by the fixture peer
         monkeypatch.setattr(transport._kernel, "set_event", consume)
         session = NativeCityWindowSession.__new__(NativeCityWindowSession)
-        session._journal = None
         session.identity = channel.NativeClientProcessIdentity(988, 123)
         session.window = 1000
         session._transport, session._ids, session._closed = transport, itertools.count(1), False
@@ -273,7 +272,7 @@ def test_navigation_session_uses_production_transport_and_shared_memory_ring(mon
     )
 
     transport, memory = _transport("Local\\WonderBane.NavigationTransportTest." + uuid.uuid4().hex)
-    state = Snapshot(1, 1, 100, 200, active_manager=200, mode=6,
+    state = Snapshot(1, 1, 100, 200, front_hud=300, mode=6,
                      building_hud=300, visible=1, initialized=1,
                      building_id=123, building_type=8)
     seen = []
@@ -296,7 +295,7 @@ def test_navigation_session_uses_production_transport_and_shared_memory_ring(mon
             Outcome.OBSERVED if verb == Verb.INSPECT else Outcome.SUBMITTED,
             READY if verb == Verb.INSPECT else 0, state.encode(), bytes(16), MAGIC, bytes(220),
         )
-        detail = b"native_vendor_navigation_receipt_v2"
+        detail = b"native_vendor_navigation_receipt_v3"
         result = channel._RESULT.pack(
             sequence, header[1], sequence,
             channel.NativeActionResultStage.SUBMITTED_TO_CLIENT, 0,

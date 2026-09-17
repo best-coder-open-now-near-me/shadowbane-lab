@@ -87,7 +87,7 @@ class NativeVendorNavigationSession:
             result = transport.submit(
                 NativeVendorNavigationCommand(next(self._ids), verb, command), timeout_ms=750
             )
-            if result.detail != "native_vendor_navigation_receipt_v2":
+            if result.detail != "native_vendor_navigation_receipt_v3":
                 error = (
                     _RetryableInspectionError
                     if verb == Verb.INSPECT

@@ -38,7 +38,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
     s.root = r.Word(base + 0x16a7bfc); if (s.root != scene.window) { return false; }
     r.Require(s.root, static_cast<std::uint32_t>(base + 0x1174884)); r.Require(s.root + 0x64, 2);
     s.manager = r.Word(s.root + 0xa4); r.Require(s.manager, static_cast<std::uint32_t>(base + 0x1171adc));
-    s.active_manager = r.Word(base + 0x16a7c1c); s.mode = r.Word(s.manager + 0xd0);
+    s.mode = r.Word(s.manager + 0xd0);
     s.offline = r.Word(s.manager + 0xd8); s.initialized = r.Word(s.manager + 0x48);
     s.building_hud = r.Word(s.manager + 0x68); s.vendor_hud = r.Word(s.manager + 0x78);
     s.building = r.Key(s.manager + 0xf0);
@@ -65,6 +65,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
         if (count == seen.size()) { return false; }
         const auto hud = r.Word(node + 8);
         for (std::size_t i = 0; i < count; ++i) { if (seen[i] == node || huds[i] == hud) { return false; } }
+        if (!count) { s.front_hud = hud; }
         seen[count] = node; huds[count++] = hud; r.Require(node + 4, previous);
         if (hud && hud == s.building_hud) { s.visible |= 1; }
         if (hud && hud == s.vendor_hud) { s.visible |= 2; }
@@ -86,7 +87,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
 namespace {
 bool FindHirelingControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key wanted, std::uint32_t& found) noexcept {
     found = 0;
-    if (!wire::ValidSnapshot(s) || !wire::Hireling(wanted) || !wire::Opened(s, wire::Verb::building, s.building)) { return false; }
+    if (!wire::ValidSnapshot(s) || !wire::Hireling(wanted) || !wire::OwnsBuilding(s, s.building)) { return false; }
     Reader r; std::array<std::uint32_t, 512> children{};
     const auto child_count = r.Vector(s.building_hud + 0x54, children);
     std::array<wire::Key, 128> keys{}; std::size_t occupied = 0, slots = 0;

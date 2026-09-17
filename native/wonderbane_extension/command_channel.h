@@ -503,7 +503,7 @@ inline DWORD FinishVendorNavigationPending(Runtime& runtime, ULONGLONG now) noex
     movement::wire::Receipt wire_bytes{};
     static_assert(sizeof(wire_bytes) == sizeof(pending->receipt));
     std::memcpy(&wire_bytes, &pending->receipt, sizeof(wire_bytes));
-    constexpr char detail[] = "native_vendor_navigation_receipt_v2";
+    constexpr char detail[] = "native_vendor_navigation_receipt_v3";
     if (!TryPublishResult(*runtime.storage, runtime.result_signal, static_cast<LONG64>(pending->sequence), pending->id,
         accepted ? ClientActionResultStage::submitted_to_client : ClientActionResultStage::rejected_by_client,
         accepted ? ERROR_SUCCESS : ERROR_REQUEST_ABORTED, detail, sizeof(detail) - 1, now,
@@ -533,7 +533,7 @@ inline DWORD FinishGuardUpgradePending(Runtime& runtime, ULONGLONG now) noexcept
     movement::wire::Receipt wire_bytes{};
     static_assert(sizeof(wire_bytes) == sizeof(pending->receipt));
     std::memcpy(&wire_bytes, &pending->receipt, sizeof(wire_bytes));
-    constexpr char detail[] = "native_guard_upgrade_receipt_v2";
+    constexpr char detail[] = "native_guard_upgrade_receipt_v3";
     if (!TryPublishResult(*runtime.storage, runtime.result_signal, static_cast<LONG64>(pending->sequence), pending->id,
         accepted ? ClientActionResultStage::submitted_to_client : ClientActionResultStage::rejected_by_client,
         accepted ? ERROR_SUCCESS : ERROR_REQUEST_ABORTED, detail, sizeof(detail) - 1, now,

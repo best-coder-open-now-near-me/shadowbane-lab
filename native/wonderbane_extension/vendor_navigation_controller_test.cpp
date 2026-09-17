@@ -20,7 +20,7 @@ int main(int argc, char**) {
     if (argc > 2) {
         initial.mode = 6; initial.building_hud = 300; initial.visible = initial.initialized = 1;
         initial.building = {123, 8}; initial.warehouse_hud = 600;
-        initial.warehouse_object = 700; initial.warehouse = {777, 42};
+        initial.warehouse_object = 700; initial.warehouse = {777, 42}; initial.front_hud = 600;
     }
     controller.Observe(initial, true, 10);
     auto command = Request(controller);
@@ -47,7 +47,7 @@ int main(int argc, char**) {
     assert(Is(controller.Execute(w::Verb::building, next, true, true, 11, invoker), w::Outcome::pending));
     assert(invoker.calls == 1);
     auto state = State(); state.mode = 6; state.building_hud = 300; state.initialized = state.visible = 1;
-    state.building = {456, 8}; state.active_manager = 600; // Secondary action owner.
+    state.building = {456, 8}; state.front_hud = 300;
     controller.Observe(state, true, 100); assert(controller.Busy()); // Wrong response cannot resolve.
     state.selected_entry = 350; // A selected vacancy still permits building confirmation.
     state.building = command.building; controller.Observe(state, true, 101); assert(!controller.Busy());
@@ -59,7 +59,7 @@ int main(int argc, char**) {
     assert(invoker.calls == 2);
     state.selected_entry = 400; state.vendor = next.vendor; // Selection alone is not a response.
     controller.Observe(state, true, 102); assert(controller.Busy());
-    state.vendor_hud = 500; state.visible = 3;
+    state.vendor_hud = 500; state.visible = 3; state.front_hud = 500;
     controller.Observe(state, true, 103); assert(!controller.Busy());
     next = Request(controller, 5); next.vendor = state.vendor;
     assert(Is(controller.Execute(w::Verb::vendor, next, true, true, 104, invoker), w::Outcome::observed));
@@ -98,7 +98,7 @@ int main(int argc, char**) {
     assert(Is(warehouses.Execute(w::Verb::warehouse, warehouse_request, true, true, 300, warehouse_invoker), w::Outcome::submitted));
     warehouses.Observe(state, true, 301); assert(warehouses.Busy()); // Management inventory cannot complete it.
     auto warehouse_state = state; warehouse_state.warehouse_hud = 600;
-    warehouse_state.warehouse_object = 700; warehouse_state.warehouse = {888, 42};
+    warehouse_state.warehouse_object = 700; warehouse_state.warehouse = {888, 42}; warehouse_state.front_hud = 600;
     warehouses.Observe(warehouse_state, true, 302); assert(warehouses.Busy());
     warehouse_state.warehouse = {777, 42}; warehouse_state.building = {456, 8};
     warehouses.Observe(warehouse_state, true, 303); assert(warehouses.Busy());
@@ -108,6 +108,23 @@ int main(int argc, char**) {
     auto existing = Request(warehouses, 13); existing.vendor = {777, 42};
     assert(Is(warehouses.Execute(w::Verb::warehouse, existing, true, true, 305, warehouse_invoker), w::Outcome::observed));
     assert(warehouse_invoker.calls == 1);
+    for (const auto verb : {w::Verb::building, w::Verb::vendor, w::Verb::guard, w::Verb::warehouse}) {
+        n::Controller focus; Fake focus_invoker;
+        auto behind = state;
+        behind.vendor = {777, verb == w::Verb::guard ? 37U : 42U};
+        behind.warehouse_hud = 600; behind.warehouse_object = 700; behind.warehouse = {777, 42};
+        behind.front_hud = 999;
+        focus.Observe(behind, true, 400);
+        auto c = Request(focus, 99);
+        if (verb != w::Verb::building) { c.vendor = {777, verb == w::Verb::guard ? 37U : 42U}; }
+        assert(!w::Opened(focus.Current(), verb, c.building, c.vendor));
+        assert(Is(focus.Execute(verb, c, true, true, 400, focus_invoker), w::Outcome::submitted));
+        assert(focus_invoker.calls == 1); // Owned in background is not an already-open no-op.
+        focus.Observe(behind, true, 401); assert(focus.Busy());
+        behind.front_hud = verb == w::Verb::building ? behind.building_hud
+            : (verb == w::Verb::warehouse ? behind.warehouse_hud : behind.vendor_hud);
+        focus.Observe(behind, true, 402); assert(!focus.Busy());
+    }
     for (int mode = 0; mode < 3; ++mode) {
         n::Controller stopped; stopped.Observe(State(), true, 10);
         invoker.outcome = mode == 2 ? w::Outcome::uncertain : w::Outcome::submitted;
@@ -122,6 +139,7 @@ int main(int argc, char**) {
         auto retry = Request(stopped, 44);
         assert(Is(stopped.Execute(w::Verb::building, retry, true, true, 10013, invoker), w::Outcome::pending));
     }
+    state.front_hud = state.building_hud;
     n::Controller bounded; bounded.Observe(state, true, 10);
     for (unsigned i = 1; i <= 4096; ++i) {
         auto c = Request(bounded, i);
