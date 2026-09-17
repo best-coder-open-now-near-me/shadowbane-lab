@@ -66,7 +66,22 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
         if (count == seen.size()) { return false; }
         const auto hud = r.Word(node + 8);
         for (std::size_t i = 0; i < count; ++i) { if (seen[i] == node || huds[i] == hud) { return false; } }
-        ObserveActionFront(s.front_hud, base, hud, r.Word(hud));
+        const auto table = r.Word(hud);
+        bool tree_companion = false;
+        if (!s.front_hud && table == base + 0x116a058 && hud != s.building_hud
+            && s.mode == 6 && s.initialized == 1 && s.building_hud
+            && s.building[0] && s.building[1] == 8) {
+            // Tree management opens its guild panel above the ordinary hireling
+            // roster. It acknowledges the same building, not a different modal.
+            // Restrict this to navigation; spending keeps its own front-HUD gate.
+            const auto owner = r.Word(hud + 0x104);
+            tree_companion = owner && owner == r.Word(s.root + 0x90)
+                && r.Word(owner) == base + 0x11727c4
+                && r.Word(owner + 0x48) == hud
+                && r.Word(owner + 0x5c) == 1
+                && r.Key(owner + 0x110) == s.building;
+        }
+        if (!tree_companion) { ObserveActionFront(s.front_hud, base, hud, table); }
         seen[count] = node; huds[count++] = hud; r.Require(node + 4, previous);
         if (hud && hud == s.building_hud) { s.visible |= 1; }
         if (hud && hud == s.vendor_hud) { s.visible |= 2; }

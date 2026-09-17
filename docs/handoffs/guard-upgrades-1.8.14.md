@@ -73,3 +73,11 @@ The loaded 1.8.14 extension, host 0.3.23 source, new exact game-process identity
 and healthy guard-capable worker were verified again. The game is awaiting login;
 no guard action or gold transfer was submitted. The next todo remains login and
 View Resources, followed by discovery and automatic funding qualification.
+
+## Subsequent live discovery
+
+The fresh warehouse building/resources round trip passed. City Command opened
+and returned 60 nearby structures, qualifying the initial closed-state fix.
+Discovery stopped on the Tree of Life's companion guild panel after its complete
+hireling roster arrived. No gold moved; the unresolved navigation request remains
+blocked. Continue with [the Tree companion correction](guard-upgrades-1.8.15.md).

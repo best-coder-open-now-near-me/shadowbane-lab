@@ -69,6 +69,27 @@ int main() {
     for (const auto row : {entry, empty}) { word(row, base + 0x1169518); word(row + 8, 9); }
     word(entry + 0x10, 777); word(entry + 0x14, 42); word(entry + 0x6c, 0x100);
     assert(capture() && s.visible == 1);
+    const auto tree_manager = base + 0x90000, tree_hud = base + 0x91000, tree_node = base + 0x92000;
+    word(root + 0x90, tree_manager); word(tree_manager, base + 0x11727c4);
+    word(tree_manager + 0x48, tree_hud); word(tree_manager + 0x5c, 1);
+    word(tree_manager + 0x110, 123); word(tree_manager + 0x114, 8);
+    word(tree_hud, base + 0x116a058); word(tree_hud + 0x104, tree_manager);
+    word(head, tree_node); word(tree_node + 4, head); word(tree_node + 8, tree_hud);
+    word(tree_node, node); word(node + 4, tree_node);
+    assert(capture() && s.front_hud == hud && n::wire::Opened(s, n::wire::Verb::building, {123, 8}, {}));
+    for (const auto [address, replacement] : {
+        std::pair{root + 0x90, tree_manager + 4}, {tree_manager, base + 0x1171adc},
+        {tree_manager + 0x48, hud}, {tree_manager + 0x5c, 0U},
+        {tree_manager + 0x110, 124U}, {tree_manager + 0x114, 42U},
+        {tree_hud + 0x104, 0U}, {tree_hud, base + 0x1168044}}) {
+        std::uint32_t saved = 0; std::memcpy(&saved, reinterpret_cast<void*>(address), 4);
+        word(address, replacement);
+        assert(capture() && s.front_hud == tree_hud
+            && !n::wire::Opened(s, n::wire::Verb::building, {123, 8}, {}));
+        word(address, saved);
+    }
+    word(tree_node + 4, tree_node); assert(!capture()); word(tree_node + 4, head);
+    word(head, node); word(node + 4, head); assert(capture() && s.front_hud == hud);
     std::uint32_t found = 0;
     auto find = [&] { return n::FindVendorControl(base, s, {777, 42}, found); };
     assert(find() && found == control);

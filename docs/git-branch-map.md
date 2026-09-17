@@ -62,11 +62,13 @@ tower/warehouse/resources return is now live-qualified. Discovery's first-open
 state and funding's Gold-selection ordering exposed two further blockers before
 any money moved. Native 1.8.14 / host 0.3.23 (source dcc33bc) corrects both.
 Package, installed checks, guest staging and activation verification passed.
-All retained records/settings were preserved. User login/resources opening and
-live discovery/funding qualification are next. Earlier uncertain requests stay
-retained without replay.
+All retained records/settings were preserved. Live City Command first-open now
+passes and exposes 60 nearby structures. Discovery then stopped on the Tree of
+Life's companion guild panel above its confirmed hireling roster. Native 1.8.15 /
+host 0.3.24 adds a navigation-only, same-building ownership check; packaging and
+staging are next. Earlier uncertain requests stay retained without replay.
 Maximum-rank and full-town evidence remain unfinished.
-See [first-open/Gold selection correction and next work](handoffs/guard-upgrades-1.8.14.md).
+See [Tree companion navigation and next work](handoffs/guard-upgrades-1.8.15.md).
 Review this lane into `codex/vendor-rolling`, then the documented integration
 destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
