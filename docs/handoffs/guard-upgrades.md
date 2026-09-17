@@ -729,3 +729,37 @@ Current todos (supersedes the previous active list):
 Integration remains codex/guard-upgrades -> codex/vendor-rolling ->
 codex/native-lifecycle-hardening -> reviewed main. This lane is not merged or
 installed. The normal main checkout and old vendor jobs remain untouched.
+
+
+## Manager guard controls and worker integration
+
+Queue checkpoint 2988ba3 is pushed. Guard work now has its own strict worker
+operation family and worker capability, admitted through the existing exact
+instance/permit/operation ledger. The manager dashboard exposes Find guards,
+Upgrade verified guards, Pause, Resume and Stop with confirmed upgrade/gold
+progress. Find guards first retains the exact open warehouse observation, closes
+that producer, runs City Command and typed guard discovery, and publishes a
+prepared selection without moving gold. Start requires the exact prepared
+selection ID displayed in the dashboard, so a stale page cannot silently start a
+newer plan. The worker rechecks PID creation, window and discovery provenance.
+
+Pause/Stop remain instance/job-specific. An idle Stop is acknowledged under the
+runner lock; an interrupted cycle is retained for review. Public cancellation
+recognizes guard work and the exact worker routes guard commands directly to its
+guard executor. Existing crafting jobs retain their own controls and records.
+The dashboard explicitly labels nearby coverage and unverified maximum rank;
+there is still no claim of full-city census or maximum-rank qualification.
+
+Validation: 565 combined host tests passed with one existing platform-dependent
+skip. This includes guard funding/queue tests, authenticated HTTP controls,
+manager binding/status, strict operation serialization, stale selection and worker
+rejection, idle stop, existing vendor behavior, movement, cancellation and worker
+runtime suites. Ruff and diff checks passed. The dashboard asset is UTF-8; its
+existing security-header and read-only polling tests pass.
+
+A read-only VM process check confirmed the same sb.exe PID 9428 under the existing
+vendor test client. It still carries the earlier unresolved navigation history;
+no command, gold movement or upgrade was sent. Host/native remain installed at
+0.3.18/1.8.9. Next active todo is a coherent versioned package, followed by restart
+and live qualification. Town coverage and positive maximum-rank detection remain
+unfinished. Do not reset or reuse old native requests or crafting journals.

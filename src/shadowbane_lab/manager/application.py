@@ -194,6 +194,7 @@ class ManagerDashboardApplication:
         worker_controller: WorkerLifecycleControl | None = None,
         operation_status: WorkerOperationStatusProvider | None = None,
         vendor_control=None,
+        guard_control=None,
         extension_status: ExtensionStatusProvider | None = None,
         launch_timeout_seconds: float = 30.0,
         poll_seconds: float = 0.5,
@@ -243,6 +244,7 @@ class ManagerDashboardApplication:
         self._worker_controller = worker_controller
         self._operation_status = operation_status
         self._vendor_control = vendor_control
+        self._guard_control = guard_control
         self._extension_status = extension_status
         self._launch_timeout_seconds = _require_positive_finite(
             launch_timeout_seconds,
@@ -433,6 +435,12 @@ class ManagerDashboardApplication:
                     )
                 )
                 payload["vendor_available"] = self._vendor_control is not None
+                payload["guard_available"] = self._guard_control is not None
+                payload["guard"] = (
+                    None if self._guard_control is None else self._guard_control.summary(
+                        slot.client_id, None if binding is None else binding.instance_id,
+                    )
+                )
                 payload["binding"] = None if binding is None else _client_summary(binding)
                 payload["candidates"] = [
                     _client_summary(client)
@@ -575,7 +583,10 @@ class ManagerDashboardApplication:
         instance_id: str | None,
         job_id: str | None = None,
     ) -> None:
-        if job_id is not None and action not in {"vendor-pause", "vendor-resume", "vendor-stop"}:
+        if job_id is not None and action not in {
+            "vendor-pause", "vendor-resume", "vendor-stop",
+            "guard-start", "guard-pause", "guard-resume", "guard-stop",
+        }:
             raise DashboardError("invalid-action-fields", "This action does not accept a batch.")
         if action == "start-all":
             self._require_global(action, client_id, instance_id)
@@ -633,6 +644,11 @@ class ManagerDashboardApplication:
             self._ensure_worker_for_slot(client_id)
             return
         self._require_exact_binding(client_id, instance_id)
+        if action in {"guard-discover", "guard-start", "guard-pause", "guard-resume", "guard-stop"}:
+            if self._guard_control is None:
+                raise DashboardError("guard-unavailable", "Guard jobs are not configured.")
+            self._guard_control.execute(action, client_id, instance_id, job_id=job_id)
+            return
         if action in {"vendor-start", "vendor-pause", "vendor-resume", "vendor-stop",
                       "vendor-discover"}:
             if self._vendor_control is None:

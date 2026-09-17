@@ -65,6 +65,22 @@ class GuardJobStore:
                     or self.control(job_id) == "stop"):
                 raise GuardFundingCycleStopped("The guard job changed or needs review.")
             _write(self.root / (job_id + ".control.json"), {"mode": mode})
+            if mode == "stop":
+                try:
+                    with exclusive_record_lock(self.root / "runner.lock", timeout_seconds=0.1):
+                        current = self.read(job_id)
+                        try:
+                            GuardSpendingJournal(self.store.root).assert_idle()
+                            if current["active_cycle"]:
+                                raise GuardFundingCycleStopped(
+                                    "Interrupted guard cycle needs review.")
+                        except RuntimeError as exc:
+                            current.update(state="review", detail=str(exc))
+                        else:
+                            current.update(state="stopped", detail="Guard upgrades stopped.")
+                        self.save(current)
+                except TimeoutError:
+                    pass  # The live runner will observe the durable Stop control.
 
     def begin(self, binding, operation, discovery_id, warehouse, *, now=None, poll_seconds=300):
         job_id = operation_id(operation.operation_id)

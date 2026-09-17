@@ -292,6 +292,7 @@ def _application(
     operation_status: _StaticOperationStatus | None = None,
     extension_status: _RecordingExtensionStatus | None = None,
     vendor_control=None,
+    guard_control=None,
 ) -> tuple[ManagerDashboardApplication, _StaticRegistry]:
     registry = _StaticRegistry(
         ClientRegistrySnapshot(
@@ -323,6 +324,7 @@ def _application(
             operation_status=operation_status,
             extension_status=extension_status,
             vendor_control=vendor_control,
+            guard_control=guard_control,
             launch_timeout_seconds=12.0,
             poll_seconds=0.25,
         ),
@@ -331,6 +333,32 @@ def _application(
 
 
 class ManagerDashboardApplicationTests(unittest.TestCase):
+    def test_guard_controls_and_progress_require_current_exact_binding(self):
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(ManagerSessionSnapshot(
+            node_id=NODE_ID,
+            slots=(_slot("client-01", instance_id=bound.instance_id), _slot("client-02")),
+        ))
+        control = Mock()
+        control.summary.return_value = {"job": {"upgrades_started": 3}}
+        application, registry = _application(session, bound, guard_control=control)
+        for action in ("guard-discover", "guard-start", "guard-pause",
+                       "guard-resume", "guard-stop"):
+            kwargs = {"job_id": "operation-" + "a" * 32} if action in {
+                "guard-start", "guard-pause", "guard-resume", "guard-stop",
+            } else {}
+            application.execute(action, client_id="client-01", instance_id=bound.instance_id,
+                                **kwargs)
+            control.execute.assert_called_with(action, "client-01", bound.instance_id,
+                                               job_id=kwargs.get("job_id"))
+        self.assertEqual(3, application.status()["slots"][0]["guard"]["job"]["upgrades_started"])
+        self.assertTrue(application.status()["slots"][0]["guard_available"])
+        before = control.execute.call_count
+        with self.assertRaises(DashboardError):
+            application.execute("guard-start", client_id="client-01", instance_id="other")
+        self.assertEqual(before, control.execute.call_count)
+        self.assertEqual([], session.calls)
+
     def test_vendor_actions_and_status_require_current_exact_binding(self):
         bound = _client("instance-101", 101)
         session = _RecordingSession(ManagerSessionSnapshot(

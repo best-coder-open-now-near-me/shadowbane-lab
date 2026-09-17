@@ -57,6 +57,7 @@ from shadowbane_lab.manager import (
     replace_manager_manifest,
     retarget_manager_clients,
 )
+from shadowbane_lab.manager.guard_control import GuardWorkerExecutor, ManagerGuardControl
 from shadowbane_lab.manager.movement import OperationMovement
 from shadowbane_lab.manager.vendor_control import ManagerVendorControl, VendorWorkerExecutor
 from shadowbane_lab.travel import (
@@ -565,6 +566,10 @@ def _run_manager_app(
                     application_manifest,
                     heartbeat_root,
                 ),
+                guard_control=ManagerGuardControl(
+                    heartbeat_root, application_manifest.node_id, worker_ledger,
+                    WorkerOperationLedger(application_manifest, heartbeat_root),
+                ),
                 vendor_control=ManagerVendorControl(
                     heartbeat_root, application_manifest.node_id, worker_ledger,
                     WorkerOperationLedger(application_manifest, heartbeat_root),
@@ -705,6 +710,7 @@ def _run_manager_worker(
             native_vitals_profile_path=native_vitals_profile_path,
             pve_client_profile_path=pve_client_profile_path,
             vendor_executor=VendorWorkerExecutor(worker_state_directory, manifest.node_id, binding),
+            guard_executor=GuardWorkerExecutor(worker_state_directory, manifest.node_id, binding),
             pve_hotbar_config_path=pve_hotbar_config_path,
             pve_evidence_directory=pve_evidence_directory,
             navigation_cache_directory=navigation_cache_directory,
@@ -768,9 +774,11 @@ class _ExactWorkerEngineExecutor:
         travel_click_interval_ms: int,
         movement_session_factory: Callable[..., NativeMovementSession] = NativeMovementSession,
         vendor_executor=None,
+        guard_executor=None,
     ) -> None:
         self._binding = binding
         self._vendor_executor = vendor_executor
+        self._guard_executor = guard_executor
         self._movement_session_factory = movement_session_factory
         self._movement_lock = threading.Lock()
         self._movement: OperationMovement | None = None
@@ -830,6 +838,12 @@ class _ExactWorkerEngineExecutor:
                 WorkerOperationState.SUCCEEDED,
                 "owned automation stopped without acquiring another movement owner",
             )
+        if operation.kind is WorkerOperationKind.GUARD:
+            if self._guard_executor is None:
+                return WorkerOperationExecution(
+                    WorkerOperationState.FAILED, "Guard jobs are not configured.",
+                )
+            return self._guard_executor.execute(operation, stop_signal=stop_signal)
         if operation.kind is WorkerOperationKind.VENDOR:
             if self._vendor_executor is None:
                 return WorkerOperationExecution(
@@ -890,6 +904,8 @@ class _ExactWorkerEngineExecutor:
         return result
 
     def initialize(self, worker_id, process) -> None:
+        if self._guard_executor is not None:
+            self._guard_executor.initialize(worker_id, process)
         if self._vendor_executor is not None:
             self._vendor_executor.initialize(worker_id, process)
 

@@ -30,6 +30,7 @@ _CLIENT_ACTIONS_WITHOUT_INSTANCE = frozenset({"start"})
 _CLIENT_ACTIONS_WITH_INSTANCE = frozenset({
     "attach", "tile", "pause", "resume", "detach", "close",
     "vendor-start", "vendor-pause", "vendor-resume", "vendor-stop", "vendor-discover",
+    "guard-start", "guard-pause", "guard-resume", "guard-stop", "guard-discover",
 })
 _ALL_ACTIONS = _GLOBAL_ACTIONS | _CLIENT_ACTIONS_WITHOUT_INSTANCE | _CLIENT_ACTIONS_WITH_INSTANCE
 
@@ -221,7 +222,8 @@ def _validate_action_payload(
     else:
         expected_fields = {"action", "client_id", "instance_id"}
 
-    if action in {"vendor-pause", "vendor-resume", "vendor-stop"}:
+    if action in {"vendor-pause", "vendor-resume", "vendor-stop",
+                  "guard-start", "guard-pause", "guard-resume", "guard-stop"}:
         expected_fields.add("job_id")
     actual_fields = set(payload)
     if actual_fields != expected_fields:
@@ -248,9 +250,11 @@ def _validate_action_payload(
     )
     job_id = payload.get("job_id")
     if "job_id" in expected_fields and (
-        not isinstance(job_id, str) or re.fullmatch(r"[0-9a-f]{32}", job_id) is None
+        not isinstance(job_id, str) or re.fullmatch(
+            r"operation-[0-9a-f]{32}" if action.startswith("guard-") else r"[0-9a-f]{32}", job_id,
+        ) is None
     ):
-        _request_error(HTTPStatus.BAD_REQUEST, "invalid-job", "An exact vendor batch is required.")
+        _request_error(HTTPStatus.BAD_REQUEST, "invalid-job", "An exact job selection is required.")
     return action, client_id, instance_id, job_id
 
 

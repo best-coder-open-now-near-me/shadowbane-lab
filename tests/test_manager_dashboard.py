@@ -380,12 +380,15 @@ class DashboardServerTests(unittest.TestCase):
                 self.assertEqual(expected_call, self.service.execute_calls[-1])
 
     def test_vendor_controls_require_authentication_and_exact_instance(self):
-        for action in ("vendor-start", "vendor-pause", "vendor-resume", "vendor-stop"):
+        for action in ("vendor-start", "vendor-pause", "vendor-resume", "vendor-stop",
+                       "guard-discover", "guard-start", "guard-pause",
+                       "guard-resume", "guard-stop"):
             payload = {
                 "action": action, "client_id": "front-left", "instance_id": "client-abc",
             }
-            if action != "vendor-start":
-                payload["job_id"] = "a" * 32
+            if action in {"vendor-pause", "vendor-resume", "vendor-stop",
+                          "guard-start", "guard-pause", "guard-resume", "guard-stop"}:
+                payload["job_id"] = ("operation-" if action.startswith("guard-") else "") + "a" * 32
             body = json.dumps(payload)
             status, _, _ = self._request(
                 "POST", "/api/v1/actions", body=body,

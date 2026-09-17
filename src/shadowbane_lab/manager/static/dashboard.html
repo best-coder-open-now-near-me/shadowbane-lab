@@ -205,6 +205,12 @@
           if (["vendor-pause", "vendor-resume", "vendor-stop"].includes(action)) {
             body.job_id = slot.vendor?.job_id;
           }
+          if (action === "guard-start") {
+            body.job_id = slot.guard?.prepared?.discovery_id;
+          }
+          if (["guard-pause", "guard-resume", "guard-stop"].includes(action)) {
+            body.job_id = slot.guard?.job?.job_id;
+          }
           await execute(body);
         });
         return button;
@@ -373,6 +379,46 @@
             vendorPanel.append(nearby);
           }
           article.append(vendorPanel);
+        }
+        if (slot.guard_available) {
+          const panel = document.createElement("section");
+          panel.className = "vendor-panel";
+          panel.setAttribute("aria-label", "Guard upgrades");
+          const title = document.createElement("strong");
+          title.textContent = "Guard upgrades";
+          const job = slot.guard?.job;
+          const prepared = slot.guard?.prepared;
+          const detail = document.createElement("p");
+          detail.className = "detail";
+          detail.textContent = job ? text(job.detail)
+            : "Open the warehouse resource panel, then find guards and return to the game.";
+          const progress = document.createElement("p");
+          progress.className = "detail";
+          progress.textContent = job
+            ? `${job.upgrades_started} upgrades started · ${job.spent.toLocaleString()} gold spent · ${job.waiting} waiting`
+            : prepared ? `${prepared.guards} guards verified in ${prepared.buildings} of ${prepared.candidate_buildings} nearby buildings`
+            : "Uses building gold, carried gold, then warehouse gold above its reserve.";
+          const scope = document.createElement("p");
+          scope.className = "detail";
+          scope.textContent = "Nearby loaded buildings only. Full town coverage and maximum rank are not yet verified.";
+          const controls = document.createElement("div");
+          controls.className = "actions";
+          const finished = !job || ["stopped", "insufficient", "unavailable"].includes(job.state);
+          const review = job?.state === "review";
+          const choices = [
+            ["Find guards", "guard-discover", finished && slot.dispatch_enabled],
+            ["Upgrade verified guards", "guard-start", finished && Boolean(prepared) && slot.dispatch_enabled],
+            ["Pause upgrades", "guard-pause", !finished && !review && job.control === "run"],
+            ["Resume upgrades", "guard-resume", !finished && !review && job.control === "pause" && slot.dispatch_enabled],
+            ["Stop upgrades", "guard-stop", !finished && !review && job.control !== "stop"],
+          ];
+          for (const [label, action, enabled] of choices) {
+            const button = actionButton(label, action, slot, boundInstance);
+            button.disabled = !enabled || !boundInstance();
+            controls.append(button);
+          }
+          panel.append(title, detail, progress, scope, controls);
+          article.append(panel);
         }
         return article;
       };

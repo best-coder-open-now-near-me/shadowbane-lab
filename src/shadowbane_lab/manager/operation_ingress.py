@@ -153,6 +153,7 @@ class ForegroundWorkerOperationIngress:
                 WorkerOperationKind.TRAVEL,
                 WorkerOperationKind.PVE,
                 WorkerOperationKind.VENDOR,
+                WorkerOperationKind.GUARD,
             }:
                 has_inflight_automation = True
         if not has_inflight_automation:
