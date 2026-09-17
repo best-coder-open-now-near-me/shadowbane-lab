@@ -137,3 +137,12 @@ def test_vendor_gates_must_execute_once(tmp_path, name, outcome):
     else:
         with pytest.raises(RuntimeError):
             builder.validate_native_results(path, required, diagnostic=False, exit_code=0)
+
+
+def test_required_guard_gates_are_registered_native_tests():
+    import re
+    cmake = (Path(__file__).parents[1] / "native/wonderbane_extension/CMakeLists.txt").read_text(
+        encoding="utf-8",
+    )
+    registered = set(re.findall(r"add_test\(NAME\s+(\w+)", cmake))
+    assert builder.REQUIRED_GUARD_TESTS <= registered

@@ -47,7 +47,7 @@ REQUIRED_VENDOR_TESTS = frozenset({
 
 
 REQUIRED_GUARD_TESTS = frozenset({
-    "wonderbane_extension_guard_upgrade_native",
+    "wonderbane_extension_vendor_navigation_native",  # Includes guard native admission/invocation.
     "wonderbane_extension_guard_upgrade_controller",
     "wonderbane_extension_guard_upgrade_channel",
     "wonderbane_extension_guard_funding_native",
