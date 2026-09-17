@@ -45,10 +45,9 @@ Seneschal roster. Resource opening still returned a definite unavailable respons
 while the player and exact NPC were nearby in the same parent. No uncertain
 request was retried, no gold moved, and no upgrade was submitted.
 
-Active todo: inspect the warehouse resource panel's retained NPC reference and
-qualify automatic return visits. The user has been asked to open View Resources
-without withdrawing anything. The existing spatial building lookup is not yet a
-verified NPC resolver; do not send funding commands until this access is resolved.
-Then qualify the complete funding/upgrade sequence. Positive maximum-rank evidence,
-full-town coverage and review/integration remain pending. Do not rebuild a
-documentation-only tip or replay old unresolved requests.
+Live follow-up: the user opened View Resources. The owned warehouse panel and
+its exact NPC reference remained active while automatic navigation opened the
+guard tower and read its complete roster. No gold moved and no upgrade was
+submitted. This establishes the source for automatic return visits; the spatial
+building query is unsuitable for this NPC. The correction is tracked in
+[warehouse return ownership](guard-upgrades-1.8.12.md).

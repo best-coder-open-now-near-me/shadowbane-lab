@@ -147,6 +147,13 @@ int main() {
     assert(n::wire::Opened(s, n::wire::Verb::warehouse, {123, 8}, {777, 42}));
     assert(!n::wire::Opened(s, n::wire::Verb::warehouse, {456, 8}, {777, 42}));
     assert(!n::wire::Opened(s, n::wire::Verb::warehouse, {123, 8}, {778, 42}));
+    // A front building menu must not erase the warehouse HUD's owned NPC.
+    word(head, node); word(head + 4, whnode); word(node, whnode); word(node + 4, head);
+    word(whnode, head); word(whnode + 4, node);
+    assert(capture() && s.front_hud == hud && s.warehouse_hud == warehouse && s.warehouse_object == npc);
+    assert(!n::wire::Opened(s, n::wire::Verb::warehouse, {123, 8}, {777, 42}));
+    word(head, whnode); word(head + 4, node); word(whnode, node); word(whnode + 4, head);
+    word(node, head); word(node + 4, whnode);
     word(npc + 0x1c, 37); assert(!capture()); word(npc + 0x1c, 42);
     word(npc, base + 0x1177c0c); assert(!capture()); word(npc, base + 0x114165c);
     word(warehouse + 0x378, 0); assert(!capture()); word(warehouse + 0x378, npc);

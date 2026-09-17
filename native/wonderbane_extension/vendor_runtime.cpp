@@ -102,7 +102,8 @@ public:
         if (!Admit(this)) { return O::stale; }
         if (verb == vendor_navigation::wire::Verb::warehouse) {
             if (!target_bind_attempted) { target_bind_attempted = true; (void)building_target.Bind(window_); }
-            return building_target.OpenWarehouse(scene_, command.vendor, &Admit, this);
+            return building_target.OpenWarehouse(scene_, command.vendor,
+                {command.expected.warehouse_hud, command.expected.warehouse_object}, &Admit, this);
         }
         if (verb == vendor_navigation::wire::Verb::building) {
             if (!target_bind_attempted) { target_bind_attempted = true; (void)building_target.Bind(window_); }

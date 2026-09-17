@@ -53,11 +53,13 @@ rotates guards, waits for ranks, records confirmed gold totals, and recovers onl
 fully confirmed cycles without replay. No-offer remains unverified maximum rank.
 The manager now admits guard work through exact worker permits and exposes
 discovery, exact prepared-plan start, pause/resume/stop and confirmed progress.
-Exact source 25f607e is now packaged and staged as 1.8.10/0.3.19; guest dry-run
-verification passed. Activation awaits confirmed game closure, followed by live
-qualification. Maximum-rank and full-town evidence remain unfinished. See the
-[staged guard package and activation handoff](handoffs/guard-upgrades-1.8.10.md). Review this lane into
-`codex/vendor-rolling`, then the documented integration destination and main.
+Full native 1.8.11 / host 0.3.20 is installed and verified. Live building navigation
+and the warehouse panel's retained NPC ownership are confirmed. Source 1.8.12 /
+0.3.21 uses that exact owned NPC for warehouse return visits; packaging and live
+qualification are next. Maximum-rank and full-town evidence remain unfinished.
+See [warehouse return ownership and next work](handoffs/guard-upgrades-1.8.12.md).
+Review this lane into `codex/vendor-rolling`, then the documented integration
+destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.
 

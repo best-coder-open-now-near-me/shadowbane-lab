@@ -13,7 +13,9 @@ using O = wonderbane::extension::vendor::wire::Outcome;
 namespace {
 bool live = true, admitted = true;
 bool range_ok = true, invalidate_range = false, throw_open = false;
-int range_checks = 0, warehouse_opens = 0;
+int range_checks = 0, warehouse_opens = 0, retains = 0;
+bool invalidate_retain = false, throw_retain = false, replace_source = false, close_source = false;
+std::uintptr_t warehouse_hud = 0, warehouse_npc = 0;
 m::GroundPoint expected_minimum{976, -2000, -4024}, expected_maximum{3024, 20000, -1976};
 std::uintptr_t base = 0;
 int selections = 0, dispatches = 0, queries = 0, allocations = 0;
@@ -48,6 +50,14 @@ struct BuildingTargetTestAccess {
         }
         if (invalidate_query) { live = false; }
     }
+    static void __fastcall Retain(void* adjusted, void*, void** slot) {
+        ++retains;
+        assert(adjusted == reinterpret_cast<void*>(warehouse_npc + 0x88));
+        assert(*slot == reinterpret_cast<void*>(warehouse_npc) && references[*slot] == 1);
+        ++references[*slot];
+        if (invalidate_retain) { live = false; }
+        if (throw_retain) { throw std::runtime_error("retain fault"); }
+    }
     static void __fastcall Release(void** slot, void*, void*) {
         if (*slot) { assert(references[*slot] > 0); --references[*slot]; *slot = nullptr; }
         if (invalidate_release) { live = false; }
@@ -71,20 +81,24 @@ struct BuildingTargetTestAccess {
     static bool __fastcall WarehouseRange(void* predicate, void*, void* actor, void* object) {
         ++range_checks;
         assert(*static_cast<std::uintptr_t*>(predicate) == base + 0x116a48c);
-        assert(actor == reinterpret_cast<void*>(base + 0x2000) && references[object] == 1);
+        assert(actor == reinterpret_cast<void*>(base + 0x2000) && references[object] == 2);
+        if (replace_source) { Word(warehouse_hud + 0x378, 0); }
         if (invalidate_range) { admitted = false; }
         return range_ok;
     }
     static void __cdecl WarehouseOpen(void* actor, void* object) {
         ++warehouse_opens;
-        assert(actor == reinterpret_cast<void*>(base + 0x2000) && references[object] == 1);
+        assert(actor == reinterpret_cast<void*>(base + 0x2000) && references[object] == 2);
         if (throw_open) { throw std::runtime_error("warehouse entry fault"); }
-        // Ordinary HUD retains its own reference; our borrowed argument is untouched.
+        // Opening may replace/close the old HUD. The temporary native reference
+        // keeps its NPC alive until the borrowed-argument callback has returned.
+        if (close_source) { --references[object]; Word(warehouse_hud + 0x378, 0); }
     }
     static void Bind(BuildingTarget& target, HWND window) {
         target.base_ = base; target.window_ = window; target.thread_ = GetCurrentThreadId();
         target.calls_.construct = reinterpret_cast<decltype(target.calls_.construct)>(&Construct);
         target.calls_.query = reinterpret_cast<decltype(target.calls_.query)>(&Query);
+        target.calls_.retain = reinterpret_cast<decltype(target.calls_.retain)>(&Retain);
         target.calls_.release = reinterpret_cast<decltype(target.calls_.release)>(&Release);
         target.calls_.pool_return = &Pool; target.calls_.select = &Select; target.calls_.dispatch = &Dispatch;
         target.calls_.warehouse_range = reinterpret_cast<decltype(target.calls_.warehouse_range)>(&WarehouseRange);
@@ -177,40 +191,57 @@ int main() {
     Word(reinterpret_cast<std::uintptr_t>(npc) + 0x18, 321);
     Word(reinterpret_cast<std::uintptr_t>(npc) + 0x1c, 42);
     Word(reinterpret_cast<std::uintptr_t>(npc) + 0x780, 999); // Building offset is never used for an NPC.
-    const auto old_selections = selections, old_dispatches = dispatches;
+    warehouse_hud = base + 0xb000; warehouse_npc = reinterpret_cast<std::uintptr_t>(npc);
+    Word(warehouse_hud, base + 0x1170308); Word(warehouse_hud + 0x378, warehouse_npc);
+    Word(warehouse_npc + 8, base + 0xc000); Word(base + 0xc004, 0x80);
+    n::BuildingTarget::WarehouseSource source{warehouse_hud, warehouse_npc};
+    const auto old_selections = selections, old_dispatches = dispatches, old_queries = queries;
     auto warehouse = [&](O expected) {
+        references[npc] = 1; // The active HUD owns the original reference.
         n::BuildingTarget t; n::BuildingTargetTestAccess::Bind(t, window);
-        assert(t.OpenWarehouse(scene, {321, 42}, &Admit, nullptr) == expected);
-        if (throw_open) {
-            assert(!t.Available() && references[npc] == 1); // Fault quarantines the held reference.
-            assert(t.OpenWarehouse(scene, {321, 42}, &Admit, nullptr) == O::unavailable);
+        assert(t.OpenWarehouse(scene, {321, 42}, source, &Admit, nullptr) == expected);
+        if (throw_open || throw_retain) {
+            assert(!t.Available() && references[npc] == 2); // Fault quarantines the temporary reference.
+            const auto retained = retains;
+            assert(t.OpenWarehouse(scene, {321, 42}, source, &Admit, nullptr) == O::unavailable);
+            assert(retains == retained);
             n::BuildingTargetTestAccess::DisposeQuarantine(t);
         }
-        assert(!allocations && selections == old_selections && dispatches == old_dispatches);
+        assert(!allocations && selections == old_selections && dispatches == old_dispatches && queries == old_queries);
+        assert(references[npc] == (close_source ? 0 : 1));
+        references[npc] = 0;
         for (const auto& [object, count] : references) { (void)object; assert(count == 0); }
     };
-    objects = {first, npc, second}; warehouse(O::submitted);
-    assert(warehouse_opens == 1 && range_checks == 1);
-    objects = {first, second}; warehouse(O::unavailable); assert(range_checks == 1);
-    objects = {npc, npc}; warehouse(O::unavailable); assert(range_checks == 1);
-    objects = {npc};
-    Word(reinterpret_cast<std::uintptr_t>(npc) + 0x1c, 37);
-    warehouse(O::unavailable); assert(range_checks == 1);
-    Word(reinterpret_cast<std::uintptr_t>(npc) + 0x1c, 42);
-    Word(reinterpret_cast<std::uintptr_t>(npc), base + 0x1177c0c);
-    warehouse(O::unavailable); assert(range_checks == 1);
-    Word(reinterpret_cast<std::uintptr_t>(npc), base + 0x114165c);
+    objects = {first, second}; // No spatial NPC result is required or queried.
+    warehouse(O::submitted); assert(warehouse_opens == 1 && range_checks == 1 && retains == 1);
+    source = {}; warehouse(O::unavailable);
+    source = {warehouse_hud, warehouse_npc};
+    Word(warehouse_hud, base + 0x116a058); warehouse(O::unavailable);
+    Word(warehouse_hud, base + 0x1170308);
+    Word(warehouse_hud + 0x378, reinterpret_cast<std::uintptr_t>(first)); warehouse(O::unavailable);
+    Word(warehouse_hud + 0x378, warehouse_npc);
+    Word(warehouse_npc + 0x18, 322); warehouse(O::unavailable); Word(warehouse_npc + 0x18, 321);
+    Word(warehouse_npc + 0x1c, 37); warehouse(O::unavailable); Word(warehouse_npc + 0x1c, 42);
+    Word(warehouse_npc, base + 0x1177c0c); warehouse(O::unavailable);
+    Word(warehouse_npc, base + 0x114165c);
+    Word(warehouse_npc + 8, 0); warehouse(O::unavailable); Word(warehouse_npc + 8, base + 0xc000);
+    Word(base + 0xc004, 0x7fffffff); warehouse(O::unavailable); Word(base + 0xc004, 0x80);
+    assert(warehouse_opens == 1 && range_checks == 1 && retains == 1);
     range_ok = false; warehouse(O::unavailable); range_ok = true;
     assert(warehouse_opens == 1 && range_checks == 2);
+    invalidate_retain = true; warehouse(O::stale); invalidate_retain = false; live = true;
     invalidate_range = true; warehouse(O::stale); invalidate_range = false; admitted = true;
-    assert(warehouse_opens == 1);
-    invalidate_query = true; warehouse(O::stale); invalidate_query = false; live = true;
+    replace_source = true; warehouse(O::stale); replace_source = false;
+    Word(warehouse_hud + 0x378, warehouse_npc);
     assert(warehouse_opens == 1);
     admitted = false; warehouse(O::stale); admitted = true;
+    throw_retain = true; warehouse(O::unavailable); throw_retain = false;
     throw_open = true; warehouse(O::uncertain); throw_open = false;
     assert(warehouse_opens == 2);
-    assert(target.OpenWarehouse(scene, {321, 37}, &Admit, nullptr) == O::invalid);
-    std::thread wrong_thread([&] { assert(target.OpenWarehouse(scene, {321, 42}, &Admit, nullptr) == O::unavailable); });
+    close_source = true; warehouse(O::submitted); close_source = false;
+    assert(warehouse_opens == 3);
+    assert(target.OpenWarehouse(scene, {321, 37}, source, &Admit, nullptr) == O::invalid);
+    std::thread wrong_thread([&] { assert(target.OpenWarehouse(scene, {321, 42}, source, &Admit, nullptr) == O::unavailable); });
     wrong_thread.join();
     assert(DestroyWindow(window)); assert(VirtualFree(memory, 0, MEM_RELEASE));
 }
