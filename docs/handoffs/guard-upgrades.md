@@ -62,8 +62,13 @@ Static evidence, RVAs in reviewed source executable ac9ca464:
   of guard types and CLI handle cleanup on success/failure.
 - [ ] Active: qualify warehouse withdrawal limits and structure deposits, then
   observe one normal upgrade's confirmation and server outcome. The user has
-  opened the warehouse and has been asked to leave the withdrawal amount prompt
-  open without confirming. The earlier unfunded upgrade request is superseded.
+  opened the warehouse withdrawal quote. Its displayed available amount and
+  native maximum agree; the quote defaults to the entire available balance.
+  Following a character switch, the live identity, quote ownership, resource
+  and empty character resource list were revalidated. The user has been asked
+  to withdraw only one observed next-upgrade cost, then leave the intended
+  structure's deposit prompt open before confirmation. Deposit receipt and
+  upgrade acceptance remain unverified. The earlier unfunded request is superseded.
 - [ ] Qualify automatic navigation across guard structures and other guard types.
 - [ ] Implement typed upgrade commands, durable per-guard receipts, no-replay
   handling, funding checks and a maximum-rank scheduler with finite work per pass.
@@ -107,3 +112,37 @@ exact structure and verify its new balance before upgrading. Keep receipts for
 both transfers and upgrades so an uncertain response cannot cause a duplicate.
 Recompute each pass as ranks and costs change; do not pre-fund an entire town
 using a single guard's cost or guess the maximum rank.
+
+## Withdrawal quote and character-switch qualification
+
+The user's new character was re-observed through NativeCharacterConfigReader;
+old character inventory, window pointers and quote amounts were discarded even
+though the game PID and creation time had not changed. Server and City of Temple
+were verified again. This establishes why funding jobs must bind a character and
+scene lifetime, not just a process lifetime. Character identity was compared
+before and after the bounded memory reads.
+
+The live amount HUD has vtable RVA 0x1168044. Its +0x108 points to the current
+warehouse HUD, whose +0x10c points back to that exact amount HUD. Both are members
+of the live root's HUD stack. Vtable slot +0x120 resolves through thunk 0x2254d to
+RVA 0x5952e0, which installs those reciprocal links. The quote's resource context
+at +0x388 matches the selected warehouse row's resource ID at +0x20. The owned
+warehouse resource entry has vtable RVA 0x116f258 and its amount at +0x48 agreed
+with the displayed total. Its CHAR_INV list was empty in the fresh character.
+
+Withdrawal quote creation at 0x69e380 looks up a minimum by resource in warehouse
++0x3e8, subtracts it from the total argument and clamps a negative result to zero
+at 0x69e3df..0x69e3e9. It initializes both maximum and current amount to that
+available amount through thunks 0x13cf5 and 0x1d8f9. Their implementations at
+0x5956f0 and 0x595720 store +0x3c0 and +0x3c4 respectively. The live displayed
+available amount and both fields agreed. The screenshot omitted a minimum line;
+only the observed equality of total and available establishes no withheld amount
+for that particular quote, not a permanent warehouse policy.
+
+No confirmation or transfer was issued by the agent. The user has been asked for
+a bounded single-upgrade withdrawal followed by opening the target structure's
+deposit amount prompt, without confirming that deposit. Revalidate inventory,
+character, selected structure key, current balance and ordinary deposit callback
+before qualifying the deposit. Do not treat the generic amount HUD type alone as
+proof of withdrawal versus deposit direction. The current checks are research
+evidence; a reusable warehouse/funding command is still unfinished.
