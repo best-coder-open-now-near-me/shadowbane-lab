@@ -60,15 +60,14 @@ Static evidence, RVAs in reviewed source executable ac9ca464:
 - [x] Verify live guard identity, complete building rows, rank, cost and flags.
 - [x] Pass 68 focused guard/vendor roster/queue tests; preserve vendor rejection
   of guard types and CLI handle cleanup on success/failure.
-- [ ] Active: qualify warehouse withdrawal limits and structure deposits, then
-  observe one normal upgrade's confirmation and server outcome. The user has
-  opened the warehouse withdrawal quote. Its displayed available amount and
-  native maximum agree; the quote defaults to the entire available balance.
-  Following a character switch, the live identity, quote ownership, resource
-  and empty character resource list were revalidated. The user has been asked
-  to withdraw only one observed next-upgrade cost, then leave the intended
-  structure's deposit prompt open before confirmation. Deposit receipt and
-  upgrade acceptance remain unverified. The earlier unfunded request is superseded.
+- [x] Qualify a bounded warehouse withdrawal, exact structure deposit and one
+  guard upgrade start through user-operated ordinary controls. Structure funds
+  matched the intended deposit, then were deducted for the selected guard;
+  the selected guard's upgrading flag and visible progress control were confirmed.
+- [x] Implement typed-input structure deposit observation; 100 focused guard,
+  deposit, vendor roster and production-queue tests pass, and targeted Ruff passes.
+- [ ] Active: implement and test typed native guard navigation, funding and
+  upgrade commands with correlated receipts and character/scene ownership.
 - [ ] Qualify automatic navigation across guard structures and other guard types.
 - [ ] Implement typed upgrade commands, durable per-guard receipts, no-replay
   handling, funding checks and a maximum-rank scheduler with finite work per pass.
@@ -146,3 +145,44 @@ character, selected structure key, current balance and ordinary deposit callback
 before qualifying the deposit. Do not treat the generic amount HUD type alone as
 proof of withdrawal versus deposit direction. The current checks are research
 evidence; a reusable warehouse/funding command is still unfinished.
+
+## First complete funding-to-upgrade qualification
+
+The user opened a deposit prompt in a second structure with the same visible
+name as the first. Its unique key and six guard keys differed. Inspection switched
+to the actual, explicitly user-selected destination rather than treating the
+repeated label as identity. Its selected/displayed building keys matched, the
+online asset manager was in gold-deposit mode 13, and its balance was zero.
+
+Deposit prompt construction at RVA 0x6cf1d0 differs from warehouse quotes:
+manager +0x74 owns the amount HUD, and amount HUD +0x104 points back to the
+manager. Mode 13 reads the character purse through the local-player interface
+at global RVA 0x16a2d98 plus 0x688 and uses the result for the maximum amount.
+Modes 12/44 instead use structure funds and are not deposits. Construction sets
+the normal ACCEPT/CANCEL event modes at control +0x1d4/+0x1f8/+0x21c. The
+warehouse's +0x108/+0x10c reciprocal ownership is not used for this prompt.
+
+The live typed amount was positive and exactly matched the deposit limit, but
+amount HUD +0x3c4 still held zero. GetAmount at RVA 0x595390 looks up SLIDEHELPER,
+uses its vtable +0x6c getter (RVA 0x56c5f0) to read its ArcString at +0xa4,
+parses it, then clamps it to the maximum. Automation must inspect that actual
+text, not the initialization cache. The reusable read_native_structure_deposit
+reader now checks exact root/building/menu/action ownership, decimal input and
+bounds, and rechecks all fields. The recorded limit is explicitly the purse
+limit at prompt creation, not proof of a later live purse balance. It never
+sends a transfer or grants command authority.
+
+After the user confirmed the bounded deposit, the exact target's displayed gold
+increased by the entered amount, its prompt closed and manager mode returned to
+0. The user then opened one guard in that structure and confirmed its quoted
+upgrade at the same cost. The observer verified that exact guard selected in
+mode 6, the structure balance reduced to zero, upgrade_in_progress true and
+SLIDEUPGRADE visible. can_upgrade and the Upgrade button remained enabled, so
+neither alone is sufficient to decide whether to submit another upgrade. The
+rank remained 1 during the timer; upgrade completion/max-rank behavior has not
+been qualified. The complete guard observer passed against this live state.
+
+All transfer and upgrade clicks in this qualification were performed by the
+user. The agent sent no gold or upgrade action. No repeat of this first upgrade
+is needed. Next active work is implementing native command admission and
+receipt tracking, then the town scheduler; city-wide automation is not installed.
