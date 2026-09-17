@@ -13,7 +13,7 @@ from shadowbane_lab.client_extension.action_channel import (
     NativeActionResultStage,
     NativeClientProcessIdentity,
 )
-from shadowbane_lab.client_extension.guard_upgrade_journal import GuardUpgradeJournal
+from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
 from shadowbane_lab.client_extension.guard_upgrade_session import NativeGuardUpgradeSession
 from shadowbane_lab.client_extension.guard_upgrade_wire import (
     _RECEIPT,
@@ -169,7 +169,7 @@ def test_session_correlation_and_upgrade_timeout_never_retries(tmp_path):
         Transport,
     ):
         session = NativeGuardUpgradeSession(
-            NativeClientProcessIdentity(988, 123), 1000, journal=GuardUpgradeJournal(tmp_path)
+            NativeClientProcessIdentity(988, 123), 1000, journal=GuardSpendingJournal(tmp_path)
         )
         assert session.inspect().outcome == Outcome.OBSERVED
         for mode in ("request", "host", "window", "stage"):

@@ -7,9 +7,9 @@ from unittest.mock import Mock, patch
 import pytest
 
 from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
-from shadowbane_lab.client_extension.guard_upgrade_journal import (
+from shadowbane_lab.client_extension.guard_spending_journal import (
+    GuardSpendingJournal,
     GuardSpendingStopped,
-    GuardUpgradeJournal,
 )
 from shadowbane_lab.client_extension.guard_upgrade_session import NativeGuardUpgradeSession
 from shadowbane_lab.client_extension.guard_upgrade_wire import (
@@ -48,7 +48,7 @@ def assert_blocked(journal, identity=IDENTITY):
 
 
 def test_intent_is_durable_before_dispatch_and_completion_allows_next_spend(tmp_path):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
 
     def dispatch():
         pointer = json.loads(journal.active.read_text())
@@ -59,7 +59,7 @@ def test_intent_is_durable_before_dispatch_and_completion_allows_next_spend(tmp_
         return SUBMITTED
 
     assert journal.submit(IDENTITY, COMMAND, dispatch) == SUBMITTED
-    assert_blocked(GuardUpgradeJournal(tmp_path))
+    assert_blocked(GuardSpendingJournal(tmp_path))
     journal.observe(IDENTITY, FINISHED)
     record = json.loads(journal._path(KEY).read_text())
     assert Receipt.decode(bytes.fromhex(record["completion"])) == FINISHED
@@ -69,7 +69,7 @@ def test_intent_is_durable_before_dispatch_and_completion_allows_next_spend(tmp_
 
 
 def test_same_uuid_never_repeats_even_after_completion(tmp_path):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     journal.submit(IDENTITY, COMMAND, lambda: SUBMITTED)
     journal.observe(IDENTITY, FINISHED)
     dispatch = Mock()
@@ -79,12 +79,12 @@ def test_same_uuid_never_repeats_even_after_completion(tmp_path):
 
 
 def test_lost_reply_stays_blocked_across_host_and_client_restart(tmp_path):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     dispatch = Mock(side_effect=TimeoutError("reply lost after submission"))
     with pytest.raises(TimeoutError):
         journal.submit(IDENTITY, COMMAND, dispatch)
     dispatch.assert_called_once()
-    resumed = GuardUpgradeJournal(tmp_path)
+    resumed = GuardSpendingJournal(tmp_path)
     resumed.observe(IDENTITY, FINISHED)
     assert_blocked(resumed)
     assert_blocked(resumed, NativeClientProcessIdentity(999, 456))
@@ -123,14 +123,14 @@ def test_lost_reply_stays_blocked_across_host_and_client_restart(tmp_path):
     ],
 )
 def test_partial_wrong_owner_and_uncertain_observations_never_clear_spending(tmp_path, receipt):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     journal.submit(IDENTITY, COMMAND, lambda: SUBMITTED)
     journal.observe(IDENTITY, receipt)
     assert_blocked(journal)
 
 
 def test_rank_increase_plus_exact_debit_completes_without_timer(tmp_path):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     journal.submit(IDENTITY, COMMAND, lambda: SUBMITTED)
     completed = replace(FINISHED, snapshot=replace(STATE, rank=2, funds=50))
     journal.observe(IDENTITY, completed)
@@ -145,7 +145,7 @@ def test_rank_increase_plus_exact_debit_completes_without_timer(tmp_path):
     ],
 )
 def test_new_game_lifetime_cannot_complete_old_action(tmp_path, identity):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     journal.submit(IDENTITY, COMMAND, lambda: SUBMITTED)
     journal.observe(identity, FINISHED)
     assert_blocked(journal, identity)
@@ -155,7 +155,7 @@ def test_new_game_lifetime_cannot_complete_old_action(tmp_path, identity):
     "outcome", [Outcome.STALE, Outcome.UNAVAILABLE, Outcome.INVALID, Outcome.EXHAUSTED]
 )
 def test_proven_non_submission_releases_gate_but_not_request_identity(tmp_path, outcome):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     rejected = replace(SUBMITTED, outcome=outcome, flags=0)
     journal.submit(IDENTITY, COMMAND, lambda: rejected)
     assert json.loads(journal.active.read_text()) == {"request_key": None}
@@ -168,7 +168,7 @@ def test_proven_non_submission_releases_gate_but_not_request_identity(tmp_path, 
     "outcome", [Outcome.PENDING, Outcome.UNCERTAIN, Outcome.OBSERVED, Outcome.STALE]
 )
 def test_ambiguous_submission_never_releases_gate(tmp_path, outcome):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     journal.submit(IDENTITY, COMMAND, lambda: replace(SUBMITTED, outcome=outcome, flags=UNRESOLVED))
     journal.observe(IDENTITY, FINISHED)
     assert_blocked(journal)
@@ -183,7 +183,7 @@ def test_ambiguous_submission_never_releases_gate(tmp_path, outcome):
     ],
 )
 def test_mismatched_submission_retains_pre_dispatch_intent(tmp_path, field, value):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     with pytest.raises(GuardSpendingStopped):
         journal.submit(IDENTITY, COMMAND, lambda: replace(SUBMITTED, **{field: value}))
     assert_blocked(journal)
@@ -191,9 +191,9 @@ def test_mismatched_submission_retains_pre_dispatch_intent(tmp_path, field, valu
 
 @pytest.mark.parametrize("failure_at", [1, 2, 3])
 def test_persistence_failure_never_causes_unrecorded_dispatch(tmp_path, failure_at):
-    import shadowbane_lab.client_extension.guard_upgrade_journal as module
+    import shadowbane_lab.client_extension.guard_spending_journal as module
 
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     original = module._write
     calls = 0
 
@@ -209,14 +209,14 @@ def test_persistence_failure_never_causes_unrecorded_dispatch(tmp_path, failure_
         journal.submit(IDENTITY, COMMAND, dispatch)
     assert dispatch.call_count == int(failure_at == 3)
     if failure_at > 1:
-        assert_blocked(GuardUpgradeJournal(tmp_path))
+        assert_blocked(GuardSpendingJournal(tmp_path))
 
 
 @pytest.mark.parametrize(
     "damage", ["pointer", "missing_pointer", "record", "missing_record", "oversized"]
 )
 def test_corrupt_or_missing_journal_never_unlocks_spending(tmp_path, damage):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     journal.submit(IDENTITY, COMMAND, lambda: SUBMITTED)
     if damage == "pointer":
         journal.active.write_text('{"wrong":true}')
@@ -230,13 +230,13 @@ def test_corrupt_or_missing_journal_never_unlocks_spending(tmp_path, damage):
         journal._path(KEY).write_text(" " * 8193)
     dispatch = Mock()
     with pytest.raises((GuardSpendingStopped, FileNotFoundError)):
-        GuardUpgradeJournal(tmp_path).submit(IDENTITY, another(), dispatch)
+        GuardSpendingJournal(tmp_path).submit(IDENTITY, another(), dispatch)
     dispatch.assert_not_called()
 
 
 def test_two_callers_share_one_spending_gate(tmp_path):
     def attempt(_):
-        journal = GuardUpgradeJournal(tmp_path)
+        journal = GuardSpendingJournal(tmp_path)
         command = another()
         try:
             return journal.submit(
@@ -276,10 +276,10 @@ def test_command_and_receipt_persistence_bytes_are_canonical():
 
 
 def test_unresolved_observation_is_durable_and_late_success_cannot_clear_it(tmp_path):
-    journal = GuardUpgradeJournal(tmp_path)
+    journal = GuardSpendingJournal(tmp_path)
     journal.submit(IDENTITY, COMMAND, lambda: SUBMITTED)
     journal.observe(IDENTITY, replace(FINISHED, flags=UNRESOLVED))
-    resumed = GuardUpgradeJournal(tmp_path)
+    resumed = GuardSpendingJournal(tmp_path)
     resumed.observe(IDENTITY, FINISHED)
     assert_blocked(resumed)
     record = json.loads(journal._path(KEY).read_text())
@@ -299,7 +299,7 @@ def test_session_upgrade_then_inspection_records_completion(tmp_path):
         "WindowsNativeActionCommandTransport",
         CompletingTransport,
     ):
-        journal = GuardUpgradeJournal(tmp_path)
+        journal = GuardSpendingJournal(tmp_path)
         session = NativeGuardUpgradeSession(IDENTITY, 1000, journal=journal)
         assert session.upgrade(STATE, KEY) == SUBMITTED
         assert_blocked(journal)

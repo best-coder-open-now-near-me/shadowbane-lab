@@ -75,8 +75,10 @@ Static evidence, RVAs in reviewed source executable ac9ca464:
 - [x] Qualify warehouse quote source, balance, configured reserve, and typed amount.
 - [x] Require durable host intent/submission/completion records for guard upgrades;
   retain unresolved outcomes across restarts and block duplicate/new spending.
-- [ ] Active: implement automatic warehouse withdrawal/structure deposit with
-  current purse checks, two-sided transfer receipts, and shared spending exclusion.
+- [x] Implement native/host withdrawal and deposit from exact owned quotes, with
+  current purse checks, two-sided receipts, and one durable spending gate.
+- [ ] Active: open the required warehouse/deposit quotes automatically through
+  owned controls, then connect the town funding and upgrade loop.
 - [ ] Qualify automatic navigation across guard structures and other guard types.
 - [ ] Connect the durable guard journal to the maximum-rank scheduler
   with finite work per pass; retain every uncertain action without replay.
@@ -350,3 +352,35 @@ lease expiration and duplicate UUIDs. These are fixture executions, not live gol
 transfers. No new native build is installed. Next is the host funding session and
 one persistent spending gate shared with upgrades, then automatic quote opening,
 town traversal, scheduler/dashboard integration and versioned live qualification.
+
+## Host funding and unified spending checkpoint
+
+NativeGuardFundingSession now exposes direction-specific Inspect and bounded
+Transfer with exact host/window/request correlation and no transfer retry. Its
+96-byte snapshot, 576-byte command and 384-byte receipt match native fixture bytes.
+The transport admits the typed funding command alongside existing command classes.
+
+The unreleased guard journal is now GuardSpendingJournal in
+client_extension/guard_spending_journal.py. Both upgrade and funding sessions use
+the same persistent client-instance root, active pointer and cross-process lock.
+Schema 2 records distinguish upgrade and transfer and decode only that operation's
+wire format. A pending withdrawal blocks both deposit and upgrade, and vice versa,
+including after manager restart. Wrong-kind receipts cannot complete an action.
+No previous guard journal was installed or used for live spending; unknown/older
+record schemas stop for review rather than being silently discarded or migrated.
+
+Keep the submitting transport/session alive through its correlated completion.
+The native channel supports one producer lease: a scheduler must not open another
+transport while the active one is leased, or close/reopen it to obtain a different
+host lease while a spend is pending. After observed completion, sequential session
+handoff is supported. Future manager ownership should keep that sequencing explicit.
+
+Validation: 214 focused Python funding/upgrade/journal/observation/navigation/
+record-store/action-channel tests pass, with no skipped native wire fixture.
+Targeted Ruff passes; the full native build and 14 focused native suites passed
+for the immediately preceding funding boundary. Public source contains no live
+city identities or balances. No deployment or live agent transfer occurred.
+
+Next: automatic quote opening, town traversal and finite maximum-rank passes,
+manager progress/review controls, coherent packaging, and live qualification.
+The user should not be asked to repeat already-qualified manual transfers.

@@ -13,7 +13,32 @@ from shadowbane_lab.record_store import (
     read_record_bytes,
 )
 
-from .guard_upgrade_wire import IN_FLIGHT, UNRESOLVED, Command, Outcome, Receipt, Verb
+from . import guard_funding_wire as funding
+from . import guard_upgrade_wire as upgrade
+from .guard_upgrade_wire import IN_FLIGHT, UNRESOLVED, Outcome
+
+Command = upgrade.Command | funding.Command
+Receipt = upgrade.Receipt | funding.Receipt
+
+
+def _codec(operation: str):
+    if operation == "upgrade":
+        return upgrade.Command, upgrade.Verb.UPGRADE, upgrade.Receipt
+    if operation == "transfer":
+        return funding.Command, funding.Verb.TRANSFER, funding.Receipt
+    raise GuardSpendingStopped("unknown guard spending operation")
+
+
+def _operation(command: Command) -> str:
+    if type(command) is upgrade.Command:
+        return "upgrade"
+    if type(command) is funding.Command:
+        return "transfer"
+    raise ValueError("unsupported guard spending command")
+
+
+def _receipt(command: Command, data: str) -> Receipt:
+    return _codec(_operation(command))[2].decode(bytes.fromhex(data))
 
 
 class GuardSpendingStopped(RuntimeError):
@@ -45,6 +70,15 @@ def _read(path: Path) -> dict:
 
 
 def _confirmed(command: Command, receipt: Receipt) -> bool:
+    if type(receipt) is not _codec(_operation(command))[2]:
+        return False
+    if isinstance(command, funding.Command):
+        return (
+            receipt.outcome == Outcome.OBSERVED
+            and receipt.transition_request == command.request_key
+            and not receipt.flags & (IN_FLIGHT | UNRESOLVED)
+            and command.confirmed(receipt.snapshot)
+        )
     before, after = command.expected, receipt.snapshot
     a, b = before.navigation, after.navigation
     same = (
@@ -72,7 +106,7 @@ def _confirmed(command: Command, receipt: Receipt) -> bool:
     )
 
 
-class GuardUpgradeJournal:
+class GuardSpendingJournal:
     """One ledger per manager client instance, retained across host/client restarts.
 
     The caller supplies that instance's local directory. Historical requests are
@@ -100,6 +134,7 @@ class GuardUpgradeJournal:
             set(record)
             != {
                 "schema_version",
+                "operation",
                 "request_key",
                 "process_id",
                 "creation",
@@ -109,7 +144,7 @@ class GuardUpgradeJournal:
                 "unresolved",
             }
             or type(record["schema_version"]) is not int
-            or record["schema_version"] != 1
+            or record["schema_version"] != 2
             or type(record["unresolved"]) is not bool
             or record["request_key"] != key
             or type(record["process_id"]) is not int
@@ -118,12 +153,13 @@ class GuardUpgradeJournal:
             or not 0 < record["creation"] < 2**64
         ):
             raise GuardSpendingStopped("invalid guard spending identity")
-        command = Command.decode(bytes.fromhex(record["command"]), Verb.UPGRADE)
+        command_type, verb, _ = _codec(record["operation"])
+        command = command_type.decode(bytes.fromhex(record["command"]), verb)
         if command.request_key != key:
             raise GuardSpendingStopped("guard spending command identity mismatch")
         submission = record["submission"]
         if submission is not None:
-            submitted = Receipt.decode(bytes.fromhex(submission))
+            submitted = _receipt(command, submission)
             if (
                 submitted.request_key != key
                 or submitted.host != command.host
@@ -135,7 +171,7 @@ class GuardUpgradeJournal:
                 raise GuardSpendingStopped("unresolved guard spend cannot be completed")
             if submission is None:
                 raise GuardSpendingStopped("guard completion has no submission")
-            completed = Receipt.decode(bytes.fromhex(record["completion"]))
+            completed = _receipt(command, record["completion"])
             if (
                 completed.host != command.host
                 or completed.window != command.window
@@ -162,7 +198,7 @@ class GuardUpgradeJournal:
             return record, command
         terminal = record["completion"] is not None
         if record["submission"] is not None:
-            receipt = Receipt.decode(bytes.fromhex(record["submission"]))
+            receipt = _receipt(command, record["submission"])
             terminal |= receipt.outcome in (
                 Outcome.STALE,
                 Outcome.UNAVAILABLE,
@@ -180,7 +216,8 @@ class GuardUpgradeJournal:
 
     def submit(self, identity, command: Command, dispatch) -> Receipt:
         # Encode before creating any files, and retain the exact host lease too.
-        encoded = command.encode(Verb.UPGRADE)
+        operation = _operation(command)
+        encoded = command.encode(_codec(operation)[1])
         _request(command.request_key)
         if (
             type(identity.process_id) is not int
@@ -198,7 +235,8 @@ class GuardUpgradeJournal:
             if path.exists():
                 raise GuardSpendingStopped("This guard spend was already attempted; no retry sent.")
             record = {
-                "schema_version": 1,
+                "schema_version": 2,
+                "operation": operation,
                 "request_key": command.request_key,
                 "process_id": identity.process_id,
                 "creation": identity.creation_filetime_utc,
@@ -211,6 +249,8 @@ class GuardUpgradeJournal:
             _write(self.active, {"request_key": command.request_key})
             # Every exception from here leaves the durable intent active.
             receipt = dispatch()
+            if type(receipt) is not _codec(operation)[2]:
+                raise GuardSpendingStopped("Submission receipt has the wrong spending operation.")
             receipt.encode()
             if (
                 receipt.request_key != command.request_key
@@ -231,7 +271,7 @@ class GuardUpgradeJournal:
             if pending is None:
                 return
             record, command = pending
-            if record["unresolved"]:
+            if record["unresolved"] or type(receipt) is not _codec(record["operation"])[2]:
                 return
             if (
                 identity.process_id != record["process_id"]
@@ -246,7 +286,7 @@ class GuardUpgradeJournal:
                 return
             if record["submission"] is None:
                 return  # Lost submission reply is retained for review, never inferred.
-            submitted = Receipt.decode(bytes.fromhex(record["submission"]))
+            submitted = _receipt(command, record["submission"])
             if submitted.outcome != Outcome.SUBMITTED or not _confirmed(command, receipt):
                 return
             record["completion"] = receipt.encode().hex()
