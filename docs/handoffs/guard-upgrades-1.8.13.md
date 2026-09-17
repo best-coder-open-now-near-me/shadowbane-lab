@@ -1,6 +1,7 @@
 # Chat window ordering: 1.8.13 / 0.3.22
 
-Branch: codex/guard-upgrades. Review destination: codex/vendor-rolling, then
+Branch: codex/guard-upgrades. Exact packaged source: 3b05f0b (pushed).
+Review destination: codex/vendor-rolling, then
 codex/native-lifecycle-hardening and reviewed main. Not merged. The normal main
 checkout is untouched. Installed 1.8.12 / 0.3.21 retains the warehouse return fix.
 
@@ -27,9 +28,20 @@ No wire layout changed. A chat-only list cannot qualify a transaction.
 The full native library compiled. Focused navigation/guard, funding and vendor
 capture tests passed for chat before the target, amount/unknown windows blocking
 and malformed chat-list links. Version consistency tests and source lint passed.
-Full exact-source packaging, guest staging and activation remain pending.
+Exact-source packaging passed 2,674 host tests (19 skipped), required native
+checks for both profiles, reviewed executable binding, real IPC, installed host
+entry-point/panel checks and native/host contracts. Six extra installed guard
+funding/upgrade comparisons passed. All 61 artifact hashes and the package
+archive were independently verified. The same two pre-existing stretch graphics
+diagnostics remain unresolved in each profile; no whole-product acceptance is
+claimed.
 
-Active todo: finish and stage the validated package before requesting game closure.
+Guest preparation and read-only update validation passed. The full extension and
+host package are staged separately; installed 1.8.12 / 0.3.21 and its unresolved
+request remain unchanged. The updater preserves all historical worker JSON,
+settings and qualification records, with rollback copies on activation.
+
+Active todo: await confirmed game closure, then activate the verified update.
 Then qualify automatic tower/warehouse/resources return, followed by live guard
 funding and upgrades. Maximum-rank proof, full-town coverage and integration are
 unfinished. The earlier unresolved action remains retained through deployment.

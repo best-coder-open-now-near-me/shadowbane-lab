@@ -58,7 +58,8 @@ The warehouse panel's retained NPC ownership is confirmed; the correction uses
 that exact owned NPC for return visits. Package, guest activation, loaded module
 and manager checks passed. Live return qualification found a chat window ahead
 of the opened tower; the unresolved request is retained. Source 1.8.13 / 0.3.22
-corrects chat ordering across native transactions; packaging is next.
+corrects chat ordering across native transactions. Exact source 3b05f0b passed
+package and guest staging checks; activation awaits game closure.
 Maximum-rank and full-town evidence remain unfinished.
 See [chat ordering correction and next work](handoffs/guard-upgrades-1.8.13.md).
 Review this lane into `codex/vendor-rolling`, then the documented integration
