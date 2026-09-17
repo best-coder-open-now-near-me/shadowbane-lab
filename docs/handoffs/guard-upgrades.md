@@ -422,3 +422,23 @@ qualify live automated opening or full town navigation. No runtime update was
 installed and no live gold moved. Next is the persistent town traversal/scheduler,
 including warehouse access and demonstrable coverage, followed by manager controls
 and a coherent versioned live qualification.
+
+
+## Building roster observation checkpoint
+
+The shared native_building_hirelings observer reads the entire owned building
+slot list without a selected hireling or individual guard window. Selected-guard
+upgrade observation now uses that same read set and adds its selection, menu,
+price and control checks before a single consistency recheck. Type 37 eligibility
+remains explicit; other populated types are retained without upgrade authority.
+The crafting observer remains strict type 42. A fully observed positive slot
+list can prove all slots vacant; zero capacity or an absent/partial list cannot.
+
+Validation: 77 focused building/guard/vendor observation tests and targeted Ruff
+pass. A bounded read-only in-memory execution against the user's already-open
+Tower Junction verified its complete six-slot roster without selecting a guard.
+No agent action, gold movement, runtime install or private roster export occurred.
+This is current-building observation, not proof of town membership or coverage.
+Next: durable guard building traversal and guard-window verification, warehouse
+access, finite maximum-rank scheduling, manager integration and versioned live
+qualification. Previously qualified manual transfers need not be repeated.
