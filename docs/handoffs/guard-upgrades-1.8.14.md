@@ -59,3 +59,17 @@ journals, including the unresolved quote opening, remain retained without replay
 Active todo: user login beside the Seneschal and initial View Resources opening,
 then qualify discovery and automatic funding in the fresh session. Maximum-rank proof, full-town coverage and integration
 remain unfinished. No automatic gold transfer or upgrade has yet been qualified.
+
+## Relaunch and obsolete runtime cleanup
+
+A later relaunch failed before game startup because the test VM disk was full.
+The user explicitly requested deleting the eleven obsolete host environments
+(0.3.11 through 0.3.21), without archiving compiled programs. Those environments
+are removed; current 0.3.23 and immediate rollback 0.3.22 remain. Game data,
+settings and historical transaction journals were not deleted. About 200 MiB
+became available, and the same reviewed launcher then started successfully.
+
+The loaded 1.8.14 extension, host 0.3.23 source, new exact game-process identity
+and healthy guard-capable worker were verified again. The game is awaiting login;
+no guard action or gold transfer was submitted. The next todo remains login and
+View Resources, followed by discovery and automatic funding qualification.
