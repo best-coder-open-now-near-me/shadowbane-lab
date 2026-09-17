@@ -15,8 +15,16 @@ w::Command Request(n::Controller& c, unsigned id = 1) {
 }
 bool Is(const w::Receipt& r, w::Outcome o) { return r.outcome == static_cast<unsigned>(o); }
 int main(int argc, char**) {
-    n::Controller controller; Fake invoker; controller.Observe(State(), true, 10);
+    n::Controller controller; Fake invoker;
+    auto initial = State();
+    if (argc > 2) {
+        initial.mode = 6; initial.building_hud = 300; initial.visible = initial.initialized = 1;
+        initial.building = {123, 8}; initial.warehouse_hud = 600;
+        initial.warehouse_object = 700; initial.warehouse = {777, 42};
+    }
+    controller.Observe(initial, true, 10);
     auto command = Request(controller);
+    if (argc > 2) { command.vendor = {777, 42}; }
     if (argc > 1) {
         auto print = [](const auto& obj) {
             for (auto* p = reinterpret_cast<const unsigned char*>(&obj);
@@ -24,7 +32,7 @@ int main(int argc, char**) {
             std::printf("\n");
         };
         print(command.expected); print(command);
-        print(controller.Execute(w::Verb::building, command, true, true, 10, invoker)); return 0;
+        print(controller.Execute(argc > 2 ? w::Verb::warehouse : w::Verb::building, command, true, true, 10, invoker)); return 0;
     }
     assert(Is(controller.Execute(w::Verb::building, command, false, true, 10, invoker), w::Outcome::stale));
     assert(Is(controller.Execute(w::Verb::building, command, true, false, 10, invoker), w::Outcome::unavailable));
@@ -79,6 +87,27 @@ int main(int argc, char**) {
     auto already = Request(guards, 11); already.vendor = guard.vendor;
     assert(Is(guards.Execute(w::Verb::guard, already, true, true, 204, guard_invoker), w::Outcome::observed));
     assert(guard_invoker.calls == 1);
+    n::Controller warehouses; Fake warehouse_invoker;
+    warehouses.Observe(state, true, 300);
+    auto warehouse_request = Request(warehouses, 12); warehouse_request.vendor = {777, 42};
+    assert(w::Valid(w::Verb::warehouse, warehouse_request));
+    auto wrong_type = warehouse_request; wrong_type.vendor[1] = 37;
+    assert(!w::Valid(w::Verb::warehouse, wrong_type));
+    auto missing_building = warehouse_request; missing_building.expected.visible = 0;
+    assert(!w::Valid(w::Verb::warehouse, missing_building));
+    assert(Is(warehouses.Execute(w::Verb::warehouse, warehouse_request, true, true, 300, warehouse_invoker), w::Outcome::submitted));
+    warehouses.Observe(state, true, 301); assert(warehouses.Busy()); // Management inventory cannot complete it.
+    auto warehouse_state = state; warehouse_state.warehouse_hud = 600;
+    warehouse_state.warehouse_object = 700; warehouse_state.warehouse = {888, 42};
+    warehouses.Observe(warehouse_state, true, 302); assert(warehouses.Busy());
+    warehouse_state.warehouse = {777, 42}; warehouse_state.building = {456, 8};
+    warehouses.Observe(warehouse_state, true, 303); assert(warehouses.Busy());
+    warehouse_state.building = {123, 8};
+    warehouses.Observe(warehouse_state, true, 304); assert(!warehouses.Busy());
+    assert(Is(warehouses.Execute(w::Verb::warehouse, warehouse_request, true, true, 305, warehouse_invoker), w::Outcome::submitted));
+    auto existing = Request(warehouses, 13); existing.vendor = {777, 42};
+    assert(Is(warehouses.Execute(w::Verb::warehouse, existing, true, true, 305, warehouse_invoker), w::Outcome::observed));
+    assert(warehouse_invoker.calls == 1);
     for (int mode = 0; mode < 3; ++mode) {
         n::Controller stopped; stopped.Observe(State(), true, 10);
         invoker.outcome = mode == 2 ? w::Outcome::uncertain : w::Outcome::submitted;

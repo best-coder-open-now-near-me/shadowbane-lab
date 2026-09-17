@@ -138,6 +138,21 @@ int main() {
     assert(!n::InvokeGuard(base, s, {777, 37}) && activations == 4);
     change_action = false; word(control + 0x1d0, 0);
 
+    const auto warehouse = base + 0x15000, whnode = base + 0x16000, npc = base + 0x17000;
+    word(warehouse, base + 0x1170308); word(warehouse + 0x378, npc);
+    word(npc, base + 0x114165c); word(npc + 0x18, 777); word(npc + 0x1c, 42);
+    word(head, whnode); word(whnode, node); word(whnode + 4, head); word(whnode + 8, warehouse);
+    word(node + 4, whnode);
+    assert(capture() && s.warehouse_hud == warehouse && s.warehouse_object == npc);
+    assert(n::wire::Opened(s, n::wire::Verb::warehouse, {123, 8}, {777, 42}));
+    assert(!n::wire::Opened(s, n::wire::Verb::warehouse, {456, 8}, {777, 42}));
+    assert(!n::wire::Opened(s, n::wire::Verb::warehouse, {123, 8}, {778, 42}));
+    word(npc + 0x1c, 37); assert(!capture()); word(npc + 0x1c, 42);
+    word(npc, base + 0x1177c0c); assert(!capture()); word(npc, base + 0x114165c);
+    word(warehouse + 0x378, 0); assert(!capture()); word(warehouse + 0x378, npc);
+    word(node + 8, warehouse); assert(!capture()); word(node + 8, hud);
+    word(head, node); word(node + 4, head); assert(capture() && !s.warehouse_hud);
+
     const auto ghud = base + 0x11000, gnode = base + 0x12000, children = base + 0x13000;
     word(manager + 0x78, ghud); word(manager + 0x50, 1); word(manager + 0x384, entry);
     word(entry + 0x14, 37); word(entry + 0x28, 1);

@@ -33,7 +33,7 @@ int main() {
             auto& s = payload.expected;
             s.scene = s.revision = 1; s.root = 100; s.manager = 200; s.mode = 6;
             s.building_hud = 300; s.visible = s.initialized = 1; s.building = {123, 8};
-            payload.building = s.building; payload.vendor = {777, 37};
+            payload.building = s.building; payload.vendor = {777, kind == 22 ? 42U : 37U};
         }
         std::memcpy(&slot.movement, &payload, sizeof(payload));
         InterlockedExchange64(&slot.committed_sequence, static_cast<LONG64>(sequence));
@@ -75,6 +75,13 @@ int main() {
     publish(5, false, 15); // Vendor opcode cannot carry a guard key.
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
     assert(!v::Take() && storage.results[4].stage == static_cast<unsigned>(ClientActionResultStage::failed));
+    publish(6, false, 22);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
+    command = v::Take();
+    assert(command && command->verb == v::wire::Verb::warehouse && command->command.vendor[1] == 42);
+    receipt.request = command->command.request; v::Complete(command, receipt);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
+    assert(!v::Take() && storage.header.command_read_sequence == 6);
     SetEvent(release_worker);
     StopClientActionCommandChannel();
     CloseHandle(entered); CloseHandle(release_worker);

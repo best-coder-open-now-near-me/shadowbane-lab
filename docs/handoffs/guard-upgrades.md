@@ -526,3 +526,54 @@ warehouse-context-20260917.png and warehouse-seneschal-result-20260917.png.
 Those artifacts are not source deliverables and were not added to Git.
 Next: inspect the Seneschal's own menu to identify resource-inventory access,
 then finish warehouse traversal and funding/upgrade scheduling before deployment.
+
+
+## Warehouse resource entry point and native access checkpoint
+
+The user opened the Seneschal conversation's warehouse resources. A bounded
+read-only observation verified exactly one rooted ArcWarehouseHud, its retained
+NPC source key, owned Gold row and reserve map with no amount quote open. This
+qualifies the parent panel independently of the previously qualified withdrawal.
+No live action, gold movement or runtime installation occurred in this checkpoint.
+
+Static inspection distinguishes the two paths: asset-management Inventory action
+0x58c opens ItemManaging (or reports a non-goods hireling), not warehouse storage.
+NPC dialogue leaf action 22 dispatches ordinary cdecl RVA 0x877770(actor, NPC).
+That function borrows its NPC argument, checks the ordinary 20-unit predicate,
+creates Warehouse, retains the source through 0x69c9f0/0x5d91a0, and requests its
+resource inventory. No fabricated packet or management inventory click is used.
+
+Native navigation now has a distinct warehouse verb 22. Admission requires the
+exact type-42 row in the complete, currently owned building roster, online scene,
+foreground window and producer lease. The retained world query matches the NPC
+vtable and full world key at +0x18 (never the building key at +0x780). It releases
+other results, calls the ordinary range predicate, repeats ownership/admission,
+and invokes the ordinary opener while holding its own borrowed reference. Native
+exceptions quarantine uncertain ownership. The controller confirms only an active
+Warehouse HUD with the exact retained NPC source and expected building context;
+a hireling-management window or unrelated warehouse cannot complete the request.
+Gold inventory loading is separately required by the funding observer before use.
+
+Navigation receipts are version 2 (magic WBN2); the embedded guard-navigation
+snapshot requires guard receipts version 2 (WBG2) as well. Both host/native sides
+must ship together. The fixed snapshot size remains 96 bytes, with its former
+16 reserved bytes now carrying warehouse HUD, source object and full source key.
+Legacy receipt formats are rejected. Existing request histories are not rewritten.
+The host exposes open_warehouse, with no retry after a lost action response.
+
+Validation: full Win32 DLL build, all 15 focused native suites (including retained
+target ownership), 371 Python regressions, then 34 affected host/wire tests after
+adding a nonzero warehouse cross-language fixture; targeted Ruff and diff checks
+pass. Tests cover ordinary call arguments, borrowed reference release, range and
+scene rejection, duplicate/wrong-type candidates, fault quarantine, exact HUD
+source correlation, legacy receipt rejection, immutable responses and no replay.
+Automatic warehouse opening remains source/fixture qualified, not live-qualified.
+The installed client's earlier unresolved navigation remains retained unchanged.
+
+Current todos:
+- Complete: identify/live-observe warehouse parent resources; native/host access.
+- Active: durable warehouse visits and the persistent funding/upgrade worker.
+- Pending: maximum-rank completion, manager controls/progress, demonstrable town
+  coverage, coherent versioned deployment and live end-to-end qualification.
+Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
+-> reviewed main. No build from this checkpoint is installed or merged into main.

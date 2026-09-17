@@ -68,6 +68,13 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
         seen[count] = node; huds[count++] = hud; r.Require(node + 4, previous);
         if (hud && hud == s.building_hud) { s.visible |= 1; }
         if (hud && hud == s.vendor_hud) { s.visible |= 2; }
+        if (hud && r.Word(hud) == base + 0x1170308) {
+            if (s.warehouse_hud) { return false; }
+            s.warehouse_hud = hud; s.warehouse_object = r.Word(hud + 0x378);
+            r.Require(s.warehouse_object, static_cast<std::uint32_t>(base + 0x114165c));
+            s.warehouse = r.Key(s.warehouse_object + 0x18);
+            if (!wire::Typed(s.warehouse, 42)) { return false; }
+        }
         previous = node; node = r.Word(node);
     }
     if (s.visible && r.Key(s.manager + 0xf8) != s.building) { return false; }

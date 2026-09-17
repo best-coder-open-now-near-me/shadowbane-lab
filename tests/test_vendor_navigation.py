@@ -86,7 +86,7 @@ class Transport:
             0,
             100,
             5760,
-            "native_vendor_navigation_receipt_v1",
+            "native_vendor_navigation_receipt_v2",
             payload,
         )
 
@@ -169,6 +169,26 @@ class VendorNavigationWireTests(unittest.TestCase):
             ):
                 Command(Host(1, 1, 1), 1000, KEY, state, building, target).encode(Verb.GUARD)
 
+    def test_warehouse_source_is_separate_from_management_inventory(self):
+        state = replace(OPENED, warehouse_hud=800, warehouse_object=900,
+                        warehouse_id=777, warehouse_type=42)
+        self.assertEqual(state, Snapshot.decode(state.encode()))
+        self.assertTrue(state.warehouse_opened(123, 777))
+        self.assertFalse(OPENED.warehouse_opened(123, 777))
+        for building, source in ((456, 777), (123, 778), (123, 0)):
+            self.assertFalse(state.warehouse_opened(building, source))
+        for changed in (replace(state, warehouse_type=37), replace(state, warehouse_hud=0),
+                        replace(state, warehouse_object=0), replace(state, warehouse_id=0)):
+            with self.assertRaises(ValueError):
+                changed.encode()
+        command = Command(Host(1, 1, 1), 1000, KEY, OPENED, 123, 777)
+        self.assertEqual(
+            (123, 8, 777, 42), struct.unpack_from("<4I", command.encode(Verb.WAREHOUSE), 136)
+        )
+        for state, building, source in ((STATE, 123, 777), (OPENED, 456, 777), (OPENED, 123, 0)):
+            with self.assertRaises(ValueError):
+                Command(Host(1, 1, 1), 1000, KEY, state, building, source).encode(Verb.WAREHOUSE)
+
     def test_corrupt_receipts_fail_closed(self):
         raw = _RECEIPT.pack(
             uuid.UUID(KEY).bytes,
@@ -182,6 +202,10 @@ class VendorNavigationWireTests(unittest.TestCase):
             bytes(220),
         )
         self.assertEqual(receipt(), Receipt.decode(raw))
+        legacy = bytearray(raw)
+        struct.pack_into("<I", legacy, 160, 0x57424E31)
+        with self.assertRaises(ValueError):
+            Receipt.decode(bytes(legacy))
         for offset in (0, 44, 160, 164):
             data = bytearray(raw)
             if offset == 0:
@@ -214,6 +238,26 @@ class VendorNavigationWireTests(unittest.TestCase):
             receipt(outcome=Outcome.SUBMITTED, flags=IN_FLIGHT), Receipt.decode(raw_receipt)
         )
 
+    def test_native_warehouse_source_byte_agreement(self):
+        exe = (
+            Path(__file__).resolve().parents[1] / "artifacts/vendor-native-build/Release"
+            / "wonderbane_extension_vendor_navigation_controller_test.exe"
+        )
+        if not exe.exists():
+            self.skipTest("native fixture executable is not built")
+        state, command, raw = [bytes.fromhex(line) for line in
+                               subprocess.check_output([str(exe), "wire", "warehouse"],
+                                                       text=True).splitlines()]
+        expected = replace(OPENED, revision=1, active_manager=0, warehouse_hud=600,
+                           warehouse_object=700, warehouse_id=777, warehouse_type=42)
+        self.assertEqual(expected.encode(), state)
+        self.assertEqual(Command(Host(1, 1, 1), 1000, KEY, expected, 123, 777)
+                         .encode(Verb.WAREHOUSE), command)
+        observed = Receipt.decode(raw)
+        self.assertEqual(expected, observed.snapshot)
+        self.assertEqual(Outcome.OBSERVED, observed.outcome)
+        self.assertEqual(KEY, observed.transition_request)
+
     def test_session_correlation_close_and_no_open_retry(self):
         with patch(
             "shadowbane_lab.client_extension.vendor_navigation_session.channel.WindowsNativeActionCommandTransport",
@@ -237,6 +281,10 @@ class VendorNavigationWireTests(unittest.TestCase):
                 session.open_guard(OPENED, 123, 777, KEY)
             self.assertEqual(before + 3, len(session._transport.commands))
             self.assertEqual(Verb.GUARD, session._transport.commands[-1].kind)
+            with self.assertRaises(NativeActionChannelTimeout):
+                session.open_warehouse(OPENED, 123, 777, KEY)
+            self.assertEqual(before + 4, len(session._transport.commands))
+            self.assertEqual(Verb.WAREHOUSE, session._transport.commands[-1].kind)
             session.close()
             self.assertTrue(session._transport.closed)
             with self.assertRaises(NativeActionChannelError):

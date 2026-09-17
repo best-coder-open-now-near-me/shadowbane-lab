@@ -39,9 +39,11 @@ windows can now open through verified parent-panel controls. Complete building
 roster observation and typed nearby guard discovery/traversal are source-tested;
 the open-building reader is live-qualified. A live warehouse navigation attempt
 identified a selection-versus-activation defect; its tested native fix is in this
-lane, with the unresolved old request retained and no replay. Full-town coverage and scheduling
-remain unfinished; no new build is deployed. Next is warehouse parent-panel
-access and the durable funding/upgrade scheduler. Review this lane into
+lane, with the unresolved old request retained and no replay. Warehouse resources
+are now live-observed and distinct from hireling management Inventory. Exact-key
+warehouse access is source-tested with version-2 navigation/guard receipts; ship
+host/native together. Full-town coverage and scheduling remain unfinished; no new
+build is deployed. Next is durable warehouse visits and funding/upgrade scheduling. Review this lane into
 `codex/vendor-rolling`, then the documented integration destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.

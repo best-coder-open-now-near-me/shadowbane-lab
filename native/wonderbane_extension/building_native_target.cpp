@@ -27,6 +27,8 @@ bool BuildingTarget::Bind(HWND window) noexcept {
     calls_.pool_return = reinterpret_cast<decltype(calls_.pool_return)>(base_ + 0x40270);
     calls_.select = reinterpret_cast<decltype(calls_.select)>(base_ + 0x498730);
     calls_.dispatch = reinterpret_cast<decltype(calls_.dispatch)>(base_ + 0x7ca9c0);
+    calls_.warehouse_range = reinterpret_cast<decltype(calls_.warehouse_range)>(base_ + 0x2dde80);
+    calls_.warehouse_open = reinterpret_cast<decltype(calls_.warehouse_open)>(base_ + 0x877770);
     return true;
 }
 bool BuildingTarget::Current(const movement::NativeScene& scene, Admission admit, void* context) const noexcept {
@@ -41,19 +43,22 @@ bool BuildingTarget::Position(const movement::NativeScene& scene, movement::Grou
         && point.x >= 0 && point.x <= 200000 && point.z <= 0 && point.z >= -200000
         && point.y >= -2000 && point.y <= 20000;
 }
-bool BuildingTarget::KeyOf(void* value, Key& key) const noexcept {
+bool BuildingTarget::KeyOf(void* value, Key& key, bool warehouse) const noexcept {
     key = {};
     if (!value) { return true; }
     const auto object = reinterpret_cast<std::uintptr_t>(value);
     std::uintptr_t table = 0;
     if (!Read(object, table)) { return false; }
+    if (warehouse) {
+        return table != base_ + 0x114165c || Read(object + 0x18, key);
+    }
     if (table != base_ + 0x114381c && table != base_ + 0x115ae64
         && table != base_ + 0x115b0a8 && table != base_ + 0x115b2ec && table != base_ + 0x1177c0c) { return true; }
     // The management key is separate from the world-object key at +0x18.
     return Read(object + 0x780, key);
 }
-bool BuildingTarget::Match(void* value, Key expected) const noexcept {
-    Key key{}; return KeyOf(value, key) && key == expected;
+bool BuildingTarget::Match(void* value, Key expected, bool warehouse) const noexcept {
+    Key key{}; return KeyOf(value, key, warehouse) && key == expected;
 }
 void BuildingTarget::Clear() {
     if (list_.sentinel) {
@@ -69,7 +74,7 @@ void BuildingTarget::Clear() {
     }
     if (held_) { calls_.release(&held_, nullptr); }
 }
-O BuildingTarget::Run(const movement::NativeScene& scene, Key key, Admission admit, void* context) {
+O BuildingTarget::Run(const movement::NativeScene& scene, Key key, Admission admit, void* context, bool warehouse) {
     movement::GroundPoint origin{};
     if (!Current(scene, admit, context) || !Position(scene, origin)) { return O::stale; }
     unsigned char allocator = 0;
@@ -89,7 +94,7 @@ O BuildingTarget::Run(const movement::NativeScene& scene, Key key, Admission adm
     for (auto* node = list_.sentinel->next; node != list_.sentinel; node = node->next) {
         if (++count > 8192 || node->previous != previous) { faulted_ = true; return O::unavailable; }
         Key found{};
-        if (!KeyOf(node->object, found)) { Clear(); return O::unavailable; }
+        if (!KeyOf(node->object, found, warehouse)) { Clear(); return O::unavailable; }
         if (found == key) {
             if (++matches == 1) { held_ = node->object; node->object = nullptr; }
         }
@@ -100,30 +105,50 @@ O BuildingTarget::Run(const movement::NativeScene& scene, Key key, Admission adm
     auto* target = held_; held_ = nullptr; Clear(); held_ = target;
     if (faulted_) { return O::unavailable; }
     if (matches != 1) { Clear(); return O::unavailable; }
-    if (!Current(scene, admit, context) || !Match(held_, key)) { Clear(); return O::stale; }
+    if (!Current(scene, admit, context) || !Match(held_, key, warehouse)) { Clear(); return O::stale; }
+    if (warehouse) {
+        // Same ordinary predicate used by View Resources (20 native units).
+        // Both callbacks borrow our retained NPC; unlike Select, neither consumes it.
+        auto predicate = base_ + 0x116a48c;
+        if (!calls_.warehouse_range(&predicate,
+                reinterpret_cast<void*>(scene.actor), held_)) { Clear(); return O::unavailable; }
+        if (!Current(scene, admit, context) || !Match(held_, key, true)) { Clear(); return O::stale; }
+        entered_ = true;
+        calls_.warehouse_open(reinterpret_cast<void*>(scene.actor), held_);
+        Clear();
+        return faulted_ ? O::uncertain : O::submitted;
+    }
     // The cdecl setter consumes this owned argument, including exception cleanup.
     // Detach before calling; never retry a release after uncertain native entry.
     target = held_; held_ = nullptr; entered_ = true;
     calls_.select(target);
     std::uintptr_t selected = 0;
     if (!Current(scene, admit, context) || !Read(base_ + 0x16a2da4, selected)
-        || selected != reinterpret_cast<std::uintptr_t>(target) || !Match(target, key)) { return O::uncertain; }
+        || selected != reinterpret_cast<std::uintptr_t>(target) || !Match(target, key, false)) { return O::uncertain; }
     const std::array<std::uint32_t, 9> action{0x57c};
     return calls_.dispatch(action.data(), reinterpret_cast<void*>(scene.window)) ? O::submitted : O::uncertain;
 }
-O BuildingTarget::RunCxx(const movement::NativeScene& scene, Key key, Admission admit, void* context) noexcept {
-    try { return Run(scene, key, admit, context); }
+O BuildingTarget::RunCxx(const movement::NativeScene& scene, Key key, Admission admit, void* context, bool warehouse) noexcept {
+    try { return Run(scene, key, admit, context, warehouse); }
     catch (...) { faulted_ = true; return entered_ ? O::uncertain : O::unavailable; }
 }
-O BuildingTarget::Guarded(const movement::NativeScene& scene, Key key, Admission admit, void* context) noexcept {
-    __try { return RunCxx(scene, key, admit, context); }
+O BuildingTarget::Guarded(const movement::NativeScene& scene, Key key, Admission admit, void* context, bool warehouse) noexcept {
+    __try { return RunCxx(scene, key, admit, context, warehouse); }
     __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return entered_ ? O::uncertain : O::unavailable; }
 }
 O BuildingTarget::Open(const movement::NativeScene& scene, Key key, Admission admit, void* context) noexcept {
     if (!Available() || !Owner() || running_ || list_.sentinel || held_) { return O::unavailable; }
     if (!key[0] || key[1] != 8 || !admit) { return O::invalid; }
     entered_ = false; running_ = true;
-    const auto outcome = Guarded(scene, key, admit, context);
+    const auto outcome = Guarded(scene, key, admit, context, false);
+    running_ = false;
+    return outcome;
+}
+O BuildingTarget::OpenWarehouse(const movement::NativeScene& scene, Key key, Admission admit, void* context) noexcept {
+    if (!Available() || !Owner() || running_ || list_.sentinel || held_) { return O::unavailable; }
+    if (!key[0] || key[1] != 42 || !admit) { return O::invalid; }
+    entered_ = false; running_ = true;
+    const auto outcome = Guarded(scene, key, admit, context, true);
     running_ = false;
     return outcome;
 }

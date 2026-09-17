@@ -79,7 +79,7 @@ class NativeVendorNavigationSession:
         result = transport.submit(
             NativeVendorNavigationCommand(next(self._ids), verb, command), timeout_ms=750
         )
-        if result.detail != "native_vendor_navigation_receipt_v1":
+        if result.detail != "native_vendor_navigation_receipt_v2":
             error = (
                 _RetryableInspectionError
                 if verb == Verb.INSPECT
@@ -130,6 +130,11 @@ class NativeVendorNavigationSession:
         self, expected: Snapshot, building_id: int, guard_id: int, request_key: str
     ) -> Receipt:
         return self._submit(Verb.GUARD, request_key, expected, building_id, guard_id)
+
+    def open_warehouse(
+        self, expected: Snapshot, building_id: int, source_id: int, request_key: str
+    ) -> Receipt:
+        return self._submit(Verb.WAREHOUSE, request_key, expected, building_id, source_id)
 
     def renew_lease(self) -> None:
         self._transport.renew_lease()

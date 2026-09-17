@@ -11,7 +11,7 @@ from .movement_wire import Host, request_bytes
 from .vendor_navigation_wire import Snapshot as Navigation
 from .vendor_wire import Outcome, uint
 
-MAGIC, READY, IN_FLIGHT, UNRESOLVED = 0x57424731, 1, 2, 4
+MAGIC, READY, IN_FLIGHT, UNRESOLVED = 0x57424732, 1, 2, 4
 _FIELDS = struct.Struct("<8I")
 _COMMAND = struct.Struct("<16sQ16s128s408s")
 _RECEIPT = struct.Struct("<16s16sQII128s16sI188s")

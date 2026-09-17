@@ -295,7 +295,7 @@ def test_navigation_session_uses_production_transport_and_shared_memory_ring(mon
             Outcome.OBSERVED if verb == Verb.INSPECT else Outcome.SUBMITTED,
             READY if verb == Verb.INSPECT else 0, state.encode(), bytes(16), MAGIC, bytes(220),
         )
-        detail = b"native_vendor_navigation_receipt_v1"
+        detail = b"native_vendor_navigation_receipt_v2"
         result = channel._RESULT.pack(
             sequence, header[1], sequence,
             channel.NativeActionResultStage.SUBMITTED_TO_CLIENT, 0,

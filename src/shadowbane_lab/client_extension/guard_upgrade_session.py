@@ -80,7 +80,7 @@ class NativeGuardUpgradeSession:
             result = transport.submit(
                 NativeGuardUpgradeCommand(next(self._ids), verb, command), timeout_ms=750
             )
-            if result.detail != "native_guard_upgrade_receipt_v1":
+            if result.detail != "native_guard_upgrade_receipt_v2":
                 error = (
                     _RetryableInspectionError
                     if verb == Verb.INSPECT

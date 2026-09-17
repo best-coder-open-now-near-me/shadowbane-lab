@@ -14,6 +14,7 @@ public:
     BuildingTarget& operator=(const BuildingTarget&) = delete;
     bool Bind(HWND) noexcept;
     vendor::wire::Outcome Open(const movement::NativeScene&, Key, Admission, void*) noexcept;
+    vendor::wire::Outcome OpenWarehouse(const movement::NativeScene&, Key, Admission, void*) noexcept;
     bool Available() const noexcept { return base_ && !faulted_; }
 private:
     struct Node { Node* next; Node* previous; void* object; };
@@ -26,16 +27,18 @@ private:
         void (__cdecl* pool_return)(void*, std::uint32_t) = nullptr;
         void (__cdecl* select)(void*) = nullptr;
         bool (__cdecl* dispatch)(const void*, void*) = nullptr;
+        bool (__thiscall* warehouse_range)(void*, void*, void*) = nullptr;
+        void (__cdecl* warehouse_open)(void*, void*) = nullptr;
     } calls_{};
     bool Owner() const noexcept;
     bool Current(const movement::NativeScene&, Admission, void*) const noexcept;
     bool Position(const movement::NativeScene&, movement::GroundPoint&) const noexcept;
-    bool KeyOf(void*, Key&) const noexcept;
-    bool Match(void*, Key) const noexcept;
+    bool KeyOf(void*, Key&, bool warehouse) const noexcept;
+    bool Match(void*, Key, bool warehouse) const noexcept;
     void Clear();
-    vendor::wire::Outcome Run(const movement::NativeScene&, Key, Admission, void*);
-    vendor::wire::Outcome RunCxx(const movement::NativeScene&, Key, Admission, void*) noexcept;
-    vendor::wire::Outcome Guarded(const movement::NativeScene&, Key, Admission, void*) noexcept;
+    vendor::wire::Outcome Run(const movement::NativeScene&, Key, Admission, void*, bool warehouse);
+    vendor::wire::Outcome RunCxx(const movement::NativeScene&, Key, Admission, void*, bool warehouse) noexcept;
+    vendor::wire::Outcome Guarded(const movement::NativeScene&, Key, Admission, void*, bool warehouse) noexcept;
     std::uintptr_t base_ = 0;
     HWND window_ = nullptr;
     DWORD thread_ = 0;

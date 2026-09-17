@@ -77,6 +77,7 @@ class NavigationInvoker final : public vendor_navigation::Invoker {
     const movement::NativeScene& scene_;
     HWND window_;
     const vendor_navigation::wire::Snapshot* expected_ = nullptr;
+    vendor_navigation::wire::Key warehouse_{};
 public:
     NavigationInvoker(const std::shared_ptr<vendor_navigation::QueuedCommand>& pending_command,
         const movement::NativeScene& scene, HWND window) : queued_(pending_command), scene_(scene), window_(window) {}
@@ -88,13 +89,21 @@ public:
             || now > self.queued_->deadline || GetForegroundWindow() != self.window_ || IsIconic(self.window_)
             || !vendor_navigation::Capture(image_base, self.scene_, fresh)) { return false; }
         fresh.revision = self.expected_->revision;
-        return vendor_navigation::wire::Equal(fresh, *self.expected_);
+        std::uint32_t row = 0;
+        return vendor_navigation::wire::Equal(fresh, *self.expected_)
+            && (!self.warehouse_[0] || vendor_navigation::FindVendorControl(
+                image_base, fresh, self.warehouse_, row));
     }
     vendor_navigation::wire::Outcome Open(vendor_navigation::wire::Verb verb,
         const vendor_navigation::wire::Command& command) noexcept override {
         using O = vendor_navigation::wire::Outcome;
         expected_ = &command.expected;
+        warehouse_ = verb == vendor_navigation::wire::Verb::warehouse ? command.vendor : vendor_navigation::wire::Key{};
         if (!Admit(this)) { return O::stale; }
+        if (verb == vendor_navigation::wire::Verb::warehouse) {
+            if (!target_bind_attempted) { target_bind_attempted = true; (void)building_target.Bind(window_); }
+            return building_target.OpenWarehouse(scene_, command.vendor, &Admit, this);
+        }
         if (verb == vendor_navigation::wire::Verb::building) {
             if (!target_bind_attempted) { target_bind_attempted = true; (void)building_target.Bind(window_); }
             return building_target.Open(scene_, command.building, &Admit, this);

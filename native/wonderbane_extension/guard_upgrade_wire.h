@@ -3,7 +3,7 @@
 namespace wonderbane::extension::guard_upgrade::wire {
 using Outcome = vendor::wire::Outcome;
 enum class Verb : std::uint32_t { inspect = 17, upgrade = 18 };
-constexpr std::uint32_t magic = 0x57424731, ready = 1, in_flight = 2, unresolved = 4;
+constexpr std::uint32_t magic = 0x57424732, ready = 1, in_flight = 2, unresolved = 4;
 #pragma pack(push, 1)
 struct Snapshot {
     vendor_navigation::wire::Snapshot navigation{};

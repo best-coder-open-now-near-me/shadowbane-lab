@@ -154,7 +154,7 @@ class Transport:
             0,
             100,
             5760,
-            "native_guard_upgrade_receipt_v1",
+            "native_guard_upgrade_receipt_v2",
             payload,
         )
 

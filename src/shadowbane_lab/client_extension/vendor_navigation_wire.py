@@ -10,8 +10,8 @@ from enum import IntEnum
 from .movement_wire import Host, request_bytes
 from .vendor_wire import Outcome, uint
 
-MAGIC, READY, IN_FLIGHT, UNRESOLVED = 0x57424E31, 1, 2, 4
-_SNAPSHOT = struct.Struct("<QQ16I16s")
+MAGIC, READY, IN_FLIGHT, UNRESOLVED = 0x57424E32, 1, 2, 4
+_SNAPSHOT = struct.Struct("<QQ20I")
 _COMMAND = struct.Struct("<16sQ16s96s4I424s")
 _RECEIPT = struct.Struct("<16s16sQII96s16sI220s")
 
@@ -21,6 +21,7 @@ class Verb(IntEnum):
     BUILDING = 14
     VENDOR = 15
     GUARD = 16
+    WAREHOUSE = 22
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +44,10 @@ class Snapshot:
     capacity: int = 0
     occupied: int = 0
     offline: int = 0
+    warehouse_hud: int = 0
+    warehouse_object: int = 0
+    warehouse_id: int = 0
+    warehouse_type: int = 0
 
     @property
     def empty(self) -> bool:
@@ -61,6 +66,13 @@ class Snapshot:
                 if vendor_id
                 else self.visible & 1
             )
+        )
+
+    def warehouse_opened(self, building_id: int, source_id: int) -> bool:
+        return bool(
+            not self.offline and self.building_id == building_id and self.building_type == 8
+            and self.warehouse_hud and self.warehouse_object
+            and self.warehouse_id == source_id and source_id and self.warehouse_type == 42
         )
 
     def encode(self) -> bytes:
@@ -82,6 +94,14 @@ class Snapshot:
             and not (self.vendor_id and self.vendor_type in (37, 42))
             or self.vendor_id
             and not self.selected_entry
+            or bool(
+                self.warehouse_hud or self.warehouse_object
+                or self.warehouse_id or self.warehouse_type
+            )
+            and not (
+                self.warehouse_hud and self.warehouse_object
+                and self.warehouse_id and self.warehouse_type == 42
+            )
             or self.visible & 1
             and not (self.building_hud and self.initialized and self.mode == 6 and self.building_id)
             or self.visible & 2
@@ -90,15 +110,13 @@ class Snapshot:
             )
         ):
             raise ValueError("invalid vendor navigation snapshot")
-        return _SNAPSHOT.pack(*values, bytes(16))
+        return _SNAPSHOT.pack(*values)
 
     @classmethod
     def decode(cls, data: bytes) -> Snapshot:
         if len(data) != 96:
             raise ValueError("invalid navigation snapshot size")
-        *values, padding = _SNAPSHOT.unpack(data)
-        if any(padding):
-            raise ValueError("nonzero navigation snapshot padding")
+        values = _SNAPSHOT.unpack(data)
         result = cls(*values)
         result.encode()
         return result
@@ -126,7 +144,7 @@ class Command:
             raise ValueError("opening needs an online navigation snapshot and building")
         elif verb == Verb.BUILDING and self.vendor_id:
             raise ValueError("building opening cannot carry a vendor")
-        elif verb in (Verb.VENDOR, Verb.GUARD) and (
+        elif verb in (Verb.VENDOR, Verb.GUARD, Verb.WAREHOUSE) and (
             not self.vendor_id or not self.expected.opened(self.building_id)
         ):
             raise ValueError("hireling opening needs its active building window")
