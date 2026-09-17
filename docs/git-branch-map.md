@@ -35,9 +35,11 @@ deposit and upgrade start are verified. Warehouse quotes/reserves are now live-q
 and guard host intents/submission/completion records are durable across restarts.
 Native/host funding from owned quotes now checks the live purse, reserve and both
 balance changes. Quote opening, transfers and upgrades share one durable spending gate. Amount
-windows can now open through verified parent-panel controls. Town traversal,
-coverage and scheduling remain unfinished; no new build is deployed. Next is
-connecting warehouse/building access and the durable town scheduler. Review this lane into
+windows can now open through verified parent-panel controls. Complete building
+roster observation and typed nearby guard discovery/traversal are source-tested;
+the open-building reader is live-qualified. Full-town coverage and scheduling
+remain unfinished; no new build is deployed. Next is warehouse parent-panel
+access and the durable funding/upgrade scheduler. Review this lane into
 `codex/vendor-rolling`, then the documented integration destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.

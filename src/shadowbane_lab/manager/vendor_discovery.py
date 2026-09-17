@@ -60,7 +60,19 @@ def discovery_summary(store):
 
 def run_discovery(store, binding, operation, session, *, cancelled,
                   reader=read_roster, clock=time.monotonic, sleep=time.sleep):
-    path = store.root / "discovery" / (operation.operation_id + ".json")
+    return _run_discovery(
+        store, binding, operation, session, cancelled=cancelled, reader=reader,
+        clock=clock, sleep=sleep, guard=False,
+    )
+
+
+def _run_discovery(
+    store, binding, operation, session, *, cancelled, reader, clock, sleep, guard,
+):
+    population = "hirelings" if guard else "vendors"
+    directory = "guard-discovery" if guard else "discovery"
+    summary = "guard-nearby-summary.json" if guard else "nearby-summary.json"
+    path = store.root / directory / (operation.operation_id + ".json")
     with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
         if path.exists():
             raise VendorBatchStopped("this discovery was already attempted; its record is retained")
@@ -71,13 +83,13 @@ def run_discovery(store, binding, operation, session, *, cancelled,
             "game_creation_filetime": binding.game_process_started_at_100ns,
             "request_key": str(uuid.uuid4()), "state": "waiting",
             "detail": "Return to the game when ready; nearby discovery will continue.",
-            "buildings": 0, "vendors": 0, "roster_complete": False,
+            "buildings": 0, population: 0, "roster_complete": False,
         }
 
         def save(state, detail):
             record.update(state=state, detail=detail)
             _write(path, record)
-            _write(store.root / "nearby-summary.json",
+            _write(store.root / summary,
                    {k: v for k, v in record.items() if k not in {"roster", "open_receipt"}})
 
         def check():
@@ -96,6 +108,11 @@ def run_discovery(store, binding, operation, session, *, cancelled,
                 if clock() >= deadline:
                     raise VendorBatchStopped("The game did not become ready for nearby discovery.")
                 sleep(0.1)
+            if guard:
+                record.update(
+                    scene=before.snapshot.scene, root=before.snapshot.root,
+                    expected=before.snapshot.encode().hex(),
+                )
             save("opening", "Opening the nearby-building window.")
             check()
             opened = session.open(before.snapshot, record["request_key"])
@@ -132,9 +149,9 @@ def run_discovery(store, binding, operation, session, *, cancelled,
                     check()
                     record["roster"] = roster
                     record["buildings"] = len(roster["buildings"])
-                    record["vendors"] = sum(len(b["vendors"]) for b in roster["buildings"])
+                    record[population] = sum(len(b[population]) for b in roster["buildings"])
                     save("complete", f"Found {record['buildings']} nearby buildings and "
-                         f"{record['vendors']} hirelings. Full town coverage is unverified.")
+                         f"{record[population]} hirelings. Full town coverage is unverified.")
                     return record
                 if clock() >= deadline:
                     raise VendorBatchStopped("The nearby-building response was not confirmed.")

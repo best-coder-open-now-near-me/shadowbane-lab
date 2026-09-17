@@ -442,3 +442,44 @@ This is current-building observation, not proof of town membership or coverage.
 Next: durable guard building traversal and guard-window verification, warehouse
 access, finite maximum-rank scheduling, manager integration and versioned live
 qualification. Previously qualified manual transfers need not be repeated.
+
+
+## Typed nearby guard discovery checkpoint
+
+The guard_discovery runner now owns a complete navigation-only sequence: read
+City Command's nearby candidate buildings, release the completed city session,
+then use one navigation session to open each exact building and each type-37
+hireling from its verified local slot list. City cache entries may contain type
+37, type 42 or unknown nonzero types; they are candidates only. The vendor reader
+and crafting path remain strict type 42. Guards are discovered from the building
+list even when the city cache contains no hireling rows for that building.
+
+The existing durable discovery/navigation engines are shared, with separate
+guard-discovery and guard-navigation records and guard-nearby-summary.json under
+the same instance execution lock. Intents precede every open. The candidate
+record retains scene/root provenance across the city-to-building session handoff.
+Scene changes, detached selection, changed rosters, missing responses, cancellation
+and unresolved requests stop progression; a repeated operation never reopens.
+Guard observations retain rank, current price, funds and progress for later fresh
+admission. Discovery never sends spending or upgrade commands. Unavailable
+buildings/guards produce partial candidate coverage; completion of the candidate
+pass does not establish town membership or full-town coverage.
+
+Validation: 361 focused Python tests pass, including the native wire fixtures,
+existing vendor manager/navigation regressions, complete mixed/vacant rosters,
+exact guard selection, sequential producer ownership, failure cleanup, scene
+provenance and durable no-replay tests. Targeted Ruff and diff checks pass. No
+native source changed in this checkpoint. Only the single already-open building
+reader was live-qualified; automated traversal is source/fixture qualified only.
+No runtime deployment, agent game action or gold movement occurred.
+
+Current todos:
+- Complete: owned building rosters and typed nearby guard discovery source.
+- Active: warehouse parent-panel access and a durable funding/upgrade scheduler
+  under exact worker ownership; preserve one producer through each completion.
+- Pending: manager controls/progress, maximum-rank completion qualification,
+  demonstrable town coverage, versioned deployment and live end-to-end validation.
+
+Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
+-> reviewed main. This feature lane remains outside main; review/integration and
+live qualification are still required before claiming delivery of bulk upgrades.

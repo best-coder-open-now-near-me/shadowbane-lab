@@ -53,7 +53,23 @@ def run_building_discovery(
     clock=time.monotonic,
     sleep=time.sleep,
 ):
-    path = store.root / "navigation" / (operation.operation_id + ".json")
+    return _run_building_discovery(
+        store, binding, operation, session, nearby, cancelled=cancelled,
+        reader=reader, clock=clock, sleep=sleep, guard=False,
+    )
+
+
+def _run_building_discovery(
+    store, binding, operation, session, nearby, *, cancelled, reader, clock, sleep, guard,
+):
+    noun = "guard" if guard else "vendor"
+    plural = noun + "s"
+    row_key = "hireling" if guard else "vendor"
+    rows_key = "hirelings" if guard else "vendors"
+    hireling_type = 37 if guard else 42
+    directory = "guard-navigation" if guard else "navigation"
+    summary = "guard-nearby-summary.json" if guard else "nearby-summary.json"
+    path = store.root / directory / (operation.operation_id + ".json")
     with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
         if path.exists():
             raise VendorBatchStopped(
@@ -66,6 +82,10 @@ def run_building_discovery(
             or nearby.get("game_creation_filetime") != binding.game_process_started_at_100ns
         ):
             raise VendorBatchStopped("the nearby building discovery belongs to another client")
+        if guard and any(
+            type(nearby.get(key)) is not int or nearby[key] <= 0 for key in ("scene", "root")
+        ):
+            raise VendorBatchStopped("The nearby guard candidates lack scene provenance.")
         candidates = nearby["roster"]["buildings"]
         ids = [row["building"]["object_id"] for row in candidates]
         if (
@@ -82,7 +102,7 @@ def run_building_discovery(
             "state": "waiting",
             "detail": "Return to the game when ready; building discovery will continue.",
             "buildings": len(ids),
-            "vendors": 0,
+            plural: 0,
             "buildings_verified": 0,
             "roster_complete": False,
             "town_membership_verified": False,
@@ -92,6 +112,7 @@ def run_building_discovery(
             "roster": [],
         }
         baseline = None
+        seen_guards = set()
 
         def save(state=None, detail=None):
             if state is not None:
@@ -100,7 +121,7 @@ def run_building_discovery(
                 record["detail"] = detail
             _write(path, record)
             _write(
-                store.root / "nearby-summary.json",
+                store.root / summary,
                 {key: value for key, value in record.items() if key not in {"attempts", "roster"}},
             )
 
@@ -121,6 +142,8 @@ def run_building_discovery(
                     "A previous window request needs review; no retry was sent."
                 )
             if not state.empty:
+                if guard and (state.scene, state.root) != (nearby["scene"], nearby["root"]):
+                    raise VendorBatchStopped("The guard candidates belong to a different scene.")
                 identity = state.scene, state.root, state.manager
                 if baseline is not None and identity != baseline:
                     raise VendorBatchStopped("The building discovery scene or owner changed.")
@@ -142,27 +165,35 @@ def run_building_discovery(
                 navigate(building_id)
                 before = observe()
                 if not before.flags & READY:
-                    raise VendorBatchStopped("The building changed before vendor selection.")
+                    raise VendorBatchStopped(f"The building changed before {noun} selection.")
             attempt = {
                 "request_key": str(uuid.uuid4()),
                 "building_id": building_id,
-                "vendor_id": vendor_id,
+                noun + "_id": vendor_id,
                 "state": "prepared",
                 "expected": before.snapshot.encode().hex(),
             }
             record["attempts"].append(attempt)
             save(
-                "opening", "Opening the next vendor." if vendor_id else "Opening the next building."
+                "opening",
+                f"Opening the next {noun}." if vendor_id else "Opening the next building."
             )
             check()  # Intent is durable before publication; cancellation still sends nothing.
+            open_hireling = session.open_guard if guard else session.open_vendor
             opened = (
-                session.open_vendor(before.snapshot, building_id, vendor_id, attempt["request_key"])
+                open_hireling(before.snapshot, building_id, vendor_id, attempt["request_key"])
                 if vendor_id
                 else session.open_building(before.snapshot, building_id, attempt["request_key"])
             )
             attempt.update(state="submitted", outcome=opened.outcome.name)
             save()
+            if guard and opened.flags & UNRESOLVED:
+                raise VendorBatchStopped(
+                    "The guard window request needs review; no retry was sent."
+                )
             if opened.outcome in (Outcome.UNAVAILABLE, Outcome.STALE):
+                if guard and opened.flags & IN_FLIGHT:
+                    raise VendorBatchStopped("The guard window has an unconfirmed active request.")
                 attempt["state"] = "not_submitted"
                 save()
                 if opened.outcome == Outcome.STALE:
@@ -186,10 +217,10 @@ def run_building_discovery(
                         "Another request replaced the active window transition."
                     )
                 if not observed.flags & IN_FLIGHT and observed.snapshot.opened(
-                    building_id, vendor_id
+                    building_id, vendor_id, hireling_type=hireling_type
                 ):
                     attempt["state"] = "observed"
-                    save("reading", "Verifying the requested building and vendor identities.")
+                    save("reading", f"Verifying the requested building and {noun} identities.")
                     return observed.snapshot
                 if clock() >= deadline:
                     raise VendorBatchStopped("The requested window response was not confirmed.")
@@ -207,11 +238,21 @@ def run_building_discovery(
                 or roster["building"] != {"object_id": building_id, "object_type": 8}
                 or vendor_id
                 and not any(
-                    row["vendor"] == {"object_id": vendor_id, "object_type": 42}
-                    for row in roster["vendors"]
+                    row[row_key] == {"object_id": vendor_id, "object_type": hireling_type}
+                    for row in roster[rows_key]
                 )
             ):
                 raise VendorBatchStopped("The roster changed while its window was being verified.")
+            if guard:
+                if (
+                    roster.get("building_roster_verified") is not True
+                    or roster["hireling_slots"] != state.capacity
+                    or len(roster["hirelings"]) != state.occupied
+                    or vendor_id and roster.get("selected_guard") != {
+                        "object_id": vendor_id, "object_type": 37,
+                    }
+                ):
+                    raise VendorBatchStopped("The guard roster counts or selected guard changed.")
             return roster
 
         save()
@@ -223,7 +264,7 @@ def run_building_discovery(
                     "building": candidate["building"],
                     "display_name": candidate["display_name"],
                     "state": "opening",
-                    "vendors": [],
+                    plural: [],
                 }
                 record["roster"].append(result)
                 try:
@@ -232,7 +273,7 @@ def run_building_discovery(
                     result.update(state="unavailable", detail=str(exc))
                     save()
                     continue
-                if state.occupied == 0:
+                if not guard and state.occupied == 0:
                     # An empty menu is not proof that this building has no other hirelings.
                     result.update(
                         state="no_visible_hirelings", detail="No populated hireling rows."
@@ -242,34 +283,55 @@ def run_building_discovery(
                 roster = verify_roster(state, building_id, window="building")
                 result.update(state="roster_verified", roster=roster)
                 record["buildings_verified"] += 1
-                for vendor in roster["vendors"]:
-                    vendor_id = vendor["vendor"]["object_id"]
+                for vendor in roster[rows_key]:
+                    if guard and vendor["hireling"]["object_type"] != 37:
+                        continue
+                    vendor_id = vendor[row_key]["object_id"]
+                    if guard:
+                        if vendor_id in seen_guards:
+                            raise VendorBatchStopped("A guard appeared in more than one building.")
+                        seen_guards.add(vendor_id)
                     row = dict(vendor, window_verified=False)
-                    result["vendors"].append(row)
+                    result[plural].append(row)
                     try:
                         state = navigate(building_id, vendor_id)
                     except _NotSubmitted as exc:
                         row.update(state="unavailable", detail=str(exc))
                         save()
                         continue
-                    verify_roster(state, building_id, window="vendor", vendor_id=vendor_id)
+                    detail = verify_roster(
+                        state, building_id, window=noun, vendor_id=vendor_id,
+                    )
+                    if guard:
+                        def keys(observation):
+                            return {
+                                (r["hireling"]["object_id"], r["hireling"]["object_type"])
+                                for r in observation["hirelings"]
+                            }
+                        if keys(detail) != keys(roster):
+                            raise VendorBatchStopped("The building hireling membership changed.")
+                        row["observation"] = detail
                     row.update(state="verified", window_verified=True)
-                    record["vendors"] += 1
+                    record[plural] += 1
                     save()
                 result["state"] = (
                     "verified"
-                    if all(row["window_verified"] for row in result["vendors"])
+                    if all(row["window_verified"] for row in result[plural])
                     else "partial"
                 )
                 save()
-            if not record["vendors"]:
+            if not record[plural] and not (guard and record["buildings_verified"]):
                 raise VendorBatchStopped(
-                    "No vendor windows were verified; "
+                    f"No {noun} windows were verified; "
                     "review building access and discovery readiness."
                 )
+            if guard:
+                record["candidate_buildings_verified"] = all(
+                    row["state"] == "verified" for row in record["roster"]
+                )
             save(
-                "complete",
-                f"Verified {record['vendors']} vendor windows across "
+                "partial" if guard and not record["candidate_buildings_verified"] else "complete",
+                f"Verified {record[plural]} {noun} windows across "
                 f"{record['buildings_verified']} buildings. Full town coverage is unverified.",
             )
             return record

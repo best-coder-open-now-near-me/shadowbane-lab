@@ -64,7 +64,18 @@ def _tree(r: _ReadSet, address: int, limit: int, budget: list[int]):
 
 
 def read_native_nearby_vendor_roster(memory: VendorQueueMemory) -> dict[str, object]:
-    """Observe one consistent nearby cache; never silently infer town coverage."""
+    """Observe a strict crafting-only cache; never infer town coverage."""
+    return _read_nearby_roster(memory, vendors_only=True)
+
+
+def read_native_nearby_hirelings(memory: VendorQueueMemory) -> dict[str, object]:
+    """Retain all typed hireling candidates; eligibility needs the owned building roster."""
+    return _read_nearby_roster(memory, vendors_only=False)
+
+
+def _read_nearby_roster(memory: VendorQueueMemory, *, vendors_only: bool) -> dict[str, object]:
+    row_name = "vendor" if vendors_only else "hireling"
+    rows_name = "vendors" if vendors_only else "hirelings"
     if (
         memory.executable_name.casefold() != "sb.exe"
         or memory.executable_sha256 not in REVIEWED_VENDOR_EXECUTABLES or memory.pointer_size != 4
@@ -100,20 +111,23 @@ def read_native_nearby_vendor_roster(memory: VendorQueueMemory) -> dict[str, obj
             raise NativeVendorDialogCaptureError("nearby building key mismatch")
         vendors = []
         for vendor_key, hireling in _tree(r, block + 0x38, 256, budget):
-            if (vendor_key[1] != 42 or vendor_key in vendor_keys
+            if (not vendor_key[1] or vendors_only and vendor_key[1] != 42
+                    or vendor_key in vendor_keys
                     or hireling in vendor_blocks):
                 raise NativeVendorDialogCaptureError("invalid or repeated nearby hireling identity")
             vendor_keys.add(vendor_key)
             vendor_blocks.add(hireling)
             r.require(hireling, base + 0x117A7BC, "hireling info block type")
             vendors.append({
-                "vendor": {"object_id": vendor_key[0], "object_type": vendor_key[1]},
+                row_name: {"object_id": vendor_key[0], "object_type": vendor_key[1]},
                 "display_name": _text(r, hireling + 4),
             })
         buildings.append({
             "building": {"object_id": key[0], "object_type": key[1]},
             "display_name": _text(r, block + 8),
-            "vendors": sorted(vendors, key=lambda row: row["vendor"]["object_id"]),
+            rows_name: sorted(
+                vendors, key=lambda row: (row[row_name]["object_id"], row[row_name]["object_type"])
+            ),
         })
     if not buildings:
         raise NativeVendorDialogCaptureError(
