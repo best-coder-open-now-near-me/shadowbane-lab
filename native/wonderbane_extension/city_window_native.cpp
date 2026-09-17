@@ -27,9 +27,12 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
     s.manager = r.Word(s.root + 0xD4);
     r.Require(s.manager, static_cast<std::uint32_t>(base + 0x1171BCC));
     s.active_manager = r.Word(base + 0x16A7C1C);
-    s.hud = r.Word(s.manager + 0x4C); s.mode = r.Word(s.manager + 0x44);
-    s.building_count = r.Word(s.manager + 0x78);
+    s.hud = r.Word(s.manager + 0x4C);
+    // The constructor leaves mode unpublished until Open creates the HUD.
+    // A closed manager has no roster or mode to expose to the host.
     if (s.hud) {
+        s.mode = r.Word(s.manager + 0x44);
+        s.building_count = r.Word(s.manager + 0x78);
         r.Require(s.hud, static_cast<std::uint32_t>(base + 0x1166234));
         r.Require(s.hud + 0x104, s.manager);
         s.loading = (r.Word(s.hud + 0x568) >> 16) & 0xff;

@@ -171,7 +171,8 @@ bool Quote(Reader& r, std::uintptr_t base, wire::Snapshot& s) noexcept {
     s.entered = static_cast<std::uint32_t>(amount); return r.ok;
 }
 bool FindOpenControl(Reader& r, std::uintptr_t base, const wire::Snapshot& s,
-    std::uint32_t& button, std::uint32_t& gold_control, std::uint32_t& gold_entry) noexcept {
+    std::uint32_t& button, std::uint32_t& gold_control, std::uint32_t& gold_entry,
+    bool before_selection = false) noexcept {
     button = gold_control = gold_entry = 0;
     std::array<std::uint32_t, 512> children{}; const auto count = r.Vector(s.hud + 0x54, children);
     for (std::size_t i = 0; r.ok && i < count; ++i) {
@@ -180,7 +181,10 @@ bool FindOpenControl(Reader& r, std::uintptr_t base, const wire::Snapshot& s,
             if (button) { return false; } button = child;
             r.Require(child, static_cast<std::uint32_t>(base + 0x1169ec0));
             r.Require(child + 0x1d0, s.direction == 1 ? 0x1008 : 0x586); r.Require(child + 0x1d4, 0);
-            r.Require(child + 0x1a8, 0);
+            // Withdraw is normally disabled until its Gold row is selected.
+            // Deposit and the post-selection check must still be enabled.
+            const auto disabled = r.Word(child + 0x1a8);
+            if (disabled > (before_selection && s.direction == 1 ? 1U : 0U)) { return false; }
             if ((r.Word(child + 0x304) >> 8) & 0xff) { return false; }
         }
         if (s.direction != 1 || !r.Name(child + 0x164, L"WAREHOUSE_INV", 13)) { continue; }
@@ -192,6 +196,7 @@ bool FindOpenControl(Reader& r, std::uintptr_t base, const wire::Snapshot& s,
             if (gold_control) { return false; }
             r.Require(control, static_cast<std::uint32_t>(base + 0x116aebc));
             r.Require(control + 0x3bc, s.hud); r.Require(control + 0x458, child);
+            r.Require(control + 0x1d0, 0x1005); r.Require(control + 0x1d4, 0);
             r.Require(control + 0x1a8, 0);
             if ((r.Word(control + 0x304) >> 8) & 0xff) { return false; }
             r.Require(entry, static_cast<std::uint32_t>(base + 0x116f258));
@@ -204,9 +209,11 @@ bool FindOpenControl(Reader& r, std::uintptr_t base, const wire::Snapshot& s,
 bool Click(std::uintptr_t base, std::uint32_t control, bool row) noexcept {
     __try {
         using Callback = bool (__thiscall*)(void*, std::uint32_t, std::uint32_t);
-        const bool result = reinterpret_cast<Callback>(base + (row ? 0x61c6e0 : 0x5f5440))(
+        (void)reinterpret_cast<Callback>(base + (row ? 0x61c6e0 : 0x5f5440))(
             reinterpret_cast<void*>(control), row ? 1 : 0, 0);
-        return !row || result;
+        // Event propagation is not selection success; InvokeOpen verifies the
+        // exact selected entry and enabled Withdraw control after this callback.
+        return true;
     } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
 bool SetAmount(std::uintptr_t base, std::uint32_t quote, std::uint32_t amount) noexcept {
@@ -284,7 +291,7 @@ bool InvokeOpen(std::uintptr_t base, const movement::NativeScene& scene, const w
     fresh.revision = c.expected.revision;
     if (!wire::Equal(fresh, c.expected)) { return false; }
     Reader r; std::uint32_t button = 0, row = 0, entry = 0;
-    if (!FindOpenControl(r, base, fresh, button, row, entry)) { return false; }
+    if (!FindOpenControl(r, base, fresh, button, row, entry, true)) { return false; }
     if (c.direction == 1 && !Click(base, row, true)) { return false; }
     if (!Capture(base, scene, c.direction, fresh, top) || !top) { return false; }
     fresh.revision = c.expected.revision;

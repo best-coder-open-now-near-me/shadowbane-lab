@@ -6,6 +6,8 @@
 namespace f = wonderbane::extension::guard_funding;
 namespace m = wonderbane::extension::movement;
 bool live = true, setter_ok = true, invalidate_purse = false, select_ok = true;
+bool selection_enables = true;
+std::uint32_t selections = 0;
 std::uint32_t base = 0, purse = 500, confirmations = 0, admissions = 0, opened = 0;
 namespace wonderbane::extension::movement {
 bool NativeMovementLifetimeCurrent(const NativeScene& s) noexcept { return live && s.epoch == 1; }
@@ -55,7 +57,10 @@ bool __fastcall SelectGold(void* self, void*, std::uint32_t event, std::uint32_t
     const auto head = base + 0x1a000, node = base + 0x1b000;
     Word(base + 0x3000 + 0x3c8, 1); Word(head + 4, node); Word(head + 8, node); Word(head + 12, node);
     Word(node + 4, head); Word(node + 8, 0); Word(node + 12, 0);
-    Word(node + 0x10, base + 0xc000 + (select_ok ? 0 : 4)); return true;
+    Word(node + 0x10, base + 0xc000 + (select_ok ? 0 : 4));
+    if (selection_enables) { Word(base + 0x1d000 + 0x1a8, 0); }
+    ++selections;
+    return false; // Selection can succeed even when the event is not consumed.
 }
 void __fastcall Deposit(void* self, void*, std::uint32_t mode) {
     assert(reinterpret_cast<std::uint32_t>(self) == base + 0x15000 && mode == 13);
@@ -102,6 +107,7 @@ int main() {
     Word(list, base + 0x116acf0); Word(list + 0x3bc, hud);
     Text(list + 0x164, base + 0x10100, L"WAREHOUSE_INV");
     Vector(list + 0x408, base + 0x10200, {row});
+    Word(row + 0x1d0, 0x1005);
     Word(row, base + 0x116aebc); Word(row + 0x3bc, hud); Word(row + 0x458, list); Word(row + 0x44c, entry);
     Word(entry, base + 0x116f258); Word(entry + 0x20, 123); Word(entry + 0x48, 1000);
     Text(entry + 0x30, base + 0x10300, L"Gold");
@@ -153,8 +159,21 @@ int main() {
     Word(entry + 0x48, 900); purse = 600;
     c.expected = warehouse; c.amount = 100; assert(capture() && f::wire::Confirmed(c, s));
     auto opening = c; opening.expected = s; opening.amount = 0;
+    for (const auto [address, replacement] : {
+        std::pair{opener + 0x1a8, 2U}, {opener + 0x304, 0x100U},
+        {opener + 0x1d0, 0x100bU}, {row + 0x1d0, 0x1006U},
+        {row + 0x1d4, 1U}, {row + 0x1a8, 1U}}) {
+        std::uint32_t saved = 0; std::memcpy(&saved, reinterpret_cast<void*>(address), 4);
+        Word(address, replacement);
+        assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && !opened && !selections);
+        Word(address, saved);
+    }
+    Word(opener + 0x1a8, 1);
     select_ok = false; assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && !opened);
-    select_ok = true; assert(f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 1);
+    select_ok = true; selection_enables = false; Word(opener + 0x1a8, 1);
+    assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && !opened);
+    selection_enables = true;
+    assert(f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 1 && selections == 3);
     assert(capture() && f::wire::Opened(opening, s) && confirmations == 1);
     Word(hud + 0x10c, 0); Word(head, hnode); Word(hnode + 4, head);
     // The deposit uses the exact current purse, not the limit cached at open.
@@ -180,7 +199,10 @@ int main() {
     assert(capture(2) && f::wire::Confirmed(c, s));
     opening = c; opening.expected = s; opening.amount = 0;
     Word(opener + 0x1d0, 0x585); assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 1);
-    Word(opener + 0x1d0, 0x586); assert(f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 2);
+    Word(opener + 0x1d0, 0x586); Word(opener + 0x1a8, 1);
+    assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 1);
+    Word(opener + 0x1a8, 0);
+    assert(f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 2);
     assert(capture(2) && f::wire::Opened(opening, s) && confirmations == 2);
     Word(manager + 0xf8, 889); assert(!capture(2)); Word(manager + 0xf8, 888);
     live = false; assert(!capture(2)); assert(!f::Invoke(base, scene, c, &Admit, nullptr));

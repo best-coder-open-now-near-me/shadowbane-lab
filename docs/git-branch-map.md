@@ -57,10 +57,13 @@ Full native 1.8.13 / host 0.3.22 (source 3b05f0b) is installed and verified.
 The warehouse panel's retained NPC ownership is confirmed and used for return
 visits. A live tower open exposed chat-window ordering; the timed-out request
 remains retained. This version corrects chat ordering across native transactions.
-Package, guest activation, loaded module and manager checks passed. User login
-and automatic return qualification are next.
+Package, guest activation, loaded module and manager checks passed. Automatic
+tower/warehouse/resources return is now live-qualified. Discovery's first-open
+state and funding's Gold-selection ordering exposed two further blockers before
+any money moved. Native 1.8.14 / host 0.3.23 corrects both; packaging and activation
+are next. Earlier uncertain requests stay retained without replay.
 Maximum-rank and full-town evidence remain unfinished.
-See [chat ordering correction and next work](handoffs/guard-upgrades-1.8.13.md).
+See [first-open/Gold selection correction and next work](handoffs/guard-upgrades-1.8.14.md).
 Review this lane into `codex/vendor-rolling`, then the documented integration
 destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).

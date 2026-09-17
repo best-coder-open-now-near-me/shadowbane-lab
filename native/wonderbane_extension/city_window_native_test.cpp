@@ -22,11 +22,16 @@ int main() {
     c::wire::Snapshot state{};
     auto capture = [&] { return c::Capture(base, scene, state); };
     assert(capture() && !state.hud && !state.visible); // No preparatory window needed.
+    word(manager + 0x44, 0x72ffac); word(manager + 0x78, UINT32_MAX);
+    word(base + 0x16A7C1C, root + 0x5000);
+    assert(capture() && !state.mode && !state.building_count && !state.loading);
+    word(manager + 0x78, 0);
     word(manager + 0x4C, hud); word(manager + 0x44, 2); word(hud, base + 0x1166234);
     word(hud + 0x104, manager); word(base + 0x16A7C1C, manager);
     word(head, node); word(head + 4, node);
     word(node, head); word(node + 4, head); word(node + 8, hud);
     assert(capture() && state.visible && state.active_manager == manager);
+    word(manager + 0x44, 0x72ffac); assert(!capture()); word(manager + 0x44, 2);
     word(hud + 0x568, 0x10000); assert(capture() && state.loading == 1);
     word(hud + 0x568, 0x20000); assert(!capture()); word(hud + 0x568, 0);
     word(node, node); assert(!capture()); word(node, head);

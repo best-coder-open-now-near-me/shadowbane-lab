@@ -45,7 +45,9 @@ host source, matching read-only action-channel identity and healthy guard-capabl
 manager checks passed. No game action was submitted during activation. Earlier
 unresolved requests remain retained without reset or replay.
 
-Active todo: user login beside the Seneschal and initial View Resources opening,
-then qualify automatic tower/warehouse/resources return, followed by live guard
-funding and upgrades. Maximum-rank proof, full-town coverage and integration are
-unfinished.
+Automatic tower/warehouse/resources return subsequently passed with exact native
+receipts. Discovery exposed uninitialized City Command mode before first open.
+A bounded guard funding qualification reached the fresh quote and warehouse
+return, then stopped before withdrawal because Gold had not yet enabled Withdraw.
+No transfer or upgrade was submitted; the uncertain opening request stays blocked.
+See [the combined correction and active todos](guard-upgrades-1.8.14.md).
