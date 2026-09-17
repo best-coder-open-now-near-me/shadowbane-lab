@@ -31,9 +31,11 @@ Read-only guard/deposit observers are live-qualified. Native/host source now
 supports distinct guard navigation and funded guard-upgrade commands with exact
 ownership, quoted-cost admission, immutable submission receipts and observed
 progress/debit correlation. A user-operated warehouse withdrawal, structure
-deposit and upgrade start are verified. Automatic funding, durable host receipts,
-town coverage and scheduling remain unfinished; no new build is deployed.
-Next is warehouse/structure transfer integration, then the durable town scheduler. Review this lane into
+deposit and upgrade start are verified. Warehouse quotes/reserves are now live-qualified,
+and guard host intents/submission/completion records are durable across restarts.
+Automatic funding, shared spending exclusion, town coverage and scheduling remain
+unfinished; no new build is deployed. Next is warehouse/structure transfer integration,
+then the durable town scheduler. Review this lane into
 `codex/vendor-rolling`, then the documented integration destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.

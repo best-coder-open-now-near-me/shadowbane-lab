@@ -13,6 +13,7 @@ from shadowbane_lab.client_extension.action_channel import (
     NativeActionResultStage,
     NativeClientProcessIdentity,
 )
+from shadowbane_lab.client_extension.guard_upgrade_journal import GuardUpgradeJournal
 from shadowbane_lab.client_extension.guard_upgrade_session import NativeGuardUpgradeSession
 from shadowbane_lab.client_extension.guard_upgrade_wire import (
     _RECEIPT,
@@ -161,13 +162,15 @@ class Transport:
         self.closed = True
 
 
-def test_session_correlation_and_upgrade_timeout_never_retries():
+def test_session_correlation_and_upgrade_timeout_never_retries(tmp_path):
     with patch(
         "shadowbane_lab.client_extension.guard_upgrade_session.channel."
         "WindowsNativeActionCommandTransport",
         Transport,
     ):
-        session = NativeGuardUpgradeSession(NativeClientProcessIdentity(988, 123), 1000)
+        session = NativeGuardUpgradeSession(
+            NativeClientProcessIdentity(988, 123), 1000, journal=GuardUpgradeJournal(tmp_path)
+        )
         assert session.inspect().outcome == Outcome.OBSERVED
         for mode in ("request", "host", "window", "stage"):
             session._transport.mode = mode

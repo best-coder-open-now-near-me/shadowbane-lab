@@ -8,6 +8,7 @@ import uuid
 from dataclasses import dataclass
 
 from . import action_channel as channel
+from .guard_upgrade_journal import GuardSpendingStopped, GuardUpgradeJournal
 from .guard_upgrade_wire import Command, Outcome, Receipt, Snapshot, Verb
 from .movement_wire import Host
 
@@ -50,10 +51,17 @@ class _RetryableInspectionError(channel.NativeActionChannelUnavailable):
 
 
 class NativeGuardUpgradeSession:
-    def __init__(self, identity: channel.NativeClientProcessIdentity, window: int):
+    def __init__(
+        self,
+        identity: channel.NativeClientProcessIdentity,
+        window: int,
+        *,
+        journal: GuardUpgradeJournal | None = None,
+    ):
         if type(window) is not int or not 0 < window < 2**32:
             raise ValueError("an exact client HWND is required")
         self.identity, self.window = identity, window
+        self._journal = journal
         self._transport = channel.WindowsNativeActionCommandTransport(identity)
         self._ids = itertools.count(1)
         self._closed = False
@@ -67,34 +75,45 @@ class NativeGuardUpgradeSession:
             process.process_id, transport.host_lease_generation, process.creation_filetime_utc
         )
         command = Command(host, self.window, request_key, expected or Snapshot())
-        result = transport.submit(
-            NativeGuardUpgradeCommand(next(self._ids), verb, command), timeout_ms=750
-        )
-        if result.detail != "native_guard_upgrade_receipt_v1":
-            error = (
-                _RetryableInspectionError
-                if verb == Verb.INSPECT
-                and result.stage == channel.NativeActionResultStage.FAILED
-                and result.error_code == 13
-                and result.detail == "invalid_or_expired_guard_upgrade_lease"
-                else channel.NativeActionChannelUnavailable
+
+        def dispatch() -> Receipt:
+            result = transport.submit(
+                NativeGuardUpgradeCommand(next(self._ids), verb, command), timeout_ms=750
             )
-            raise error(
-                f"guard_upgrade {verb.name.lower()} failed: {result.detail} "
-                f"(stage={result.stage.name}, error={result.error_code})"
-            )
-        receipt = Receipt.decode(result.movement_payload)
-        if (
-            receipt.host != host
-            or receipt.window != self.window
-            or receipt.request_key != request_key
-        ):
-            raise channel.NativeActionChannelError("guard_upgrade receipt correlation mismatch")
-        accepted = receipt.outcome in (Outcome.OBSERVED, Outcome.SUBMITTED)
-        if accepted != result.stage.accepted_submission or accepted != (result.error_code == 0):
-            raise channel.NativeActionChannelError(
-                "guard_upgrade receipt contradicts transport result"
-            )
+            if result.detail != "native_guard_upgrade_receipt_v1":
+                error = (
+                    _RetryableInspectionError
+                    if verb == Verb.INSPECT
+                    and result.stage == channel.NativeActionResultStage.FAILED
+                    and result.error_code == 13
+                    and result.detail == "invalid_or_expired_guard_upgrade_lease"
+                    else channel.NativeActionChannelUnavailable
+                )
+                raise error(
+                    f"guard_upgrade {verb.name.lower()} failed: {result.detail} "
+                    f"(stage={result.stage.name}, error={result.error_code})"
+                )
+            receipt = Receipt.decode(result.movement_payload)
+            if (
+                receipt.host != host
+                or receipt.window != self.window
+                or receipt.request_key != request_key
+            ):
+                raise channel.NativeActionChannelError("guard_upgrade receipt correlation mismatch")
+            accepted = receipt.outcome in (Outcome.OBSERVED, Outcome.SUBMITTED)
+            if accepted != result.stage.accepted_submission or accepted != (result.error_code == 0):
+                raise channel.NativeActionChannelError(
+                    "guard_upgrade receipt contradicts transport result"
+                )
+            return receipt
+
+        if verb == Verb.UPGRADE:
+            if self._journal is None:
+                raise GuardSpendingStopped("Guard upgrades require a durable spending journal.")
+            return self._journal.submit(self.identity, command, dispatch)
+        receipt = dispatch()
+        if self._journal is not None:
+            self._journal.observe(self.identity, receipt)
         return receipt
 
     def inspect(self) -> Receipt:

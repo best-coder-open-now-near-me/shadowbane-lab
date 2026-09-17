@@ -113,6 +113,20 @@ class Command:
             self.host.encode(), self.window, request_bytes(self.request_key), state, bytes(408)
         )
 
+    @classmethod
+    def decode(cls, data: bytes, verb: Verb) -> Command:
+        if len(data) != 576:
+            raise ValueError("invalid guard command size")
+        host, window, request, state, padding = _COMMAND.unpack(data)
+        if any(padding):
+            raise ValueError("nonzero guard command padding")
+        result = cls(
+            Host.decode(host), window, str(uuid.UUID(bytes=request)), Snapshot.decode(state)
+        )
+        if result.encode(verb) != data:
+            raise ValueError("noncanonical guard command")
+        return result
+
 
 @dataclass(frozen=True, slots=True)
 class Receipt:
@@ -123,6 +137,22 @@ class Receipt:
     flags: int
     snapshot: Snapshot
     transition_request: str | None = None
+
+    def encode(self) -> bytes:
+        raw = _RECEIPT.pack(
+            request_bytes(self.request_key),
+            self.host.encode(),
+            self.window,
+            self.outcome,
+            self.flags,
+            self.snapshot.encode(),
+            request_bytes(self.transition_request) if self.transition_request else bytes(16),
+            MAGIC,
+            bytes(188),
+        )
+        if type(self).decode(raw) != self:
+            raise ValueError("noncanonical guard receipt")
+        return raw
 
     @classmethod
     def decode(cls, data: bytes) -> Receipt:

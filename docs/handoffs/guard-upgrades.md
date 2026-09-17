@@ -15,7 +15,8 @@ guards. Do not infer a shared town balance from one building's funds or assume
 all guard types use the same cost. The user identified warehouse gold as the funding source after confirming the
 structure has no upgrade funds. Warehouse withdrawal and structure deposits
 are required parts of the feature. The user-operated bounded transfer is
-qualified; automatic transfer commands and durable receipts remain unfinished. Do not claim that a button's availability establishes enough money.
+qualified; automatic transfer commands and funding receipts remain unfinished. Guard
+upgrade receipts are now durable in host source. Do not claim that a button's availability establishes enough money.
 
 ## Completed observation slice
 
@@ -71,10 +72,13 @@ Static evidence, RVAs in reviewed source executable ac9ca464:
   exact-key response correlation and immutable duplicate-request receipts.
 - [x] Implement native/host funded guard-upgrade commands, ordinary confirmation
   callback, exact before-state admission and correlated observed progress/debit.
-- [ ] Active: implement automatic warehouse withdrawal/structure deposit and
-  durable host receipts with character/scene ownership.
+- [x] Qualify warehouse quote source, balance, configured reserve, and typed amount.
+- [x] Require durable host intent/submission/completion records for guard upgrades;
+  retain unresolved outcomes across restarts and block duplicate/new spending.
+- [ ] Active: implement automatic warehouse withdrawal/structure deposit with
+  current purse checks, two-sided transfer receipts, and shared spending exclusion.
 - [ ] Qualify automatic navigation across guard structures and other guard types.
-- [ ] Connect durable per-guard host receipts and the maximum-rank scheduler
+- [ ] Connect the durable guard journal to the maximum-rank scheduler
   with finite work per pass; retain every uncertain action without replay.
 - [ ] Present progress and unresolved/blocked guards in the manager; validate the
   full flow and integrate through the branches above.
@@ -284,3 +288,36 @@ Unlike the roster selection callback, its event index 0 selects first action
 +0x1d0 (entries stride 36 bytes). Its return value is not server acceptance.
 No callback has been qualified by live invocation here. Remaining work is the
 durable spending journal, native funding admission/receipts, and town scheduling.
+
+## Durable guard spending checkpoint
+
+NativeGuardUpgradeSession now requires an instance-local GuardUpgradeJournal for
+Upgrade; read-only Inspect remains available without it. The exact command,
+request UUID, game process lifetime, host process lifetime/lease and scene-bearing
+snapshot are atomically recorded before transport. A cross-process lock serializes
+spending, so a new UUID cannot bypass an active attempt. Historical UUIDs cannot
+be reused even after completion or proven non-submission. The manager must bind
+the journal to its persistent client-instance directory, never a temporary job or
+host-process directory. This is guard-upgrade storage, not yet a funding ledger.
+
+A separately correlated native inspection completes the record only for the same
+owner/controls, exact debit and upgrade progress or one-rank increase. Lost replies,
+corrupt/missing records, failed writes and changed ownership retain uncertainty.
+Native unresolved flags are persisted and cannot be cleared by later observations.
+A completed record written before a failed active-pointer clear can be recovered
+without another game action. A proven non-submission may release the spending gate,
+but its UUID remains spent. There is no automatic reset, retry or history erasure.
+
+Validation: 174 focused Python guard/warehouse/deposit/navigation/record-store tests
+pass, including real native/host wire agreement, and targeted Ruff passes. The
+8 built native vendor/guard/navigation suites pass. A broad unfiltered CTest attempt
+also selected unrelated executables absent from this focused build directory;
+those suites were not run and are not claimed as validated by this checkpoint.
+No native source changed in this checkpoint and no runtime update was installed.
+
+Next active work remains native funding capture/admission: read the current purse
+on the owner thread, bind warehouse withdrawals and structure deposits to exact
+identities and amounts, and require both balance changes before proceeding. Then
+connect shared spending exclusion, town traversal, maximum-rank passes, manager
+progress and a coherent versioned deployment. The warehouse quote was read only;
+no agent withdrawal, deposit or guard upgrade has run.
