@@ -630,3 +630,51 @@ another window, foreground correlation, parent-roster admission behind a hirelin
 wrong-source warehouse responses and a journal that stays pending for a background
 panel. No runtime update or live action occurred. Next remains the persistent
 funding/upgrade sequence, manager integration and coherent live qualification.
+
+
+## Durable warehouse-to-guard funding cycle
+
+The manager now has a reusable run_guard_funding_cycle transaction for one
+freshly quoted guard upgrade. Its immutable target includes the exact game
+process lifetime, native scene/root, warehouse building/NPC and guard building/
+hireling identities. It holds the existing instance execution lock and uses the
+shared GuardSpendingJournal for every action. One producer stays alive through
+its correlated completion; each closed session must leave the journal idle before
+the next family claims the transport. Each factory handoff also checks PID lifetime
+and HWND. Cycle IDs and native request IDs are retained and never replayed.
+
+The cycle opens the exact guard, reads current rank/price/funds, and skips guards
+already upgrading or without an eligible offer. Existing building funds avoid all
+funding actions. Otherwise it visits the warehouse, honors the current resource
+reserve, uses existing purse gold and withdraws only the shortfall. After the
+withdrawal's two-sided receipt it opens the exact building, refreshes its balance,
+deposits only its remaining shortfall, returns to the guard and rechecks rank,
+price and eligibility before the upgrade. The final result requires the exact
+upgrade debit and progress/rank receipt. Pre-existing amount windows are not
+adopted. Confirmed withdrawals/deposits remain recorded if later phases stop.
+
+A missing response, changed source/scene/character/price, lost worker or cancellation
+stops later actions. A new cycle ID cannot bypass an unresolved shared action.
+Insufficient gold is a clean result without partial funding; already-upgrading
+and no-offer states are explicit, and no-offer is not a maximum-rank proof.
+An already-front exact window needs only observation, avoiding unnecessary opens.
+This permanent transaction boundary is intended for the town scheduler; it is not
+yet wired to dashboard admission or an automatic maximum-rank loop.
+
+Validation: 420 focused host tests passed before adding the final cross-cycle
+no-bypass case; the complete funding-cycle suite and source checks are run again
+for this checkpoint. Its integration fixture uses the real persistent journal and
+wire codecs, simulates intermediate in-flight observations, and asserts only one
+producer exists at a time. It covers existing gold, reserve exhaustion, every lost
+phase response, cancellation after withdrawal, stale target lifetime, scene/HWND/
+character changes, changed prices and exact balances. Native source is unchanged
+from 51f41cd; no runtime update, live withdrawal/deposit or guard action occurred.
+
+Current todos:
+- Complete: native warehouse access, front-window navigation, unified action
+  journal and the durable funding/upgrade transaction source.
+- Active: town guard planning and scheduling using these transactions.
+- Pending: manager controls/progress, maximum-rank completion qualification,
+  demonstrable town coverage, coherent deployment and live end-to-end validation.
+Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
+-> reviewed main. Source/fixture validation does not imply installed acceptance.

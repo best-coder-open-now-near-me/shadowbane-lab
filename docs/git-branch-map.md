@@ -45,8 +45,10 @@ warehouse access is source-tested with version-3 navigation/guard receipts and
 front-window confirmation; ship
 host/native together. Full-town coverage and scheduling remain unfinished; no new
 build is deployed. Guard navigation now shares the durable spending gate, so lost
-window replies block transfers/upgrades across restarts. Next is the persistent
-warehouse-to-building funding/upgrade sequence. Review this lane into
+window replies block transfers/upgrades across restarts. The persistent funding
+cycle now joins exact guard quotes, shortfall withdrawal, structure deposit and
+upgrade confirmation under one execution lock and journal. Next is town guard
+planning/scheduling and manager admission. Review this lane into
 `codex/vendor-rolling`, then the documented integration destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.
