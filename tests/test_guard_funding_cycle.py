@@ -341,3 +341,50 @@ def test_new_cycle_id_cannot_bypass_an_unresolved_spend(setup):
     with pytest.raises(GuardSpendingStopped):
         setup.run()
     assert setup.world.sessions == before_sessions
+
+
+@pytest.mark.parametrize("delayed_kind,delay", [("navigation", 45), ("funding", 20)])
+def test_slow_menu_response_keeps_one_request_without_extending_spending_timeout(
+    setup, monkeypatch, delayed_kind, delay,
+):
+    tick = [0.0]
+    releases = {}
+    original = Session.inspect
+
+    def inspect(self, direction=1):
+        pending = self.world.pending
+        if pending and self.kind == delayed_kind:
+            key = self.world.transitions[self.kind]
+            release = releases.setdefault(key, tick[0] + delay)
+            if tick[0] < release:
+                codec = nav if self.kind == "navigation" else funding
+                receipt = codec.Receipt(str(uuid.uuid4()), self.host, 1000,
+                    nav.Outcome.OBSERVED, nav.IN_FLIGHT, pending[1], key)
+                self.journal.observe(IDENTITY, receipt)
+                return receipt
+        return original(self, direction)
+
+    monkeypatch.setattr(Session, "inspect", inspect)
+
+    def run():
+        return run_guard_funding_cycle(setup.store, setup.binding, setup.operation, TARGET,
+            cancelled=lambda: False, session_factory=setup.world.factory,
+            clock=lambda: tick[0], sleep=lambda _: tick.__setitem__(0, tick[0] + 1))
+
+    if delayed_kind == "navigation":
+        result = run()
+        assert result["state"] == "started"
+        assert (result["withdrawn"], result["deposited"], result["spent"]) == (50, 80, 100)
+        assert all(a["state"] == "confirmed" for a in result["actions"])
+        assert len(result["actions"]) == len(set(a["request_key"] for a in result["actions"]))
+        assert setup.world.calls.count("warehouse") == 1
+        assert setup.world.calls.count("upgrade") == 1
+        GuardSpendingJournal(setup.store.root).assert_idle()
+    else:
+        with pytest.raises(GuardFundingCycleStopped, match="not confirmed"):
+            run()
+        assert setup.world.calls[-1] == "quote"
+        assert not set(setup.world.calls) & {"withdraw", "deposit", "upgrade"}
+        with pytest.raises(GuardSpendingStopped):
+            GuardSpendingJournal(setup.store.root).assert_idle()
+    assert not setup.world.open_sessions

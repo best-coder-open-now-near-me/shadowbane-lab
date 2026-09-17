@@ -11,6 +11,7 @@ from shadowbane_lab.client_extension.vendor_navigation_session import NativeVend
 from shadowbane_lab.client_extension.vendor_navigation_wire import (
     IN_FLIGHT,
     READY,
+    RESPONSE_WAIT_SECONDS,
     UNRESOLVED,
     Outcome,
 )
@@ -209,7 +210,7 @@ def _run_building_discovery(
                 raise VendorBatchStopped(
                     "The window request receipt did not match its durable intent."
                 )
-            deadline = clock() + 12
+            deadline = clock() + RESPONSE_WAIT_SECONDS
             while True:
                 observed = observe()
                 if observed.transition_request != attempt["request_key"]:

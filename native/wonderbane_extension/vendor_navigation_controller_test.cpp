@@ -125,19 +125,41 @@ int main(int argc, char**) {
             : (verb == w::Verb::warehouse ? behind.warehouse_hud : behind.vendor_hud);
         focus.Observe(behind, true, 402); assert(!focus.Busy());
     }
+    // Every menu family tolerates a slow server response without another dispatch.
+    for (auto verb : {w::Verb::building, w::Verb::vendor, w::Verb::guard, w::Verb::warehouse}) {
+        n::Controller delayed; Fake once;
+        auto before = state; before.front_hud = 999;
+        before.warehouse_hud = 600; before.warehouse_object = 700; before.warehouse = {777, 42};
+        delayed.Observe(before, true, 10);
+        auto c = Request(delayed, 70);
+        if (verb != w::Verb::building) { c.vendor = {777, verb == w::Verb::guard ? 37U : 42U}; }
+        assert(Is(delayed.Execute(verb, c, true, true, 10, once), w::Outcome::submitted));
+        delayed.Observe(before, true, 15000);
+        assert(delayed.Busy() && once.calls == 1);
+        auto after = before;
+        after.front_hud = verb == w::Verb::building ? after.building_hud
+            : verb == w::Verb::warehouse ? after.warehouse_hud : after.vendor_hud;
+        if (verb == w::Verb::guard) { after.vendor = c.vendor; }
+        delayed.Observe(after, true, 45000);
+        assert(!delayed.Busy() && once.calls == 1);
+        auto receipt = delayed.Execute(w::Verb::inspect, inspect, true, true, 45001, once);
+        assert(receipt.transition_request == c.request && receipt.flags == w::ready);
+        assert(Is(delayed.Execute(verb, c, true, true, 45002, once), w::Outcome::submitted));
+        assert(once.calls == 1); // Original submission is immutable; never replay.
+    }
     for (int mode = 0; mode < 3; ++mode) {
         n::Controller stopped; stopped.Observe(State(), true, 10);
         invoker.outcome = mode == 2 ? w::Outcome::uncertain : w::Outcome::submitted;
         auto c = Request(stopped); stopped.Execute(w::Verb::building, c, true, true, 10, invoker);
         auto response = state;
         if (mode == 1) { response.scene = 2; } // Scene replacement.
-        stopped.Observe(response, true, mode == 0 ? 10011 : 11);
-        auto read = inspect; auto observed = stopped.Execute(w::Verb::inspect, read, true, true, 10012, invoker);
+        stopped.Observe(response, true, mode == 0 ? 60011 : 11);
+        auto read = inspect; auto observed = stopped.Execute(w::Verb::inspect, read, true, true, 60012, invoker);
         assert(stopped.Busy() && (observed.flags & w::unresolved) && !(observed.flags & w::ready));
         // A late matching window cannot silently clear uncertainty.
-        stopped.Observe(state, true, 10013); assert(stopped.Busy());
+        stopped.Observe(state, true, 60013); assert(stopped.Busy());
         auto retry = Request(stopped, 44);
-        assert(Is(stopped.Execute(w::Verb::building, retry, true, true, 10013, invoker), w::Outcome::pending));
+        assert(Is(stopped.Execute(w::Verb::building, retry, true, true, 60013, invoker), w::Outcome::pending));
     }
     state.front_hud = state.building_hud;
     n::Controller bounded; bounded.Observe(state, true, 10);

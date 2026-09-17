@@ -310,3 +310,26 @@ def test_pending_guard_action_stops_discovery_before_opening_city(setup):
                             navigation_session_factory=navigation)
     city.assert_not_called()
     navigation.assert_not_called()
+
+
+def test_slow_server_menus_finish_discovery_without_repeated_open(setup, monkeypatch):
+    tick = [0.0]
+    releases = {}
+    original = setup.session.inspect
+
+    def inspect():
+        receipt = original()
+        if setup.session.transition:
+            release = releases.setdefault(setup.session.transition, tick[0] + 45)
+            if tick[0] < release:
+                return replace(receipt, flags=IN_FLIGHT)
+        return receipt
+
+    monkeypatch.setattr(setup.session, "inspect", inspect)
+    result = setup.run(clock=lambda: tick[0],
+                       sleep=lambda _: tick.__setitem__(0, tick[0] + 1))
+    assert result["state"] == "complete" and result["guards"] == 2
+    assert [(b, g) for b, g, _ in setup.session.calls] == [
+        (123, 0), (123, 1230), (456, 0), (456, 4560),
+    ]
+    assert all(a["state"] == "observed" for a in result["attempts"])

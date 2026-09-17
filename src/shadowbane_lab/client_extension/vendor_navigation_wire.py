@@ -11,6 +11,8 @@ from .movement_wire import Host, request_bytes
 from .vendor_wire import Outcome, uint
 
 MAGIC, READY, IN_FLIGHT, UNRESOLVED = 0x57424E33, 1, 2, 4
+# The native controller waits 60 seconds; allow its terminal receipt to arrive.
+RESPONSE_WAIT_SECONDS = 65
 _SNAPSHOT = struct.Struct("<QQ20I")
 _COMMAND = struct.Struct("<16sQ16s96s4I424s")
 _RECEIPT = struct.Struct("<16s16sQII96s16sI220s")

@@ -2,6 +2,8 @@
 #include "vendor_navigation_wire.h"
 #include <map>
 namespace wonderbane::extension::vendor_navigation {
+// Server-backed menus may arrive after local window creation. Wait without resending.
+inline constexpr std::uint64_t response_timeout_ms = 60000;
 class Invoker {
 public:
     virtual ~Invoker() = default;
@@ -59,7 +61,7 @@ public:
         if (Busy()) { return Receipt(c, O::pending, false); }
         if (!ready || !wire::ValidSnapshot(current_)) { return Receipt(c, O::unavailable, false); }
         if (!wire::Equal(c.expected, current_)) { return Receipt(c, O::stale, true); }
-        if (records_.size() >= 4096 || now > UINT64_MAX - 10000) { return Receipt(c, O::exhausted, false); }
+        if (records_.size() >= 4096 || now > UINT64_MAX - response_timeout_ms) { return Receipt(c, O::exhausted, false); }
         try {
             auto [it, inserted] = records_.emplace(c.request, Record{verb, c, Receipt(c, O::uncertain, false)});
             if (!inserted) { return Receipt(c, O::invalid, false); }
@@ -67,7 +69,7 @@ public:
                 ? O::observed : invoker.Open(verb, c);
             transition_ = c; transition_verb_ = verb;
             if (outcome == O::submitted || outcome == O::uncertain) {
-                pending_ = true; unresolved_ = outcome == O::uncertain; response_deadline_ = now + 10000;
+                pending_ = true; unresolved_ = outcome == O::uncertain; response_deadline_ = now + response_timeout_ms;
             }
             it->second.receipt = Receipt(c, outcome, outcome == O::observed);
             return it->second.receipt;

@@ -45,3 +45,22 @@ or binaries are included in this source handoff.
 
 Remaining: live qualification, positive maximum-rank evidence,
 full-town membership/coverage, and review/integration into the shared branch.
+
+## Navigation timing follow-up
+
+Live qualification confirmed automatic warehouse building selection and its owned
+Seneschal roster. Resource opening correctly declined outside ordinary interaction
+range. A later building response was observed only after the native ten-second
+response limit; its unresolved request is preserved and spending remains stopped.
+No gold moved and no guard upgrade was submitted by this qualification.
+
+The 1.8.11 / host 0.3.20 source correction gives one menu request a bounded
+60-second native response window and a 65-second host observation budget.
+Discovery and funding traversal use the same menu budget. Gold transfer and
+upgrade deadlines stay unchanged. Timeout, scene replacement and uncertain native
+entry still block later actions; a matching late window cannot clear uncertainty.
+Tests exercise delayed building/vendor/guard/warehouse responses, delayed full
+funding traversal, discovery without repeated opens, and unchanged spending timeout.
+
+Active: validate/package/stage this correction before requesting game closure.
+The installed version remains 1.8.10 / 0.3.19 until explicit activation.

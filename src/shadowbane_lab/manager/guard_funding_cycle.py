@@ -21,6 +21,7 @@ from shadowbane_lab.client_extension.vendor_navigation_session import NativeVend
 from shadowbane_lab.client_extension.vendor_navigation_wire import (
     IN_FLIGHT,
     READY,
+    RESPONSE_WAIT_SECONDS,
     UNRESOLVED,
     Outcome,
 )
@@ -106,8 +107,8 @@ class _Cycle:
                 raise GuardFundingCycleStopped("The character holding the gold changed.")
             self.character = character
 
-    def observe(self, session, inspect, matches, *, request=None):
-        deadline = self.clock() + (15 if request else 60)
+    def observe(self, session, inspect, matches, *, request=None, response_wait=15):
+        deadline = self.clock() + (response_wait if request else 60)
         while True:
             self.check()
             session.renew_lease()
@@ -132,7 +133,7 @@ class _Cycle:
                 raise GuardFundingCycleStopped("The guard funding response was not confirmed.")
             self.sleep(0.1)
 
-    def action(self, session, label, before, dispatch, inspect, matches):
+    def action(self, session, label, before, dispatch, inspect, matches, *, response_wait=15):
         self.check()
         key = str(uuid.uuid4())
         attempt = {"request_key": key, "operation": label, "state": "prepared",
@@ -147,7 +148,7 @@ class _Cycle:
         if (response.outcome not in (Outcome.SUBMITTED, Outcome.OBSERVED)
                 or response.flags & UNRESOLVED or response.transition_request != key):
             raise GuardFundingCycleStopped("Guard action was not accepted; no retry was sent.")
-        after = self.observe(session, inspect, matches, request=key)
+        after = self.observe(session, inspect, matches, request=key, response_wait=response_wait)
         attempt.update(state="confirmed", observed=after.encode().hex())
         self.save()
         return after
@@ -171,6 +172,7 @@ class _Cycle:
                     session, "open_building", before,
                     lambda key: session.open_building(before, building, key), session.inspect,
                     lambda s: s.opened(building),
+                    response_wait=RESPONSE_WAIT_SECONDS,
                 )
             if guard or warehouse:
                 method = session.open_warehouse if warehouse else session.open_guard
@@ -178,6 +180,7 @@ class _Cycle:
                     session, "open_warehouse" if warehouse else "open_guard", before,
                     lambda key: method(before, building, warehouse or guard, key),
                     session.inspect, opened,
+                    response_wait=RESPONSE_WAIT_SECONDS,
                 )
 
     def guard_state(self):
