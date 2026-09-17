@@ -3,7 +3,7 @@
 Branch: codex/guard-upgrades. Exact packaged source: 3b05f0b (pushed).
 Review destination: codex/vendor-rolling, then
 codex/native-lifecycle-hardening and reviewed main. Not merged. The normal main
-checkout is untouched. Installed 1.8.12 / 0.3.21 retains the warehouse return fix.
+checkout is untouched. This version retains the warehouse return ownership fix.
 
 ## Live finding and correction
 
@@ -36,12 +36,16 @@ archive were independently verified. The same two pre-existing stretch graphics
 diagnostics remain unresolved in each profile; no whole-product acceptance is
 claimed.
 
-Guest preparation and read-only update validation passed. The full extension and
-host package are staged separately; installed 1.8.12 / 0.3.21 and its unresolved
-request remain unchanged. The updater preserves all historical worker JSON,
-settings and qualification records, with rollback copies on activation.
+Guest preparation and read-only update validation passed. After confirmed game
+closure, the exact idle test manager was stopped and the staged update applied.
+All 120 retained records/settings were unchanged; rollback copies are local.
+The existing dashboard shortcut now uses host 0.3.22 and the same game shortcut
+launched the verified full 1.8.13 extension. Loaded module version/hash, installed
+host source, matching read-only action-channel identity and healthy guard-capable
+manager checks passed. No game action was submitted during activation. Earlier
+unresolved requests remain retained without reset or replay.
 
-Active todo: await confirmed game closure, then activate the verified update.
-Then qualify automatic tower/warehouse/resources return, followed by live guard
+Active todo: user login beside the Seneschal and initial View Resources opening,
+then qualify automatic tower/warehouse/resources return, followed by live guard
 funding and upgrades. Maximum-rank proof, full-town coverage and integration are
-unfinished. The earlier unresolved action remains retained through deployment.
+unfinished.

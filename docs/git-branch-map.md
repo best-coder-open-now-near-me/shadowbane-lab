@@ -53,13 +53,12 @@ rotates guards, waits for ranks, records confirmed gold totals, and recovers onl
 fully confirmed cycles without replay. No-offer remains unverified maximum rank.
 The manager now admits guard work through exact worker permits and exposes
 discovery, exact prepared-plan start, pause/resume/stop and confirmed progress.
-Full native 1.8.12 / host 0.3.21 (source 27c7288) is installed and verified.
-The warehouse panel's retained NPC ownership is confirmed; the correction uses
-that exact owned NPC for return visits. Package, guest activation, loaded module
-and manager checks passed. Live return qualification found a chat window ahead
-of the opened tower; the unresolved request is retained. Source 1.8.13 / 0.3.22
-corrects chat ordering across native transactions. Exact source 3b05f0b passed
-package and guest staging checks; activation awaits game closure.
+Full native 1.8.13 / host 0.3.22 (source 3b05f0b) is installed and verified.
+The warehouse panel's retained NPC ownership is confirmed and used for return
+visits. A live tower open exposed chat-window ordering; the timed-out request
+remains retained. This version corrects chat ordering across native transactions.
+Package, guest activation, loaded module and manager checks passed. User login
+and automatic return qualification are next.
 Maximum-rank and full-town evidence remain unfinished.
 See [chat ordering correction and next work](handoffs/guard-upgrades-1.8.13.md).
 Review this lane into `codex/vendor-rolling`, then the documented integration
