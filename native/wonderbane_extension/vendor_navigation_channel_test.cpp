@@ -21,14 +21,20 @@ int main() {
     storage.header.host_lease_generation = 7;
     const auto now = GetTickCount64();
     storage.header.host_heartbeat_tick = static_cast<LONG64>(now);
-    auto publish = [&](std::uint64_t sequence, bool wrong_lease) {
+    auto publish = [&](std::uint64_t sequence, bool wrong_lease, unsigned kind = 13) {
         auto& slot = storage.commands[sequence - 1];
         slot = {};
-        slot.command_id = sequence; slot.kind = 13; slot.payload_version = 1;
+        slot.command_id = sequence; slot.kind = kind; slot.payload_version = 1;
         slot.created_tick = now; slot.deadline_tick = now + 100;
         v::wire::Command payload{};
         payload.host = {identity.process_id, wrong_lease ? 8U : 7U, identity.creation_filetime_utc};
         payload.window = 123; payload.request[0] = static_cast<unsigned char>(sequence);
+        if (kind != 13) {
+            auto& s = payload.expected;
+            s.scene = s.revision = 1; s.root = 100; s.manager = 200; s.mode = 6;
+            s.building_hud = 300; s.visible = s.initialized = 1; s.building = {123, 8};
+            payload.building = s.building; payload.vendor = {777, 37};
+        }
         std::memcpy(&slot.movement, &payload, sizeof(payload));
         InterlockedExchange64(&slot.committed_sequence, static_cast<LONG64>(sequence));
         InterlockedExchange64(&storage.header.command_write_sequence, static_cast<LONG64>(sequence));
@@ -56,6 +62,19 @@ int main() {
     publish(3, true);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
     assert(!v::Take() && storage.results[2].stage == static_cast<unsigned>(ClientActionResultStage::failed));
+    publish(4, false, 16);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
+    command = v::Take();
+    assert(command && command->verb == v::wire::Verb::guard && command->command.vendor[1] == 37);
+    receipt.request = command->command.request;
+    v::Complete(command, receipt);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
+    assert(!v::Take() && storage.header.command_read_sequence == 4);
+    std::memcpy(&returned, &storage.results[3].movement, sizeof(returned));
+    assert(returned.request == receipt.request);
+    publish(5, false, 15); // Vendor opcode cannot carry a guard key.
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
+    assert(!v::Take() && storage.results[4].stage == static_cast<unsigned>(ClientActionResultStage::failed));
     SetEvent(release_worker);
     StopClientActionCommandChannel();
     CloseHandle(entered); CloseHandle(release_worker);

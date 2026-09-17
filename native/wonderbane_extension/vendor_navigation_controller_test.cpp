@@ -61,6 +61,24 @@ int main(int argc, char**) {
     auto bad = next; bad.vendor[1] = 8; assert(!w::Valid(w::Verb::vendor, bad));
     bad = next; bad.expected.offline = 1; assert(!w::Valid(w::Verb::vendor, bad));
     bad = next; bad.reserved[0] = 1; assert(!w::Valid(w::Verb::vendor, bad));
+    n::Controller guards; Fake guard_invoker;
+    guards.Observe(state, true, 200);
+    auto guard = Request(guards, 10); guard.vendor = {777, 37};
+    assert(!w::Valid(w::Verb::vendor, guard) && w::Valid(w::Verb::guard, guard));
+    auto vendor = guard; vendor.vendor[1] = 42;
+    assert(!w::Valid(w::Verb::guard, vendor));
+    assert(Is(guards.Execute(w::Verb::guard, guard, true, true, 200, guard_invoker), w::Outcome::submitted));
+    guards.Observe(state, true, 201); assert(guards.Busy()); // Same ID, wrong key type.
+    auto guard_state = state; guard_state.vendor = guard.vendor;
+    guard_state.visible = 1; guards.Observe(guard_state, true, 202); assert(guards.Busy());
+    guard_state.visible = 3; guards.Observe(guard_state, true, 203); assert(!guards.Busy());
+    assert(!w::Opened(guard_state, w::Verb::vendor, {123, 8}, guard.vendor));
+    assert(w::Opened(guard_state, w::Verb::guard, {123, 8}, guard.vendor));
+    assert(Is(guards.Execute(w::Verb::guard, guard, true, true, 204, guard_invoker), w::Outcome::submitted));
+    assert(guard_invoker.calls == 1); // Original receipt, no replay.
+    auto already = Request(guards, 11); already.vendor = guard.vendor;
+    assert(Is(guards.Execute(w::Verb::guard, already, true, true, 204, guard_invoker), w::Outcome::observed));
+    assert(guard_invoker.calls == 1);
     for (int mode = 0; mode < 3; ++mode) {
         n::Controller stopped; stopped.Observe(State(), true, 10);
         invoker.outcome = mode == 2 ? w::Outcome::uncertain : w::Outcome::submitted;

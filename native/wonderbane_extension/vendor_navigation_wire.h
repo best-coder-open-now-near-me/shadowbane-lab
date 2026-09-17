@@ -3,7 +3,7 @@
 namespace wonderbane::extension::vendor_navigation::wire {
 using Outcome = vendor::wire::Outcome;
 using Key = std::array<std::uint32_t, 2>;
-enum class Verb : std::uint32_t { inspect = 13, building = 14, vendor = 15 };
+enum class Verb : std::uint32_t { inspect = 13, building = 14, vendor = 15, guard = 16 };
 constexpr std::uint32_t magic = 0x57424e31, ready = 1, in_flight = 2, unresolved = 4;
 #pragma pack(push, 1)
 struct Snapshot {
@@ -36,15 +36,19 @@ struct Receipt {
 static_assert(sizeof(Snapshot) == 96 && sizeof(Command) == 576 && sizeof(Receipt) == 384);
 inline bool Equal(const Snapshot& a, const Snapshot& b) noexcept { return !std::memcmp(&a, &b, sizeof(a)); }
 inline bool Typed(Key key, std::uint32_t type) noexcept { return key[0] && key[1] == type; }
+inline bool Hireling(Key key) noexcept { return Typed(key, 42) || Typed(key, 37); }
+inline bool Matches(Verb verb, Key key) noexcept {
+    return (verb == Verb::vendor && Typed(key, 42)) || (verb == Verb::guard && Typed(key, 37));
+}
 inline bool ValidSnapshot(const Snapshot& s) noexcept {
     return s.scene && s.revision && s.root && s.manager && s.mode <= 64
         && s.visible <= 3 && s.initialized <= 1 && s.offline <= 1
         && s.occupied <= s.capacity && s.capacity <= 128
         && (s.building == Key{} || Typed(s.building, 8))
-        && (s.vendor == Key{} || Typed(s.vendor, 42))
+        && (s.vendor == Key{} || Hireling(s.vendor))
         && (s.vendor == Key{} || s.selected_entry)
         && (!(s.visible & 1) || (s.building_hud && s.initialized && s.mode == 6 && Typed(s.building, 8)))
-        && (!(s.visible & 2) || (s.vendor_hud && s.selected_entry && Typed(s.vendor, 42) && Typed(s.building, 8)))
+        && (!(s.visible & 2) || (s.vendor_hud && s.selected_entry && Hireling(s.vendor) && Typed(s.building, 8)))
         && movement::wire::Zero(s.reserved, sizeof(s.reserved));
 }
 inline bool Opened(const Snapshot& s, Verb verb, Key building, Key vendor = {}) noexcept {
@@ -54,7 +58,7 @@ inline bool Opened(const Snapshot& s, Verb verb, Key building, Key vendor = {}) 
     // live stack membership; retain the global only for snapshot equality.
     return !s.offline && s.building == building
         && (verb == Verb::building ? (s.visible & 1) != 0
-            : verb == Verb::vendor && (s.visible & 2) && s.vendor == vendor);
+            : Matches(verb, vendor) && (s.visible & 2) && s.vendor == vendor);
 }
 inline bool Valid(Verb verb, const Command& c) noexcept {
     if (!movement::wire::Valid(c.host) || !c.window || c.window > UINT32_MAX
@@ -65,7 +69,7 @@ inline bool Valid(Verb verb, const Command& c) noexcept {
     }
     if (!ValidSnapshot(c.expected) || c.expected.offline || !Typed(c.building, 8)) { return false; }
     return (verb == Verb::building && c.vendor == Key{})
-        || (verb == Verb::vendor && Typed(c.vendor, 42)
+        || (Matches(verb, c.vendor)
             && Opened(c.expected, Verb::building, c.building));
 }
 }

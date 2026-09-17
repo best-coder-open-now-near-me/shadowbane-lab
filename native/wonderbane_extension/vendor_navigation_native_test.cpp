@@ -56,6 +56,21 @@ int main() {
     word(empty + 8, 8); assert(!capture()); word(empty + 8, 9);
     word(manager + 0x384, entry); assert(capture() && s.vendor[0] == 777);
     word(entry + 0x14, 8); assert(!capture()); word(entry + 0x14, 42);
+    word(entry + 0x14, 37); assert(capture() && s.vendor[1] == 37);
+    assert(!find());
+    assert(!n::FindVendorControl(base, s, {777, 37}, found) && !found);
+    assert(!n::FindGuardControl(base, s, {777, 42}, found) && !found);
+    assert(n::FindGuardControl(base, s, {777, 37}, found) && found == control);
+    assert(!n::InvokeVendor(base, s, {777, 37}));
+    assert(!n::InvokeGuard(base, s, {777, 42}));
+    // Mixed rosters preserve the distinction even with identical numeric IDs.
+    word(empty + 0x10, 777); word(empty + 0x14, 42); word(empty + 0x6c, 0x100);
+    word(manager + 0x37c, 2); assert(capture());
+    assert(find() && found == vacancy);
+    assert(n::FindGuardControl(base, s, {777, 37}, found) && found == control);
+    word(empty + 0x14, 37); assert(!n::FindGuardControl(base, s, {777, 37}, found));
+    word(empty + 0x10, 0); word(empty + 0x14, 0); word(empty + 0x6c, 0);
+    word(manager + 0x37c, 1); word(entry + 0x14, 42);
     word(manager + 0x384, 0); assert(capture());
     word(control + 0x1a8, 1); assert(!find()); word(control + 0x1a8, 0);
     word(control + 0x458, list + 4); assert(!find()); word(control + 0x458, list);

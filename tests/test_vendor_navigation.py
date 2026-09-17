@@ -1,3 +1,4 @@
+import struct
 import subprocess
 import unittest
 import uuid
@@ -133,8 +134,9 @@ class VendorNavigationWireTests(unittest.TestCase):
 
     def test_secondary_action_manager_does_not_replace_visible_hud_ownership(self):
         building = replace(OPENED, active_manager=999)
-        vendor = replace(building, selected_entry=400, vendor_hud=500, visible=3,
-                         vendor_id=777, vendor_type=42)
+        vendor = replace(
+            building, selected_entry=400, vendor_hud=500, visible=3, vendor_id=777, vendor_type=42
+        )
         self.assertTrue(building.opened(123))
         self.assertTrue(vendor.opened(123, 777))
         self.assertFalse(replace(building, visible=0).opened(123))
@@ -142,6 +144,30 @@ class VendorNavigationWireTests(unittest.TestCase):
         self.assertFalse(replace(vendor, offline=1).opened(123, 777))
         self.assertFalse(vendor.opened(456, 777))
         self.assertFalse(vendor.opened(123, 888))
+
+    def test_guard_and_vendor_keys_remain_distinct(self):
+        guard = replace(
+            OPENED, selected_entry=400, vendor_hud=500, visible=3, vendor_id=777, vendor_type=37
+        )
+        self.assertEqual(guard, Snapshot.decode(guard.encode()))
+        self.assertTrue(guard.opened(123, 777, hireling_type=37))
+        self.assertFalse(guard.opened(123, 777))
+        self.assertFalse(guard.opened(123, 777, hireling_type=8))
+        self.assertFalse(guard.opened(456, 777, hireling_type=37))
+        self.assertFalse(replace(guard, visible=1).opened(123, 777, hireling_type=37))
+        command = Command(Host(1, 1, 1), 1000, KEY, OPENED, 123, 777)
+        self.assertEqual(
+            (123, 8, 777, 37), struct.unpack_from("<4I", command.encode(Verb.GUARD), 136)
+        )
+        self.assertEqual(
+            (123, 8, 777, 42), struct.unpack_from("<4I", command.encode(Verb.VENDOR), 136)
+        )
+        for state, building, target in ((STATE, 123, 777), (OPENED, 456, 777), (OPENED, 123, 0)):
+            with (
+                self.subTest(state=state, building=building, target=target),
+                self.assertRaises(ValueError),
+            ):
+                Command(Host(1, 1, 1), 1000, KEY, state, building, target).encode(Verb.GUARD)
 
     def test_corrupt_receipts_fail_closed(self):
         raw = _RECEIPT.pack(
@@ -207,6 +233,10 @@ class VendorNavigationWireTests(unittest.TestCase):
             with self.assertRaises(NativeActionChannelTimeout):
                 session.open_vendor(OPENED, 123, 777, KEY)
             self.assertEqual(before + 2, len(session._transport.commands))
+            with self.assertRaises(NativeActionChannelTimeout):
+                session.open_guard(OPENED, 123, 777, KEY)
+            self.assertEqual(before + 3, len(session._transport.commands))
+            self.assertEqual(Verb.GUARD, session._transport.commands[-1].kind)
             session.close()
             self.assertTrue(session._transport.closed)
             with self.assertRaises(NativeActionChannelError):

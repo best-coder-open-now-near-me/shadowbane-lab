@@ -126,6 +126,11 @@ class NativeVendorNavigationSession:
     ) -> Receipt:
         return self._submit(Verb.VENDOR, request_key, expected, building_id, vendor_id)
 
+    def open_guard(
+        self, expected: Snapshot, building_id: int, guard_id: int, request_key: str
+    ) -> Receipt:
+        return self._submit(Verb.GUARD, request_key, expected, building_id, guard_id)
+
     def renew_lease(self) -> None:
         self._transport.renew_lease()
 

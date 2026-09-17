@@ -20,6 +20,7 @@ class Verb(IntEnum):
     INSPECT = 13
     BUILDING = 14
     VENDOR = 15
+    GUARD = 16
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,13 +48,16 @@ class Snapshot:
     def empty(self) -> bool:
         return self == Snapshot()
 
-    def opened(self, building_id: int, vendor_id: int = 0) -> bool:
+    def opened(self, building_id: int, vendor_id: int = 0, *, hireling_type: int = 42) -> bool:
         return bool(
             not self.offline
             and self.building_id == building_id
             and self.building_type == 8
             and (
-                self.visible & 2 and self.vendor_id == vendor_id and self.vendor_type == 42
+                self.visible & 2
+                and self.vendor_id == vendor_id
+                and self.vendor_type == hireling_type
+                and hireling_type in (37, 42)
                 if vendor_id
                 else self.visible & 1
             )
@@ -75,8 +79,9 @@ class Snapshot:
             or (self.building_id, self.building_type) != (0, 0)
             and not (self.building_id and self.building_type == 8)
             or (self.vendor_id, self.vendor_type) != (0, 0)
-            and not (self.vendor_id and self.vendor_type == 42)
-            or self.vendor_id and not self.selected_entry
+            and not (self.vendor_id and self.vendor_type in (37, 42))
+            or self.vendor_id
+            and not self.selected_entry
             or self.visible & 1
             and not (self.building_hud and self.initialized and self.mode == 6 and self.building_id)
             or self.visible & 2
@@ -121,10 +126,10 @@ class Command:
             raise ValueError("opening needs an online navigation snapshot and building")
         elif verb == Verb.BUILDING and self.vendor_id:
             raise ValueError("building opening cannot carry a vendor")
-        elif verb == Verb.VENDOR and (
+        elif verb in (Verb.VENDOR, Verb.GUARD) and (
             not self.vendor_id or not self.expected.opened(self.building_id)
         ):
-            raise ValueError("vendor opening needs its active building window")
+            raise ValueError("hireling opening needs its active building window")
         return _COMMAND.pack(
             self.host.encode(),
             self.window,
@@ -133,7 +138,7 @@ class Command:
             self.building_id,
             8 if self.building_id else 0,
             self.vendor_id,
-            42 if self.vendor_id else 0,
+            (37 if verb == Verb.GUARD else 42) if self.vendor_id else 0,
             bytes(424),
         )
 

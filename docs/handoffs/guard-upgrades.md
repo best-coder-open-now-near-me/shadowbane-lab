@@ -4,8 +4,8 @@ Source branch: `codex/guard-upgrades`, isolated worktree `.worktrees/guard-upgra
 Base: vendor branch `61e6fd8`, after fetching origin and verifying the documented
 integration branch is an ancestor. Guard changes should be reviewed into
 `codex/vendor-rolling`, then `codex/native-lifecycle-hardening`, followed by `main`.
-No vendor source was changed or deployed by this detour. No guard upgrade has
-been sent by the agent. Town automation remains unfinished.
+The shared navigation source now supports separately typed guard selection; no
+new native build has been deployed. No guard upgrade has been sent by the agent. Town automation remains unfinished.
 
 ## User policy
 
@@ -66,8 +66,10 @@ Static evidence, RVAs in reviewed source executable ac9ca464:
   the selected guard's upgrading flag and visible progress control were confirmed.
 - [x] Implement typed-input structure deposit observation; 100 focused guard,
   deposit, vendor roster and production-queue tests pass, and targeted Ruff passes.
-- [ ] Active: implement and test typed native guard navigation, funding and
-  upgrade commands with correlated receipts and character/scene ownership.
+- [x] Add native and host guard navigation with distinct type-37 admission,
+  exact-key response correlation and immutable duplicate-request receipts.
+- [ ] Active: implement funding and upgrade commands with correlated receipts
+  and character/scene ownership.
 - [ ] Qualify automatic navigation across guard structures and other guard types.
 - [ ] Implement typed upgrade commands, durable per-guard receipts, no-replay
   handling, funding checks and a maximum-rank scheduler with finite work per pass.
@@ -186,3 +188,20 @@ All transfer and upgrade clicks in this qualification were performed by the
 user. The agent sent no gold or upgrade action. No repeat of this first upgrade
 is needed. Next active work is implementing native command admission and
 receipt tracking, then the town scheduler; city-wide automation is not installed.
+
+## Guard navigation source checkpoint
+
+Navigation opcode 16 opens a type-37 guard through its owned roster control.
+Opcode 15 remains restricted to type-42 vendors. Observations admit both qualified
+hireling types, including mixed rosters, without relaxing crafting action gates.
+The existing scene/producer lease, foreground, exact before-state, timeout latch
+and immutable request journal apply to guard selection. A same-ID type-42 window
+cannot complete a type-37 request. Selection without the exact visible window
+also cannot complete it.
+
+The full Win32 extension builds with warnings treated as errors. All three native
+navigation suites and 107 focused Python navigation/guard/deposit/vendor tests
+pass, including native/host byte agreement; targeted Ruff passes. This is source
+validation only. Keep the installed 1.8.9 extension until the complete funding and
+upgrade flow is ready for a versioned deployment. No automatic guard or gold
+action has been run.

@@ -91,13 +91,20 @@ public:
             if (!target_bind_attempted) { target_bind_attempted = true; (void)building_target.Bind(window_); }
             return building_target.Open(scene_, command.building, &Admit, this);
         }
-        if (verb == vendor_navigation::wire::Verb::vendor) {
+        if (verb == vendor_navigation::wire::Verb::vendor || verb == vendor_navigation::wire::Verb::guard) {
+            const bool guard = verb == vendor_navigation::wire::Verb::guard;
             std::uint32_t control = 0;
-            if (!vendor_navigation::FindVendorControl(image_base, command.expected, command.vendor, control)) {
+            const bool found = guard
+                ? vendor_navigation::FindGuardControl(image_base, command.expected, command.vendor, control)
+                : vendor_navigation::FindVendorControl(image_base, command.expected, command.vendor, control);
+            if (!found) {
                 return O::unavailable;
             }
             if (!Admit(this)) { return O::stale; }
-            return vendor_navigation::InvokeVendor(image_base, command.expected, command.vendor) ? O::submitted : O::uncertain;
+            const bool invoked = guard
+                ? vendor_navigation::InvokeGuard(image_base, command.expected, command.vendor)
+                : vendor_navigation::InvokeVendor(image_base, command.expected, command.vendor);
+            return invoked ? O::submitted : O::uncertain;
         }
         return O::invalid;
     }

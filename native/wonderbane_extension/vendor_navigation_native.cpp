@@ -51,7 +51,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
         const auto populated = (r.Word(s.selected_entry + 0x6c) >> 8) & 0xff;
         // AssetManagement can select a vacancy while loading its roster.
         // Retain its pointer for snapshot equality, but never invent a vendor key.
-        if (populated > 1 || (populated ? !wire::Typed(s.vendor, 42) : s.vendor != wire::Key{})) {
+        if (populated > 1 || (populated ? !wire::Hireling(s.vendor) : s.vendor != wire::Key{})) {
             return false;
         }
     }
@@ -76,9 +76,10 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
     if (!wire::ValidSnapshot(checked)) { return false; }
     out = s; return true;
 }
-bool FindVendorControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key wanted, std::uint32_t& found) noexcept {
+namespace {
+bool FindHirelingControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key wanted, std::uint32_t& found) noexcept {
     found = 0;
-    if (!wire::ValidSnapshot(s) || !wire::Typed(wanted, 42) || !wire::Opened(s, wire::Verb::building, s.building)) { return false; }
+    if (!wire::ValidSnapshot(s) || !wire::Hireling(wanted) || !wire::Opened(s, wire::Verb::building, s.building)) { return false; }
     Reader r; std::array<std::uint32_t, 512> children{};
     const auto child_count = r.Vector(s.building_hud + 0x54, children);
     std::array<wire::Key, 128> keys{}; std::size_t occupied = 0, slots = 0;
@@ -98,9 +99,9 @@ bool FindVendorControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key w
             r.Require(entry + 8, 9);
             const auto key = r.Key(entry + 0x10);
             const auto populated = (r.Word(entry + 0x6c) >> 8) & 0xff;
-            if (populated > 1 || (!populated && key[0])) { return false; }
+            if (populated > 1 || (!populated && key != wire::Key{})) { return false; }
             if (!populated) { continue; }
-            if (!wire::Typed(key, 42) || occupied == keys.size()) { return false; }
+            if (!wire::Hireling(key) || occupied == keys.size()) { return false; }
             for (std::size_t k = 0; k < occupied; ++k) { if (keys[k] == key) { return false; } }
             keys[occupied++] = key;
             if (key == wanted) {
@@ -111,14 +112,30 @@ bool FindVendorControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key w
     }
     return r.ok && found && slots == s.capacity && occupied == s.occupied;
 }
-bool InvokeVendor(std::uintptr_t base, const wire::Snapshot& s, wire::Key key) noexcept {
+bool InvokeHireling(std::uintptr_t base, const wire::Snapshot& s, wire::Key key) noexcept {
     std::uint32_t control = 0;
-    if (!FindVendorControl(base, s, key, control)) { return false; }
+    if (!FindHirelingControl(base, s, key, control)) { return false; }
     __try {
         // Ordinary semantic left-button handler: selects the exact native list
         // entry, then propagates its menu action. No row-index or pointer writes.
         using Click = bool (__thiscall*)(void*, std::uint32_t, std::uint32_t);
         return reinterpret_cast<Click>(base + 0x61c6e0)(reinterpret_cast<void*>(control), 1, 0);
     } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
+
+}
+bool FindVendorControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key key, std::uint32_t& found) noexcept {
+    found = 0;
+    return wire::Typed(key, 42) && FindHirelingControl(base, s, key, found);
+}
+bool FindGuardControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key key, std::uint32_t& found) noexcept {
+    found = 0;
+    return wire::Typed(key, 37) && FindHirelingControl(base, s, key, found);
+}
+bool InvokeVendor(std::uintptr_t base, const wire::Snapshot& s, wire::Key key) noexcept {
+    return wire::Typed(key, 42) && InvokeHireling(base, s, key);
+}
+bool InvokeGuard(std::uintptr_t base, const wire::Snapshot& s, wire::Key key) noexcept {
+    return wire::Typed(key, 37) && InvokeHireling(base, s, key);
 }
 }

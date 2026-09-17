@@ -581,7 +581,7 @@ inline DWORD DrainCommands(
             return ERROR_RETRY;
         }
 
-        if (snapshot.kind >= 13U && snapshot.kind <= 15U) {
+        if (snapshot.kind >= 13U && snapshot.kind <= 16U) {
             const auto verb = static_cast<vendor_navigation::wire::Verb>(snapshot.kind);
             vendor_navigation::wire::Command payload{};
             std::memcpy(&payload, &snapshot.movement, sizeof(payload));
