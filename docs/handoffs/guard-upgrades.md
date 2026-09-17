@@ -251,3 +251,36 @@ A bounded read of the existing live menu still showed the prior guard upgrading;
 no second request was sent. No new DLL or host is installed and no automatic
 funding or upgrade operation has run. Keep native 1.8.9 installed until the full
 funding/journal/scheduler flow has a versioned, validated deployment.
+
+## Warehouse quote and reserve qualification
+
+The reusable read-only warehouse observer is now qualified against the user's
+open, unconfirmed gold quote. The live source reference belongs to a type-42
+warehouse hireling, not a type-8 structure: warehouse +0x378 points to an object
+with vtable RVA 0x114165c, whose +0x18/+0x1c reference is used by withdrawal.
+The source identity, reciprocal HUD ownership, unique resource row, actual typed
+amount, enabled ACCEPT/CANCEL controls, and current reserve map are rechecked.
+The maximum must match the current resource balance less its configured reserve;
+a stale quote or inconsistent tree is rejected. This observation does not verify
+the current purse, authorize a command, or claim server acceptance. No gold moved.
+All 69 focused warehouse/deposit tests pass, including source type mismatch,
+stale balances, malformed reserve ownership, and changing inputs.
+
+Ordinary withdrawal dispatch at RVA 0x69d49b handles ACCEPT action 0x1009,
+reads resource ID from quote +0x388 and GetAmount through 0x18692 -> 0x595390,
+then calls 0x28ec5 -> 0x69f500(warehouse, resource, amount). This method constructs
+operation 0x11 using the source reference above. The UI handler subsequently
+closes its quote. This path has been traced statically but not invoked by the agent.
+
+The structure amount handler at 0x6cbb00 accepts action 0x456/0x458 and forwards
+its mode to 0x1a050 -> 0x6cc3e0. Mode 13 deposits positive GetAmount into the
+selected/displayed structure; mode 12 withdraws instead. The ordinary amount
+setter 0x595720 updates cache +0x3c4 and refreshes the visible text through
+0x5958b0; any future command must recheck actual input after setting it. Opening
+a structure deposit uses normal building action 0x586, not a direct mode write.
+
+The common button callback slot +0x2c resolves through 0x16860 to 0x5f5440.
+Unlike the roster selection callback, its event index 0 selects first action
++0x1d0 (entries stride 36 bytes). Its return value is not server acceptance.
+No callback has been qualified by live invocation here. Remaining work is the
+durable spending journal, native funding admission/receipts, and town scheduling.
