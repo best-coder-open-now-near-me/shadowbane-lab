@@ -1,6 +1,7 @@
 # First-open and Gold selection correction: 1.8.14 / 0.3.23
 
-Branch: codex/guard-upgrades. Review destination: codex/vendor-rolling, then
+Branch: codex/guard-upgrades. Exact packaged source: dcc33bc (pushed).
+Review destination: codex/vendor-rolling, then
 codex/native-lifecycle-hardening and reviewed main. Not merged. The normal main
 checkout remains untouched.
 
@@ -39,6 +40,18 @@ closed/uninitialized City Command state, invalid open state, initial disabled
 Withdraw, selection returning false with valid postconditions, wrong selection,
 still-disabled Withdraw and disabled deposit. Five version tests and lint passed.
 
-Next: exact-source package and installed-contract validation, guest staging and
-dry-run, then activation after game closure. Live discovery, automatic funding,
-maximum-rank proof, full-town coverage and integration remain unfinished.
+Exact-source packaging passed 2,675 host tests (18 skipped), required native
+checks for both profiles, reviewed executable binding, real IPC and installed
+host checks. Six extra installed guard/funding comparisons passed. All 61
+artifact hashes and the package archive were independently verified. The same
+two pre-existing graphics transparency diagnostics fail in each profile and
+remain recorded; this is not whole-product acceptance.
+
+Guest preparation and read-only update validation passed. Host 0.3.23 is staged
+in its separate environment; the running game remains 1.8.13 / host 0.3.22.
+Historical journals, including the unresolved quote opening, must remain intact.
+
+Active todo: await game closure, apply the staged update and verify the loaded
+extension and exact new process binding. Then qualify discovery and automatic
+funding in a fresh session. Maximum-rank proof, full-town coverage and integration
+remain unfinished. No automatic gold transfer or upgrade has yet been qualified.

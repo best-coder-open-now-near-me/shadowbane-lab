@@ -60,8 +60,10 @@ remains retained. This version corrects chat ordering across native transactions
 Package, guest activation, loaded module and manager checks passed. Automatic
 tower/warehouse/resources return is now live-qualified. Discovery's first-open
 state and funding's Gold-selection ordering exposed two further blockers before
-any money moved. Native 1.8.14 / host 0.3.23 corrects both; packaging and activation
-are next. Earlier uncertain requests stay retained without replay.
+any money moved. Native 1.8.14 / host 0.3.23 (source dcc33bc) corrects both.
+Package, installed checks, guest staging and read-only update validation passed;
+activation after game closure is next. Earlier uncertain requests stay retained
+without replay.
 Maximum-rank and full-town evidence remain unfinished.
 See [first-open/Gold selection correction and next work](handoffs/guard-upgrades-1.8.14.md).
 Review this lane into `codex/vendor-rolling`, then the documented integration
