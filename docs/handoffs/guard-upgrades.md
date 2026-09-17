@@ -776,3 +776,17 @@ sources each have one runtime owner. The existing packaging workflow retains its
 full Python/Ruff, Win32, real IPC, installed-wheel and image-binding gates.
 Versioning is not a deployment or live acceptance claim. The existing 0.3.18/1.8.9
 runtime and its unresolved PID 9428 navigation remain untouched.
+
+
+## Verified 1.8.10 package staged
+
+Exact source 25f607e is packaged and staged as full extension 1.8.10 / host 0.3.19.
+The isolated source suite passed 2,671 tests with 19 skips; required native/IPC/
+binding, installed-wheel and all six installed guard-wire comparisons passed.
+Guest dry-run verification passed. The game remains on 1.8.9/0.3.18 and no game
+commands or gold movement were sent. The user has been asked to close Shadowbane
+for activation. See [package validation and next steps](guard-upgrades-1.8.10.md).
+
+Current active todo: activate the verified package after confirmed game closure,
+then qualify the live funding/guard sequence. Full-town coverage and positive
+maximum-rank qualification remain pending. Do not rebuild a documentation-only tip.

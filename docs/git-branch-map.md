@@ -53,8 +53,10 @@ rotates guards, waits for ranks, records confirmed gold totals, and recovers onl
 fully confirmed cycles without replay. No-offer remains unverified maximum rank.
 The manager now admits guard work through exact worker permits and exposes
 discovery, exact prepared-plan start, pause/resume/stop and confirmed progress.
-Next is coherent versioned packaging and live qualification; maximum-rank and
-full-town evidence remain unfinished. Review this lane into
+Exact source 25f607e is now packaged and staged as 1.8.10/0.3.19; guest dry-run
+verification passed. Activation awaits confirmed game closure, followed by live
+qualification. Maximum-rank and full-town evidence remain unfinished. See the
+[staged guard package and activation handoff](handoffs/guard-upgrades-1.8.10.md). Review this lane into
 `codex/vendor-rolling`, then the documented integration destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.
