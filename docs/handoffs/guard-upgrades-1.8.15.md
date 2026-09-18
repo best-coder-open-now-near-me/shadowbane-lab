@@ -55,3 +55,6 @@ guards.
 Obsolete task-generated runtime programs should be removed when no longer needed,
 without archiving rebuildable binaries, following the user's explicit preference.
 Preserve game data and transaction records.
+
+The next live qualification now uses [continuous workflow capture](guard-workflow-capture.md)
+to collect the complete manual sequence before batching further native fixes.
