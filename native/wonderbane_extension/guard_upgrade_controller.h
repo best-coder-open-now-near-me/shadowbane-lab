@@ -55,7 +55,7 @@ public:
         const bool same = reopened_
             ? wire::SameGuard(before, s) && s.navigation.building_hud == reopened_building_hud_
                 && s.navigation.front_hud == s.navigation.vendor_hud
-            : wire::SameOwner(before, s);
+            : wire::SameOwner(before, s) || ConfirmedRebuiltGuardPage(before, s);
         if (now > deadline_ || (valid && !same)) {
             unresolved_ = true; return;
         }

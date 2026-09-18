@@ -344,3 +344,77 @@ def test_correlated_native_revisit_allows_only_exact_guard_and_debit(tmp_path, c
         GuardSpendingJournal(tmp_path).assert_idle()
     else:
         assert_blocked(GuardSpendingJournal(tmp_path))
+
+
+def rebuilt_page_transaction():
+    before = replace(STATE, navigation=replace(
+        STATE.navigation, mode=0, front_hud=STATE.navigation.vendor_hud,
+    ))
+    after = replace(
+        before, funds=before.funds - before.cost, upgrading=1, control_flags=7,
+        upgrade_control=before.upgrade_control + 1,
+        progress_control=before.progress_control + 1,
+        navigation=replace(before.navigation, mode=6,
+                           building_hud=before.navigation.building_hud + 1),
+    )
+    return (replace(COMMAND, expected=before), replace(SUBMITTED, snapshot=before),
+            replace(FINISHED, snapshot=after))
+
+
+@pytest.mark.parametrize("instant", [False, True])
+def test_rebuilt_building_with_retained_guard_completes_once_across_restart(tmp_path, instant):
+    command, submitted, finished = rebuilt_page_transaction()
+    if instant:
+        finished = replace(finished, snapshot=replace(
+            finished.snapshot, rank=command.expected.rank + 1, upgrading=0, control_flags=3,
+        ))
+    journal = GuardSpendingJournal(tmp_path)
+    journal.submit(IDENTITY, command, lambda: submitted)
+    GuardSpendingJournal(tmp_path).observe(IDENTITY, finished)
+    record = json.loads(journal._path(KEY).read_text())
+    assert Receipt.decode(bytes.fromhex(record["submission"])) == submitted
+    assert Receipt.decode(bytes.fromhex(record["completion"])) == finished
+    GuardSpendingJournal(tmp_path).assert_idle()
+    dispatch = Mock()
+    with pytest.raises(GuardSpendingStopped, match="already attempted"):
+        journal.submit(IDENTITY, command, dispatch)
+    dispatch.assert_not_called()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("scene", 2), ("root", 101), ("manager", 201), ("building_id", 124),
+    ("vendor_id", 778), ("vendor_hud", 401), ("selected_entry", 501),
+    ("front_hud", 301), ("mode", 0), ("building_hud", 300),
+])
+def test_rebuilt_page_wrong_owner_never_completes(tmp_path, field, value):
+    command, submitted, finished = rebuilt_page_transaction()
+    assert getattr(finished.snapshot.navigation, field) != value
+    finished = replace(finished, snapshot=replace(
+        finished.snapshot, navigation=replace(finished.snapshot.navigation, **{field: value}),
+    ))
+    journal = GuardSpendingJournal(tmp_path)
+    journal.submit(IDENTITY, command, lambda: submitted)
+    journal.observe(IDENTITY, finished)
+    assert_blocked(GuardSpendingJournal(tmp_path))
+
+
+@pytest.mark.parametrize("field,value", [
+    ("cost", 101), ("funds", 150), ("funds", 49), ("upgrading", 0),
+    ("control_flags", 3), ("rank", 3),
+])
+def test_rebuilt_page_partial_or_contradictory_response_stays_blocked(tmp_path, field, value):
+    command, submitted, finished = rebuilt_page_transaction()
+    finished = replace(finished, snapshot=replace(finished.snapshot, **{field: value}))
+    journal = GuardSpendingJournal(tmp_path)
+    journal.submit(IDENTITY, command, lambda: submitted)
+    journal.observe(IDENTITY, finished)
+    assert_blocked(GuardSpendingJournal(tmp_path))
+
+
+@pytest.mark.parametrize("flags", [IN_FLIGHT, UNRESOLVED, IN_FLIGHT | UNRESOLVED])
+def test_rebuilt_page_cannot_clear_native_pending_or_uncertain_receipt(tmp_path, flags):
+    command, submitted, finished = rebuilt_page_transaction()
+    journal = GuardSpendingJournal(tmp_path)
+    journal.submit(IDENTITY, command, lambda: submitted)
+    journal.observe(IDENTITY, replace(finished, flags=flags))
+    assert_blocked(GuardSpendingJournal(tmp_path))

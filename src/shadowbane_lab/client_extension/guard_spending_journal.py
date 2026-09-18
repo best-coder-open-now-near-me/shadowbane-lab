@@ -126,8 +126,20 @@ def _confirmed(command: Command, receipt: Receipt, operation: str) -> bool:
         and before.upgrade_control == after.upgrade_control
         and before.progress_control == after.progress_control
     )
+    # Mirror the native completed-response case. The guard page/selection stay
+    # exact while the building page and controls rebuild. Debit and progress are
+    # required below; a changed window alone never completes a pending spend.
+    rebuilt_guard_page = (
+        before.eligible and not after.empty
+        and a.front_hud == a.vendor_hud and b.front_hud == b.vendor_hud
+        and a.vendor_hud == b.vendor_hud and a.selected_entry == b.selected_entry
+        and a.building_hud != b.building_hud and b.mode == 6
+        and after.cost == before.cost
+    )
     same = same_identity and (
-        same_windows or (receipt.flags & upgrade.REOPENED and b.front_hud == b.vendor_hud)
+        same_windows
+        or (receipt.flags & upgrade.REOPENED and b.front_hud == b.vendor_hud)
+        or (not receipt.flags & upgrade.REOPENED and rebuilt_guard_page)
     )
     return bool(
         same

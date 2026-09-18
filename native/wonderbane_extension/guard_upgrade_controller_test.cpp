@@ -88,6 +88,58 @@ int main(int argc, char**) {
     interrupted.Observe({}, false, 2); assert(interrupted.Busy());
     interrupted.Observe(state, true, 3); assert(!interrupted.Busy()); // Brief read gap.
 
+    // Direct response: building HUD/controls rebuild while the exact guard HUD
+    // and selection survive. Only complete correlated evidence may cross this.
+    for (int scenario = -2; scenario < 23; ++scenario) {
+        g::Controller rebuilt; Fake f; auto before = State();
+        before.navigation.mode = 0;
+        before.navigation.front_hud = before.navigation.vendor_hud;
+        rebuilt.Observe(before, true, 1); const auto spend = Request(rebuilt);
+        if (scenario == 20) { f.result = w::Outcome::uncertain; }
+        rebuilt.Execute(w::Verb::upgrade, spend, true, true, 1, f);
+        auto after = before;
+        after.navigation.mode = 6; ++after.navigation.building_hud;
+        ++after.upgrade_control; ++after.progress_control;
+        after.funds -= before.cost; after.upgrading = 1; after.control_flags = 7;
+        if (scenario == -2) { ++after.rank; after.upgrading = 0; after.control_flags = 3; }
+        if (scenario == 0) { ++after.navigation.scene; }
+        if (scenario == 1) { ++after.navigation.root; }
+        if (scenario == 2) { ++after.navigation.manager; }
+        if (scenario == 3) { ++after.navigation.building[0]; }
+        if (scenario == 4) { ++after.navigation.vendor[0]; }
+        if (scenario == 5) { ++after.navigation.vendor_hud; ++after.navigation.front_hud; }
+        if (scenario == 6) { ++after.navigation.selected_entry; }
+        if (scenario == 7) { after.navigation.front_hud = after.navigation.building_hud; }
+        if (scenario == 8) { after.navigation.mode = 0; }
+        if (scenario == 9) { ++after.cost; }
+        if (scenario == 10) { after.funds = before.funds; }
+        if (scenario == 11) { --after.funds; }
+        if (scenario == 12) { after.upgrading = 0; }
+        if (scenario == 13) { after.control_flags = 3; }
+        if (scenario == 14) { after.rank += 2; }
+        if (scenario == 15) { after.navigation.building_hud = before.navigation.building_hud; }
+        if (scenario == 16) { after.navigation.offline = 1; }
+        if (scenario == 17) { after.progress_control = after.upgrade_control; }
+        if (scenario == 21) { after.navigation.vendor[1] = 42; }
+        if (scenario == 22) { after.navigation.visible = 1; }
+        rebuilt.Observe(after, scenario != 18, scenario == 19 ? 15002 : 313);
+        if (scenario == 18) { rebuilt.Observe({}, false, 15002); }
+        assert(rebuilt.Busy() == (scenario >= 0));
+        w::Command inspect{}; inspect.host = spend.host; inspect.window = spend.window;
+        inspect.request[0] = 2;
+        const auto result = rebuilt.Execute(w::Verb::inspect, inspect, true, true, 15003, f);
+        assert(!(result.flags & w::reopened) && f.reopens == 0);
+        assert(bool(result.flags & w::unresolved) == (scenario >= 0));
+        rebuilt.Execute(w::Verb::upgrade, spend, true, true, 15004, f);
+        assert(f.calls == 1); // Neither success nor rejection replays Upgrade.
+        if (scenario >= 0) {
+            auto late = before; late.navigation.mode = 6; ++late.navigation.building_hud;
+            ++late.upgrade_control; ++late.progress_control;
+            late.funds -= before.cost; late.upgrading = 1; late.control_flags = 7;
+            rebuilt.Observe(late, true, 15005); assert(rebuilt.Busy());
+        }
+    }
+
     // Full observed sequence: idle post-deposit guard, server replacement roster,
     // one correlated reopen, fresh guard controls, exact debit plus progress.
     for (int failure = -1; failure < 12; ++failure) {

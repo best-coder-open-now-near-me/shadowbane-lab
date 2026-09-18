@@ -115,6 +115,12 @@ The user reported possible accidental menu interaction; the cause is not proven.
 The original request remains unresolved without replay. Carried-only funding is
 qualified; next is fresh-session uninterrupted verification, then rank/gold
 stopping, outer coverage and integration review.
+A fresh carried-only session verified 180 guards in 30 towers and confirmed
+11 additional upgrades before the same retained-guard/replaced-building response
+stopped confirmation. [Native 1.8.19 / host 0.3.29](handoffs/guard-upgrades-1.8.19.md)
+adds a matched native/host rule for this already-complete exact-debit response.
+Focused tests pass; exact-source packaging and guest preparation are next.
+The stopped requests remain unresolved without replay.
 Known graphics
 stretch failures remain diagnostic-only. Maximum-rank and full-town evidence
 remain unfinished; earlier uncertain requests stay retained without replay.
