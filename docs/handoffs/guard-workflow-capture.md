@@ -37,7 +37,34 @@ files, unknown HUDs and changing controls. Lint passed. Live preflight confirmed
 in-world window observations with the currently installed 1.8.15 extension; no
 management panels were open, and semantic channels correctly reported unavailable.
 
-Active todo: capture a complete manual sequence through City Command/buildings,
-warehouse withdrawal, structure deposit and guard upgrade, including return visits.
-Analyze all transitions together before selecting the next native changes. Automatic
-funding, full-town coverage, maximum-rank evidence and integration remain unfinished.
+## Manual sequence captured and analyzed
+
+The completed manual recording ended on request after 449 seconds, with 2,154
+samples and no window-channel failures. It observed the guard quote, warehouse
+withdrawal prompt, structure deposit prompt, building funds increasing by the quoted
+amount, the upgrade confirmation dialog and the return to the warehouse. A separate
+read of the still-open warehouse confirmed the exact debit. Journal-gated navigation
+then reopened the same building and guard without spending, confirming upgrade in
+progress, visible progress control and the matching building debit. This qualifies
+the manual sequence and the existing revisit hook, not automatic spending.
+
+Two related gaps are now identified together:
+
+- Deposit completion leaves the initialized, owned building window in idle mode 0.
+  Opening the guard from there also preserves mode 0. Native and Python navigation
+  validation, plus the Python building reader, currently require mode 6. Native
+  funding already recognizes both modes outside an amount prompt.
+- Upgrade confirmation returns to a fresh building roster and closes the individual
+  guard window. The upgrade controller currently waits for a selected-guard snapshot
+  with both progress/rank evidence and an exact debit. It needs a correlated revisit
+  of that same guard while retaining the pending spending request. Debit alone must
+  not settle the request, and the upgrade must never be resubmitted.
+
+City Command remained uninitialized in this recording. It adds no new town-discovery
+or Tree-companion qualification; existing earlier evidence remains separate.
+
+Active todo: implement and validate these two transitions together against the full
+captured sequence before the next native deployment. Include wrong-owner/scene,
+missing or mismatched debit, unexpected modal, duplicate and late response cases.
+The user need not repeat this walkthrough. Automatic funding, full-town coverage,
+maximum-rank evidence and integration remain unfinished.

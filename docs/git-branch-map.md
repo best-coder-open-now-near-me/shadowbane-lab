@@ -68,8 +68,12 @@ Life's companion guild panel above its confirmed hireling roster. Native 1.8.15 
 host 0.3.24 (source 861985e) adds a roster-only, same-building ownership check.
 Package checks, guest staging and activation verification passed. All 171 retained
 records/settings were unchanged and the background manager restarted healthy.
-The game remains user-launched; loaded-extension and fresh-session discovery
-qualification are next. Earlier uncertain requests stay retained without replay.
+The user-launched extension was verified. A continuous manual workflow capture and
+non-spending guard revisit confirmed withdrawal, deposit and upgrade progress.
+[Workflow analysis](handoffs/guard-workflow-capture.md) identifies idle post-deposit
+mode and post-upgrade guard-window closure as the next combined correction.
+Automatic spending and new town discovery remain unqualified. Earlier uncertain
+requests stay retained without replay.
 Maximum-rank and full-town evidence remain unfinished.
 See [Tree companion navigation and next work](handoffs/guard-upgrades-1.8.15.md).
 Review this lane into `codex/vendor-rolling`, then the documented integration
