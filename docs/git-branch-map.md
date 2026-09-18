@@ -103,8 +103,18 @@ restarted healthy. Fresh user login and automatic batch verification are next.
 The user now requests carried-gold-only upgrades. The [host 0.3.28 update](handoffs/guard-carried-gold-0.3.28.md)
 removes warehouse setup and withdrawal from new discovery/plans/cycles, stops on
 insufficient carried gold, and rejects legacy worker/job funding policies without
-replay. Source validation passed; manager-only deployment and live qualification
-are next. Native 1.8.18 is unchanged.
+replay. Source `764ab0a` is pushed; host 0.3.28 is installed with a healthy
+carried-only worker. All 559 historical records checked are unchanged; the three
+current-worker capability records renewed. Native 1.8.18 and its running game
+process are unchanged. Warehouse-free discovery admitted 174 guards in 29 towers;
+14 new carried-only upgrades and 1,709,400 gold in exact deposits/debits are
+confirmed, with zero warehouse actions. The next funded upgrade stopped in
+review: its same-guard response already showed progress/debit, but a replacement
+building HUD failed the original SameOwner confirmation branch after 234 ms.
+The user reported possible accidental menu interaction; the cause is not proven.
+The original request remains unresolved without replay. Carried-only funding is
+qualified; next is fresh-session uninterrupted verification, then rank/gold
+stopping, outer coverage and integration review.
 Known graphics
 stretch failures remain diagnostic-only. Maximum-rank and full-town evidence
 remain unfinished; earlier uncertain requests stay retained without replay.
