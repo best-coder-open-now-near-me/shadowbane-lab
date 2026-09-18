@@ -48,11 +48,15 @@ ae58e8158054d06121ce4ee154d6d9e85d0870a7fe22409f45218b5b79267bc8.
 Diagnostic archive SHA-256:
 1aecbbe485ceeab912d036935d32d47aed521922fdaed0859db4fc957c15d181.
 
-Guest preparation and read-only update validation passed. The combined update is
-staged separately; active native 1.8.19 / host 0.3.29 and the stopped job remain
-unchanged. The user has been asked to close Shadowbane for activation. Existing
-records and settings must be hash-checked and retained by the prepared updater.
+Guest preparation and read-only update validation passed. After user-confirmed
+closure, native 1.8.20 / host 0.3.30 was installed and verified. Only the extension
+changed in the client inventory; the executable is unchanged. Backups are retained.
+All 2,215 checked journal, settings and evidence records are unchanged after
+manager restart. The dashboard shortcut uses host 0.3.30; Vendor Test remains
+the same shortcut. The manager is healthy with no game bound. The user launches
+the game; no Ulmer visit or menu setup is required.
 
-Active todo: activate after user-confirmed closure, then verify fresh live
-qualification. Next: rank/gold stopping, outer coverage and integration review.
+Active todo: verify a fresh user-launched game and uninterrupted live upgrades.
+Retain the stopped requests without replay. Next: rank/gold stopping, outer
+coverage and integration review.
 Full-town and maximum-rank completion remain unverified.

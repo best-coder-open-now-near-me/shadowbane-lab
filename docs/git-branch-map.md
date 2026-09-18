@@ -131,8 +131,10 @@ stopped on a rebuilt selected roster entry despite exact debit/progress.
 guard/building identity from disposable UI pointers and strengthens current
 selected-entry roster membership. Source 33229a0 is pushed; 2,754 host tests,
 both native profiles' required gates, installed contracts and artifact hashes
-pass. Guest preparation/read-only validation passed; the combined update awaits
-user-confirmed game closure for activation. The current job remains stopped.
+pass. After user-confirmed closure, native 1.8.20 / host 0.3.30 was installed
+and verified. All 2,215 checked records/settings are unchanged and the manager
+restarted healthy. Fresh user launch and live qualification are next; prior
+stopped requests remain retained without replay.
 Known graphics
 stretch failures remain diagnostic-only. Maximum-rank and full-town evidence
 remain unfinished; earlier uncertain requests stay retained without replay.
