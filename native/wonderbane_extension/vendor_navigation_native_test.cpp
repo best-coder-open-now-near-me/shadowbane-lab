@@ -70,6 +70,8 @@ int main() {
     word(entry + 0x10, 777); word(entry + 0x14, 42); word(entry + 0x6c, 0x100);
     assert(capture() && s.visible == 1);
     const auto tree_manager = base + 0x90000, tree_hud = base + 0x91000, tree_node = base + 0x92000;
+    const auto other_hireling_hud = base + 0x93000;
+    word(other_hireling_hud, base + 0x116a058); word(other_hireling_hud + 0x104, manager);
     word(root + 0x90, tree_manager); word(tree_manager, base + 0x11727c4);
     word(tree_manager + 0x48, tree_hud); word(tree_manager + 0x5c, 1);
     word(tree_manager + 0x110, 123); word(tree_manager + 0x114, 8);
@@ -80,6 +82,7 @@ int main() {
     for (const auto [address, replacement] : {
         std::pair{root + 0x90, tree_manager + 4}, {tree_manager, base + 0x1171adc},
         {tree_manager + 0x48, hud}, {tree_manager + 0x5c, 0U},
+        {manager + 0x78, other_hireling_hud},
         {tree_manager + 0x110, 124U}, {tree_manager + 0x114, 42U},
         {tree_hud + 0x104, 0U}, {tree_hud, base + 0x1168044}}) {
         std::uint32_t saved = 0; std::memcpy(&saved, reinterpret_cast<void*>(address), 4);

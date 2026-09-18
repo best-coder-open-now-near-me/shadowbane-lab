@@ -69,7 +69,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
         const auto table = r.Word(hud);
         bool tree_companion = false;
         if (!s.front_hud && table == base + 0x116a058 && hud != s.building_hud
-            && s.mode == 6 && s.initialized == 1 && s.building_hud
+            && s.mode == 6 && s.initialized == 1 && s.building_hud && !s.vendor_hud
             && s.building[0] && s.building[1] == 8) {
             // Tree management opens its guild panel above the ordinary hireling
             // roster. It acknowledges the same building, not a different modal.
