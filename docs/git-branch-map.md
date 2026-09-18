@@ -96,7 +96,10 @@ subsequently confirmed the third upgrade's progress and exact debit. The
 [1.8.18 / 0.3.27 correction](handoffs/guard-upgrades-1.8.18.md) adds bounded retries
 only for a submitted guard-page request that produced no response. Upgrade is
 still single-shot. Source `826de6a` is pushed; exact-source package checks and
-guest preparation/read-only validation pass. Activation awaits user closure.
+guest preparation/read-only validation pass. After confirmed closure, native
+1.8.18 / host 0.3.27 was installed and verified. All 642 retained records/settings
+are unchanged, the dashboard shortcut is updated and the background manager
+restarted healthy. Fresh user login and automatic batch verification are next.
 Known graphics
 stretch failures remain diagnostic-only. Maximum-rank and full-town evidence
 remain unfinished; earlier uncertain requests stay retained without replay.

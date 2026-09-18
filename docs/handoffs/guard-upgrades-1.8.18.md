@@ -47,12 +47,16 @@ Host wheel SHA-256:
 `2001748a15e7036535bf50e66c7c1f5406721cd6f1a0e71af7a8d0680520b5b1`.
 Diagnostic archive SHA-256:
 `04122afe7cb957909e7a1e93d53b0306aa562fda72fe90e93fd2e055e8628751`.
-Guest preparation and read-only update validation passed. The separate host
-0.3.27 installation and exact source/artifact pins were checked. The loaded game
-still has the original 1.8.17 extension; its files and journals are unchanged.
+Guest preparation and read-only update validation passed. After user-confirmed
+closure, native 1.8.18 / host 0.3.27 was installed and verified against the exact
+source/artifact pins. Only the extension changed within the client inventory;
+the game executable is unchanged. All 642 retained journal/settings records
+match their pre-update hashes. The dashboard shortcut now uses host 0.3.27,
+and the background manager restarted healthy with no game bound. The Vendor
+Test shortcut remains the same. Game launch is left to the user.
 
-Active todo: apply the verified correction after user-confirmed game closure.
-After activation, the user launches Vendor Test and opens View Resources once.
+Active todo: verify a fresh user-launched session and the complete automatic
+batch. The user launches Vendor Test and opens View Resources once.
 Use a fresh process-bound discovery plan; preserve the old reviewed job and
 request without replay. Verify the full batch, including rank waits and available
 gold. Full-town coverage, maximum rank and integration remain unfinished.
