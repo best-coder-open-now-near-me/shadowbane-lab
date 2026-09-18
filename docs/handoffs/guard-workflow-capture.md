@@ -65,6 +65,7 @@ or Tree-companion qualification; existing earlier evidence remains separate.
 
 The combined source correction and regression checks are recorded in
 [1.8.16 / 0.3.25](guard-upgrades-1.8.16.md). Exact-source packaging and guest staging
-passed. Active todo: activation after user closure, then one full automatic
+passed; the combined update is installed with retained records unchanged. Active
+todo: loaded-extension verification after login, then one full automatic
 funding/upgrade qualification. The user need not repeat this walkthrough. Full-town coverage, maximum-rank evidence and
 integration remain unfinished.

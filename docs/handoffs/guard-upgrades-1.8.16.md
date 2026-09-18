@@ -50,12 +50,13 @@ were independently verified. Two known graphics transparency stretch diagnostics
 fail in each profile; the package remains diagnostic-only and is not full-product
 acceptance. No live automatic spending acceptance is claimed yet.
 
-The combined full-profile payload is staged in the test VM. Guest preparation and
-read-only update validation passed, including the exact current client, new host
-source identity, launch pins and retained records. The running game remains on
-1.8.15 / 0.3.24; its DLL is unchanged. User closure is requested before activation.
+The combined full-profile update is installed in the test VM after confirmed game
+closure. Exact client/package verification, native version/hash, new host source
+identity and desktop launch pins passed. All 182 retained records/settings matched
+their original hashes after activation and manager restart. The 0.3.25 manager is
+responding, awaiting the user-launched game; no gameplay automation ran.
 
-Active todo: activate after user closure, then qualify the complete
+Active todo: verify the loaded extension after login, then qualify the complete
 automatic funding/upgrade cycle once. Town discovery beyond the Tree, full-town
 coverage, maximum-rank evidence and integration remain unfinished. Preserve all
 historical uncertain requests; the user starts the game through Vendor Test.

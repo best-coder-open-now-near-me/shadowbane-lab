@@ -75,8 +75,10 @@ mode and post-upgrade guard-window closure. The [combined 1.8.16 / 0.3.25 correc
 recognizes owned idle menus and revisits the exact guard once within its original
 pending transaction. Source `6c6228f` is pushed; exact-source packaging, both native
 profiles, 2,695 host tests and installed contract checks pass. Guest preparation
-and read-only validation pass. The game remains on 1.8.15 pending user closure
-and combined activation. Known graphics stretch failures remain diagnostic-only.
+and read-only validation pass. The combined 1.8.16 / 0.3.25 update is now installed
+after confirmed closure; all 182 retained records/settings are unchanged and the
+manager restarted successfully. User login and loaded-extension qualification
+are next. Known graphics stretch failures remain diagnostic-only.
 Automatic spending and new town discovery remain unqualified. Earlier uncertain
 requests stay retained without replay.
 Maximum-rank and full-town evidence remain unfinished.
