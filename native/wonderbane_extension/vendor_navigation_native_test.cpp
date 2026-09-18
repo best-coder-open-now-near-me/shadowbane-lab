@@ -12,6 +12,9 @@ bool NativeMovementLifetimeCurrent(const NativeScene& s) noexcept { return live 
 }
 std::uint32_t callback_base = 0, selections = 0, activations = 0;
 bool select_ok = true, detach_after_select = false, change_action = false;
+bool scroll_ok = true, detach_after_scroll = false, revoke_after_scroll = false;
+bool Admit(void*) noexcept { return live; }
+unsigned scrolls = 0;
 void Put(std::uint32_t at, std::uint32_t value) { std::memcpy(reinterpret_cast<void*>(at), &value, 4); }
 void __fastcall SelectRow(void* self, void*, void* row) {
     assert(reinterpret_cast<std::uint32_t>(self) == callback_base + 0x5000);
@@ -25,6 +28,13 @@ bool __fastcall ActivateRow(void* self, void*, std::uint32_t event) {
     assert(reinterpret_cast<std::uint32_t>(self) == callback_base + 0x6000 && event == 0);
     ++activations; return true;
 }
+void __fastcall ScrollRow(void* self, void*, std::uint32_t index) {
+    assert(reinterpret_cast<std::uint32_t>(self) == callback_base + 0x5000 && index == 0);
+    ++scrolls;
+    if (revoke_after_scroll) { live = false; }
+    if (scroll_ok) { Put(callback_base + 0x5418, 0); Put(callback_base + 0x6304, 0); }
+    if (detach_after_scroll) { Put(callback_base + 0x63bc, 0); }
+}
 void Jump(std::uint32_t rva, std::uintptr_t target) {
     auto* code = reinterpret_cast<unsigned char*>(callback_base + rva);
     code[0] = 0xb8; Put(callback_base + rva + 1, static_cast<std::uint32_t>(target));
@@ -35,6 +45,7 @@ int main() {
     auto* memory = static_cast<unsigned char*>(VirtualAlloc(nullptr, 0x1800000, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE));
     assert(memory); const auto base = reinterpret_cast<std::uint32_t>(memory);
     callback_base = base;
+    Jump(0x612660, reinterpret_cast<std::uintptr_t>(&ScrollRow));
     Jump(0x613520, reinterpret_cast<std::uintptr_t>(&SelectRow));
     Jump(0x61c7f0, reinterpret_cast<std::uintptr_t>(&ActivateRow));
     auto word = [](std::uint32_t p, std::uint32_t value) { std::memcpy(reinterpret_cast<void*>(p), &value, 4); };
@@ -111,8 +122,8 @@ int main() {
     assert(!n::FindVendorControl(base, s, {777, 37}, found) && !found);
     assert(!n::FindGuardControl(base, s, {777, 42}, found) && !found);
     assert(n::FindGuardControl(base, s, {777, 37}, found) && found == control);
-    assert(!n::InvokeVendor(base, s, {777, 37}));
-    assert(!n::InvokeGuard(base, s, {777, 42}));
+    assert(!n::InvokeVendor(base, s, {777, 37}, &Admit, nullptr));
+    assert(!n::InvokeGuard(base, s, {777, 42}, &Admit, nullptr));
     // Mixed rosters preserve the distinction even with identical numeric IDs.
     word(empty + 0x10, 777); word(empty + 0x14, 42); word(empty + 0x6c, 0x100);
     word(manager + 0x37c, 2); assert(capture());
@@ -135,32 +146,61 @@ int main() {
     word(node, node); assert(!capture()); word(node, head);
     live = false; assert(!capture()); live = true;
     assert(capture() && find());
-    assert(!n::InvokeVendor(base, {}, {777, 42}));
+    assert(!n::InvokeVendor(base, {}, {777, 42}, &Admit, nullptr));
     // Already selected rows still need event-zero activation, not another select.
     word(list + 0x404, control);
-    assert(n::InvokeVendor(base, s, {777, 42}) && selections == 1 && activations == 1);
+    assert(n::InvokeVendor(base, s, {777, 42}, &Admit, nullptr) && selections == 1 && activations == 1);
     word(list + 0x404, 0);
-    assert(n::InvokeVendor(base, s, {777, 42}) && selections == 2 && activations == 2);
+    assert(n::InvokeVendor(base, s, {777, 42}, &Admit, nullptr) && selections == 2 && activations == 2);
     word(entry + 0x14, 37); assert(capture());
-    assert(n::InvokeGuard(base, s, {777, 37}) && selections == 3 && activations == 3);
+    assert(n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && selections == 3 && activations == 3);
     word(control + 0x1d0, 0x4ce);
-    assert(n::InvokeGuard(base, s, {777, 37}) && activations == 4);
+    assert(n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && activations == 4);
     word(control + 0x1d0, 0x583); // A different mapped action is never activated.
-    assert(!n::InvokeGuard(base, s, {777, 37}) && selections == 4);
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && selections == 4);
     word(control + 0x1d0, 0); word(control + 0x1d4, 1);
-    assert(!n::InvokeGuard(base, s, {777, 37})); word(control + 0x1d4, 0);
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr)); word(control + 0x1d4, 0);
     word(control + 0x1d8, 1);
-    assert(!n::InvokeGuard(base, s, {777, 37})); word(control + 0x1d8, 0);
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr)); word(control + 0x1d8, 0);
     word(control + 0x304, 0x100);
-    assert(!n::InvokeGuard(base, s, {777, 37})); word(control + 0x304, 0);
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr)); word(control + 0x304, 0);
     select_ok = false; word(list + 0x404, 0);
-    assert(!n::InvokeGuard(base, s, {777, 37}) && activations == 4); select_ok = true;
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && activations == 4); select_ok = true;
     detach_after_select = true;
-    assert(!n::InvokeGuard(base, s, {777, 37}) && activations == 4);
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && activations == 4);
     detach_after_select = false; word(control + 0x3bc, hud);
     change_action = true;
-    assert(!n::InvokeGuard(base, s, {777, 37}) && activations == 4);
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && activations == 4);
     change_action = false; word(control + 0x1d0, 0);
+
+    // A clipped owned row is revealed through the native list setter, then
+    // membership, visibility and the action map are checked before activation.
+    const auto before_scroll_activations = activations;
+    word(list + 0x414, 1); word(list + 0x41c, 1); word(list + 0x420, 20);
+    auto clipped = [&] { word(list + 0x418, 1); word(control + 0x304, 0x100); };
+    clipped(); assert(n::FindGuardControl(base, s, {777, 37}, found));
+    for (const auto [address, replacement] : {
+        std::pair{list + 0x414, 0U}, {list + 0x41c, 0U}, {list + 0x418, 2U},
+        {list + 0x420, 0U}, {list + 0x1a8, 1U}, {list + 0x304, 0x100U},
+        {control + 0x420, 1U}, {control + 0x304, 0x200U}, {control + 0x1a8, 1U}}) {
+        std::uint32_t saved = 0; std::memcpy(&saved, reinterpret_cast<void*>(address), 4);
+        word(address, replacement);
+        assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && !scrolls);
+        word(address, saved);
+    }
+    word(list + 0x418, 0); // Hidden inside the viewport is not clipping.
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && !scrolls);
+    clipped(); scroll_ok = false;
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && activations == before_scroll_activations);
+    scroll_ok = true; detach_after_scroll = true;
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && activations == before_scroll_activations);
+    detach_after_scroll = false; word(control + 0x3bc, hud); clipped();
+    revoke_after_scroll = true;
+    assert(!n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr)
+        && activations == before_scroll_activations);
+    revoke_after_scroll = false; live = true; clipped();
+    assert(n::InvokeGuard(base, s, {777, 37}, &Admit, nullptr) && scrolls == 4
+        && activations == before_scroll_activations + 1);
 
     const auto warehouse = base + 0x15000, whnode = base + 0x16000, npc = base + 0x17000;
     word(warehouse, base + 0x1170308); word(warehouse + 0x378, npc);

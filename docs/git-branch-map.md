@@ -77,8 +77,13 @@ pending transaction. Source `6c6228f` is pushed; exact-source packaging, both na
 profiles, 2,695 host tests and installed contract checks pass. Guest preparation
 and read-only validation pass. The combined 1.8.16 / 0.3.25 update is now installed
 after confirmed closure; all 182 retained records/settings are unchanged and the
-manager restarted successfully. User login and loaded-extension qualification
-are next. Known graphics stretch failures remain diagnostic-only.
+manager restarted successfully. User login and the new worker are verified.
+The Tree companion and eight guard windows passed; a zero-slot wall stopped the
+scan. A bounded cycle stopped on Gold activation before any transfer, retaining
+its uncertain quote request. The [1.8.17 / 0.3.26 source correction](handoffs/guard-upgrades-1.8.17.md)
+combines exact-row scrolling, resource activation and unavailable zero-slot
+building handling. Packaging and staging are next. Known graphics stretch
+failures remain diagnostic-only.
 Automatic spending and new town discovery remain unqualified. Earlier uncertain
 requests stay retained without replay.
 Maximum-rank and full-town evidence remain unfinished.

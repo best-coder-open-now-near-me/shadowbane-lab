@@ -56,7 +56,13 @@ identity and desktop launch pins passed. All 182 retained records/settings match
 their original hashes after activation and manager restart. The 0.3.25 manager is
 responding, awaiting the user-launched game; no gameplay automation ran.
 
-Active todo: verify the loaded extension after login, then qualify the complete
+Live follow-up verified the new process and worker, automatic warehouse return,
+the Tree companion and eight guard windows across six buildings. A zero-slot wall
+stopped discovery. One bounded funding cycle stopped at Gold activation before
+any transfer; its uncertain quote request is retained. See the
+[combined follow-up correction](guard-upgrades-1.8.17.md).
+
+Active todo: validate and stage that correction, then qualify the complete
 automatic funding/upgrade cycle once. Town discovery beyond the Tree, full-town
 coverage, maximum-rank evidence and integration remain unfinished. Preserve all
 historical uncertain requests; the user starts the game through Vendor Test.

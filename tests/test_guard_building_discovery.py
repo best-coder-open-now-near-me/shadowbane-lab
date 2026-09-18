@@ -333,3 +333,48 @@ def test_slow_server_menus_finish_discovery_without_repeated_open(setup, monkeyp
         (123, 0), (123, 1230), (456, 0), (456, 4560),
     ]
     assert all(a["state"] == "observed" for a in result["attempts"])
+
+
+@pytest.mark.parametrize("changed", [None, "process", "building", "snapshot", "rows"])
+def test_zero_slot_structure_does_not_end_scan_or_claim_verified_coverage(setup, changed):
+    from shadowbane_lab.client_observation.native_building_hirelings import (
+        BuildingHirelingsUnavailable,
+    )
+    original = setup.session.open_building
+
+    def open_building(state, building, key):
+        receipt = original(state, building, key)
+        if building == 123:
+            setup.session.state = replace(setup.session.state, capacity=0, occupied=0)
+        return receipt
+
+    setup.session.open_building = open_building
+
+    def reader(binding, *, window):
+        if setup.session.state.building_id != 123:
+            return setup.reader(binding, window=window)
+        result = dict(process_id=988, process_creation_filetime_utc=123,
+                      building={"object_id": 123, "object_type": 8},
+                      building_roster_verified=False, hireling_slots=0, hirelings=[])
+        if changed == "process":
+            result["process_id"] += 1
+        elif changed == "building":
+            result["building"]["object_id"] += 1
+        elif changed == "snapshot":
+            setup.session.state = replace(setup.session.state, capacity=1)
+        elif changed == "rows":
+            result["hirelings"] = [{"hireling": {"object_id": 1230, "object_type": 37}}]
+        raise BuildingHirelingsUnavailable(result)
+
+    if changed:
+        with pytest.raises(VendorBatchStopped):
+            setup.run(reader=reader)
+        assert len(setup.session.calls) == 1
+        assert json.loads(setup.path.read_text())["state"] == "review"
+    else:
+        result = setup.run(reader=reader)
+        assert result["state"] == "partial" and result["guards"] == 1
+        assert result["buildings_verified"] == 1
+        assert result["roster"][0]["state"] == "unavailable"
+        assert not result["candidate_buildings_verified"]
+        assert [(b, g) for b, g, _ in setup.session.calls] == [(123, 0), (456, 0), (456, 4560)]

@@ -52,8 +52,17 @@ bool __fastcall Withdraw(void* self, void*, std::uint32_t event, std::uint32_t f
     assert(reinterpret_cast<std::uint32_t>(self) == base + 0x8000);
     ++confirmations; return false; // Normal callback return is not an acceptance receipt.
 }
-bool __fastcall SelectGold(void* self, void*, std::uint32_t event, std::uint32_t flag) {
-    assert(reinterpret_cast<std::uint32_t>(self) == base + 0xb000 && event == 1 && !flag);
+void __fastcall SelectRow(void* self, void*, void* row) {
+    assert(reinterpret_cast<std::uint32_t>(self) == base + 0x6000);
+    assert(reinterpret_cast<std::uint32_t>(row) == base + 0xb000);
+    Word(base + 0x6404, reinterpret_cast<std::uint32_t>(row));
+    // Selecting the list alone does not enable Withdraw or select resource Gold.
+}
+bool __fastcall SelectGold(void* self, void*, std::uint32_t event) {
+    assert(reinterpret_cast<std::uint32_t>(self) == base + 0xb000 && event == 0);
+    std::uint32_t selected = 0;
+    std::memcpy(&selected, reinterpret_cast<void*>(base + 0x6404), 4);
+    assert(selected == base + 0xb000);
     const auto head = base + 0x1a000, node = base + 0x1b000;
     Word(base + 0x3000 + 0x3c8, 1); Word(head + 4, node); Word(head + 8, node); Word(head + 12, node);
     Word(node + 4, head); Word(node + 8, 0); Word(node + 12, 0);
@@ -88,7 +97,8 @@ int main() {
     Jump(0x4bc10, reinterpret_cast<std::uintptr_t>(&GetPurse));
     Jump(0x595720, reinterpret_cast<std::uintptr_t>(&SetAmount));
     Jump(0x5f5440, reinterpret_cast<std::uintptr_t>(&Withdraw));
-    Jump(0x61c6e0, reinterpret_cast<std::uintptr_t>(&SelectGold));
+    Jump(0x613520, reinterpret_cast<std::uintptr_t>(&SelectRow));
+    Jump(0x61c7f0, reinterpret_cast<std::uintptr_t>(&SelectGold));
     Jump(0x6cc3e0, reinterpret_cast<std::uintptr_t>(&Deposit));
     Word(root + 0x20, head); Word(head, qnode); Word(head + 4, hnode);
     Word(qnode, hnode); Word(qnode + 4, head); Word(qnode + 8, quote);
@@ -170,11 +180,21 @@ int main() {
     }
     Word(opener + 0x1a8, 1);
     select_ok = false; assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && !opened);
+    auto clear_selection = [&] {
+        Word(hud + 0x3c8, 0); Word(base + 0x1a000 + 4, 0);
+        Word(base + 0x1a000 + 8, base + 0x1a000); Word(base + 0x1a000 + 12, base + 0x1a000);
+    };
+    // A non-Gold selection is never expanded by the automatic opener.
+    assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && selections == 1);
+    clear_selection();
     select_ok = true; selection_enables = false; Word(opener + 0x1a8, 1);
     assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && !opened);
-    selection_enables = true;
+    clear_selection(); selection_enables = true;
     assert(f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 1 && selections == 3);
     assert(capture() && f::wire::Opened(opening, s) && confirmations == 1);
+    Word(hud + 0x10c, 0); Word(head, hnode); Word(hnode + 4, head);
+    // An existing exact Gold selection must not be toggled off.
+    assert(f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 2 && selections == 3);
     Word(hud + 0x10c, 0); Word(head, hnode); Word(hnode + 4, head);
     // The deposit uses the exact current purse, not the limit cached at open.
     const auto manager = base + 0x15000;
@@ -198,11 +218,11 @@ int main() {
     purse = 500; Word(manager + 0x1cc, 125);
     assert(capture(2) && f::wire::Confirmed(c, s));
     opening = c; opening.expected = s; opening.amount = 0;
-    Word(opener + 0x1d0, 0x585); assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 1);
+    Word(opener + 0x1d0, 0x585); assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 2);
     Word(opener + 0x1d0, 0x586); Word(opener + 0x1a8, 1);
-    assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 1);
+    assert(!f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 2);
     Word(opener + 0x1a8, 0);
-    assert(f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 2);
+    assert(f::InvokeOpen(base, scene, opening, &Admit, nullptr) && opened == 3);
     assert(capture(2) && f::wire::Opened(opening, s) && confirmations == 2);
     Word(manager + 0xf8, 889); assert(!capture(2)); Word(manager + 0xf8, 888);
     live = false; assert(!capture(2)); assert(!f::Invoke(base, scene, c, &Admit, nullptr));

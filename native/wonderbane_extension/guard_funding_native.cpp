@@ -208,12 +208,22 @@ bool FindOpenControl(Reader& r, std::uintptr_t base, const wire::Snapshot& s,
 }
 bool Click(std::uintptr_t base, std::uint32_t control, bool row) noexcept {
     __try {
-        using Callback = bool (__thiscall*)(void*, std::uint32_t, std::uint32_t);
-        (void)reinterpret_cast<Callback>(base + (row ? 0x61c6e0 : 0x5f5440))(
-            reinterpret_cast<void*>(control), row ? 1 : 0, 0);
-        // Event propagation is not selection success; InvokeOpen verifies the
-        // exact selected entry and enabled Withdraw control after this callback.
-        return true;
+        if (row) {
+            Reader r;
+            const auto list = r.Word(control + 0x458);
+            if (!r.ok) { return false; }
+            using Select = void (__thiscall*)(void*, void*);
+            reinterpret_cast<Select>(base + 0x613520)(reinterpret_cast<void*>(list), reinterpret_cast<void*>(control));
+            if (r.Word(list + 0x404) != control || !r.ok) { return false; }
+            // Mouse-down only selects the list row. Event zero activates its
+            // reviewed 0x1005 action and updates the warehouse selection set.
+            using Activate = bool (__thiscall*)(void*, std::uint32_t);
+            (void)reinterpret_cast<Activate>(base + 0x61c7f0)(reinterpret_cast<void*>(control), 0);
+        } else {
+            using Callback = bool (__thiscall*)(void*, std::uint32_t, std::uint32_t);
+            (void)reinterpret_cast<Callback>(base + 0x5f5440)(reinterpret_cast<void*>(control), 0, 0);
+        }
+        return true; // InvokeOpen checks the exact selection and enabled Withdraw.
     } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
 bool SetAmount(std::uintptr_t base, std::uint32_t quote, std::uint32_t amount) noexcept {
@@ -292,7 +302,10 @@ bool InvokeOpen(std::uintptr_t base, const movement::NativeScene& scene, const w
     if (!wire::Equal(fresh, c.expected)) { return false; }
     Reader r; std::uint32_t button = 0, row = 0, entry = 0;
     if (!FindOpenControl(r, base, fresh, button, row, entry, true)) { return false; }
-    if (c.direction == 1 && !Click(base, row, true)) { return false; }
+    if (c.direction == 1 && !GoldSelected(r, fresh.hud, entry)) {
+        // Do not toggle an existing Gold selection or add it to another selection.
+        if (!EmptySelection(r, fresh.hud + 0x3c4) || !Click(base, row, true)) { return false; }
+    }
     if (!Capture(base, scene, c.direction, fresh, top) || !top) { return false; }
     fresh.revision = c.expected.revision;
     if (!wire::Equal(fresh, c.expected) || !FindOpenControl(r, base, fresh, button, row, entry)

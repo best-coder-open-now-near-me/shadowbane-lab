@@ -1,6 +1,7 @@
 import pytest
 
 from shadowbane_lab.client_observation.native_building_hirelings import (
+    BuildingHirelingsUnavailable,
     read_native_building_hirelings,
 )
 from shadowbane_lab.client_observation.native_vendor_dialog import (
@@ -86,8 +87,15 @@ def test_zero_capacity_with_no_rows_is_unverified_not_empty_success():
     memory.put(MANAGER + 0x380, "<I", 0)
     memory.put(MANAGER + 0x37C, "<I", 0)
     memory.put(LIST + 0x408, "<III", 0, 0, 0)
-    with pytest.raises(NativeVendorDialogCaptureError):
+    with pytest.raises(BuildingHirelingsUnavailable) as caught:
         read_native_building_hirelings(memory)
+    assert not caught.value.observation["building_roster_verified"]
+    assert caught.value.observation["hireling_slots"] == 0
+    memory.reads.clear()
+    memory.change = (MANAGER + 0x380, 4, b"\x01\x00\x00\x00")
+    with pytest.raises(NativeVendorDialogCaptureError) as changed:
+        read_native_building_hirelings(memory)
+    assert not isinstance(changed.value, BuildingHirelingsUnavailable)
 
 
 def test_owned_building_roster_survives_post_deposit_idle_mode():

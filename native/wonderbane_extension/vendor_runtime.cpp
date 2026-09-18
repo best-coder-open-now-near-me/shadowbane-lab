@@ -120,8 +120,8 @@ public:
             }
             if (!Admit(this)) { return O::stale; }
             const bool invoked = guard
-                ? vendor_navigation::InvokeGuard(image_base, command.expected, command.vendor)
-                : vendor_navigation::InvokeVendor(image_base, command.expected, command.vendor);
+                ? vendor_navigation::InvokeGuard(image_base, command.expected, command.vendor, &Admit, this)
+                : vendor_navigation::InvokeVendor(image_base, command.expected, command.vendor, &Admit, this);
             return invoked ? O::submitted : O::uncertain;
         }
         return O::invalid;
@@ -131,6 +131,8 @@ class GuardInvoker final : public guard_upgrade::Invoker {
     const std::shared_ptr<guard_upgrade::QueuedCommand>& queued_;
     const movement::NativeScene& scene_;
     HWND window_;
+    const guard_upgrade::wire::Snapshot* reopen_expected_ = nullptr;
+    const guard_upgrade::ReturnSnapshot* reopen_returned_ = nullptr;
 public:
     GuardInvoker(const std::shared_ptr<guard_upgrade::QueuedCommand>& command,
         const movement::NativeScene& scene, HWND window) : queued_(command), scene_(scene), window_(window) {}
@@ -147,23 +149,30 @@ public:
         }
         return guard_upgrade::Invoke(image_base, expected) ? O::submitted : O::uncertain;
     }
+    static bool AdmitReopen(void* context) noexcept {
+        auto& self = *static_cast<GuardInvoker*>(context);
+        const auto now = GetTickCount64();
+        guard_upgrade::ReturnSnapshot fresh{};
+        if (!self.reopen_expected_ || !self.reopen_returned_
+            || funding_controller.Busy() || controller.Busy() || navigation_controller.Busy()
+            || self.queued_->verb != guard_upgrade::wire::Verb::inspect
+            || !self.queued_->lease || !self.queued_->lease->Current(now) || now > self.queued_->deadline
+            || GetForegroundWindow() != self.window_ || IsIconic(self.window_)
+            || !guard_upgrade::CaptureReturn(image_base, self.scene_, *self.reopen_expected_, fresh)) {
+            return false;
+        }
+        const auto& returned = *self.reopen_returned_;
+        return vendor_navigation::wire::Equal(fresh.navigation, returned.navigation)
+            && fresh.guard == returned.guard && fresh.rank == returned.rank
+            && fresh.funds == returned.funds && movement::NativeMovementLifetimeCurrent(self.scene_);
+    }
     guard_upgrade::wire::Outcome Reopen(const guard_upgrade::wire::Snapshot& expected,
         const guard_upgrade::ReturnSnapshot& returned) noexcept override {
         using O = guard_upgrade::wire::Outcome;
-        const auto now = GetTickCount64();
-        guard_upgrade::ReturnSnapshot fresh{};
-        if (funding_controller.Busy() || controller.Busy() || navigation_controller.Busy()
-            || queued_->verb != guard_upgrade::wire::Verb::inspect
-            || !queued_->lease || !queued_->lease->Current(now) || now > queued_->deadline
-            || GetForegroundWindow() != window_ || IsIconic(window_)
-            || !guard_upgrade::CaptureReturn(image_base, scene_, expected, fresh)
-            || !vendor_navigation::wire::Equal(fresh.navigation, returned.navigation)
-            || fresh.guard != returned.guard || fresh.rank != returned.rank
-            || fresh.funds != returned.funds || !movement::NativeMovementLifetimeCurrent(scene_)) {
-            return O::stale;
-        }
-        return vendor_navigation::InvokeGuard(image_base, fresh.navigation, expected.navigation.vendor)
-            ? O::submitted : O::uncertain;
+        reopen_expected_ = &expected; reopen_returned_ = &returned;
+        if (!AdmitReopen(this)) { return O::stale; }
+        return vendor_navigation::InvokeGuard(image_base, returned.navigation, expected.navigation.vendor,
+            &AdmitReopen, this) ? O::submitted : O::uncertain;
     }
 };
 class FundingInvoker final : public guard_funding::Invoker {

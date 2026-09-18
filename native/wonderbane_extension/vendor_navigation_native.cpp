@@ -101,7 +101,8 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
     out = s; return true;
 }
 namespace {
-bool FindHirelingControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key wanted, std::uint32_t& found) noexcept {
+bool FindHirelingControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key wanted,
+    std::uint32_t& found, bool allow_clipped = false) noexcept {
     found = 0;
     if (!wire::ValidSnapshot(s) || !wire::Hireling(wanted) || !wire::OwnsBuilding(s, s.building)) { return false; }
     Reader r; std::array<std::uint32_t, 512> children{};
@@ -129,16 +130,30 @@ bool FindHirelingControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key
             for (std::size_t k = 0; k < occupied; ++k) { if (keys[k] == key) { return false; } }
             keys[occupied++] = key;
             if (key == wanted) {
-                if (found || r.Word(control + 0x1a8) || (r.Word(control + 0x304) & 0xff00)) { return false; }
+                if (found || r.Word(control + 0x1a8)) { return false; }
+                const auto hidden = (r.Word(control + 0x304) >> 8) & 0xff;
+                if (hidden) {
+                    const auto first = r.Word(child + 0x418), visible = r.Word(child + 0x41c);
+                    const auto page = r.Word(child + 0x414), height = r.Word(child + 0x420);
+                    // Only a row outside a valid owned list viewport may be
+                    // revealed. Arbitrarily hidden or disabled rows stay blocked.
+                    if (!allow_clipped || hidden != 1 || r.Word(child + 0x1a8)
+                        || (r.Word(child + 0x304) & 0xff00) || !height || height > 4096
+                        || !page || page > count || !visible || visible > count
+                        || first > count - page || first > count - visible
+                        || (j >= first && j < first + visible)
+                        || r.Word(control + 0x420) != j) { return false; }
+                }
                 found = control;
             }
         }
     }
     return r.ok && found && slots == s.capacity && occupied == s.occupied;
 }
-bool InvokeHireling(std::uintptr_t base, const wire::Snapshot& s, wire::Key key) noexcept {
+bool InvokeHireling(std::uintptr_t base, const wire::Snapshot& s, wire::Key key, Admission admit, void* context) noexcept {
+    if (!admit || !admit(context)) { return false; }
     std::uint32_t control = 0;
-    if (!FindHirelingControl(base, s, key, control)) { return false; }
+    if (!FindHirelingControl(base, s, key, control, true)) { return false; }
     Reader r;
     // Event zero is activation. Event one only selects the row when its action
     // map is empty, so its successful return cannot mean the hireling was opened.
@@ -147,13 +162,25 @@ bool InvokeHireling(std::uintptr_t base, const wire::Snapshot& s, wire::Key key)
     const auto list = r.Word(control + 0x458);
     if (!r.ok) { return false; }
     __try {
+        if (r.Word(control + 0x304) & 0xff00) {
+            const auto index = r.Word(control + 0x420);
+            if (!r.ok) { return false; }
+            // The reviewed setter clamps the top row and relays out the list.
+            // The index locates the already verified typed key, never a target.
+            using Scroll = void (__thiscall*)(void*, std::uint32_t);
+            reinterpret_cast<Scroll>(base + 0x612660)(reinterpret_cast<void*>(list), index);
+            std::uint32_t visible = 0;
+            if (!admit(context) || !FindHirelingControl(base, s, key, visible) || visible != control
+                || r.Word(control + 0x458) != list || r.Word(control + 0x1d0) != action
+                || r.Word(control + 0x1d4) || r.Word(control + 0x1d8) || !r.ok) { return false; }
+        }
         // The ordinary list setter only assigns its selected control (+0x404).
         // Recheck owned membership before activating; never use a row index or
         // an action copied from some other menu.
         using Select = void (__thiscall*)(void*, void*);
         reinterpret_cast<Select>(base + 0x613520)(reinterpret_cast<void*>(list), reinterpret_cast<void*>(control));
         std::uint32_t checked = 0;
-        if (!FindHirelingControl(base, s, key, checked) || checked != control
+        if (!admit(context) || !FindHirelingControl(base, s, key, checked) || checked != control
             || r.Word(list + 0x404) != control || r.Word(control + 0x1d0) != action
             || r.Word(control + 0x1d4) || r.Word(control + 0x1d8) || !r.ok) { return false; }
         using Activate = bool (__thiscall*)(void*, std::uint32_t);
@@ -164,16 +191,16 @@ bool InvokeHireling(std::uintptr_t base, const wire::Snapshot& s, wire::Key key)
 }
 bool FindVendorControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key key, std::uint32_t& found) noexcept {
     found = 0;
-    return wire::Typed(key, 42) && FindHirelingControl(base, s, key, found);
+    return wire::Typed(key, 42) && FindHirelingControl(base, s, key, found, true);
 }
 bool FindGuardControl(std::uintptr_t base, const wire::Snapshot& s, wire::Key key, std::uint32_t& found) noexcept {
     found = 0;
-    return wire::Typed(key, 37) && FindHirelingControl(base, s, key, found);
+    return wire::Typed(key, 37) && FindHirelingControl(base, s, key, found, true);
 }
-bool InvokeVendor(std::uintptr_t base, const wire::Snapshot& s, wire::Key key) noexcept {
-    return wire::Typed(key, 42) && InvokeHireling(base, s, key);
+bool InvokeVendor(std::uintptr_t base, const wire::Snapshot& s, wire::Key key, Admission admit, void* context) noexcept {
+    return wire::Typed(key, 42) && InvokeHireling(base, s, key, admit, context);
 }
-bool InvokeGuard(std::uintptr_t base, const wire::Snapshot& s, wire::Key key) noexcept {
-    return wire::Typed(key, 37) && InvokeHireling(base, s, key);
+bool InvokeGuard(std::uintptr_t base, const wire::Snapshot& s, wire::Key key, Admission admit, void* context) noexcept {
+    return wire::Typed(key, 37) && InvokeHireling(base, s, key, admit, context);
 }
 }

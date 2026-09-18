@@ -15,6 +15,7 @@ from shadowbane_lab.client_extension.vendor_navigation_wire import (
     UNRESOLVED,
     Outcome,
 )
+from shadowbane_lab.client_observation.native_building_hirelings import BuildingHirelingsUnavailable
 from shadowbane_lab.client_observation.native_vendor_roster import read_native_vendor_roster
 from shadowbane_lab.record_store import exclusive_record_lock
 
@@ -229,7 +230,13 @@ def _run_building_discovery(
 
         def verify_roster(state, building_id, *, window, vendor_id=0):
             check()
-            roster = reader(binding, window=window)
+            unavailable = None
+            try:
+                roster = reader(binding, window=window)
+            except BuildingHirelingsUnavailable as exc:
+                if not guard or window != "building":
+                    raise
+                unavailable, roster = exc, exc.observation
             after = observe()
             if (
                 after.snapshot != state
@@ -244,6 +251,12 @@ def _run_building_discovery(
                 )
             ):
                 raise VendorBatchStopped("The roster changed while its window was being verified.")
+            if unavailable is not None:
+                if (state.capacity or state.occupied or roster["hireling_slots"]
+                        or roster["hirelings"]
+                        or roster.get("building_roster_verified") is not False):
+                    raise VendorBatchStopped("The unavailable building roster changed.")
+                raise unavailable
             if guard:
                 if (
                     roster.get("building_roster_verified") is not True
@@ -281,7 +294,14 @@ def _run_building_discovery(
                     )
                     save()
                     continue
-                roster = verify_roster(state, building_id, window="building")
+                try:
+                    roster = verify_roster(state, building_id, window="building")
+                except BuildingHirelingsUnavailable as exc:
+                    if not guard:
+                        raise
+                    result.update(state="unavailable", detail=str(exc))
+                    save()
+                    continue
                 result.update(state="roster_verified", roster=roster)
                 record["buildings_verified"] += 1
                 for vendor in roster[rows_key]:

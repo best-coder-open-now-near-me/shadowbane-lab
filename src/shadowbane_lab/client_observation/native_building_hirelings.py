@@ -13,6 +13,14 @@ from .native_vendor_roster import _text
 from .reviewed_vendor_builds import REVIEWED_VENDOR_EXECUTABLES
 
 
+class BuildingHirelingsUnavailable(NativeVendorDialogCaptureError):
+    """An owned stable zero-slot menu cannot establish a hireling roster."""
+
+    def __init__(self, observation):
+        super().__init__("This building exposes no hireling slots; coverage is unverified.")
+        self.observation = observation
+
+
 @dataclass(frozen=True)
 class _BuildingHirelings:
     reads: _ReadSet
@@ -52,7 +60,7 @@ def _capture_building_hirelings(memory: VendorQueueMemory) -> _BuildingHirelings
     if r.read(manager + 0xF8, 8) != struct.pack("<II", *building):
         raise NativeVendorDialogCaptureError("guard building selection changed")
     capacity, occupied = r.word(manager + 0x380), r.word(manager + 0x37C)
-    if not (0 <= occupied <= capacity <= 128 and capacity > 0):
+    if not (0 <= occupied <= capacity <= 128):
         raise NativeVendorDialogCaptureError("invalid guard building occupancy")
     rows, keys, entries = [], set(), set()
     positions = vacancies = 0
@@ -104,6 +112,10 @@ def _capture_building_hirelings(memory: VendorQueueMemory) -> _BuildingHirelings
         "town_coverage_verified": False, "server_acceptance_verified": False,
         "management_permission_verified": False, "command_admitted": False,
     }
+    if capacity == 0:
+        r.verify()
+        result["building_roster_verified"] = False
+        raise BuildingHirelingsUnavailable(result)
     return _BuildingHirelings(r, root, manager, building_menu, active, entries, keys, result)
 
 
