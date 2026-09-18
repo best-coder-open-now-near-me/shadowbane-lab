@@ -82,8 +82,11 @@ The Tree companion and eight guard windows passed; a zero-slot wall stopped the
 scan. A bounded cycle stopped on Gold activation before any transfer, retaining
 its uncertain quote request. The [1.8.17 / 0.3.26 source correction](handoffs/guard-upgrades-1.8.17.md)
 combines exact-row scrolling, resource activation and unavailable zero-slot
-building handling. Packaging and staging are next. Known graphics stretch
-failures remain diagnostic-only.
+building handling. Source `1fb4c0c` is pushed. Exact-source packaging passed
+2,700 host tests, both native profiles and installed contract checks. Guest
+preparation/read-only validation passed; activation awaits user game closure.
+The running client remains 1.8.16. Known graphics stretch failures remain
+diagnostic-only.
 Automatic spending and new town discovery remain unqualified. Earlier uncertain
 requests stay retained without replay.
 Maximum-rank and full-town evidence remain unfinished.
