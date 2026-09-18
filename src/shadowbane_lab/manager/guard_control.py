@@ -39,7 +39,7 @@ def _prepared(store):
     if not path.exists():
         return None
     record = _read(path)
-    if record.get("schema_version") != 1 or record.get("identity") != list(store.identity):
+    if record.get("schema_version") not in {1, 2} or record.get("identity") != list(store.identity):
         raise GuardFundingCycleStopped("The prepared guard selection belongs to another client.")
     return record
 
@@ -126,7 +126,7 @@ class ManagerGuardControl:
                 )
             expected = dict(
                 schema_version=1,
-                capability="guard_jobs_v1",
+                capability="guard_jobs_carried_v2",
                 worker_id=permit.worker_id,
                 process_id=permit.process_id,
                 process_started_at_100ns=permit.process_started_at_100ns,
@@ -174,8 +174,10 @@ class ManagerGuardControl:
                     command = "guard discover"
                 else:
                     prepared = _prepared(store)
-                    if not prepared or prepared["discovery_id"] != job_id:
-                        raise GuardFundingCycleStopped("Find guards with the warehouse open first.")
+                    if (not prepared or prepared.get("schema_version") != 2
+                            or prepared.get("funding_source") != "carried"
+                            or prepared["discovery_id"] != job_id):
+                        raise GuardFundingCycleStopped("Find guards before starting upgrades.")
                     command = "guard start " + prepared["discovery_id"]
             self.operations.submit(
                 new_worker_operation(
@@ -214,7 +216,7 @@ class GuardWorkerExecutor:
             self.store().root / "guard-worker-capability.json",
             dict(
                 schema_version=1,
-                capability="guard_jobs_v1",
+                capability="guard_jobs_carried_v2",
                 worker_id=worker_id,
                 process_id=process.process_id,
                 process_started_at_100ns=process.process_started_at_100ns,
@@ -255,7 +257,7 @@ class GuardWorkerExecutor:
                         or session.window != b.game_window_handle
                     ):
                         raise GuardFundingCycleStopped(
-                            "The warehouse observer belongs to another client."
+                            "The scene observer belongs to another client."
                         )
                     deadline = self.clock() + 60
                     while True:
@@ -267,16 +269,12 @@ class GuardWorkerExecutor:
                             IN_FLIGHT | UNRESOLVED
                         ):
                             raise GuardFundingCycleStopped(
-                                "The warehouse window has an unresolved action."
+                                "The current window has an unresolved action."
                             )
                         if receipt.flags & READY:
-                            warehouse = receipt.snapshot
-                            if not warehouse.warehouse_opened(
-                                warehouse.building_id, warehouse.warehouse_id
-                            ):
-                                raise GuardFundingCycleStopped(
-                                    "Open the warehouse resource panel before finding guards."
-                                )
+                            context = receipt.snapshot
+                            if context.empty:
+                                raise GuardFundingCycleStopped("An in-world scene is required.")
                             break
                         if self.clock() >= deadline:
                             raise GuardFundingCycleStopped("Return to the game to find guards.")
@@ -285,12 +283,13 @@ class GuardWorkerExecutor:
                     session.close()
             # Release the observer producer before City Command/navigation takes ownership.
             self.discover(store, b, operation, cancelled=stop_signal.is_set)
-            plan = build_guard_upgrade_plan(store, b, operation.operation_id, warehouse)
+            plan = build_guard_upgrade_plan(store, b, operation.operation_id, context)
             prepared = dict(
-                schema_version=1,
+                schema_version=2,
+                funding_source="carried",
                 identity=list(store.identity),
                 discovery_id=operation.operation_id,
-                warehouse=warehouse.encode().hex(),
+                context=context.encode().hex(),
                 process_id=b.game_process_id,
                 creation=b.game_process_started_at_100ns,
                 window=b.game_window_handle,
@@ -309,6 +308,8 @@ class GuardWorkerExecutor:
             prepared = _prepared(store)
             if (
                 not prepared
+                or prepared.get("schema_version") != 2
+                or prepared.get("funding_source") != "carried"
                 or prepared["discovery_id"] != operation.command.removeprefix("guard start ")
                 or (prepared["process_id"], prepared["creation"], prepared["window"])
                 != (b.game_process_id, b.game_process_started_at_100ns, b.game_window_handle)
@@ -318,7 +319,7 @@ class GuardWorkerExecutor:
                 b,
                 operation,
                 prepared["discovery_id"],
-                Snapshot.decode(bytes.fromhex(prepared["warehouse"])),
+                Snapshot.decode(bytes.fromhex(prepared["context"])),
             )
             job_id = record["job_id"]
         elif operation.command.startswith("guard resume "):

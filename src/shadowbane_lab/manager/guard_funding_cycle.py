@@ -1,4 +1,4 @@
-"""One durable warehouse-to-building funding and guard-upgrade transaction.
+"""One durable carried-gold deposit and guard-upgrade transaction.
 
 The town scheduler owns the target list and repeats completed cycles as ranks
 become available. This layer owns exact window/session handoffs and every gold
@@ -45,8 +45,6 @@ class GuardFundingTarget:
     creation: int
     scene: int
     root: int
-    warehouse_building: int
-    warehouse_hireling: int
     building: int
     guard: int
 
@@ -153,13 +151,10 @@ class _Cycle:
         self.save()
         return after
 
-    def visit(self, building, *, guard=0, warehouse=0):
+    def visit(self, building, *, guard=0):
         with self.session("navigation") as session:
             before = self.observe(session, session.inspect, lambda _: True)
-            if warehouse:
-                def opened(state):
-                    return state.warehouse_opened(building, warehouse)
-            elif guard:
+            if guard:
                 def opened(state):
                     return state.opened(building, guard, hireling_type=37)
             else:
@@ -167,18 +162,17 @@ class _Cycle:
                     return state.opened(building)
             if opened(before):
                 return  # Inspection is sufficient; no action UUID is consumed.
-            if not before.owns_building(building) or not (guard or warehouse):
+            if not before.owns_building(building) or not guard:
                 before = self.action(
                     session, "open_building", before,
                     lambda key: session.open_building(before, building, key), session.inspect,
                     lambda s: s.opened(building),
                     response_wait=RESPONSE_WAIT_SECONDS,
                 )
-            if guard or warehouse:
-                method = session.open_warehouse if warehouse else session.open_guard
+            if guard:
                 self.action(
-                    session, "open_warehouse" if warehouse else "open_guard", before,
-                    lambda key: method(before, building, warehouse or guard, key),
+                    session, "open_guard", before,
+                    lambda key: session.open_guard(before, building, guard, key),
                     session.inspect, opened,
                     response_wait=RESPONSE_WAIT_SECONDS,
                 )
@@ -202,7 +196,7 @@ class _Cycle:
         return state
 
     def transfer(self, session, before, amount):
-        if not before.can_open or amount <= 0:
+        if before.direction != Direction.STRUCTURE or not before.can_open or amount <= 0:
             raise GuardFundingCycleStopped("The requested gold movement is unavailable.")
         def inspect():
             return session.inspect(Direction(before.direction))
@@ -216,11 +210,10 @@ class _Cycle:
         if not quote.eligible(amount):
             raise GuardFundingCycleStopped("The gold quote changed before transfer.")
         after = self.action(
-            session, "withdraw" if before.direction == 1 else "deposit", quote,
+            session, "deposit", quote,
             lambda key: session.transfer(quote, amount, key), inspect, same,
         )
-        field = "withdrawn" if before.direction == 1 else "deposited"
-        self.record[field] += amount
+        self.record["deposited"] += amount
         self.save()
         return after
 
@@ -240,20 +233,12 @@ class _Cycle:
         if not before.can_upgrade or not before.cost or before.control_flags != 3:
             return "unavailable", "No eligible upgrade is offered; maximum rank is unverified."
         if before.funds < before.cost:
-            self.visit(t.warehouse_building, warehouse=t.warehouse_hireling)
-            with self.session("funding") as session:
-                source = self.funding_state(session, Direction.WAREHOUSE, t.warehouse_hireling)
-                shortfall = max(0, before.cost - before.funds - source.purse)
-                if shortfall > max(0, source.balance - source.reserve):
-                    return "insufficient", "Warehouse gold and purse cannot fund this upgrade."
-                if shortfall:
-                    self.transfer(session, source, shortfall)
             self.visit(t.building)
             with self.session("funding") as session:
                 destination = self.funding_state(session, Direction.STRUCTURE, t.building)
                 shortfall = max(0, before.cost - destination.balance)
                 if shortfall > destination.purse:
-                    raise GuardFundingCycleStopped("The guard building or purse balance changed.")
+                    return "insufficient", "Carried gold cannot cover this upgrade; no gold moved."
                 if shortfall:
                     self.transfer(session, destination, shortfall)
             self.visit(t.building, guard=t.guard)
@@ -306,7 +291,7 @@ def run_guard_funding_cycle(
             )
         journal.assert_idle()
         record = {
-            "schema_version": 1, "identity": list(store.identity),
+            "schema_version": 2, "funding_source": "carried", "identity": list(store.identity),
             "operation_id": operation.operation_id, "target": asdict(target),
             "process_id": binding.game_process_id,
             "process_creation_filetime_utc": binding.game_process_started_at_100ns,

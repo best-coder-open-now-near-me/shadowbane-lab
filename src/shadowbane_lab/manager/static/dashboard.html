@@ -391,13 +391,13 @@
           const detail = document.createElement("p");
           detail.className = "detail";
           detail.textContent = job ? text(job.detail)
-            : "Open the warehouse resource panel, then find guards and return to the game.";
+            : "Carry gold, then find guards and return to the game. No warehouse menu is needed.";
           const progress = document.createElement("p");
           progress.className = "detail";
           progress.textContent = job
             ? `${job.upgrades_started} upgrades started · ${job.spent.toLocaleString()} gold spent · ${job.waiting} waiting`
             : prepared ? `${prepared.guards} guards verified in ${prepared.buildings} of ${prepared.candidate_buildings} nearby buildings`
-            : "Uses building gold, carried gold, then warehouse gold above its reserve.";
+            : "Uses building gold and carried gold only. Stops when the next upgrade is unaffordable.";
           const scope = document.createElement("p");
           scope.className = "detail";
           scope.textContent = "Nearby loaded buildings only. Full town coverage and maximum rank are not yet verified.";

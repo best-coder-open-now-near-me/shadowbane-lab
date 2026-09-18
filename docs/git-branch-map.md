@@ -100,6 +100,11 @@ guest preparation/read-only validation pass. After confirmed closure, native
 1.8.18 / host 0.3.27 was installed and verified. All 642 retained records/settings
 are unchanged, the dashboard shortcut is updated and the background manager
 restarted healthy. Fresh user login and automatic batch verification are next.
+The user now requests carried-gold-only upgrades. The [host 0.3.28 update](handoffs/guard-carried-gold-0.3.28.md)
+removes warehouse setup and withdrawal from new discovery/plans/cycles, stops on
+insufficient carried gold, and rejects legacy worker/job funding policies without
+replay. Source validation passed; manager-only deployment and live qualification
+are next. Native 1.8.18 is unchanged.
 Known graphics
 stretch failures remain diagnostic-only. Maximum-rank and full-town evidence
 remain unfinished; earlier uncertain requests stay retained without replay.

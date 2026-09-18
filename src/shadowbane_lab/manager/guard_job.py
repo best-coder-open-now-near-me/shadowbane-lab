@@ -37,7 +37,7 @@ class GuardJobStore:
 
     def read(self, job_id):
         record = _read(self.path(job_id))
-        if (record.get("schema_version") != 1 or record.get("job_id") != job_id
+        if (record.get("schema_version") not in {1, 2} or record.get("job_id") != job_id
                 or record.get("identity") != list(self.store.identity)
                 or record.get("state") not in {"ready", "running", "waiting", "paused", *TERMINAL}):
             raise GuardFundingCycleStopped("The guard job record is invalid.")
@@ -82,7 +82,7 @@ class GuardJobStore:
                 except TimeoutError:
                     pass  # The live runner will observe the durable Stop control.
 
-    def begin(self, binding, operation, discovery_id, warehouse, *, now=None, poll_seconds=300):
+    def begin(self, binding, operation, discovery_id, context, *, now=None, poll_seconds=300):
         job_id = operation_id(operation.operation_id)
         if (type(poll_seconds) not in (int, float) or not math.isfinite(poll_seconds)
                 or not 60 <= poll_seconds <= 3600):
@@ -94,9 +94,10 @@ class GuardJobStore:
             }:
                 raise GuardFundingCycleStopped("Continue or review the existing guard job first.")
             GuardSpendingJournal(self.store.root).assert_idle()
-            plan = build_guard_upgrade_plan(self.store, binding, discovery_id, warehouse)
+            plan = build_guard_upgrade_plan(self.store, binding, discovery_id, context)
             record = {
-                "schema_version": 1, "identity": list(self.store.identity), "job_id": job_id,
+                "schema_version": 2, "funding_source": "carried",
+                "identity": list(self.store.identity), "job_id": job_id,
                 "plan": asdict(plan), "window": binding.game_window_handle,
                 "state": "ready", "detail": "Ready to upgrade the verified guards.",
                 "created_at": time.time() if now is None else now,
@@ -114,10 +115,13 @@ class GuardJobStore:
 
 
 def _validate_plan(jobs, binding, record):
+    if record.get("schema_version") != 2 or record.get("funding_source") != "carried":
+        raise GuardFundingCycleStopped(
+            "The previous warehouse-funded job needs review; no replay sent.")
     plan = record["plan"]
     current = build_guard_upgrade_plan(
         jobs.store, binding, plan["discovery_operation_id"],
-        Snapshot.decode(bytes.fromhex(plan["warehouse_snapshot"])),
+        Snapshot.decode(bytes.fromhex(plan["context_snapshot"])),
     )
     # JSON normalizes immutable tuples to arrays; retain all discovery digests.
     if (json.loads(json.dumps(asdict(current))) != plan
@@ -138,7 +142,9 @@ def _apply_cycle(jobs, record, target, now):
     active = record["active_cycle"]
     cycle = _read(jobs.store.root / "guard-funding-cycles" / (active["operation_id"] + ".json"))
     guard = record["guards"][active["index"]]
-    if (cycle.get("schema_version") != 1 or cycle.get("identity") != record["identity"]
+    if (cycle.get("schema_version") != 2
+            or cycle.get("funding_source") != "carried" or cycle.get("withdrawn") != 0
+            or cycle.get("identity") != record["identity"]
             or cycle.get("operation_id") != active["operation_id"]
             or cycle.get("target") != asdict(target) or cycle.get("window") != record["window"]
             or cycle.get("process_id") != target.process_id
@@ -208,6 +214,11 @@ def run_guard_upgrade_job(
                     jobs.save(record)
                     return record
                 journal.assert_idle()
+                if any(g["state"] == "insufficient" for g in record["guards"]):
+                    record.update(state="insufficient",
+                                  detail="Carried gold is insufficient. Refill before restarting.")
+                    jobs.save(record)
+                    return record
                 remaining = [i for i, g in enumerate(record["guards"])
                              if g["state"] in {"ready", "waiting"}]
                 if not remaining:

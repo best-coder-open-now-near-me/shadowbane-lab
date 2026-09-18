@@ -17,9 +17,7 @@ from tests.test_guard_funding_cycle import World
 
 DISCOVERY = "operation-" + "a" * 32
 JOB = "operation-" + "b" * 32
-WAREHOUSE = Snapshot(scene=1, revision=1, root=100, manager=200, front_hud=600,
-                     building_id=888, building_type=8, warehouse_hud=600,
-                     warehouse_object=700, warehouse_id=999, warehouse_type=42)
+CONTEXT = Snapshot(scene=1, revision=1, root=100, manager=200)
 
 
 @pytest.fixture
@@ -32,7 +30,7 @@ def setup(tmp_path):
     nearby = dict(common, scene=1, root=100, roster={"buildings": [
         {"building": {"object_id": b, "object_type": 8}} for b in (123, 456)
     ]})
-    discovery = dict(common, guards=2, attempts=[{"expected": WAREHOUSE.encode().hex()}], roster=[])
+    discovery = dict(common, guards=2, attempts=[{"expected": CONTEXT.encode().hex()}], roster=[])
     for b, g in ((123, 777), (456, 778)):
         key = {"object_id": g, "object_type": 37}
         row = {"hireling": key, "rank": 1, "display_name": "Archer"}
@@ -54,7 +52,7 @@ def setup(tmp_path):
     jobs, clock, calls = GuardJobStore(store), [1000.0], []
 
     def begin(**kwargs):
-        return jobs.begin(binding, SimpleNamespace(operation_id=JOB), DISCOVERY, WAREHOUSE,
+        return jobs.begin(binding, SimpleNamespace(operation_id=JOB), DISCOVERY, CONTEXT,
                           now=clock[0], poll_seconds=60, **kwargs)
 
     def result(store, binding, operation, target, *, cancelled, minimum_rank, **kwargs):
@@ -63,7 +61,8 @@ def setup(tmp_path):
         active = jobs.read(JOB)["active_cycle"]
         assert active["operation_id"] == operation.operation_id
         assert not calls or calls[-1]["operation_id"] != operation.operation_id
-        record = dict(schema_version=1, identity=list(store.identity), target=asdict(target),
+        record = dict(schema_version=2, funding_source="carried",
+                      identity=list(store.identity), target=asdict(target),
                       operation_id=operation.operation_id, window=1000,
                       process_id=988, process_creation_filetime_utc=123, minimum_rank=minimum_rank,
                       state="unavailable", detail="No offer; maximum unverified.",
@@ -83,7 +82,7 @@ def setup(tmp_path):
 
 def test_plan_uses_exact_typed_guards_despite_duplicate_names(setup):
     f = setup
-    plan = build_guard_upgrade_plan(f.store, f.binding, DISCOVERY, WAREHOUSE)
+    plan = build_guard_upgrade_plan(f.store, f.binding, DISCOVERY, CONTEXT)
     assert [(t.building, t.guard) for t in plan.targets] == [(123, 777), (456, 778)]
     assert plan.initial_ranks == (1, 1) and plan.candidate_buildings == 2
     result = f.begin()
@@ -106,7 +105,7 @@ def test_plan_rejects_wrong_or_incomplete_provenance(setup, change):
     elif change in {"scene", "root"}:
         f.nearby[change] += 1
     elif change == "navigation_scene":
-        f.discovery["attempts"][0]["expected"] = replace(WAREHOUSE, scene=2).encode().hex()
+        f.discovery["attempts"][0]["expected"] = replace(CONTEXT, scene=2).encode().hex()
     elif change == "selected":
         detail["selected_guard"] = {"object_id": 9999, "object_type": 37}
     elif change == "type":
@@ -148,7 +147,7 @@ def test_no_offer_is_unavailable_not_maximum_or_town_complete(setup):
     assert len(f.calls) == 2
 
 
-def test_expensive_guard_does_not_prevent_checking_remaining_guards(setup):
+def test_carried_gold_exhaustion_stops_before_later_guards(setup):
     f = setup
     f.begin()
 
@@ -158,7 +157,7 @@ def test_expensive_guard_does_not_prevent_checking_remaining_guards(setup):
         _write(f.store.root / "guard-funding-cycles" / (record["operation_id"] + ".json"), record)
         return record
     record = f.run(cycle_runner=runner)
-    assert record["state"] == "insufficient" and len(f.calls) == 2
+    assert record["state"] == "insufficient" and len(f.calls) == 1
     assert record["spent"] == 0
 
 
@@ -171,13 +170,13 @@ def test_fair_rank_scheduling_waits_and_raises_minimum_rank(setup):
         record = f.result(*args, **kwargs)
         order.append((record["target"]["guard"], kwargs["minimum_rank"], f.clock[0]))
         if len(order) <= 2:
-            record.update(state="started", withdrawn=50, deposited=80, spent=100, quoted_cost=100,
+            record.update(state="started", withdrawn=0, deposited=80, spent=100, quoted_cost=100,
                           initial_rank=1, observed_rank=1, upgrade_in_progress=True)
         _write(f.store.root / "guard-funding-cycles" / (record["operation_id"] + ".json"), record)
         return record
     record = f.run(cycle_runner=runner)
     assert order == [(777, 1, 1000), (778, 1, 1000), (777, 2, 1060), (778, 2, 1060)]
-    assert (record["withdrawn"], record["deposited"], record["spent"]) == (100, 160, 200)
+    assert (record["withdrawn"], record["deposited"], record["spent"]) == (0, 160, 200)
     assert record["upgrades_started"] == 2
 
 
@@ -217,10 +216,10 @@ def test_restart_recovers_confirmed_cycle_once_without_replaying(setup):
     cycle_id = "operation-" + "c" * 32
     original.update(state="running", active_cycle={"operation_id": cycle_id, "index": 0})
     f.jobs.save(original)
-    target = build_guard_upgrade_plan(f.store, f.binding, DISCOVERY, WAREHOUSE).targets[0]
+    target = build_guard_upgrade_plan(f.store, f.binding, DISCOVERY, CONTEXT).targets[0]
     result = f.result(f.store, f.binding, SimpleNamespace(operation_id=cycle_id), target,
                       cancelled=lambda: False, minimum_rank=1)
-    result.update(state="started", withdrawn=50, deposited=80, spent=100,
+    result.update(state="started", withdrawn=0, deposited=80, spent=100,
                   initial_rank=1, observed_rank=1, quoted_cost=100)
     _write(f.store.root / "guard-funding-cycles" / (cycle_id + ".json"), result)
     record = f.run()
@@ -240,7 +239,7 @@ def test_interrupted_cycle_blocks_new_job_and_never_replays(setup, state):
     original.update(state="running", active_cycle={"operation_id": cycle_id, "index": 0})
     f.jobs.save(original)
     if state:
-        target = build_guard_upgrade_plan(f.store, f.binding, DISCOVERY, WAREHOUSE).targets[0]
+        target = build_guard_upgrade_plan(f.store, f.binding, DISCOVERY, CONTEXT).targets[0]
         result = f.result(f.store, f.binding, SimpleNamespace(operation_id=cycle_id), target,
                           cancelled=lambda: False, minimum_rank=1)
         if state == "foreign":
@@ -254,7 +253,7 @@ def test_interrupted_cycle_blocks_new_job_and_never_replays(setup, state):
     assert f.jobs.read(JOB)["state"] == "review" and len(f.calls) == before
     with pytest.raises(GuardFundingCycleStopped, match="existing guard job"):
         f.jobs.begin(f.binding, SimpleNamespace(operation_id="operation-" + "d" * 32),
-                     DISCOVERY, WAREHOUSE)
+                     DISCOVERY, CONTEXT)
 
 
 def test_changed_retained_discovery_cannot_silently_change_saved_plan(setup):
@@ -295,21 +294,21 @@ def test_real_cycles_advance_rank_and_do_not_spend_twice_on_stale_rank(setup):
               cycle_options={"session_factory": world.factory, "sleep": lambda _: None})
     record = f.jobs.read(JOB)
     assert record["state"] == "review" and record["spent"] == 100
-    assert world.calls.count("upgrade") == 1 and world.calls.count("withdraw") == 1
+    assert world.calls.count("upgrade") == 1 and world.calls.count("withdraw") == 0
     GuardSpendingJournal(f.store.root).assert_idle()
 
 
-def test_real_cycle_lost_withdrawal_blocks_later_guards(setup):
+def test_real_cycle_lost_deposit_blocks_later_guards(setup):
     f = setup
     f.begin()
     world = World()
-    world.fail = "withdraw"
-    with pytest.raises(TimeoutError, match="withdraw"):
+    world.fail = "deposit"
+    with pytest.raises(TimeoutError, match="deposit"):
         f.run(cycle_runner=run_guard_funding_cycle,
               cycle_options={"session_factory": world.factory, "sleep": lambda _: None})
     record = f.jobs.read(JOB)
     assert record["state"] == "review" and record["active_cycle"]["index"] == 0
-    assert "deposit" not in world.calls and "upgrade" not in world.calls
+    assert world.calls.count("deposit") == 1 and "upgrade" not in world.calls
     before = copy.copy(world.calls)
     f.run()
     assert world.calls == before
@@ -323,6 +322,7 @@ def test_real_cycles_keep_upgrading_after_observed_rank_completion(setup):
     f.save()
     f.begin()
     world = World()
+    world.purse = 180
 
     def sleep(seconds):
         f.clock[0] += seconds
@@ -334,8 +334,8 @@ def test_real_cycles_keep_upgrading_after_observed_rank_completion(setup):
                    cycle_options={"session_factory": world.factory, "sleep": lambda _: None})
     assert record["state"] == "unavailable" and record["upgrades_started"] == 2
     assert record["guards"][0]["observed_rank"] == 3
-    assert record["spent"] == 200 and world.gold == 850 and world.purse == world.funds == 0
-    assert world.calls.count("upgrade") == 2 and world.calls.count("withdraw") == 2
+    assert record["spent"] == 200 and world.gold == 1000 and world.purse == world.funds == 0
+    assert world.calls.count("upgrade") == 2 and world.calls.count("withdraw") == 0
     assert not record["maximum_rank_verified"]
 
 
@@ -351,3 +351,19 @@ def test_pause_after_cycle_then_resume_retains_confirmed_accounting(setup):
     f.jobs.request(JOB, "run")
     assert f.run()["state"] == "unavailable"
     assert [c["target"]["guard"] for c in f.calls] == [777, 778]
+
+
+@pytest.mark.parametrize("change", ["legacy_schema", "funding_source"])
+def test_legacy_or_changed_funding_policy_never_resumes_spending(setup, change):
+    f = setup
+    record = f.begin()
+    if change == "legacy_schema":
+        record["schema_version"] = 1
+        record.pop("funding_source")
+    else:
+        record["funding_source"] = "warehouse"
+    f.jobs.save(record)
+    assert f.jobs.current()["job_id"] == JOB
+    with pytest.raises(GuardFundingCycleStopped, match="needs review"):
+        f.run()
+    assert not f.calls and f.jobs.read(JOB)["state"] == "review"

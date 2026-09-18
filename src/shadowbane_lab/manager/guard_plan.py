@@ -1,4 +1,4 @@
-"""Admit exact guard targets from retained discovery and a warehouse observation."""
+"""Admit exact guard targets from retained discovery and a process-bound navigation observation."""
 from __future__ import annotations
 
 import hashlib
@@ -23,25 +23,25 @@ class GuardUpgradePlan:
     discovery_operation_id: str
     discovery_sha256: str
     navigation_sha256: str
-    warehouse_snapshot: str
+    context_snapshot: str
     targets: tuple[GuardFundingTarget, ...]
     initial_ranks: tuple[int, ...]
     candidate_buildings: int
     verified_buildings: int
 
 
-def build_guard_upgrade_plan(store, binding, discovery_id, warehouse: Snapshot):
+def build_guard_upgrade_plan(store, binding, discovery_id, context: Snapshot):
     """Use discovered keys, never names or a caller-authored target list.
 
-    The worker captures the warehouse snapshot through its exact native session.
+    The worker captures the scene context through its exact native session.
     This plan pins that source and the retained discovery files to one process and
     scene. Every cycle still requires fresh native admission before each action.
     Loaded candidate coverage does not establish city membership or a town census.
     """
     operation_id(discovery_id)
-    warehouse.encode()
-    if not warehouse.warehouse_opened(warehouse.building_id, warehouse.warehouse_id):
-        raise GuardFundingCycleStopped("An exact open warehouse is required for guard funding.")
+    context.encode()
+    if context.empty:
+        raise GuardFundingCycleStopped("An exact in-world context is required for guard funding.")
     raw = [read_record_bytes(store.root / folder / (discovery_id + ".json"), 64 * 1024 * 1024)
            for folder in ("guard-discovery", "guard-navigation")]
     nearby, discovery = map(json.loads, raw)
@@ -53,12 +53,12 @@ def build_guard_upgrade_plan(store, binding, discovery_id, warehouse: Snapshot):
                 or record.get("game_creation_filetime") != binding.game_process_started_at_100ns):
             raise GuardFundingCycleStopped("Guard discovery belongs to another client lifetime.")
     if (nearby.get("state") != "complete" or discovery.get("state") not in {"complete", "partial"}
-            or (nearby.get("scene"), nearby.get("root")) != (warehouse.scene, warehouse.root)):
+            or (nearby.get("scene"), nearby.get("root")) != (context.scene, context.root)):
         raise GuardFundingCycleStopped("Guard discovery is incomplete or belongs to another scene.")
     attempts = discovery.get("attempts", [])
     if not attempts or any(
         (Snapshot.decode(bytes.fromhex(a["expected"])).scene,
-         Snapshot.decode(bytes.fromhex(a["expected"])).root) != (warehouse.scene, warehouse.root)
+         Snapshot.decode(bytes.fromhex(a["expected"])).root) != (context.scene, context.root)
         for a in attempts
     ):
         raise GuardFundingCycleStopped("Guard navigation lacks matching scene provenance.")
@@ -113,7 +113,7 @@ def build_guard_upgrade_plan(store, binding, discovery_id, warehouse: Snapshot):
                 raise GuardFundingCycleStopped("A guard lacks a valid observed rank.")
             targets.append(GuardFundingTarget(
                 binding.game_process_id, binding.game_process_started_at_100ns,
-                warehouse.scene, warehouse.root, warehouse.building_id, warehouse.warehouse_id,
+                context.scene, context.root,
                 building["building"]["object_id"], key["object_id"],
             ))
             ranks.append(rank)
@@ -122,5 +122,5 @@ def build_guard_upgrade_plan(store, binding, discovery_id, warehouse: Snapshot):
         raise GuardFundingCycleStopped("No complete matching guard selection is available.")
     return GuardUpgradePlan(
         discovery_id, *(hashlib.sha256(data).hexdigest() for data in raw),
-        warehouse.encode().hex(), tuple(targets), tuple(ranks), len(candidates), verified,
+        context.encode().hex(), tuple(targets), tuple(ranks), len(candidates), verified,
     )

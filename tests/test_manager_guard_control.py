@@ -18,7 +18,7 @@ from shadowbane_lab.manager.operation import (
     loads_worker_operation,
     new_worker_operation,
 )
-from tests.test_guard_job import DISCOVERY, JOB, WAREHOUSE
+from tests.test_guard_job import CONTEXT, DISCOVERY, JOB
 from tests.test_guard_job import setup as make_setup
 from tests.test_manager_operation import WORKER_ID, _permit
 
@@ -38,7 +38,7 @@ def setup(tmp_path):
     f.control = ManagerGuardControl(tmp_path, "node", f.permits, f.operations, clock=lambda: 100)
     f.session = Mock(identity=NativeClientProcessIdentity(988, 123), window=1000)
     f.session.inspect.return_value = SimpleNamespace(
-        outcome=Outcome.OBSERVED, flags=READY, snapshot=WAREHOUSE
+        outcome=Outcome.OBSERVED, flags=READY, snapshot=CONTEXT
     )
 
     def discover(*args, **kwargs):
@@ -112,7 +112,7 @@ def test_discovery_closes_observer_before_scan_and_prepares_without_spending(set
     assert f.session.inspect.call_count == 1
 
 
-@pytest.mark.parametrize("reason", ["wrong_window", "pending", "wrong_panel"])
+@pytest.mark.parametrize("reason", ["wrong_window", "pending", "empty_scene"])
 def test_discovery_cannot_adopt_foreign_or_pending_window(setup, reason):
     f = setup
     if reason == "wrong_window":
@@ -120,7 +120,7 @@ def test_discovery_cannot_adopt_foreign_or_pending_window(setup, reason):
     elif reason == "pending":
         f.session.inspect.return_value.flags |= UNRESOLVED
     else:
-        f.session.inspect.return_value.snapshot = replace(WAREHOUSE, front_hud=1234)
+        f.session.inspect.return_value.snapshot = type(CONTEXT)()
     with pytest.raises(GuardFundingCycleStopped):
         f.executor.execute(f.operation("guard discover"), stop_signal=f.stop)
     f.session.close.assert_called_once_with()
@@ -238,4 +238,28 @@ def test_start_cannot_replace_the_dashboard_selected_discovery(setup):
     f.executor.execute(f.operation("guard discover"), stop_signal=f.stop)
     with pytest.raises(GuardFundingCycleStopped):
         f.control.execute("guard-start", "client", "instance", job_id=JOB)
+    f.operations.submit.assert_not_called()
+
+
+def test_discovery_and_start_work_without_any_warehouse_context(setup):
+    f = setup
+    assert not CONTEXT.warehouse_hud and not CONTEXT.building_id
+    f.executor.execute(f.operation("guard discover"), stop_signal=f.stop)
+    prepared = json.loads((f.store.root / "guard-prepared.json").read_text())
+    assert prepared["schema_version"] == 2 and prepared["funding_source"] == "carried"
+    assert "warehouse" not in prepared
+    f.executor.execute(f.operation("guard start " + DISCOVERY, JOB), stop_signal=f.stop)
+    job = f.jobs.read(JOB)
+    assert job["funding_source"] == "carried" and job["withdrawn"] == 0
+    assert all("warehouse_building" not in t for t in job["plan"]["targets"])
+
+
+def test_previous_warehouse_worker_cannot_admit_carried_only_job(setup):
+    f = setup
+    path = f.store.root / "guard-worker-capability.json"
+    record = json.loads(path.read_text())
+    record["capability"] = "guard_jobs_v1"
+    path.write_text(json.dumps(record))
+    with pytest.raises(GuardFundingCycleStopped, match="Restart this worker"):
+        f.control.execute("guard-discover", "client", "instance")
     f.operations.submit.assert_not_called()

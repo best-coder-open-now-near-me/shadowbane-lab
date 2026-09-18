@@ -20,14 +20,14 @@ from shadowbane_lab.manager.guard_funding_cycle import (
 )
 from shadowbane_lab.manager.vendor_job import VendorJobStore
 
-TARGET = GuardFundingTarget(988, 123, 1, 100, 888, 999, 123, 777)
+TARGET = GuardFundingTarget(988, 123, 1, 100, 123, 777)
 IDENTITY = NativeClientProcessIdentity(988, 123)
 
 
 class World:
     def __init__(self):
         self.navigation = nav.Snapshot(scene=1, revision=1, root=100, manager=200)
-        self.gold, self.reserve, self.purse, self.funds, self.cost = 1000, 100, 30, 20, 100
+        self.gold, self.reserve, self.purse, self.funds, self.cost = 1000, 100, 80, 20, 100
         self.rank, self.upgrading, self.offer = 1, False, True
         self.quote = {1: False, 2: False}
         self.calls, self.sessions, self.open_sessions = [], 0, 0
@@ -49,10 +49,10 @@ class World:
         limit = max(0, self.gold - self.reserve) if warehouse else self.purse
         return funding.Snapshot(
             scene=n.scene, revision=1, root=n.root, actor=9000 if self.foreign_actor
-            and not warehouse else 8000, character_id=11, character_type=2,
+            and quote else 8000, character_id=11, character_type=2,
             manager=600 if warehouse else 200, hud=600 if warehouse else 300,
             source_object=700 if warehouse else 0,
-            source_id=(9999 if self.wrong_source else 999) if warehouse else n.building_id,
+            source_id=9999 if self.wrong_source else 999 if warehouse else n.building_id,
             source_type=42 if warehouse else 8, direction=int(direction),
             resource=555 if warehouse else 0, balance=self.gold if warehouse else self.funds,
             reserve=self.reserve if warehouse else 0, purse=self.purse,
@@ -201,9 +201,9 @@ def setup(tmp_path):
 def test_funds_only_shortfall_and_confirms_exact_guard_debit(setup):
     result = setup.run()
     assert result["state"] == "started"
-    assert (result["withdrawn"], result["deposited"], result["spent"]) == (50, 80, 100)
+    assert (result["withdrawn"], result["deposited"], result["spent"]) == (0, 80, 100)
     w = setup.world
-    assert (w.gold, w.purse, w.funds) == (950, 0, 0)
+    assert (w.gold, w.purse, w.funds) == (1000, 0, 0)
     assert w.upgrading and not w.open_sessions
     assert all(a["state"] == "confirmed" for a in result["actions"])
     GuardSpendingJournal(setup.store.root).assert_idle()
@@ -222,15 +222,16 @@ def test_existing_building_funds_or_purse_avoid_unneeded_transfers(
     assert result["state"] == "started"
     assert result["withdrawn"] == withdrawn and result["deposited"] == deposited
     assert "withdraw" not in setup.world.calls
+    assert "warehouse" not in setup.world.calls
     if not deposited:
-        assert "warehouse" not in setup.world.calls and "deposit" not in setup.world.calls
+        assert "deposit" not in setup.world.calls
 
 
-@pytest.mark.parametrize("case,state", [("reserve", "insufficient"), ("upgrading", "waiting"),
+@pytest.mark.parametrize("case,state", [("purse", "insufficient"), ("upgrading", "waiting"),
                                          ("no_offer", "unavailable")])
 def test_no_gold_moves_for_insufficient_or_unavailable_upgrade(setup, case, state):
-    if case == "reserve":
-        setup.world.reserve = 999
+    if case == "purse":
+        setup.world.purse = 79
     elif case == "upgrading":
         setup.world.upgrading = True
     else:
@@ -238,11 +239,11 @@ def test_no_gold_moves_for_insufficient_or_unavailable_upgrade(setup, case, stat
     result = setup.run()
     assert result["state"] == state and result["spent"] == 0
     assert not set(setup.world.calls) & {"withdraw", "deposit", "upgrade"}
-    assert (setup.world.gold, setup.world.purse, setup.world.funds) == (1000, 30, 20)
+    assert (setup.world.gold, setup.world.purse, setup.world.funds) == (
+        1000, 79 if case == "purse" else 80, 20)
 
 
-@pytest.mark.parametrize("failure", ["building", "guard", "warehouse", "quote", "withdraw",
-                                    "deposit", "upgrade"])
+@pytest.mark.parametrize("failure", ["building", "guard", "quote", "deposit", "upgrade"])
 def test_lost_reply_stops_sequence_and_blocks_new_spending_after_restart(setup, failure):
     w = setup.world
     w.fail = failure
@@ -269,24 +270,25 @@ def test_changed_ownership_or_price_blocks_later_gold_actions(setup, change):
     if change == "wrong_source":
         assert "withdraw" not in setup.world.calls
     elif change == "foreign_actor":
-        assert result["withdrawn"] == 50 and "deposit" not in setup.world.calls
+        assert result["withdrawn"] == 0 and "deposit" not in setup.world.calls
     else:
         assert result["deposited"] == 80 and setup.world.funds == 100
 
 
-def test_cancellation_after_confirmed_withdrawal_retains_gold_and_does_not_deposit(setup):
+def test_cancellation_after_confirmed_deposit_retains_gold_and_does_not_upgrade(setup):
     def cancelled():
-        return setup.path.exists() and json.loads(setup.path.read_text())["withdrawn"] > 0
+        return setup.path.exists() and json.loads(setup.path.read_text())["deposited"] > 0
     with pytest.raises(GuardFundingCycleStopped, match="cancelled"):
         setup.run(cancelled=cancelled)
     result = json.loads(setup.path.read_text())
-    assert result["state"] == "cancelled" and result["withdrawn"] == 50
-    assert result["deposited"] == 0 and setup.world.purse == 80
+    assert result["state"] == "cancelled" and result["withdrawn"] == 0
+    assert result["deposited"] == 80 and setup.world.purse == 0
+    assert setup.world.funds == 100 and "upgrade" not in setup.world.calls
     GuardSpendingJournal(setup.store.root).assert_idle()
 
 
 def test_existing_amount_quote_is_not_adopted(setup):
-    setup.world.quote[1] = True
+    setup.world.quote[2] = True
     with pytest.raises(GuardFundingCycleStopped, match="existing amount"):
         setup.run()
     assert "withdraw" not in setup.world.calls
@@ -341,7 +343,7 @@ def test_already_selected_upgrading_guard_requires_no_new_window_action(setup):
 
 
 def test_new_cycle_id_cannot_bypass_an_unresolved_spend(setup):
-    setup.world.fail = "withdraw"
+    setup.world.fail = "deposit"
     with pytest.raises(TimeoutError):
         setup.run()
     before_sessions = setup.world.sessions
@@ -382,10 +384,10 @@ def test_slow_menu_response_keeps_one_request_without_extending_spending_timeout
     if delayed_kind == "navigation":
         result = run()
         assert result["state"] == "started"
-        assert (result["withdrawn"], result["deposited"], result["spent"]) == (50, 80, 100)
+        assert (result["withdrawn"], result["deposited"], result["spent"]) == (0, 80, 100)
         assert all(a["state"] == "confirmed" for a in result["actions"])
         assert len(result["actions"]) == len(set(a["request_key"] for a in result["actions"]))
-        assert setup.world.calls.count("warehouse") == 1
+        assert setup.world.calls.count("warehouse") == 0
         assert setup.world.calls.count("upgrade") == 1
         GuardSpendingJournal(setup.store.root).assert_idle()
     else:
@@ -405,4 +407,24 @@ def test_full_funding_cycle_accepts_idle_deposit_and_correlated_native_guard_rev
     assert result["spent"] == 100 and result["upgrade_in_progress"]
     assert setup.world.calls.count("upgrade") == 1
     assert setup.world.navigation.mode == 0
+    GuardSpendingJournal(setup.store.root).assert_idle()
+
+
+@pytest.mark.parametrize("purse", [0, 79, 80, 40000000])
+def test_carried_only_never_accesses_warehouse_even_when_purse_is_empty(setup, monkeypatch, purse):
+    setup.world.purse = purse
+    def forbidden(*args, **kwargs):
+        pytest.fail("Carried-only funding must not open the warehouse")
+    monkeypatch.setattr(Session, "open_warehouse", forbidden)
+    original = Session.inspect
+    def inspect(self, direction=1):
+        if self.kind == "funding":
+            assert direction == funding.Direction.STRUCTURE
+        return original(self, direction)
+    monkeypatch.setattr(Session, "inspect", inspect)
+    result = setup.run()
+    assert result["state"] == ("started" if purse >= 80 else "insufficient")
+    assert result["withdrawn"] == 0 and setup.world.gold == 1000
+    assert setup.world.purse == purse - (80 if purse >= 80 else 0)
+    assert result["deposited"] == (80 if purse >= 80 else 0)
     GuardSpendingJournal(setup.store.root).assert_idle()
