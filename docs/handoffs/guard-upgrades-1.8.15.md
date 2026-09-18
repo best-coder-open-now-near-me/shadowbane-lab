@@ -37,14 +37,20 @@ additional installed guard/funding comparisons passed. All 61 artifact hashes an
 the archive were independently verified. Two pre-existing graphics transparency
 diagnostics still fail per profile; whole-product acceptance is not claimed.
 
-Guest staging and read-only update validation passed. The running client remains
-1.8.14 / host 0.3.23; the new host 0.3.24 environment is prepared separately.
+Guest staging, read-only update validation and activation passed. With the game
+and manager stopped, the updater installed native 1.8.15 / host 0.3.24 from the
+exact packaged source above. Independent verification confirmed the installed
+client manifest and DLL, host version and all 171 retained records/settings.
+The existing dashboard shortcut now uses that host. The background manager
+restarted successfully with no open or bound clients and no reconciliation issues.
+The game was left closed for the user to launch through WonderBane Vendor Test.
 The superseded intermediate build was removed rather than archived.
 
-Active todo: await user game closure, apply the staged update and verify installed
-identities. The user launches through WonderBane Vendor Test. After login, qualify
-discovery beyond the Tree and automatic funding. Full-town coverage, maximum-rank
-proof and integration remain unfinished.
+Active todo: after user launch/login, verify the loaded extension and fresh client
+binding, then qualify discovery beyond the Tree and automatic funding. Full-town
+coverage, maximum-rank proof and integration remain unfinished. Earlier uncertain
+requests remain retained without replay; activation did not move gold or upgrade
+guards.
 
 Obsolete task-generated runtime programs should be removed when no longer needed,
 without archiving rebuildable binaries, following the user's explicit preference.

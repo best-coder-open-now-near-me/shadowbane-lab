@@ -66,8 +66,10 @@ All retained records/settings were preserved. Live City Command first-open now
 passes and exposes 60 nearby structures. Discovery then stopped on the Tree of
 Life's companion guild panel above its confirmed hireling roster. Native 1.8.15 /
 host 0.3.24 (source 861985e) adds a roster-only, same-building ownership check.
-Package checks, guest staging and read-only update validation passed; activation
-after user closure is next. Earlier uncertain requests stay retained without replay.
+Package checks, guest staging and activation verification passed. All 171 retained
+records/settings were unchanged and the background manager restarted healthy.
+The game remains user-launched; loaded-extension and fresh-session discovery
+qualification are next. Earlier uncertain requests stay retained without replay.
 Maximum-rank and full-town evidence remain unfinished.
 See [Tree companion navigation and next work](handoffs/guard-upgrades-1.8.15.md).
 Review this lane into `codex/vendor-rolling`, then the documented integration
