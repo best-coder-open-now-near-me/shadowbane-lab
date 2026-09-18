@@ -33,7 +33,26 @@ controls for both progress and rank completion. Rejection tests cover wrong
 stable identities, detached selection, front-page mismatch, wrong cost/debit,
 missing progress, invalid capture, uncertainty and deadline expiry.
 
-Active todo: exact-source packaging and guest preparation, then game closure
-for activation. Nothing from this version is installed yet. Next: fresh live
-qualification, rank/gold stopping, outer coverage and integration review.
+Exact source 33229a02ef7aeeebfc284b4be3d41074ef16936f is pushed to
+origin/codex/guard-upgrades. Its package passed 2,754 host tests (19 skipped),
+lint, both native profiles' required builds/suites, movement IPC, prepared-client
+bindings and installed-host contracts. Six additional installed guard/funding
+wire checks passed. All 61 artifact hashes and the archive digest were checked.
+The two previously known graphics transparency stretch diagnostics still fail
+in each profile and remain recorded; no complete graphics acceptance is claimed.
+
+Full extension SHA-256:
+b01624be5bd98e935cb4eb7244cf3fad5e703292547ffeab548047f8dc2728be.
+Host wheel SHA-256:
+ae58e8158054d06121ce4ee154d6d9e85d0870a7fe22409f45218b5b79267bc8.
+Diagnostic archive SHA-256:
+1aecbbe485ceeab912d036935d32d47aed521922fdaed0859db4fc957c15d181.
+
+Guest preparation and read-only update validation passed. The combined update is
+staged separately; active native 1.8.19 / host 0.3.29 and the stopped job remain
+unchanged. The user has been asked to close Shadowbane for activation. Existing
+records and settings must be hash-checked and retained by the prepared updater.
+
+Active todo: activate after user-confirmed closure, then verify fresh live
+qualification. Next: rank/gold stopping, outer coverage and integration review.
 Full-town and maximum-rank completion remain unverified.

@@ -129,7 +129,10 @@ The fresh 1.8.19 run confirmed eight upgrades, including rank-2 offers, then
 stopped on a rebuilt selected roster entry despite exact debit/progress.
 [Native 1.8.20 / host 0.3.30](handoffs/guard-upgrades-1.8.20.md) separates stable
 guard/building identity from disposable UI pointers and strengthens current
-selected-entry roster membership. Focused tests pass; packaging is next.
+selected-entry roster membership. Source 33229a0 is pushed; 2,754 host tests,
+both native profiles' required gates, installed contracts and artifact hashes
+pass. Guest preparation/read-only validation passed; the combined update awaits
+user-confirmed game closure for activation. The current job remains stopped.
 Known graphics
 stretch failures remain diagnostic-only. Maximum-rank and full-town evidence
 remain unfinished; earlier uncertain requests stay retained without replay.
