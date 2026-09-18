@@ -7,17 +7,16 @@ struct ReturnSnapshot {
     vendor_navigation::wire::Key guard{};
     std::uint32_t rank = 0, funds = 0;
 };
-// A server response can rebuild the building page and its child controls while
-// retaining the selected guard page. Admit only the completed response, never a
-// new owner to wait on: exact debit and progress/rank must already be present.
-inline bool ConfirmedRebuiltGuardPage(const wire::Snapshot& before,
+// Response ownership follows the freshly validated scene/building/guard keys.
+// HUDs, controls and roster entries can all be replaced by the response. This
+// predicate admits only complete debit/progress evidence, never a new UI owner
+// to keep waiting on. Capture independently checks owned roster membership.
+inline bool ConfirmedGuardResponse(const wire::Snapshot& before,
     const wire::Snapshot& after) noexcept {
     const auto& a = before.navigation; const auto& b = after.navigation;
     return wire::Eligible(before) && wire::ValidSnapshot(after)
         && wire::SameGuard(before, after)
-        && a.front_hud == a.vendor_hud && b.front_hud == b.vendor_hud
-        && a.vendor_hud == b.vendor_hud && a.selected_entry == b.selected_entry
-        && a.building_hud != b.building_hud && b.mode == 6
+        && a.front_hud == a.vendor_hud && b.front_hud == b.vendor_hud && b.mode == 6
         && after.cost == before.cost && after.funds == before.funds - before.cost
         && ((after.rank == before.rank && after.upgrading && (after.control_flags & 4))
             || after.rank == before.rank + 1);

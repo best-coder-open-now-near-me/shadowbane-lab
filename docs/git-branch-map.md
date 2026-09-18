@@ -125,6 +125,11 @@ both native profiles' required checks. After user-confirmed closure, native
 were preserved, and the manager restarted healthy. Fresh user login loaded the
 new extension; live qualification is next. The stopped requests remain unresolved
 without replay.
+The fresh 1.8.19 run confirmed eight upgrades, including rank-2 offers, then
+stopped on a rebuilt selected roster entry despite exact debit/progress.
+[Native 1.8.20 / host 0.3.30](handoffs/guard-upgrades-1.8.20.md) separates stable
+guard/building identity from disposable UI pointers and strengthens current
+selected-entry roster membership. Focused tests pass; packaging is next.
 Known graphics
 stretch failures remain diagnostic-only. Maximum-rank and full-town evidence
 remain unfinished; earlier uncertain requests stay retained without replay.

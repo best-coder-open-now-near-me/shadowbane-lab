@@ -361,9 +361,20 @@ def rebuilt_page_transaction():
             replace(FINISHED, snapshot=after))
 
 
+@pytest.mark.parametrize("changes", range(16))
 @pytest.mark.parametrize("instant", [False, True])
-def test_rebuilt_building_with_retained_guard_completes_once_across_restart(tmp_path, instant):
+def test_owned_ui_rebuild_completes_once_across_restart(tmp_path, instant, changes):
     command, submitted, finished = rebuilt_page_transaction()
+    before = command.expected
+    after = replace(finished.snapshot, navigation=replace(
+        finished.snapshot.navigation,
+        building_hud=before.navigation.building_hud + bool(changes & 1),
+        vendor_hud=before.navigation.vendor_hud + bool(changes & 2),
+        front_hud=before.navigation.vendor_hud + bool(changes & 2),
+        selected_entry=before.navigation.selected_entry + bool(changes & 4),
+    ), upgrade_control=before.upgrade_control + bool(changes & 8),
+       progress_control=before.progress_control + bool(changes & 8))
+    finished = replace(finished, snapshot=after)
     if instant:
         finished = replace(finished, snapshot=replace(
             finished.snapshot, rank=command.expected.rank + 1, upgrading=0, control_flags=3,
@@ -383,8 +394,8 @@ def test_rebuilt_building_with_retained_guard_completes_once_across_restart(tmp_
 
 @pytest.mark.parametrize("field,value", [
     ("scene", 2), ("root", 101), ("manager", 201), ("building_id", 124),
-    ("vendor_id", 778), ("vendor_hud", 401), ("selected_entry", 501),
-    ("front_hud", 301), ("mode", 0), ("building_hud", 300),
+    ("vendor_id", 778), ("vendor_hud", 401),
+    ("front_hud", 301), ("mode", 0),
 ])
 def test_rebuilt_page_wrong_owner_never_completes(tmp_path, field, value):
     command, submitted, finished = rebuilt_page_transaction()

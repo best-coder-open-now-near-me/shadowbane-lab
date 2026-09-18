@@ -88,8 +88,30 @@ int main(int argc, char**) {
     interrupted.Observe({}, false, 2); assert(interrupted.Busy());
     interrupted.Observe(state, true, 3); assert(!interrupted.Busy()); // Brief read gap.
 
-    // Direct response: building HUD/controls rebuild while the exact guard HUD
-    // and selection survive. Only complete correlated evidence may cross this.
+    // Direct response: every UI pointer may rebuild. Stable scene/building/guard
+    // identity and complete correlated evidence must survive each combination.
+    for (unsigned changes = 0; changes < 16; ++changes) {
+        for (const bool instant : {false, true}) {
+            g::Controller rebuilt; Fake f; auto before = State();
+            before.navigation.mode = 0; before.navigation.front_hud = before.navigation.vendor_hud;
+            rebuilt.Observe(before, true, 1); const auto spend = Request(rebuilt);
+            rebuilt.Execute(w::Verb::upgrade, spend, true, true, 1, f);
+            auto after = before; after.navigation.mode = 6;
+            if (changes & 1) { ++after.navigation.building_hud; }
+            if (changes & 2) { ++after.navigation.vendor_hud; }
+            if (changes & 4) { ++after.navigation.selected_entry; }
+            if (changes & 8) { ++after.upgrade_control; ++after.progress_control; }
+            after.navigation.front_hud = after.navigation.vendor_hud;
+            after.funds -= before.cost;
+            if (instant) { ++after.rank; }
+            else { after.upgrading = 1; after.control_flags = 7; }
+            rebuilt.Observe(after, true, 251); assert(!rebuilt.Busy());
+            rebuilt.Execute(w::Verb::upgrade, spend, true, true, 252, f);
+            assert(f.calls == 1 && !f.reopens);
+        }
+    }
+    // Even a fully rebuilt owned response cannot clear wrong identity, partial
+    // evidence, uncertainty, invalid captures or a passed original deadline.
     for (int scenario = -2; scenario < 23; ++scenario) {
         g::Controller rebuilt; Fake f; auto before = State();
         before.navigation.mode = 0;
@@ -107,8 +129,8 @@ int main(int argc, char**) {
         if (scenario == 2) { ++after.navigation.manager; }
         if (scenario == 3) { ++after.navigation.building[0]; }
         if (scenario == 4) { ++after.navigation.vendor[0]; }
-        if (scenario == 5) { ++after.navigation.vendor_hud; ++after.navigation.front_hud; }
-        if (scenario == 6) { ++after.navigation.selected_entry; }
+        if (scenario == 5) { ++after.navigation.building[1]; }
+        if (scenario == 6) { --after.rank; }
         if (scenario == 7) { after.navigation.front_hud = after.navigation.building_hud; }
         if (scenario == 8) { after.navigation.mode = 0; }
         if (scenario == 9) { ++after.cost; }
@@ -117,7 +139,7 @@ int main(int argc, char**) {
         if (scenario == 12) { after.upgrading = 0; }
         if (scenario == 13) { after.control_flags = 3; }
         if (scenario == 14) { after.rank += 2; }
-        if (scenario == 15) { after.navigation.building_hud = before.navigation.building_hud; }
+        if (scenario == 15) { after.navigation.front_hud = 0; }
         if (scenario == 16) { after.navigation.offline = 1; }
         if (scenario == 17) { after.progress_control = after.upgrade_control; }
         if (scenario == 21) { after.navigation.vendor[1] = 42; }

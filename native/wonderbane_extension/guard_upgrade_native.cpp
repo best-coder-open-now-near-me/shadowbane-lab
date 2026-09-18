@@ -37,6 +37,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
     if (!vendor_navigation::FindGuardControl(base, n, n.vendor, row)) { return false; }
     Reader r;
     r.Require(n.manager + 0x50, 1);
+    r.Require(row + 0x44c, n.selected_entry); // The selected object is the owned roster entry.
     if (n.vendor_hud == n.building_hud) { return false; }
     s.rank = r.Word(n.selected_entry + 0x28);
     s.cost = r.Word(n.manager + 0x274); s.funds = r.Word(n.manager + 0x1cc);

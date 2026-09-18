@@ -246,6 +246,15 @@ int main() {
     g::wire::Snapshot guard{}; bool top = false;
     auto capture_guard = [&] { const bool ok = g::Capture(base, scene, guard, top); guard.navigation.revision = 1; return ok; };
     assert(capture_guard() && top && g::wire::Eligible(guard));
+    const auto replacement_entry = base + 0x95000;
+    std::memcpy(reinterpret_cast<void*>(replacement_entry), reinterpret_cast<void*>(entry), 0x100);
+    word(manager + 0x384, replacement_entry);
+    assert(!capture_guard()); // Equal key on a detached copy is not owned selection.
+    word(control + 0x44c, replacement_entry);
+    assert(capture_guard() && guard.navigation.selected_entry == replacement_entry);
+    word(control + 0x44c, entry); word(manager + 0x384, entry);
+    assert(capture_guard() && top && g::wire::Eligible(guard));
+
     const auto channel = base + 0x80000, channel_node = base + 0x81000;
     word(channel, base + 0x11659d8); word(channel_node + 8, channel);
     word(head, channel_node); word(channel_node + 4, head); word(channel_node, gnode);
