@@ -95,7 +95,9 @@ with the uncertain third upgrade retained and no replay. The user-opened page
 subsequently confirmed the third upgrade's progress and exact debit. The
 [1.8.18 / 0.3.27 correction](handoffs/guard-upgrades-1.8.18.md) adds bounded retries
 only for a submitted guard-page request that produced no response. Upgrade is
-still single-shot. Focused native fixtures pass; full packaging/staging are next. Known graphics
+still single-shot. Source `826de6a` is pushed; exact-source package checks and
+guest preparation/read-only validation pass. Activation awaits user closure.
+Known graphics
 stretch failures remain diagnostic-only. Maximum-rank and full-town evidence
 remain unfinished; earlier uncertain requests stay retained without replay.
 See [Tree companion navigation and next work](handoffs/guard-upgrades-1.8.15.md).

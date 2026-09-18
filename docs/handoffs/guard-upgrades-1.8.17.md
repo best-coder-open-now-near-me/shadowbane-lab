@@ -109,7 +109,8 @@ it does not manufacture a native completion or clear the timed-out journal.
 The job is stopped in review, with the third request and original submission
 retained unresolved. No replay, journal reset or replacement spend was sent.
 Confirmed cycle totals are 366,300 withdrawn and deposited; 244,200 of upgrade
-spending is fully correlated. The third 122,100 debit and upgrade progress were subsequently verified on the user-opened page. The job's
+spending is fully correlated. The third 122,100 debit and upgrade progress were
+subsequently verified on the user-opened page. The job's
 completed-cycle counters intentionally do not yet include that active cycle.
 A continuous read-only capture and stopped-cycle observations remain private
 inside the VM. The recorder ended normally through its stop marker; its launching

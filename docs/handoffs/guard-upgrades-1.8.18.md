@@ -25,14 +25,33 @@ no page. Upgrade remains single-shot; original command submission receipts remai
 immutable. There is no new wire format, spending retry, deadline extension,
 journal reset, or recovery of an already unresolved live request.
 
-Validation: 328 focused host tests and native controller/navigation fixtures pass. Regression cases
+Validation: 328 focused host tests and native controller/navigation fixtures pass.
+Regression cases
 cover a dropped first response followed by confirmation, two-second pacing,
 three-request exhaustion, fixed deadline, changed replacement HUD/debit/guard/
 scene/building/producer/window, lost live admission, uncertain callbacks, stopping
-after confirmation and no repeated Upgrade. Exact-source full package checks and
-staging are next. The installed game still runs 1.8.17 / host 0.3.26.
+after confirmation and no repeated Upgrade.
 
-Active todo: validate and stage this correction before requesting game closure.
+Exact source `826de6a0909f36360ad31fdd64879728b50492fd` is pushed to
+`origin/codex/guard-upgrades`. Its full package passed 2,700 host tests (18 skipped),
+lint, both native builds/suites (163 registered each, three context skips each),
+prepared-client bindings and installed contracts. Six additional installed
+native guard/funding wire checks and two return-receipt roundtrips passed. All
+61 artifacts and the archive digest were independently checked. The two known
+graphics transparency stretch diagnostics still fail in each profile; this is
+a diagnostic package, not complete product acceptance.
+
+Full extension SHA-256:
+`c51e527735044814eea1b3c5129b540bc7e229a8120de7ccb788d2a2b6add8ce`.
+Host wheel SHA-256:
+`2001748a15e7036535bf50e66c7c1f5406721cd6f1a0e71af7a8d0680520b5b1`.
+Diagnostic archive SHA-256:
+`04122afe7cb957909e7a1e93d53b0306aa562fda72fe90e93fd2e055e8628751`.
+Guest preparation and read-only update validation passed. The separate host
+0.3.27 installation and exact source/artifact pins were checked. The loaded game
+still has the original 1.8.17 extension; its files and journals are unchanged.
+
+Active todo: apply the verified correction after user-confirmed game closure.
 After activation, the user launches Vendor Test and opens View Resources once.
 Use a fresh process-bound discovery plan; preserve the old reviewed job and
 request without replay. Verify the full batch, including rank waits and available
