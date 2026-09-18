@@ -84,8 +84,10 @@ its uncertain quote request. The [1.8.17 / 0.3.26 source correction](handoffs/gu
 combines exact-row scrolling, resource activation and unavailable zero-slot
 building handling. Source `1fb4c0c` is pushed. Exact-source packaging passed
 2,700 host tests, both native profiles and installed contract checks. Guest
-preparation/read-only validation passed; activation awaits user game closure.
-The running client remains 1.8.16. Known graphics stretch failures remain
+preparation/read-only validation passed. After confirmed closure, native 1.8.17 /
+host 0.3.26 was installed and verified; all 249 retained records/settings are
+unchanged. The manager restarted healthy. User launch and the complete live
+funding/upgrade cycle are next. Known graphics stretch failures remain
 diagnostic-only.
 Automatic spending and new town discovery remain unqualified. Earlier uncertain
 requests stay retained without replay.

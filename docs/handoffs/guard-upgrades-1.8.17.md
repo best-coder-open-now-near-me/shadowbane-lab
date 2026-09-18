@@ -72,12 +72,14 @@ Host wheel SHA-256:
 Diagnostic archive SHA-256:
 `6ad67457da3fec3c1745bf527e65ca03bbb5eb4d451037c727db7448e8877490`.
 
-Guest preparation and read-only update validation passed. The new host is
-installed separately, with the exact old/new source and artifact pins checked.
-The running game still uses the original 1.8.16 extension; no live files or
-journals were changed during preparation.
+Guest preparation and read-only update validation passed. After user-confirmed
+game closure, the combined update was installed and its extension version,
+hashes, host source and launchable client package verified. All 249 retained
+records/settings were unchanged after the manager restarted healthy. The
+Dashboard shortcut now uses host 0.3.26; Vendor Test keeps the same reviewed launch
+path. The game was left closed for the user to launch.
 
-Active todo: activate the verified combined correction after user closure.
-The user launches Vendor Test and initializes View Resources once after login. Next qualify the complete funding/upgrade cycle
+Active todo: verify the user-launched session. The user launches Vendor Test and
+initializes View Resources once after login. Then qualify the complete funding/upgrade cycle
 and continue discovery. Full-town coverage, maximum rank, removal of the initial
 manual warehouse prerequisite and integration remain unfinished.
