@@ -144,4 +144,73 @@ int main(int argc, char**) {
         full.Execute(w::Verb::upgrade, spend, true, true, 15005, f);
         assert(f.calls == 1); // Original upgrade never replays.
     }
+
+    // A dropped page response can repeat only the observation request. The
+    // original upgrade remains single-shot, with a fixed deadline and ownership.
+    for (int scenario = 0; scenario < 13; ++scenario) {
+        g::Controller retry; Fake f; auto before = State();
+        retry.Observe(before, true, 1); const auto spend = Request(retry);
+        retry.Execute(w::Verb::upgrade, spend, true, true, 1, f);
+        retry.Observe({}, false, 2);
+        g::ReturnSnapshot response{}; response.navigation = before.navigation;
+        auto& n = response.navigation;
+        n.visible = 1; n.vendor_hud = n.selected_entry = 0; n.vendor = {};
+        n.building_hud = n.front_hud = 301;
+        response.guard = before.navigation.vendor; response.rank = 1; response.funds = 50;
+        w::Command inspect{}; inspect.host = spend.host; inspect.window = spend.window;
+        inspect.request[0] = 2;
+        retry.ObserveReturn(response, true);
+        retry.Execute(w::Verb::inspect, inspect, true, false, 3, f);
+        assert(f.reopens == 1 && f.calls == 1);
+        retry.Observe({}, false, 4); retry.ObserveReturn(response, true);
+        retry.Execute(w::Verb::inspect, inspect, true, false, 2002, f);
+        assert(f.reopens == 1); // No rapid loop during the response wait.
+        auto candidate = response; auto producer = inspect;
+        if (scenario == 1) { ++candidate.navigation.building_hud; ++candidate.navigation.front_hud; }
+        if (scenario == 2) { --candidate.funds; }
+        if (scenario == 3) { ++candidate.guard[0]; }
+        if (scenario == 4) { ++producer.host.generation; }
+        if (scenario == 5) { ++producer.window; }
+        if (scenario == 6) { candidate.navigation.front_hud = 999; }
+        if (scenario == 7) { candidate.rank += 2; }
+        if (scenario == 8) { f.reopen_result = w::Outcome::uncertain; }
+        if (scenario == 9) { candidate.navigation.scene++; }
+        if (scenario == 12) { candidate.navigation.building[0]++; }
+        retry.ObserveReturn(candidate, true);
+        retry.Execute(w::Verb::inspect, producer, scenario != 10, false, 2003, f);
+        const bool retried = scenario == 0 || scenario == 8 || scenario == 11;
+        assert(f.reopens == (retried ? 2U : 1U) && f.calls == 1);
+        auto after = before;
+        after.navigation.building_hud = 301; after.navigation.vendor_hud = 401;
+        after.navigation.front_hud = 401; after.navigation.selected_entry = 501;
+        after.upgrade_control = 601; after.progress_control = 701;
+        after.funds = 50; after.upgrading = 1; after.control_flags = 7;
+        if (scenario == 0) {
+            retry.Observe(after, true, 2004); assert(!retry.Busy());
+            retry.ObserveReturn(response, true);
+            retry.Execute(w::Verb::inspect, inspect, true, true, 5000, f);
+            assert(f.reopens == 2); // Confirmation ends all page requests.
+        } else if (scenario == 8) {
+            retry.ObserveReturn(response, true);
+            retry.Execute(w::Verb::inspect, inspect, true, false, 4003, f);
+            assert(f.reopens == 2); // Uncertain callback cannot be repeated.
+            retry.Observe(after, true, 4004); assert(retry.Busy());
+        } else if (scenario == 11) {
+            retry.ObserveReturn(response, true);
+            retry.Execute(w::Verb::inspect, inspect, true, false, 4003, f);
+            assert(f.reopens == 3 && !retry.PendingReturn());
+            retry.ObserveReturn(response, true);
+            retry.Execute(w::Verb::inspect, inspect, true, false, 6003, f);
+            assert(f.reopens == 3); // Exhaustion waits; never extends the deadline.
+            retry.Observe({}, false, 15002);
+            retry.Observe(after, true, 15003); assert(retry.Busy());
+        } else {
+            retry.Observe({}, false, 15002);
+            retry.ObserveReturn(response, true);
+            retry.Execute(w::Verb::inspect, inspect, true, false, 15003, f);
+            assert(f.reopens == 1 && retry.Busy());
+        }
+        retry.Execute(w::Verb::upgrade, spend, true, true, 15004, f);
+        assert(f.calls == 1); // Repeated original request never spends again.
+    }
 }

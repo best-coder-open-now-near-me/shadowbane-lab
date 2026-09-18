@@ -86,12 +86,18 @@ building handling. Source `1fb4c0c` is pushed. Exact-source packaging passed
 2,700 host tests, both native profiles and installed contract checks. Guest
 preparation/read-only validation passed. After confirmed closure, native 1.8.17 /
 host 0.3.26 was installed and verified; all 249 retained records/settings are
-unchanged. The manager restarted healthy. User launch and the complete live
-funding/upgrade cycle are next. Known graphics stretch failures remain
-diagnostic-only.
-Automatic spending and new town discovery remain unqualified. Earlier uncertain
-requests stay retained without replay.
-Maximum-rank and full-town evidence remain unfinished.
+unchanged. The manager restarted healthy and the user-launched session passed.
+The manager checked 60 candidates and verified 150 guard windows across 27
+building rosters. Two complete automatic withdrawal/deposit/upgrade cycles passed;
+a third completed its funding but stopped after the one submitted guard-return
+activation produced no window before its deadline. The job remains in review,
+with the uncertain third upgrade retained and no replay. The user-opened page
+subsequently confirmed the third upgrade's progress and exact debit. The
+[1.8.18 / 0.3.27 correction](handoffs/guard-upgrades-1.8.18.md) adds bounded retries
+only for a submitted guard-page request that produced no response. Upgrade is
+still single-shot. Focused native fixtures pass; full packaging/staging are next. Known graphics
+stretch failures remain diagnostic-only. Maximum-rank and full-town evidence
+remain unfinished; earlier uncertain requests stay retained without replay.
 See [Tree companion navigation and next work](handoffs/guard-upgrades-1.8.15.md).
 Review this lane into `codex/vendor-rolling`, then the documented integration
 destination and main.

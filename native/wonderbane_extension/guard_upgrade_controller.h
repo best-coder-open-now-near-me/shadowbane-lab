@@ -15,7 +15,11 @@ class Controller {
     std::uint64_t revision_ = 0, deadline_ = 0;
     wire::Command transition_{};
     bool pending_ = false, unresolved_ = false;
-    bool return_valid_ = false, reopen_attempted_ = false, reopened_ = false;
+    bool return_valid_ = false, reopened_ = false;
+    unsigned reopen_attempts_ = 0;
+    std::uint64_t last_reopen_ = 0;
+    static constexpr unsigned kMaxReopens = 3;
+    static constexpr std::uint64_t kReopenInterval = 2000;
     ReturnSnapshot returned_{};
     std::uint32_t reopened_building_hud_ = 0;
     wire::Receipt Receipt(const wire::Command& c, wire::Outcome outcome, bool ready) const noexcept {
@@ -32,10 +36,11 @@ public:
     bool Busy() const noexcept { return pending_ || unresolved_; }
     const wire::Snapshot& Current() const noexcept { return current_; }
     const wire::Snapshot* PendingReturn() const noexcept {
-        return pending_ && !unresolved_ && !reopen_attempted_ ? &transition_.expected : nullptr;
+        return pending_ && !unresolved_ && reopen_attempts_ < kMaxReopens ? &transition_.expected : nullptr;
     }
     void ObserveReturn(const ReturnSnapshot& s, bool valid) noexcept {
-        return_valid_ = PendingReturn() && valid && CanReopen(transition_.expected, s);
+        return_valid_ = PendingReturn() && valid && CanReopen(transition_.expected, s)
+            && (!reopened_ || s.navigation.building_hud == reopened_building_hud_);
         returned_ = return_valid_ ? s : ReturnSnapshot{};
     }
     void Observe(wire::Snapshot s, bool valid, std::uint64_t now) noexcept {
@@ -74,14 +79,19 @@ public:
         if (verb == wire::Verb::inspect) {
             // The original producer renews its lease via inspections. A different
             // process/generation cannot continue this transaction's UI work.
+            // Only the non-spending page request may repeat after a submitted
+            // request produced no page. Keep the original deadline, producer,
+            // replacement building, exact debit and guard identity. Never retry
+            // an uncertain callback, and never issue another Upgrade here.
             if (PendingReturn() && return_valid_ && now <= deadline_
+                && (!reopen_attempts_ || (now >= last_reopen_ && now - last_reopen_ >= kReopenInterval))
                 && c.window == transition_.window
                 && !std::memcmp(&c.host, &transition_.host, sizeof(c.host))) {
-                reopen_attempted_ = true; // Never replay even an uncertain callback.
-                reopened_building_hud_ = returned_.navigation.building_hud;
+                ++reopen_attempts_; last_reopen_ = now;
+                if (!reopened_) { reopened_building_hud_ = returned_.navigation.building_hud; }
                 const auto outcome = invoker.Reopen(transition_.expected, returned_);
-                reopened_ = outcome == O::submitted;
-                if (!reopened_) { unresolved_ = true; }
+                if (outcome == O::submitted) { reopened_ = true; }
+                else { unresolved_ = true; }
                 return_valid_ = false;
             }
             return Receipt(c, O::observed, ready);
@@ -100,7 +110,8 @@ public:
             auto [it, inserted] = records_.emplace(c.request, Record{c, Receipt(c, O::uncertain, false)});
             if (!inserted) { return Receipt(c, O::invalid, false); }
             transition_ = c; pending_ = true; deadline_ = now + 15000;
-            returned_ = {}; return_valid_ = reopen_attempted_ = reopened_ = false;
+            returned_ = {}; return_valid_ = reopened_ = false;
+            reopen_attempts_ = 0; last_reopen_ = 0;
             reopened_building_hud_ = 0;
             const auto outcome = invoker.Upgrade(current_);
             if (outcome == O::stale || outcome == O::unavailable) { pending_ = false; }

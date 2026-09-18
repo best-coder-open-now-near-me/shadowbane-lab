@@ -79,7 +79,43 @@ records/settings were unchanged after the manager restarted healthy. The
 Dashboard shortcut now uses host 0.3.26; Vendor Test keeps the same reviewed launch
 path. The game was left closed for the user to launch.
 
-Active todo: verify the user-launched session. The user launches Vendor Test and
-initializes View Resources once after login. Then qualify the complete funding/upgrade cycle
-and continue discovery. Full-town coverage, maximum rank, removal of the initial
-manual warehouse prerequisite and integration remain unfinished.
+## Live manager qualification
+
+The user-launched extension and replacement worker are verified. After the user
+opened View Resources once, automatic warehouse building/resource return passed.
+A diagnostic helper then rejected a withdrawal-reader call because no amount
+quote was open; both navigation actions had already been confirmed and the
+journal was idle. No navigation retry was required.
+
+The production manager checked all 60 discovered candidate structures. It
+verified 150 individual guard windows across 27 owned building rosters, recording
+33 zero-slot/unavailable candidates separately. All six rows in populated guard
+towers were reached. Its exact process-bound prepared plan was admitted normally;
+full-town membership/coverage remains unverified.
+
+The manager's maximum-rank job completed two full automatic cycles. Each confirmed
+122,100 gold withdrawn from the warehouse, deposited into the tower, and debited
+for the exact guard upgrade. The third cycle confirmed another 122,100 withdrawal
+and deposit, then submitted its upgrade. Its automatic guard-return activation
+was submitted once, but no guard window was observed before the 15-second native
+deadline. The retained result ring shows IN_FLIGHT plus REOPENED until UNRESOLVED;
+this was not an admission failure or a host transport timeout. A later read-only
+observation found tower funds zero and the selected third guard row visible.
+The user then opened the exact third guard's own page. Read-only capture matched
+its process, building and guard to the original request, confirmed upgrade
+progress and the exact zero balance. This establishes the observed live outcome;
+it does not manufacture a native completion or clear the timed-out journal.
+
+The job is stopped in review, with the third request and original submission
+retained unresolved. No replay, journal reset or replacement spend was sent.
+Confirmed cycle totals are 366,300 withdrawn and deposited; 244,200 of upgrade
+spending is fully correlated. The third 122,100 debit and upgrade progress were subsequently verified on the user-opened page. The job's
+completed-cycle counters intentionally do not yet include that active cycle.
+A continuous read-only capture and stopped-cycle observations remain private
+inside the VM. The recorder ended normally through its stop marker; its launching
+guest-control wrapper timed out while the recorder remained alive.
+
+Next: [bounded guard-page response recovery](guard-upgrades-1.8.18.md).
+The existing timed-out request remains retained and is not replayed. Full-town
+coverage, maximum rank, removal of the initial manual warehouse prerequisite and
+integration remain unfinished.
