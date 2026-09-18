@@ -64,7 +64,7 @@ City Command remained uninitialized in this recording. It adds no new town-disco
 or Tree-companion qualification; existing earlier evidence remains separate.
 
 The combined source correction and regression checks are recorded in
-[1.8.16 / 0.3.25](guard-upgrades-1.8.16.md). Active todo: exact-source packaging,
-guest staging and one full automatic funding/upgrade qualification. The user need
-not repeat this walkthrough. Full-town coverage, maximum-rank evidence and
+[1.8.16 / 0.3.25](guard-upgrades-1.8.16.md). Exact-source packaging and guest staging
+passed. Active todo: activation after user closure, then one full automatic
+funding/upgrade qualification. The user need not repeat this walkthrough. Full-town coverage, maximum-rank evidence and
 integration remain unfinished.

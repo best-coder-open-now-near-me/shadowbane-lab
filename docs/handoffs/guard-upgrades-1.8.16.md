@@ -34,15 +34,28 @@ request. Legacy receipts retain pointer equality and remain readable; old journa
 are not rewritten. Wire sizes and signature remain unchanged. Ship host and native
 together: an older host correctly rejects the new flag.
 
-Validation so far: 137 focused host tests, five native controller/ownership/channel
+Source `6c6228fd8ed4e801cf6d5d82abdf269c4dd5800e` is pushed on
+`codex/guard-upgrades`; integration remains pending.
+
+Validation: 137 focused host tests, five native controller/ownership/channel
 tests, full native compilation and changed-file lint passed. Native tests include
 the post-deposit idle state, replacement roster, exact debit, one revisit, fresh
 controls, wrong owner/rank/debit, amount-modal blocking, stale producer, uncertain
 callback, timeout and duplicate upgrade. The host cycle test retains one journal
-through deposit and the changed-window completion. Exact-source package validation
-and deployment are next; no live automation acceptance is claimed yet.
+through deposit and the changed-window completion. The exact-source package passed
+2,695 host tests (18 skipped), lint, both native profiles and installed-host checks.
+Six additional installed guard/funding wire comparisons and correlated REOPENED
+receipt round trips passed. All 61 listed artifact hashes and the archive hash
+were independently verified. Two known graphics transparency stretch diagnostics
+fail in each profile; the package remains diagnostic-only and is not full-product
+acceptance. No live automatic spending acceptance is claimed yet.
 
-Active todo: package and stage the combined update, then qualify the complete
+The combined full-profile payload is staged in the test VM. Guest preparation and
+read-only update validation passed, including the exact current client, new host
+source identity, launch pins and retained records. The running game remains on
+1.8.15 / 0.3.24; its DLL is unchanged. User closure is requested before activation.
+
+Active todo: activate after user closure, then qualify the complete
 automatic funding/upgrade cycle once. Town discovery beyond the Tree, full-town
 coverage, maximum-rank evidence and integration remain unfinished. Preserve all
 historical uncertain requests; the user starts the game through Vendor Test.
