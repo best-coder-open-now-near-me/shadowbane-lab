@@ -306,3 +306,41 @@ def test_session_upgrade_then_inspection_records_completion(tmp_path):
         assert session.inspect().snapshot == FINISHED.snapshot
         assert json.loads(journal.active.read_text()) == {"request_key": None}
         session.close()
+
+
+@pytest.mark.parametrize("case", ["success", "unmarked", "scene", "building", "guard",
+                                 "funds", "progress", "front", "uncertain", "host"])
+def test_correlated_native_revisit_allows_only_exact_guard_and_debit(tmp_path, case):
+    from shadowbane_lab.client_extension.guard_upgrade_wire import REOPENED
+
+    journal = GuardSpendingJournal(tmp_path)
+    journal.submit(IDENTITY, COMMAND, lambda: SUBMITTED)
+    n = replace(STATE.navigation, building_hud=301, vendor_hud=401,
+                selected_entry=501, front_hud=401)
+    after = replace(FINISHED.snapshot, navigation=n, upgrade_control=601, progress_control=701)
+    flags = REOPENED
+    if case == "scene":
+        after = replace(after, navigation=replace(n, scene=n.scene + 1))
+    if case == "building":
+        after = replace(after, navigation=replace(n, building_id=124))
+    if case == "guard":
+        after = replace(after, navigation=replace(n, vendor_id=778))
+    if case == "funds":
+        after = replace(after, funds=49)
+    if case == "progress":
+        after = replace(after, upgrading=0, control_flags=3)
+    if case == "front":
+        after = replace(after, navigation=replace(n, front_hud=999))
+    if case == "unmarked":
+        flags = 0
+    if case == "uncertain":
+        flags |= UNRESOLVED
+    receipt = replace(FINISHED, snapshot=after, flags=flags)
+    if case == "host":
+        receipt = replace(receipt, host=replace(HOST, lease_generation=2))
+    assert Receipt.decode(receipt.encode()) == receipt
+    journal.observe(IDENTITY, receipt)
+    if case == "success":
+        GuardSpendingJournal(tmp_path).assert_idle()
+    else:
+        assert_blocked(GuardSpendingJournal(tmp_path))

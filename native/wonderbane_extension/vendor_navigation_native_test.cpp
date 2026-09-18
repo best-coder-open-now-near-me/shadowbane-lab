@@ -232,5 +232,33 @@ int main() {
     assert(capture_guard() && g::wire::Eligible(guard));
     live = false; assert(!capture_guard()); live = true;
     assert(!g::Invoke(base, {}));
+    assert(capture_guard() && g::wire::Eligible(guard));
+    const auto before = guard;
+    word(manager + 0xd0, 0);
+    assert(capture_guard() && top && g::wire::Eligible(guard));
+    word(manager + 0xd0, 13); assert(!capture_guard());
+    word(manager + 0xd0, 20); assert(!capture_guard());
+    word(manager + 0xd0, 6);
+    word(head, node); word(node + 4, head);
+    word(manager + 0x78, 0); word(manager + 0x50, 0); word(manager + 0x1cc, 50);
+    g::ReturnSnapshot returned{};
+    auto capture_return = [&] { return g::CaptureReturn(base, scene, before, returned); };
+    assert(capture_return() && returned.guard == before.navigation.vendor && returned.funds == 50);
+    word(manager + 0xd0, 0); assert(capture_return()); word(manager + 0xd0, 6);
+    for (const auto [address, replacement] : {
+        std::pair{manager + 0x1cc, 49U}, {manager + 0x1cc, 150U},
+        {manager + 0x50, 1U}, {manager + 0xf0, 124U}, {entry + 0x10, 778U},
+        {entry + 0x28, 3U}, {manager + 0x37c, 2U}, {control + 0x3bc, hud + 4},
+        {manager + 0xd0, 13U}}) {
+        std::uint32_t saved = 0; std::memcpy(&saved, reinterpret_cast<void*>(address), 4);
+        word(address, replacement); assert(!capture_return()); word(address, saved);
+    }
+    word(head, channel_node); word(channel_node + 4, head); word(channel_node, node);
+    word(node + 4, channel_node); word(channel, base + 0x1168044);
+    assert(!capture_return()); // Do not reopen through an amount modal.
+    word(head, node); word(node + 4, head);
+    auto foreign = before; ++foreign.navigation.scene;
+    assert(!g::CaptureReturn(base, scene, foreign, returned));
+    assert(capture_return());
     assert(VirtualFree(memory, 0, MEM_RELEASE));
 }

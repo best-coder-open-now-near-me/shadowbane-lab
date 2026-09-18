@@ -111,7 +111,9 @@ class Snapshot:
                 and self.warehouse_id and self.warehouse_type == 42
             )
             or self.visible & 1
-            and not (self.building_hud and self.initialized and self.mode == 6 and self.building_id)
+            and not (
+                self.building_hud and self.initialized and self.mode in (0, 6) and self.building_id
+            )
             or self.visible & 2
             and not (
                 self.vendor_hud and self.selected_entry and self.vendor_id and self.building_id

@@ -70,8 +70,10 @@ Package checks, guest staging and activation verification passed. All 171 retain
 records/settings were unchanged and the background manager restarted healthy.
 The user-launched extension was verified. A continuous manual workflow capture and
 non-spending guard revisit confirmed withdrawal, deposit and upgrade progress.
-[Workflow analysis](handoffs/guard-workflow-capture.md) identifies idle post-deposit
-mode and post-upgrade guard-window closure as the next combined correction.
+[Workflow analysis](handoffs/guard-workflow-capture.md) identified idle post-deposit
+mode and post-upgrade guard-window closure. The [combined 1.8.16 / 0.3.25 correction](handoffs/guard-upgrades-1.8.16.md)
+recognizes owned idle menus and revisits the exact guard once within its original
+pending transaction. Source regression checks pass; packaging and staging are next.
 Automatic spending and new town discovery remain unqualified. Earlier uncertain
 requests stay retained without replay.
 Maximum-rank and full-town evidence remain unfinished.

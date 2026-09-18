@@ -48,7 +48,7 @@ inline bool ValidSnapshot(const Snapshot& s) noexcept {
         && (s.building == Key{} || Typed(s.building, 8))
         && (s.vendor == Key{} || Hireling(s.vendor))
         && (s.vendor == Key{} || s.selected_entry)
-        && (!(s.visible & 1) || (s.building_hud && s.initialized && s.mode == 6 && Typed(s.building, 8)))
+        && (!(s.visible & 1) || (s.building_hud && s.initialized && (s.mode == 0 || s.mode == 6) && Typed(s.building, 8)))
         && (!(s.visible & 2) || (s.vendor_hud && s.selected_entry && Hireling(s.vendor) && Typed(s.building, 8)))
         && ((!s.warehouse_hud && !s.warehouse_object && s.warehouse == Key{})
             || (s.warehouse_hud && s.warehouse_object && Typed(s.warehouse, 42)));

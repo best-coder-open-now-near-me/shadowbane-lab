@@ -3,7 +3,7 @@
 namespace wonderbane::extension::guard_upgrade::wire {
 using Outcome = vendor::wire::Outcome;
 enum class Verb : std::uint32_t { inspect = 17, upgrade = 18 };
-constexpr std::uint32_t magic = 0x57424733, ready = 1, in_flight = 2, unresolved = 4;
+constexpr std::uint32_t magic = 0x57424733, ready = 1, in_flight = 2, unresolved = 4, reopened = 8;
 #pragma pack(push, 1)
 struct Snapshot {
     vendor_navigation::wire::Snapshot navigation{};
@@ -42,6 +42,11 @@ inline bool ValidSnapshot(const Snapshot& s) noexcept {
 inline bool Eligible(const Snapshot& s) noexcept {
     return ValidSnapshot(s) && !s.upgrading && s.can_upgrade && s.cost
         && s.funds >= s.cost && s.control_flags == 3;
+}
+inline bool SameGuard(const Snapshot& a, const Snapshot& b) noexcept {
+    const auto& x = a.navigation; const auto& y = b.navigation;
+    return x.scene == y.scene && x.root == y.root && x.manager == y.manager
+        && x.building == y.building && x.vendor == y.vendor;
 }
 inline bool SameOwner(const Snapshot& a, const Snapshot& b) noexcept {
     const auto& x = a.navigation; const auto& y = b.navigation;

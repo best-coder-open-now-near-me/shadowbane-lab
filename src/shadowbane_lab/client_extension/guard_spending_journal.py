@@ -115,17 +115,19 @@ def _confirmed(command: Command, receipt: Receipt, operation: str) -> bool:
         )
     before, after = command.expected, receipt.snapshot
     a, b = before.navigation, after.navigation
-    same = (
-        a.scene == b.scene
-        and a.root == b.root
-        and a.manager == b.manager
-        and a.building_hud == b.building_hud
-        and a.vendor_hud == b.vendor_hud
-        and a.selected_entry == b.selected_entry
+    same_identity = (
+        a.scene == b.scene and a.root == b.root and a.manager == b.manager
         and (a.building_id, a.building_type, a.vendor_id, a.vendor_type)
         == (b.building_id, b.building_type, b.vendor_id, b.vendor_type)
+    )
+    same_windows = (
+        a.building_hud == b.building_hud and a.vendor_hud == b.vendor_hud
+        and a.selected_entry == b.selected_entry
         and before.upgrade_control == after.upgrade_control
         and before.progress_control == after.progress_control
+    )
+    same = same_identity and (
+        same_windows or (receipt.flags & upgrade.REOPENED and b.front_hud == b.vendor_hud)
     )
     return bool(
         same

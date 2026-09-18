@@ -88,3 +88,13 @@ def test_zero_capacity_with_no_rows_is_unverified_not_empty_success():
     memory.put(LIST + 0x408, "<III", 0, 0, 0)
     with pytest.raises(NativeVendorDialogCaptureError):
         read_native_building_hirelings(memory)
+
+
+def test_owned_building_roster_survives_post_deposit_idle_mode():
+    memory = building_roster_fixture()
+    memory.put(MANAGER + 0xD0, "<I", 0)
+    assert read_native_building_hirelings(memory)["building_roster_verified"]
+    for mode in (3, 13, 20):
+        memory.put(MANAGER + 0xD0, "<I", mode)
+        with pytest.raises(NativeVendorDialogCaptureError):
+            read_native_building_hirelings(memory)

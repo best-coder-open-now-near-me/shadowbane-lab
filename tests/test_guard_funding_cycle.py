@@ -35,6 +35,7 @@ class World:
         self.change_price = self.wrong_source = self.foreign_actor = False
         self.pending = None
         self.transitions = {}
+        self.revisit = False
 
     def state(self, kind, direction=1):
         n = self.navigation
@@ -84,6 +85,8 @@ class Session:
             assert kind == self.kind and pending_direction == direction
             state, flags = prior, nav.IN_FLIGHT
             w.pending = None
+        if self.kind == "guard" and w.revisit and w.upgrading:
+            flags |= upgrade.REOPENED
         result = codec.Receipt(str(uuid.uuid4()), self.host, 1000, nav.Outcome.OBSERVED,
                                flags, state, w.transitions.get(self.kind))
         self.journal.observe(IDENTITY, result)
@@ -154,6 +157,8 @@ class Session:
             else:
                 w.purse -= amount
                 w.funds += amount
+                if w.revisit:
+                    w.navigation = replace(w.navigation, mode=0)
             w.quote[before.direction] = False
         return self.action(funding.Verb.TRANSFER, before, key,
                            "withdraw" if before.direction == 1 else "deposit", mutate,
@@ -163,6 +168,9 @@ class Session:
         def mutate():
             self.world.funds -= before.cost
             self.world.upgrading = True
+            if self.world.revisit:
+                self.world.navigation = replace(self.world.navigation, mode=0, building_hud=301,
+                    vendor_hud=401, selected_entry=501, front_hud=401)
         return self.action(upgrade.Verb.UPGRADE, before, key, "upgrade", mutate)
 
     def close(self):
@@ -388,3 +396,13 @@ def test_slow_menu_response_keeps_one_request_without_extending_spending_timeout
         with pytest.raises(GuardSpendingStopped):
             GuardSpendingJournal(setup.store.root).assert_idle()
     assert not setup.world.open_sessions
+
+
+def test_full_funding_cycle_accepts_idle_deposit_and_correlated_native_guard_revisit(setup):
+    setup.world.revisit = True
+    result = setup.run()
+    assert result["state"] == "started"
+    assert result["spent"] == 100 and result["upgrade_in_progress"]
+    assert setup.world.calls.count("upgrade") == 1
+    assert setup.world.navigation.mode == 0
+    GuardSpendingJournal(setup.store.root).assert_idle()

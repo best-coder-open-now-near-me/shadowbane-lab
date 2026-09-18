@@ -147,6 +147,24 @@ public:
         }
         return guard_upgrade::Invoke(image_base, expected) ? O::submitted : O::uncertain;
     }
+    guard_upgrade::wire::Outcome Reopen(const guard_upgrade::wire::Snapshot& expected,
+        const guard_upgrade::ReturnSnapshot& returned) noexcept override {
+        using O = guard_upgrade::wire::Outcome;
+        const auto now = GetTickCount64();
+        guard_upgrade::ReturnSnapshot fresh{};
+        if (funding_controller.Busy() || controller.Busy() || navigation_controller.Busy()
+            || queued_->verb != guard_upgrade::wire::Verb::inspect
+            || !queued_->lease || !queued_->lease->Current(now) || now > queued_->deadline
+            || GetForegroundWindow() != window_ || IsIconic(window_)
+            || !guard_upgrade::CaptureReturn(image_base, scene_, expected, fresh)
+            || !vendor_navigation::wire::Equal(fresh.navigation, returned.navigation)
+            || fresh.guard != returned.guard || fresh.rank != returned.rank
+            || fresh.funds != returned.funds || !movement::NativeMovementLifetimeCurrent(scene_)) {
+            return O::stale;
+        }
+        return vendor_navigation::InvokeGuard(image_base, fresh.navigation, expected.navigation.vendor)
+            ? O::submitted : O::uncertain;
+    }
 };
 class FundingInvoker final : public guard_funding::Invoker {
     const std::shared_ptr<guard_funding::QueuedCommand>& queued_;
@@ -196,7 +214,12 @@ void Update(void* root, HWND window) noexcept {
     guard_upgrade::wire::Snapshot guard_snapshot{}; bool guard_top = false;
     const bool guard_valid = scene.window == reinterpret_cast<std::uintptr_t>(root)
         && guard_upgrade::Capture(image_base, scene, guard_snapshot, guard_top);
-    guard_controller.Observe(guard_snapshot, guard_valid, GetTickCount64());
+    guard_controller.Observe(guard_snapshot, guard_valid && guard_top, GetTickCount64());
+    guard_upgrade::ReturnSnapshot returned{};
+    const auto* pending_guard = guard_controller.PendingReturn();
+    const bool returned_valid = pending_guard && scene.window == reinterpret_cast<std::uintptr_t>(root)
+        && guard_upgrade::CaptureReturn(image_base, scene, *pending_guard, returned);
+    guard_controller.ObserveReturn(returned, returned_valid);
     auto funding_command = guard_funding::Take();
     std::array<bool, 2> funding_valid{}, funding_top{};
     // The inventory accessor is demand-driven, not traversed on every idle frame.

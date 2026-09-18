@@ -75,6 +75,26 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
     }
     s.navigation.revision = 0; out = s; return true;
 }
+bool CaptureReturn(std::uintptr_t base, const movement::NativeScene& scene,
+    const wire::Snapshot& before, ReturnSnapshot& out) noexcept {
+    out = {};
+    ReturnSnapshot s{};
+    if (!vendor_navigation::Capture(base, scene, s.navigation)) { return false; }
+    s.navigation.revision = 1;
+    const auto& n = s.navigation;
+    if (n.visible != 1 || n.vendor_hud || n.front_hud != n.building_hud) { return false; }
+    std::uint32_t row = 0;
+    if (!vendor_navigation::FindGuardControl(base, n, before.navigation.vendor, row)) { return false; }
+    Reader r;
+    r.Require(n.manager + 0x50, 0);
+    const auto entry = r.Word(row + 0x44c);
+    s.guard = {r.Word(entry + 0x10), r.Word(entry + 0x14)};
+    s.rank = r.Word(entry + 0x28); s.funds = r.Word(n.manager + 0x1cc);
+    if (!r.ok || !CanReopen(before, s) || !movement::NativeMovementLifetimeCurrent(scene)) {
+        return false;
+    }
+    out = s; return true;
+}
 bool Invoke(std::uintptr_t base, const wire::Snapshot& s) noexcept {
     if (!base || !wire::Eligible(s)) { return false; }
     __try {

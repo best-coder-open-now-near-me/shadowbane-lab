@@ -36,7 +36,8 @@ def _capture_building_hirelings(memory: VendorQueueMemory) -> _BuildingHirelings
     r.require(root + 0x64, 2, "in-world state")
     manager = r.word(root + 0xA4)
     r.require(manager, base + 0x1171ADC, "asset manager type")
-    r.require(manager + 0xD0, 6, "building management mode")
+    if r.word(manager + 0xD0) not in (0, 6):
+        raise NativeVendorDialogCaptureError("unsupported building management mode")
     r.require(manager + 0xD8, 0, "online management")
     r.require(manager + 0x48, 1, "building initialized")
     active = r.hud_stack(root)

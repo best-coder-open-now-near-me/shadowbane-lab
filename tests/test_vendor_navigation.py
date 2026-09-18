@@ -106,7 +106,7 @@ class VendorNavigationWireTests(unittest.TestCase):
             replace(STATE, capacity=129),
             replace(STATE, root=True),
             replace(STATE, visible=1),
-            replace(OPENED, mode=0),
+            replace(OPENED, mode=13),
             replace(STATE, vendor_id=777, vendor_type=42),
         ):
             with self.subTest(state=state), self.assertRaises(ValueError):
@@ -298,3 +298,9 @@ class VendorNavigationWireTests(unittest.TestCase):
             self.assertTrue(session._transport.closed)
             with self.assertRaises(NativeActionChannelError):
                 session.inspect()
+
+
+def test_post_deposit_idle_owned_building_is_navigable():
+    idle = replace(OPENED, mode=0)
+    assert Snapshot.decode(idle.encode()) == idle
+    assert idle.opened(123)

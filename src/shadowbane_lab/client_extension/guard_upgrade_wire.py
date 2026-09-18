@@ -11,7 +11,7 @@ from .movement_wire import Host, request_bytes
 from .vendor_navigation_wire import Snapshot as Navigation
 from .vendor_wire import Outcome, uint
 
-MAGIC, READY, IN_FLIGHT, UNRESOLVED = 0x57424733, 1, 2, 4
+MAGIC, READY, IN_FLIGHT, UNRESOLVED, REOPENED = 0x57424733, 1, 2, 4, 8
 _FIELDS = struct.Struct("<8I")
 _COMMAND = struct.Struct("<16sQ16s128s408s")
 _RECEIPT = struct.Struct("<16s16sQII128s16sI188s")
@@ -159,8 +159,10 @@ class Receipt:
         if len(data) != 384:
             raise ValueError("invalid guard receipt size")
         key, host, window, outcome, flags, state, transition, magic, padding = _RECEIPT.unpack(data)
-        if magic != MAGIC or flags & ~7 or any(padding) or not 0 < window < 2**32:
+        if magic != MAGIC or flags & ~15 or any(padding) or not 0 < window < 2**32:
             raise ValueError("invalid guard receipt")
+        if flags & REOPENED and not any(transition):
+            raise ValueError("guard revisit lacks transaction identity")
         request = str(uuid.UUID(bytes=key))
         request_bytes(request)
         snapshot = Snapshot.decode(state)
