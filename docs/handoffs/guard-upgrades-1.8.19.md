@@ -34,7 +34,32 @@ page progress and immediate rank completion, mismatched identities/windows/costs
 missing or wrong debits/progress, timeout, invalid captures, uncertain submissions,
 immutable original submission and non-replay across journal restarts.
 
-Active todo: exact-source packaging and guest preparation, then user game closure
-for activation. No new version is installed yet. Next: fresh live qualification,
-outer coverage, rank/gold stopping and integration review. Full-town and maximum
-rank completion remain unverified.
+Exact source a87a9849a7e6ab8f73081c0f2361c2803cb0ac32 is pushed to
+origin/codex/guard-upgrades. The final package passed 2,727 host tests
+(18 skipped), lint, both native build profiles and their required suites,
+movement IPC and prepared-client bindings, installed-host contracts and six
+additional installed guard/funding wire checks. All 61 package artifact hashes
+and the archive digest were independently checked. The two previously known
+graphics transparency stretch diagnostics still fail in each profile; they
+remain recorded, and this is not complete graphics acceptance. The initial
+package caught a version macro mismatch; the final source corrects it.
+
+Full extension SHA-256:
+db7273cb49cefb2220925a26fb468be0e4b347ffe299a9d8dfe6f14bb28da449.
+Host wheel SHA-256:
+f3c1131f35d0e121177012f5c48c31a86a97da5f5eaf09fd13cf5ab278e8b584.
+Diagnostic archive SHA-256:
+141792a6d5044006ed38d2814f56a28ac6c0f880356e9c5db9340a9f224374fd.
+
+Guest preparation and read-only validation passed. After user-confirmed game
+closure, the exact windowless lingering game process was stopped and native
+1.8.19 / host 0.3.29 installed. Only the extension changed in the client inventory;
+the executable is unchanged. Backups are retained. All 1,696 checked journal,
+settings and evidence records are unchanged after manager restart. The dashboard
+shortcut uses host 0.3.29; Vendor Test remains the same shortcut. The manager
+restarted healthy, and the next user-launched game loaded native 1.8.19.
+
+Active todo: fresh live qualification with no Ulmer/menu prerequisite.
+Continue from new process-bound discovery; never replay the retained uncertain
+requests. Next: outer coverage, rank/gold stopping and integration review.
+Full-town and maximum-rank completion remain unverified.
