@@ -82,6 +82,22 @@ int main() {
     receipt.request = command->command.request; v::Complete(command, receipt);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
     assert(!v::Take() && storage.header.command_read_sequence == 6);
+    // A producer can renew between DrainCommands' clock sample and the lease read.
+    // A fresh heartbeat is not a future lease; it must be compared with a fresh clock.
+    const auto before_renewal = GetTickCount64();
+    ULONGLONG renewed = before_renewal;
+    while (renewed == before_renewal) { Sleep(1); renewed = GetTickCount64(); }
+    InterlockedExchange64(&storage.header.host_heartbeat_tick, static_cast<LONG64>(renewed));
+    assert(d::HostLeaseIsActive(storage, before_renewal));
+    assert(d::MovementLeaseCurrent(runtime.backing.get(), receipt.host, before_renewal));
+    auto wrong_host = receipt.host; ++wrong_host.generation;
+    assert(!d::MovementLeaseCurrent(runtime.backing.get(), wrong_host, before_renewal));
+    InterlockedExchange64(&storage.header.host_heartbeat_tick,
+        static_cast<LONG64>(GetTickCount64() + 60000));
+    assert(!d::HostLeaseIsActive(storage, before_renewal));
+    InterlockedExchange64(&storage.header.host_heartbeat_tick,
+        static_cast<LONG64>(GetTickCount64() - kMaximumActionHostLeaseAgeMilliseconds - 1));
+    assert(!d::HostLeaseIsActive(storage, GetTickCount64()));
     SetEvent(release_worker);
     StopClientActionCommandChannel();
     CloseHandle(entered); CloseHandle(release_worker);

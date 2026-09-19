@@ -186,11 +186,16 @@ inline bool HostLeaseIsActive(
         0,
         0
     );
+    // The producer may have renewed after the caller sampled now. Re-read
+    // the local monotonic clock after acquiring that heartbeat; never treat
+    // an actually future heartbeat as current or relax the lease age bound.
+    const ULONGLONG observed_now = heartbeat > 0 && static_cast<ULONGLONG>(heartbeat) > now
+        ? GetTickCount64() : now;
     return (
         process_id > 0
         && heartbeat > 0
-        && now >= static_cast<ULONGLONG>(heartbeat)
-        && now - static_cast<ULONGLONG>(heartbeat)
+        && observed_now >= static_cast<ULONGLONG>(heartbeat)
+        && observed_now - static_cast<ULONGLONG>(heartbeat)
             <= kMaximumActionHostLeaseAgeMilliseconds
     );
 }

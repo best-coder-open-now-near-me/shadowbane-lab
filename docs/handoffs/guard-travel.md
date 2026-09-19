@@ -26,3 +26,18 @@ Next: complete broader regression checks, resolve the existing navigation admiss
 failure without replay, and prepare the coherent VM update and live acceptance.
 The installed client remains 1.8.21 / host 0.3.31; its prior failed request and all
 174 confirmed first-pass upgrade records remain untouched.
+
+## Navigation lease regression
+
+The heartbeat/clock race is reproduced: renewing the shared heartbeat after the
+caller's clock sample makes the previous HostLeaseIsActive return false for an
+otherwise current host. The regression fails on the old implementation and passes
+with an additional clock sample after observing a newer heartbeat. Expired and
+actually future heartbeats, and wrong host generations, still fail. All six native
+movement/vendor/city/navigation/guard/funding channel tests pass. The retained live
+error does not uniquely prove this was its cause; no historical receipt is invented.
+
+Release versions for packaging: native 1.8.22 / host 0.3.32. Installation requires
+closing the game. The 174 prior upgrade receipts remain archived; the new lifetime
+requires fresh guard verification once. Subsequent Travel scans in that lifetime
+reuse remembered guards and do not restart the completed pass.
