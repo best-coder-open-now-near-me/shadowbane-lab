@@ -88,6 +88,7 @@ class ManagerGuardControl:
                 control=jobs.control(current["job_id"]),
                 guards=len(current["guards"]),
                 waiting=sum(g["state"] == "waiting" for g in current["guards"]),
+                nearby=len(current.get("area_indices", current["guards"])),
             )
         return summary
 
@@ -98,19 +99,23 @@ class ManagerGuardControl:
             "guard-pause",
             "guard-resume",
             "guard-stop",
+            "guard-travel",
+            "guard-continue",
         }:
             raise ValueError("unknown guard action")
         store = self.store(client_id, instance_id)
         jobs = GuardJobStore(store)
         with exclusive_record_lock(store.root / "admission.lock"):
             current = jobs.current()
-            if action in {"guard-pause", "guard-resume", "guard-stop"}:
+            if action in {
+                "guard-pause", "guard-resume", "guard-stop", "guard-travel", "guard-continue",
+            }:
                 if not current or current["job_id"] != job_id:
                     raise GuardFundingCycleStopped(
                         "The selected guard job changed; refresh its controls."
                     )
-            if action in {"guard-pause", "guard-stop"}:
-                jobs.request(job_id, "pause" if action == "guard-pause" else "stop")
+            if action in {"guard-pause", "guard-stop", "guard-travel"}:
+                jobs.request(job_id, action.removeprefix("guard-"))
                 return
             permit, now = self.permits.inspect_permit(client_id), self.clock()
             if (
@@ -126,7 +131,7 @@ class ManagerGuardControl:
                 )
             expected = dict(
                 schema_version=1,
-                capability="guard_jobs_carried_v2",
+                capability="guard_jobs_travel_v3",
                 worker_id=permit.worker_id,
                 process_id=permit.process_id,
                 process_started_at_100ns=permit.process_started_at_100ns,
@@ -155,8 +160,13 @@ class ManagerGuardControl:
             ]
             if inflight:
                 raise GuardFundingCycleStopped("Another operation owns this worker.")
-            if action == "guard-resume":
-                if current["state"] in TERMINAL:
+            if action == "guard-continue":
+                if current["state"] != "travel" or jobs.control(job_id) != "travel":
+                    raise GuardFundingCycleStopped("Wait until Travel says it is safe to move.")
+                GuardSpendingJournal(store.root).assert_idle()
+                command = "guard continue " + job_id
+            elif action == "guard-resume":
+                if current["state"] in TERMINAL or jobs.control(job_id) == "travel":
                     raise GuardFundingCycleStopped("This guard job has ended or needs review.")
                 jobs.request(job_id, "run")
                 command = "guard resume " + job_id
@@ -216,7 +226,7 @@ class GuardWorkerExecutor:
             self.store().root / "guard-worker-capability.json",
             dict(
                 schema_version=1,
-                capability="guard_jobs_carried_v2",
+                capability="guard_jobs_travel_v3",
                 worker_id=worker_id,
                 process_id=process.process_id,
                 process_started_at_100ns=process.process_started_at_100ns,
@@ -241,7 +251,15 @@ class GuardWorkerExecutor:
         store = self.store()
         journal = GuardSpendingJournal(store.root)
         journal.assert_idle()
-        if operation.command == "guard discover":
+        continuing = operation.command.startswith("guard continue ")
+        jobs = GuardJobStore(store)
+        if continuing:
+            job_id = operation.command.removeprefix("guard continue ")
+            current = jobs.current()
+            if (not current or current["job_id"] != job_id or current["state"] != "travel"
+                    or jobs.control(job_id) != "travel" or current["active_cycle"]):
+                raise GuardFundingCycleStopped("Wait until Travel says it is safe to move.")
+        if operation.command == "guard discover" or continuing:
             path = store.root / "guard-preparations" / (operation.operation_id + ".json")
             with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
                 if path.exists():
@@ -282,7 +300,40 @@ class GuardWorkerExecutor:
                 finally:
                     session.close()
             # Release the observer producer before City Command/navigation takes ownership.
-            self.discover(store, b, operation, cancelled=stop_signal.is_set)
+            options = {}
+            if continuing:
+                options["remembered"] = jobs.remembered(b, job_id, context)
+                with exclusive_record_lock(jobs.root / "control.lock"):
+                    current = jobs.read(job_id)
+                    if current["state"] != "travel" or jobs.control(job_id) != "travel":
+                        raise GuardFundingCycleStopped("Travel changed before the scan.")
+                    current.update(state="scanning",
+                                   detail="Finding guards here; keep the game in front.")
+                    jobs.save(current)
+            try:
+                self.discover(
+                    store, b, operation,
+                    cancelled=lambda: stop_signal.is_set() or
+                    (continuing and jobs.control(job_id) == "stop"), **options,
+                )
+                if continuing:
+                    jobs.continue_here(b, job_id, operation.operation_id, context)
+            except Exception as exc:
+                if continuing:
+                    current = jobs.read(job_id)
+                    try:
+                        journal.assert_idle()
+                    except RuntimeError:
+                        current.update(state="review", detail=str(exc))
+                    else:
+                        if current["state"] != "stopped":
+                            current.update(state="travel", detail=
+                                           "Area scan stopped. Safe to move, then Continue here.")
+                    jobs.save(current)
+                raise
+            if continuing:
+                record = self.runner(store, b, job_id, cancelled=stop_signal.is_set)
+                return self._result(record)
             plan = build_guard_upgrade_plan(store, b, operation.operation_id, context)
             prepared = dict(
                 schema_version=2,
@@ -327,11 +378,15 @@ class GuardWorkerExecutor:
         else:
             raise GuardFundingCycleStopped("Unknown guard worker command.")
         record = self.runner(store, b, job_id, cancelled=stop_signal.is_set)
+        return self._result(record)
+
+    @staticmethod
+    def _result(record):
         return WorkerOperationExecution(
             WorkerOperationState.FAILED
             if record["state"] == "review"
             else WorkerOperationState.CANCELLED
-            if record["state"] in {"paused", "stopped"}
+            if record["state"] in {"paused", "travel", "stopped"}
             else WorkerOperationState.SUCCEEDED,
             record["detail"],
         )

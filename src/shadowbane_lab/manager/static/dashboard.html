@@ -208,7 +208,7 @@
           if (action === "guard-start") {
             body.job_id = slot.guard?.prepared?.discovery_id;
           }
-          if (["guard-pause", "guard-resume", "guard-stop"].includes(action)) {
+          if (["guard-pause", "guard-resume", "guard-stop", "guard-travel", "guard-continue"].includes(action)) {
             body.job_id = slot.guard?.job?.job_id;
           }
           await execute(body);
@@ -390,12 +390,14 @@
           const prepared = slot.guard?.prepared;
           const detail = document.createElement("p");
           detail.className = "detail";
-          detail.textContent = job ? text(job.detail)
+          detail.textContent = job?.control === "travel" && !["travel", "scanning", "review"].includes(job.state)
+            ? "Finishing the current transaction. Wait for Safe to move before travelling."
+            : job ? text(job.detail)
             : "Carry gold, then find guards and return to the game. No warehouse menu is needed.";
           const progress = document.createElement("p");
           progress.className = "detail";
           progress.textContent = job
-            ? `${job.upgrades_started} upgrades started · ${job.spent.toLocaleString()} gold spent · ${job.waiting} waiting`
+            ? `${job.guards} guards remembered · ${job.nearby} in this area · ${job.upgrades_started} upgrades started · ${job.spent.toLocaleString()} gold spent · ${job.waiting} waiting`
             : prepared ? `${prepared.guards} guards verified in ${prepared.buildings} of ${prepared.candidate_buildings} nearby buildings`
             : "Uses building gold and carried gold only. Stops when the next upgrade is unaffordable.";
           const scope = document.createElement("p");
@@ -403,12 +405,13 @@
           scope.textContent = "Nearby loaded buildings only. Full town coverage and maximum rank are not yet verified.";
           const controls = document.createElement("div");
           controls.className = "actions";
-          const finished = !job || ["stopped", "insufficient", "unavailable"].includes(job.state);
+          const finished = !job || ["stopped", "insufficient"].includes(job.state);
           const review = job?.state === "review";
           const choices = [
             ["Find guards", "guard-discover", finished && slot.dispatch_enabled],
             ["Upgrade verified guards", "guard-start", finished && Boolean(prepared) && slot.dispatch_enabled],
-            ["Pause upgrades", "guard-pause", !finished && !review && job.control === "run"],
+            ["Travel", "guard-travel", !finished && !review && ["run", "pause"].includes(job.control)],
+            ["Continue here", "guard-continue", job?.state === "travel" && job.control === "travel" && slot.dispatch_enabled],
             ["Resume upgrades", "guard-resume", !finished && !review && job.control === "pause" && slot.dispatch_enabled],
             ["Stop upgrades", "guard-stop", !finished && !review && job.control !== "stop"],
           ];

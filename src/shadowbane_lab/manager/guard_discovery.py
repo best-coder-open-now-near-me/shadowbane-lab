@@ -31,7 +31,7 @@ def read_guard_roster(binding, *, window):
 
 def run_guard_building_discovery(
     store, binding, operation, session, nearby, *, cancelled,
-    reader=read_guard_roster, clock=time.monotonic, sleep=time.sleep,
+    reader=read_guard_roster, clock=time.monotonic, sleep=time.sleep, remembered=(),
 ):
     """Visit candidates once under one producer lease, without gold or upgrade actions.
 
@@ -41,7 +41,7 @@ def run_guard_building_discovery(
     """
     return _run_building_discovery(
         store, binding, operation, session, nearby, cancelled=cancelled,
-        reader=reader, clock=clock, sleep=sleep, guard=True,
+        reader=reader, clock=clock, sleep=sleep, guard=True, remembered=remembered,
     )
 
 
@@ -58,7 +58,7 @@ def run_guard_discovery(
     city_session_factory=open_city_session,
     navigation_session_factory=None,
     candidate_reader=read_guard_candidates, roster_reader=read_guard_roster,
-    clock=time.monotonic, sleep=time.sleep,
+    clock=time.monotonic, sleep=time.sleep, remembered=(),
 ):
     """Discover nearby candidates then inspect each owned guard window.
 
@@ -84,7 +84,7 @@ def run_guard_discovery(
     try:
         return run_guard_building_discovery(
             store, binding, operation, navigation, nearby, cancelled=cancelled,
-            reader=roster_reader, clock=clock, sleep=sleep,
+            reader=roster_reader, clock=clock, sleep=sleep, remembered=remembered,
         )
     finally:
         navigation.close()

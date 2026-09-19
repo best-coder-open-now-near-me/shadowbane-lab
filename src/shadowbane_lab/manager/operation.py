@@ -242,7 +242,7 @@ class WorkerOperation:
         ) is None:
             _fail("invalid vendor job command")
         if self.kind is WorkerOperationKind.GUARD and re.fullmatch(
-            r"guard (?:discover|(?:start|resume) operation-[0-9a-f]{32})", self.command
+            r"guard (?:discover|(?:start|resume|continue) operation-[0-9a-f]{32})", self.command
         ) is None:
             _fail("invalid guard job command")
         if self.destination is not None and not isinstance(

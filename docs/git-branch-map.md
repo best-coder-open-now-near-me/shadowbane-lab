@@ -454,3 +454,14 @@ rebuilt building HUD/selected-entry ownership. Next: fix navigation admission
 and continue rank checks; outer coverage and maximum-rank completion remain open.
 Keep the current carried-gold guard journals, including unresolved requests.
 This work remains outside the shared integration branch and main.
+
+## Guard travel controls — September 19
+
+The active `codex/guard-upgrades` worktree now owns the
+[dashboard Travel / Continue here feature](handoffs/guard-travel.md).
+Area scans extend the same job and preserve rank floors, timers and confirmed
+spending; only new guards require discovery of their personal menus. This is
+source-tested, not installed. The existing live navigation rejection still needs
+resolution without replay before VM acceptance. Integration remains
+`codex/guard-upgrades` → `codex/vendor-rolling` →
+`codex/native-lifecycle-hardening` → reviewed `main`.

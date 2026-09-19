@@ -30,7 +30,8 @@ _CLIENT_ACTIONS_WITHOUT_INSTANCE = frozenset({"start"})
 _CLIENT_ACTIONS_WITH_INSTANCE = frozenset({
     "attach", "tile", "pause", "resume", "detach", "close",
     "vendor-start", "vendor-pause", "vendor-resume", "vendor-stop", "vendor-discover",
-    "guard-start", "guard-pause", "guard-resume", "guard-stop", "guard-discover",
+    "guard-start", "guard-pause", "guard-resume", "guard-stop",
+    "guard-travel", "guard-continue", "guard-discover",
 })
 _ALL_ACTIONS = _GLOBAL_ACTIONS | _CLIENT_ACTIONS_WITHOUT_INSTANCE | _CLIENT_ACTIONS_WITH_INSTANCE
 
@@ -223,7 +224,8 @@ def _validate_action_payload(
         expected_fields = {"action", "client_id", "instance_id"}
 
     if action in {"vendor-pause", "vendor-resume", "vendor-stop",
-                  "guard-start", "guard-pause", "guard-resume", "guard-stop"}:
+                  "guard-start", "guard-pause", "guard-resume", "guard-stop",
+                  "guard-travel", "guard-continue"}:
         expected_fields.add("job_id")
     actual_fields = set(payload)
     if actual_fields != expected_fields:

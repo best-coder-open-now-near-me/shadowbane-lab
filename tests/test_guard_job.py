@@ -367,3 +367,119 @@ def test_legacy_or_changed_funding_policy_never_resumes_spending(setup, change):
     with pytest.raises(GuardFundingCycleStopped, match="needs review"):
         f.run()
     assert not f.calls and f.jobs.read(JOB)["state"] == "review"
+
+
+AREA = "operation-" + "e" * 32
+
+
+def travel_scan(f, *, known=(777,), new=True):
+    """A fresh owned roster includes one remembered guard and a new tower."""
+    nearby, discovery = copy.deepcopy(f.nearby), copy.deepcopy(f.discovery)
+    nearby["operation_id"] = discovery["operation_id"] = AREA
+    discovery["roster"] = [b for b in discovery["roster"]
+                            if b["guards"][0]["hireling"]["object_id"] in known]
+    for b in discovery["roster"]:
+        b["state"] = "partial"
+        b["guards"][0].update(state="remembered", window_verified=False)
+        b["guards"][0].pop("observation")
+    if new:
+        b = copy.deepcopy(f.discovery["roster"][1])
+        b["building"]["object_id"] = 789
+        b["guards"][0]["hireling"]["object_id"] = 779
+        discovery["roster"].append(b)
+    nearby["roster"]["buildings"] = [{"building": b["building"]}
+                                      for b in discovery["roster"]]
+    discovery.update(state="partial", guards=int(new))
+    for folder, value in (("guard-discovery", nearby), ("guard-navigation", discovery)):
+        _write(f.store.root / folder / (AREA + ".json"), value)
+
+
+def test_travel_finishes_active_transaction_before_safe_to_move(setup):
+    f = setup
+    f.begin()
+
+    def runner(*args, **kwargs):
+        f.jobs.request(JOB, "travel")
+        assert not kwargs["cancelled"]()
+        assert f.jobs.read(JOB)["state"] == "running"
+        result = f.result(*args, **kwargs)
+        result.update(state="started", spent=100, deposited=80, quoted_cost=100)
+        _write(f.store.root / "guard-funding-cycles" / (result["operation_id"] + ".json"), result)
+    record = f.run(cycle_runner=runner)
+    assert record["state"] == "travel" and record["active_cycle"] is None
+    assert record["spent"] == 100 and record["guards"][0]["minimum_rank"] == 2
+    assert len(f.calls) == 1
+
+
+def test_continue_merges_new_guards_preserves_progress_and_prioritizes_new(setup):
+    f = setup
+    record = f.begin()
+    record["guards"][0].update(state="waiting", minimum_rank=2, observed_rank=1,
+                               next_check_at=900, upgrades_started=1)
+    record.update(spent=100, deposited=80, upgrades_started=1)
+    f.jobs.save(record)
+    f.jobs.request(JOB, "travel")
+    before = f.jobs.read(JOB)["guards"]
+    travel_scan(f)
+    merged = f.jobs.continue_here(f.binding, JOB, AREA, CONTEXT)
+    assert merged["guards"][:2] == before
+    assert merged["area_indices"] == [0, 2]  # Out-of-area guard 778 remains remembered.
+    assert merged["spent"] == 100 and merged["upgrades_started"] == 1
+    result = f.run()
+    assert [c["target"]["guard"] for c in f.calls] == [779, 777]
+    assert f.calls[1]["minimum_rank"] == 2
+    assert result["state"] == "travel" and result["spent"] == 100
+    assert len(result["guards"]) == 3
+
+
+def test_return_to_known_area_preserves_timer_without_any_guard_cycle(setup):
+    f = setup
+    record = f.begin()
+    record["guards"][0].update(state="waiting", next_check_at=2000)
+    f.jobs.save(record)
+    f.jobs.request(JOB, "travel")
+    travel_scan(f, new=False)
+    f.jobs.continue_here(f.binding, JOB, AREA, CONTEXT)
+    result = f.run(cancelled=lambda: f.clock[0] >= 1002)
+    assert not f.calls
+    assert result["guards"][0]["next_check_at"] == 2000
+    assert len(result["guards"]) == 2
+
+
+@pytest.mark.parametrize("change", ["scene", "duplicate", "foreign_remembered", "running"])
+def test_continue_rejects_invalid_area_without_changing_progress(setup, change):
+    f = setup
+    f.begin()
+    f.jobs.request(JOB, "travel")
+    travel_scan(f)
+    context = CONTEXT
+    if change == "scene":
+        context = replace(CONTEXT, scene=2)
+    elif change == "running":
+        f.jobs.request(JOB, "run")
+    else:
+        path = f.store.root / "guard-navigation" / (AREA + ".json")
+        import json
+        value = json.loads(path.read_text())
+        if change == "foreign_remembered":
+            value["roster"][0]["guards"][0]["hireling"]["object_id"] = 999
+            value["roster"][0]["roster"]["hirelings"][0]["hireling"]["object_id"] = 999
+        else:
+            value["roster"][0] = f.discovery["roster"][0]
+            value["guards"] += 1
+        _write(path, value)
+    before = f.jobs.read(JOB)
+    with pytest.raises(GuardFundingCycleStopped):
+        f.jobs.continue_here(f.binding, JOB, AREA, context)
+    assert f.jobs.read(JOB) == before
+    assert not f.calls
+
+
+def test_travel_never_clears_an_interrupted_cycle(setup):
+    f = setup
+    record = f.begin()
+    record["active_cycle"] = {"operation_id": DISCOVERY, "index": 0}
+    f.jobs.save(record)
+    f.jobs.request(JOB, "travel")
+    assert f.jobs.read(JOB)["state"] == "review"
+    assert f.jobs.read(JOB)["active_cycle"] == record["active_cycle"]

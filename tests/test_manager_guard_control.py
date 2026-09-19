@@ -195,11 +195,13 @@ def test_strict_guard_command_schema_rejects_untyped_targets(setup, command):
 
 
 @pytest.mark.parametrize(
-    "action", ["guard-discover", "guard-start", "guard-pause", "guard-resume", "guard-stop"]
+    "action", ["guard-discover", "guard-start", "guard-pause", "guard-resume", "guard-stop",
+               "guard-travel", "guard-continue"]
 )
 def test_dashboard_guard_actions_require_exact_instance_and_job(action):
     payload = dict(action=action, client_id="client", instance_id="instance")
-    if action in {"guard-start", "guard-pause", "guard-resume", "guard-stop"}:
+    if action in {"guard-start", "guard-pause", "guard-resume", "guard-stop",
+                  "guard-travel", "guard-continue"}:
         payload["job_id"] = JOB
     assert _validate_action_payload(payload) == (
         action,
@@ -263,3 +265,48 @@ def test_previous_warehouse_worker_cannot_admit_carried_only_job(setup):
     with pytest.raises(GuardFundingCycleStopped, match="Restart this worker"):
         f.control.execute("guard-discover", "client", "instance")
     f.operations.submit.assert_not_called()
+
+
+def test_travel_and_continue_require_acknowledged_boundary(setup):
+    f = setup
+    f.begin()
+    with pytest.raises(GuardFundingCycleStopped, match="safe to move"):
+        f.control.execute("guard-continue", "client", "instance", job_id=JOB)
+    f.control.execute("guard-travel", "client", "instance", job_id=JOB)
+    assert f.jobs.current()["state"] == "travel"
+    with pytest.raises(GuardFundingCycleStopped):
+        f.control.execute("guard-resume", "client", "instance", job_id=JOB)
+    f.control.execute("guard-continue", "client", "instance", job_id=JOB)
+    operation = f.operations.submit.call_args.args[0]
+    assert operation.command == "guard continue " + JOB
+    assert loads_worker_operation(json.dumps(operation.to_dict())) == operation
+
+
+def test_continue_worker_scans_then_runs_same_job(setup):
+    from tests.test_guard_job import AREA, travel_scan
+    f = setup
+    f.begin()
+    f.jobs.request(JOB, "travel")
+
+    def discover(*args, **kwargs):
+        assert f.jobs.current()["state"] == "scanning"
+        assert kwargs["remembered"] == {(123, 777), (456, 778)}
+        travel_scan(f)
+    f.executor.discover = discover
+    result = f.executor.execute(f.operation("guard continue " + JOB, AREA), stop_signal=f.stop)
+    assert result.state is WorkerOperationState.CANCELLED
+    assert f.jobs.current()["job_id"] == JOB
+    assert len(f.jobs.current()["guards"]) == 3
+    assert {c["target"]["guard"] for c in f.calls} == {777, 779}
+
+
+def test_failed_area_scan_with_idle_journal_can_travel_without_losing_progress(setup):
+    from tests.test_guard_job import AREA
+    f = setup
+    f.begin()
+    f.jobs.request(JOB, "travel")
+    f.executor.discover = Mock(side_effect=RuntimeError("scan stopped"))
+    with pytest.raises(RuntimeError, match="scan stopped"):
+        f.executor.execute(f.operation("guard continue " + JOB, AREA), stop_signal=f.stop)
+    assert f.jobs.current()["state"] == "travel"
+    assert len(f.jobs.current()["guards"]) == 2 and not f.calls

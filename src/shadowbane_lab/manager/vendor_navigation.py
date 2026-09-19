@@ -63,6 +63,7 @@ def run_building_discovery(
 
 def _run_building_discovery(
     store, binding, operation, session, nearby, *, cancelled, reader, clock, sleep, guard,
+    remembered=(),
 ):
     noun = "guard" if guard else "vendor"
     plural = noun + "s"
@@ -314,6 +315,12 @@ def _run_building_discovery(
                         seen_guards.add(vendor_id)
                     row = dict(vendor, window_verified=False)
                     result[plural].append(row)
+                    if guard and (building_id, vendor_id) in remembered:
+                        # Presence comes from this fresh owned roster. Original window
+                        # evidence and rank timers remain in the persistent job.
+                        row.update(state="remembered")
+                        save()
+                        continue
                     try:
                         state = navigate(building_id, vendor_id)
                     except _NotSubmitted as exc:

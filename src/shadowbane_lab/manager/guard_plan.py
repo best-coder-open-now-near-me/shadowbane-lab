@@ -30,7 +30,7 @@ class GuardUpgradePlan:
     verified_buildings: int
 
 
-def build_guard_upgrade_plan(store, binding, discovery_id, context: Snapshot):
+def build_guard_upgrade_plan(store, binding, discovery_id, context: Snapshot, *, allow_empty=False):
     """Use discovered keys, never names or a caller-authored target list.
 
     The worker captures the scene context through its exact native session.
@@ -118,7 +118,7 @@ def build_guard_upgrade_plan(store, binding, discovery_id, context: Snapshot):
             ))
             ranks.append(rank)
             seen.add(key["object_id"])
-    if not targets or discovery.get("guards") != len(targets):
+    if (not targets and not allow_empty) or discovery.get("guards") != len(targets):
         raise GuardFundingCycleStopped("No complete matching guard selection is available.")
     return GuardUpgradePlan(
         discovery_id, *(hashlib.sha256(data).hexdigest() for data in raw),

@@ -39,7 +39,8 @@ class GuardJobStore:
         record = _read(self.path(job_id))
         if (record.get("schema_version") not in {1, 2} or record.get("job_id") != job_id
                 or record.get("identity") != list(self.store.identity)
-                or record.get("state") not in {"ready", "running", "waiting", "paused", *TERMINAL}):
+                or record.get("state") not in {
+                    "ready", "running", "waiting", "paused", "travel", "scanning", *TERMINAL}):
             raise GuardFundingCycleStopped("The guard job record is invalid.")
         return record
 
@@ -52,20 +53,23 @@ class GuardJobStore:
 
     def control(self, job_id):
         value = _read(self.root / (operation_id(job_id) + ".control.json"))
-        if set(value) != {"mode"} or value["mode"] not in {"run", "pause", "stop"}:
+        if set(value) != {"mode"} or value["mode"] not in {"run", "pause", "travel", "stop"}:
             raise GuardFundingCycleStopped("The guard job control is invalid.")
         return value["mode"]
 
     def request(self, job_id, mode):
-        if mode not in {"run", "pause", "stop"}:
+        if mode not in {"run", "pause", "travel", "stop"}:
             raise ValueError("invalid guard job mode")
         with exclusive_record_lock(self.root / "control.lock"):
             current = self.current()
-            if (not current or current["job_id"] != job_id or current["state"] in TERMINAL
+            if (not current or current["job_id"] != job_id or (current["state"] in TERMINAL
+                        and not (mode == "travel" and current["state"] == "unavailable"))
                     or self.control(job_id) == "stop"):
                 raise GuardFundingCycleStopped("The guard job changed or needs review.")
+            if current["state"] == "scanning" and mode != "stop":
+                raise GuardFundingCycleStopped("Wait for the current area scan to finish.")
             _write(self.root / (job_id + ".control.json"), {"mode": mode})
-            if mode == "stop":
+            if mode in {"stop", "travel"}:
                 try:
                     with exclusive_record_lock(self.root / "runner.lock", timeout_seconds=0.1):
                         current = self.read(job_id)
@@ -77,7 +81,11 @@ class GuardJobStore:
                         except RuntimeError as exc:
                             current.update(state="review", detail=str(exc))
                         else:
-                            current.update(state="stopped", detail="Guard upgrades stopped.")
+                            current.update(
+                                state="stopped" if mode == "stop" else "travel",
+                                detail="Guard upgrades stopped." if mode == "stop" else
+                                "Safe to move. Click Continue here when you arrive.",
+                            )
                         self.save(current)
                 except TimeoutError:
                     pass  # The live runner will observe the durable Stop control.
@@ -113,29 +121,92 @@ class GuardJobStore:
             _write(self.root / "current.json", {"job_id": job_id})
             return record
 
+    def remembered(self, binding, job_id, context):
+        record = self.read(job_id)
+        targets = _validate_plan(self, binding, record)
+        if any((t.scene, t.root) != (context.scene, context.root) for t in targets):
+            raise GuardFundingCycleStopped("Travel cannot cross a game scene or character change.")
+        return {(t.building, t.guard) for t in targets}
+
+    def continue_here(self, binding, job_id, discovery_id, context):
+        """Atomically extend one job; never reset accounting or a guard's rank floor."""
+        with exclusive_record_lock(self.root / "control.lock"), exclusive_record_lock(
+            self.root / "runner.lock", timeout_seconds=0.1,
+        ):
+            record = self.read(job_id)
+            if (not self.current() or self.current()["job_id"] != job_id
+                    or record["state"] not in {"travel", "scanning"}
+                    or self.control(job_id) != "travel"
+                    or record["active_cycle"]):
+                raise GuardFundingCycleStopped("Wait until Travel says it is safe to move.")
+            GuardSpendingJournal(self.store.root).assert_idle()
+            known = self.remembered(binding, job_id, context)
+            plan = build_guard_upgrade_plan(
+                self.store, binding, discovery_id, context, allow_empty=True,
+            )
+            added = {(t.building, t.guard) for t in plan.targets}
+            if known & added:
+                raise GuardFundingCycleStopped("The new area duplicates existing guard evidence.")
+            navigation = _read(self.store.root / "guard-navigation" / (discovery_id + ".json"))
+            visible = set()
+            for building in navigation["roster"]:
+                if building["state"] not in {"verified", "partial"}:
+                    continue
+                for guard in building["guards"]:
+                    key = (building["building"]["object_id"], guard["hireling"]["object_id"])
+                    if guard.get("state") == "remembered":
+                        if key not in known or guard.get("window_verified") is not False:
+                            raise GuardFundingCycleStopped("Remembered guard provenance changed.")
+                        visible.add(key)
+                    elif guard.get("window_verified") is True:
+                        visible.add(key)
+            record.setdefault("area_plans", []).append(asdict(plan))
+            record["guards"].extend(
+                dict(state="ready", minimum_rank=rank, observed_rank=rank, next_check_at=0,
+                     last_cycle=None, upgrades_started=0) for rank in plan.initial_ranks
+            )
+            targets = _validate_plan(self, binding, json.loads(json.dumps(record)))
+            record["area_indices"] = [i for i, t in enumerate(targets)
+                                      if (t.building, t.guard) in visible]
+            record.update(state="ready",
+                          detail="Continuing here; previous guard progress retained.")
+            self.save(record)
+            _write(self.root / (job_id + ".control.json"), {"mode": "run"})
+            return record
+
 
 def _validate_plan(jobs, binding, record):
     if record.get("schema_version") != 2 or record.get("funding_source") != "carried":
         raise GuardFundingCycleStopped(
             "The previous warehouse-funded job needs review; no replay sent.")
-    plan = record["plan"]
-    current = build_guard_upgrade_plan(
-        jobs.store, binding, plan["discovery_operation_id"],
-        Snapshot.decode(bytes.fromhex(plan["context_snapshot"])),
-    )
-    # JSON normalizes immutable tuples to arrays; retain all discovery digests.
-    if (json.loads(json.dumps(asdict(current))) != plan
-            or record["window"] != binding.game_window_handle
-            or len(record["guards"]) != len(current.targets)):
+    plans = [record["plan"], *record.get("area_plans", [])]
+    targets, ranks = [], []
+    for plan in plans:
+        current = build_guard_upgrade_plan(
+            jobs.store, binding, plan["discovery_operation_id"],
+            Snapshot.decode(bytes.fromhex(plan["context_snapshot"])), allow_empty=True,
+        )
+        if json.loads(json.dumps(asdict(current))) != plan:
+            raise GuardFundingCycleStopped("The guard plan or game window changed.")
+        targets.extend(current.targets)
+        ranks.extend(current.initial_ranks)
+    if (record["window"] != binding.game_window_handle
+            or len(record["guards"]) != len(targets)
+            or len({t.guard for t in targets}) != len(targets)
+            or len({(t.scene, t.root) for t in targets}) != 1):
         raise GuardFundingCycleStopped("The guard plan or game window changed.")
-    for guard, initial in zip(record["guards"], current.initial_ranks, strict=True):
+    active = record.get("area_indices", list(range(len(targets))))
+    if (not isinstance(active, list) or len(set(active)) != len(active)
+            or any(type(i) is not int or not 0 <= i < len(targets) for i in active)):
+        raise GuardFundingCycleStopped("The active guard area is invalid.")
+    for guard, initial in zip(record["guards"], ranks, strict=True):
         if (guard["state"] not in {"ready", "waiting", "insufficient", "unavailable"}
                 or type(guard["minimum_rank"]) is not int
                 or not initial <= guard["minimum_rank"] < 2**32 - 1
                 or type(guard["next_check_at"]) not in (float, int)
                 or not math.isfinite(guard["next_check_at"])):
             raise GuardFundingCycleStopped("The guard progress record is invalid.")
-    return current.targets
+    return tuple(targets)
 
 
 def _apply_cycle(jobs, record, target, now):
@@ -208,9 +279,12 @@ def run_guard_upgrade_job(
                     record.update(state="stopped", detail="Guard upgrades stopped.")
                     jobs.save(record)
                     return record
-                if mode == "pause":
-                    record.update(state="paused",
-                                  detail="Guard upgrades paused between transactions.")
+                if mode in {"pause", "travel"}:
+                    record.update(
+                        state="paused" if mode == "pause" else "travel",
+                        detail="Guard upgrades paused between transactions." if mode == "pause"
+                        else "Safe to move. Click Continue here when you arrive.",
+                    )
                     jobs.save(record)
                     return record
                 journal.assert_idle()
@@ -219,8 +293,15 @@ def run_guard_upgrade_job(
                                   detail="Carried gold is insufficient. Refill before restarting.")
                     jobs.save(record)
                     return record
-                remaining = [i for i, g in enumerate(record["guards"])
-                             if g["state"] in {"ready", "waiting"}]
+                area = record.get("area_indices", list(range(len(targets))))
+                remaining = [i for i in area
+                             if record["guards"][i]["state"] in {"ready", "waiting"}]
+                if not remaining and "area_indices" in record:
+                    _write(jobs.root / (job_id + ".control.json"), {"mode": "travel"})
+                    record.update(state="travel", detail=
+                                  "No pending guards in this area. Move, then click Continue here.")
+                    jobs.save(record)
+                    return record
                 if not remaining:
                     insufficient = any(g["state"] == "insufficient" for g in record["guards"])
                     record.update(
@@ -239,7 +320,10 @@ def run_guard_upgrade_job(
                     next_check = min(record["guards"][i]["next_check_at"] for i in remaining)
                     sleep(min(1.0, next_check - now))
                     continue
-                index = min(due, key=lambda i: (i - record["cursor"]) % len(targets))
+                index = min(due, key=lambda i: (
+                    record["guards"][i]["upgrades_started"] > 0,
+                    (i - record["cursor"]) % len(targets),
+                ))
                 cycle_id = "operation-" + uuid.uuid4().hex
                 record.update(state="running", detail="Checking and funding the next guard.",
                               active_cycle={"operation_id": cycle_id, "index": index})

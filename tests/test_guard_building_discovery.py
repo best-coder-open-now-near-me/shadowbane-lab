@@ -378,3 +378,18 @@ def test_zero_slot_structure_does_not_end_scan_or_claim_verified_coverage(setup,
         assert result["roster"][0]["state"] == "unavailable"
         assert not result["candidate_buildings_verified"]
         assert [(b, g) for b, g, _ in setup.session.calls] == [(123, 0), (456, 0), (456, 4560)]
+
+
+def test_remembered_guards_require_fresh_roster_but_no_personal_menu(setup):
+    f = setup
+    result = f.run(remembered={(123, 1230)})
+    assert [(b, g) for b, g, _ in f.session.calls] == [(123, 0), (456, 0), (456, 4560)]
+    assert result["guards"] == 1
+    remembered = result["roster"][0]["guards"][0]
+    assert remembered["state"] == "remembered" and not remembered["window_verified"]
+    assert "observation" not in remembered
+
+
+def test_remembered_guard_in_different_building_does_not_skip_verification(setup):
+    result = setup.run(remembered={(456, 1230)})
+    assert result["guards"] == 2 and len(setup.session.calls) == 4

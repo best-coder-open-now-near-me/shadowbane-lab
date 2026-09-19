@@ -586,6 +586,7 @@ class ManagerDashboardApplication:
         if job_id is not None and action not in {
             "vendor-pause", "vendor-resume", "vendor-stop",
             "guard-start", "guard-pause", "guard-resume", "guard-stop",
+            "guard-travel", "guard-continue",
         }:
             raise DashboardError("invalid-action-fields", "This action does not accept a batch.")
         if action == "start-all":
@@ -644,7 +645,8 @@ class ManagerDashboardApplication:
             self._ensure_worker_for_slot(client_id)
             return
         self._require_exact_binding(client_id, instance_id)
-        if action in {"guard-discover", "guard-start", "guard-pause", "guard-resume", "guard-stop"}:
+        if action in {"guard-discover", "guard-start", "guard-pause", "guard-resume", "guard-stop",
+                      "guard-travel", "guard-continue"}:
             if self._guard_control is None:
                 raise DashboardError("guard-unavailable", "Guard jobs are not configured.")
             self._guard_control.execute(action, client_id, instance_id, job_id=job_id)
