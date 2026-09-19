@@ -108,3 +108,27 @@ restart its manager, and verify the complete installed inventory. Leave the game
 for the user to launch through the existing Vendor Test shortcut. Login and
 carried-gold guard qualification remain pending. Historical uncertain requests
 remain untouched. Main is clean and unchanged; integration is still pending.
+
+## Installed; login confirmation pending
+
+After the user confirmed Shadowbane was closed, the old manager had zero bound
+clients and no active operation. The exact idle process was stopped. Installation
+completed successfully and verified both updated clients, all six test inventory
+changes, and all five official game files. Fifteen rollback files plus the
+dashboard shortcut are preserved. All 2,232 retained records/settings remained
+unchanged after manager restart.
+
+The same WonderBane Vendor Test desktop shortcut now launches prepared 1.3.38.9
+with native 1.8.21. Its launch guard pins the updated official source. The existing
+dashboard shortcut now uses host 0.3.31. The restarted manager is healthy, with
+no bound game or active operation at verification. The game was left closed for
+the user to launch. No historical guard request was replayed and no gold moved.
+
+Guest activation receipt:
+C:/ShadowbaneLab-Guided/vendor-1.8.3-bd08ffc/upgrades/1.8.21-7d38916/activation.json.
+
+Next active todo: confirm user login succeeds, verify the new live process and
+loaded extension, then continue carried-gold guard qualification. Installation is
+complete; login and guard behavior on this client are not yet live-qualified.
+Source remains on codex/guard-upgrades, outside the documented integration lane
+and main; the normal main checkout is clean.
