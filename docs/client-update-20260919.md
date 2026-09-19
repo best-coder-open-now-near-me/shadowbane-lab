@@ -156,3 +156,35 @@ and leaving the job running with 152 guards not yet visited in this pass.
 Twenty completions reopened the page; two retained a rebuilt building HUD and
 selected entry. No unresolved request was recorded. Private qualification evidence
 is guard-qualification/carried-live-0.3.31-8752.json in the test runtime.
+
+## First pass completed; later navigation recheck stopped
+
+The run started exactly one confirmed upgrade for each of its 174 guards.
+All 174 per-guard upgrade counters equal one. Confirmed spending/deposits total
+24,868,800 gold: 141 upgrades at 122,100, 30 at 222,750, and three at 323,400.
+The last verified purse is 36,762,592; there were no warehouse withdrawals.
+163 completions used the reopen path; 11 retained rebuilt building HUD/selected
+entry ownership. The previous owned-response fix remained successful.
+
+The job subsequently entered review during a non-spending building-open recheck.
+The stopped cycle has no deposit or upgrade action, and zero spent/deposited.
+The transport reported FAILED/error 13,
+invalid_or_expired_vendor_navigation_lease, before publishing a typed native
+navigation receipt. Its immutable navigation intent has neither submission nor
+completion and remains active; do not infer safety from its unresolved flag
+being false. No retry, journal clearing, or replacement job was issued.
+
+Read-only shared-ring inspection retained the correlated command and failure:
+command and result sequences both 8924, kind BUILDING, command ID 2; created and
+observed ticks both 140182500, deadline 140183250. The command was not beyond
+its deadline. The generic error also covers validation/lease rejection; these
+records alone do not identify which predicate failed. Native lease checks use a
+clock sample captured before shared heartbeat reads, a concurrency case to
+investigate without weakening lifetime checks or repeating the rejected action.
+
+The game/worker remain healthy but this job is stopped for review. First-pass
+upgrade starts are complete for the discovered set; rank completion, maximum
+rank, and full-town coverage remain unverified. Private evidence is retained in
+guard-qualification/carried-stop-0.3.31-8752.json and its -transport.json
+companion. Next: reproduce and correct navigation admission, retain the old
+request without replay, then safely continue rank checks and outer-town coverage.
