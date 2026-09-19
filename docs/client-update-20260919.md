@@ -75,3 +75,36 @@ Delivery branch: `codex/guard-upgrades`; integration destination:
 `main`. This is not merged. Active todo: finish exact-source packaging and
 rollback preparation, apply after confirmed game closure, then verify user login.
 Carried-gold guard qualification follows; no Ulmer dependency is reintroduced.
+
+## Exact package and guest preparation complete
+
+Source `7d38916ef1c13554e9ed33aae7dbf44351be1117` is pushed.
+Package `artifacts/guard-packages/b3d1554b` passed 2,759 host tests (19 skipped),
+Ruff, required gates for both native profiles, actual new-client bindings,
+real IPC and installed package checks. Six additional installed guard/funding
+wire checks passed. All 61 artifacts and the archive CRC were verified.
+The two previously deferred graphics transparency diagnostics remain failing
+in both profiles; this package does not claim graphics acceptance.
+
+- Full DLL: `0e30233495a31d6d8ba20cf8a931b1e22fb78fb4020ab32cc77327c66312db31`.
+- Host wheel: `d7f543f6934d798518b5e80020360ab5f276b45550bb1137d94b55d71e2f348b`.
+- Archive: `d264b61ee4426bc225392a6c2602fa5bee5ba538a0260e4483c31f0658bc4f7c`.
+
+The VM has host 0.3.31 installed into its separate versioned directory. The
+running manager and game still use the existing versions. The complete updater
+dry run passed against the actual clients and verified host-side rollback copies.
+It plans six test-client inventory changes (EXE, DLL and four assets) and five
+official-client changes, preserving 2,232 historical records/settings.
+No client file has been replaced and no guard command has been issued.
+
+Private payload and rollback storage:
+E:/virtual-machines/shadowbane-testing/diagnostics/client-update-20260919.
+Guest validation receipt:
+C:/ShadowbaneLab-Guided/vendor-1.8.3-bd08ffc/upgrades/1.8.21-7d38916/validation.json.
+
+Next active todo: user closes Shadowbane, then verify idle processes, apply the
+prepared rollback-backed update, retarget the existing dashboard to host 0.3.31,
+restart its manager, and verify the complete installed inventory. Leave the game
+for the user to launch through the existing Vendor Test shortcut. Login and
+carried-gold guard qualification remain pending. Historical uncertain requests
+remain untouched. Main is clean and unchanged; integration is still pending.

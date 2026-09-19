@@ -443,6 +443,7 @@ visual/door features prerequisites. Identity changes through 8552552 are integra
 
 The guard lane now reviews official client 1.3.38.9 with native 1.8.21 / host
 0.3.31. [Exact client review and deployment todo](client-update-20260919.md).
-Source compatibility checks pass; packaging and installation remain pending.
+Source 7d38916 is pushed; exact package and guest dry-run validation pass.
+Installation awaits confirmed game closure; login remains unverified.
 Keep the current carried-gold guard journals, including unresolved requests.
 This work remains outside the shared integration branch and main.
