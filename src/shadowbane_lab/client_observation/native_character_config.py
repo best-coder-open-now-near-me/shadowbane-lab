@@ -49,10 +49,12 @@ REVIEWED_CHARACTER_CONFIG_LAYOUTS = (
     ),
 )
 
-# Exact load/save, selected-player and string routines are unchanged in 1.3.38.7.
+# Exact load/save, selected-player and string routines are unchanged in 1.3.38.7 and 1.3.38.9.
 REVIEWED_CHARACTER_CONFIG_LAYOUTS += (
     replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
             executable_sha256="b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3"),
+    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
+            executable_sha256="e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891"),
 )
 
 

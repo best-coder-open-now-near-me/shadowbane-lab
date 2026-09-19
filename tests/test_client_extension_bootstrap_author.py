@@ -221,3 +221,15 @@ def test_september15_update_uses_exact_reviewed_bootstrap_layout():
     assert profile.profile_id == "wonderbane-1.3.38.7-ac9ca464"
     assert replace(profile, profile_id=previous.profile_id,
                    source_sha256=previous.source_sha256) == previous
+
+
+def test_september19_update_uses_exact_reviewed_bootstrap_layout():
+    profile = resolve_reviewed_bootstrap_profile(
+        "a32275aabab8d5955f4d45adde6e84a666f44be54c951ccf8dc2d538237e8be4"
+    )
+    previous = resolve_reviewed_bootstrap_profile(
+        "ac9ca46467997667d49b85cd6076954813a72b56f71e2ad85a4085f3a9f391ca"
+    )
+    assert profile.profile_id == "wonderbane-1.3.38.9-a32275aa"
+    assert replace(profile, profile_id=previous.profile_id,
+                   source_sha256=previous.source_sha256) == previous

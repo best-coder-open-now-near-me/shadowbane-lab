@@ -21,7 +21,9 @@ int wmain(int argc, wchar_t** argv) {
         || IsReviewedSceneCall(kSceneUiReturnRva, 0U, kSceneUiReturnRva)) {
         return 1;
     }
-    if (!IsReviewedSceneExecutable("ac9ca46467997667d49b85cd6076954813a72b56f71e2ad85a4085f3a9f391ca")
+    if (!IsReviewedSceneExecutable("a32275aabab8d5955f4d45adde6e84a666f44be54c951ccf8dc2d538237e8be4")
+        || !IsReviewedSceneExecutable("e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891")
+        || !IsReviewedSceneExecutable("ac9ca46467997667d49b85cd6076954813a72b56f71e2ad85a4085f3a9f391ca")
         || !IsReviewedSceneExecutable("b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3")
         || !IsReviewedSceneExecutable("feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff")
         || !IsReviewedSceneExecutable("bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87")) { return 4; }

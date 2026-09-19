@@ -372,6 +372,7 @@ def test_pve_ambiguous_or_unavailable_identity_never_opens_input_backend():
 @pytest.mark.parametrize("digest", [
     "bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87",
     "b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3",
+    "e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891",
 ])
 def test_current_prepared_image_uses_reviewed_identity_layout(tmp_path, digest):
     memory = CharacterMemory(tmp_path)

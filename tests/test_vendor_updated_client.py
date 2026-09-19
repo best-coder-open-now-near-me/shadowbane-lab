@@ -47,7 +47,8 @@ def test_reviewed_vendor_readers_and_discovery_preserve_identity(digest):
 
 @pytest.mark.parametrize("digest", ["ff" * 32,
     "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc",
-    "ac9ca46467997667d49b85cd6076954813a72b56f71e2ad85a4085f3a9f391ca"])
+    "ac9ca46467997667d49b85cd6076954813a72b56f71e2ad85a4085f3a9f391ca",
+    "a32275aabab8d5955f4d45adde6e84a666f44be54c951ccf8dc2d538237e8be4"])
 def test_unknown_generic_family_and_unprepared_builds_cannot_admit_vendor_reads(digest):
     for factory, reader in ((fixture, read_native_vendor_queue),
                             (roster_fixture, read_native_vendor_roster),

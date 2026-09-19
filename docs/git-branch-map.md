@@ -438,3 +438,11 @@ The active delivery plan is [PvE/PvP attack-list integration](pve-pvp-attack-lis
 Blacklist means the attack list, populated manually or through attributed responses.
 The plan retains applicable review follow-ups without making broad cleanup or unfinished
 visual/door features prerequisites. Identity changes through 8552552 are integrated; attack-list storage and chat editing are integrated. Durable player identity and command completion are active; response attribution and combat transitions remain pending.
+
+## Official client refresh — September 19
+
+The guard lane now reviews official client 1.3.38.9 with native 1.8.21 / host
+0.3.31. [Exact client review and deployment todo](client-update-20260919.md).
+Source compatibility checks pass; packaging and installation remain pending.
+Keep the current carried-gold guard journals, including unresolved requests.
+This work remains outside the shared integration branch and main.
