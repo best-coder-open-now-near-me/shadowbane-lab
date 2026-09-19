@@ -445,6 +445,10 @@ The guard lane now reviews official client 1.3.38.9 with native 1.8.21 / host
 0.3.31. [Exact client review and deployment todo](client-update-20260919.md).
 Source 7d38916 is pushed; exact package and guest dry-run validation pass.
 The update is installed in both clients; manager restart and preservation of
-2,232 records/settings are verified. User login remains unverified.
+2,232 records/settings are verified. Poley login and the loaded extension are
+verified. Fresh discovery prepared 174 guards; the new carried-gold job has
+22 confirmed upgrades and remains active. Two retained-page completions
+live-qualify rebuilt building HUD/selected-entry ownership. Outer coverage,
+rank/gold stopping, and maximum-rank completion remain open.
 Keep the current carried-gold guard journals, including unresolved requests.
 This work remains outside the shared integration branch and main.

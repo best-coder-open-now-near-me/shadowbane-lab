@@ -132,3 +132,27 @@ loaded extension, then continue carried-gold guard qualification. Installation i
 complete; login and guard behavior on this client are not yet live-qualified.
 Source remains on codex/guard-upgrades, outside the documented integration lane
 and main; the normal main checkout is clean.
+
+## Login and first carried-gold upgrades verified
+
+The user logged Poley into City of Temple through the same Vendor Test shortcut.
+The exact prepared 1.3.38.9 identity and loaded native 1.8.21 were verified; the
+worker is healthy. Fresh discovery verified 174 guards across the reachable
+loaded buildings (31 inspected rosters from 60 candidates). This is not a full
+town census. A new carried-gold job started from that exact discovery.
+
+The first six upgrades were confirmed with exact debits totaling 1,638,450 gold.
+The initial verified purse was 61,631,392. Five completions used a reopened guard
+page; one retained the page while both the building HUD and selected roster entry
+were rebuilt. That last case live-qualifies the owned-response fix first shipped
+in 1.8.20. No unresolved request occurred in these six completions, no warehouse
+withdrawal was used, and historical stopped requests remain unchanged.
+
+The job remains active. Next: verify continued progress, rank/gold stopping and
+outer-town coverage; do not infer maximum rank or full-town completion.
+
+At the retained live checkpoint, 22 upgrades are confirmed, spending 5,202,450
+and leaving the job running with 152 guards not yet visited in this pass.
+Twenty completions reopened the page; two retained a rebuilt building HUD and
+selected entry. No unresolved request was recorded. Private qualification evidence
+is guard-qualification/carried-live-0.3.31-8752.json in the test runtime.

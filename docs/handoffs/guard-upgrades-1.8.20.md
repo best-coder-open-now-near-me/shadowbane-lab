@@ -60,3 +60,15 @@ Active todo: verify a fresh user-launched game and uninterrupted live upgrades.
 Retain the stopped requests without replay. Next: rank/gold stopping, outer
 coverage and integration review.
 Full-town and maximum-rank completion remain unverified.
+
+## Live qualification on client 1.3.38.9
+
+The 1.8.20 owned-response behavior is included in native 1.8.21 / host 0.3.31,
+source 7d38916. After the official client update and fresh Poley login, a new
+carried-gold job confirmed 22 upgrades with exact debits. Two completions kept
+the guard page while both the building HUD and selected entry were rebuilt;
+20 used the verified reopen path. No uncertain action occurred at this checkpoint.
+[Current client/run handoff](../client-update-20260919.md) records the deployment
+and active job. The original uncertain requests remain retained without replay.
+The new run continues; full-town coverage, rank/gold stopping and integration
+remain the next work.
