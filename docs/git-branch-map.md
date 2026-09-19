@@ -461,9 +461,11 @@ The active `codex/guard-upgrades` worktree now owns the
 [dashboard Travel / Continue here feature](handoffs/guard-travel.md).
 Area scans extend the same job and preserve rank floors, timers and confirmed
 spending; only new guards require discovery of their personal menus. This is
-packaged and staged as 1.8.22 / host 0.3.32 from `cd8c8a8`, not installed.
+installed and activation-verified as 1.8.22 / host 0.3.32 from `cd8c8a8`.
 A reproduced heartbeat race is corrected; the previous rejected request remains
-retained without replay. Next: apply after game closure and verify Travel in-world.
+retained without replay; all 5,578 saved record/settings files passed preservation
+checks. The existing desktop shortcut is unchanged. Next: user login, then verify
+Travel and Continue here in-world.
 Integration remains
 `codex/guard-upgrades` → `codex/vendor-rolling` →
 `codex/native-lifecycle-hardening` → reviewed `main`.

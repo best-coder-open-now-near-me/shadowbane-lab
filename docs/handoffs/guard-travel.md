@@ -1,6 +1,6 @@
 # Guard travel controls
 
-Source and verified VM staging on `codex/guard-upgrades`; not installed or live-qualified yet.
+Installed in the test VM from `codex/guard-upgrades`; live travel acceptance remains pending.
 Integration destination: `codex/vendor-rolling`, then
 `codex/native-lifecycle-hardening`, then reviewed `main`.
 
@@ -22,9 +22,8 @@ Validation: focused scheduler, discovery, dashboard, and worker tests cover safe
 transaction boundaries, area merging, new guard priority, retained rank timers,
 wrong-scene rejection, and guard-menu skipping from a fresh owned roster.
 
-Next: apply the staged update after game closure, then verify Travel and Continue
-here in-world. The prior failed request remains retained without replay.
-The installed client remains 1.8.21 / host 0.3.31; its prior failed request and all
+Next: verify Travel and Continue here after the user logs back into town.
+The installed client is 1.8.22 / host 0.3.32; the prior failed request and all
 174 confirmed first-pass upgrade records remain untouched.
 
 ## Navigation lease regression
@@ -66,3 +65,20 @@ no gold action was issued. Existing settings, receipts and journals remain retai
 The current stopped job still reports 174 upgrades and 24,868,800 confirmed gold
 spent. User closure has been requested because the extension is loaded by the game.
 Normal checkout remains on main; this lane awaits integration via vendor-rolling.
+
+## Activation verified
+
+The user closed the game. Its original process remained alive without a window;
+its exact executable, process lifetime and absent window were verified before
+ending that leftover process. The previous manager and worker had already exited.
+The staged update applied successfully with five rollback files. All 5,578 retained
+record/settings files matched their pre-update hashes, including old uncertain
+requests. No spending or navigation request was replayed.
+
+Installed native DLL, prepared executable, source identity and host 0.3.32 match
+the verified package. The manager restarted hidden and its authenticated dashboard
+serves Travel and Continue here. The existing WonderBane Vendor Test shortcut still
+points to the same updated launcher. The game was not automatically launched.
+The user has been asked to log Poley into town; loaded-module/worker checks and
+live travel acceptance remain next. This is installation verification, not a claim
+that guard maximum rank or full-town coverage has been achieved.
