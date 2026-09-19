@@ -1,6 +1,6 @@
 # Guard travel controls
 
-Source feature on `codex/guard-upgrades`; not installed or live-qualified yet.
+Source and verified VM staging on `codex/guard-upgrades`; not installed or live-qualified yet.
 Integration destination: `codex/vendor-rolling`, then
 `codex/native-lifecycle-hardening`, then reviewed `main`.
 
@@ -22,8 +22,8 @@ Validation: focused scheduler, discovery, dashboard, and worker tests cover safe
 transaction boundaries, area merging, new guard priority, retained rank timers,
 wrong-scene rejection, and guard-menu skipping from a fresh owned roster.
 
-Next: complete broader regression checks, resolve the existing navigation admission
-failure without replay, and prepare the coherent VM update and live acceptance.
+Next: apply the staged update after game closure, then verify Travel and Continue
+here in-world. The prior failed request remains retained without replay.
 The installed client remains 1.8.21 / host 0.3.31; its prior failed request and all
 174 confirmed first-pass upgrade records remain untouched.
 
@@ -41,3 +41,28 @@ Release versions for packaging: native 1.8.22 / host 0.3.32. Installation requir
 closing the game. The 174 prior upgrade receipts remain archived; the new lifetime
 requires fresh guard verification once. Subsequent Travel scans in that lifetime
 reuse remembered guards and do not restart the completed pass.
+
+## Verified package and VM staging
+
+Release source: `cd8c8a8d41a696817daf2ade6e676d264637d09e` (pushed), including
+travel checkpoint `f28eb21` and lease fix `68a9e23`. Host 0.3.32 / native 1.8.22.
+The exact committed package passes 2,775 Python tests (18 environment-dependent
+skips), Ruff, required native checks in both profiles, IPC/binding checks, installed
+entry points, and six additional installed guard wire-contract checks. The two
+pre-existing optional graphics transparency diagnostics still fail in each profile;
+they remain recorded diagnostic limitations, not claimed fixed by this update.
+
+Package archive SHA-256:
+`3195ad4496a3929718fa4f603f76f57c930376874afbb02c3a80d6c489f1036a`.
+Full DLL SHA-256:
+`740db74bc52451187d5aed383096467f944ae84bc8087936ba0b4d3df3e30f5f`.
+Wheel SHA-256:
+`92ac4ede7a872c8ff5e8216df8c486cfb70c8a172f721fc080f159891347e393`.
+
+VM staging and exact-baseline validation passed. Only the extension changes in the
+client inventory; the current official executable and assets remain unchanged.
+The manager host is staged separately. No running component has been replaced and
+no gold action was issued. Existing settings, receipts and journals remain retained.
+The current stopped job still reports 174 upgrades and 24,868,800 confirmed gold
+spent. User closure has been requested because the extension is loaded by the game.
+Normal checkout remains on main; this lane awaits integration via vendor-rolling.

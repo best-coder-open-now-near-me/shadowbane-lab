@@ -461,7 +461,9 @@ The active `codex/guard-upgrades` worktree now owns the
 [dashboard Travel / Continue here feature](handoffs/guard-travel.md).
 Area scans extend the same job and preserve rank floors, timers and confirmed
 spending; only new guards require discovery of their personal menus. This is
-source-tested, not installed. The existing live navigation rejection still needs
-resolution without replay before VM acceptance. Integration remains
+packaged and staged as 1.8.22 / host 0.3.32 from `cd8c8a8`, not installed.
+A reproduced heartbeat race is corrected; the previous rejected request remains
+retained without replay. Next: apply after game closure and verify Travel in-world.
+Integration remains
 `codex/guard-upgrades` → `codex/vendor-rolling` →
 `codex/native-lifecycle-hardening` → reviewed `main`.
