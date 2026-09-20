@@ -1,7 +1,7 @@
 # Guard travel controls
 
-Installed in the test VM from `codex/guard-upgrades`; safe Travel is live-verified.
-Continue here after moving remains pending.
+Installed in the test VM from `codex/guard-upgrades`; safe Travel and
+same-character Continue here after moving are live-verified.
 Integration destination: `codex/vendor-rolling`, then
 `codex/native-lifecycle-hardening`, then reviewed `main`.
 
@@ -13,9 +13,10 @@ the current scan remain remembered but are not scheduled. New guards have priori
 known guards retain rank floors, timers, upgrade counts, and confirmed gold totals.
 An area without remaining offers returns to Travel; it does not claim maximum rank.
 
-Each area retains immutable discovery digests and exact process/scene ownership.
-Worker restarts preserve this progress. This does not import progress into a new
-game lifetime: original scene pointers and native receipts must not be rebound.
+Each area retains immutable discovery digests and its original process/scene
+ownership. Fresh owned rosters admit future cycles under the current area scene;
+historical receipts are never rebound. Worker restarts preserve this progress.
+This does not import progress into a new game lifetime.
 The upgraded manager requires the matching travel-capable worker. Uncertain
 requests remain blocked; Travel cannot clear the existing live navigation failure.
 
@@ -23,9 +24,8 @@ Validation: focused scheduler, discovery, dashboard, and worker tests cover safe
 transaction boundaries, area merging, new guard priority, retained rank timers,
 wrong-scene rejection, and guard-menu skipping from a fresh owned roster.
 
-Next: the user moves to another area, then verify Continue here preserves the
-same job and remembered guards.
-The installed client is 1.8.22 / host 0.3.32; the prior failed request and all
+Next: cover additional areas and finish rank progression as available gold allows.
+The installed client is 1.8.22 / host 0.3.33; the prior failed request and all
 174 confirmed first-pass upgrade records remain untouched.
 
 ## Navigation lease regression
@@ -130,4 +130,31 @@ Validation: 2,798 Python tests passed (12 environment-dependent skips), followed
 by 93 guard job/worker tests after the final migration/recovery checks; Ruff and
 diff checks pass. The native 1.8.22 extension remains unchanged; no game restart
 is required for this host fix.
-Next: install the published host and verify live Continue here against the same job.
+The published host is now installed; live acceptance is recorded below.
+
+## Host 0.3.33 activation and Continue here accepted
+
+Host source 4f20a81cd963d203950bb3d8663bf922babc689f is pushed and installed.
+Wheel SHA-256:
+8971fdeb4d040438f6607b5c8eab540e8930c7f5c0de25615bb36afe47455f2d.
+All 417 installed package-file hashes match. The idle worker was stopped through
+its exact stop request; the manager was restarted without restarting the game.
+All 5,834 retained job files matched their pre-update hashes. The launcher,
+dashboard helper and host metadata have rollback copies. Native source remains
+cd8c8a8 / extension 1.8.22; client binaries and assets were unchanged.
+
+The new v4 worker continued the same 174-guard job from movement epoch 2 to 14.
+The fresh scan completed 60 building attempts (54 observed, six not submitted),
+verified 30 rosters and remembered 168 guards without opening personal menus.
+No new guard was found in this area. The six guards outside this scan retained
+their exact progress and are excluded from current scheduling.
+
+The original plan remains byte-equivalent as structured data, including its
+historical scene. Current-area cycles use the fresh scene. At acceptance,
+37 completed resumed cycles had confirmed navigation and correctly returned
+waiting for guards already upgrading, with zero additional gold spent. The job
+remains running and will check their ranks again. No old request was replayed.
+
+Remaining: additional-area coverage and eventual rank completion. Maximum rank
+and full-town coverage are still unverified. Adding newly found guards is covered
+by regression tests; this live area exercised remembered-guard continuation.

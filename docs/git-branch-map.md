@@ -478,6 +478,8 @@ Integration remains
 The active guard lane now contains host 0.3.33's same-character area continuation
 fix. Historical scenes stay immutable; only guards in fresh owned rosters gain
 the current area context. See [guard Travel](handoffs/guard-travel.md) for
-validation and pending host-only activation. Native 1.8.22 is unchanged.
+validation and accepted host-only activation. Host source 4f20a81 is installed;
+live Continue here retains 174 guards and schedules the 168 in fresh rosters.
+Native 1.8.22 is unchanged. Additional town coverage/rank completion remain.
 Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
 -> reviewed main. The ordinary main checkout is unchanged.
