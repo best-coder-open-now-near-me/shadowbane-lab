@@ -471,3 +471,13 @@ and Continue here to verify saved progress and new-area merging.
 Integration remains
 `codex/guard-upgrades` → `codex/vendor-rolling` →
 `codex/native-lifecycle-hardening` → reviewed `main`.
+
+
+### Guard Travel host continuation — September 19
+
+The active guard lane now contains host 0.3.33's same-character area continuation
+fix. Historical scenes stay immutable; only guards in fresh owned rosters gain
+the current area context. See [guard Travel](handoffs/guard-travel.md) for
+validation and pending host-only activation. Native 1.8.22 is unchanged.
+Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
+-> reviewed main. The ordinary main checkout is unchanged.

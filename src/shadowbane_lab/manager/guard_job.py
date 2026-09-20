@@ -5,7 +5,7 @@ import json
 import math
 import time
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from types import SimpleNamespace
 
 from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
@@ -16,6 +16,7 @@ from .guard_funding_cycle import (
     GuardFundingCycleStopped,
     run_guard_funding_cycle,
 )
+from .guard_owner import read_guard_owner, require_owner
 from .guard_plan import build_guard_upgrade_plan, operation_id
 from .vendor_job import _write
 
@@ -29,7 +30,8 @@ def _read(path):
 class GuardJobStore:
     """Separate guard ownership and controls under the existing exact client store."""
 
-    def __init__(self, store):
+    def __init__(self, store, *, owner_reader=read_guard_owner):
+        self.owner_reader = owner_reader
         self.store, self.root = store, store.root / "guard-jobs"
 
     def path(self, job_id):
@@ -90,7 +92,8 @@ class GuardJobStore:
                 except TimeoutError:
                     pass  # The live runner will observe the durable Stop control.
 
-    def begin(self, binding, operation, discovery_id, context, *, now=None, poll_seconds=300):
+    def begin(self, binding, operation, discovery_id, context, *, now=None, poll_seconds=300,
+              expected_owner=None):
         job_id = operation_id(operation.operation_id)
         if (type(poll_seconds) not in (int, float) or not math.isfinite(poll_seconds)
                 or not 60 <= poll_seconds <= 3600):
@@ -102,11 +105,15 @@ class GuardJobStore:
             }:
                 raise GuardFundingCycleStopped("Continue or review the existing guard job first.")
             GuardSpendingJournal(self.store.root).assert_idle()
+            owner = self.owner_reader(binding)
+            if expected_owner is not None:
+                require_owner(expected_owner, owner)
             plan = build_guard_upgrade_plan(self.store, binding, discovery_id, context)
+            require_owner(owner, self.owner_reader(binding))
             record = {
                 "schema_version": 2, "funding_source": "carried",
                 "identity": list(self.store.identity), "job_id": job_id,
-                "plan": asdict(plan), "window": binding.game_window_handle,
+                "plan": asdict(plan), "window": binding.game_window_handle, "owner": owner,
                 "state": "ready", "detail": "Ready to upgrade the verified guards.",
                 "created_at": time.time() if now is None else now,
                 "poll_seconds": poll_seconds, "active_cycle": None, "cursor": 0,
@@ -121,11 +128,52 @@ class GuardJobStore:
             _write(self.root / "current.json", {"job_id": job_id})
             return record
 
+    def pin_unspent_owner(self, binding, job_id, context):
+        """Migrate only idle legacy jobs without any spending or pending cycle."""
+        with exclusive_record_lock(self.root / "control.lock"), exclusive_record_lock(
+            self.root / "runner.lock", timeout_seconds=0.1,
+        ):
+            record = self.read(job_id)
+            if "owner" in record:
+                require_owner(record["owner"], self.owner_reader(binding))
+                return
+            targets = _validate_plan(self, binding, record)
+            original = Snapshot.decode(bytes.fromhex(record["plan"]["context_snapshot"]))
+            if (not self.current() or self.current()["job_id"] != job_id
+                    or record["state"] != "travel" or self.control(job_id) != "travel"
+                    or record["active_cycle"] or record.get("area_plans")
+                    or (context.root, context.manager) != (original.root, original.manager)
+                    or any(record[k] != 0
+                           for k in ("spent", "deposited", "withdrawn", "upgrades_started"))
+                    or any(g["upgrades_started"] != 0 for g in record["guards"])):
+                raise GuardFundingCycleStopped("Legacy guard ownership needs review.")
+            GuardSpendingJournal(self.store.root).assert_idle()
+            for guard, target in zip(record["guards"], targets, strict=True):
+                if not guard["last_cycle"]:
+                    continue
+                cycle = _read(self.store.root / "guard-funding-cycles" /
+                              (operation_id(guard["last_cycle"]) + ".json"))
+                if (cycle.get("identity") != record["identity"]
+                        or cycle.get("target") != asdict(target)
+                        or cycle.get("window") != record["window"]
+                        or cycle.get("state") not in {"waiting", "unavailable"}
+                        or any(cycle.get(k) != 0 for k in ("spent", "deposited", "withdrawn"))
+                        or any(a.get("state") != "confirmed"
+                               or a.get("operation") not in {"open_building", "open_guard"}
+                               for a in cycle.get("actions", []))):
+                    raise GuardFundingCycleStopped("Legacy guard cycle needs review.")
+            owner = self.owner_reader(binding)
+            require_owner(owner, self.owner_reader(binding))
+            record.update(owner=owner, owner_adoption="idle_unspent_fresh_roster_required")
+            self.save(record)
+
     def remembered(self, binding, job_id, context):
         record = self.read(job_id)
         targets = _validate_plan(self, binding, record)
-        if any((t.scene, t.root) != (context.scene, context.root) for t in targets):
-            raise GuardFundingCycleStopped("Travel cannot cross a game scene or character change.")
+        require_owner(record.get("owner"), self.owner_reader(binding))
+        original = Snapshot.decode(bytes.fromhex(record["plan"]["context_snapshot"]))
+        if (context.root, context.manager) != (original.root, original.manager):
+            raise GuardFundingCycleStopped("Travel cannot cross a game root or manager change.")
         return {(t.building, t.guard) for t in targets}
 
     def continue_here(self, binding, job_id, discovery_id, context):
@@ -160,14 +208,17 @@ class GuardJobStore:
                         visible.add(key)
                     elif guard.get("window_verified") is True:
                         visible.add(key)
-            record.setdefault("area_plans", []).append(asdict(plan))
+            record.setdefault("area_plans", []).append(json.loads(json.dumps(asdict(plan))))
             record["guards"].extend(
                 dict(state="ready", minimum_rank=rank, observed_rank=rank, next_check_at=0,
                      last_cycle=None, upgrades_started=0) for rank in plan.initial_ranks
             )
-            targets = _validate_plan(self, binding, json.loads(json.dumps(record)))
-            record["area_indices"] = [i for i, t in enumerate(targets)
-                                      if (t.building, t.guard) in visible]
+            all_targets = [t for p in [record["plan"], *record["area_plans"]]
+                           for t in p["targets"]]
+            record["area_indices"] = [i for i, t in enumerate(all_targets)
+                                      if (t["building"], t["guard"]) in visible]
+            _validate_plan(self, binding, record)
+            require_owner(record["owner"], self.owner_reader(binding))
             record.update(state="ready",
                           detail="Continuing here; previous guard progress retained.")
             self.save(record)
@@ -180,8 +231,9 @@ def _validate_plan(jobs, binding, record):
         raise GuardFundingCycleStopped(
             "The previous warehouse-funded job needs review; no replay sent.")
     plans = [record["plan"], *record.get("area_plans", [])]
-    targets, ranks = [], []
+    targets, ranks, contexts = [], [], []
     for plan in plans:
+        contexts.append(Snapshot.decode(bytes.fromhex(plan["context_snapshot"])))
         current = build_guard_upgrade_plan(
             jobs.store, binding, plan["discovery_operation_id"],
             Snapshot.decode(bytes.fromhex(plan["context_snapshot"])), allow_empty=True,
@@ -193,7 +245,8 @@ def _validate_plan(jobs, binding, record):
     if (record["window"] != binding.game_window_handle
             or len(record["guards"]) != len(targets)
             or len({t.guard for t in targets}) != len(targets)
-            or len({(t.scene, t.root) for t in targets}) != 1):
+            or len({(c.root, c.manager) for c in contexts}) != 1
+            or ("owner" not in record and len({c.scene for c in contexts}) != 1)):
         raise GuardFundingCycleStopped("The guard plan or game window changed.")
     active = record.get("area_indices", list(range(len(targets))))
     if (not isinstance(active, list) or len(set(active)) != len(active)
@@ -206,6 +259,30 @@ def _validate_plan(jobs, binding, record):
                 or type(guard["next_check_at"]) not in (float, int)
                 or not math.isfinite(guard["next_check_at"])):
             raise GuardFundingCycleStopped("The guard progress record is invalid.")
+    if record.get("area_plans"):
+        # Reconstruct eligible keys from the immutable latest owned roster on every
+        # restart. Historical plans/receipts keep their original scene forever.
+        latest = plans[-1]
+        navigation = _read(jobs.store.root / "guard-navigation" /
+                           (latest["discovery_operation_id"] + ".json"))
+        known = {(t.building, t.guard) for t in targets}
+        visible = set()
+        for building in navigation["roster"]:
+            if building["state"] not in {"verified", "partial"}:
+                continue
+            for guard in building["guards"]:
+                key = (building["building"]["object_id"], guard["hireling"]["object_id"])
+                if guard.get("state") == "remembered":
+                    if key not in known or guard.get("window_verified") is not False:
+                        raise GuardFundingCycleStopped("Remembered guard provenance changed.")
+                    visible.add(key)
+                elif guard.get("window_verified") is True:
+                    visible.add(key)
+        expected = [i for i, t in enumerate(targets) if (t.building, t.guard) in visible]
+        if active != expected:
+            raise GuardFundingCycleStopped("The active guard area differs from its owned roster.")
+        for i in active:
+            targets[i] = replace(targets[i], scene=contexts[-1].scene, root=contexts[-1].root)
     return tuple(targets)
 
 
@@ -247,7 +324,7 @@ def _apply_cycle(jobs, record, target, now):
 
 def run_guard_upgrade_job(
     store, binding, job_id, *, cancelled, cycle_runner=run_guard_funding_cycle,
-    cycle_options=None, clock=time.time, sleep=time.sleep,
+    cycle_options=None, clock=time.time, sleep=time.sleep, owner_reader=read_guard_owner,
 ):
     """Round-robin all admitted guards, waiting for new ranks without replaying actions.
 
@@ -256,7 +333,7 @@ def run_guard_upgrade_job(
     A no-offer result remains unavailable; it never proves maximum rank or city
     coverage. Pause takes effect after the current transaction; Stop cancels it.
     """
-    jobs = GuardJobStore(store)
+    jobs = GuardJobStore(store, owner_reader=owner_reader)
     with exclusive_record_lock(jobs.root / "runner.lock", timeout_seconds=0.1):
         record = jobs.read(job_id)
         if not jobs.current() or jobs.current()["job_id"] != job_id:
@@ -324,6 +401,9 @@ def run_guard_upgrade_job(
                     record["guards"][i]["upgrades_started"] > 0,
                     (i - record["cursor"]) % len(targets),
                 ))
+                if record.get("owner_adoption") and not record.get("area_plans"):
+                    raise GuardFundingCycleStopped("Continue here must verify a fresh area first.")
+                require_owner(record.get("owner"), owner_reader(binding))
                 cycle_id = "operation-" + uuid.uuid4().hex
                 record.update(state="running", detail="Checking and funding the next guard.",
                               active_cycle={"operation_id": cycle_id, "index": index})

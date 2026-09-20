@@ -106,3 +106,28 @@ are empty, and the spending journal is idle. No gold was spent in this new job.
 All 174 guard records remain in the same job. The user has been asked to move
 Poley toward another area; Continue here and new-area merging are the remaining
 live acceptance steps. No historical request was cleared or replayed.
+
+## Same-character area continuation fix
+
+Live Continue here stopped before scanning or spending because ordinary travel
+changed the movement lifetime epoch while the client root and manager remained
+unchanged. A movement epoch is a transaction boundary, not a permanent town key.
+
+Host 0.3.33 separates persistent character ownership from current-area admission.
+It checks the reviewed local character before/after discovery and before each
+cycle. Historical plans and receipts retain their original digests and scenes.
+Only keys observed in the latest complete owned building rosters gain that area's
+fresh scene for future cycles; native transaction scene checks remain unchanged.
+Worker capability v4 prevents an older worker from accepting these jobs.
+
+Legacy jobs may gain character ownership only at an idle Travel boundary with
+zero spending, deposits, withdrawals or upgrades, no active cycle, and only
+confirmed navigation in their retained no-spend cycles. Paid or unresolved legacy
+jobs require review. This allows the live unspent 174-guard job to continue without
+rewriting its progress or adopting old financial receipts.
+
+Validation: 2,798 Python tests passed (12 environment-dependent skips), followed
+by 93 guard job/worker tests after the final migration/recovery checks; Ruff and
+diff checks pass. The native 1.8.22 extension remains unchanged; no game restart
+is required for this host fix.
+Next: install the published host and verify live Continue here against the same job.

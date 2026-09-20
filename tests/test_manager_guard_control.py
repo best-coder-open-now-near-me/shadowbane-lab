@@ -51,6 +51,7 @@ def setup(tmp_path):
         f.binding,
         session_factory=lambda *args, **kwargs: f.session,
         discover=discover,
+        owner_reader=f.owner_reader,
         runner=lambda *args, **kwargs: f.run(),
     )
     f.executor.initialize(
@@ -310,3 +311,23 @@ def test_failed_area_scan_with_idle_journal_can_travel_without_losing_progress(s
         f.executor.execute(f.operation("guard continue " + JOB, AREA), stop_signal=f.stop)
     assert f.jobs.current()["state"] == "travel"
     assert len(f.jobs.current()["guards"]) == 2 and not f.calls
+
+
+def test_character_change_during_discovery_never_prepares_or_starts_job(setup):
+    f = setup
+    def discover(*args, **kwargs):
+        f.owner["character_name"] = "another"
+    f.executor.discover = discover
+    with pytest.raises(GuardFundingCycleStopped, match="character changed"):
+        f.executor.execute(f.operation("guard discover"), stop_signal=f.stop)
+    assert f.jobs.current() is None
+    assert not (f.store.root / "guard-prepared.json").exists()
+
+
+def test_character_change_after_preparation_never_starts_job(setup):
+    f = setup
+    f.executor.execute(f.operation("guard discover"), stop_signal=f.stop)
+    f.owner["character_name"] = "another"
+    with pytest.raises(GuardFundingCycleStopped, match="character changed"):
+        f.executor.execute(f.operation("guard start " + DISCOVERY, JOB), stop_signal=f.stop)
+    assert f.jobs.current() is None and not f.calls

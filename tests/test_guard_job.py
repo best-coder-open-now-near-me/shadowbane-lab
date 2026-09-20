@@ -49,7 +49,10 @@ def setup(tmp_path):
         for path, value in zip(paths, (nearby, discovery), strict=True):
             _write(path, value)
     save()
-    jobs, clock, calls = GuardJobStore(store), [1000.0], []
+    owner = dict(player_pointer=123456, character_name="poley", server_name="Wonderbane")
+    def owner_reader(_):
+        return dict(owner)
+    jobs, clock, calls = GuardJobStore(store, owner_reader=owner_reader), [1000.0], []
 
     def begin(**kwargs):
         return jobs.begin(binding, SimpleNamespace(operation_id=JOB), DISCOVERY, CONTEXT,
@@ -73,7 +76,8 @@ def setup(tmp_path):
         return record
 
     def run(**kwargs):
-        options = dict(cancelled=lambda: False, cycle_runner=result, clock=lambda: clock[0],
+        options = dict(owner_reader=owner_reader, cancelled=lambda: False, cycle_runner=result,
+                       clock=lambda: clock[0],
                        sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds))
         options.update(kwargs)
         return run_guard_upgrade_job(store, binding, JOB, **options)
@@ -372,10 +376,12 @@ def test_legacy_or_changed_funding_policy_never_resumes_spending(setup, change):
 AREA = "operation-" + "e" * 32
 
 
-def travel_scan(f, *, known=(777,), new=True):
+def travel_scan(f, *, known=(777,), new=True, context=CONTEXT):
     """A fresh owned roster includes one remembered guard and a new tower."""
     nearby, discovery = copy.deepcopy(f.nearby), copy.deepcopy(f.discovery)
     nearby["operation_id"] = discovery["operation_id"] = AREA
+    nearby.update(scene=context.scene, root=context.root)
+    discovery["attempts"] = [{"expected": context.encode().hex()}]
     discovery["roster"] = [b for b in discovery["roster"]
                             if b["guards"][0]["hireling"]["object_id"] in known]
     for b in discovery["roster"]:
@@ -483,3 +489,138 @@ def test_travel_never_clears_an_interrupted_cycle(setup):
     f.jobs.request(JOB, "travel")
     assert f.jobs.read(JOB)["state"] == "review"
     assert f.jobs.read(JOB)["active_cycle"] == record["active_cycle"]
+
+
+def test_movement_epoch_change_preserves_history_and_uses_fresh_area_on_restart(setup):
+    f = setup
+    f.begin()
+    before = f.jobs.read(JOB)
+    f.jobs.request(JOB, "travel")
+    moved = replace(CONTEXT, scene=14)
+    travel_scan(f, context=moved)
+    merged = f.jobs.continue_here(f.binding, JOB, AREA, moved)
+    assert merged["plan"] == before["plan"]
+    assert merged["guards"][:2] == before["guards"]
+    assert merged["area_indices"] == [0, 2]
+    f.run()  # New runner reconstructs eligibility and context from durable evidence.
+    assert [c["target"]["scene"] for c in f.calls] == [14, 14]
+    assert {c["target"]["guard"] for c in f.calls} == {777, 779}
+    assert f.jobs.read(JOB)["plan"] == before["plan"]
+
+
+@pytest.mark.parametrize("field", ["player_pointer", "character_name", "server_name"])
+def test_changed_character_cannot_scan_or_spend(setup, field):
+    f = setup
+    f.begin()
+    f.jobs.request(JOB, "travel")
+    f.owner[field] = 999 if field == "player_pointer" else "another"
+    before = f.jobs.read(JOB)
+    with pytest.raises(GuardFundingCycleStopped, match="character changed"):
+        f.jobs.remembered(f.binding, JOB, replace(CONTEXT, scene=14))
+    assert f.jobs.read(JOB) == before
+    f.jobs.request(JOB, "run")
+    with pytest.raises(GuardFundingCycleStopped, match="character changed"):
+        f.run()
+    assert not f.calls
+
+
+@pytest.mark.parametrize("field", ["root", "manager"])
+def test_travel_rejects_changed_window_owner(setup, field):
+    f = setup
+    f.begin()
+    f.jobs.request(JOB, "travel")
+    with pytest.raises(GuardFundingCycleStopped, match="root or manager"):
+        f.jobs.remembered(f.binding, JOB, replace(CONTEXT, **{field: 999}))
+
+
+def test_unseen_guard_cannot_be_inserted_into_active_area(setup):
+    f = setup
+    f.begin()
+    f.jobs.request(JOB, "travel")
+    moved = replace(CONTEXT, scene=14)
+    travel_scan(f, context=moved)
+    record = f.jobs.continue_here(f.binding, JOB, AREA, moved)
+    record["area_indices"] = [0, 1, 2]
+    f.jobs.save(record)
+    with pytest.raises(GuardFundingCycleStopped, match="owned roster"):
+        f.run()
+    assert not f.calls
+
+
+def test_legacy_unspent_travel_adopts_owner_without_changing_any_progress(setup):
+    f = setup
+    record = f.begin()
+    del record["owner"]
+    f.jobs.save(record)
+    f.jobs.request(JOB, "travel")
+    before = f.jobs.read(JOB)
+    f.jobs.pin_unspent_owner(f.binding, JOB, replace(CONTEXT, scene=14))
+    after = f.jobs.read(JOB)
+    assert after.pop("owner") == f.owner
+    assert after.pop("owner_adoption") == "idle_unspent_fresh_roster_required"
+    assert after == before
+    assert not f.calls
+
+
+@pytest.mark.parametrize("change", ["spent", "deposited", "withdrawn", "upgrades_started",
+                                     "active", "journal", "running"])
+def test_legacy_ownership_cannot_adopt_paid_or_unresolved_work(setup, change):
+    f = setup
+    record = f.begin()
+    del record["owner"]
+    record["state"] = "travel"
+    if change in {"spent", "deposited", "withdrawn", "upgrades_started"}:
+        record[change] = 1
+    elif change == "active":
+        record["active_cycle"] = {"operation_id": DISCOVERY, "index": 0}
+    elif change == "running":
+        record["state"] = "running"
+    f.jobs.save(record)
+    _write(f.jobs.root / (JOB + ".control.json"), {"mode": "travel"})
+    if change == "journal":
+        from unittest.mock import patch
+        with patch.object(GuardSpendingJournal, "assert_idle", side_effect=RuntimeError("pending")):
+            with pytest.raises(RuntimeError, match="pending"):
+                f.jobs.pin_unspent_owner(f.binding, JOB, CONTEXT)
+    else:
+        with pytest.raises(GuardFundingCycleStopped, match="needs review"):
+            f.jobs.pin_unspent_owner(f.binding, JOB, CONTEXT)
+    assert "owner" not in f.jobs.read(JOB) and not f.calls
+
+
+def test_migrated_legacy_job_requires_fresh_roster_before_any_cycle(setup):
+    f = setup
+    record = f.begin()
+    del record["owner"]
+    f.jobs.save(record)
+    f.jobs.request(JOB, "travel")
+    f.jobs.pin_unspent_owner(f.binding, JOB, CONTEXT)
+    f.jobs.request(JOB, "run")
+    with pytest.raises(GuardFundingCycleStopped, match="fresh area"):
+        f.run()
+    assert not f.calls
+
+
+def test_fresh_area_confirmed_cycle_is_accounted_once_after_restart(setup):
+    f = setup
+    f.begin()
+    f.jobs.request(JOB, "travel")
+    moved = replace(CONTEXT, scene=14)
+    travel_scan(f, context=moved)
+    record = f.jobs.continue_here(f.binding, JOB, AREA, moved)
+    cycle_id = "operation-" + "f" * 32
+    record.update(state="running", active_cycle={"operation_id": cycle_id, "index": 0})
+    f.jobs.save(record)
+    target = replace(build_guard_upgrade_plan(
+        f.store, f.binding, DISCOVERY, CONTEXT).targets[0], scene=14)
+    cycle = f.result(f.store, f.binding, SimpleNamespace(operation_id=cycle_id), target,
+                     cancelled=lambda: False, minimum_rank=1)
+    cycle.update(state="started", spent=100, quoted_cost=100, deposited=80, observed_rank=1)
+    _write(f.store.root / "guard-funding-cycles" / (cycle_id + ".json"), cycle)
+    _write(f.jobs.root / (JOB + ".control.json"), {"mode": "travel"})
+    first = f.run()
+    second = f.run()
+    assert first["spent"] == second["spent"] == 100
+    assert first["upgrades_started"] == second["upgrades_started"] == 1
+    assert len(f.calls) == 1
+    assert f.jobs.read(JOB)["plan"]["targets"][0]["scene"] == 1

@@ -20,6 +20,7 @@ from shadowbane_lab.record_store import exclusive_record_lock, read_record_bytes
 from .guard_discovery import run_guard_discovery
 from .guard_funding_cycle import GuardFundingCycleStopped, open_guard_cycle_session
 from .guard_job import TERMINAL, GuardJobStore, run_guard_upgrade_job
+from .guard_owner import read_guard_owner, require_owner
 from .guard_plan import build_guard_upgrade_plan
 from .operation import (
     WorkerOperationExecution,
@@ -131,7 +132,7 @@ class ManagerGuardControl:
                 )
             expected = dict(
                 schema_version=1,
-                capability="guard_jobs_travel_v3",
+                capability="guard_jobs_travel_v4",
                 worker_id=permit.worker_id,
                 process_id=permit.process_id,
                 process_started_at_100ns=permit.process_started_at_100ns,
@@ -209,12 +210,14 @@ class GuardWorkerExecutor:
         session_factory=open_guard_cycle_session,
         discover=run_guard_discovery,
         runner=run_guard_upgrade_job,
+        owner_reader=read_guard_owner,
         clock=time.monotonic,
         sleep=time.sleep,
     ):
         self.root, self.node_id, self.binding = Path(root), node_id, binding
         self.session_factory, self.discover, self.runner = session_factory, discover, runner
         self.clock, self.sleep = clock, sleep
+        self.owner_reader = owner_reader
 
     def store(self):
         return VendorJobStore(
@@ -226,7 +229,7 @@ class GuardWorkerExecutor:
             self.store().root / "guard-worker-capability.json",
             dict(
                 schema_version=1,
-                capability="guard_jobs_travel_v3",
+                capability="guard_jobs_travel_v4",
                 worker_id=worker_id,
                 process_id=process.process_id,
                 process_started_at_100ns=process.process_started_at_100ns,
@@ -252,7 +255,7 @@ class GuardWorkerExecutor:
         journal = GuardSpendingJournal(store.root)
         journal.assert_idle()
         continuing = operation.command.startswith("guard continue ")
-        jobs = GuardJobStore(store)
+        jobs = GuardJobStore(store, owner_reader=self.owner_reader)
         if continuing:
             job_id = operation.command.removeprefix("guard continue ")
             current = jobs.current()
@@ -260,6 +263,7 @@ class GuardWorkerExecutor:
                     or jobs.control(job_id) != "travel" or current["active_cycle"]):
                 raise GuardFundingCycleStopped("Wait until Travel says it is safe to move.")
         if operation.command == "guard discover" or continuing:
+            owner = self.owner_reader(b)
             path = store.root / "guard-preparations" / (operation.operation_id + ".json")
             with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
                 if path.exists():
@@ -302,6 +306,7 @@ class GuardWorkerExecutor:
             # Release the observer producer before City Command/navigation takes ownership.
             options = {}
             if continuing:
+                jobs.pin_unspent_owner(b, job_id, context)
                 options["remembered"] = jobs.remembered(b, job_id, context)
                 with exclusive_record_lock(jobs.root / "control.lock"):
                     current = jobs.read(job_id)
@@ -316,6 +321,7 @@ class GuardWorkerExecutor:
                     cancelled=lambda: stop_signal.is_set() or
                     (continuing and jobs.control(job_id) == "stop"), **options,
                 )
+                require_owner(owner, self.owner_reader(b))
                 if continuing:
                     jobs.continue_here(b, job_id, operation.operation_id, context)
             except Exception as exc:
@@ -332,12 +338,14 @@ class GuardWorkerExecutor:
                     jobs.save(current)
                 raise
             if continuing:
-                record = self.runner(store, b, job_id, cancelled=stop_signal.is_set)
+                record = self.runner(store, b, job_id, cancelled=stop_signal.is_set,
+                                     owner_reader=self.owner_reader)
                 return self._result(record)
             plan = build_guard_upgrade_plan(store, b, operation.operation_id, context)
             prepared = dict(
                 schema_version=2,
                 funding_source="carried",
+                owner=owner,
                 identity=list(store.identity),
                 discovery_id=operation.operation_id,
                 context=context.encode().hex(),
@@ -354,13 +362,14 @@ class GuardWorkerExecutor:
                 WorkerOperationState.SUCCEEDED,
                 f"Found {len(plan.targets)} verified guards. Full town coverage is unverified.",
             )
-        jobs = GuardJobStore(store)
+        jobs = GuardJobStore(store, owner_reader=self.owner_reader)
         if operation.command.startswith("guard start "):
             prepared = _prepared(store)
             if (
                 not prepared
                 or prepared.get("schema_version") != 2
                 or prepared.get("funding_source") != "carried"
+                or "owner" not in prepared
                 or prepared["discovery_id"] != operation.command.removeprefix("guard start ")
                 or (prepared["process_id"], prepared["creation"], prepared["window"])
                 != (b.game_process_id, b.game_process_started_at_100ns, b.game_window_handle)
@@ -371,13 +380,15 @@ class GuardWorkerExecutor:
                 operation,
                 prepared["discovery_id"],
                 Snapshot.decode(bytes.fromhex(prepared["context"])),
+                expected_owner=prepared.get("owner"),
             )
             job_id = record["job_id"]
         elif operation.command.startswith("guard resume "):
             job_id = operation.command.removeprefix("guard resume ")
         else:
             raise GuardFundingCycleStopped("Unknown guard worker command.")
-        record = self.runner(store, b, job_id, cancelled=stop_signal.is_set)
+        record = self.runner(store, b, job_id, cancelled=stop_signal.is_set,
+                                     owner_reader=self.owner_reader)
         return self._result(record)
 
     @staticmethod
