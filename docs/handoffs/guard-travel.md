@@ -158,3 +158,32 @@ remains running and will check their ranks again. No old request was replayed.
 Remaining: additional-area coverage and eventual rank completion. Maximum rank
 and full-town coverage are still unverified. Adding newly found guards is covered
 by regression tests; this live area exercised remembered-guard continuation.
+
+## September 20 restart and fresh-position run
+
+The user restarted the game and positioned Poley elsewhere in town. The installed
+host 0.3.33 / native 1.8.22 were verified unchanged. The manager was not running;
+it was restarted through its existing helper without restarting the game.
+
+Attachment initially failed because a historical worker PID had been reused by
+a protected Windows service. The VM's independently observed boot time proved
+29 worker heartbeat/reservation records belonged to processes from before this
+boot. They were archived byte-for-byte under the worker ledger's retirement
+directory, with source paths, hashes and boot evidence, while holding the launch
+lock. Guard jobs and transaction journals were untouched. Attachment and worker
+health then succeeded. Automatic retirement of such obsolete heartbeat records
+remains a manager maintenance improvement; no process-inspection check was weakened.
+
+Fresh discovery completed 335 terminal attempts across 60 candidate buildings,
+verifying 150 guards in 27 building rosters. All 150 overlap the previous census
+of 174; this position added no guards and did not expose the other 24. Historical
+jobs remain retained, but their old process/scene bindings were not imported.
+
+A new carried-gold job started from the exact fresh selection. At acceptance,
+five upgrades were confirmed (three observed at rank 4 and two at rank 3),
+with 1,918,950 deposited and spent, zero warehouse withdrawals, and all completed
+cycle actions confirmed. The worker is healthy and the job remains running.
+
+Next: let this run advance ranks as carried gold allows, and use Travel / Safe to
+move / Continue here for additional positions to expand coverage. Full-town
+coverage and maximum rank remain unverified.
