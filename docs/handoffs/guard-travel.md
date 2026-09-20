@@ -1,6 +1,7 @@
 # Guard travel controls
 
-Installed in the test VM from `codex/guard-upgrades`; live travel acceptance remains pending.
+Installed in the test VM from `codex/guard-upgrades`; safe Travel is live-verified.
+Continue here after moving remains pending.
 Integration destination: `codex/vendor-rolling`, then
 `codex/native-lifecycle-hardening`, then reviewed `main`.
 
@@ -22,7 +23,8 @@ Validation: focused scheduler, discovery, dashboard, and worker tests cover safe
 transaction boundaries, area merging, new guard priority, retained rank timers,
 wrong-scene rejection, and guard-menu skipping from a fresh owned roster.
 
-Next: verify Travel and Continue here after the user logs back into town.
+Next: the user moves to another area, then verify Continue here preserves the
+same job and remembered guards.
 The installed client is 1.8.22 / host 0.3.32; the prior failed request and all
 174 confirmed first-pass upgrade records remain untouched.
 
@@ -82,3 +84,25 @@ points to the same updated launcher. The game was not automatically launched.
 The user has been asked to log Poley into town; loaded-module/worker checks and
 live travel acceptance remain next. This is installation verification, not a claim
 that guard maximum rank or full-town coverage has been achieved.
+
+## Live discovery and safe Travel verified
+
+Poley is verified in the updated client; the loaded extension reports 1.8.22 and
+the healthy worker advertises the travel-capable protocol. The first discovery
+cancelled after 21 guards because a dispatch permit expired. All 44 window attempts
+were terminal and the journal was idle; no gold moved. That operation remains
+retained. A new read-only discovery was admitted after those checks. A 40-second
+permit watch observed continuous renewal; the original interruption's cause is
+not proven or claimed fixed.
+
+The new discovery completed its candidate pass: 174 guards, 31 verified building
+rosters, 60 candidates, and 379 terminal window attempts. Coverage is partial;
+this is not a full-town census. A new carried-gold job started from that exact plan.
+Travel was requested while its first cycle was active. The cycle confirmed that
+the guard was already upgrading at observed rank 3, recorded its wait timer, and
+then paused. The dashboard reports Safe to move; the active cycle and operation
+are empty, and the spending journal is idle. No gold was spent in this new job.
+
+All 174 guard records remain in the same job. The user has been asked to move
+Poley toward another area; Continue here and new-area merging are the remaining
+live acceptance steps. No historical request was cleared or replayed.

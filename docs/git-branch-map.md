@@ -464,8 +464,10 @@ spending; only new guards require discovery of their personal menus. This is
 installed and activation-verified as 1.8.22 / host 0.3.32 from `cd8c8a8`.
 A reproduced heartbeat race is corrected; the previous rejected request remains
 retained without replay; all 5,578 saved record/settings files passed preservation
-checks. The existing desktop shortcut is unchanged. Next: user login, then verify
-Travel and Continue here in-world.
+checks. The existing desktop shortcut is unchanged. Loaded extension and worker
+are verified. Fresh discovery retains 174 guards; Travel has live-paused safely
+after an active cycle with no spending or pending request. Next: user repositioning
+and Continue here to verify saved progress and new-area merging.
 Integration remains
 `codex/guard-upgrades` → `codex/vendor-rolling` →
 `codex/native-lifecycle-hardening` → reviewed `main`.
