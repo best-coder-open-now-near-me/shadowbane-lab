@@ -161,3 +161,9 @@ def test_condemn_evidence_is_a_required_package_gate():
 
 def test_condemn_controller_is_a_required_package_gate():
     assert "wonderbane_extension_condemn_controller" in builder.REQUIRED_CONDEMN_TESTS
+
+
+def test_condemn_queue_and_owner_runtime_are_required_package_gates():
+    assert {"wonderbane_extension_condemn_channel", "wonderbane_extension_condemn_runtime"} <= (
+        builder.REQUIRED_CONDEMN_TESTS
+    )

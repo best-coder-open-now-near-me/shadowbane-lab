@@ -57,6 +57,8 @@ REQUIRED_GUARD_TESTS = frozenset({
 
 
 REQUIRED_CONDEMN_TESTS = frozenset({
+    "wonderbane_extension_condemn_channel",
+    "wonderbane_extension_condemn_runtime",
     "wonderbane_extension_condemn_controller",
     "wonderbane_extension_condemn_evidence",
     "wonderbane_extension_condemn_responses",

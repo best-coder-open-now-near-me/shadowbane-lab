@@ -1,4 +1,6 @@
 #include "vendor_runtime.h"
+#include "condemn_controller.h"
+#include "condemn_command_queue.h"
 #include "guard_upgrade_native.h"
 #include "guard_funding_native.h"
 #include "guard_funding_controller.h"
@@ -21,6 +23,8 @@ namespace wonderbane::extension::vendor {
 namespace {
 std::uintptr_t image_base = 0;
 Controller controller;
+condemn::Controller condemn_controller;
+std::unique_ptr<condemn::Batch> condemn_batch;
 guard_upgrade::Controller guard_controller;
 guard_funding::Controller funding_controller;
 city_window::Controller city_controller;
@@ -38,7 +42,7 @@ public:
     wire::Outcome Invoke(wire::Verb verb, const wire::Snapshot& expected, std::uint32_t item) noexcept override {
         wire::Snapshot fresh{}; bool present = false, top = false;
         const auto now = GetTickCount64();
-        if (funding_controller.Busy() || guard_controller.Busy() || navigation_controller.Busy() || !command_->lease || !command_->lease->Current(now) || now > command_->deadline
+        if (condemn_controller.Busy() || funding_controller.Busy() || guard_controller.Busy() || navigation_controller.Busy() || !command_->lease || !command_->lease->Current(now) || now > command_->deadline
             || GetForegroundWindow() != window_ || IsIconic(window_)
             || !Capture(image_base, scene_, fresh, 0, present, top) || !top) { return wire::Outcome::stale; }
         fresh.revision = expected.revision;
@@ -59,7 +63,7 @@ public:
         using O = city_window::wire::Outcome;
         city_window::wire::Snapshot fresh{};
         const auto now = GetTickCount64();
-        if (funding_controller.Busy() || guard_controller.Busy() || controller.Busy() || navigation_controller.Busy() || !command_->lease || !command_->lease->Current(now)
+        if (condemn_controller.Busy() || funding_controller.Busy() || guard_controller.Busy() || controller.Busy() || navigation_controller.Busy() || !command_->lease || !command_->lease->Current(now)
             || now > command_->deadline || GetForegroundWindow() != window_ || IsIconic(window_)
             || !city_window::Capture(image_base, scene_, fresh)) { return O::stale; }
         fresh.revision = expected.revision;
@@ -85,7 +89,7 @@ public:
         auto& self = *static_cast<NavigationInvoker*>(context);
         const auto now = GetTickCount64();
         vendor_navigation::wire::Snapshot fresh{};
-        if (funding_controller.Busy() || guard_controller.Busy() || controller.Busy() || !self.expected_ || !self.queued_->lease || !self.queued_->lease->Current(now)
+        if (condemn_controller.Busy() || funding_controller.Busy() || guard_controller.Busy() || controller.Busy() || !self.expected_ || !self.queued_->lease || !self.queued_->lease->Current(now)
             || now > self.queued_->deadline || GetForegroundWindow() != self.window_ || IsIconic(self.window_)
             || !vendor_navigation::Capture(image_base, self.scene_, fresh)) { return false; }
         fresh.revision = self.expected_->revision;
@@ -140,7 +144,7 @@ public:
         using O = guard_upgrade::wire::Outcome;
         guard_upgrade::wire::Snapshot fresh{}; bool top = false;
         const auto now = GetTickCount64();
-        if (funding_controller.Busy() || controller.Busy() || navigation_controller.Busy() || !queued_->lease || !queued_->lease->Current(now)
+        if (condemn_controller.Busy() || funding_controller.Busy() || controller.Busy() || navigation_controller.Busy() || !queued_->lease || !queued_->lease->Current(now)
             || now > queued_->deadline || GetForegroundWindow() != window_ || IsIconic(window_)
             || !guard_upgrade::Capture(image_base, scene_, fresh, top) || !top) { return O::stale; }
         fresh.navigation.revision = expected.navigation.revision;
@@ -154,7 +158,7 @@ public:
         const auto now = GetTickCount64();
         guard_upgrade::ReturnSnapshot fresh{};
         if (!self.reopen_expected_ || !self.reopen_returned_
-            || funding_controller.Busy() || controller.Busy() || navigation_controller.Busy()
+            || condemn_controller.Busy() || funding_controller.Busy() || controller.Busy() || navigation_controller.Busy()
             || self.queued_->verb != guard_upgrade::wire::Verb::inspect
             || !self.queued_->lease || !self.queued_->lease->Current(now) || now > self.queued_->deadline
             || GetForegroundWindow() != self.window_ || IsIconic(self.window_)
@@ -184,7 +188,7 @@ public:
         const movement::NativeScene& scene, HWND window) : queued_(command), scene_(scene), window_(window) {}
     static bool Admit(void* context) noexcept {
         auto& self = *static_cast<FundingInvoker*>(context); const auto now = GetTickCount64();
-        return !guard_controller.Busy() && !controller.Busy() && !navigation_controller.Busy()
+        return !condemn_controller.Busy() && !guard_controller.Busy() && !controller.Busy() && !navigation_controller.Busy()
             && self.queued_->lease && self.queued_->lease->Current(now) && now <= self.queued_->deadline
             && GetForegroundWindow() == self.window_ && !IsIconic(self.window_)
             && movement::NativeMovementLifetimeCurrent(self.scene_);
@@ -200,6 +204,30 @@ public:
             ? guard_funding::InvokeOpen(image_base, scene_, c, &Admit, this)
             : guard_funding::Invoke(image_base, scene_, c, &Admit, this);
         return invoked ? O::submitted : O::uncertain;
+    }
+};
+class CondemnInvoker final : public condemn::Invoker {
+    const std::shared_ptr<condemn::QueuedCommand>& queued_;
+    const movement::NativeScene& scene_;
+    HWND window_;
+public:
+    CondemnInvoker(const std::shared_ptr<condemn::QueuedCommand>& command,
+        const movement::NativeScene& scene, HWND window) : queued_(command), scene_(scene), window_(window) {}
+    static bool Admit(void* context) noexcept {
+        auto& self = *static_cast<CondemnInvoker*>(context);
+        const auto now = GetTickCount64();
+        return !funding_controller.Busy() && !guard_controller.Busy() && !controller.Busy()
+            && !navigation_controller.Busy() && self.queued_->lease && self.queued_->lease->Current(now)
+            && now <= self.queued_->deadline && GetForegroundWindow() == self.window_ && !IsIconic(self.window_)
+            && self.queued_->command.window == reinterpret_cast<std::uintptr_t>(self.window_)
+            && movement::NativeMovementLifetimeCurrent(self.scene_);
+    }
+    bool Baseline(condemn::Cursor& cursor) noexcept override {
+        return Admit(this) && condemn::ReadCursor(cursor);
+    }
+    condemn::native::Result Invoke(condemn::native::Action action, const condemn::native::Target& target,
+        const condemn::native::Snapshot& expected) noexcept override {
+        return condemn::native::Invoke(image_base, scene_, target, action, expected, &Admit, this);
     }
 };
 void Update(void* root, HWND window) noexcept {
@@ -229,6 +257,31 @@ void Update(void* root, HWND window) noexcept {
     const bool returned_valid = pending_guard && scene.window == reinterpret_cast<std::uintptr_t>(root)
         && guard_upgrade::CaptureReturn(image_base, scene, *pending_guard, returned);
     guard_controller.ObserveReturn(returned, returned_valid);
+    auto condemn_command = condemn::Take();
+    const auto* condemn_target = condemn_controller.ActiveTarget();
+    if (!condemn_target && condemn_command) { condemn_target = &condemn_command->command.target; }
+    bool condemn_valid = false;
+    if (condemn_target) {
+        const condemn::Batch* drained = nullptr;
+        if (const auto* cursor = condemn_controller.ResponseCursor()) {
+            if (condemn_batch && condemn::ReadAfter(*cursor, *condemn_batch)) { drained = condemn_batch.get(); }
+        }
+        condemn::native::Snapshot observed{};
+        condemn_valid = scene.window == reinterpret_cast<std::uintptr_t>(root)
+            && condemn::native::Capture(image_base, scene, condemn::wire::Decode(*condemn_target), observed);
+        condemn_controller.Observe(*condemn_target, observed, condemn_valid, drained, GetTickCount64());
+    }
+    if (condemn_command) {
+        const auto now = GetTickCount64();
+        const bool live = condemn_command->lease && condemn_command->lease->Current(now)
+            && now <= condemn_command->deadline && condemn_command->command.window == reinterpret_cast<std::uintptr_t>(window);
+        const bool ready = condemn_valid && condemn_batch && !controller.Busy() && !guard_controller.Busy()
+            && !funding_controller.Busy() && !navigation_controller.Busy()
+            && GetForegroundWindow() == window && !IsIconic(window);
+        CondemnInvoker invoker(condemn_command, scene, window);
+        condemn::Complete(condemn_command, condemn_controller.Execute(
+            condemn_command->verb, condemn_command->command, live, ready, now, invoker));
+    }
     auto funding_command = guard_funding::Take();
     std::array<bool, 2> funding_valid{}, funding_top{};
     // The inventory accessor is demand-driven, not traversed on every idle frame.
@@ -245,7 +298,7 @@ void Update(void* root, HWND window) noexcept {
         const bool exact_window = funding_command->command.window == reinterpret_cast<std::uintptr_t>(window);
         const bool live = funding_command->lease && funding_command->lease->Current(now) && now <= funding_command->deadline;
         const bool ready = guard_funding::wire::DirectionValid(direction) && funding_valid[direction - 1] && funding_top[direction - 1]
-            && !guard_controller.Busy() && !controller.Busy() && !navigation_controller.Busy()
+            && !condemn_controller.Busy() && !guard_controller.Busy() && !controller.Busy() && !navigation_controller.Busy()
             && GetForegroundWindow() == window && !IsIconic(window);
         FundingInvoker invoker(funding_command, scene, window);
         guard_funding::Complete(funding_command, funding_controller.Execute(
@@ -255,7 +308,7 @@ void Update(void* root, HWND window) noexcept {
         const auto now = GetTickCount64();
         const bool exact_window = command->command.window == reinterpret_cast<std::uintptr_t>(window);
         const bool live = command->lease && command->lease->Current(now) && now <= command->deadline;
-        const bool ready = guard_valid && guard_top && !funding_controller.Busy() && !controller.Busy() && !navigation_controller.Busy()
+        const bool ready = guard_valid && guard_top && !condemn_controller.Busy() && !funding_controller.Busy() && !controller.Busy() && !navigation_controller.Busy()
             && GetForegroundWindow() == window && !IsIconic(window);
         GuardInvoker invoker(command, scene, window);
         guard_upgrade::Complete(command, guard_controller.Execute(
@@ -265,7 +318,7 @@ void Update(void* root, HWND window) noexcept {
         const auto now = GetTickCount64();
         const bool exact_window = command->command.window == reinterpret_cast<std::uintptr_t>(window);
         const bool live = command->lease && command->lease->Current(now) && now <= command->deadline;
-        const bool ready = navigation_valid && !funding_controller.Busy() && !guard_controller.Busy() && !controller.Busy() && GetForegroundWindow() == window && !IsIconic(window);
+        const bool ready = navigation_valid && !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy() && !controller.Busy() && GetForegroundWindow() == window && !IsIconic(window);
         NavigationInvoker invoker(command, scene, window);
         vendor_navigation::Complete(command, navigation_controller.Execute(
             command->verb, command->command, live && exact_window, ready, now, invoker));
@@ -274,7 +327,7 @@ void Update(void* root, HWND window) noexcept {
         const auto now = GetTickCount64();
         const bool exact_window = command->command.window == reinterpret_cast<std::uintptr_t>(window);
         const bool live = command->lease && command->lease->Current(now) && now <= command->deadline;
-        const bool ready = city_valid && !funding_controller.Busy() && !guard_controller.Busy() && !controller.Busy() && !navigation_controller.Busy() && GetForegroundWindow() == window && !IsIconic(window);
+        const bool ready = city_valid && !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy() && !controller.Busy() && !navigation_controller.Busy() && GetForegroundWindow() == window && !IsIconic(window);
         CityInvoker invoker(command, scene, window);
         city_window::Complete(command, city_controller.Execute(
             command->verb, command->command, live && exact_window, ready, invoker));
@@ -283,7 +336,7 @@ void Update(void* root, HWND window) noexcept {
         const auto now = GetTickCount64();
         const bool live = command->lease && command->lease->Current(now) && now <= command->deadline;
         const bool exact_window = command->command.window == reinterpret_cast<std::uintptr_t>(window);
-        const bool ready = valid && !funding_controller.Busy() && !guard_controller.Busy() && !navigation_controller.Busy() && exact_window && top && GetForegroundWindow() == window && !IsIconic(window);
+        const bool ready = valid && !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy() && !navigation_controller.Busy() && exact_window && top && GetForegroundWindow() == window && !IsIconic(window);
         NativeInvoker invoker(command, scene, window);
         Complete(command, controller.Execute(command->verb, command->command, live && exact_window, ready, invoker));
     }
@@ -293,6 +346,8 @@ void Update(void* root, HWND window) noexcept {
 bool Start() noexcept {
     std::uintptr_t base = 0;
     if (!movement::VerifyNativeMovementImage(base)) { return false; }
+    try { if (!condemn_batch) { condemn_batch = std::make_unique<condemn::Batch>(); } }
+    catch (...) { return false; }
     image_base = base;
     vendor_owner_service.store(&Update, std::memory_order_release);
     return true;

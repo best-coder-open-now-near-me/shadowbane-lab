@@ -525,3 +525,43 @@ gate tests and Ruff pass. The controller test is mandatory for packaging. No new
 package, installation or live automated action occurred. Next active item: register
 the queue/owner-thread route and share UI exclusion with vendor/guard jobs, then
 connect composite host journaling, scoped plans and manager controls.
+
+
+## Native command route and shared UI ownership - September 21
+
+Verbs 23/24 now enter a dedicated typed queue through the existing authenticated
+producer lease/deadline transport and execute on the admitted native owner thread.
+The runtime drains its bounded response copy before capturing the scoped row;
+active transactions continue observation each owner frame even without host polls.
+Only an original-owner continuation inspection can initiate the next action.
+Foreground, producer, deadline, lifetime and all competing transaction owners are
+rechecked at native admission. Vendor crafting, city navigation, guard upgrades,
+guard reopens and funding all respect Condemn's retained ownership barrier.
+
+Captured snapshots now retain their own explicit building/identity/scope target.
+An inspection for another scope arriving on a completion frame cannot relabel an
+old nation observation as guild state. The receipt separately reports observation
+and transition targets. Submission receipts stay immutable and duplicate original
+commands never repeat a callback. Channel expiry only cancels a still-queued call,
+not an executing native call. Pending deferral for the original UUID is transported
+as a retained command receipt, not mistaken for a proven submission or completion.
+
+Validation: both DLL profiles build with warnings as errors. All nine Condemn
+native tests pass in both profiles. Six adjacent command-channel tests were rebuilt
+and pass (15 full-profile tests total). The owner-service test runs the actual
+runtime with simulated game calls and validates complete open/add/enable routing,
+both directions of UI exclusion, response-before-row ordering, process-generation
+changes, lost focus/lease, wrong-thread calls, scope handoff and duplicate commands.
+278 focused host and package tests and Ruff pass. Queue/runtime tests are mandatory
+package gates. This is source validation, not a packaged or live accepted release.
+
+Installed native/host remains 1.8.23 / 0.3.34. The user's current in-world session
+needed no further manual capture; no game actions, install or restart occurred.
+
+Completed: native action helpers, bounded response qualification, composite native
+ownership, typed IPC route and shared UI exclusion. Next active item: host wire
+adapter and durable composite journal (the older enable-only journal cannot stand
+in for a new add/enable transaction). Remaining: scoped catalog plans and manager
+controls, exact-source package validation, then one combined live qualification.
+Source remains on codex/guard-upgrades for integration through vendor-rolling and
+native-lifecycle-hardening into reviewed main; no merge or PR is implied.

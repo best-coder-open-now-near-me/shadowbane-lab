@@ -41,9 +41,9 @@ struct Fixture {
         s.entry = row ? 700 : 0; s.row = row ? 800 : 0; s.entry_key = row ? n::Key{30, 23} : n::Key{};
         s.count = row ? 1 : 0; s.enabled = enabled ? 1 : 0;
     }
-    void Observe(bool valid = true) { controller.Observe(s, valid, batch.get(), now); }
+    void Observe(bool valid = true) { controller.Observe(command.target, s, valid, batch.get(), now); }
     w::Receipt Start() {
-        controller.Observe(s, true, nullptr, now);
+        controller.Observe(command.target, s, true, nullptr, now);
         const auto seen = controller.Execute(w::Verb::inspect, inspect, true, true, now, calls);
         command.expected = seen.snapshot;
         return controller.Execute(w::Verb::ensure, command, true, true, now, calls);
@@ -116,7 +116,7 @@ int main() {
     }
     {
         Fixture f; f.List(true); f.Start(); f.now++;
-        f.controller.Observe(f.s, true, nullptr, f.now);
+        f.controller.Observe(f.command.target, f.s, true, nullptr, f.now);
         Check(f.Poll().flags & w::unresolved, "recorder read failure holds barrier");
     }
     {

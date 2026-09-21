@@ -13,6 +13,7 @@ class Controller {
     std::map<std::array<std::uint8_t, 16>, Retained> records_;
     native::Snapshot native_{};
     wire::Snapshot current_{};
+    wire::Target current_target_{};
     wire::Command transition_{};
     wire::Phase phase_ = wire::Phase::idle;
     std::unique_ptr<evidence::Window> evidence_;
@@ -29,8 +30,8 @@ class Controller {
         wire::Receipt r{};
         r.request = c.request; r.host = c.host; r.window = c.window; r.outcome = static_cast<unsigned>(outcome);
         r.flags = (pending_ ? wire::in_flight : 0) | (unresolved_ ? wire::unresolved : 0);
-        if (ready && !Busy() && wire::Eligible(c.target, current_)) { r.flags |= wire::ready; }
-        r.snapshot = current_; r.target = Busy() ? transition_.target : c.target;
+        if (ready && !Busy() && current_target_ == c.target && wire::Eligible(c.target, current_)) { r.flags |= wire::ready; }
+        r.snapshot = current_; r.target = current_target_;
         r.transition_target = transition_.target; r.transition_request = transition_.request; r.phase = static_cast<unsigned>(phase_);
         r.action_tick = action_tick_; r.response_floor = floor_; r.completion_sequence = proof_sequence_;
         return r;
@@ -85,16 +86,17 @@ public:
     bool Busy() const noexcept { return pending_ || unresolved_; }
     const wire::Target* ActiveTarget() const noexcept { return Busy() ? &transition_.target : nullptr; }
     const Cursor* ResponseCursor() const noexcept { return pending_ && !unresolved_ && evidence_ ? &evidence_->Current() : nullptr; }
-    void Observe(const native::Snapshot& s, bool valid, const Batch* batch, std::uint64_t now) noexcept {
+    void Observe(const wire::Target& target, const native::Snapshot& s, bool valid, const Batch* batch, std::uint64_t now) noexcept {
         auto next = wire::Encode(s, current_.revision);
-        if (!valid || !wire::Equal(next, current_)) {
+        if (!valid || target != current_target_ || !wire::Equal(next, current_)) {
             if (revision_ == UINT64_MAX) { current_ = {}; Fail(); return; }
             next.revision = ++revision_;
         }
+        current_target_ = target;
         native_ = valid ? s : native::Snapshot{};
         current_ = valid ? next : wire::Snapshot{};
         if (!pending_ || unresolved_) { return; }
-        if (now < last_now_ || now > deadline_ || !batch || !evidence_->Consume(*batch, completed_)
+        if (target != transition_.target || now < last_now_ || now > deadline_ || !batch || !evidence_->Consume(*batch, completed_)
             || (batch->count && batch->records[batch->count - 1].tick_ms > now)) { Fail(); return; }
         last_now_ = now;
         if (valid && !SameOwner(current_)) { Fail(); return; }
@@ -128,7 +130,7 @@ public:
         if (!wire::Valid(verb, c)) { return Receipt(c, O::invalid, false); }
         if (!live) { return Receipt(c, O::stale, false); }
         if (verb == wire::Verb::inspect) {
-            if (pending_ && !unresolved_ && ready && c.target == transition_.target
+            if (pending_ && !unresolved_ && ready && current_target_ == c.target && c.target == transition_.target
                 && c.transition_request == transition_.request && c.window == transition_.window
                 && !std::memcmp(&c.host, &transition_.host, sizeof(c.host))) {
                 if (now < last_now_ || now > deadline_) { Fail(); }
@@ -142,7 +144,7 @@ public:
                 ? Receipt(c, O::invalid, false) : old->second.receipt;
         }
         if (Busy()) { return Receipt(c, O::pending, false); }
-        if (!ready || !wire::Eligible(c.target, current_)) { return Receipt(c, O::unavailable, false); }
+        if (!ready || current_target_ != c.target || !wire::Eligible(c.target, current_)) { return Receipt(c, O::unavailable, false); }
         if (!wire::Equal(c.expected, current_)) { return Receipt(c, O::stale, true); }
         if (records_.size() >= 4096 || now > UINT64_MAX - 45000) { return Receipt(c, O::exhausted, false); }
         try {

@@ -44,11 +44,12 @@ hostility execution remain unfinished. Source belongs to
 The response observer is installed. Later source adds tested exact response qualification
 and a separate durable enable journal with replay/loss barriers; those components
 now have tested low-level native open/add/enable helpers in both profiles. Typed
-command routing, transaction ownership and manager controls are still unfinished.
-The native recorder now also has a tested locked copy boundary and non-rearmable
-response qualification interval, required by packaging in both native profiles.
-A tested typed composite controller now retains open/add/enable ownership and
-immutable submission receipts; its IPC/runtime route and host adapter are next.
+command routing and transaction ownership are now connected to the native owner
+thread with shared vendor/guard UI exclusion. The locked response-copy boundary,
+qualification interval, composite controller, IPC route and runtime tests are
+required package gates in both profiles. Next is the host wire adapter and durable
+composite journal, followed by scoped planning and manager controls. The existing
+enable-only journal does not yet drive the new native composite commands.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
 ## Guard-upgrade detour — September 17
