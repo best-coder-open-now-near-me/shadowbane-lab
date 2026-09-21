@@ -144,7 +144,9 @@ class CondemnResponseReader:
         if snapshot["stopped"]:
             self._terminal = "response recorder stopped; capture cannot rebind"
         return {
-            **snapshot, "records": [r for r in snapshot["records"] if r["sequence"] > previous],
+            **snapshot, "process_id": self.process_id,
+            "process_creation_filetime_utc": self.creation,
+            "records": [r for r in snapshot["records"] if r["sequence"] > previous],
             "initial_history": last is None, "missed_records": missed,
             "capture_incomplete": self._incomplete,
             "command_admitted": False, "server_acceptance_verified": False,

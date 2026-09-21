@@ -369,3 +369,24 @@ these results remove the manual response-mapping blocker, not the implementation
    avoidance. Keep it independent of the guard spending job and existing resume history.
 4. Qualify automated native actions end to end, nation/subguild coverage,
    and whether an additional source is needed for guilds without cities.
+
+## Production response qualification - September 21
+
+`client_extension/condemn_evidence.py` now assembles complete decode/process/return
+triples within one explicit process, scene and character interval. Baseline history
+is retained separately; it cannot complete new work. Gaps, new rejection/ticket-loss
+counters, read interruptions, clock or scene changes, incomplete lineage and stream
+rebind permanently invalidate that interval. Interleaved responses are bounded.
+Immutable copied evidence preserves the response digest and all original stages.
+
+The exact row-state predicate accepts only the keyed successful operation-17 enable
+reply. Scope remains a separate checked UI-row fact. Unkeyed operation-12 lists,
+labels, mixed identities, inversion and ambiguous duplicate rows do not qualify.
+This is an evidence boundary, not command admission or proof of a request nonce.
+
+Validation: 84 focused tests pass, including fault/replay/scope cases and existing
+wire-reader tests; Ruff passes. Private offline replay of the captured manual
+workflow qualifies the four expected triples and the reopened enabled row without
+promoting either unkeyed list into an acknowledgement. No native action, manager
+button, deployment or automated acceptance is implied. Next: durable progress and
+native owner-thread action integration.
