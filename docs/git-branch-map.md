@@ -33,11 +33,11 @@ request/response paths are traced. The tested read-only city catalog is live-qua
 with 89 city records and separate guild/nation identities. Native hostility writes,
 response correlation and full guild coverage remain unfinished. The 1.8.23 / 0.3.34
 source adds bounded response capture with lifetime checks and loss reporting;
-package source `d300a7c` passes required validation and is staged in the test VM,
-awaiting game closure for activation and then live reply qualification. Source belongs to
+package source `d300a7c` passes required validation and is installed in the test VM.
+The updated manager is healthy; live reply qualification awaits the next login. Source belongs to
 `codex/guard-upgrades`, awaiting integration through `codex/vendor-rolling` and
 `codex/native-lifecycle-hardening` into reviewed `main`.
-No native update or automatic aggression action has been deployed.
+The response observer is installed; automatic aggression actions remain unimplemented.
 
 ## Guard-upgrade detour — September 17
 

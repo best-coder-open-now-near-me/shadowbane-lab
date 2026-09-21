@@ -241,10 +241,12 @@ plain CTest run were separately exercised with the reviewed client. The two
 previously documented graphics transparency stretch diagnostics remain deferred,
 so this is a diagnostic package, not whole-product acceptance.
 
-Native 1.8.23 / host 0.3.34 is staged and read-only upgrade validation passed in
-the test VM. Four installed observer modules match the exact source package.
-The running game and manager still use their prior versions; activation awaits
-the user closing Shadowbane. Live response qualification and automatic hostility
+Native 1.8.23 / host 0.3.34 is installed and verified in the test VM after the
+user closed Shadowbane. Four installed observer modules match the exact source
+package. The manager restarted healthy; 8,503 saved files were verified unchanged,
+and five replaced runtime/launch metadata files have rollback copies. The game
+was left closed for the user to launch from the existing shortcut. Loaded-module
+verification and live response qualification await that login. Automatic hostility
 writes remain unfinished. Package SHA-256:
 `7bfd54442468aaabe660891ce52ad8779fa2730b3991a0c2b6a62d4d4b211068`.
 Full DLL SHA-256:
