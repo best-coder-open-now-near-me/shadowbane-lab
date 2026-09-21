@@ -23,13 +23,17 @@ bundle or PvP completion is claimed. The integration branch remains
 `codex/native-lifecycle-hardening`; main remains unchanged. No new installation
 is implied by later source commits. Reuse accepted navigation and movement evidence.
 
-## Guard hostility investigation - September 20
+## Guard hostility investigation - September 21
 
 The existing guard lane now includes [crest-list observation and workflow mapping](handoffs/guard-crest-lists.md).
 Saved Heraldry, KOS and crest-options classes are identified. A tested read-only
 recorder channel retains identity keys and raw window state. A loaded nation-scoped
-Condemn entry matches the selected building; visibility, command ownership,
-hostility writes and full guild/nation directory coverage remain unfinished.
+Condemn entry matches the selected building. Root-owned KOS lookup and ordinary
+request/response paths are traced. The tested read-only city catalog is live-qualified
+with 89 city records and separate guild/nation identities. Native hostility writes,
+response correlation and full guild coverage remain unfinished. Source belongs to
+`codex/guard-upgrades`, awaiting integration through `codex/vendor-rolling` and
+`codex/native-lifecycle-hardening` into reviewed `main`.
 No native update or automatic aggression action has been deployed.
 
 ## Guard-upgrade detour — September 17

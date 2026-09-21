@@ -88,7 +88,8 @@ def test_wrong_lifetime_layout_or_ownership_is_rejected(address, value):
 
 @pytest.mark.parametrize("address,size", [
     (ENTRY + 0x70, 8), (LIST + 0x408, 12), (HUD + 0xFC, 4),
-    (HUD + 0x3B8, 4), (0x320000, len("A guild".encode("utf-16-le"))),
+    (HUD + 0x3B8, 4), (ROOT + 0x138, 4), (HUD + 0x270, 4),
+    (0x320000, len("A guild".encode("utf-16-le"))),
 ])
 def test_changing_list_identity_flag_or_name_rejects_whole_snapshot(address, size):
     m = fixture()
@@ -146,3 +147,14 @@ def test_unqualified_hud_flag_never_becomes_a_visibility_claim(raw_flag):
     window = read_native_crest_lists(m)["windows"][0]
     assert window["hud_flag_fc_raw"] == raw_flag
     assert "visible" not in window and not window["visibility_verified"]
+
+
+def test_lookup_flags_remain_separate_from_visibility_and_command_permission():
+    m = fixture()
+    m.put(ROOT + 0x138, "<I", 1)
+    m.put(HUD + 0x270, "<4B", 9, 1, 8, 7)
+    result = read_native_crest_lists(m)
+    assert result["root_refresh_pending_raw"] == 1
+    assert result["windows"][0]["lookup_excluded_raw"] == 1
+    assert not result["windows"][0]["visibility_verified"]
+    assert not result["command_admitted"]

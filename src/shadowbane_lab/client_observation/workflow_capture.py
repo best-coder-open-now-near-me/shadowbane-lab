@@ -16,6 +16,7 @@ from pathlib import Path
 from shadowbane_lab.client_observation.native_building_hirelings import (
     read_native_building_hirelings,
 )
+from shadowbane_lab.client_observation.native_city_registry import read_native_city_registry
 from shadowbane_lab.client_observation.native_crest_lists import read_native_crest_lists
 from shadowbane_lab.client_observation.native_guard_upgrade import read_native_guard_upgrade
 from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
@@ -98,6 +99,7 @@ def read_window_context(memory):
 READERS = {
     "windows": read_window_context,
     "crests": read_native_crest_lists,
+    "city_registry": read_native_city_registry,
     "nearby": read_native_nearby_hirelings,
     "building": read_native_building_hirelings,
     "guard": read_native_guard_upgrade,

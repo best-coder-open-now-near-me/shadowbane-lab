@@ -47,6 +47,7 @@ def read_native_crest_lists(memory: VendorQueueMemory) -> dict[str, object]:
     root = r.word(base + 0x16A7BFC)
     r.require(root, base + 0x1174884, "game window type")
     r.require(root + 0x64, 2, "in-world state")
+    refresh_pending = r.read(root + 0x138, 4)[0]
     windows = []
     for hud in r.hud_stack(root):
         kind = r.word(hud) - base
@@ -56,6 +57,7 @@ def read_native_crest_lists(memory: VendorQueueMemory) -> dict[str, object]:
             "address": hud, "class_rva": kind, "kind": CREST_HUD_CLASSES[kind],
             "hud_kind_raw": r.word(hud + 0xDC),
             "hud_flag_fc_raw": r.read(hud + 0xFC, 4)[0],
+            "lookup_excluded_raw": r.read(hud + 0x270, 4)[1],
             "visibility_verified": False,
         }
         if kind == 0x1168AD4:
@@ -109,6 +111,7 @@ def read_native_crest_lists(memory: VendorQueueMemory) -> dict[str, object]:
         windows.append(window)
     r.verify()
     return {
+        "root_address": root, "root_refresh_pending_raw": refresh_pending,
         "windows": windows, "command_admitted": False,
         "server_acceptance_verified": False, "town_coverage_verified": False,
     }
