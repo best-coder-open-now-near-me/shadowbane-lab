@@ -23,6 +23,14 @@ bundle or PvP completion is claimed. The integration branch remains
 `codex/native-lifecycle-hardening`; main remains unchanged. No new installation
 is implied by later source commits. Reuse accepted navigation and movement evidence.
 
+## Guard hostility investigation - September 20
+
+The existing guard lane now includes [crest-list observation and workflow mapping](handoffs/guard-crest-lists.md).
+Saved Heraldry, KOS and crest-options classes are identified. A tested read-only
+recorder channel retains identities and visibility; hostility writes, active
+building list qualification and full guild/nation directory coverage remain unfinished.
+No native update or automatic aggression action has been deployed.
+
 ## Guard-upgrade detour — September 17
 
 `codex/guard-upgrades` starts at vendor checkpoint `61e6fd8` in its own worktree.
