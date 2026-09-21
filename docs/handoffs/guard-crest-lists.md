@@ -232,10 +232,29 @@ returned handlers or preexisting rows into accepted writes.
 
 Use the existing workflow recorder with `--condemn-responses` to retain these
 events beside window, crest and map observations for a whole bounded session.
-The native update is required for that optional channel. Current source checks:
-99 focused host tests, Ruff, four native callback/rollback tests, and full DLL
-compilation pass. Exact committed package validation, installation and live reply
-qualification are still pending; no deployment or gameplay effect is claimed.
+The native update is required for that optional channel. Source checks include 99 focused host tests and four native callback/rollback
+tests. Exact-source package d300a7ca10067e4403677207080d61dd37092ffa passed
+2,886 host tests, Ruff, both native profiles' required suites, reviewed client
+bindings, movement IPC and installed host contracts. Eighteen conditional host
+tests were skipped; the three client-dependent native bindings skipped by each
+plain CTest run were separately exercised with the reviewed client. The two
+previously documented graphics transparency stretch diagnostics remain deferred,
+so this is a diagnostic package, not whole-product acceptance.
+
+Native 1.8.23 / host 0.3.34 is staged and read-only upgrade validation passed in
+the test VM. Four installed observer modules match the exact source package.
+The running game and manager still use their prior versions; activation awaits
+the user closing Shadowbane. Live response qualification and automatic hostility
+writes remain unfinished. Package SHA-256:
+`7bfd54442468aaabe660891ce52ad8779fa2730b3991a0c2b6a62d4d4b211068`.
+Full DLL SHA-256:
+`6d48cc4c98f4dfb133e52bad9424f75e347c778a788be2764bac5ee2424751c2`.
+
+Private build output is retained under `artifacts/guard-packages/5410c490` and
+`artifacts/guard-deploy/1.8.23-d300a7c`; earlier failed package attempts remain
+local with their failure logs. No client binary, private capture or credential
+is published. The source lane still targets vendor-rolling, then
+native-lifecycle-hardening, then reviewed main; it has not been merged.
 
 The official, prepared and loaded current client match the following additional
 response-lifecycle and row-layout ranges (private live receipt retained locally):
