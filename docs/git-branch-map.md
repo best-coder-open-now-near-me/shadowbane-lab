@@ -47,8 +47,9 @@ now have tested low-level native open/add/enable helpers in both profiles. Typed
 command routing and transaction ownership are now connected to the native owner
 thread with shared vendor/guard UI exclusion. The locked response-copy boundary,
 qualification interval, composite controller, IPC route and runtime tests are
-required package gates in both profiles. Next is the host wire adapter and durable
-composite journal, followed by scoped planning and manager controls. The existing
+required package gates in both profiles. The matching host wire contract is now
+validated; next is its transport session and durable composite journal, followed
+by scoped planning and manager controls. The existing
 enable-only journal does not yet drive the new native composite commands.
 Automatic aggression remains unavailable, with no additional deployment implied.
 

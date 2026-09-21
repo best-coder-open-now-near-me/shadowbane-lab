@@ -565,3 +565,28 @@ in for a new add/enable transaction). Remaining: scoped catalog plans and manage
 controls, exact-source package validation, then one combined live qualification.
 Source remains on codex/guard-upgrades for integration through vendor-rolling and
 native-lifecycle-hardening into reviewed main; no merge or PR is implied.
+
+
+## Host wire contract - September 21
+
+`condemn_wire.py` now matches the explicit native 20-byte target, 132-byte snapshot,
+576-byte command and 384-byte receipt layouts. Immutable guild/nation targets,
+owned snapshots and continuation UUIDs remain separate. Receipt validation checks
+observation versus transition targets, phase/ownership flags, keyed completion
+counters, unknown padding and signature. Already-enabled state is distinct from a
+newly verified enable; pending and uncertain receipts cannot certify completion.
+
+Validation: 66 wire tests cover native offsets, round trips, malformed payloads,
+scopes, empty/expired observations and contradictory metadata. All 181 selected
+wire/evidence/progress/response tests and Ruff pass. No host transport session is
+connected to the wire yet; no new package or installation is implied.
+
+Next active item: native host session plus durable composite journaling. An INSPECT
+with a transition UUID can advance the native operation and is therefore not a
+read-only/retryable inspection. Do not copy the existing session retry loop for
+those continuations. Preserve the original producer/transition, journal before
+ENSURE and before continuation dispatch, validate each exact receipt, retain lost
+replies, and qualify completion against the original healthy response interval.
+The latest action floor/tick may change from open to add to enable; the initial
+submission is not necessarily the enable boundary. Then connect scoped plans and
+manager controls before packaging and one combined live test.
