@@ -1,6 +1,6 @@
 """Continuous read-only workflow evidence for one reviewed game-process lifetime.
 
-Run this file with the installed host Python; no native extension update is needed.
+Window readers need only host Python; optional response capture requires native 1.8.23.
 Samples are sequential, not a transaction or a server receipt. Short-lived states
 between polls can be missed. This module never acquires an action channel.
 """
@@ -208,14 +208,27 @@ def main():
     parser.add_argument("--creation", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--stop-file", type=Path, required=True)
+    parser.add_argument("--condemn-responses", action="store_true",
+                        help="include native 1.8.23 Condemn receive/processing events")
     parser.add_argument("--duration", type=float, default=1800)
     parser.add_argument("--interval", type=float, default=0.2)
     args = parser.parse_args()
     memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", args.process_id)
     try:
+        readers = dict(READERS)
+        if args.condemn_responses:
+            from shadowbane_lab.client_extension.condemn_responses import CondemnResponseReader
+            from shadowbane_lab.client_extension.event_reader import (
+                WindowsSharedMemorySnapshotReader,
+            )
+
+            responses = CondemnResponseReader(
+                args.process_id, args.creation, WindowsSharedMemorySnapshotReader(),
+            )
+            readers["condemn_responses"] = lambda _: responses.drain()
         result = record_workflow(
             memory, args.output, args.stop_file, process_id=args.process_id,
-            creation=args.creation, duration=args.duration, interval=args.interval,
+            creation=args.creation, duration=args.duration, interval=args.interval, readers=readers,
             armed=lambda: print("Workflow recorder armed.", flush=True),
         )
         print(json.dumps(result), flush=True)

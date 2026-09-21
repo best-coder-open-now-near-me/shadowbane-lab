@@ -1,5 +1,6 @@
 #include "movement_boundary_trace.h"
 #include "targeted_action_trace.h"
+#include "condemn_responses.h"
 #include "movement_runtime.h"
 #include "vendor_runtime.h"
 #include "camera_observation.h"
@@ -30,7 +31,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.8.22";
+constexpr char kExtensionVersion[] = "1.8.23";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -413,6 +414,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result == ERROR_SUCCESS && is_client) {
             // Optional passive tracing cannot disable an otherwise working client.
             (void)wonderbane::extension::StartTargetedActionTrace(identity);
+            (void)wonderbane::extension::condemn::Start(identity);
             const DWORD trace_result = wonderbane::extension::StartMovementBoundaryTrace(identity);
             movement_trace_started = trace_result == ERROR_SUCCESS;
             if (!movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
@@ -469,6 +471,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         }
         if (result != ERROR_SUCCESS) {
             wonderbane::extension::StopTargetedActionTrace();
+            wonderbane::extension::condemn::Stop();
             if (movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
             if (performance_telemetry_started) {
                 wonderbane::extension::StopPerformanceTelemetry();

@@ -203,6 +203,40 @@ Validation: 63 focused city/crest/recorder tests and Ruff pass. The city and cre
 readers were exercised in the running test client without an installation or
 native extension change. This checkpoint does not deploy a hostility command.
 
+## Condemn response recorder source checkpoint
+
+Native 1.8.23 / host 0.3.34 adds passive response evidence; it does not add a
+hostility command. ArcCoupMessage slots +4, +0x14 and +0x1C observe destruction,
+processing and deserialization, using the reviewed class at RVA 0x114F198.
+The ordinary decoder return RVA 0x3625BC and active ArcLinkedSocket class are
+required for receive records. Exact prepared executable and loaded-image checks
+precede installation. Partial startup restores all slots; call-through code and
+original targets stay pinned for late callbacks. Native returns, exceptions and
+Windows error state retain their ordinary behavior.
+
+The bounded shared ring retains decoded, processing and returned stages, building
+and entry keys, serialized scope fields, and up to 512 typed rows. Fields absent
+from a particular operation are zeroed instead of interpreting recycled message
+storage. Row wrappers contain a CoupEntry pointer; its typed character/guild/nation
+keys are at +0x30/+0x38/+0x40, flags at +0x48..+0x4A. The wire counter at message
++0xCC is separate from the decoded list length. Names and borrowed pointers are
+not published. Destroy/redecode consumes old pointer tickets; matching copied
+payload plus unchanged scene lifetime retains diagnostic decode lineage.
+This does not prove network-queue freshness, request ownership or server acceptance.
+
+The host reader binds to PID plus process creation time and validates the entire
+retained ring twice. It reports initial history, overwritten records, rejected
+payloads, lost tickets and closure. Counter regression prevents reattachment;
+missing/unstable reads and losses mark the capture incomplete. It never promotes
+returned handlers or preexisting rows into accepted writes.
+
+Use the existing workflow recorder with `--condemn-responses` to retain these
+events beside window, crest and map observations for a whole bounded session.
+The native update is required for that optional channel. Current source checks:
+99 focused host tests, Ruff, four native callback/rollback tests, and full DLL
+compilation pass. Exact committed package validation, installation and live reply
+qualification are still pending; no deployment or gameplay effect is claimed.
+
 ## Next work
 
 1. **Complete:** loaded Condemn row, separate crest scopes and corrected raw HUD flags.
