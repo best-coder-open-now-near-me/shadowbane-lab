@@ -237,6 +237,20 @@ The native update is required for that optional channel. Current source checks:
 compilation pass. Exact committed package validation, installation and live reply
 qualification are still pending; no deployment or gameplay effect is claimed.
 
+The official, prepared and loaded current client match the following additional
+response-lifecycle and row-layout ranges (private live receipt retained locally):
+
+| RVA | Length | SHA-256 |
+| --- | --- | --- |
+| 0x303BB0 | 0x80 | 944f88bda267b63a628cabafa395bc6053a537fbad35bf7d5da3a6503f0d0e6a |
+| 0x362500 | 0x180 | d5fdae8ba28b844223449ebea5a9354c469df234d7cd412c9b16ae85a0619ba8 |
+| 0x7F7ED0 | 0x410 | cf71d27ad0f5b1485f88284ac65ea26047b75a0f8869ef4152d6921bd16dc614 |
+| 0x5B1C80 | 0x4D0 | 5a3b2624cd40cc90544513a9a978c08990bc95974c539ab2e360ec5da6d64458 |
+| 0x5B4330 | 0x50 | 8275863ad921e52a2d2fff74fe8f0427c2d97f2467818bc5c19d36c7e98f31ed |
+| 0x5CF50 | 0x20 | c8bb8bd1d5516e7b730e78ca89f7084a5c2cd23d8d6645503a0ca4b73558de56 |
+
+The previously listed 0x303F00 and 0x304DD0 ranges also matched the running client.
+
 ## Next work
 
 1. **Complete:** loaded Condemn row, separate crest scopes and corrected raw HUD flags.
