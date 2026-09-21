@@ -157,3 +157,7 @@ def test_condemn_native_actions_are_a_required_package_gate():
 
 def test_condemn_evidence_is_a_required_package_gate():
     assert "wonderbane_extension_condemn_evidence" in builder.REQUIRED_CONDEMN_TESTS
+
+
+def test_condemn_controller_is_a_required_package_gate():
+    assert "wonderbane_extension_condemn_controller" in builder.REQUIRED_CONDEMN_TESTS

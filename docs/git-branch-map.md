@@ -47,6 +47,8 @@ now have tested low-level native open/add/enable helpers in both profiles. Typed
 command routing, transaction ownership and manager controls are still unfinished.
 The native recorder now also has a tested locked copy boundary and non-rearmable
 response qualification interval, required by packaging in both native profiles.
+A tested typed composite controller now retains open/add/enable ownership and
+immutable submission receipts; its IPC/runtime route and host adapter are next.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
 ## Guard-upgrade detour — September 17

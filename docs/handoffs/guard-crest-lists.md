@@ -501,3 +501,27 @@ only: installed 1.8.23 / 0.3.34 remains unchanged, and no game actions ran.
 Next active item remains the typed native transaction controller and command route,
 followed by composite host journaling, scoped catalog planning and manager controls.
 No additional manual capture is required by this checkpoint.
+
+
+## Composite native controller - September 21
+
+Typed packed Condemn payloads reserve verbs 23 (inspect/continue) and 24 (ensure
+one explicitly scoped crest is enabled). They serialize each snapshot field
+explicitly and fit the existing 576/384-byte transport payloads. The controller
+retains immutable submission receipts by UUID and owns one open/add/enable chain.
+Only inspections naming the original transition, producer, window and scope can
+advance it. An unresolved callback, timeout, lost evidence, changed scene/context
+or incompatible row retains the barrier and never replays an action.
+
+An add remains pending through an unkeyed list refresh. A freshly observed scoped
+disabled row can proceed to one enable; completion requires a later keyed enabled
+response and fresh enabled row in the original owned context. Preexisting enabled
+rows are a separate read-only result. New responses arriving before dispatch defer
+the action until drained. Replies alone never certify a request nonce or nation
+inheritance. The controller is source-tested but not yet routed from IPC/runtime.
+
+Validation: controller fault tests pass in full and diagnostic profiles; 150 package
+gate tests and Ruff pass. The controller test is mandatory for packaging. No new
+package, installation or live automated action occurred. Next active item: register
+the queue/owner-thread route and share UI exclusion with vendor/guard jobs, then
+connect composite host journaling, scoped plans and manager controls.
