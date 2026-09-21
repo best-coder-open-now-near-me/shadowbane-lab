@@ -247,9 +247,10 @@ package. The manager restarted healthy; 8,503 saved files were verified unchange
 and five replaced runtime/launch metadata files have rollback copies. The game
 was launched by the user from the existing shortcut. Its exact-process heartbeat
 confirms 1.8.23, and the response mapping validates. A bounded full-workflow
-capture is armed. Two rejected startup decodes predate that capture; their empty
+capture was recorded and stopped after the completed manual workflow. Two
+rejected startup decodes predate that capture; their empty
 payloads and incomplete-history status are retained, not treated as successful
-responses. The bundled manual workflow and live reply qualification remain pending.
+responses. The manual nation add/enable/reopen sequence is qualified below.
 Automatic hostility writes remain unfinished. Package SHA-256:
 `7bfd54442468aaabe660891ce52ad8779fa2730b3991a0c2b6a62d4d4b211068`.
 Full DLL SHA-256:
@@ -275,13 +276,96 @@ response-lifecycle and row-layout ranges (private live receipt retained locally)
 
 The previously listed 0x303F00 and 0x304DD0 ranges also matched the running client.
 
+## Manual nation workflow qualified - September 21
+
+The user added an existing saved nation crest to a different tower and reopened
+that tower's Condemn list. Dragging from the map was not required. The map cache
+remained readable with 89 city records; this does not establish a fresh download,
+a complete guild directory, or map-to-list drag support.
+
+The bounded recorder stopped on request and flushed its final record. All 4,067
+samples of the response, crest, window and city-catalog channels were readable.
+There were no missing response records or lost lineage tickets. Two rejected
+decodes preceded capture; one additional unqualified three-stage response occurred
+before the relevant list opened. Its payload remains unknown and is not silently
+classified as unrelated or successful. Thus whole-workflow completeness remains
+false even though the following four response triples validate individually:
+
+| Step | Operation | Response content | Correlated loaded UI |
+| --- | --- | --- | --- |
+| Open new tower list | 12 | Empty rows, zero building key | Exact tower context, empty list |
+| Add nation crest | 12 | One kind-5 nation row, state flags zero, zero building key | Same tower context, nation row appears |
+| Enable row | 17 | Exact typed tower and entry keys, status 0, state 1 | Same row's nation flag changes from 0 to 1 |
+| Close and reopen | 12 | Same nation row with nation flag 1, zero building key | Recreated row under the same tower context remains enabled |
+
+Every qualified response retained decoded, processing and returned stages with
+matching copied payload, scene epoch and local character identity; decode lineage
+was preserved and timestamps were ordered. Private capture, keys, names and
+qualification receipts remain outside Git.
+
+This live add sequence returned operation 12, not the earlier candidate operation
+13. In particular, a successful list refresh may carry a **zero building key**.
+Never fill that missing field from whichever tower menu happens to be open or
+promote the list into a building-specific acknowledgement. Operation 17 is the
+observed keyed row-state reply. It has an entry key but no serialized scope field;
+retain the separately verified row scope instead of guessing from scope zero.
+This is manual state-response qualification, not proof of an automated request,
+request nonce, nation inheritance, or observed guard combat.
+
+### Ordinary native toggle path
+
+Action 0x59E dispatches at RVA 0x7CC51F: resolve root HUD kind 0x39, then call
+RVA 0x5B1640. The handler reads the selected entry at KOS +0x3B8, obtains its
+character/guild/nation keys, and reads the corresponding flag at entry
++0x84/+0x85/+0x86. It creates operation 17 with selected entry key +0x88, current
+KOS building +0xC0, and the **inverse** of that existing flag at message +0xC8.
+It is a toggle, not an unconditional enable operation. Never replay it after an
+uncertain submission or invoke it on an already enabled row.
+
+Success dispatch for operation 17 reaches RVA 0x304835, which calls RVA 0x5B1340
+with entry key and state. The setter finds the entry and writes the state to each
+nonzero identity's associated flag, then refreshes KOS. It does not independently
+compare the response building with the displayed tower. The manager must make
+that comparison itself and keep the target context fixed while unresolved.
+The ordinary Condemn description states that its list denies tradesman services
+and causes guards to attack on sight; global inversion changes the list's meaning.
+The captured list was not inverted. Errant and invert actions remain out of scope.
+
+Official, prepared and loaded client bytes agree for these additional bindings:
+
+| RVA | Length | SHA-256 |
+| --- | --- | --- |
+| 0x5B1340 | 0xE4 | 342f9c5ba532e6fbe5e5fc545f6596244305190f0ba0594809b07658d7ba3780 |
+| 0x5B1640 | 0x1D8 | c48515ad5b45a94f241de5f4865a805fa11da116a1b1c12cd0d10b2a6cd2adaa |
+| 0x7CC4BE | 0xCC | 814545fa8a12ff8850723e77d314b41c0fc9641299a44b0b513f2bea7e19fc70 |
+| 0x7CDCEC | 0x149 | 7120623851fad91866febb2605cba24831e02bab108ccdee055069ed1b51c2ff |
+| 0x5B0E8B | 0x68 | d4f0179348c6ffbe7b66f9610496d48a453df295c4287ba983e447c32038bafe |
+
+### Consequences for the pending manager job
+
+Keep scope-specific target identity and catalog provenance separate from names.
+A list row is an observation used to locate the requested entry; the keyed state
+reply and freshly verified row state are separate evidence. Submit on the native
+owner thread only after rechecking exact tower, non-inverted list, selected row,
+foreground, scene lifetime and desired current state. Permit one unresolved native
+request, journal it before invocation, and prevent context switches or automatic
+replay after ambiguity. A fresh enabled row may avoid a toggle; an unkeyed list
+alone cannot clear an unresolved write. Equal guild/nation IDs must not silently
+collapse scope or imply nation inheritance. Keep progress independent of guard
+upgrade spending history and preserve completed targets while moving around town.
+
+No product files were changed or redeployed for this qualification step. The
+manager-owned hostility executor and its native commands remain unimplemented;
+these results remove the manual response-mapping blocker, not the implementation.
+
 ## Next work
 
 1. **Complete:** loaded Condemn row, separate crest scopes and corrected raw HUD flags.
 2. **Complete:** static root ownership, scope selection, request construction and
    response dispatch mapping; read-only live city catalog and scope correlation.
 3. **Active:** implement the manager-owned hostility job, including native response
-   capture, one request in flight, exact building/scope receipts and duplicate
+   capture (implemented and live-qualified), one request in flight, exact
+   building/scope state evidence and duplicate
    avoidance. Keep it independent of the guard spending job and existing resume history.
-4. Qualify the native action and response end to end, nation/subguild coverage,
+4. Qualify automated native actions end to end, nation/subguild coverage,
    and whether an additional source is needed for guilds without cities.
