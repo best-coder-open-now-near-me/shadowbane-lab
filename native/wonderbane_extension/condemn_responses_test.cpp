@@ -2,6 +2,7 @@
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <thread>
 namespace ko = wonderbane::extension::condemn;
 namespace {
@@ -84,6 +85,11 @@ int main(int argc, char** argv) {
         Check(!ko::storage && decoded == 1 && processed == 1 && destroyed == 1, "rollback closes capture only");
         ko::Stop(); return failures;
     }
+    ko::Cursor baseline{};
+    Check(ko::ReadCursor(baseline) && baseline.process_id == identity.process_id
+        && baseline.creation == identity.creation_filetime_utc && !baseline.sequence, "locked cursor lifetime");
+    auto batch = std::make_unique<ko::Batch>();
+    Check(ko::ReadAfter(baseline, *batch) && !batch->count, "empty current interval");
     std::array<std::uint32_t, 54> message{};
     std::array<std::uint32_t, 8> socket{};
     std::array<std::uint32_t, 2> head{};
@@ -120,6 +126,28 @@ int main(int argc, char** argv) {
         DWORD status = 1; GetExitCodeProcess(child.hProcess,&status); Check(status==0,"interprocess row layout");
         CloseHandle(child.hThread);CloseHandle(child.hProcess);
     }
+    Check(ko::ReadAfter(baseline, *batch) && batch->count == 3 && batch->after.sequence == 3,
+        "locked copy returns complete contiguous interval");
+    const auto saved = batch->after;
+    batch->records[2].payload.state = 1;
+    Check(ko::storage->records[2].payload.state == 0, "reader copy does not alias recorder memory");
+    auto wrong = baseline; ++wrong.creation;
+    Check(!ko::ReadAfter(wrong, *batch) && !batch->count && !batch->after.sequence, "cross-process cursor rejected");
+    wrong = saved; ++wrong.sequence;
+    Check(!ko::ReadAfter(wrong, *batch), "future cursor rejected");
+    ++ko::storage->rejected;
+    Check(!ko::ReadAfter(saved, *batch), "new rejection invalidates interval");
+    ko::Cursor fresh{};
+    Check(ko::ReadCursor(fresh) && fresh.rejected == 1 && ko::ReadAfter(fresh, *batch),
+        "fresh baseline retains historical rejection");
+    ++ko::storage->ticket_drops;
+    Check(!ko::ReadAfter(fresh, *batch), "new ticket loss invalidates interval");
+    --ko::storage->ticket_drops;
+    const auto original_sequence = ko::storage->records[0].sequence;
+    ko::storage->records[0].sequence = 99;
+    baseline.rejected = 1;
+    Check(!ko::ReadAfter(baseline, *batch) && !batch->count, "corrupt ring slot rejected without partial output");
+    ko::storage->records[0].sequence = original_sequence;
     ko::ProcessHook(message.data(),nullptr);
     Check(!(ko::storage->records[3].flags & 4), "decode ticket consumed once");
     decode(message.data(),socket.data());
@@ -140,6 +168,7 @@ int main(int argc, char** argv) {
     decode(message.data(),socket.data()); Check(ko::storage->sequence==before,"retired socket excluded"); socket[7]=0;
     for (unsigned i=0;i<35;++i) { decode(message.data(),socket.data()); }
     Check(ko::storage->overwritten==ko::storage->sequence-32,"bounded ring overwrite accounting");
+    Check(!ko::ReadAfter(baseline, *batch), "overrun cannot become new baseline");
     entered=CreateEventW(nullptr,TRUE,FALSE,nullptr); released=CreateEventW(nullptr,TRUE,FALSE,nullptr);
     hold_decode=true;
     std::thread crossing([&]{decode(message.data(),socket.data());});
@@ -151,7 +180,9 @@ int main(int argc, char** argv) {
     auto* retained=static_cast<const ko::Storage*>(MapViewOfFile(ko::mapping,FILE_MAP_READ,0,0,sizeof(ko::Storage)));
     std::thread closing([&]{ko::ProcessHook(message.data(),nullptr);});
     Check(WaitForSingleObject(entered,5000)==WAIT_OBJECT_0,"processing held");
-    ko::Stop();const auto stopped_sequence=retained?retained->sequence:0;
+    ko::Stop();
+    Check(!ko::ReadCursor(fresh) && !fresh.process_id && !ko::ReadAfter(saved, *batch), "stopped recorder cannot produce proof");
+    const auto stopped_sequence=retained?retained->sequence:0;
     SetEvent(released);closing.join();hold_process=false;
     Check(ko::StartBound(identity,base,slots,targets)==ERROR_ALREADY_INITIALIZED,"no replacement generation");
     for(std::size_t i=0;i<slots.size();++i){Check(*slots[i]==targets[i],"shutdown restores slots");}

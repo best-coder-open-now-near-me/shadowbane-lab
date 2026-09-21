@@ -57,6 +57,7 @@ REQUIRED_GUARD_TESTS = frozenset({
 
 
 REQUIRED_CONDEMN_TESTS = frozenset({
+    "wonderbane_extension_condemn_evidence",
     "wonderbane_extension_condemn_responses",
     "wonderbane_extension_condemn_native",
     *(f"wonderbane_extension_condemn_rollback_{i}" for i in (1, 2, 3)),

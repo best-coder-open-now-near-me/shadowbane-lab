@@ -33,6 +33,21 @@ struct alignas(8) Storage {
 };
 static_assert(sizeof(Row) == 40 && sizeof(Payload) == 20552 && sizeof(Record) == 20608);
 static_assert(offsetof(Storage, records) == 64 && sizeof(Storage) == 659520);
+// Process-local copy boundary. No view or native pointer escapes the recorder lock.
+// Allocate Batch off the owner thread's small stack (it contains up to 32 bodies).
+struct Cursor {
+    std::uint32_t process_id = 0;
+    std::uint64_t creation = 0, sequence = 0, rejected = 0, ticket_drops = 0;
+    bool operator==(const Cursor&) const = default;
+};
+struct Batch {
+    Cursor after{};
+    std::uint32_t count = 0;
+    std::array<Record, kCapacity> records{};
+};
+// Failure leaves output metadata empty. Neither API resets history or starts hooks.
+bool ReadCursor(Cursor&) noexcept;
+bool ReadAfter(const Cursor&, Batch&) noexcept;
 // Permanent response observation, not command authority. No native message or
 // socket pointer is published. Callback call-through stays pinned until exit.
 DWORD Start(const ProcessIdentity&) noexcept;

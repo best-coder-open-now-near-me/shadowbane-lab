@@ -45,6 +45,8 @@ The response observer is installed. Later source adds tested exact response qual
 and a separate durable enable journal with replay/loss barriers; those components
 now have tested low-level native open/add/enable helpers in both profiles. Typed
 command routing, transaction ownership and manager controls are still unfinished.
+The native recorder now also has a tested locked copy boundary and non-rearmable
+response qualification interval, required by packaging in both native profiles.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
 ## Guard-upgrade detour — September 17

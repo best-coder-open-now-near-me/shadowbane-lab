@@ -206,6 +206,17 @@ std::array<std::uint32_t, 3> Hooks() noexcept {
     return {reinterpret_cast<std::uint32_t>(&DestroyHook), reinterpret_cast<std::uint32_t>(&ProcessHook),
         reinterpret_cast<std::uint32_t>(&DecodeHook)};
 }
+bool CursorLocked(Cursor& out) noexcept {
+    if (!storage || storage->stopped || storage->sequence < 0 || storage->rejected < 0
+        || storage->ticket_drops < 0 || !storage->process_id || !storage->creation
+        || storage->schema != 1 || storage->record_size != sizeof(Record)
+        || storage->capacity != kCapacity || std::memcmp(storage->magic, "WBKOS1\0", 8)
+        || storage->overwritten != (storage->sequence > static_cast<LONG64>(kCapacity)
+            ? storage->sequence - static_cast<LONG64>(kCapacity) : 0)) { return false; }
+    out = {storage->process_id, storage->creation, static_cast<std::uint64_t>(storage->sequence),
+        static_cast<std::uint64_t>(storage->rejected), static_cast<std::uint64_t>(storage->ticket_drops)};
+    return true;
+}
 void CloseLocked() noexcept {
     for (auto& ticket : tickets) { ticket.message = nullptr; }
     if (storage) { InterlockedExchange(&storage->stopped, 1); UnmapViewOfFile(storage); storage = nullptr; }
@@ -269,6 +280,33 @@ DWORD Start(const ProcessIdentity& identity) noexcept {
         targets[i] = static_cast<std::uint32_t>(base + kTargets[i]);
     }
     return StartBound(identity, base, slots, targets);
+}
+bool ReadCursor(Cursor& out) noexcept {
+    out = {};
+    AcquireSRWLockShared(&lock);
+    const bool valid = CursorLocked(out);
+    ReleaseSRWLockShared(&lock);
+    return valid;
+}
+bool ReadAfter(const Cursor& before, Batch& out) noexcept {
+    out.after = {}; out.count = 0;
+    AcquireSRWLockShared(&lock);
+    Cursor after{};
+    bool valid = CursorLocked(after) && before.process_id == after.process_id
+        && before.creation == after.creation && before.sequence <= after.sequence
+        && after.sequence - before.sequence <= kCapacity
+        && before.rejected == after.rejected && before.ticket_drops == after.ticket_drops;
+    if (valid) {
+        for (auto sequence = before.sequence + 1; sequence <= after.sequence; ++sequence) {
+            const auto& source = storage->records[(sequence - 1) % kCapacity];
+            if (source.sequence != static_cast<LONG64>(sequence)) { valid = false; break; }
+            std::memcpy(&out.records[out.count++], &source, sizeof(Record));
+        }
+    }
+    if (valid) { out.after = after; }
+    else { out.after = {}; out.count = 0; }
+    ReleaseSRWLockShared(&lock);
+    return valid;
 }
 void Stop() noexcept {
     AcquireSRWLockExclusive(&lock);

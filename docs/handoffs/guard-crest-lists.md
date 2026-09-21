@@ -478,3 +478,26 @@ Next active item: typed native command/receipt routing and one-in-flight transac
 ownership, including composite add/enable handling that does not treat an unkeyed
 list refresh as add acknowledgement. Then connect scoped catalog planning, shared
 UI ownership and manager controls; qualify the complete automated workflow together.
+
+
+## Native response ownership boundary - September 21
+
+The recorder now provides a locked, bounded process-local copy API. It never
+exports its live view and rejects stopped capture, changed process lifetime,
+new rejection/ticket loss, ring overrun, corrupt slots and future cursors.
+`condemn_evidence.h` qualifies complete copied response triples in a non-rearmable
+process/scene interval. It handles interleaving and split drains, requires ordered
+lineage and matching bodies, and discards all completions from a damaged drain.
+Historical counters remain in the baseline; old decodes cannot complete new work.
+Only a successful exact-building/exact-entry operation-17 enabled reply qualifies
+as keyed state evidence. This still requires separate owned scoped-row observation
+and command ownership; neither an unkeyed list nor a response alone is authority.
+
+Validation: five response/evidence/rollback tests pass in full and diagnostics
+profiles; both DLLs build with warnings as errors. 258 focused host and package-gate
+tests and Ruff pass. The evidence test is now a mandatory package gate. Source
+only: installed 1.8.23 / 0.3.34 remains unchanged, and no game actions ran.
+
+Next active item remains the typed native transaction controller and command route,
+followed by composite host journaling, scoped catalog planning and manager controls.
+No additional manual capture is required by this checkpoint.
