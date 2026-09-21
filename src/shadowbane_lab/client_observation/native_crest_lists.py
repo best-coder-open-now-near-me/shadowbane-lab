@@ -1,6 +1,6 @@
 """Read loaded crest lists without selecting or condemning anything.
 
-HUD-stack membership includes hidden cached windows. A loaded list is not a
+HUD-stack membership alone does not prove a window is visible. A loaded list is not a
 server acknowledgement or proof of complete nation coverage.
 See docs/handoffs/guard-crest-lists.md for reviewed layouts and limitations.
 """
@@ -52,12 +52,11 @@ def read_native_crest_lists(memory: VendorQueueMemory) -> dict[str, object]:
         kind = r.word(hud) - base
         if kind not in CREST_HUD_CLASSES:
             continue
-        hidden = r.read(hud + 0xFC, 4)[0]
-        if hidden not in (0, 1):
-            raise NativeVendorDialogCaptureError("invalid crest window visibility")
         window = {
             "address": hud, "class_rva": kind, "kind": CREST_HUD_CLASSES[kind],
-            "hud_kind_raw": r.word(hud + 0xDC), "visible": not hidden,
+            "hud_kind_raw": r.word(hud + 0xDC),
+            "hud_flag_fc_raw": r.read(hud + 0xFC, 4)[0],
+            "visibility_verified": False,
         }
         if kind == 0x1168AD4:
             window["options_raw"] = list(r.read(hud + 0x3E8, 8)[:5])
@@ -85,13 +84,15 @@ def read_native_crest_lists(memory: VendorQueueMemory) -> dict[str, object]:
                     "entry_address": entry, "selected": entry == selected,
                     "row_key_raw": _key(r, entry + 0x10),
                     "identities": {
-                        label: {"key": _key(r, entry + key_offset),
-                                "display_name": _text(r, entry + name_offset)}
-                        for label, key_offset, name_offset in (
-                            ("character", 0x68, 0x20), ("guild", 0x70, 0x38),
-                            ("nation", 0x78, 0x50),
+                        label: _key(r, entry + key_offset)
+                        for label, key_offset in (
+                            ("character", 0x68), ("guild", 0x70), ("nation", 0x78),
                         )
                     },
+                    # KOS may place a nation label in the first text field;
+                    # text-field position does not establish identity scope.
+                    "display_labels_raw": [_text(r, entry + offset)
+                                           for offset in (0x20, 0x38, 0x50)],
                     "flags_raw": list(r.read(entry + 0x84, 4)[:3]),
                 })
             if selected and selected not in seen:

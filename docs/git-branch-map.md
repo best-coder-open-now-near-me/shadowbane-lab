@@ -27,8 +27,9 @@ is implied by later source commits. Reuse accepted navigation and movement evide
 
 The existing guard lane now includes [crest-list observation and workflow mapping](handoffs/guard-crest-lists.md).
 Saved Heraldry, KOS and crest-options classes are identified. A tested read-only
-recorder channel retains identities and visibility; hostility writes, active
-building list qualification and full guild/nation directory coverage remain unfinished.
+recorder channel retains identity keys and raw window state. A loaded nation-scoped
+Condemn entry matches the selected building; visibility, command ownership,
+hostility writes and full guild/nation directory coverage remain unfinished.
 No native update or automatic aggression action has been deployed.
 
 ## Guard-upgrade detour — September 17

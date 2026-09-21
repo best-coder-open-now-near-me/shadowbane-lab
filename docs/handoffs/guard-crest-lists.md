@@ -15,8 +15,9 @@ list mutation.
 
 A later process lifetime retained one saved Heraldry entry. Its character,
 guild and nation identities are separate typed keys. Guild and nation keys can
-be equal while retaining separate roles. Hidden cached KOS and Antagonist windows
-were also present, with no loaded entries and zero KOS context. This does not
+be equal while retaining separate roles. KOS and Antagonist windows
+were also present, with no loaded entries and zero KOS context. Their visibility
+was not established by the memory reader. This does not
 mean the previously edited building's list is empty.
 
 ## Reviewed client mapping
@@ -59,25 +60,50 @@ attack-everyone toggle. `BTNINVERTKOS` is not qualified for automation.
 `native_crest_lists.py` exposes a read-only reader and the workflow recorder
 has a separate `crests` channel. It observes:
 
-- HUD class/kind and explicit hidden/visible state;
+- HUD class/kind and an uninterpreted +0xFC byte; visibility remains unverified;
 - typed list rows through HUD/list/control ownership;
-- separate character, guild and nation display names and object keys;
+- separate character, guild and nation object keys, plus independent raw text fields;
 - selected row membership, raw row keys and raw flags;
 - KOS raw context and pending identities, and options-dialog raw flags.
 
 Every read is checked again for consistency. Unsupported builds, broken ownership,
 duplicate entry pointers, a selection outside its list and changing observations
-reject the snapshot. Unknown HUD classes are not parsed. Empty hidden lists remain
-explicitly hidden, and no current asset-manager building is substituted for an
-unbound KOS context. The reader cannot prove a server response, management
+reject the snapshot. Unknown HUD classes are not parsed. A loaded empty list is
+not treated as an active empty building list, and no current asset-manager
+building is substituted for an unbound KOS context. The reader cannot prove a server response, management
 permission, town completeness or command admission.
 
-Validation: 27 focused observer/recorder tests passed, covering identity-role
-preservation, hidden cached menus, unrelated HUDs, ownership failures, stale
-selection and changing state. The exact new reader also passed against the
-running prepared client, observing the retained crest and hidden empty lists.
-The saved-crest/list layout is live-qualified; active building KOS binding and
-crest-options state still need live qualification.
+Validation: 31 focused observer/recorder tests pass, including regression cases
+for nation-only KOS rows and uninterpreted HUD flags. The corrected reader passed
+against the loaded building KOS list described below. It still cannot establish
+on-screen visibility or command admission.
+
+## September 21 loaded Condemn row
+
+The user reported an open Condemn list containing a crest. A new read confirmed
+one KOS row whose character and guild keys were zero and whose nation key was
+nonzero, type 23. Its raw flags were [0, 0, 1]. Its nation key matched the nation
+key in the selected saved Heraldry crest; that source crest had a different
+guild key. The KOS context was a nonzero type-8 building key matching the current
+building management selection. This verifies a loaded nation-scoped row
+associated with the selected building, not inheritance to all subordinate guilds
+or an acknowledgement of an automated write.
+
+The live case corrected two assumptions from the first checkpoint:
+
+- KOS puts its displayed nation name in the first text field even when its
+  character identity is zero. The reader now preserves text fields independently
+  of the character/guild/nation identity keys.
+- HUD +0xFC was 1 in the user-reported open windows. The reader no longer labels
+  it hidden/visible or rejects values based on that interpretation. Earlier
+  capture visibility labels are invalid; the raw flag is retained and
+  visibility_verified is always false.
+
+The KOS +0x104 owner was zero and the inspected asset-manager window slots did
+not reference the KOS HUD. Matching the building keys must not be promoted into
+a verified manager ownership link or permission to call the native handler.
+The response-population override at RVA 0x5B1C80 and the loaded row support keeping
+scope keys separate from text; request/response correlation remains unfinished.
 
 The observer source was exercised directly in a bounded private diagnostic
 recorder without modifying installed host/client files. No new product version
@@ -86,9 +112,10 @@ object IDs remain outside Git.
 
 ## Next work
 
-1. **Active:** reopen the original building's Enemies list and verify its context,
-   loaded entry and individual/guild/nation flags with the new recorder.
-2. Finish tracing scope selection, request construction and response reconciliation.
+1. **Complete:** observe a loaded building Condemn row, its context and separate
+   scope keys; correct the reader assumptions exposed by this case.
+2. **Active:** finish tracing scope selection, request construction and response
+   reconciliation, including the actual ownership path to the KOS window.
 3. Establish whether map data provides a complete directory, including landless
    guilds, and qualify nation/subguild coverage and list ownership scope.
 4. Implement the manager-owned hostility job with explicit target identities,

@@ -36,24 +36,24 @@ def test_distinct_identity_roles_survive_equal_guild_and_nation_keys():
     result = read_native_crest_lists(fixture())
     window = result["windows"][0]
     row = window["entries"][0]
-    assert window["visible"] and row["selected"]
+    assert not window["visibility_verified"] and row["selected"]
     assert row["row_key_raw"] == {"object_id": 2, "object_type": 0}
-    assert row["identities"]["guild"]["key"] == row["identities"]["nation"]["key"]
-    assert row["identities"]["guild"]["display_name"] == "A guild"
-    assert row["identities"]["nation"]["display_name"] == "A nation"
+    assert row["identities"]["guild"] == row["identities"]["nation"]
+    assert row["display_labels_raw"] == ["Someone", "A guild", "A nation"]
     assert not any(result[k] for k in (
         "command_admitted", "server_acceptance_verified", "town_coverage_verified",
     ))
 
 
-def test_hidden_unbound_kos_is_retained_without_claiming_an_active_building():
+def test_unbound_kos_is_retained_without_claiming_visibility_or_active_building():
     m = fixture()
     m.put(HUD, "<I", m.base_address + 0x1168E94)
     m.put(HUD + 0xFC, "<I", 1)
     m.put(HUD + 0x3B8, "<I", 0)
     m.put(LIST + 0x408, "<III", 0, 0, 0)
     window = read_native_crest_lists(m)["windows"][0]
-    assert not window["visible"] and window["entries"] == []
+    assert not window["visibility_verified"] and window["entries"] == []
+    assert window["hud_flag_fc_raw"] == 1
     assert window["context_key_raw"] == {"object_id": 0, "object_type": 0}
 
 
@@ -77,7 +77,7 @@ def test_unrecognized_hud_does_not_read_arbitrary_crest_fields():
     (ROOT + 0x64, 1), (LIST + 0x3BC, HUD + 4),
     (CONTROL + 0x3BC, HUD + 4), (CONTROL + 0x458, LIST + 4),
     (ENTRY, 0), (ENTRY + 8, 9), (HUD + 0x3B8, ENTRY + 4),
-    (HUD + 0xFC, 2), (0x160000, LIST + 4),
+    (0x160000, LIST + 4),
 ])
 def test_wrong_lifetime_layout_or_ownership_is_rejected(address, value):
     m = fixture()
@@ -90,7 +90,7 @@ def test_wrong_lifetime_layout_or_ownership_is_rejected(address, value):
     (ENTRY + 0x70, 8), (LIST + 0x408, 12), (HUD + 0xFC, 4),
     (HUD + 0x3B8, 4), (0x320000, len("A guild".encode("utf-16-le"))),
 ])
-def test_changing_list_identity_visibility_or_name_rejects_whole_snapshot(address, size):
+def test_changing_list_identity_flag_or_name_rejects_whole_snapshot(address, size):
     m = fixture()
     m.change = address, size, bytes([255]) * size
     with pytest.raises(NativeVendorDialogCaptureError, match="changed"):
@@ -114,3 +114,35 @@ def test_multiple_controls_cannot_alias_one_entry():
         m.put(other + offset, "<I", value)
     with pytest.raises(NativeVendorDialogCaptureError, match="duplicate"):
         read_native_crest_lists(m)
+
+
+def test_nation_condemn_label_is_not_reported_as_a_character_name():
+    m = fixture()
+    m.put(HUD, "<I", m.base_address + 0x1168E94)
+    m.put(HUD + 0xFC, "<I", 1)
+    m.put(HUD + 0x3D0, "<II", 500, 8)
+    m.put(ENTRY + 0x10, "<II", 12, 23)
+    m.put(ENTRY + 0x68, "<II", 0, 0)
+    m.put(ENTRY + 0x70, "<II", 0, 0)
+    m.put(ENTRY + 0x84, "<4B", 0, 0, 1, 0)
+    text(m, ENTRY + 0x20, 0x310000, "A nation")
+    m.put(ENTRY + 0x38 + 4, "<III", 0, 0, 0)
+    m.put(ENTRY + 0x50 + 4, "<III", 0, 0, 0)
+    window = read_native_crest_lists(m)["windows"][0]
+    row = window["entries"][0]
+    assert window["context_key_raw"] == {"object_id": 500, "object_type": 8}
+    assert row["identities"]["character"] == {"object_id": 0, "object_type": 0}
+    assert row["identities"]["guild"] == {"object_id": 0, "object_type": 0}
+    assert row["identities"]["nation"] == {"object_id": 12, "object_type": 23}
+    assert row["display_labels_raw"] == ["A nation", "", ""]
+    assert row["flags_raw"] == [0, 0, 1]
+    assert "visible" not in window and not window["visibility_verified"]
+
+
+@pytest.mark.parametrize("raw_flag", [0, 1, 2, 255])
+def test_unqualified_hud_flag_never_becomes_a_visibility_claim(raw_flag):
+    m = fixture()
+    m.put(HUD + 0xFC, "<I", raw_flag)
+    window = read_native_crest_lists(m)["windows"][0]
+    assert window["hud_flag_fc_raw"] == raw_flag
+    assert "visible" not in window and not window["visibility_verified"]
