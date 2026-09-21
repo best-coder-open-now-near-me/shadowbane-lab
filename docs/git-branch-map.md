@@ -43,8 +43,9 @@ hostility execution remain unfinished. Source belongs to
 `codex/native-lifecycle-hardening` into reviewed `main`.
 The response observer is installed. Later source adds tested exact response qualification
 and a separate durable enable journal with replay/loss barriers; those components
-are not connected to native hostility commands or manager controls yet. Automatic
-aggression actions remain unimplemented, with no additional deployment implied.
+now have tested low-level native open/add/enable helpers in both profiles. Typed
+command routing, transaction ownership and manager controls are still unfinished.
+Automatic aggression remains unavailable, with no additional deployment implied.
 
 ## Guard-upgrade detour — September 17
 

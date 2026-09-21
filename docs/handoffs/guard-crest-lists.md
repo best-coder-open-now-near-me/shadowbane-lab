@@ -1,7 +1,8 @@
 # Guard crest lists and hostility workflow
 
-Status: host response qualification and durable enable progress are implemented;
-no native hostility command or manager executor is implemented or admitted. Continue on `codex/guard-upgrades`. Integration destination remains
+Status: host response qualification, durable enable progress and native action
+helpers are implemented. Command routing and the manager executor are unfinished;
+no automatic hostility action is admitted. Continue on `codex/guard-upgrades`. Integration destination remains
 `codex/vendor-rolling` → `codex/native-lifecycle-hardening` → reviewed `main`.
 
 ## Verified workflow
@@ -426,3 +427,54 @@ and their typed receipts, serialize their UI ownership with existing jobs, then
 connect scoped catalog planning and manager controls to the progress journal.
 Test the complete automated workflow together before requesting a live update.
 Nation inheritance and guilds without cities remain separate coverage questions.
+
+
+## Native action helpers - September 21
+
+`native/wonderbane_extension/condemn_native.cpp` now implements owned-window
+capture and ordinary open/add/enable call-through. This is the low-level action
+implementation, not yet a registered command consumer or a live manager runner.
+The owner-thread adapter must supply image verification, producer/deadline checks,
+foreground and shared UI ownership; no command route currently calls these helpers.
+
+Capture verifies the exact building manager/selection, root HUD chain, KOS class
+and kind, list/row/entry ownership, complete bounded row membership, selected-row
+membership and separately scoped identities. It rejects duplicate entry keys,
+unknown refresh dispatch and ambiguous target identities. All effects require
+fresh capture after admission; add/enable require the frontmost exact building's
+non-inverted Condemn list. Existing enabled rows cannot reach the toggle.
+
+Opening uses the verified owned BTNKOS control's ordinary callback. Adding uses
+the native key assignment routine for only the requested guild or nation, clears
+other pending scopes, checks the resulting snapshot, then invokes ordinary
+scope-specific add with warrant mode off. Enabling uses the ordinary list selector
+and KOS selected-row refresh, rechecking ownership between selection and refresh
+and again before the toggle. A changed scene, context, row or enabled flag stops
+before the request. Results distinguish no initial invocation, submitted call-through
+and uncertainty; none constitutes a server acknowledgement. No automatic retry is
+implemented in these helpers; the transaction owner must retain its journal barrier.
+
+Additional reviewed bindings (official/prepared byte equality, not live invocation):
+
+| Method | RVA | Length | SHA-256 |
+| --- | --- | --- | --- |
+| Typed-key assignment | 0x111BA0 | 0x14 | aa02eb1f9499959a511f461e4dfdae6d93e21d73233e623bb8fd6bcf85a899e0 |
+| List selection | 0x613520 | 0x10 | ddb8877afd3295a95c8d8c36729ae7578482235bb95884c58317552fd94929ae |
+| KOS selected-row refresh | 0x5B1C40 | 0x24 | f58b95837d9c97d7029301cfe7856b06eb93dad50e37dc3dd7975b4265aa3698 |
+
+The KOS virtual refresh slot +0x12C must remain bound to thunk RVA 0x3B5C.
+Previously reviewed add/toggle and building-open dispatch ranges match too.
+Private disassembly and binding receipts remain in the designated artifact root.
+
+Validation: full and diagnostics-only DLLs compile with warnings as errors. The
+native helper fault suite passes in both profiles; the full-profile Condemn
+response/rollback and adjacent guard-funding/navigation tests pass (seven tests).
+251 host evidence, progress and package-gate tests and Ruff pass. Packaging now
+requires the native Condemn helper test and exactly one owner for both native
+Condemn sources; test fixtures cannot enter the runtime. No package was deployed,
+no game methods were invoked, and installed versions remain 1.8.23 / 0.3.34.
+
+Next active item: typed native command/receipt routing and one-in-flight transaction
+ownership, including composite add/enable handling that does not treat an unkeyed
+list refresh as add acknowledgement. Then connect scoped catalog planning, shared
+UI ownership and manager controls; qualify the complete automated workflow together.

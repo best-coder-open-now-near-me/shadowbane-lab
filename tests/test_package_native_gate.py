@@ -116,12 +116,15 @@ def test_targeted_action_gates_must_execute_once(tmp_path, name, outcome):
 
 
 @pytest.mark.parametrize(
-    "name", sorted(builder.REQUIRED_VENDOR_TESTS | builder.REQUIRED_GUARD_TESTS),
+    "name", sorted(builder.REQUIRED_VENDOR_TESTS | builder.REQUIRED_GUARD_TESTS
+                   | builder.REQUIRED_CONDEMN_TESTS),
 )
 @pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "error", "duplicate"])
 def test_vendor_gates_must_execute_once(tmp_path, name, outcome):
     suite = ET.Element("testsuite")
-    for required in builder.REQUIRED_VENDOR_TESTS | builder.REQUIRED_GUARD_TESTS:
+    required_tests = (builder.REQUIRED_VENDOR_TESTS | builder.REQUIRED_GUARD_TESTS
+                      | builder.REQUIRED_CONDEMN_TESTS)
+    for required in required_tests:
         if required == name and outcome == "missing":
             continue
         case = ET.SubElement(suite, "testcase", name=required, status="run")
@@ -131,7 +134,7 @@ def test_vendor_gates_must_execute_once(tmp_path, name, outcome):
         ET.SubElement(suite, "testcase", name=name, status="run")
     path = tmp_path / "vendor.xml"
     ET.ElementTree(suite).write(path)
-    required = set(builder.REQUIRED_VENDOR_TESTS | builder.REQUIRED_GUARD_TESTS)
+    required = set(required_tests)
     if outcome == "pass":
         assert builder.validate_native_results(path, required, diagnostic=False, exit_code=0) == []
     else:
@@ -146,3 +149,7 @@ def test_required_guard_gates_are_registered_native_tests():
     )
     registered = set(re.findall(r"add_test\(NAME\s+(\w+)", cmake))
     assert builder.REQUIRED_GUARD_TESTS <= registered
+
+
+def test_condemn_native_actions_are_a_required_package_gate():
+    assert "wonderbane_extension_condemn_native" in builder.REQUIRED_CONDEMN_TESTS

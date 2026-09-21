@@ -58,6 +58,7 @@ REQUIRED_GUARD_TESTS = frozenset({
 
 REQUIRED_CONDEMN_TESTS = frozenset({
     "wonderbane_extension_condemn_responses",
+    "wonderbane_extension_condemn_native",
     *(f"wonderbane_extension_condemn_rollback_{i}" for i in (1, 2, 3)),
 })
 
@@ -285,10 +286,11 @@ def main() -> int:
                 raise RuntimeError(
                     f"{profile}: movement source must have one owner: {movement_source}"
                 )
-        if included_sources.count("condemn_responses.cpp") != 1:
-            raise RuntimeError(f"{profile}: Condemn response observer must have one owner")
-        if included_sources.count("condemn_responses_test.cpp"):
-            raise RuntimeError(f"{profile}: Condemn test entered runtime")
+        for source in ("condemn_responses", "condemn_native"):
+            if included_sources.count(source + ".cpp") != 1:
+                raise RuntimeError(f"{profile}: {source} must have one owner")
+            if included_sources.count(source + "_test.cpp"):
+                raise RuntimeError(f"{profile}: Condemn test entered runtime")
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
         for developer_source in ("movement_tree_probe.cpp", "targeted_action_trace_test.cpp"):

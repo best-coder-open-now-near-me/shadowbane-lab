@@ -30,6 +30,7 @@ add_library(
   movement_boundary_trace.cpp
   targeted_action_trace.cpp
   condemn_responses.cpp
+  condemn_native.cpp
   movement_controls.cpp
   movement_windows_input.cpp
   movement_runtime.cpp
@@ -1286,4 +1287,13 @@ if(BUILD_TESTING)
     add_test(NAME wonderbane_extension_condemn_rollback_${step} COMMAND wonderbane_extension_condemn_responses_test ${step})
     set_tests_properties(wonderbane_extension_condemn_rollback_${step} PROPERTIES TIMEOUT 15)
   endforeach()
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_condemn_native_test condemn_native_test.cpp condemn_native.cpp)
+  target_compile_features(wonderbane_extension_condemn_native_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_condemn_native_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_condemn_native_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  add_test(NAME wonderbane_extension_condemn_native COMMAND wonderbane_extension_condemn_native_test)
+  set_tests_properties(wonderbane_extension_condemn_native PROPERTIES TIMEOUT 15)
 endif()
