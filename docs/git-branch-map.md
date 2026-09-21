@@ -34,7 +34,8 @@ with 89 city records and separate guild/nation identities. Native hostility writ
 response correlation and full guild coverage remain unfinished. The 1.8.23 / 0.3.34
 source adds bounded response capture with lifetime checks and loss reporting;
 package source `d300a7c` passes required validation and is installed in the test VM.
-The updated manager is healthy; live reply qualification awaits the next login. Source belongs to
+The updated manager is healthy, loaded 1.8.23 is verified, and a full-workflow
+capture is armed. Live reply qualification remains pending. Source belongs to
 `codex/guard-upgrades`, awaiting integration through `codex/vendor-rolling` and
 `codex/native-lifecycle-hardening` into reviewed `main`.
 The response observer is installed; automatic aggression actions remain unimplemented.

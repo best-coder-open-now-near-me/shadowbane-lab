@@ -245,9 +245,12 @@ Native 1.8.23 / host 0.3.34 is installed and verified in the test VM after the
 user closed Shadowbane. Four installed observer modules match the exact source
 package. The manager restarted healthy; 8,503 saved files were verified unchanged,
 and five replaced runtime/launch metadata files have rollback copies. The game
-was left closed for the user to launch from the existing shortcut. Loaded-module
-verification and live response qualification await that login. Automatic hostility
-writes remain unfinished. Package SHA-256:
+was launched by the user from the existing shortcut. Its exact-process heartbeat
+confirms 1.8.23, and the response mapping validates. A bounded full-workflow
+capture is armed. Two rejected startup decodes predate that capture; their empty
+payloads and incomplete-history status are retained, not treated as successful
+responses. The bundled manual workflow and live reply qualification remain pending.
+Automatic hostility writes remain unfinished. Package SHA-256:
 `7bfd54442468aaabe660891ce52ad8779fa2730b3991a0c2b6a62d4d4b211068`.
 Full DLL SHA-256:
 `6d48cc4c98f4dfb133e52bad9424f75e347c778a788be2764bac5ee2424751c2`.
