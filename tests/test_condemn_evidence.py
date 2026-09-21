@@ -34,7 +34,8 @@ def snapshot(records=(), *, sequence=None, initial_history=False, **changes):
     sequence = sequence if sequence is not None else records[-1]["sequence"] if records else 0
     return dict(process_id=7, process_creation_filetime_utc=11, sequence=sequence,
                 overwritten=max(0, sequence - 32), stopped=False, rejected=0, ticket_drops=0,
-                records=list(records), initial_history=initial_history, missed_records=0) | changes
+                records=list(records), initial_history=initial_history,
+                missed_records=0, read_errors=0) | changes
 
 
 def row_observation(*, scope="nation", building=(100, 8), entry=(200, 23), identity=(200, 23)):
@@ -113,7 +114,8 @@ def test_baseline_retains_old_losses_but_never_uses_old_response_for_progress():
 
 
 @pytest.mark.parametrize("changes", [
-    {"missed_records": 1}, {"rejected": 1}, {"ticket_drops": 1}, {"stopped": True},
+    {"read_errors": 1}, {"missed_records": 1}, {"rejected": 1},
+    {"ticket_drops": 1}, {"stopped": True},
     {"initial_history": True}, {"process_id": 8}, {"process_creation_filetime_utc": 12},
     {"sequence": 2}, {"sequence": 2**63 - 1},
 ])

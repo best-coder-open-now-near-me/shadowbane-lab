@@ -41,7 +41,10 @@ is a toggle, so blind retries are unsafe. Automated command ownership and durabl
 hostility execution remain unfinished. Source belongs to
 `codex/guard-upgrades`, awaiting integration through `codex/vendor-rolling` and
 `codex/native-lifecycle-hardening` into reviewed `main`.
-The response observer is installed; automatic aggression actions remain unimplemented.
+The response observer is installed. Later source adds tested exact response qualification
+and a separate durable enable journal with replay/loss barriers; those components
+are not connected to native hostility commands or manager controls yet. Automatic
+aggression actions remain unimplemented, with no additional deployment implied.
 
 ## Guard-upgrade detour — September 17
 

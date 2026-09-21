@@ -144,3 +144,17 @@ def test_changed_copy_does_not_consume_cursor():
 def test_invalid_lifetime_rejected(pid, creation):
     with pytest.raises(ValueError):
         CondemnResponseReader(pid, creation, Memory(fixture()))
+
+
+def test_read_failures_are_counted_even_when_whole_capture_was_already_incomplete():
+    memory = Memory(fixture(rejected=2))
+    reader = CondemnResponseReader(7, 11, memory)
+    assert reader.drain()["read_errors"] == 0
+    original = memory.read
+    def fail(*args):
+        raise OSError("lost read")
+    memory.read = fail
+    with pytest.raises(OSError):
+        reader.drain()
+    memory.read = original
+    assert reader.drain()["read_errors"] == 1

@@ -1,7 +1,7 @@
 # Guard crest lists and hostility workflow
 
-Status: investigation and read-only observation; no hostility command is implemented
-or admitted. Continue on `codex/guard-upgrades`. Integration destination remains
+Status: host response qualification and durable enable progress are implemented;
+no native hostility command or manager executor is implemented or admitted. Continue on `codex/guard-upgrades`. Integration destination remains
 `codex/vendor-rolling` → `codex/native-lifecycle-hardening` → reviewed `main`.
 
 ## Verified workflow
@@ -390,3 +390,39 @@ workflow qualifies the four expected triples and the reopened enabled row withou
 promoting either unkeyed list into an acknowledgement. No native action, manager
 button, deployment or automated acceptance is implied. Next: durable progress and
 native owner-thread action integration.
+
+
+## Durable enable progress - September 21
+
+`client_extension/condemn_progress.py` now owns a separate local Condemn journal.
+It atomically retains a disabled scoped-row intent before invoking the native
+adapter, accepts only matching typed submission ownership, and never replays a
+request. A submitted attempt finishes only with a complete keyed enabled response
+from its original healthy interval and a later enabled row in the same root/KOS
+context. Confirmed targets are available by exact lifetime and retain guild/nation
+scope. Guard spending and its history are unchanged.
+
+The native adapter contract still requires owner-thread admission, producer/window
+checks, UI serialization and a validated exact command receipt before constructing
+`Submission`. No such adapter is connected yet; the journal is not an alternate
+memory-write or command API. Its completed state is named `state_verified`, not a
+claim that the server returned a unique request acknowledgement.
+
+Write failures, lost submission replies, uncertain native outcomes, deleted or
+corrupted records, host restarts and overlapping runners preserve the pending
+barrier. Completed records revalidate their copied response and row evidence on
+read. A separate read-error counter now exposes new read failures even when the
+historical recorder state was already incomplete. Original window membership is
+required; constructing equivalent-looking evidence cannot substitute another
+window or qualify a response that the original window did not drain.
+
+Validation: 178 response, journal, workflow, crest and city-catalog tests pass;
+Ruff and the private manual-workflow replay pass. There is no deployment or live
+automated acceptance from this source checkpoint. No additional user capture is
+needed for this step. Current native/host installation remains 1.8.23 / 0.3.34.
+
+Next active item: implement and connect native owner-thread open/add/enable actions
+and their typed receipts, serialize their UI ownership with existing jobs, then
+connect scoped catalog planning and manager controls to the progress journal.
+Test the complete automated workflow together before requesting a live update.
+Nation inheritance and guilds without cities remain separate coverage questions.

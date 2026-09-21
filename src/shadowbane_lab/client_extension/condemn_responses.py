@@ -110,6 +110,7 @@ class CondemnResponseReader:
         self._last = None
         self._terminal = None
         self._incomplete = False
+        self._read_errors = 0
 
     def drain(self):
         if self._terminal:
@@ -119,14 +120,17 @@ class CondemnResponseReader:
             stable = data == self.memory.read(self.name, SIZE)
         except Exception:
             self._incomplete = True
+            self._read_errors += 1
             raise
         if not stable:
             self._incomplete = True
+            self._read_errors += 1
             raise CondemnResponseError("response mapping changed during read; retry")
         try:
             snapshot = parse_snapshot(data, process_id=self.process_id, creation=self.creation)
         except CondemnResponseError:
             self._incomplete = True
+            self._read_errors += 1
             raise
         last = self._last
         if last and any(snapshot[key] < last[key] for key in (
@@ -148,6 +152,6 @@ class CondemnResponseReader:
             "process_creation_filetime_utc": self.creation,
             "records": [r for r in snapshot["records"] if r["sequence"] > previous],
             "initial_history": last is None, "missed_records": missed,
-            "capture_incomplete": self._incomplete,
+            "capture_incomplete": self._incomplete, "read_errors": self._read_errors,
             "command_admitted": False, "server_acceptance_verified": False,
         }

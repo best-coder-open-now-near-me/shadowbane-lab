@@ -181,12 +181,19 @@ class ResponseWindow:
         self.lifetime = lifetime
         self.failure = None
         self._pending = {}
+        self._completed = {}
         self._last_tick = 0
         self._validate_snapshot(baseline)
         if baseline["stopped"]:
             raise CondemnResponseError("Condemn response recorder is stopped")
-        self.baseline = {k: baseline[k] for k in ("sequence", "rejected", "ticket_drops")}
+        self._baseline = {k: baseline[k] for k in (
+            "sequence", "rejected", "ticket_drops", "read_errors",
+        )}
         self.sequence = self.baseline["sequence"]
+
+    @property
+    def baseline(self):
+        return dict(self._baseline)
 
     def _validate_snapshot(self, snapshot):
         integer(snapshot.get("process_id"), 2**32 - 1, minimum=1)
@@ -195,13 +202,19 @@ class ResponseWindow:
             self.lifetime.process_id, self.lifetime.creation,
         ):
             raise CondemnResponseError("Condemn response belongs to another process lifetime")
-        for field in ("sequence", "rejected", "ticket_drops", "overwritten", "missed_records"):
+        for field in (
+            "sequence", "rejected", "ticket_drops", "overwritten", "missed_records", "read_errors",
+        ):
             integer(snapshot[field], 2**63 - 1)
         if (snapshot["overwritten"] != max(0, snapshot["sequence"] - CAPACITY)
                 or not isinstance(snapshot["records"], list)
                 or len(snapshot["records"]) > CAPACITY
                 or any(type(snapshot[k]) is not bool for k in ("stopped", "initial_history"))):
             raise CondemnResponseError("invalid Condemn response window")
+
+    def contains(self, response: Response) -> bool:
+        return (not self.failure and response.lifetime == self.lifetime
+                and self._completed.get(response.digest) == response.records[-1]["sequence"])
 
     def invalidate(self, reason="Condemn evidence read interrupted"):
         self.failure = self.failure or reason
@@ -215,7 +228,8 @@ class ResponseWindow:
             self._validate_snapshot(snapshot)
             if (snapshot["initial_history"] or snapshot["stopped"] or snapshot["missed_records"]
                     or snapshot["sequence"] < self.sequence
-                    or any(snapshot[k] != self.baseline[k] for k in ("rejected", "ticket_drops"))):
+                    or any(snapshot[k] != self.baseline[k]
+                           for k in ("rejected", "ticket_drops", "read_errors"))):
                 raise CondemnResponseError(
                     "Condemn response interval was interrupted or lost evidence")
             records = snapshot["records"]
@@ -247,12 +261,16 @@ class ResponseWindow:
                     completed.append(Response(self.lifetime, canonical(pending)))
                     del self._pending[decode]
             self.sequence = snapshot["sequence"]
+            for response in completed:
+                self._completed[response.digest] = response.records[-1]["sequence"]
+            while len(self._completed) > 64:
+                del self._completed[next(iter(self._completed))]
             return tuple(completed)
         except (CondemnResponseError, KeyError, TypeError, ValueError) as exc:
             self.invalidate(str(exc))
 
 
-def enabled_row(target: Target, observation: dict) -> bool:
+def row_state(target: Target, observation: dict, *, enabled: bool) -> bool:
     """Check loaded row state only. Visibility, freshness and action admission are separate.
 
     Mixed identities, duplicate matching entries, inversion and other contexts do
@@ -260,6 +278,8 @@ def enabled_row(target: Target, observation: dict) -> bool:
     rows. No display label or pending-drop identity is used as a target key.
     """
     try:
+        if type(enabled) is not bool:
+            return False
         if observation["root_refresh_pending_raw"] != 0:
             return False
         windows = [w for w in observation["windows"] if w["kind"] == "kos"]
@@ -286,6 +306,11 @@ def enabled_row(target: Target, observation: dict) -> bool:
                 return False
         flags = row["flags_raw"]
         return (len(flags) == 3 and all(type(v) is int and v in (0, 1) for v in flags)
-                and flags == ([0, 1, 0] if target.scope == "guild" else [0, 0, 1]))
+                and flags == ([0, int(enabled), 0] if target.scope == "guild"
+                              else [0, 0, int(enabled)]))
     except (CondemnResponseError, KeyError, TypeError):
         return False
+
+
+def enabled_row(target: Target, observation: dict) -> bool:
+    return row_state(target, observation, enabled=True)
