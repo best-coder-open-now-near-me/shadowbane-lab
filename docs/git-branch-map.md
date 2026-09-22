@@ -64,7 +64,9 @@ worker files are verified; the same client relaunched with its unchanged native
 extension. Town login and preparation succeeded; 139 existing nation rows were
 confirmed before a request expired unexecuted in the native queue. Host 0.3.43
 adds durable, bounded recovery for that exact empty STALE receipt only. Next:
-activate the manager-only fix and continue the same 48-nation, 28-tower job.
+finish the same 48-nation, 28-tower job. Exact source ca983d7 is installed;
+private-copy recovery, unchanged durable records and same-game continuation are
+verified. The run passed its former stop with all original attempts retained.
 Earlier uncertain attempts remain retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 

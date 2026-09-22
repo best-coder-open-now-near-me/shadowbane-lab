@@ -1084,3 +1084,15 @@ lifetime and continue the same nation-only selection. House of Shinobi,
 Celestials and BIB remain excluded as whole nations. No full-town coverage,
 nation inheritance or guard combat acceptance is claimed. Integration remains
 through vendor-rolling and native-lifecycle-hardening into reviewed main.
+
+
+Host 0.3.43 source ca983d7 is now installed and active in the same game lifetime.
+All 430 module hashes passed. Private-copy recovery retained all 140 original
+attempts and recovered exactly 139 completed targets. During activation, 8,885
+saved files remained unchanged; five capability records, the launch reservation
+and dispatch permit refreshed for the verified replacement worker. No action,
+job or earlier-lifetime proof was changed. The existing dashboard shortcut now
+uses the updated host. The normal Resume action continued the same saved job;
+live observation confirms it passed the former stop, with 160 enabled targets
+confirmed and the original 140 attempt records unchanged. The batch is running.
+Next: finish this selected batch and review additional town coverage.
