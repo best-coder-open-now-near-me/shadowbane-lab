@@ -122,7 +122,7 @@ def test_counter_regression_permanently_stops_reader():
         reader.drain()
 
 
-def test_changed_copy_does_not_consume_cursor():
+def test_changed_copy_stabilizes_without_losing_records_or_marking_loss():
     memory = Memory(fixture())
     original = memory.read
 
@@ -133,11 +133,67 @@ def test_changed_copy_does_not_consume_cursor():
 
     memory.read = changing
     reader = CondemnResponseReader(7, 11, memory)
-    with pytest.raises(CondemnResponseError, match="changed"):
+    out = reader.drain()
+    assert len(out["records"]) == 4 and not out["capture_incomplete"]
+    assert out["read_errors"] == 0 and len(memory.calls) == 4
+    assert not reader.drain()["records"]
+
+
+def test_continuously_changing_copy_is_bounded_and_does_not_consume_cursor():
+    memory = Memory(fixture())
+    original = memory.read
+    sequence = 3
+
+    def changing(name, size):
+        nonlocal sequence
+        result = original(name, size)
+        sequence += 1
+        memory.data = fixture(sequence)
+        return result
+
+    memory.read = changing
+    reader = CondemnResponseReader(7, 11, memory)
+    with pytest.raises(CondemnResponseError, match="bounded read"):
         reader.drain()
+    assert len(memory.calls) == 6
     memory.read = original
     out = reader.drain()
-    assert len(out["records"]) == 4 and out["capture_incomplete"]
+    assert len(out["records"]) == 9 and out["read_errors"] == 1
+    assert out["capture_incomplete"]
+
+
+@pytest.mark.parametrize("slot_sequence,overwritten", [(0, 0), (33, 0), (33, 1)])
+def test_ring_wrap_publication_window_retries_before_consuming_cursor(slot_sequence, overwritten):
+    memory = Memory(fixture(32))
+    reader = CondemnResponseReader(7, 11, memory)
+    reader.drain()
+    publishing = fixture(32)
+    struct.pack_into("<Q", publishing, HEADER.size, slot_sequence)
+    struct.pack_into("<q", publishing, 40, overwritten)
+    copies = iter([bytes(publishing), bytes(publishing), bytes(fixture(33)), bytes(fixture(33))])
+    memory.read = lambda *_: next(copies)
+    out = reader.drain()
+    assert [r["sequence"] for r in out["records"]] == [33]
+    assert not out["capture_incomplete"] and out["read_errors"] == 0
+
+
+def test_stabilization_still_reports_records_lost_while_reading():
+    memory = Memory(fixture())
+    reader = CondemnResponseReader(7, 11, memory)
+    reader.drain()
+    copies = iter([bytes(fixture(4)), bytes(fixture(40)), bytes(fixture(40)), bytes(fixture(40))])
+    memory.read = lambda *_: next(copies)
+    out = reader.drain()
+    assert out["missed_records"] == 5 and out["capture_incomplete"]
+
+
+def test_stable_malformed_payload_is_not_retried_or_hidden():
+    memory = Memory(fixture())
+    struct.pack_into("<I", memory.data, HEADER.size + RECORD.size, 99)
+    reader = CondemnResponseReader(7, 11, memory)
+    with pytest.raises(CondemnResponseError, match="payload"):
+        reader.drain()
+    assert len(memory.calls) == 2
 
 
 @pytest.mark.parametrize("pid,creation", [(True, 11), (7, 0), (0, 11), (7, -1)])

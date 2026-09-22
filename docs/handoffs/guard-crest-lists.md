@@ -913,3 +913,28 @@ the user's own guild and nation; the exact friendly identity still needs
 confirmation because city ownership does not establish character membership.
 Next: confirm that identity and run the saved finite selection. Full-town and
 landless-guild coverage, nation inheritance, and guard combat remain unverified.
+
+## September 22 - nation-only rollout and bounded observation correction
+
+The user selected whole-nation exceptions and clarified that individual-player
+exceptions and a separate guild pass are unwanted. The saved rollout selection
+contains only nation targets and omits all three friendly nations.
+
+The run stopped for review on an interrupted host response observation after a
+completed tower and additional confirmed rows on the next. The pending intent and
+all prior proof remain preserved; no action was retried. A subsequent read parsed
+the settled response stream successfully without native rejection or ticket loss.
+The original diagnostic retained only the exception class, so the exact failing
+copy cannot be reconstructed.
+
+Host 0.3.40 bounds snapshot stabilization to three read-only pairs and recognizes
+the native ring-wrap publication window before accepting a cursor. Identity,
+record validation, lost-history reporting, and counter-regression barriers remain
+strict. Persistent instability and malformed payloads still stop the job. Session
+errors now retain the underlying diagnostic. Tests cover changing copies, ring
+wrap, bounded failure, lost records, and stable corruption. Validation: 3,255 host
+tests passed, 12 skipped; Ruff passed. Native code is unchanged.
+
+Next: stage and verify the host-only update. The existing uncertain transaction
+remains blocked; a fresh game lifetime and fresh list observations are required
+before continuing the desired nation states without blind replay.

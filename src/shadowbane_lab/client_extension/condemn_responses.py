@@ -95,6 +95,28 @@ def parse_snapshot(data: bytes, *, process_id: int, creation: int):
     }
 
 
+def _publication_in_progress(data, process_id, creation):
+    """Recognize only the native publisher's uncommitted ring-slot window.
+
+    PublishLocked clears/replaces the next slot, then increments overwritten,
+    and finally publishes the header sequence. Once the ring wraps, that slot
+    still belongs to the old header until the final sequence store.
+    """
+    if len(data) != SIZE:
+        return False
+    magic, schema, size, capacity, pid, born, sequence, overwritten, *_ = HEADER.unpack_from(data)
+    if (magic, schema, size, capacity, pid, born) != (
+        b"WBKOS1\0\0", 1, RECORD_SIZE, CAPACITY, process_id, creation,
+    ) or sequence < CAPACITY:
+        return False
+    next_slot = HEADER.size + (sequence % CAPACITY) * RECORD_SIZE
+    slot_sequence = struct.unpack_from("<Q", data, next_slot)[0]
+    return (
+        overwritten in (sequence - CAPACITY, sequence - CAPACITY + 1)
+        and slot_sequence in (0, sequence + 1)
+    )
+
+
 class CondemnResponseReader:
     """Drain a bounded ring without replaying records or hiding evidence gaps.
 
@@ -116,16 +138,19 @@ class CondemnResponseReader:
         if self._terminal:
             raise CondemnResponseError(self._terminal)
         try:
-            data = self.memory.read(self.name, SIZE)
-            stable = data == self.memory.read(self.name, SIZE)
+            # Retry observation only; no command is submitted and the accepted
+            # cursor stays unchanged until a coherent snapshot is validated.
+            for _ in range(3):
+                data = self.memory.read(self.name, SIZE)
+                stable = data == self.memory.read(self.name, SIZE)
+                if stable and not _publication_in_progress(data, self.process_id, self.creation):
+                    break
+            else:
+                raise CondemnResponseError("response mapping changed during bounded read")
         except Exception:
             self._incomplete = True
             self._read_errors += 1
             raise
-        if not stable:
-            self._incomplete = True
-            self._read_errors += 1
-            raise CondemnResponseError("response mapping changed during read; retry")
         try:
             snapshot = parse_snapshot(data, process_id=self.process_id, creation=self.creation)
         except CondemnResponseError:

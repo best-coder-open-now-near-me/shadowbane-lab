@@ -130,7 +130,7 @@ class NativeCondemnSession:
                 del self._responses[next(iter(self._responses))]
         except Exception as exc:
             self._interval.invalidate(
-                f"Condemn response observation interrupted: {type(exc).__name__}"
+                f"Condemn response observation interrupted: {type(exc).__name__}: {exc}"
             )
 
     def _dispatch(self, verb, command):

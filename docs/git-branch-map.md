@@ -45,7 +45,10 @@ by a regression test. Exact-source package `cb30014` passed required validation
 and is installed in the test VM. The updated manager is healthy and a new game
 lifetime loaded the verified extension; all 8,613 retained records/settings match.
 Live automatic enable, fresh-list persistence, and pause/resume are qualified.
-Next: confirm the friendly guild/nation identity before the wider saved selection.
+The user selected whole-nation exclusions only. The wider nation-only run stopped
+on a host response observation error. Host 0.3.40 adds tested bounded read-only
+stabilization; next: verify/install it, then resume desired states from a fresh
+game lifetime while preserving the unresolved attempt.
 No merge, full-town coverage, or completed aggression rollout is implied.
 
 ## Guard hostility investigation - September 21
