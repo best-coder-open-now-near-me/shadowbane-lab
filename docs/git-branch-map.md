@@ -37,7 +37,10 @@ was restored from its exact packaged original; the existing text-fixed launcher
 now starts the game successfully and the manager is attached with no active job.
 User login is confirmed. The first preparation exposed empty cached hireling lists;
 host 0.3.37 now discovers actual building rosters before presenting selections.
-The host-only update and selected-building live validation are next; no merge is implied.
+Host 0.3.38 source `4b0253b` is installed. Live preparation found 168 guards across
+28 selectable towers. One crest add succeeded; enable received no confirmation
+and remains stopped for review. Next: fresh server-list observation and enable
+boundary diagnosis. No merge or completed aggression rollout is implied.
 
 ## Guard hostility investigation - September 21
 

@@ -809,3 +809,28 @@ configuration facade; no request, job, cycle, or hostility write was admitted.
 Host 0.3.38 forwards that field and includes an HTTP-to-live-facade-to-control-to-
 worker regression test. Existing verified preparation is retained for the next
 live qualification; native 1.8.25 remains unchanged.
+
+
+## September 22 - installed host and live single-tower result
+
+Host 0.3.38 source `4b0253b` is installed and its 430 packaged files verified.
+The dashboard shortcut and launcher use that host. Native 1.8.25 and the same
+in-world game process remain loaded. The facade correction passed 61 related
+HTTP, configuration, manager, and Condemn tests; Ruff passed.
+
+One selected nation crest was submitted on one freshly verified six-guard tower.
+Native building navigation, list opening, and adding the scoped row succeeded.
+The response stream retained two complete operation-12 triples: empty list and
+added nation row with its state disabled. Row selection succeeded, and the native
+toggle handler returned, but no operation-17 reply arrived. The row remained
+disabled through the 45-second deadline. No response records or lineage tickets
+were dropped or rejected. The transaction and job correctly retain uncertainty;
+no toggle retry, journal reset, or larger run was sent. This is not enable or
+aggression acceptance.
+
+A read-only close/reopen observation was requested to distinguish persisted server
+state from the current loaded row. The existing full-workflow recorder is armed
+for that observation with a ten-minute bound. Next: inspect the fresh list and
+resolve the enable boundary; retain the unresolved native and host journals.
+Pause/resume qualification, wider crest application, and outer-town coverage
+remain pending. No further client reinstall is currently prepared or requested.
