@@ -304,3 +304,77 @@ def test_ready_inspection_cannot_relabel_another_scope(session):
         session.inspect(TARGET)
     assert len(session._transport.commands) == 1
     session._progress.assert_idle()
+
+
+def test_lease_is_renewed_while_durable_intent_write_holds_session_lock(session, monkeypatch):
+    import threading
+
+    writing, renewed = threading.Event(), threading.Event()
+    write = session._progress._write
+
+    def slow_write(record):
+        writing.set()
+        assert renewed.wait(3), "journal I/O blocked lease maintenance"
+        write(record)
+
+    def renew():
+        if writing.is_set():
+            renewed.set()
+
+    monkeypatch.setattr(session._progress, "_write", slow_write)
+    monkeypatch.setattr(session._transport, "renew_lease", renew)
+    session._transport.mode = "existing"
+    session.ensure(TARGET, BEFORE, str(uuid.uuid4()))
+    assert renewed.is_set()
+    assert len(session._transport.commands) == 1
+    session._progress.assert_idle()
+
+
+def test_failed_background_renewal_latches_and_preserves_unsent_intent(session, monkeypatch):
+    from shadowbane_lab.client_extension.action_channel import NativeActionChannelBusy
+
+    write = session._progress._write
+
+    def failure():
+        raise NativeActionChannelBusy("lease generation lost")
+
+    def slow_write(record):
+        monkeypatch.setattr(session._transport, "renew_lease", failure)
+        assert session._lease_stop.wait(3)
+        write(record)
+
+    monkeypatch.setattr(session._progress, "_write", slow_write)
+    with pytest.raises(NativeActionChannelError, match="lease generation lost"):
+        session.ensure(TARGET, BEFORE, str(uuid.uuid4()))
+    assert not session._transport.commands
+    assert session._progress.read()["active"] is not None
+    monkeypatch.setattr(session._transport, "renew_lease", lambda: None)
+    with pytest.raises(NativeActionChannelError, match="lease generation lost"):
+        session.renew_lease()
+    assert not session._transport.commands
+
+
+def test_close_waits_for_renewal_before_releasing_transport(session, monkeypatch):
+    import threading
+
+    entered, release, closed = threading.Event(), threading.Event(), threading.Event()
+
+    def renew():
+        entered.set()
+        assert release.wait(3)
+        assert not session._transport.closed
+
+    monkeypatch.setattr(session._transport, "renew_lease", renew)
+    assert entered.wait(3)
+    closer = threading.Thread(target=lambda: (session.close(), closed.set()))
+    closer.start()
+    try:
+        assert not closed.wait(0.05)
+    finally:
+        release.set()
+        closer.join(3)
+    assert closed.is_set() and session._transport.closed
+    assert not session._lease_thread.is_alive()
+    session.close()
+    with pytest.raises(NativeActionChannelError, match="closed"):
+        session.inspect(TARGET)

@@ -12,7 +12,7 @@ from shadowbane_lab.client_extension.guard_spending_journal import GuardSpending
 from shadowbane_lab.record_store import exclusive_record_lock, read_record_bytes
 
 from .condemn_cycle import CondemnCycleStopped
-from .condemn_job import TERMINAL, CondemnJobStore, run_condemn_job
+from .condemn_job import CondemnJobStore, run_condemn_job
 from .condemn_preparation import prepare_condemn
 from .guard_job import GuardJobStore
 from .guard_owner import read_guard_owner
@@ -145,8 +145,7 @@ class ManagerCondemnControl:
                 raise CondemnCycleStopped("Another operation owns this worker.")
             _other_jobs_idle(store)
             if action == "condemn-resume":
-                if current["state"] in TERMINAL or jobs.control(job_id) == "stop":
-                    raise CondemnCycleStopped("This Condemn job has ended or needs review.")
+                # Job admission validates any recoverable lease-expiry boundary.
                 jobs.request(job_id, "run")
                 command = "condemn resume " + job_id
                 operation = new_worker_operation(

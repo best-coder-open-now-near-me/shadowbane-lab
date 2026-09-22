@@ -49,8 +49,11 @@ The user selected whole-nation exclusions only. The wider nation-only run stoppe
 on a host response observation error. Host 0.3.40 adds tested bounded read-only
 stabilization. Host source `fd49969` is installed and verified; the unchanged
 native extension loaded in a fresh game lifetime. Saved progress is preserved.
-Next: town login, fresh preparation, and continuation of desired nation states
-while retaining the unresolved historical attempt.
+The fresh run skipped enabled rows, then stopped at a verified boundary when its
+native lease expired. Host 0.3.41 adds independent lease maintenance and a
+proof-checked Resume path; 3,264 host tests pass (12 skipped), plus Ruff.
+Next: exact-source host-only staging and same-game continuation. The original
+uncertain historical attempt remains retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 
 ## Guard hostility investigation - September 21

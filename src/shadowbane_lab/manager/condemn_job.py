@@ -165,9 +165,26 @@ class CondemnJobStore:
             if (
                 not current
                 or current["job_id"] != job_id
-                or current["state"] in TERMINAL
                 or self.control(job_id) == "stop"
             ):
+                raise CondemnCycleStopped("The Condemn job changed or needs review.")
+            if (
+                mode == "run"
+                and current["state"] == "review"
+                and current["detail"] == "native action host lease expired"
+            ):
+                # Only a proven completed boundary can recover this pre-dispatch
+                # failure. Missing/uncertain native receipts still prohibit resume.
+                with exclusive_record_lock(self.root / "runner.lock", timeout_seconds=0.1):
+                    CondemnProgressStore(self.store.root).assert_idle()
+                    GuardSpendingJournal(self.store.root).assert_idle()
+                    self.progress(current, recover=True)
+                    current.update(
+                        state="paused",
+                        detail="Lease expired at a verified boundary; completed crests retained.",
+                    )
+                    self.save(current)
+            if current["state"] in TERMINAL:
                 raise CondemnCycleStopped("The Condemn job changed or needs review.")
             _write(self.root / (job_id + ".control.json"), {"mode": mode})
             if mode != "run":

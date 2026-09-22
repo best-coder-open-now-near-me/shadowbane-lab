@@ -82,6 +82,44 @@ class NativeCondemnSession:
         self._reader = None
         self._interval = None
         self._responses = {}
+        # Journal validation and atomic disk writes may outlast the transport lease.
+        # Renew ownership independently; this thread never submits game commands.
+        self._lease_lock = threading.RLock()
+        self._lease_error = None
+        self._lease_stop = threading.Event()
+        self._lease_thread = threading.Thread(
+            target=self._maintain_lease, name="condemn-lease", daemon=True
+        )
+        try:
+            self._lease_thread.start()
+        except BaseException:
+            self._transport.close()
+            raise
+
+    def _require_lease(self):
+        if self._closed:
+            raise channel.NativeActionChannelUnavailable("Condemn session is closed")
+        if self._lease_error is not None:
+            raise channel.NativeActionChannelUnavailable(
+                f"Condemn host lease maintenance failed: {self._lease_error}"
+            ) from self._lease_error
+
+    def _renew_lease(self):
+        with self._lease_lock:
+            self._require_lease()
+            try:
+                self._transport.renew_lease()
+            except Exception as exc:
+                self._lease_error = exc
+                self._lease_stop.set()
+                raise
+
+    def _maintain_lease(self):
+        while not self._lease_stop.wait(0.2):
+            try:
+                self._renew_lease()
+            except Exception:
+                return  # Latched; foreground work must stop without reacquisition.
 
     def _command(self, target, request, expected=None, transition=None):
         if self._closed:
@@ -94,7 +132,9 @@ class NativeCondemnSession:
 
     def _send(self, verb, command):
         encoded = NativeCondemnCommand(next(self._ids), verb, command)
-        result = self._transport.submit(encoded, timeout_ms=750)
+        with self._lease_lock:
+            self._require_lease()
+            result = self._transport.submit(encoded, timeout_ms=750)
         if result.detail != "native_condemn_receipt_v1":
             raise channel.NativeActionChannelUnavailable(f"Condemn command failed: {result.detail}")
         receipt = Receipt.decode(result.movement_payload)
@@ -199,13 +239,14 @@ class NativeCondemnSession:
 
     @_serialized
     def renew_lease(self):
-        if self._closed:
-            raise channel.NativeActionChannelUnavailable("Condemn session is closed")
-        self._transport.renew_lease()
+        self._renew_lease()
 
     @_serialized
     def close(self):
         if not self._closed:
-            self._closed = True
-            self._transport.close()
+            self._lease_stop.set()
+            self._lease_thread.join()
+            with self._lease_lock:
+                self._closed = True
+                self._transport.close()
             # Any saved active intent remains; another session may not take it over.

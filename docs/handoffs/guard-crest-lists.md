@@ -955,3 +955,26 @@ approved friendly nations. Existing enabled rows must be recognized from fresh
 server lists without another toggle. No wider rollout completion is claimed.
 The branch remains outside reviewed main; integration follows the guard lane
 through vendor-rolling and native-lifecycle-hardening.
+
+
+## September 22 - lease maintenance across durable progress work
+
+The host 0.3.40 nation-only run recognized previously enabled rows and advanced
+through three complete towers plus confirmed rows on the fourth. It then stopped
+with an expired native producer lease and no pending Condemn intent. All completed
+proof remains saved; no uncertain action was retried.
+
+Host 0.3.41 renews the Condemn session's existing lease independently of journal
+validation and atomic saves. The maintenance thread never submits a game action,
+cannot reacquire an expired or replaced lease, latches failures before further
+dispatch, and joins before transport shutdown. The normal Resume action now
+admits the specific idle lease-expiry stop only after all saved cycle actions
+match durable native completion and both action journals are idle. Other review
+errors, missing proof, unfinished intents and changed ownership remain blocked.
+
+Validation: 3,264 host tests passed, 12 skipped; Ruff passed. Regression cases
+cover slow writes, failed renewal, shutdown ordering, proof-checked continuation,
+no repetition of completed requests, and normal manager routing. Native code is
+unchanged. Next: verify an exact-source host-only package, validate the stopped
+job on a private copy, and restart only the idle manager/worker before continuing
+the same selection. Full-town coverage and rollout completion remain open.

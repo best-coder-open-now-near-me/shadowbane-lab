@@ -279,3 +279,29 @@ def test_http_start_through_live_facade_admits_exact_selection(setup, tmp_path):
     with pytest.raises(Exception, match="does not accept a selection"):
         facade.execute("add-client", selection=f.selection)
     assert application.execute.call_count == 1
+
+
+@pytest.mark.parametrize("detail,allowed", [
+    ("native action host lease expired", True),
+    ("unconfirmed native reply", False),
+])
+def test_manager_resume_uses_proof_checked_job_admission(setup, detail, allowed):
+    f = setup
+    f.control.execute("condemn-start", "client", "instance", selection=f.selection)
+    operation = f.operations.submit.call_args.args[0]
+    f.executor.execute(operation, stop_signal=threading.Event())
+    jobs = CondemnJobStore(f.store)
+    record = jobs.current()
+    record.update(state="review", detail=detail)
+    jobs.save(record)
+    f.operations.submit.reset_mock()
+    if allowed:
+        f.control.execute("condemn-resume", "client", "instance", job_id=record["job_id"])
+        submitted = f.operations.submit.call_args.args[0]
+        assert submitted.command == "condemn resume " + record["job_id"]
+        assert jobs.current()["state"] == "paused"
+    else:
+        with pytest.raises(CondemnCycleStopped):
+            f.control.execute("condemn-resume", "client", "instance", job_id=record["job_id"])
+        f.operations.submit.assert_not_called()
+        assert jobs.current()["state"] == "review"

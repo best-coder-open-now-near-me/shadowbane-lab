@@ -235,3 +235,65 @@ def test_resume_recovers_a_native_receipt_before_cycle_status_was_saved(setup, m
     assert result["state"] == "complete"
     assert len(CondemnProgressStore(setup.base.store.root).read()["attempts"]) == 4
     assert len(result["cycles"]) == 3
+
+
+def lease_expired_boundary(setup, monkeypatch):
+    from shadowbane_lab.client_extension.action_channel import NativeActionChannelBusy
+
+    ready = condemn_cycle._Cycle.ready
+    calls = []
+
+    def expire(self, session, target):
+        calls.append(target)
+        if len(calls) == 2:
+            raise NativeActionChannelBusy("native action host lease expired")
+        return ready(self, session, target)
+
+    monkeypatch.setattr(condemn_cycle._Cycle, "ready", expire)
+    with pytest.raises(NativeActionChannelBusy, match="lease expired"):
+        setup.run()
+    monkeypatch.setattr(condemn_cycle._Cycle, "ready", ready)
+    return setup.jobs.read(setup.record["job_id"])
+
+
+def test_lease_expiry_at_proven_boundary_resumes_without_repeating_completed_request(
+    setup, monkeypatch
+):
+    record = lease_expired_boundary(setup, monkeypatch)
+    progress = CondemnProgressStore(setup.base.store.root)
+    first = deepcopy(progress.read()["attempts"])
+    assert len(first) == 1 and progress.read()["active"] is None
+    assert record["state"] == "review"
+    setup.jobs.request(record["job_id"], "run")
+    assert setup.jobs.read(record["job_id"])["state"] == "paused"
+    result = setup.run()
+    assert result["state"] == "complete" and len(setup.jobs.progress(result)) == 4
+    attempts = progress.read()["attempts"]
+    assert len(attempts) == 4 and attempts[0] == first[0]
+
+
+@pytest.mark.parametrize("change", ["missing_proof", "unknown_error", "unfinished_intent"])
+def test_lease_recovery_never_accepts_unproven_boundary(setup, monkeypatch, change):
+    record = lease_expired_boundary(setup, monkeypatch)
+    if change == "missing_proof":
+        p = CondemnProgressStore(setup.base.store.root)
+        raw = json.loads(p.path.read_bytes())
+        raw["attempts"].clear()
+        p.path.write_text(json.dumps(raw))
+    elif change == "unknown_error":
+        record["detail"] = "native response observation failed"
+        setup.jobs.save(record)
+    else:
+        path = setup.base.store.root / "condemn-cycles" / (record["active_cycle"] + ".json")
+        cycle = json.loads(path.read_bytes())
+        cycle["actions"].append(dict(
+            target=cycle["targets"][1],
+            request="11111111-1111-4111-8111-111111111111",
+            state="intent",
+        ))
+        path.write_text(json.dumps(cycle))
+    before = count(setup)
+    with pytest.raises(RuntimeError):
+        setup.jobs.request(record["job_id"], "run")
+    assert count(setup) == before
+    assert setup.jobs.read(record["job_id"])["state"] == "review"
