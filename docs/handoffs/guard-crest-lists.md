@@ -978,3 +978,24 @@ no repetition of completed requests, and normal manager routing. Native code is
 unchanged. Next: verify an exact-source host-only package, validate the stopped
 job on a private copy, and restart only the idle manager/worker before continuing
 the same selection. Full-town coverage and rollout completion remain open.
+
+
+## September 22 - lease fix installed and same-job continuation verified
+
+Host 0.3.41 source `ec63ea1` is installed, with all 430 host module identities
+verified. Recovery against a private copy of the stopped job retained all 163
+confirmed actions and selected only the remaining 1,181. The original journals
+were unchanged. Only manager/worker processes restarted; the same game lifetime
+and native extension remained running.
+
+The existing job resumed through the normal manager control. Its first 163
+completion records remain identical; four towers are now complete and the fifth
+is progressing. All targets remain nation-scoped and omit the three approved
+friendly nations. No guild or player pass is enabled. The dashboard shortcut
+uses the new host. Private installation, recovery and live proof remain outside
+Git.
+
+Next: finish the 28-tower selection and review further town coverage. The active
+batch is still running; full rollout completion, nation inheritance and guard
+combat are not claimed. Integration remains guard-upgrades through vendor-rolling
+and native-lifecycle-hardening into reviewed main.

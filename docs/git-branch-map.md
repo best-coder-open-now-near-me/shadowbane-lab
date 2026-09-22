@@ -52,8 +52,11 @@ native extension loaded in a fresh game lifetime. Saved progress is preserved.
 The fresh run skipped enabled rows, then stopped at a verified boundary when its
 native lease expired. Host 0.3.41 adds independent lease maintenance and a
 proof-checked Resume path; 3,264 host tests pass (12 skipped), plus Ruff.
-Next: exact-source host-only staging and same-game continuation. The original
-uncertain historical attempt remains retained.
+Host source `ec63ea1` is installed. Private-copy recovery and same-game,
+same-job continuation are verified; all 163 prior completion records are
+unchanged. Four towers are complete and the fifth is progressing. Next: finish
+the selected 28-tower batch and review wider coverage. The original uncertain
+historical attempt remains retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 
 ## Guard hostility investigation - September 21
