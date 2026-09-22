@@ -249,3 +249,87 @@ def test_completed_proof_is_revalidated_on_read(tmp_path):
     store.path.write_bytes(canonical(record))
     with pytest.raises(CondemnProgressStopped):
         CondemnProgressStore(tmp_path).verified_targets(LIFE)
+
+
+def completed_native_store(tmp_path):
+    from tests.test_condemn_transaction import Flow
+
+    flow = Flow(tmp_path)
+    flow.enable()
+    flow.complete()
+    return CondemnProgressStore(tmp_path)
+
+
+def test_unchanged_completed_proof_is_validated_once_but_each_read_is_fresh(
+    tmp_path, monkeypatch
+):
+    from shadowbane_lab.client_extension import condemn_progress as module
+
+    store = completed_native_store(tmp_path)
+    calls = []
+    validate = module._validate_attempt
+
+    def counted(attempt):
+        calls.append(attempt["request"])
+        validate(attempt)
+
+    monkeypatch.setattr(module, "_validate_attempt", counted)
+    first = store.read()
+    assert len(calls) == 1
+    first["attempts"][0]["state"] = "uncertain"
+    assert store.read()["attempts"][0]["state"] == "state_verified"
+    assert len(calls) == 1
+    # A fresh store still fully validates persisted proof.
+    CondemnProgressStore(tmp_path).read()
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("change", ["proof", "owner", "duplicate", "active", "schema", "missing"])
+def test_warm_validation_cache_never_hides_changed_or_missing_records(tmp_path, change):
+    store = completed_native_store(tmp_path)
+    record = store.read()
+    if change == "proof":
+        record["attempts"][0]["completion"]["sha256"] = "0" * 64
+    elif change == "owner":
+        record["attempts"][0]["owner"] = "invalid"
+    elif change == "duplicate":
+        record["attempts"].append(record["attempts"][0])
+    elif change == "active":
+        record["active"] = record["attempts"][0]["request"]
+    elif change == "schema":
+        record["schema_version"] = 1
+    else:
+        store.path.unlink()
+    if change != "missing":
+        store.path.write_text(json.dumps(record))
+    with pytest.raises(CondemnProgressStopped):
+        store.read()
+
+
+def test_pending_attempts_are_revalidated_on_every_read(tmp_path, monkeypatch):
+    from shadowbane_lab.client_extension import condemn_progress as module
+    from tests.test_condemn_transaction import Flow
+
+    flow = Flow(tmp_path)
+    flow.start()
+    store = CondemnProgressStore(tmp_path)
+    calls = []
+    validate = module._validate_attempt
+
+    def counted(attempt):
+        calls.append(attempt["request"])
+        validate(attempt)
+
+    monkeypatch.setattr(module, "_validate_attempt", counted)
+    store.read()
+    store.read()
+    assert len(calls) == 2 and not store._validated_completions
+
+
+def test_validation_cache_drops_records_absent_from_fresh_snapshot(tmp_path):
+    store = completed_native_store(tmp_path)
+    store.read()
+    assert len(store._validated_completions) == 1
+    store.path.write_text(json.dumps(dict(schema_version=2, active=None, attempts=[])))
+    assert store.read()["attempts"] == []
+    assert not store._validated_completions

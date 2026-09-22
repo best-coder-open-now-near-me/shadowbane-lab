@@ -999,3 +999,37 @@ Next: finish the 28-tower selection and review further town coverage. The active
 batch is still running; full rollout completion, nation inheritance and guard
 combat are not claimed. Integration remains guard-upgrades through vendor-rolling
 and native-lifecycle-hardening into reviewed main.
+
+
+## September 22 - growing-journal workload and retained lease timing
+
+The 0.3.41 run subsequently stopped after six sealed towers and 40 confirmed
+rows on the seventh. It retains 328 completed attempts and one submitted
+transaction in its original lifetime. Unlike the earlier idle boundary, that
+pending transaction cannot use Resume recovery or be adopted by another session.
+No request has been replayed or journal cleared.
+
+Private isolated probes reproduced substantial renewal delays during repeated
+whole-journal validation. A comparison of memory-access primitives did not improve
+timing, so transport ordering and the one-second native lease limit are unchanged.
+Host 0.3.42 instead reuses validation only for identical canonical bytes of fully
+validated terminal attempts. Every read still loads fresh storage and validates
+the journal envelope, request uniqueness, schema and active-intent consistency.
+New, changed and pending records are fully checked; returned objects are never
+cached. The immutable validation set is bounded by the existing journal limits
+and pruned to the current validated snapshot.
+
+The current-size isolated workload's maximum renewal gap dropped from 531 ms to
+266 ms in the observed comparison. A synthetic 1,344-completion workload completed
+20 rounds without expiry, with a maximum renewal gap of 422 ms. These are isolated
+performance observations, not proof of the exact earlier scheduling stall or live
+rollout completion. Future expiry diagnostics retain heartbeat age and renewal
+wait time without changing the admission deadline.
+
+Validation: 3,274 host tests passed, 12 skipped; Ruff passed. Tests cover fresh
+reads, changed completion proof, duplicate requests, missing journals, invalid
+schema/owner/active state, pending-record revalidation, bounded cache lifecycle,
+and unchanged heartbeat values after expiry. Next: stage the exact-source
+host-only update, then obtain a fresh game lifetime for the preserved pending
+transaction and recheck the selected nation states. Full-town coverage remains
+unverified.

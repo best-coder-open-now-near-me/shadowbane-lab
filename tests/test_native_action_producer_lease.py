@@ -334,3 +334,18 @@ def test_navigation_session_uses_production_transport_and_shared_memory_ring(mon
     finally:
         transport._command_signal = None
         _close(transport, memory)
+
+
+def test_expired_lease_records_timing_without_renewing(monkeypatch):
+    transport, memory = _transport("Local\\WonderBane.LeaseTiming." + uuid.uuid4().hex)
+    try:
+        transport._claim_host_lease()
+        transport._exchange_i64(channel._HOST_HEARTBEAT_TICK_OFFSET, 3990)
+        ticks = iter((5000, 5005))
+        monkeypatch.setattr(transport._kernel, "tick_count", lambda: next(ticks))
+        with pytest.raises(channel.NativeActionChannelBusy, match="lease expired") as caught:
+            transport.renew_lease()
+        assert caught.value.__notes__ == ["heartbeat_age_ms=1015; renewal_wait_ms=5"]
+        assert transport._read_i64(channel._HOST_HEARTBEAT_TICK_OFFSET) == 3990
+    finally:
+        _close(transport, memory)

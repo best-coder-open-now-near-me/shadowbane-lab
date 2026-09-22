@@ -54,9 +54,13 @@ native lease expired. Host 0.3.41 adds independent lease maintenance and a
 proof-checked Resume path; 3,264 host tests pass (12 skipped), plus Ruff.
 Host source `ec63ea1` is installed. Private-copy recovery and same-game,
 same-job continuation are verified; all 163 prior completion records are
-unchanged. Four towers are complete and the fifth is progressing. Next: finish
-the selected 28-tower batch and review wider coverage. The original uncertain
-historical attempt remains retained.
+unchanged. The run later stopped after six towers plus additional confirmations,
+with an in-flight transaction retained. Host 0.3.42 reduces growing-journal
+validation cost without weakening fresh-read or pending-intent checks, and adds
+lease timing diagnostics. Its 3,274 host tests pass (12 skipped), plus Ruff and
+isolated full-selection workload checks. Next: exact-source host staging and a
+fresh game lifetime before further nation-state application. Earlier uncertain
+attempts remain retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 
 ## Guard hostility investigation - September 21

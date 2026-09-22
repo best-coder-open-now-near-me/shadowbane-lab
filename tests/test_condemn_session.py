@@ -336,7 +336,9 @@ def test_failed_background_renewal_latches_and_preserves_unsent_intent(session, 
     write = session._progress._write
 
     def failure():
-        raise NativeActionChannelBusy("lease generation lost")
+        error = NativeActionChannelBusy("lease generation lost")
+        error.add_note("heartbeat_age_ms=1001; renewal_wait_ms=10")
+        raise error
 
     def slow_write(record):
         monkeypatch.setattr(session._transport, "renew_lease", failure)
@@ -349,7 +351,7 @@ def test_failed_background_renewal_latches_and_preserves_unsent_intent(session, 
     assert not session._transport.commands
     assert session._progress.read()["active"] is not None
     monkeypatch.setattr(session._transport, "renew_lease", lambda: None)
-    with pytest.raises(NativeActionChannelError, match="lease generation lost"):
+    with pytest.raises(NativeActionChannelError, match="heartbeat_age_ms=1001"):
         session.renew_lease()
     assert not session._transport.commands
 

@@ -188,6 +188,9 @@ class CondemnProgressStore:
         self.initialized = self.root / "initialized.json"
         self.owner = str(uuid.uuid4())
         self._windows = {}
+        # Immutable canonical bytes only; never return cached records or trust a
+        # file timestamp. Every read still checks fresh bytes and active intents.
+        self._validated_completions: set[bytes] = set()
 
     def _read(self):
         if not self.path.exists():
@@ -207,13 +210,20 @@ class CondemnProgressStore:
                 or len(record["attempts"]) > MAX_ATTEMPTS
             ):
                 raise ValueError("invalid Condemn progress schema")
-            seen, pending = set(), []
+            seen, pending, validated = set(), [], set()
             for attempt in record["attempts"]:
                 if not isinstance(attempt, dict):
                     raise ValueError("invalid Condemn attempt record")
                 if attempt.get("kind") == "native" and record["schema_version"] != 2:
                     raise ValueError("native Condemn intent requires schema 2")
-                _validate_attempt(attempt)
+                terminal = attempt.get("state") in {
+                    "state_verified", "already_enabled", "not_submitted"
+                }
+                encoded = canonical(attempt) if terminal else None
+                if not terminal or encoded not in self._validated_completions:
+                    _validate_attempt(attempt)
+                if terminal:
+                    validated.add(encoded)
                 if attempt["request"] in seen:
                     raise ValueError("duplicate Condemn request")
                 seen.add(attempt["request"])
@@ -221,6 +231,7 @@ class CondemnProgressStore:
                     pending.append(attempt["request"])
             if pending != ([] if record["active"] is None else [record["active"]]):
                 raise ValueError("Condemn active intent does not match its history")
+            self._validated_completions = validated
             return record
         except (ValueError, KeyError, TypeError, CondemnResponseError) as exc:
             raise CondemnProgressStopped(

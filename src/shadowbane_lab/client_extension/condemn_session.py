@@ -100,8 +100,10 @@ class NativeCondemnSession:
         if self._closed:
             raise channel.NativeActionChannelUnavailable("Condemn session is closed")
         if self._lease_error is not None:
+            notes = "; ".join(getattr(self._lease_error, "__notes__", ()))
+            detail = str(self._lease_error) + (f" ({notes})" if notes else "")
             raise channel.NativeActionChannelUnavailable(
-                f"Condemn host lease maintenance failed: {self._lease_error}"
+                f"Condemn host lease maintenance failed: {detail}"
             ) from self._lease_error
 
     def _renew_lease(self):
