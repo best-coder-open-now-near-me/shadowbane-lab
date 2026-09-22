@@ -799,3 +799,13 @@ to `codex/guard-upgrades`, awaiting integration through `codex/vendor-rolling` a
 host and qualify automatic preparation, then one selected building/crest transaction.
 
 Validation: 3,248 host tests passed, 12 skipped; Ruff passed. The final evidence-check refinement also passed all 104 focused preparation/navigation tests. Native code is unchanged.
+
+
+Host 0.3.37 is installed without restarting the game. Live preparation verified
+35 building rosters and 168 guards across 28 selectable towers from 65 nearby
+structures. Partial coverage remains explicit. The selected Wankers nation / one
+tower start then exposed a missing `selection` argument on the production live
+configuration facade; no request, job, cycle, or hostility write was admitted.
+Host 0.3.38 forwards that field and includes an HTTP-to-live-facade-to-control-to-
+worker regression test. Existing verified preparation is retained for the next
+live qualification; native 1.8.25 remains unchanged.

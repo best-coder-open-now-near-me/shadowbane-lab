@@ -236,3 +236,46 @@ def test_other_job_admission_cannot_take_over_an_idle_condemn_job(setup):
         with pytest.raises(RuntimeError, match="Condemn job first"):
             controller.execute(action, "client", "instance")
     f.operations.submit.assert_not_called()
+
+
+def test_http_start_through_live_facade_admits_exact_selection(setup, tmp_path):
+    import urllib.request
+
+    from shadowbane_lab.manager.dashboard import DashboardServer
+    from shadowbane_lab.manager.live_configuration import LiveConfiguredManagerApplication
+    from shadowbane_lab.manager.manifest import parse_manager_manifest
+    from tests.test_manager_live_configuration import _manifest_payload
+
+    f = setup
+    application = Mock()
+
+    def execute(action, *, client_id, instance_id, selection):
+        f.control.execute(action, client_id, instance_id, selection=selection)
+        return dict(ok=True, action=action)
+
+    application.execute.side_effect = execute
+    facade = LiveConfiguredManagerApplication(
+        tmp_path / "manager.json", parse_manager_manifest(_manifest_payload()),
+        lambda manifest: application,
+    )
+    payload = dict(action="condemn-start", client_id="client", instance_id="instance",
+                   selection=f.selection)
+    with DashboardServer(facade, port=0) as server:
+        request = urllib.request.Request(
+            f"http://{server.host}:{server.port}/api/v1/actions",
+            data=json.dumps(payload).encode(),
+            headers={"Authorization": "Bearer " + server.authorization_token,
+                     "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=3) as response:
+            assert response.status == 200 and json.load(response)["ok"]
+    operation = f.operations.submit.call_args.args[0]
+    result = f.executor.execute(operation, stop_signal=threading.Event())
+    assert result.state is WorkerOperationState.CANCELLED
+    saved = CondemnJobStore(f.store).current()
+    assert len(saved["selection"]["targets"]) == 1
+    f.runner.assert_called_once()
+    # Invalid selection-bearing actions must fail before live topology changes.
+    with pytest.raises(Exception, match="does not accept a selection"):
+        facade.execute("add-client", selection=f.selection)
+    assert application.execute.call_count == 1
