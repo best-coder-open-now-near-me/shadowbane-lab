@@ -1229,3 +1229,41 @@ fresh game lifetime with the unchanged native extension verified. The manager
 recognizes it with no Condemn job or active operation; normal Resume starts its
 new worker. Next: Poley login, then fresh preparation for only the two remaining
 towers. No old transaction was adopted or replayed.
+
+
+## September 22 - remaining towers completed; observed coverage audited
+
+Poley's fresh session prepared 140 scoped crests and 29 accessible towers. The
+48-nation preflight stopped before submission: the current catalog no longer
+lists Legacy as a nation. Its same city, Light of Saedron, is now attributed to
+BIB, while Legacy remains a guild. The unchanged whole-nation exclusion policy
+therefore selected 47 current nations. No Legacy guild entry was added, no new
+exception was inferred, and no old transaction was adopted.
+
+The one submitted batch covered only the two unfinished towers: all 94 targets
+completed, comprising 91 newly verified entries and three already enabled rows.
+Both building cycles are sealed; the worker is healthy, with no active operation
+or pending request in this game lifetime. No queue-expiry recovery was needed.
+The earlier interrupted Add and all earlier completion proofs remain unchanged.
+
+The final read-only audit verified the new 94 targets against the prior 27
+sealed towers. Filtering the previous selection to today's 47 target nations
+produces 1,363 verified entries across 29 towers. The prior run also has a sealed
+proof for the one tower now outside view, raising observed coverage to 30 towers
+and 1,410 current-nation entries. Previously stored Legacy nation entries remain
+historical records; they were not converted into guild entries or silently erased.
+This is not a full-city census or proof of guard combat/nation inheritance.
+
+All 9,064 retained job/proof records checked before host activation still match.
+The same eight runtime-authority files changed during the already recorded host
+switch. A bounded eight-refresh probe during actual updates measured dashboard
+reads of 0.469–0.984s and maximum permit issuance gap 0.404s, with no probe read
+errors. Host 0.3.45 source 90faae0 remains installed; no code or package changed
+in this completion step. Private selection, job/progress snapshots and the final
+audit remain in the local deployment evidence directory.
+
+Next: Poley moves to an outer-town group, then fresh discovery selects only newly
+observed towers. The 30 completed towers should not be reiterated. Full-town
+coverage and nation-inheritance/combat qualification remain open. Source is still
+on codex/guard-upgrades for review through vendor-rolling and
+native-lifecycle-hardening into main; no merge is implied.

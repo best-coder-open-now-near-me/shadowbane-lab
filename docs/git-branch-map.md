@@ -82,9 +82,13 @@ Host 0.3.45 retains bounded exact-instance summary proof caches and renews on a
 barriers are unchanged. Exact source 90faae0 is installed with all 430 module
 hashes verified; 9,064 saved records are unchanged. The same stopped-job probe
 reduced the maximum permit gap from 2.088s to 0.287s. After confirmed closure,
-the same reviewed client relaunched with its unchanged verified extension. Next:
-Poley logs in, then fresh observations and only the two unfinished towers;
-review the coverage difference afterward.
+the same reviewed client relaunched with its unchanged verified extension.
+Fresh map evidence moved Legacy's city under excluded BIB, so the remaining
+two-tower batch used 47 current nations. All 94 entries completed (91 updated,
+three already enabled), with no active operation or pending request. Combined
+proofs cover 30 observed towers / 1,410 current-nation entries, including the
+previously completed tower now outside view. Next: move to another outer-town
+position and discover additional towers without repeating these 30.
 Earlier uncertain attempts remain retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 
