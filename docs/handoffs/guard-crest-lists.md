@@ -656,3 +656,38 @@ boundary, not a live dashboard entry point yet. Current catalog completeness and
 nation inheritance remain unverified. The existing 4,096-attempt journal/native
 history and 512-row building bounds must be accounted for in admission; do not
 silently truncate a requested town selection or claim all guilds were covered.
+
+
+## Scoped selection and multi-building progress - September 22
+
+Immutable preparations now retain the raw map catalog and process/scene-bound
+nearby guard-building source. Selectors use typed keys, never names. Shared city
+crests deduplicate within one role, while the same key in guild and nation roles
+remains two targets. Missing keys do not become identities; conflicting labels
+remain visible. Selections are pinned to a source digest, reject unobserved keys
+and duplicate targets, and admit the entire requested workload against remaining
+history capacity rather than truncating it. Cached coverage flags remain false.
+
+A finite multi-building job now owns the selected order and each building-cycle
+ID. Pause/Stop finish the current crest before retaining progress; a paused idle
+job can stop without another worker dispatch. Resume counts only native-qualified
+completion tied to exact saved cycle actions. Worker termination after native
+completion, before either cycle/job receipt publication, can recover that proof
+and proceed to remaining crests without replay. A missing cycle, lost native reply,
+changed source/client/character, altered sealed evidence, or unproven crest leaves
+the job for review. Each selected scope is independent and source digests are
+rechecked; completed status never substitutes for receipt evidence.
+
+Validation: 475 selected catalog, Condemn, guard and manager tests pass; Ruff and
+diff checks pass. New integration tests use actual host sessions and journals for
+two buildings and both scopes, including pause/resume, restart recovery across
+both persistence gaps, missing/corrupt proof and retained uncertainty. This source
+has not been installed or live-qualified. No game action was performed.
+
+Completed: exact-building cycle, scoped selection and durable finite town job.
+Next active item: worker preparation/admission and dashboard selection/buttons.
+Then build one exact-source package and perform combined live qualification.
+The current prepared source requires the same game lifetime/scene for resume;
+expanding a selection into another area is not yet a supported Condemn control.
+Guard Travel remains its separate existing workflow. Catalog freshness, landless
+guild coverage, full town coverage and nation inheritance remain unverified.

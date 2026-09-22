@@ -25,7 +25,13 @@ class ScopedTransport(Transport):
         if self.mode == "wrong_scope":
             return result
         receipt = Receipt.decode(result.movement_payload)
-        receipt = replace(receipt, target=command.payload.target)
+        building = command.payload.target.building
+        snapshot = replace(
+            receipt.snapshot,
+            building=building,
+            context=building if receipt.snapshot.kos else (0, 0),
+        )
+        receipt = replace(receipt, target=command.payload.target, snapshot=snapshot)
         if command.kind == Verb.ENSURE or command.payload.transition_request:
             receipt = replace(receipt, transition_target=command.payload.target)
         elif not receipt.flags & IN_FLIGHT:
@@ -99,6 +105,9 @@ def setup(tmp_path, monkeypatch):
 
     return SimpleNamespace(
         store=store,
+        navigation_factory=navigation_factory,
+        session_factory=session_factory,
+        clock=clock,
         binding=binding,
         operation=operation,
         context=context,

@@ -54,9 +54,11 @@ qualification, sharing the legacy pending barrier. Lost replies never retry and
 restarts cannot take over unfinished transactions. An exact-building manager cycle
 now hands off from confirmed navigation to scoped Condemn execution, retaining
 request IDs and stopping between crests on pause. Saved uncertainty also blocks
-other manager UI jobs after restarts. Next: scoped catalog plans, multi-building
-progress and manager controls, then combined packaging and live qualification.
-See the September 22 handoff for host and manager fault validation.
+other manager UI jobs after restarts. Immutable scoped catalog selections and a
+finite multi-building job now preserve qualified progress across pause/resume and
+worker persistence gaps, without replaying uncertain requests. Next: worker
+preparation/admission and dashboard controls, then combined packaging and live
+qualification. See the September 22 handoff for scope and recovery limits.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
 ## Guard-upgrade detour — September 17
