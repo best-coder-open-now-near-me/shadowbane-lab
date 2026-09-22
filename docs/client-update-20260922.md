@@ -90,3 +90,30 @@ Completed: official client patch, matching extension/host, preserved records,
 manager activation and shortcut verification. Next: user login through WonderBane
 Vendor Test, then combined selected-building Condemn preparation/execution and
 pause/resume qualification. No automatic Condemn action was performed here.
+
+
+## Subsequent startup repair
+
+A later launch stopped before creating the game because package verification
+reported changed Config/ArcaneLanguage.cfg. Inspection found all 343 bytes were
+zero, with SHA-256 `f2d162d2e45635314786973be896bd5a389a6c993b5c5933be55b26f13f587b4`.
+The ordinary client and previous runtime both retain the intact language file,
+matching the packaged hash `b56fb71e2591b7c138ffc1275ca2433bac83b7fea3c4f0892e355d73968116ac`.
+The cause of the zero-filled write remains unknown. Windows Defender is enabled;
+no recent detection was found. No antivirus setting was changed.
+
+The corrupt copy was preserved, then that one file was restored from the exact
+matching ordinary-client copy. ArcanePref and character settings were intact and
+were preserved. No runtime-policy allowlist, package evidence, source binary or
+host version was changed; the verifier correctly rejected corruption.
+
+The existing Vendor Test launcher then passed full package verification and
+started the reviewed client with extension 1.8.25. Its text-fixed Mesa settings
+remain LIBGL_ALWAYS_SOFTWARE=true, GALLIUM_DRIVER=llvmpipe and
+MESA_EXTENSION_MAX_YEAR=2001, with GL/GLSL overrides cleared. The game remained
+responsive on a subsequent check. The manager restarted successfully, attached
+one client and had zero active operations. Repair/startup evidence and the damaged
+file remain private under the runtime's repairs/language-config-20260922 folder.
+
+Startup repair is complete. Next: user login and the pending selected-building
+Condemn live qualification. No hostility or spending operation was dispatched.

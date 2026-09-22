@@ -32,8 +32,10 @@ Native 1.8.25 / host 0.3.36, package source `f534588`, is now installed and
 verified in the test VM with client 1.3.38.10 and the finished Condemn manager
 workflow. The staged 1.8.24 / 0.3.35 payload was never applied and is superseded.
 All 8,543 retained files match; the manager is healthy and the existing Vendor
-Test/Dashboard shortcuts are ready. The game remains closed. Next: user login
-and combined selected-building Condemn live validation; no merge is implied.
+Test/Dashboard shortcuts are ready. A subsequent zero-filled ArcaneLanguage.cfg
+was restored from its exact packaged original; the existing text-fixed launcher
+now starts the game successfully and the manager is attached with no active job.
+Next: user login and selected-building Condemn live validation; no merge is implied.
 
 ## Guard hostility investigation - September 21
 
