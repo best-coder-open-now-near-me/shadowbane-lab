@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
+from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
 from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
 from shadowbane_lab.client_extension.vendor_navigation_wire import (
     IN_FLIGHT,
@@ -266,6 +267,7 @@ class GuardWorkerExecutor:
             owner = self.owner_reader(b)
             path = store.root / "guard-preparations" / (operation.operation_id + ".json")
             with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
+                CondemnProgressStore(store.root).assert_idle()
                 if path.exists():
                     raise GuardFundingCycleStopped("This guard preparation was already attempted.")
                 _write(path, {"state": "capturing", "operation_id": operation.operation_id})

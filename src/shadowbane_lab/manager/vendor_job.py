@@ -14,6 +14,7 @@ import time
 import uuid
 from pathlib import Path
 
+from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
 from shadowbane_lab.client_extension.vendor_batch import (
     VendorBatchStopped,
     _items,
@@ -196,6 +197,7 @@ def run_vendor_job(
     Recovery is explicit and permitted only at a fully durable phase boundary.
     """
     with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
+        CondemnProgressStore(store.root).assert_idle()
         if cancelled():
             raise VendorBatchStopped("worker dispatch is paused")
         record = store.current() if resume else store.begin(session, window, clock())

@@ -8,6 +8,7 @@ import uuid
 from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
 from shadowbane_lab.client_extension.city_window_session import NativeCityWindowSession
 from shadowbane_lab.client_extension.city_window_wire import READY, Outcome
+from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
 from shadowbane_lab.client_extension.vendor_completion import _read_record
 from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
@@ -74,6 +75,7 @@ def _run_discovery(
     summary = "guard-nearby-summary.json" if guard else "nearby-summary.json"
     path = store.root / directory / (operation.operation_id + ".json")
     with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
+        CondemnProgressStore(store.root).assert_idle()
         if path.exists():
             raise VendorBatchStopped("this discovery was already attempted; its record is retained")
         record = {

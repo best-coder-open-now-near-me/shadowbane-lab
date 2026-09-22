@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 
 from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
+from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
 from shadowbane_lab.client_extension.guard_funding_session import NativeGuardFundingSession
 from shadowbane_lab.client_extension.guard_funding_wire import Direction
 from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
@@ -285,6 +286,7 @@ def run_guard_funding_cycle(
     path = store.root / "guard-funding-cycles" / (operation.operation_id + ".json")
     journal = GuardSpendingJournal(store.root)
     with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
+        CondemnProgressStore(store.root).assert_idle()
         if path.exists():
             raise GuardFundingCycleStopped(
                 "This guard cycle was already attempted; no replay sent."

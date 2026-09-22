@@ -51,9 +51,12 @@ required package gates in both profiles. The matching host wire contract is now
 validated and its producer-owned host session is connected. The existing Condemn
 journal now owns composite write-ahead intents and exact enable response/row
 qualification, sharing the legacy pending barrier. Lost replies never retry and
-restarts cannot take over unfinished transactions. Next: exact-building manager
-cycles, scoped catalog plans and durable manager controls, then combined packaging
-and live qualification. See the September 22 handoff for host fault validation.
+restarts cannot take over unfinished transactions. An exact-building manager cycle
+now hands off from confirmed navigation to scoped Condemn execution, retaining
+request IDs and stopping between crests on pause. Saved uncertainty also blocks
+other manager UI jobs after restarts. Next: scoped catalog plans, multi-building
+progress and manager controls, then combined packaging and live qualification.
+See the September 22 handoff for host and manager fault validation.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
 ## Guard-upgrade detour — September 17

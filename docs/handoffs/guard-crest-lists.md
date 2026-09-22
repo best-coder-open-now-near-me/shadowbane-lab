@@ -624,3 +624,35 @@ by durable manager controls, exact-source packaging and one combined live test.
 The 89-record map catalog does not establish landless-guild coverage or nation
 inheritance. Source still targets guard-upgrades -> vendor-rolling ->
 native-lifecycle-hardening -> reviewed main; feature integration remains pending.
+
+
+## Exact-building manager cycle - September 22
+
+The manager now has a durable cycle for an ordered, explicitly scoped crest
+selection on one building. It opens that exact building through the existing
+navigation spending journal, waits for confirmed ownership, closes that producer,
+and then runs the real Condemn session/journal. Every continuation checks the
+original character and scene. The cycle records selected targets and request IDs
+before native dispatch, distinguishes existing enabled rows from newly qualified
+state, and refuses to repeat an existing operation ID. A requested pause finishes
+the current crest before stopping between crests; lost dispatch authority stops
+immediately with pending intent retained. No gold or guard upgrade is sent.
+
+Saved Condemn uncertainty now blocks all existing manager UI runners under their
+shared execution lock, including discovery, building navigation, vendor rolling
+and guard funding. This host barrier remains effective after the client restarts.
+Native exclusion continues to protect the live owner-thread interval as well.
+
+Validation: 420 selected Condemn, manager, guard, vendor and transport tests pass;
+three existing platform-specific tests are skipped. Ruff and diff checks pass.
+Integration tests run the actual host session and both durable journals, covering
+building-to-Condemn handoff, guild/nation separation, pause boundaries, wrong
+scene/character, lost building/Condemn replies, response failures and cross-job
+blocking. No new package, installation or game action occurred.
+
+Next active item: scoped catalog/selection planning and the durable multi-building
+job, then manager controls and packaging. The cycle is a production execution
+boundary, not a live dashboard entry point yet. Current catalog completeness and
+nation inheritance remain unverified. The existing 4,096-attempt journal/native
+history and 512-row building bounds must be accounted for in admission; do not
+silently truncate a requested town selection or claim all guilds were covered.
