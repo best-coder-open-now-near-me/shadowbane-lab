@@ -47,8 +47,10 @@ lifetime loaded the verified extension; all 8,613 retained records/settings matc
 Live automatic enable, fresh-list persistence, and pause/resume are qualified.
 The user selected whole-nation exclusions only. The wider nation-only run stopped
 on a host response observation error. Host 0.3.40 adds tested bounded read-only
-stabilization; next: verify/install it, then resume desired states from a fresh
-game lifetime while preserving the unresolved attempt.
+stabilization. Host source `fd49969` is installed and verified; the unchanged
+native extension loaded in a fresh game lifetime. Saved progress is preserved.
+Next: town login, fresh preparation, and continuation of desired nation states
+while retaining the unresolved historical attempt.
 No merge, full-town coverage, or completed aggression rollout is implied.
 
 ## Guard hostility investigation - September 21

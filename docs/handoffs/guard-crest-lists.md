@@ -938,3 +938,20 @@ tests passed, 12 skipped; Ruff passed. Native code is unchanged.
 Next: stage and verify the host-only update. The existing uncertain transaction
 remains blocked; a fresh game lifetime and fresh list observations are required
 before continuing the desired nation states without blind replay.
+
+
+## September 22 - host observation fix activated
+
+Host 0.3.40 from `fd49969` is installed and running. All 430 packaged host files
+passed identity checks. Activation preserved all 8,760 durable worker files;
+the only changed existing file was the temporary dispatch permit, which correctly
+denied dispatch while no game was bound. The dashboard shortcut now uses the new
+host. The same Vendor Test launcher started a fresh game lifetime with the
+unchanged native 1.8.26 extension and reviewed client executable.
+
+The stopped attempt remains retained in its original lifetime. Login is requested;
+next is fresh town preparation and a nation-only selection excluding all three
+approved friendly nations. Existing enabled rows must be recognized from fresh
+server lists without another toggle. No wider rollout completion is claimed.
+The branch remains outside reviewed main; integration follows the guard lane
+through vendor-rolling and native-lifecycle-hardening.
