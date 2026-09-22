@@ -1033,3 +1033,10 @@ and unchanged heartbeat values after expiry. Next: stage the exact-source
 host-only update, then obtain a fresh game lifetime for the preserved pending
 transaction and recheck the selected nation states. Full-town coverage remains
 unverified.
+
+
+Host 0.3.42 source 8cca2d9 is now staged and installed alongside the active
+host, with all 430 module hashes verified. It is not activated yet. The game
+closure request is pending so the retained in-flight transaction remains attached
+to its original lifetime; the manager can stay open until the controlled switch.
+The existing native extension and client executable do not need replacement.
