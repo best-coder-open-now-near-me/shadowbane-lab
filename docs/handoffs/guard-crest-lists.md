@@ -1223,3 +1223,9 @@ do not repeat the 27 completed towers or adopt the retained old transaction.
 The exact private identities and source proof remain in the local deployment
 handoff. The three friendly nations stay excluded. Next: user game closure,
 relaunch/login, finish the two-tower selection, then review broader coverage.
+
+The user confirmed closure. The same reviewed client has now relaunched in a
+fresh game lifetime with the unchanged native extension verified. The manager
+recognizes it with no Condemn job or active operation; normal Resume starts its
+new worker. Next: Poley login, then fresh preparation for only the two remaining
+towers. No old transaction was adopted or replayed.
