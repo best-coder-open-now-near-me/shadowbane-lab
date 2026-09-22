@@ -238,7 +238,8 @@ int RunProbe(int argc, wchar_t** argv) {
         const auto digest = Digest(bytes.data(), bytes.size());
         Require(digest == "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff"
             || digest == "ac9ca46467997667d49b85cd6076954813a72b56f71e2ad85a4085f3a9f391ca"
-            || digest == "a32275aabab8d5955f4d45adde6e84a666f44be54c951ccf8dc2d538237e8be4",
+            || digest == "a32275aabab8d5955f4d45adde6e84a666f44be54c951ccf8dc2d538237e8be4"
+            || digest == "cae5311b5b6134bf25155b16c70b1743c1216c0bd0c88f1240d7e92388211d26",
             "unsupported executable");
         struct Segment { std::size_t offset; std::size_t size; const char* sha256; };
         constexpr std::array segments{

@@ -37,6 +37,8 @@ class NativeBuildCompatibilityTests(unittest.TestCase):
         for digest in (
             "a32275aabab8d5955f4d45adde6e84a666f44be54c951ccf8dc2d538237e8be4",
             "e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891",
+            "cae5311b5b6134bf25155b16c70b1743c1216c0bd0c88f1240d7e92388211d26",
+            "761f375e422332cac2512398bb935af38b30267b9b3a7a5cede9f87e98982442",
             "ac9ca46467997667d49b85cd6076954813a72b56f71e2ad85a4085f3a9f391ca",
             "b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3",
             "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff",

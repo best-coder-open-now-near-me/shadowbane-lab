@@ -17,6 +17,7 @@ from shadowbane_lab.client_observation.native_vendor_roster import _text
 
 REVIEWED_CREST_EXECUTABLES = frozenset({
     "e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891",
+    "761f375e422332cac2512398bb935af38b30267b9b3a7a5cede9f87e98982442",
 })
 CREST_HUD_CLASSES = {
     0x1168CA8: "heraldry",

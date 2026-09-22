@@ -23,6 +23,16 @@ bundle or PvP completion is claimed. The integration branch remains
 `codex/native-lifecycle-hardening`; main remains unchanged. No new installation
 is implied by later source commits. Reuse accepted navigation and movement evidence.
 
+## Current client patch - September 22
+
+The user reports the login client needs patching. Official 1.3.38.10 changes only
+two executable version bytes plus Config.wpak and CObjects.cache. Exact original
+and prepared identities are reviewed in [the client update](client-update-20260922.md).
+Native 1.8.25 / host 0.3.36 will combine this compatibility update with the finished
+Condemn manager workflow. The staged 1.8.24 / 0.3.35 payload was not applied and
+is superseded. Next: exact package checks, combined migration and live validation.
+Installed remains d300a7c until a verified installation receipt says otherwise.
+
 ## Guard hostility investigation - September 21
 
 The existing guard lane now includes [crest-list observation and workflow mapping](handoffs/guard-crest-lists.md).

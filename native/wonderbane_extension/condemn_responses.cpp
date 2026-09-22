@@ -271,7 +271,8 @@ DWORD Start(const ProcessIdentity& identity) noexcept {
         || identity.creation_filetime_utc != ((static_cast<std::uint64_t>(creation.dwHighDateTime) << 32)
             | creation.dwLowDateTime)) { return ERROR_INVALID_DATA; }
     std::uintptr_t base = 0;
-    if (!GraphicsExecutableSha256Matches("e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891")
+    if ((!GraphicsExecutableSha256Matches("e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891")
+        && !GraphicsExecutableSha256Matches("761f375e422332cac2512398bb935af38b30267b9b3a7a5cede9f87e98982442"))
         || !movement::VerifyNativeMovementImage(base)) { return ERROR_NOT_SUPPORTED; }
     std::array<std::uint32_t*, 3> slots{};
     std::array<std::uint32_t, 3> targets{};
