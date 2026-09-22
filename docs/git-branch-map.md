@@ -59,9 +59,10 @@ with an in-flight transaction retained. Host 0.3.42 reduces growing-journal
 validation cost without weakening fresh-read or pending-intent checks, and adds
 lease timing diagnostics. Its 3,274 host tests pass (12 skipped), plus Ruff and
 isolated full-selection workload checks. Exact host source 8cca2d9 is staged
-and its 430 installed module hashes are verified; activation awaits game closure.
-Next: a fresh game lifetime before further nation-state application. Earlier
-uncertain attempts remain retained.
+and now active after confirmed closure. All 430 module hashes and 8,880 durable
+worker files are verified; the same client relaunched with its unchanged native
+extension. Next: town login, fresh preparation and nation-only continuation.
+Earlier uncertain attempts remain retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 
 ## Guard hostility investigation - September 21

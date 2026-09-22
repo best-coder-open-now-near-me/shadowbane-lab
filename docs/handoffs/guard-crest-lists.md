@@ -1040,3 +1040,18 @@ host, with all 430 module hashes verified. It is not activated yet. The game
 closure request is pending so the retained in-flight transaction remains attached
 to its original lifetime; the manager can stay open until the controlled switch.
 The existing native extension and client executable do not need replacement.
+
+
+## September 22 - journal scaling update activated
+
+After confirmed game closure, host 0.3.42 source 8cca2d9 was activated and the
+dashboard shortcut updated. All 430 host module hashes and 8,880 unchanged durable
+worker files were verified; the temporary unbound dispatch permit was correctly
+refreshed. The same Vendor Test launcher started a fresh game lifetime with the
+unchanged reviewed native extension and client executable. The manager is healthy.
+
+Login into town is requested. Next: fresh preparation and the nation-only
+selection, recognizing existing enabled rows from fresh server lists. Earlier
+uncertain transactions remain preserved in their original lifetimes. No rollout
+completion or additional town coverage is claimed. Integration remains pending
+through the documented guard, vendor and native-lifecycle branches.
