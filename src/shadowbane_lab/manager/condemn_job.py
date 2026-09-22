@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 from shadowbane_lab.client_extension.condemn_evidence import Lifetime, canonical
 from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
+from shadowbane_lab.client_extension.condemn_transaction import queued_expiry
 from shadowbane_lab.client_extension.condemn_wire import Command, Target, Verb
 from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
 from shadowbane_lab.record_store import exclusive_record_lock, read_record_bytes
@@ -23,6 +24,7 @@ from .vendor_job import _write
 STATES = {"ready", "running", "paused", "complete", "stopped", "review"}
 TERMINAL = {"complete", "stopped", "review"}
 LIMIT = 32 * 1024 * 1024
+MAX_QUEUE_EXPIRIES = 3
 
 
 def _read(path, limit=LIMIT):
@@ -171,7 +173,10 @@ class CondemnJobStore:
             if (
                 mode == "run"
                 and current["state"] == "review"
-                and current["detail"] == "native action host lease expired"
+                and current["detail"] in {
+                    "native action host lease expired",
+                    "Condemn was not applied; no retry sent.",
+                }
             ):
                 # Only a proven completed boundary can recover this pre-dispatch
                 # failure. Missing/uncertain native receipts still prohibit resume.
@@ -181,7 +186,7 @@ class CondemnJobStore:
                     self.progress(current, recover=True)
                     current.update(
                         state="paused",
-                        detail="Lease expired at a verified boundary; completed crests retained.",
+                        detail="Verified idle boundary recovered; completed crests retained.",
                     )
                     self.save(current)
             if current["state"] in TERMINAL:
@@ -255,7 +260,7 @@ class CondemnJobStore:
             CondemnProgressStore(self.store.root).assert_idle()
             GuardSpendingJournal(self.store.root).assert_idle()
         expected = record["selection"]["targets"]
-        completed, requests = [], set()
+        completed, requests, expiries = [], set(), {}
         for reference in record["cycles"]:
             active = reference["sha256"] is None
             if active and not recover:
@@ -272,7 +277,7 @@ class CondemnJobStore:
                 or cycle.get("owner") != record["selection"]["owner"]
                 or cycle.get("window") != record["window"]
                 or cycle.get("targets") != reference["targets"]
-                or cycle.get("state") not in {"running", "paused", "complete", "review"}
+                or cycle.get("state") not in {"running", "paused", "complete", "review", "deferred"}
             ):
                 raise CondemnCycleStopped("Saved Condemn building proof changed.")
             remaining = expected[len(completed) :]
@@ -292,14 +297,16 @@ class CondemnJobStore:
                     set(action) != {"target", "request", "state"}
                     or action["target"] != group[index]
                     or action["request"] in requests
-                    or action["state"] not in {"intent", "state_verified", "already_enabled"}
+                    or action["state"] not in {
+                        "intent", "state_verified", "already_enabled", "not_submitted"
+                    }
                 ):
                     raise CondemnCycleStopped("Invalid completed crest reference.")
                 native = attempts.get(action["request"])
                 if (
                     not native
                     or native.get("kind") != "native"
-                    or native["state"] not in {"state_verified", "already_enabled"}
+                    or native["state"] not in {"state_verified", "already_enabled", "not_submitted"}
                     or native["lifetime"] != record["selection"]["context"]["lifetime"]
                 ):
                     raise CondemnCycleStopped("An interrupted crest lacks durable completion.")
@@ -310,8 +317,26 @@ class CondemnJobStore:
                     or command.expected.root != record["selection"]["context"]["root"]
                 ):
                     raise CondemnCycleStopped("The completed crest belongs to another building.")
-                completed.append(action["target"])
                 requests.add(action["request"])
+                if native["state"] == "not_submitted":
+                    if (
+                        not queued_expiry(native)
+                        or index != len(actions) - 1
+                        or action["state"] not in {"intent", "not_submitted"}
+                        or cycle["state"] not in {"running", "review", "deferred"}
+                    ):
+                        raise CondemnCycleStopped("The unsubmitted crest needs review.")
+                    raw = action["target"]
+                    expiries[raw] = expiries.get(raw, 0) + 1
+                    if expiries[raw] >= MAX_QUEUE_EXPIRIES:
+                        raise CondemnCycleStopped(
+                            "The game did not accept this crest after three queue expiries; "
+                            "no action was submitted."
+                        )
+                else:
+                    if action["state"] == "not_submitted":
+                        raise CondemnCycleStopped("The unsubmitted crest proof changed.")
+                    completed.append(action["target"])
             if cycle["state"] == "complete" and len(actions) != len(group):
                 raise CondemnCycleStopped("A completed building has unfinished crests.")
             if active:

@@ -297,3 +297,117 @@ def test_lease_recovery_never_accepts_unproven_boundary(setup, monkeypatch, chan
         setup.jobs.request(record["job_id"], "run")
     assert count(setup) == before
     assert setup.jobs.read(record["job_id"])["state"] == "review"
+
+
+def inject_queue_expiry(monkeypatch, rejected_calls, *, outcome=None, flags=0):
+    from dataclasses import replace
+
+    from shadowbane_lab.client_extension.action_channel import NativeActionResultStage
+    from shadowbane_lab.client_extension.condemn_wire import Outcome, Phase, Receipt, Snapshot, Verb
+
+    original = ScopedTransport.submit
+    calls = []
+
+    def submit(self, command, timeout_ms):
+        if command.kind != Verb.ENSURE:
+            return original(self, command, timeout_ms)
+        calls.append(command)
+        if len(calls) not in rejected_calls:
+            return original(self, command, timeout_ms)
+        # The queue, not the controller, returns this correlated empty receipt.
+        # Keep the fixture's controller idle as it would be after atomic cancellation.
+        result = original(self, command, timeout_ms)
+        self.phase = self.original = None
+        c = command.payload
+        receipt = Receipt(c.request_key, c.host, c.window, outcome or Outcome.STALE,
+                          flags, Snapshot(), None, None, None, Phase.IDLE, 0, 0, 0)
+        return replace(result, movement_payload=receipt.encode(),
+                       stage=NativeActionResultStage.REJECTED_BY_CLIENT, error_code=1235)
+
+    monkeypatch.setattr(ScopedTransport, "submit", submit)
+    return calls
+
+
+def test_queue_expiry_continues_from_fresh_cycle_without_repeating_completed_crests(
+    setup, monkeypatch
+):
+    calls = inject_queue_expiry(monkeypatch, {2, 3})
+    result = setup.run()
+    assert result["state"] == "complete"
+    assert len(setup.jobs.progress(result)) == 4
+    attempts = CondemnProgressStore(setup.base.store.root).read()["attempts"]
+    assert [a["state"] for a in attempts] == [
+        "already_enabled", "not_submitted", "not_submitted",
+        "already_enabled", "already_enabled", "already_enabled",
+    ]
+    assert len({c.payload.request_key for c in calls}) == 6
+    assert [c.payload.target for c in calls].count(calls[0].payload.target) == 1
+    assert calls[1].payload.target == calls[2].payload.target == calls[3].payload.target
+
+
+def test_third_queue_expiry_stops_and_resume_cannot_reset_the_budget(setup, monkeypatch):
+    calls = inject_queue_expiry(monkeypatch, {2, 3, 4, 5})
+    with pytest.raises(module.CondemnCycleStopped, match="three queue expiries"):
+        setup.run()
+    record = setup.jobs.read(setup.record["job_id"])
+    assert record["state"] == "review" and len(calls) == 4
+    with pytest.raises(module.CondemnCycleStopped):
+        setup.jobs.request(record["job_id"], "run")
+    assert len(calls) == 4
+    assert CondemnProgressStore(setup.base.store.root).read()["active"] is None
+
+
+def legacy_queue_expiry(setup, monkeypatch):
+    calls = inject_queue_expiry(monkeypatch, {2})
+    with monkeypatch.context() as patch:
+        patch.setattr(condemn_cycle, "queued_expiry", lambda _: False)
+        with pytest.raises(module.CondemnCycleStopped, match="no retry sent"):
+            setup.run()
+    return calls
+
+
+def test_legacy_queue_expiry_resume_preserves_completed_and_rejected_receipts(setup, monkeypatch):
+    calls = legacy_queue_expiry(setup, monkeypatch)
+    progress = CondemnProgressStore(setup.base.store.root)
+    before = deepcopy(progress.read()["attempts"])
+    setup.jobs.request(setup.record["job_id"], "run")
+    result = setup.run()
+    assert result["state"] == "complete" and len(setup.jobs.progress(result)) == 4
+    assert progress.read()["attempts"][:2] == before
+    assert len(calls) == 5 and calls[1].payload.request_key != calls[2].payload.request_key
+
+
+@pytest.mark.parametrize("outcome", [3, 4, 7])
+def test_other_no_submission_outcomes_do_not_get_queue_expiry_recovery(setup, monkeypatch, outcome):
+    from shadowbane_lab.client_extension.condemn_wire import Outcome
+
+    calls = inject_queue_expiry(monkeypatch, {1}, outcome=Outcome(outcome))
+    with pytest.raises(module.CondemnCycleStopped, match="no retry sent"):
+        setup.run()
+    with pytest.raises(module.CondemnCycleStopped):
+        setup.jobs.request(setup.record["job_id"], "run")
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("change", ["missing", "pending", "foreign_window", "continued"])
+def test_legacy_queue_recovery_requires_original_idle_correlated_proof(setup, monkeypatch, change):
+    calls = legacy_queue_expiry(setup, monkeypatch)
+    progress = CondemnProgressStore(setup.base.store.root)
+    raw = json.loads(progress.path.read_bytes())
+    rejected = raw["attempts"][-1]
+    if change == "missing":
+        raw["attempts"].pop()
+    elif change == "pending":
+        raw["active"] = rejected["request"]
+    elif change == "continued":
+        rejected["polls"].append("11111111-1111-4111-8111-111111111111")
+    else:
+        from dataclasses import replace
+
+        from shadowbane_lab.client_extension.condemn_wire import Receipt
+        r = Receipt.decode(bytes.fromhex(rejected["last"]["receipt"]))
+        rejected["last"]["receipt"] = replace(r, window=r.window + 1).encode().hex()
+    progress.path.write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises((RuntimeError, ValueError)):
+        setup.jobs.request(setup.record["job_id"], "run")
+    assert len(calls) == 2

@@ -61,7 +61,10 @@ lease timing diagnostics. Its 3,274 host tests pass (12 skipped), plus Ruff and
 isolated full-selection workload checks. Exact host source 8cca2d9 is staged
 and now active after confirmed closure. All 430 module hashes and 8,880 durable
 worker files are verified; the same client relaunched with its unchanged native
-extension. Next: town login, fresh preparation and nation-only continuation.
+extension. Town login and preparation succeeded; 139 existing nation rows were
+confirmed before a request expired unexecuted in the native queue. Host 0.3.43
+adds durable, bounded recovery for that exact empty STALE receipt only. Next:
+activate the manager-only fix and continue the same 48-nation, 28-tower job.
 Earlier uncertain attempts remain retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 

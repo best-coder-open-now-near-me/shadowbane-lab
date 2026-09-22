@@ -1055,3 +1055,32 @@ selection, recognizing existing enabled rows from fresh server lists. Earlier
 uncertain transactions remain preserved in their original lifetimes. No rollout
 completion or additional town coverage is claimed. Integration remains pending
 through the documented guard, vendor and native-lifecycle branches.
+
+
+## September 22 - bounded recovery from unexecuted queue expiry
+
+Town login and preparation succeeded on host 0.3.42. The 48-nation, 28-tower
+selection confirmed 139 already-enabled entries before an initial Ensure expired
+in the native queue. Its correlated STALE receipt is empty, idle and carries no
+controller or transition state: command_channel.h atomically cancelled the queued
+request before the game owner thread took it. Both durable journals are idle.
+This differs from an uncertain or already-submitted action.
+
+Host 0.3.43 recognizes only that exact validated initial-receipt shape. Each
+rejection ends and seals its building cycle without counting the crest complete.
+The job reopens/observes the remaining target under a new request identity;
+completed crests and the original rejection remain unchanged. Three queue
+expiries on one target stop for review, with the limit derived from durable cycle
+history so restart/resume cannot reset it. Nonempty STALE, availability, invalid,
+exhausted, missing and uncertain receipts are not eligible. Pending journals still
+block all recovery. The existing Resume admission can recover the older manager's
+stop at this proven boundary; the dashboard exposes that admission for review.
+
+Validation: 3,284 full-suite tests passed (12 skipped), plus the subsequently
+added manager admission case in an 18-test focused pass; Ruff passed.
+
+Next: activate the manager-only update, preserve the current game
+lifetime and continue the same nation-only selection. House of Shinobi,
+Celestials and BIB remain excluded as whole nations. No full-town coverage,
+nation inheritance or guard combat acceptance is claimed. Integration remains
+through vendor-rolling and native-lifecycle-hardening into reviewed main.

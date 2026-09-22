@@ -2,7 +2,8 @@
 
 The town job supplies a pinned selection and repeats only completed cycles. Each
 cycle retains its operation ID, exact target order and native request identities;
-an interrupted cycle is never restarted by this runner.
+an interrupted cycle is never restarted by this runner. A proven queue expiry
+ends its cycle so the job can schedule a bounded fresh observation.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from shadowbane_lab.client_extension.action_channel import NativeClientProcessId
 from shadowbane_lab.client_extension.condemn_evidence import Lifetime
 from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
 from shadowbane_lab.client_extension.condemn_session import NativeCondemnSession
+from shadowbane_lab.client_extension.condemn_transaction import queued_expiry
 from shadowbane_lab.client_extension.condemn_wire import (
     IN_FLIGHT,
     READY,
@@ -210,6 +212,10 @@ class _Cycle:
                             "Condemn receipt differs from the selected crest."
                         )
                     if saved["active"] is None:
+                        if queued_expiry(current):
+                            attempt.update(state="not_submitted")
+                            self.save()
+                            return "deferred"
                         if current["state"] not in {"state_verified", "already_enabled"}:
                             raise CondemnCycleStopped("Condemn was not applied; no retry sent.")
                         attempt.update(state=current["state"])

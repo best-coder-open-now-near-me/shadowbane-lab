@@ -62,6 +62,33 @@ def _receipt(value):
     return Observation(Receipt.decode(_bytes(value["receipt"], 384)), value["tick"])
 
 
+def queued_expiry(attempt):
+    """Prove the queue cancelled an initial Ensure before the owner took it.
+
+    Deliberately excludes snapshot staleness, availability errors, continuations,
+    and every receipt carrying controller state. The native queue's atomic take
+    barrier makes this empty STALE receipt a positive no-execution result.
+    The caller must obtain the attempt through a validated progress-store read.
+    """
+    if attempt.get("kind") != "native" or attempt.get("state") != "not_submitted":
+        return False
+    r = _receipt(attempt["last"]).receipt
+    return (
+        not attempt["polls"]
+        and attempt["pending"] is None
+        and not attempt["boundaries"]
+        and attempt["completion"] is None
+        and r.outcome == Outcome.STALE
+        and r.flags == 0
+        and r.snapshot.empty
+        and r.target is None
+        and r.transition_target is None
+        and r.transition_request is None
+        and r.phase == Phase.IDLE
+        and r.action_tick == r.response_floor == r.completion_sequence == 0
+    )
+
+
 def _saved(observed):
     return {"receipt": observed.receipt.encode().hex(), "tick": observed.tick}
 

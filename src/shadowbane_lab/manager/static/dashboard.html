@@ -524,6 +524,9 @@
           const prepared = slot.condemn?.prepared;
           const error = slot.condemn?.error;
           const idle = !job || ["complete", "stopped"].includes(job.state);
+          const recoverable = job?.state === "review" && [
+            "native action host lease expired", "Condemn was not applied; no retry sent."
+          ].includes(job?.detail);
           const detail = document.createElement("p");
           detail.className = "detail";
           detail.textContent = error || (job ? `${job.detail} ${job.completed} of ${job.total} confirmed.`
@@ -534,7 +537,7 @@
           for (const [label, action, enabled] of [
             ["Prepare crest list", "condemn-prepare", idle && slot.dispatch_enabled],
             ["Pause", "condemn-pause", !idle && job?.state !== "review" && job?.control === "run"],
-            ["Resume", "condemn-resume", !idle && job?.state !== "review" && slot.dispatch_enabled && !slot.operation?.active && ["ready", "paused", "running"].includes(job?.state)],
+            ["Resume", "condemn-resume", !idle && slot.dispatch_enabled && !slot.operation?.active && (recoverable || ["ready", "paused", "running"].includes(job?.state))],
             ["Stop", "condemn-stop", !idle && job?.state !== "review" && job?.control !== "stop"],
           ]) {
             const button = actionButton(label, action, slot, boundInstance);

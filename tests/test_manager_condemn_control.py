@@ -283,6 +283,7 @@ def test_http_start_through_live_facade_admits_exact_selection(setup, tmp_path):
 
 @pytest.mark.parametrize("detail,allowed", [
     ("native action host lease expired", True),
+    ("Condemn was not applied; no retry sent.", True),
     ("unconfirmed native reply", False),
 ])
 def test_manager_resume_uses_proof_checked_job_admission(setup, detail, allowed):
