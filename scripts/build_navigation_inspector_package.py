@@ -290,10 +290,10 @@ def main() -> int:
                 raise RuntimeError(
                     f"{profile}: movement source must have one owner: {movement_source}"
                 )
-        for source in ("condemn_responses", "condemn_native"):
-            if included_sources.count(source + ".cpp") != 1:
-                raise RuntimeError(f"{profile}: {source} must have one owner")
-            if included_sources.count(source + "_test.cpp"):
+        for condemn_source in ("condemn_responses", "condemn_native"):
+            if included_sources.count(condemn_source + ".cpp") != 1:
+                raise RuntimeError(f"{profile}: {condemn_source} must have one owner")
+            if included_sources.count(condemn_source + "_test.cpp"):
                 raise RuntimeError(f"{profile}: Condemn test entered runtime")
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
