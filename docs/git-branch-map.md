@@ -44,8 +44,9 @@ Native 1.8.26 / host 0.3.39 corrects an omitted callback stack argument, reprodu
 by a regression test. Exact-source package `cb30014` passed required validation
 and is installed in the test VM. The updated manager is healthy and a new game
 lifetime loaded the verified extension; all 8,613 retained records/settings match.
-Next: user login, then live automatic enable and pause/resume qualification.
-No merge or completed aggression rollout is implied.
+Live automatic enable, fresh-list persistence, and pause/resume are qualified.
+Next: confirm the friendly guild/nation identity before the wider saved selection.
+No merge, full-town coverage, or completed aggression rollout is implied.
 
 ## Guard hostility investigation - September 21
 

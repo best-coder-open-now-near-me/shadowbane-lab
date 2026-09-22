@@ -898,3 +898,18 @@ remain unqualified; the earlier uncertain attempt is preserved as historical
 evidence and is not retried. Next: fresh in-world preparation and one selected
 crest transaction on a verified tower, observing both server response and row
 state before widening the run. Integration into reviewed main is still pending.
+
+## September 22 - live Condemn qualification passed
+
+The installed callback correction passed automatic nation-row enabling: the
+server response and checked row confirmed completion. A multi-tower job paused
+at a confirmed boundary and resumed to completion without changing or repeating
+previously completed requests. Revisiting the first tower fetched an enabled
+server list and recognized the existing state without another toggle.
+
+Private captures and exact transaction receipts remain outside the repository.
+The earlier uncertain attempt is preserved separately. The wider run will exclude
+the user's own guild and nation; the exact friendly identity still needs
+confirmation because city ownership does not establish character membership.
+Next: confirm that identity and run the saved finite selection. Full-town and
+landless-guild coverage, nation inheritance, and guard combat remain unverified.
