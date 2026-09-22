@@ -725,3 +725,38 @@ perform the combined live preparation/selected-building workflow qualification.
 Only request a game close when the complete verified payload is ready to replace
 its loaded extension. Integration remains guard-upgrades -> vendor-rolling ->
 native-lifecycle-hardening -> reviewed main, with no PR or merge implied.
+
+
+## Combined package validation - September 22
+
+Exact source `0e3f058b16fd2666bcbddb581aed965936f8e717` is pushed on
+`codex/guard-upgrades`, including the complete dashboard/worker workflow from
+`f06ebcf`, consistent API release metadata, and the package source-path correction.
+The native 1.8.24 / host 0.3.35 diagnostic package completed all required gates:
+3,225 Python tests pass (18 platform/optional skips), Ruff passes, both native
+profiles pass their required tests, and both profiles pass 63 movement IPC tests.
+The three standalone native binding tests skipped without file arguments are
+separately executed successfully against the reviewed client. Wheel installation,
+entry point, panel, observer and contract checks pass. All 61 recorded artifacts
+and the archive digest were verified before staging.
+
+Archive SHA-256: `02c14c4967de9292956f14381decec3150c762be9c738c498771783aea44d5e4`.
+Full DLL SHA-256: `39164dcd4ec534ef00e84ada46b8048adc8a82f531ed84b2ceb5874501159aa8`.
+Wheel SHA-256: `da88ba216e6dc88a49d5c2593374669a5425b8cf1e73433200a81ab8fb7116de`.
+The package remains diagnostic-only: the two previously deferred ideal graphics
+transparency findings remain in each profile's diagnostic results. This package
+record does not claim visual acceptance or live Condemn acceptance.
+
+The complete payload is staged in the isolated test VM. Host 0.3.35 is installed
+alongside the existing host; the existing-client dry run passed with exact
+old/new identities, unchanged executable and no journal changes. Native
+1.8.23 / host 0.3.34 remains the running installation. No game action, menu capture,
+process restart or extension replacement has occurred. The prepared updater
+checks exact old/new identities and retains rollback plus historical records.
+
+Next active item: await the requested game closure and apply this one complete
+update. The user launches the existing shortcut afterward;
+combined live qualification still requires catalog preparation, selected building
+and crest execution, native completion proof, and retained pause/resume progress.
+Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
+-> reviewed main; no PR or merge has been performed.

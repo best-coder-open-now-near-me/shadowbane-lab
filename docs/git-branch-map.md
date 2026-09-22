@@ -58,8 +58,12 @@ other manager UI jobs after restarts. Immutable scoped catalog selections and a
 finite multi-building job now preserve qualified progress across pause/resume and
 worker persistence gaps, without replaying uncertain requests. Worker preparation,
 exact admission and dashboard selection/job controls are now connected. Combined
-native 1.8.24 / host 0.3.35 is source-tested; next is exact-source package validation
-and one installation/live qualification. It is not yet installed or accepted.
+native 1.8.24 / host 0.3.35 source `0e3f058` has passed exact-source package
+validation and is staged in the isolated test VM. The new host is prepared
+alongside the old one; guest dry-run validation passed. Game closure was requested
+before applying the prepared update. The current running
+installation remains 1.8.23 / 0.3.34. Combined live qualification is still pending;
+the diagnostic package does not claim visual or live Condemn acceptance.
 See the September 22 handoff for scope and recovery limits.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
