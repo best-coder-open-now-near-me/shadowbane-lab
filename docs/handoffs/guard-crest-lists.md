@@ -1096,3 +1096,37 @@ uses the updated host. The normal Resume action continued the same saved job;
 live observation confirms it passed the former stop, with 160 enabled targets
 confirmed and the original 140 attempt records unchanged. The batch is running.
 Next: finish this selected batch and review additional town coverage.
+
+
+## September 22 - confirmation queue expiry retains its original action
+
+The host 0.3.43 batch reached 894 confirmed nation entries (18 full towers and
+30 entries on the next), comprising 280 existing enabled rows and 614 newly
+verified enables. It then stopped with the original action still pending.
+Read-only captures show the second continuation was atomically cancelled by the
+native queue before the owner thread took it: an empty correlated STALE receipt.
+The earlier continuation had already invoked Enable. The former host treated
+that empty confirmation receipt as an owner mismatch, preserving its write-ahead
+intent and stopping. This active transaction has not been replayed or reset.
+
+Host 0.3.44 retains these exact cancelled continuation receipts separately from
+owner/phase evidence in the existing native attempt. The original live host,
+producer lease, response interval, transition identity and completed phase remain
+required. Only a fresh continuation UUID can follow; the original Ensure and
+native phase action are not repeated. A cancelled poll is neither completion
+proof nor an idle transaction. Three cancellations on one composite stop further
+continuation while preserving the active barrier. Lost, contradictory or nonempty
+receipts, failed receipt writes and replacement sessions still block continuation.
+Legacy attempts keep their existing bytes; cancellation evidence is added only
+when an exact queue cancellation occurs and is checked on every fresh read.
+
+Validation: 3,301 host tests passed, 12 skipped; Ruff passed. The end-to-end
+job test confirms a cancelled enabling-phase poll can finish under its original
+owner, with all original phase and response proof retained.
+
+The current stopped host already released its original session, so this update
+cannot adopt its unfinished transaction. Next: validate and stage the host-only
+update, obtain a fresh game lifetime, then freshly observe existing enabled rows
+and finish the same approved nation selection. The three friendly nations remain
+excluded; no individual or guild pass is authorized. Integration remains through
+the documented feature lanes into reviewed main.

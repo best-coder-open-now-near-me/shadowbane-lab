@@ -66,7 +66,12 @@ confirmed before a request expired unexecuted in the native queue. Host 0.3.43
 adds durable, bounded recovery for that exact empty STALE receipt only. Next:
 finish the same 48-nation, 28-tower job. Exact source ca983d7 is installed;
 private-copy recovery, unchanged durable records and same-game continuation are
-verified. The run passed its former stop with all original attempts retained.
+verified. The run passed its former stop with all original attempts retained,
+then stopped at 894 confirmed entries when a confirmation request expired before
+execution. Its earlier Enable remains pending and preserved. Host 0.3.44 adds
+bounded cancellation handling inside the original live transaction; it does not
+adopt the already-released session. Next: stage the update and obtain a fresh
+game lifetime before continuing the remaining nation selection.
 Earlier uncertain attempts remain retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 

@@ -18,6 +18,7 @@ from .condemn_progress import MAX_ATTEMPTS, CondemnProgressStopped, request_key
 from .condemn_wire import UNRESOLVED, Command, Outcome, Phase, Receipt, Verb
 
 MAX_POLLS = 512
+MAX_CANCELLED_POLLS = 3
 TERMINAL = {"state_verified", "already_enabled", "not_submitted"}
 NO_START = {Outcome.STALE, Outcome.UNAVAILABLE, Outcome.INVALID, Outcome.EXHAUSTED}
 NEXT = {
@@ -78,7 +79,13 @@ def queued_expiry(attempt):
         and attempt["pending"] is None
         and not attempt["boundaries"]
         and attempt["completion"] is None
-        and r.outcome == Outcome.STALE
+        and _empty_queue_expiry(r)
+    )
+
+
+def _empty_queue_expiry(r):
+    return (
+        r.outcome == Outcome.STALE
         and r.flags == 0
         and r.snapshot.empty
         and r.target is None
@@ -87,6 +94,32 @@ def queued_expiry(attempt):
         and r.phase == Phase.IDLE
         and r.action_tick == r.response_floor == r.completion_sequence == 0
     )
+
+
+def _cancelled_polls(a, original):
+    cancelled = a.get("cancelled_polls", [])
+    if (
+        not isinstance(cancelled, list)
+        or len(cancelled) > MAX_CANCELLED_POLLS
+        or "cancelled_polls" in a and not cancelled
+    ):
+        raise ValueError("invalid cancelled Condemn poll history")
+    keys, previous = set(), -1
+    for saved in cancelled:
+        r = _receipt(saved).receipt
+        if (
+            not _empty_queue_expiry(r)
+            or r.request_key not in a["polls"]
+            or r.host != original.host
+            or r.window != original.window
+        ):
+            raise ValueError("unproven cancelled Condemn poll")
+        index = a["polls"].index(r.request_key)
+        if index <= previous:
+            raise ValueError("cancelled Condemn poll order changed")
+        keys.add(r.request_key)
+        previous = index
+    return keys
 
 
 def _saved(observed):
@@ -149,7 +182,7 @@ def _progress(previous, current):
 
 def validate_attempt(a):
     if (
-        set(a)
+        set(a) - {"cancelled_polls"}
         != {
             "kind",
             "request",
@@ -189,12 +222,16 @@ def validate_attempt(a):
         if request_key(p) in seen:
             raise ValueError("repeated Condemn continuation")
         seen.add(p)
+    cancelled = _cancelled_polls(a, original)
+    effective = [p for p in polls if p not in cancelled]
     last_request = polls[-1] if polls else original.request_key
     if a["pending"] is not None:
         verb = Verb.INSPECT if polls else Verb.ENSURE
         pending = Command.decode(_bytes(a["pending"], 576), verb)
         if (
             pending.request_key != last_request
+            or pending.request_key in cancelled
+            or len(cancelled) >= MAX_CANCELLED_POLLS
             or pending.host != original.host
             or pending.window != original.window
             or pending.target != original.target
@@ -203,7 +240,10 @@ def validate_attempt(a):
             or a["state"] in TERMINAL
         ):
             raise ValueError("pending Condemn dispatch does not match its intent")
-        last_request = polls[-2] if len(polls) > 1 else original.request_key if polls else None
+        effective = effective[:-1]
+        last_request = effective[-1] if effective else original.request_key if polls else None
+    else:
+        last_request = effective[-1] if effective else original.request_key
     if a["last"] is None:
         if a["state"] != "intent" or last_request is not None or a["boundaries"] or a["completion"]:
             raise ValueError("Condemn intent lacks submission evidence")
@@ -221,7 +261,7 @@ def validate_attempt(a):
     if not isinstance(boundaries, list) or not 1 <= len(boundaries) <= 7:
         raise ValueError("invalid Condemn action boundaries")
     previous, previous_index, previous_tick = None, -1, 0
-    order = [original.request_key, *polls]
+    order = [original.request_key, *effective]
     enable = None
     for saved in boundaries:
         b = _receipt(saved)
@@ -246,6 +286,15 @@ def validate_attempt(a):
             ):
                 raise ValueError("enable boundary lacks its scoped row")
         previous, previous_index, previous_tick = b.receipt, index, b.tick
+    if cancelled:
+        # Cancelled polls retain transport proof, never phase/completion authority.
+        # Compare their clocks with every retained surrounding owner observation.
+        all_order = [original.request_key, *polls]
+        timed = [*boundaries, a["last"], *a.get("cancelled_polls", [])]
+        timed.sort(key=lambda item: all_order.index(_receipt(item).receipt.request_key))
+        ticks = [_receipt(item).tick for item in timed]
+        if ticks != sorted(ticks):
+            raise ValueError("cancelled Condemn poll clock regressed")
     _progress(previous, r)
     if observation.tick < previous_tick:
         raise ValueError("Condemn observation clock regressed")
@@ -312,7 +361,12 @@ def _apply(a, observation, window):
     expected = a["polls"][-1] if a["polls"] else original.request_key
     if r.request_key != expected or r.host != original.host or r.window != original.window:
         raise CondemnProgressStopped("Native Condemn receipt does not match its dispatch.")
-    if not a["polls"] and r.outcome in NO_START:
+    if a["polls"] and _empty_queue_expiry(r):
+        if a["state"] != "submitted" or a["last"] is None:
+            raise CondemnProgressStopped("Queue expiry lacks its original active action.")
+        a.setdefault("cancelled_polls", []).append(_saved(observation))
+        a["pending"] = None
+    elif not a["polls"] and r.outcome in NO_START:
         a.update(state="not_submitted", last=_saved(observation), pending=None)
     else:
         _owner(original, r, window.lifetime)
@@ -402,6 +456,10 @@ def advance(store, command, window, dispatch):
         ):
             raise CondemnProgressStopped(
                 "Condemn cannot resume an uncertain or replaced transaction."
+            )
+        if len(a.get("cancelled_polls", [])) >= MAX_CANCELLED_POLLS:
+            raise CondemnProgressStopped(
+                "Three confirmation queue expiries; the original action remains pending."
             )
         original = _original(a)
         if (

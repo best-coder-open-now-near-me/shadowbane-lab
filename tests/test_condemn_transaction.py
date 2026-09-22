@@ -343,3 +343,121 @@ def test_completed_saved_proof_is_revalidated_on_restart(tmp_path, field):
     f.store.path.write_text(json.dumps(record))
     with pytest.raises(CondemnProgressStopped):
         CondemnProgressStore(tmp_path).verified_native_targets(LIFE)
+
+
+def expire_poll(f, **changes):
+    f.current_command = Command(
+        HOST, 1000, str(uuid.uuid4()), TARGET, transition_request=f.command.request_key
+    )
+    r = Receipt(f.current_command.request_key, HOST, 1000, Outcome.STALE, 0, Snapshot())
+    observation = Observation(replace(r, **changes), 1004)
+    return f.store.continue_native(
+        f.current_command, f.window, lambda: f.dispatch(observation)
+    )
+
+
+def test_unexecuted_confirmation_polls_keep_original_phase_and_response_window(tmp_path):
+    f = Flow(tmp_path)
+    f.start(tick=995)
+    first = f.store.read()["attempts"][0]["last"]
+    expire_poll(f)
+    a = f.store.read()["attempts"][0]
+    assert a["last"] == first and a["state"] == "submitted" and a["pending"] is None
+    assert len(a["cancelled_polls"]) == 1 and f.store.read()["active"] == f.command.request_key
+    f.advance(Phase.ADDING, LIST, tick=996)
+    f.advance(Phase.ENABLING, ROW, tick=1000)
+    expire_poll(f)
+    f.complete()
+    assert f.store.verified_native_targets(LIFE) == {TARGET}
+    a = CondemnProgressStore(tmp_path).read()["attempts"][0]
+    assert len(a["cancelled_polls"]) == 2 and len(a["boundaries"]) == 4
+    assert len(f.calls) == len(set(f.calls)) == 6
+
+
+def test_three_cancelled_polls_stop_without_releasing_active_barrier(tmp_path):
+    f = Flow(tmp_path)
+    f.enable()
+    for _ in range(3):
+        expire_poll(f)
+    before = len(f.calls)
+    with pytest.raises(CondemnProgressStopped, match="Three confirmation"):
+        f.complete()
+    assert len(f.calls) == before
+    assert f.store.read()["active"] == f.command.request_key
+    assert len(f.store.read()["attempts"][0]["cancelled_polls"]) == 3
+    with pytest.raises(CondemnProgressStopped):
+        CondemnProgressStore(tmp_path).assert_idle()
+
+
+@pytest.mark.parametrize("change", ["scope", "window", "outcome", "snapshot", "flags", "request"])
+def test_poll_cancellation_requires_exact_correlated_empty_stale_receipt(tmp_path, change):
+    f = Flow(tmp_path)
+    f.start(tick=995)
+    changes = {
+        "scope": dict(target=TARGET),
+        "window": dict(window=1001),
+        "outcome": dict(outcome=Outcome.UNAVAILABLE),
+        "snapshot": dict(snapshot=BEFORE),
+        "flags": dict(flags=IN_FLIGHT),
+        "request": dict(request_key=str(uuid.uuid4())),
+    }
+    with pytest.raises((CondemnProgressStopped, ValueError)):
+        expire_poll(f, **changes[change])
+    a = f.store.read()["attempts"][0]
+    assert "cancelled_polls" not in a
+    assert bool(a["pending"]) == (len(f.calls) == 2)
+
+
+def test_rejected_poll_receipt_write_failure_keeps_pending_and_cannot_repeat(tmp_path, monkeypatch):
+    f = Flow(tmp_path)
+    f.start(tick=995)
+    write = f.store._write
+    count = 0
+
+    def fail(record):
+        nonlocal count
+        count += 1
+        if count == 2:
+            raise OSError("cancelled receipt storage failed")
+        write(record)
+
+    monkeypatch.setattr(f.store, "_write", fail)
+    with pytest.raises(OSError):
+        expire_poll(f)
+    assert f.store.read()["attempts"][0]["pending"]
+    before = len(f.calls)
+    with pytest.raises(CondemnProgressStopped):
+        expire_poll(f)
+    assert len(f.calls) == before
+
+
+def test_replaced_session_cannot_adopt_action_after_known_cancelled_poll(tmp_path):
+    f = Flow(tmp_path)
+    f.start(tick=995)
+    expire_poll(f)
+    f.store = CondemnProgressStore(tmp_path)
+    with pytest.raises(CondemnProgressStopped, match="replaced"):
+        expire_poll(f)
+    assert len(f.calls) == 2
+
+
+@pytest.mark.parametrize("change", ["remove", "duplicate", "clock", "unknown", "empty"])
+def test_cancelled_poll_evidence_is_revalidated_on_fresh_read(tmp_path, change):
+    f = Flow(tmp_path)
+    f.start(tick=995)
+    expire_poll(f)
+    raw = json.loads(f.store.path.read_bytes())
+    a = raw["attempts"][0]
+    if change == "remove":
+        del a["cancelled_polls"]
+    elif change == "duplicate":
+        a["cancelled_polls"] *= 2
+    elif change == "clock":
+        a["cancelled_polls"][0]["tick"] = 1
+    elif change == "empty":
+        a["cancelled_polls"] = []
+    else:
+        a["other_cancellations"] = []
+    f.store.path.write_text(json.dumps(raw), encoding="utf-8")
+    with pytest.raises(CondemnProgressStopped):
+        CondemnProgressStore(tmp_path).read()

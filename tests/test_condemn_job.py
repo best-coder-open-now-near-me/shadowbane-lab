@@ -411,3 +411,38 @@ def test_legacy_queue_recovery_requires_original_idle_correlated_proof(setup, mo
     with pytest.raises((RuntimeError, ValueError)):
         setup.jobs.request(setup.record["job_id"], "run")
     assert len(calls) == 2
+
+
+def test_job_waits_through_cancelled_poll_under_original_owner(setup, monkeypatch):
+    from shadowbane_lab.client_extension.action_channel import (
+        NativeActionResult,
+        NativeActionResultStage,
+    )
+    from shadowbane_lab.client_extension.condemn_wire import Outcome, Phase, Receipt, Snapshot
+
+    setup.base.options["mode"] = "normal"
+    original = ScopedTransport.submit
+    cancelled = []
+
+    def submit(self, command, timeout_ms):
+        if self.phase == Phase.ENABLING and command.payload.transition_request and not cancelled:
+            cancelled.append(command.payload.request_key)
+            # Remaining fixture targets already exist; the shared synthetic
+            # response stream has fixed floors for only one mutating composite.
+            self.mode = setup.base.options["mode"] = "existing"
+            self.commands.append(command)
+            c = command.payload
+            r = Receipt(c.request_key, c.host, c.window, Outcome.STALE, 0, Snapshot())
+            return NativeActionResult(1, command.command_id, len(self.commands),
+                                      NativeActionResultStage.REJECTED_BY_CLIENT, 1235,
+                                      1010 + len(self.commands), 5760,
+                                      "native_condemn_receipt_v1", r.encode())
+        return original(self, command, timeout_ms)
+
+    monkeypatch.setattr(ScopedTransport, "submit", submit)
+    result = setup.run()
+    assert result["state"] == "complete" and len(setup.jobs.progress(result)) == 4
+    attempts = CondemnProgressStore(setup.base.store.root).read()["attempts"]
+    assert len(attempts) == 4 and len(cancelled) == 1
+    assert attempts[0]["state"] == "state_verified"
+    assert len(attempts[0]["cancelled_polls"]) == 1
