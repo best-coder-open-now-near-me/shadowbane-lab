@@ -5,6 +5,7 @@ receipt. This journal owns write-ahead intent and prohibits replay after any los
 submission/completion. Its completion means keyed enabled state was observed; the
 server supplies no nonce, so it never labels that state as command causality.
 """
+
 from __future__ import annotations
 
 import json
@@ -86,14 +87,34 @@ def _context(observation):
 def _submission(value):
     if set(value) != {"request", "lifetime", "target", "response_floor", "tick_ms", "submitted"}:
         raise ValueError("invalid Condemn submission fields")
-    return Submission(value["request"], Lifetime(**value["lifetime"]),
-                      Target(**value["target"]), value["response_floor"], value["tick_ms"],
-                      value["submitted"])
+    return Submission(
+        value["request"],
+        Lifetime(**value["lifetime"]),
+        Target(**value["target"]),
+        value["response_floor"],
+        value["tick_ms"],
+        value["submitted"],
+    )
 
 
 def _validate_attempt(attempt):
-    if set(attempt) != {"request", "owner", "lifetime", "target", "baseline", "context",
-                       "state", "submission", "completion"}:
+    if not isinstance(attempt, dict):
+        raise ValueError("invalid Condemn attempt record")
+    if attempt.get("kind") == "native":
+        from .condemn_transaction import validate_attempt
+
+        return validate_attempt(attempt)
+    if set(attempt) != {
+        "request",
+        "owner",
+        "lifetime",
+        "target",
+        "baseline",
+        "context",
+        "state",
+        "submission",
+        "completion",
+    }:
         raise ValueError("invalid Condemn attempt record")
     request_key(attempt["request"])
     request_key(attempt["owner"])
@@ -115,10 +136,15 @@ def _validate_attempt(attempt):
             raise ValueError("Condemn progress lacks its submission")
         return
     receipt = _submission(submitted)
-    if (receipt.request != attempt["request"] or receipt.lifetime != lifetime
-            or receipt.target != target or receipt.response_floor < baseline["sequence"]
-            or attempt["state"] == "intent"
-            or not receipt.submitted and attempt["state"] != "uncertain"):
+    if (
+        receipt.request != attempt["request"]
+        or receipt.lifetime != lifetime
+        or receipt.target != target
+        or receipt.response_floor < baseline["sequence"]
+        or attempt["state"] == "intent"
+        or not receipt.submitted
+        and attempt["state"] != "uncertain"
+    ):
         raise ValueError("Condemn submission does not match its durable intent")
     completion = attempt["completion"]
     if completion is None:
@@ -131,12 +157,15 @@ def _validate_attempt(attempt):
         raise ValueError("invalid Condemn completion evidence")
     response = Response(lifetime, canonical(completion["response"]))
     records = response.records
-    if (not response.enabled_reply(target) or response.digest != completion["response_sha256"]
-            or records[0]["sequence"] <= receipt.response_floor
-            or records[0]["tick_ms"] < receipt.tick_ms
-            or integer(completion["observed_tick"]) < records[-1]["tick_ms"]
-            or _context(completion["row"]) != attempt["context"]
-            or not enabled_row(target, completion["row"])):
+    if (
+        not response.enabled_reply(target)
+        or response.digest != completion["response_sha256"]
+        or records[0]["sequence"] <= receipt.response_floor
+        or records[0]["tick_ms"] < receipt.tick_ms
+        or integer(completion["observed_tick"]) < records[-1]["tick_ms"]
+        or _context(completion["row"]) != attempt["context"]
+        or not enabled_row(target, completion["row"])
+    ):
         raise ValueError("Condemn enabled state is not qualified")
 
 
@@ -170,33 +199,42 @@ class CondemnProgressStore:
             if len(raw) > LIMIT:
                 raise ValueError("Condemn progress exceeds its bound")
             record = json.loads(raw)
-            if (set(record) != {"schema_version", "active", "attempts"}
-                    or type(record["schema_version"]) is not int or record["schema_version"] != 1
-                    or not isinstance(record["attempts"], list)
-                    or len(record["attempts"]) > MAX_ATTEMPTS):
+            if (
+                set(record) != {"schema_version", "active", "attempts"}
+                or type(record["schema_version"]) is not int
+                or record["schema_version"] not in (1, 2)
+                or not isinstance(record["attempts"], list)
+                or len(record["attempts"]) > MAX_ATTEMPTS
+            ):
                 raise ValueError("invalid Condemn progress schema")
             seen, pending = set(), []
             for attempt in record["attempts"]:
+                if not isinstance(attempt, dict):
+                    raise ValueError("invalid Condemn attempt record")
+                if attempt.get("kind") == "native" and record["schema_version"] != 2:
+                    raise ValueError("native Condemn intent requires schema 2")
                 _validate_attempt(attempt)
                 if attempt["request"] in seen:
                     raise ValueError("duplicate Condemn request")
                 seen.add(attempt["request"])
-                if attempt["state"] != "state_verified":
+                if attempt["state"] not in {"state_verified", "already_enabled", "not_submitted"}:
                     pending.append(attempt["request"])
             if pending != ([] if record["active"] is None else [record["active"]]):
                 raise ValueError("Condemn active intent does not match its history")
             return record
         except (ValueError, KeyError, TypeError, CondemnResponseError) as exc:
             raise CondemnProgressStopped(
-                "Condemn progress needs review; no replay allowed.") from exc
+                "Condemn progress needs review; no replay allowed."
+            ) from exc
 
     def _write(self, record):
         data = canonical(record)
         if len(data) > LIMIT:
             raise CondemnProgressStopped("Condemn progress storage limit reached.")
         if not self.initialized.exists():
-            publish_atomic_record(self.initialized, b'{"schema_version":1}',
-                                  temporary_label="condemn-progress")
+            publish_atomic_record(
+                self.initialized, b'{"schema_version":1}', temporary_label="condemn-progress"
+            )
         publish_atomic_record(self.path, data, temporary_label="condemn-progress")
 
     def read(self):
@@ -204,9 +242,13 @@ class CondemnProgressStore:
             return self._read()
 
     def verified_targets(self, lifetime: Lifetime):
-        return frozenset(Target(**a["target"]) for a in self.read()["attempts"]
-                         if a["state"] == "state_verified"
-                         and Lifetime(**a["lifetime"]) == lifetime)
+        return frozenset(
+            Target(**a["target"])
+            for a in self.read()["attempts"]
+            if a.get("kind") != "native"
+            and a["state"] == "state_verified"
+            and Lifetime(**a["lifetime"]) == lifetime
+        )
 
     def assert_idle(self):
         if self.read()["active"] is not None:
@@ -215,31 +257,48 @@ class CondemnProgressStore:
     def submit(self, request, target: Target, window: ResponseWindow, before, dispatch):
         """Persist intent, then call a native adapter exactly once. Never retry failures."""
         request_key(request)
-        if (window.failure or not row_state(target, before, enabled=False)):
+        if window.failure or not row_state(target, before, enabled=False):
             raise CondemnProgressStopped("A fresh disabled scoped row is required.")
         context = _context(before)
         baseline = dict(window.baseline, sequence=window.sequence)
         lifetime = window.lifetime
         with exclusive_record_lock(self.lock):
             record = self._read()
-            if (record["active"] is not None or len(record["attempts"]) >= MAX_ATTEMPTS
-                    or any(a["request"] == request for a in record["attempts"])):
+            if (
+                record["active"] is not None
+                or len(record["attempts"]) >= MAX_ATTEMPTS
+                or any(a["request"] == request for a in record["attempts"])
+            ):
                 raise CondemnProgressStopped(
-                    "Condemn attempt is pending, repeated, or at capacity.")
-            attempt = dict(request=request, owner=self.owner, lifetime=asdict(lifetime),
-                           target=asdict(target), baseline=baseline, context=context,
-                           state="intent", submission=None, completion=None)
+                    "Condemn attempt is pending, repeated, or at capacity."
+                )
+            attempt = dict(
+                request=request,
+                owner=self.owner,
+                lifetime=asdict(lifetime),
+                target=asdict(target),
+                baseline=baseline,
+                context=context,
+                state="intent",
+                submission=None,
+                completion=None,
+            )
             record["attempts"].append(attempt)
             record["active"] = request
             self._write(record)
             # Exceptions here retain the active write-ahead intent. No catch/retry.
             receipt = dispatch()
-            if (type(receipt) is not Submission or receipt.request != request
-                    or receipt.lifetime != lifetime or receipt.target != target
-                    or receipt.response_floor < baseline["sequence"]):
+            if (
+                type(receipt) is not Submission
+                or receipt.request != request
+                or receipt.lifetime != lifetime
+                or receipt.target != target
+                or receipt.response_floor < baseline["sequence"]
+            ):
                 raise CondemnProgressStopped("Native Condemn submission does not match its intent.")
-            attempt.update(submission=asdict(receipt),
-                           state="submitted" if receipt.submitted else "uncertain")
+            attempt.update(
+                submission=asdict(receipt), state="submitted" if receipt.submitted else "uncertain"
+            )
             self._write(record)
             self._windows[request] = window
             return receipt
@@ -252,19 +311,44 @@ class CondemnProgressStore:
             if record["active"] != request:
                 raise CondemnProgressStopped("No matching active Condemn attempt.")
             attempt = next(a for a in record["attempts"] if a["request"] == request)
-            if (attempt["owner"] != self.owner or attempt["state"] != "submitted"
-                    or self._windows.get(request) is not window or window.failure
-                    or not window.contains(response)):
+            if (
+                attempt["owner"] != self.owner
+                or attempt["state"] != "submitted"
+                or self._windows.get(request) is not window
+                or window.failure
+                or not window.contains(response)
+            ):
                 raise CondemnProgressStopped("Condemn attempt lost its original evidence interval.")
-            attempt.update(state="state_verified", completion=dict(
-                response=response.records, response_sha256=response.digest,
-                observed_tick=observed_tick, row=json.loads(canonical(row)),
-            ))
+            attempt.update(
+                state="state_verified",
+                completion=dict(
+                    response=response.records,
+                    response_sha256=response.digest,
+                    observed_tick=observed_tick,
+                    row=json.loads(canonical(row)),
+                ),
+            )
             try:
                 _validate_attempt(attempt)
             except (ValueError, KeyError, TypeError, CondemnResponseError) as exc:
                 raise CondemnProgressStopped(
-                    "Condemn state evidence does not match its intent.") from exc
+                    "Condemn state evidence does not match its intent."
+                ) from exc
             record["active"] = None
             self._write(record)
             self._windows.pop(request, None)
+
+    def submit_native(self, command, window, dispatch):
+        from .condemn_transaction import submit
+
+        return submit(self, command, window, dispatch)
+
+    def continue_native(self, command, window, dispatch):
+        from .condemn_transaction import advance
+
+        return advance(self, command, window, dispatch)
+
+    def verified_native_targets(self, lifetime):
+        from .condemn_transaction import verified_targets
+
+        return verified_targets(self.read(), lifetime)

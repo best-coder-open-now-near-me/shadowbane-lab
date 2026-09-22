@@ -590,3 +590,37 @@ replies, and qualify completion against the original healthy response interval.
 The latest action floor/tick may change from open to add to enable; the initial
 submission is not necessarily the enable boundary. Then connect scoped plans and
 manager controls before packaging and one combined live test.
+
+
+## Host session and composite progress - September 22
+
+The host now dispatches the typed Condemn commands through the existing producer
+lease and validates command ID, producer generation, exact HWND, request UUID,
+consumer thread, transport status and observation scope. Read-only inspect carries
+no transition UUID. Action-capable continuations retain the original target,
+producer and transition, use a fresh dispatch UUID, and never retry a lost reply.
+
+The existing per-client Condemn journal now stores composite transactions under
+schema 2; legacy enable-only records remain readable and share the same active
+barrier. Intent is persisted before ENSURE and before every continuation. Phase
+boundaries preserve the actual enable floor/tick and scoped disabled row. Completion
+requires a keyed operation-17 reply consumed by the original healthy response
+window and a later enabled row for that same entry. Existing enabled rows are a
+separate result. Uncertain dispatches, storage failures, replaced producers/windows,
+and restarts retain the pending intent and prohibit replay. Saved completion proof
+is revalidated when loaded. No restart can take over an unfinished native chain.
+
+Validation: 249 selected Condemn/transport/session tests pass; three existing
+platform-specific transport tests are skipped. Ruff and diff checks pass. Tests
+include write failure before/after dispatch, lost replies, changed scope/owner,
+response loss, corrupted saved proof, restart retention and a complete simulated
+open/add/enable flow through the actual session and journal. No new package,
+installation, game action or live acceptance occurred; installed versions remain
+native 1.8.23 / host 0.3.34.
+
+Completed: typed native runtime and host session with durable composite progress.
+Next active item: manager exact-building cycles and scoped catalog plans, followed
+by durable manager controls, exact-source packaging and one combined live test.
+The 89-record map catalog does not establish landless-guild coverage or nation
+inheritance. Source still targets guard-upgrades -> vendor-rolling ->
+native-lifecycle-hardening -> reviewed main; feature integration remains pending.
