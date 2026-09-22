@@ -87,8 +87,11 @@ Fresh map evidence moved Legacy's city under excluded BIB, so the remaining
 two-tower batch used 47 current nations. All 94 entries completed (91 updated,
 three already enabled), with no active operation or pending request. Combined
 proofs cover 30 observed towers / 1,410 current-nation entries, including the
-previously completed tower now outside view. Next: move to another outer-town
-position and discover additional towers without repeating these 30.
+previously completed tower now outside view. Northeast discovery then checked
+65 candidates: 28 accessible guard towers were already covered, but five Irekei
+Barracks could not be opened. No new Condemn job was submitted. Next: inspect
+one manually opened barracks to distinguish reachability from a menu difference;
+retain the completed 30-tower set.
 Earlier uncertain attempts remain retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 

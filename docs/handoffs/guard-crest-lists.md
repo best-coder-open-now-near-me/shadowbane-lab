@@ -1267,3 +1267,30 @@ observed towers. The 30 completed towers should not be reiterated. Full-town
 coverage and nation-inheritance/combat qualification remain open. Source is still
 on codex/guard-upgrades for review through vendor-rolling and
 native-lifecycle-hardening into main; no merge is implied.
+
+
+## September 22 - northeast scan exposes unopened barracks
+
+The user moved Poley to the northeast area. Fresh preparation in the same healthy
+game lifetime inspected 65 building candidates. Thirty rosters were verified:
+28 towers containing 168 guards, plus Tree of Life and warehouse without guards.
+All 28 accessible towers belong to the already verified 30-tower set, so no
+Condemn start or repeat application was submitted.
+
+The remaining 35 candidates were unavailable: 28 wall structures, two previously
+completed towers now out of reach, and five Irekei Barracks. The barracks attempts
+returned a requested-window-unavailable result with no native action submitted.
+Their guard counts remain unknown; empty cached hireling lists do not prove that
+they have no guards. This scan does not establish full-town coverage. The cached
+building list contains identities and names, without coordinates to rank which
+barracks is closest.
+
+Next: the user moves beside one Irekei Barracks and opens its management menu,
+without upgrading or changing Condemn. Inspect that live window and compare its
+identity and layout with the unavailable discovery attempts. This distinguishes
+a reachability problem from a different window path before retrying discovery.
+The completed two-tower job remains complete; the 30-tower / 1,410-current-nation
+coverage and all three friendly-nation exclusions remain intact. No code or
+installation changed in this scan; private candidate evidence is retained under
+the separate northeast-pass deployment directory. Source integration remains
+pending through the documented feature branches into reviewed main.
