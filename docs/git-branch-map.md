@@ -39,8 +39,11 @@ User login is confirmed. The first preparation exposed empty cached hireling lis
 host 0.3.37 now discovers actual building rosters before presenting selections.
 Host 0.3.38 source `4b0253b` is installed. Live preparation found 168 guards across
 28 selectable towers. One crest add succeeded; enable received no confirmation
-and remains stopped for review. Next: fresh server-list observation and enable
-boundary diagnosis. No merge or completed aggression rollout is implied.
+and remains stopped for review. Manual enable and fresh-list persistence succeeded.
+Native 1.8.26 / host 0.3.39 corrects an omitted callback stack argument, reproduced
+by a regression test. Next: exact-source package validation/staging, then live
+automatic enable and pause/resume qualification. No merge or completed aggression
+rollout is implied.
 
 ## Guard hostility investigation - September 21
 

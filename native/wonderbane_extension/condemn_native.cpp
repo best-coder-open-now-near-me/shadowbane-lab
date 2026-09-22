@@ -144,8 +144,9 @@ bool Select(std::uintptr_t base, const Snapshot& s) noexcept {
 }
 bool Selected(std::uintptr_t base, const Snapshot& s) noexcept {
     __try {
-        using Changed = void (__thiscall*)(void*);
-        reinterpret_cast<Changed>(base + 0x5b1c40)(reinterpret_cast<void*>(s.kos));
+        // The client ignores the event argument but still removes it with RET 4.
+        using Changed = void (__thiscall*)(void*, std::uint32_t);
+        reinterpret_cast<Changed>(base + 0x5b1c40)(reinterpret_cast<void*>(s.kos), 0);
         return true;
     } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }

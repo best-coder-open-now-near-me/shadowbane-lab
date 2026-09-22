@@ -39,8 +39,11 @@ void __fastcall Select(void* self, void*, void* row) {
     if (change_flag_on_select) { Word(base + 0x9084, 0x10000); }
     if (expire_on_select) { live = false; }
 }
-void __fastcall Selected(void* self, void*) {
+// The reviewed 0x5B1C40 callback ends in RET 4, even though it ignores its event.
+// Preserve that stack argument in the stub so an omitted argument is detected.
+void __fastcall Selected(void* self, void*, std::uint32_t event) {
     ++refreshes;
+    assert(event == 0);
     assert(reinterpret_cast<std::uint32_t>(self) == base + 0x6000);
     const auto row = Word(base + 0x7404);
     if (row) { Word(base + 0x63b8, Word(row + 0x44c)); }
@@ -104,7 +107,7 @@ int main() {
     assert(c::Invoke(base, scene, target, c::Action::open, s, Admit, nullptr) == c::Result::submitted && opens == 1);
     Fixture(); assert(c::Capture(base, scene, target, s));
     assert(c::Invoke(base, scene, target, c::Action::enable, s, Admit, nullptr) == c::Result::submitted);
-    assert(enables == 1 && selections == 1);
+    assert(enables == 1 && selections == 1 && refreshes == 1);
     for (const auto scope : {4U, 5U}) {
         Fixture(true, false, scope); target.scope = scope; assert(c::Capture(base, scene, target, s));
         assert(c::Invoke(base, scene, target, c::Action::add, s, Admit, nullptr) == c::Result::submitted && adds == 1);

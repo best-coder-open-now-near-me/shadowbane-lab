@@ -834,3 +834,28 @@ for that observation with a ten-minute bound. Next: inspect the fresh list and
 resolve the enable boundary; retain the unresolved native and host journals.
 Pause/resume qualification, wider crest application, and outer-town coverage
 remain pending. No further client reinstall is currently prepared or requested.
+
+## September 22 - manual enable comparison and callback ABI correction
+
+The reopened server list confirmed the automatically added nation row was disabled.
+The user then checked that row once and reopened the list. Operation 17 confirmed
+state 1 for the exact building and entry; the next operation-12 list retained the
+enabled nation flag. This qualifies manual permission and persistence only. The
+earlier automatic request remains uncertain, with its original journals retained.
+The bounded read-only recorder ended normally and its private capture is archived.
+
+Review of client 1.3.38.10 found that the selected-row callback at RVA 0x5B1C40
+ends with `ret 4`. Our wrapper omitted the unused event argument. Native 1.8.26
+passes that argument explicitly; the ABI-faithful regression stub reproduces the
+old failure and passes with the correction. Neighboring open, select, assign, add,
+and enable call signatures were checked against the same reviewed executable.
+All nine focused native Condemn tests pass. Host 0.3.39 packages the current host
+with the corrected extension. Full exact-source package validation and staging
+are next; the running game remains 1.8.25 / host 0.3.38 until installation.
+
+This is a verified calling-convention defect, not yet a live-qualified fix for
+automatic enable. After installation and a new game lifetime, qualify automatic
+enable and fresh-list persistence, then pause/resume, before a wider selected run.
+No uncertain action will be replayed or relabeled as automatically completed.
+Source remains on `codex/guard-upgrades`, for integration through
+`codex/vendor-rolling` and `codex/native-lifecycle-hardening` into reviewed `main`.
