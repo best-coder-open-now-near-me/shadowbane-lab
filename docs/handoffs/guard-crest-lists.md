@@ -1130,3 +1130,21 @@ update, obtain a fresh game lifetime, then freshly observe existing enabled rows
 and finish the same approved nation selection. The three friendly nations remain
 excluded; no individual or guild pass is authorized. Integration remains through
 the documented feature lanes into reviewed main.
+
+
+## September 22 - confirmation-expiry update activated
+
+After confirmed game closure, host 0.3.44 source 2432777 was activated in the
+test VM. All 430 installed module hashes passed. All 8,928 retained worker files
+were unchanged; only the temporary dispatch permit refreshed while no client was
+bound. The dashboard shortcut now uses the updated host. The same reviewed
+client relaunched into a fresh process with the unchanged native 1.8.26 extension
+verified as loaded. The manager is healthy and its new worker was started through
+the normal Resume action. No fresh Condemn job has been submitted.
+
+Next: Poley logs into City of Temple, then fresh preparation and the approved
+nation-only selection can continue. The 894 confirmed entries and unfinished
+transaction in the prior game lifetime remain preserved. House of Shinobi,
+Celestials and BIB stay excluded as whole nations. Full selected-batch completion
+and wider town coverage remain open. Source integration is still pending through
+vendor-rolling and native-lifecycle-hardening into reviewed main.
