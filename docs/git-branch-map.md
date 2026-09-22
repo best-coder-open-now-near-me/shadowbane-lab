@@ -35,7 +35,9 @@ All 8,543 retained files match; the manager is healthy and the existing Vendor
 Test/Dashboard shortcuts are ready. A subsequent zero-filled ArcaneLanguage.cfg
 was restored from its exact packaged original; the existing text-fixed launcher
 now starts the game successfully and the manager is attached with no active job.
-Next: user login and selected-building Condemn live validation; no merge is implied.
+User login is confirmed. The first preparation exposed empty cached hireling lists;
+host 0.3.37 now discovers actual building rosters before presenting selections.
+The host-only update and selected-building live validation are next; no merge is implied.
 
 ## Guard hostility investigation - September 21
 

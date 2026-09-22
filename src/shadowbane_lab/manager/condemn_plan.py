@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from dataclasses import asdict
 
 from shadowbane_lab.client_extension.condemn_evidence import Lifetime, canonical, key
 from shadowbane_lab.client_extension.condemn_progress import MAX_ATTEMPTS, CondemnProgressStore
 from shadowbane_lab.client_extension.condemn_wire import Target
+from shadowbane_lab.client_extension.vendor_navigation_wire import Snapshot
 from shadowbane_lab.record_store import exclusive_record_lock, read_record_bytes
 
 from .condemn_cycle import CondemnContext, CondemnCycleStopped
@@ -159,6 +161,101 @@ def building_entries(nearby, identity, context):
     return sorted(result, key=lambda b: b["building"])
 
 
+def verified_building_entries(rosters, nearby, identity, context):
+    """Use response-verified rosters, never treat an empty nearby cache as empty guards."""
+    # Retain and validate the original cache separately.
+    building_entries(nearby, identity, context)
+    life = context.lifetime
+    candidates = {_key(r["building"], 8): r for r in nearby["roster"]["buildings"]}
+    if (
+        rosters.get("schema_version") != 1 or rosters.get("roster_only") is not True
+        or rosters.get("state") not in ("complete", "partial")
+        or rosters.get("identity") != list(identity)
+        or rosters.get("operation_id") != nearby["operation_id"]
+        or (rosters.get("game_process_id"), rosters.get("game_creation_filetime"),
+            rosters.get("scene"), rosters.get("root"))
+        != (life.process_id, life.creation, life.scene_epoch, context.root)
+        or rosters.get("roster_complete") is not False
+        or rosters.get("town_membership_verified") is not False
+        or rosters.get("guards") != 0
+        or rosters.get("buildings") != len(candidates)
+        or not isinstance(rosters.get("roster"), list)
+        or len(rosters["roster"]) != len(candidates)
+        or not isinstance(rosters.get("attempts"), list)
+        or len(rosters["attempts"]) != len(candidates)
+    ):
+        raise ValueError("invalid verified building discovery provenance")
+    attempts, requests = {}, set()
+    for attempt in rosters["attempts"]:
+        building = key((attempt["building_id"], 8), kind=8)
+        if (building not in candidates or building in attempts or attempt["guard_id"] != 0
+                or attempt["state"] not in ("observed", "not_submitted")
+                or attempt["request_key"] in requests):
+            raise ValueError("invalid building discovery attempt")
+        if str(uuid.UUID(attempt["request_key"])) != attempt["request_key"]:
+            raise ValueError("invalid building discovery request")
+        expected = Snapshot.decode(bytes.fromhex(attempt["expected"]))
+        if (expected.scene, expected.root) != (life.scene_epoch, context.root):
+            raise ValueError("building discovery attempt changed area")
+        requests.add(attempt["request_key"])
+        attempts[building] = attempt
+    seen, hirelings, result, verified, guard_total = set(), set(), [], 0, 0
+    for row in rosters["roster"]:
+        building = _key(row["building"], 8)
+        if building not in candidates or building in seen:
+            raise ValueError("unexpected verified building identity")
+        seen.add(building)
+        if row["display_name"] != candidates[building]["display_name"]:
+            raise ValueError("verified building label changed")
+        if row["state"] == "unavailable":
+            if row["guards"] or "roster" in row or "snapshot" in row:
+                raise ValueError("unavailable building contains verified rows")
+            continue
+        if row["state"] != "verified" or attempts[building]["state"] != "observed":
+            raise ValueError("building roster lacks a completed response")
+        snapshot = Snapshot.decode(bytes.fromhex(row["snapshot"]))
+        raw = row["roster"]
+        if (
+            not snapshot.opened(building[0])
+            or (snapshot.scene, snapshot.root) != (life.scene_epoch, context.root)
+            or snapshot.manager != Snapshot.decode(
+                bytes.fromhex(attempts[building]["expected"])
+            ).manager
+            or raw.get("building_roster_verified") is not True
+            or _key(raw["building"], 8) != building
+            or (raw.get("process_id"), raw.get("process_creation_filetime_utc"))
+            != (life.process_id, life.creation)
+            or raw.get("hireling_slots") != snapshot.capacity
+            or not isinstance(raw.get("hirelings"), list)
+            or len(raw["hirelings"]) != snapshot.occupied
+        ):
+            raise ValueError("verified building roster changed")
+        guards = []
+        for h in raw["hirelings"]:
+            identity_key = _key(h["hireling"])
+            if identity_key in hirelings:
+                raise ValueError("duplicate verified hireling")
+            hirelings.add(identity_key)
+            if identity_key[1] == 37:
+                guards.append(h)
+        expected_guards = [dict(g, window_verified=False, state="roster_verified") for g in guards]
+        if row["guards"] != expected_guards:
+            raise ValueError("verified guard roster changed")
+        verified += 1
+        guard_total += len(guards)
+        if guards:
+            result.append(dict(building=list(building), name=_label(row["display_name"]),
+                               guards=len(guards)))
+    complete = verified == len(candidates)
+    if (not verified or len(hirelings) > 4096
+            or rosters.get("buildings_verified") != verified
+            or rosters.get("guards_observed") != guard_total
+            or rosters.get("candidate_buildings_verified") is not complete
+            or rosters["state"] != ("complete" if complete else "partial")):
+        raise ValueError("verified building discovery totals changed")
+    return sorted(result, key=lambda b: b["building"])
+
+
 class CondemnPlanStore:
     def __init__(self, store):
         self.store, self.root = store, store.root / "condemn-plans"
@@ -166,12 +263,12 @@ class CondemnPlanStore:
     def path(self, preparation):
         return self.root / (operation_id(preparation) + ".json")
 
-    def prepare(self, preparation, context, owner, nearby, registry):
+    def prepare(self, preparation, context, owner, nearby, registry, *, rosters=None):
         if type(context) is not CondemnContext:
             raise ValueError("an exact Condemn context is required")
         require_owner(owner, owner)
         record = dict(
-            schema_version=1,
+            schema_version=1 if rosters is None else 2,
             preparation_id=operation_id(preparation),
             identity=list(self.store.identity),
             context=asdict(context),
@@ -179,6 +276,8 @@ class CondemnPlanStore:
             nearby=nearby,
             registry=registry,
         )
+        if rosters is not None:
+            record["verified_rosters"] = rosters
         # Validate the entire source before publishing it. Never turn malformed
         # entries into an apparently smaller successful selection.
         self._validate(record)
@@ -202,9 +301,9 @@ class CondemnPlanStore:
                 "owner",
                 "nearby",
                 "registry",
-            }
+            } | ({"verified_rosters"} if record.get("schema_version") == 2 else set())
             or type(record["schema_version"]) is not int
-            or record["schema_version"] != 1
+            or record["schema_version"] not in (1, 2)
             or record["identity"] != list(self.store.identity)
         ):
             raise ValueError("invalid crest preparation")
@@ -216,7 +315,12 @@ class CondemnPlanStore:
         )
         require_owner(record["owner"], record["owner"])
         catalog = catalog_entries(record["registry"])
-        buildings = building_entries(record["nearby"], self.store.identity, context)
+        buildings = (
+            verified_building_entries(record["verified_rosters"], record["nearby"],
+                                      self.store.identity, context)
+            if record["schema_version"] == 2
+            else building_entries(record["nearby"], self.store.identity, context)
+        )
         return context, catalog, buildings
 
     def read(self, preparation):

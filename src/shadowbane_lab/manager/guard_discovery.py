@@ -32,6 +32,7 @@ def read_guard_roster(binding, *, window):
 def run_guard_building_discovery(
     store, binding, operation, session, nearby, *, cancelled,
     reader=read_guard_roster, clock=time.monotonic, sleep=time.sleep, remembered=(),
+    roster_only=False,
 ):
     """Visit candidates once under one producer lease, without gold or upgrade actions.
 
@@ -42,6 +43,7 @@ def run_guard_building_discovery(
     return _run_building_discovery(
         store, binding, operation, session, nearby, cancelled=cancelled,
         reader=reader, clock=clock, sleep=sleep, guard=True, remembered=remembered,
+        roster_only=roster_only,
     )
 
 

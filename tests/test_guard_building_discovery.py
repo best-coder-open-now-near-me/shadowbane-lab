@@ -393,3 +393,21 @@ def test_remembered_guards_require_fresh_roster_but_no_personal_menu(setup):
 def test_remembered_guard_in_different_building_does_not_skip_verification(setup):
     result = setup.run(remembered={(456, 1230)})
     assert result["guards"] == 2 and len(setup.session.calls) == 4
+
+
+def test_roster_only_scan_never_opens_personal_guard_windows(setup):
+    result = setup.run(roster_only=True)
+    assert [(b, g) for b, g, _ in setup.session.calls] == [(123, 0), (456, 0)]
+    assert result["state"] == "complete"
+    assert result["guards"] == 0 and result["guards_observed"] == 2
+    assert (result["scene"], result["root"]) == (1, 100)
+    assert all(r["snapshot"] for r in result["roster"])
+    assert all(not g["window_verified"] for r in result["roster"] for g in r["guards"])
+
+
+def test_roster_only_scan_preserves_partial_coverage(setup):
+    setup.session.mode = "unavailable"
+    result = setup.run(roster_only=True)
+    assert result["state"] == "partial" and result["guards_observed"] == 1
+    assert result["roster"][0]["state"] == "unavailable"
+    assert not result["candidate_buildings_verified"]

@@ -64,8 +64,10 @@ def run_building_discovery(
 
 def _run_building_discovery(
     store, binding, operation, session, nearby, *, cancelled, reader, clock, sleep, guard,
-    remembered=(),
+    remembered=(), roster_only=False,
 ):
+    if roster_only and not guard:
+        raise ValueError("roster-only discovery requires guard mode")
     noun = "guard" if guard else "vendor"
     plural = noun + "s"
     row_key = "hireling" if guard else "vendor"
@@ -116,6 +118,9 @@ def _run_building_discovery(
             "attempts": [],
             "roster": [],
         }
+        if roster_only:
+            record.update(roster_only=True, scene=nearby["scene"], root=nearby["root"],
+                          guards_observed=0)
         baseline = None
         seen_guards = set()
 
@@ -306,6 +311,8 @@ def _run_building_discovery(
                     save()
                     continue
                 result.update(state="roster_verified", roster=roster)
+                if roster_only:
+                    result["snapshot"] = state.encode().hex()
                 record["buildings_verified"] += 1
                 for vendor in roster[rows_key]:
                     if guard and vendor["hireling"]["object_type"] != 37:
@@ -317,6 +324,10 @@ def _run_building_discovery(
                         seen_guards.add(vendor_id)
                     row = dict(vendor, window_verified=False)
                     result[plural].append(row)
+                    if roster_only:
+                        row.update(state="roster_verified")
+                        record["guards_observed"] += 1
+                        continue
                     if guard and (building_id, vendor_id) in remembered:
                         # Presence comes from this fresh owned roster. Original window
                         # evidence and rank timers remain in the persistent job.
@@ -346,7 +357,7 @@ def _run_building_discovery(
                     save()
                 result["state"] = (
                     "verified"
-                    if all(row["window_verified"] for row in result[plural])
+                    if roster_only or all(row["window_verified"] for row in result[plural])
                     else "partial"
                 )
                 save()
@@ -361,8 +372,9 @@ def _run_building_discovery(
                 )
             save(
                 "partial" if guard and not record["candidate_buildings_verified"] else "complete",
-                f"Verified {record[plural]} {noun} windows across "
-                f"{record['buildings_verified']} buildings. Full town coverage is unverified.",
+                (f"Observed {record['guards_observed']} guards in verified rosters across "
+                 if roster_only else f"Verified {record[plural]} {noun} windows across ")
+                + f"{record['buildings_verified']} buildings. Full town coverage is unverified.",
             )
             return record
         except (OSError, RuntimeError, ValueError) as exc:

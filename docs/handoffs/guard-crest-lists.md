@@ -774,3 +774,28 @@ closed, with the existing Vendor Test shortcut ready for user login. The earlier
 1.8.24 payload must not be applied. No Condemn action was performed during patching.
 Next active todo: verify user login, then prepare the catalog and qualify the
 selected-building native completion and retained pause/resume workflow live.
+
+
+
+## September 22 — cold-login roster preparation
+
+The first in-world preparation on 1.8.25 / host 0.3.36 read 91 cities and
+141 scoped crest identities, but offered zero guard buildings. City Command
+contained 65 nearby structures with empty cached hireling lists immediately
+after login. Cached hirelings therefore cannot decide which buildings have guards.
+
+Host 0.3.37 prepares the selection by visiting each nearby building once through
+the existing correlated navigation channel and verifying its actual hireling
+roster. It does not open individual guard upgrade menus. City Command releases
+its producer before navigation begins; character and area checks bracket the
+capture. Inaccessible or zero-slot structures retain partial coverage.
+
+New schema-2 plans retain both the original cache and the verified roster evidence,
+including typed identities, native snapshots, and durable navigation attempts.
+Old schema-1 plans remain readable. No cached labels confer ownership or complete
+town coverage. This is a host-only change; native 1.8.25 stays loaded. Source belongs
+to `codex/guard-upgrades`, awaiting integration through `codex/vendor-rolling` and
+`codex/native-lifecycle-hardening` into reviewed `main`. Next: install the verified
+host and qualify automatic preparation, then one selected building/crest transaction.
+
+Validation: 3,248 host tests passed, 12 skipped; Ruff passed. The final evidence-check refinement also passed all 104 focused preparation/navigation tests. Native code is unchanged.
