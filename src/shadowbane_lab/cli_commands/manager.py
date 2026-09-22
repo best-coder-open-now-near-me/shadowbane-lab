@@ -628,9 +628,7 @@ def _run_manager_app(
                     except (OSError, webbrowser.Error):
                         print("Could not open a browser; use the printed dashboard URL.")
                 try:
-                    while server.is_running:
-                        application.supervise()
-                        time.sleep(0.75)
+                    _supervise_manager(application, server)
                 except KeyboardInterrupt:
                     print("Stopping manager dashboard...")
                     return 0
@@ -649,6 +647,19 @@ def _run_manager_app(
             raise RuntimeError("manager dashboard stopped unexpectedly")
     except (OSError, RuntimeError, ValueError) as exc:
         return _error(f"manager app failed: {exc}", as_json=False)
+
+
+def _supervise_manager(application, server, *, clock=None, sleep=None):
+    """Renew on a monotonic cadence, leaving margin inside the unchanged 2s permit."""
+    clock = time.monotonic if clock is None else clock
+    sleep = time.sleep if sleep is None else sleep
+    while server.is_running:
+        started = clock()
+        application.supervise()
+        # Charge inspection time to this interval; never add a full delay after
+        # a slow check or issue catch-up renewals based on stale observations.
+        if server.is_running:
+            sleep(max(0.0, 0.25 - (clock() - started)))
 
 
 def _run_manager_worker(

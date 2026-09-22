@@ -75,8 +75,13 @@ after confirmed closure; 430 module hashes and 8,928 unchanged retained files ar
 verified. The same reviewed client relaunched with its unchanged native extension.
 Town login and fresh preparation succeeded. The current batch applies the same
 48 nations to 29 loaded towers (two newly observed, one prior tower outside this
-view). Six towers are sealed and the job is running. Next: complete this selection
-and review the coverage difference.
+view). The run reached 1,299 confirmed entries (27 sealed towers plus three),
+then stopped with one Add in flight when the manager dispatch permit expired.
+Host 0.3.45 retains bounded exact-instance summary proof caches and renews on a
+250ms monotonic cadence; the two-second permit lifetime and pending-action
+barriers are unchanged. Next: validate and install the host, compare renewal
+timing against the stopped job, then finish the selection in a fresh game
+lifetime and review the coverage difference.
 Earlier uncertain attempts remain retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 

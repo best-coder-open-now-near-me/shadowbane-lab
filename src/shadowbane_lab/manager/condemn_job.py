@@ -39,6 +39,7 @@ class CondemnJobStore:
     def __init__(self, store):
         self.store, self.root = store, store.root / "condemn-jobs"
         self.plans = CondemnPlanStore(store)
+        self.native_progress = CondemnProgressStore(store.root)
 
     def path(self, job_id):
         return self.root / (operation_id(job_id) + ".json")
@@ -181,7 +182,7 @@ class CondemnJobStore:
                 # Only a proven completed boundary can recover this pre-dispatch
                 # failure. Missing/uncertain native receipts still prohibit resume.
                 with exclusive_record_lock(self.root / "runner.lock", timeout_seconds=0.1):
-                    CondemnProgressStore(self.store.root).assert_idle()
+                    self.native_progress.assert_idle()
                     GuardSpendingJournal(self.store.root).assert_idle()
                     self.progress(current, recover=True)
                     current.update(
@@ -254,10 +255,10 @@ class CondemnJobStore:
         idle and every dispatched crest has durable proof. Missing intent/receipt
         is review, never a reason to resubmit that crest.
         """
-        saved = CondemnProgressStore(self.store.root).read()
+        saved = self.native_progress.read()
         attempts = {a["request"]: a for a in saved["attempts"]}
         if recover:
-            CondemnProgressStore(self.store.root).assert_idle()
+            self.native_progress.assert_idle()
             GuardSpendingJournal(self.store.root).assert_idle()
         expected = record["selection"]["targets"]
         completed, requests, expiries = [], set(), {}

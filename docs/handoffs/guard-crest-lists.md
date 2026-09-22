@@ -1158,3 +1158,39 @@ contains 1,392 targets. Two buildings are newly observed and one from the prior
 The batch is running: six towers are sealed, 288 existing entries and 27 newly
 verified entries are confirmed. The prior lifetime's records remain untouched.
 Next: finish the selected batch, then review the coverage difference.
+
+
+## September 22 - dispatch renewal under growing summary load
+
+Host 0.3.44 reached 1,299 native confirmations: 895 already enabled and 404 newly
+verified. Twenty-seven towers are sealed (1,296 targets), with three further
+confirmations in the active tower. The next Add remains submitted and retained;
+no continuation poll was pending. The operation stopped because its manager
+permit expired by 0.196 seconds. No cancelled poll occurred in this run.
+Do not resume, reset or adopt the released transaction. Earlier uncertain
+lifetimes remain unchanged.
+
+A bounded, read-only eight-status-call probe against the stopped job measured
+3.234–4.032 second status reads and a maximum permit issuance gap of 2.088
+seconds, exceeding its unchanged two-second validity. Each dashboard summary
+constructed fresh proof stores, discarding the existing completed-proof cache.
+Host 0.3.45 retains an exact-instance job/proof store per client, drops changed
+or unbound instances and limits inactive slots to the manager's 32-client bound.
+It caches only canonical validated terminal proof; every summary still reads
+fresh job, cycle and native records. Changed and pending proofs remain validated.
+
+Supervision now starts on a 250ms monotonic cadence, charging inspection time to
+the interval instead of adding 750ms after every check. Slow checks never reuse
+stale observations for catch-up renewals. Permit TTL, identity checks, shutdown
+revocation and uncertain-action barriers are unchanged.
+
+Next: complete validation, package exact source, then compare the same stopped
+job's dashboard latency and permit gaps in the VM before requesting a new game
+lifetime. House of Shinobi, Celestials and BIB remain whole-nation exclusions.
+Full batch completion, broader town coverage and source integration through
+vendor-rolling/native-lifecycle-hardening into reviewed main remain unfinished.
+
+Validation: 3,308 host tests passed, 12 skipped; Ruff and diff checks passed.
+Regression coverage includes changed proof/job/cycle rejection after warming the
+cache, fresh summary results, lifetime eviction, the slot bound, slow supervision
+checks and exception propagation to shutdown revocation.

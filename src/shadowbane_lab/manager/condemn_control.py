@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 import uuid
+from collections import OrderedDict
 from pathlib import Path
 
 from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
@@ -16,6 +18,7 @@ from .condemn_job import CondemnJobStore, run_condemn_job
 from .condemn_preparation import prepare_condemn
 from .guard_job import GuardJobStore
 from .guard_owner import read_guard_owner
+from .manifest import MAX_MANAGER_CLIENT_SLOTS
 from .operation import (
     WorkerOperationExecution,
     WorkerOperationKind,
@@ -48,15 +51,34 @@ class ManagerCondemnControl:
     def __init__(self, root, node_id, permits, operations, *, clock=time.time):
         self.root, self.node_id = Path(root), node_id
         self.permits, self.operations, self.clock = permits, operations, clock
+        self._summary_jobs = OrderedDict()
+        self._summary_lock = threading.Lock()
 
     def store(self, client_id, instance_id):
         return VendorJobStore(self.root, self.node_id, client_id, instance_id)
 
+    def _summary_store(self, client_id, instance_id):
+        # Retain only proof-validation memoization, never records or summary results.
+        # A changed/unbound lifetime drops its cache; inactive slots are LRU bounded.
+        key = (client_id, instance_id)
+        with self._summary_lock:
+            for old in tuple(self._summary_jobs):
+                if old[0] == client_id and old != key:
+                    del self._summary_jobs[old]
+            if not instance_id:
+                return None
+            jobs = self._summary_jobs.pop(key, None)
+            if jobs is None:
+                jobs = CondemnJobStore(self.store(client_id, instance_id))
+            self._summary_jobs[key] = jobs
+            while len(self._summary_jobs) > MAX_MANAGER_CLIENT_SLOTS:
+                self._summary_jobs.popitem(last=False)
+            return jobs
+
     def summary(self, client_id, instance_id):
-        if not instance_id:
+        jobs = self._summary_store(client_id, instance_id)
+        if jobs is None:
             return None
-        store = self.store(client_id, instance_id)
-        jobs = CondemnJobStore(store)
         result = dict(prepared=None, job=None)
         try:
             result["prepared"] = jobs.plans.current()
