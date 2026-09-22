@@ -41,9 +41,10 @@ Host 0.3.38 source `4b0253b` is installed. Live preparation found 168 guards acr
 28 selectable towers. One crest add succeeded; enable received no confirmation
 and remains stopped for review. Manual enable and fresh-list persistence succeeded.
 Native 1.8.26 / host 0.3.39 corrects an omitted callback stack argument, reproduced
-by a regression test. Next: exact-source package validation/staging, then live
-automatic enable and pause/resume qualification. No merge or completed aggression
-rollout is implied.
+by a regression test. Exact-source package `cb30014` passed required validation
+and is staged with a successful test-VM dry run; installation awaits game closure.
+Next: install, then live automatic enable and pause/resume qualification. No merge
+or completed aggression rollout is implied.
 
 ## Guard hostility investigation - September 21
 

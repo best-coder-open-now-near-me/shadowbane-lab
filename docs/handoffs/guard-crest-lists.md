@@ -859,3 +859,26 @@ enable and fresh-list persistence, then pause/resume, before a wider selected ru
 No uncertain action will be replayed or relabeled as automatically completed.
 Source remains on `codex/guard-upgrades`, for integration through
 `codex/vendor-rolling` and `codex/native-lifecycle-hardening` into reviewed `main`.
+
+## September 22 - callback correction package staged
+
+Native 1.8.26 / host 0.3.39, exact source `cb30014077299347971ef376f98552ecc7a3093f`,
+is staged and read-only validated in the test VM. It contains callback fix
+`1debb06` and the matching API version correction. The installed game and active
+manager are still 1.8.25 / 0.3.38; game closure has been requested before replacing
+the loaded extension. No automatic enable success is claimed yet.
+
+The exact-source package passed 3,242 host tests (19 skipped), Ruff, all required
+native gates in both profiles, 63 IPC tests per profile, reviewed-client bindings,
+and installed-wheel checks. Each profile's native suite has 172 cases: 169 passed
+and three file-dependent cases skipped there and checked separately with the
+reviewed client. The two known graphics transparency stretch failures per profile
+remain recorded diagnostic limitations, outside the required Condemn gates.
+
+All 61 package artifacts were hash-verified. Guest preparation verified 430 host
+module files and inventories 8,613 retained records/settings. Installation changes
+one client inventory entry, the extension DLL; the prepared 1.3.38.10 executable
+is unchanged. The earlier uncertain transaction is retained without replay.
+Next: apply after game closure, verify the loaded extension, then qualify automatic
+enable/persistence and pause/resume before wider town application. The branch
+remains unmerged, with the integration destination documented above.
