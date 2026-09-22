@@ -882,3 +882,19 @@ is unchanged. The earlier uncertain transaction is retained without replay.
 Next: apply after game closure, verify the loaded extension, then qualify automatic
 enable/persistence and pause/resume before wider town application. The branch
 remains unmerged, with the integration destination documented above.
+
+## September 22 - callback correction installed and launched
+
+After the user closed Shadowbane, native 1.8.26 / host 0.3.39 from `cb30014`
+was installed in the test VM. The detached idle manager was stopped; the installer
+verified the replacement DLL and entire client inventory, retained all 8,613 saved
+records/settings, and kept a verified rollback copy. The existing dashboard
+shortcut now starts host 0.3.39. Manager activation passed and the same Vendor Test
+launcher started a new game lifetime with the exact expected extension hash.
+The 1.3.38.10 executable remains unchanged. Private receipts are archived.
+
+Login into town has been requested. Automatic enable/persistence and pause/resume
+remain unqualified; the earlier uncertain attempt is preserved as historical
+evidence and is not retried. Next: fresh in-world preparation and one selected
+crest transaction on a verified tower, observing both server response and row
+state before widening the run. Integration into reviewed main is still pending.
