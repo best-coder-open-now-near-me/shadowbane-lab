@@ -91,6 +91,7 @@ class WorkerOperationKind(StrEnum):
     PVE = "pve"
     VENDOR = "vendor"
     GUARD = "guard"
+    CONDEMN = "condemn"
     CANCEL = "cancel"
     STOP = "stop"
 
@@ -245,6 +246,10 @@ class WorkerOperation:
             r"guard (?:discover|(?:start|resume|continue) operation-[0-9a-f]{32})", self.command
         ) is None:
             _fail("invalid guard job command")
+        if self.kind is WorkerOperationKind.CONDEMN and re.fullmatch(
+            r"condemn (?:prepare|(?:start|resume) operation-[0-9a-f]{32})", self.command
+        ) is None:
+            _fail("invalid Condemn job command")
         if self.destination is not None and not isinstance(
             self.destination, WorkerTravelDestination
         ):

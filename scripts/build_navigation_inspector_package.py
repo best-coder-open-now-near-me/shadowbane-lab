@@ -529,6 +529,14 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             raise RuntimeError("wheel missing native movement session")
         if "shadowbane_lab/client_extension/movement_dispatcher.py" not in package.namelist():
             raise RuntimeError("wheel missing native movement dispatcher")
+        for name in (
+            "client_extension/condemn_session.py", "client_extension/condemn_transaction.py",
+            "client_extension/condemn_progress.py", "client_extension/condemn_wire.py",
+            "manager/condemn_cycle.py", "manager/condemn_plan.py", "manager/condemn_job.py",
+            "manager/condemn_preparation.py", "manager/condemn_control.py",
+        ):
+            if f"shadowbane_lab/{name}" not in package.namelist():
+                raise RuntimeError(f"wheel is missing the Condemn workflow: {name}")
         if "shadowbane_lab/manager/movement.py" not in package.namelist():
             raise RuntimeError("wheel missing manager native operation ownership")
         if "shadowbane_lab/client_extension/movement_operation.py" not in package.namelist():

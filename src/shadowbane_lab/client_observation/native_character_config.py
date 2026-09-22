@@ -110,6 +110,21 @@ class NativeCharacterConfigReader:
             raise ActiveCharacterError("active character changed during profile selection; retry")
         return first
 
+    def observe_local_key(self) -> NativeObjectKey:
+        """Read the calibrated local typed key, bracketed by full character identity."""
+        if self.process.executable_sha256.lower() not in {
+            layout.executable_sha256 for layout in REVIEWED_CHARACTER_CONFIG_LAYOUTS[1:]
+        }:
+            raise ActiveCharacterError("local player key is not reviewed for this image")
+        before = self.observe()
+        raw = self._read(before.player_pointer + 0x18, 8)
+        key = NativeObjectKey(*struct.unpack("<II", raw))
+        if not key.object_type or key.object_uuid != 53:
+            raise ActiveCharacterError("local character is not a calibrated player")
+        if self.observe() != before or self._read(before.player_pointer + 0x18, 8) != raw:
+            raise ActiveCharacterError("local player changed during identity read")
+        return key
+
     def observe_selected_player(self) -> SelectedPlayerIdentity:
         """Exact-image remote-player identity, bracketed by local and selection reads."""
         if self.process.executable_sha256.lower() not in {

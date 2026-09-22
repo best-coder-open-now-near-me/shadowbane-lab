@@ -195,6 +195,7 @@ class ManagerDashboardApplication:
         operation_status: WorkerOperationStatusProvider | None = None,
         vendor_control=None,
         guard_control=None,
+        condemn_control=None,
         extension_status: ExtensionStatusProvider | None = None,
         launch_timeout_seconds: float = 30.0,
         poll_seconds: float = 0.5,
@@ -245,6 +246,7 @@ class ManagerDashboardApplication:
         self._operation_status = operation_status
         self._vendor_control = vendor_control
         self._guard_control = guard_control
+        self._condemn_control = condemn_control
         self._extension_status = extension_status
         self._launch_timeout_seconds = _require_positive_finite(
             launch_timeout_seconds,
@@ -436,6 +438,10 @@ class ManagerDashboardApplication:
                 )
                 payload["vendor_available"] = self._vendor_control is not None
                 payload["guard_available"] = self._guard_control is not None
+                payload["condemn_available"] = self._condemn_control is not None
+                payload["condemn"] = (None if self._condemn_control is None
+                    else self._condemn_control.summary(slot.client_id,
+                        None if binding is None else binding.instance_id))
                 payload["guard"] = (
                     None if self._guard_control is None else self._guard_control.summary(
                         slot.client_id, None if binding is None else binding.instance_id,
@@ -531,9 +537,13 @@ class ManagerDashboardApplication:
         client_id: str | None = None,
         instance_id: str | None = None,
         job_id: str | None = None,
+        selection: dict | None = None,
     ) -> dict[str, object]:
         """Execute one route-validated action and preserve exact binding ownership."""
 
+        if selection is not None and action != "condemn-start":
+            raise DashboardError(
+                "invalid-action-fields", "This action does not accept a selection.")
         if action == "start-all":
             self._require_global(action, client_id, instance_id)
             for key in self._configs:
@@ -545,7 +555,8 @@ class ManagerDashboardApplication:
             try:
                 if self._stopping:
                     raise DashboardError("manager-stopping", "manager is stopping")
-                self._execute(action, client_id=client_id, instance_id=instance_id, job_id=job_id)
+                self._execute(action, client_id=client_id, instance_id=instance_id, job_id=job_id,
+                              selection=selection)
             except DashboardError:
                 raise
             except (ManagerSessionError, OSError, RuntimeError, ValueError) as exc:
@@ -582,13 +593,18 @@ class ManagerDashboardApplication:
         client_id: str | None,
         instance_id: str | None,
         job_id: str | None = None,
+        selection: dict | None = None,
     ) -> None:
         if job_id is not None and action not in {
             "vendor-pause", "vendor-resume", "vendor-stop",
             "guard-start", "guard-pause", "guard-resume", "guard-stop",
             "guard-travel", "guard-continue",
+            "condemn-pause", "condemn-resume", "condemn-stop",
         }:
             raise DashboardError("invalid-action-fields", "This action does not accept a batch.")
+        if selection is not None and action != "condemn-start":
+            raise DashboardError(
+                "invalid-action-fields", "This action does not accept a selection.")
         if action == "start-all":
             self._require_global(action, client_id, instance_id)
             self._require_clear_launch_baseline()
@@ -645,6 +661,13 @@ class ManagerDashboardApplication:
             self._ensure_worker_for_slot(client_id)
             return
         self._require_exact_binding(client_id, instance_id)
+        if action in {"condemn-prepare", "condemn-start", "condemn-pause",
+                      "condemn-resume", "condemn-stop"}:
+            if self._condemn_control is None:
+                raise DashboardError("condemn-unavailable", "Condemn jobs are not configured.")
+            self._condemn_control.execute(action, client_id, instance_id,
+                                          job_id=job_id, selection=selection)
+            return
         if action in {"guard-discover", "guard-start", "guard-pause", "guard-resume", "guard-stop",
                       "guard-travel", "guard-continue"}:
             if self._guard_control is None:

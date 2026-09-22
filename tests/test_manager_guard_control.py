@@ -209,6 +209,7 @@ def test_dashboard_guard_actions_require_exact_instance_and_job(action):
         "client",
         "instance",
         payload.get("job_id"),
+        None,
     )
     invalid = dict(payload)
     invalid.pop("instance_id")

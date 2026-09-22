@@ -293,6 +293,7 @@ def _application(
     extension_status: _RecordingExtensionStatus | None = None,
     vendor_control=None,
     guard_control=None,
+    condemn_control=None,
 ) -> tuple[ManagerDashboardApplication, _StaticRegistry]:
     registry = _StaticRegistry(
         ClientRegistrySnapshot(
@@ -325,6 +326,7 @@ def _application(
             extension_status=extension_status,
             vendor_control=vendor_control,
             guard_control=guard_control,
+            condemn_control=condemn_control,
             launch_timeout_seconds=12.0,
             poll_seconds=0.25,
         ),
@@ -333,6 +335,27 @@ def _application(
 
 
 class ManagerDashboardApplicationTests(unittest.TestCase):
+    def test_condemn_selection_requires_current_exact_binding(self):
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(ManagerSessionSnapshot(
+            node_id=NODE_ID,
+            slots=(_slot("client-01", instance_id=bound.instance_id), _slot("client-02")),
+        ))
+        control = Mock()
+        control.summary.return_value = {"prepared": None, "job": None}
+        application, _ = _application(session, bound, condemn_control=control)
+        selection = dict(preparation_id="operation-" + "a" * 32, sha256="b" * 64,
+                         crests=["5:20"], buildings=[100])
+        application.execute("condemn-start", client_id="client-01",
+                            instance_id=bound.instance_id, selection=selection)
+        control.execute.assert_called_once_with("condemn-start", "client-01", bound.instance_id,
+                                                job_id=None, selection=selection)
+        self.assertTrue(application.status()["slots"][0]["condemn_available"])
+        with self.assertRaises(DashboardError):
+            application.execute("condemn-start", client_id="client-01",
+                                instance_id="other", selection=selection)
+        self.assertEqual(control.execute.call_count, 1)
+
     def test_guard_controls_and_progress_require_current_exact_binding(self):
         bound = _client("instance-101", 101)
         session = _RecordingSession(ManagerSessionSnapshot(

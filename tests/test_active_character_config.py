@@ -437,3 +437,38 @@ def test_remote_selection_changes_between_samples_are_rejected(tmp_path):
     with patch.object(reader, "_string", side_effect=changing):
         with pytest.raises(ActiveCharacterError, match="changed"):
             reader.observe_selected_player()
+
+
+def test_local_key_is_bracketed_by_the_current_character(tmp_path):
+    memory = CharacterMemory(tmp_path)
+    memory.executable_sha256 = REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1].executable_sha256
+    memory.put(memory.player + 0x18, struct.pack("<II", 111, 53))
+    observed = NativeCharacterConfigReader(memory).observe_local_key()
+    assert (observed.object_type, observed.object_uuid) == (111, 53)
+
+
+@pytest.mark.parametrize("identity", [(0, 53), (111, 37), (111, 0)])
+def test_invalid_local_key_is_never_used_for_condemn(tmp_path, identity):
+    memory = CharacterMemory(tmp_path)
+    memory.executable_sha256 = REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1].executable_sha256
+    memory.put(memory.player + 0x18, struct.pack("<II", *identity))
+    with pytest.raises((ActiveCharacterError, ValueError)):
+        NativeCharacterConfigReader(memory).observe_local_key()
+
+
+def test_local_key_change_during_capture_is_rejected(tmp_path):
+    memory = CharacterMemory(tmp_path)
+    memory.executable_sha256 = REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1].executable_sha256
+    memory.put(memory.player + 0x18, struct.pack("<II", 111, 53))
+    original = memory.read
+    reads = 0
+    def read(address, size):
+        nonlocal reads
+        if address == memory.player + 0x18:
+            reads += 1
+            if reads > 1:
+                return struct.pack("<II", 112, 53)
+        return original(address, size)
+    memory.read = read
+    with pytest.raises(ActiveCharacterError, match="changed"):
+        NativeCharacterConfigReader(memory).observe_local_key()

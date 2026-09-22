@@ -56,9 +56,11 @@ now hands off from confirmed navigation to scoped Condemn execution, retaining
 request IDs and stopping between crests on pause. Saved uncertainty also blocks
 other manager UI jobs after restarts. Immutable scoped catalog selections and a
 finite multi-building job now preserve qualified progress across pause/resume and
-worker persistence gaps, without replaying uncertain requests. Next: worker
-preparation/admission and dashboard controls, then combined packaging and live
-qualification. See the September 22 handoff for scope and recovery limits.
+worker persistence gaps, without replaying uncertain requests. Worker preparation,
+exact admission and dashboard selection/job controls are now connected. Combined
+native 1.8.24 / host 0.3.35 is source-tested; next is exact-source package validation
+and one installation/live qualification. It is not yet installed or accepted.
+See the September 22 handoff for scope and recovery limits.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
 ## Guard-upgrade detour — September 17

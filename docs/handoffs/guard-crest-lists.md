@@ -691,3 +691,37 @@ The current prepared source requires the same game lifetime/scene for resume;
 expanding a selection into another area is not yet a supported Condemn control.
 Guard Travel remains its separate existing workflow. Catalog freshness, landless
 guild coverage, full town coverage and nation inheritance remain unverified.
+
+
+## Dashboard and worker integration - September 22
+
+The existing manager now exposes Condemn preparation, explicit crest/building
+selection, start, pause, resume and stop. The selection dialog survives dashboard
+polling and keeps guild/nation roles separate; its exact source digest and typed
+keys cross the authenticated local route. An immutable selected request is saved
+before the exact-worker operation is submitted. Worker capability/lifetime,
+character, scene and competing jobs are checked again at execution. Guard and
+vendor admission cannot take over an unfinished Condemn job between building cycles.
+
+Preparation opens City Command through the existing discovered-building path and
+brackets the cached map read with exact native scene observations and a calibrated
+local-player key/character read. No manual crest dragging is required. The reader
+still does not claim cache freshness or guilds absent from the map. Condemn area
+expansion is not yet a control; the existing guard Travel workflow is unchanged.
+
+Validation: 1,056 selected manager/Condemn/guard/vendor/identity tests pass, with one
+existing platform-specific skip. The authenticated-route tests cover bounded
+selection payloads, stale/busy workers, preserved selected requests, duplicate
+start prevention and changed worker ownership. An isolated headless dashboard
+check confirms guild/nation separation, preserved selections through a status
+poll, one exact start payload and no script errors; its screenshot was inspected.
+Ruff passes. Synthetic tests performed no actual game operations.
+
+The combined candidate is versioned native 1.8.24 / host 0.3.35. Source packaging
+now requires the full Condemn host/manager module set in the wheel. It is not yet
+installed or live accepted. Installed remains native 1.8.23 / host 0.3.34.
+Next active item: exact-source package validation, then stage/install once and
+perform the combined live preparation/selected-building workflow qualification.
+Only request a game close when the complete verified payload is ready to replace
+its loaded extension. Integration remains guard-upgrades -> vendor-rolling ->
+native-lifecycle-hardening -> reviewed main, with no PR or merge implied.

@@ -89,6 +89,11 @@
       .metric { border-right: 0; border-bottom: 1px solid var(--line); }
       .metric:last-child { border-bottom: 0; }
     }
+    .condemn-dialog { max-width:720px; width:90%; max-height:85vh; overflow:auto; border-radius:12px; padding:24px; border:1px solid var(--line); background:var(--panel); color:var(--ink); }
+    .condemn-dialog::backdrop { background:rgba(0,0,0,.65); }
+    .condemn-dialog fieldset { border:1px solid var(--line); margin:12px 0; }
+    .condemn-dialog button { margin-right:8px; }
+    .condemn-choices { max-height:210px; overflow:auto; display:grid; gap:8px; margin:12px 0; }
   </style>
 </head>
 <body>
@@ -211,9 +216,95 @@
           if (["guard-pause", "guard-resume", "guard-stop", "guard-travel", "guard-continue"].includes(action)) {
             body.job_id = slot.guard?.job?.job_id;
           }
+          if (["condemn-pause", "condemn-resume", "condemn-stop"].includes(action)) {
+            body.job_id = slot.condemn?.job?.job_id;
+          }
           await execute(body);
         });
         return button;
+      };
+
+      const chooseCondemn = (slot, instanceId) => {
+        const prepared = slot.condemn?.prepared;
+        if (!prepared || !instanceId) return;
+        const dialog = document.createElement("dialog");
+        dialog.className = "condemn-dialog";
+        const title = document.createElement("h2");
+        title.textContent = "Choose Condemn crests and buildings";
+        const note = document.createElement("p");
+        note.textContent = "Each selected guild and nation is added separately. Map crests and nearby guard buildings only; guilds absent from the map are not included.";
+        const count = document.createElement("p");
+        const apply = document.createElement("button");
+        apply.type = "button";
+        apply.textContent = "Apply selected crests";
+        const selectedCrests = new Set();
+        const selectedBuildings = new Set(prepared.buildings.map(b => b.building[0]));
+        const update = () => {
+          const label = (n, noun) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+          count.textContent = `${label(selectedCrests.size, "crest")} × ${label(selectedBuildings.size, "building")} = ${label(selectedCrests.size * selectedBuildings.size, "check")}`;
+          apply.disabled = !selectedCrests.size || !selectedBuildings.size || !managerConnected;
+        };
+        const chooseList = (heading, rows, selected) => {
+          const fieldset = document.createElement("fieldset");
+          const legend = document.createElement("legend");
+          legend.textContent = heading;
+          fieldset.append(legend);
+          const list = document.createElement("div");
+          list.className = "condemn-choices";
+          const inputs = [];
+          for (const row of rows) {
+            const label = document.createElement("label");
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = selected.has(row.key);
+            checkbox.addEventListener("change", () => {
+              if (checkbox.checked) selected.add(row.key); else selected.delete(row.key);
+              update();
+            });
+            label.append(checkbox, document.createTextNode(" " + row.label));
+            list.append(label);
+            inputs.push([checkbox, row.key]);
+          }
+          for (const [label, checked] of [["Select all", true], ["Clear", false]]) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = label;
+            button.addEventListener("click", () => {
+              for (const [input, key] of inputs) {
+                input.checked = checked;
+                if (checked) selected.add(key); else selected.delete(key);
+              }
+              update();
+            });
+            fieldset.append(button);
+          }
+          fieldset.append(list);
+          return fieldset;
+        };
+        const crests = chooseList("Crests", prepared.catalog.entries.map(c => ({
+          key: c.token,
+          label: `${c.scope === 4 ? "Guild" : "Nation"}: ${c.names.join(" / ") || "Unnamed crest #" + c.identity[0]}`
+        })), selectedCrests);
+        const buildings = chooseList("Guard buildings", prepared.buildings.map(b => ({
+          key: b.building[0], label: `${b.name || "Building #" + b.building[0]} · ${b.guards} guards`
+        })), selectedBuildings);
+        const close = document.createElement("button");
+        close.type = "button";
+        close.textContent = "Cancel";
+        close.addEventListener("click", () => dialog.close());
+        apply.addEventListener("click", async () => {
+          if (!managerConnected) return;
+          const selection = {preparation_id: prepared.preparation_id, sha256: prepared.sha256,
+            crests: [...selectedCrests], buildings: [...selectedBuildings]};
+          dialog.close();
+          await execute({action: "condemn-start", client_id: slot.client_id,
+            instance_id: instanceId, selection});
+        });
+        dialog.addEventListener("close", () => dialog.remove());
+        dialog.append(title, note, crests, buildings, count, apply, close);
+        document.body.append(dialog);
+        update();
+        dialog.showModal();
       };
 
       const renderSlot = (slot) => {
@@ -421,6 +512,42 @@
             controls.append(button);
           }
           panel.append(title, detail, progress, scope, controls);
+          article.append(panel);
+        }
+        if (slot.condemn_available) {
+          const panel = document.createElement("section");
+          panel.className = "vendor-panel";
+          panel.setAttribute("aria-label", "Condemn crests");
+          const title = document.createElement("strong");
+          title.textContent = "Condemn crests";
+          const job = slot.condemn?.job;
+          const prepared = slot.condemn?.prepared;
+          const error = slot.condemn?.error;
+          const idle = !job || ["complete", "stopped"].includes(job.state);
+          const detail = document.createElement("p");
+          detail.className = "detail";
+          detail.textContent = error || (job ? `${job.detail} ${job.completed} of ${job.total} confirmed.`
+            : prepared ? `${prepared.catalog.entries.length} crests and ${prepared.buildings.length} nearby guard buildings ready to select.`
+            : "Prepare the list, then return to the game. No crest dragging is needed.");
+          const controls = document.createElement("div");
+          controls.className = "actions";
+          for (const [label, action, enabled] of [
+            ["Prepare crest list", "condemn-prepare", idle && slot.dispatch_enabled],
+            ["Pause", "condemn-pause", !idle && job?.state !== "review" && job?.control === "run"],
+            ["Resume", "condemn-resume", !idle && job?.state !== "review" && slot.dispatch_enabled && !slot.operation?.active && ["ready", "paused", "running"].includes(job?.state)],
+            ["Stop", "condemn-stop", !idle && job?.state !== "review" && job?.control !== "stop"],
+          ]) {
+            const button = actionButton(label, action, slot, boundInstance);
+            button.disabled = !enabled || !boundInstance() || Boolean(error);
+            controls.append(button);
+          }
+          const choose = document.createElement("button");
+          choose.type = "button";
+          choose.textContent = "Choose crests and buildings";
+          choose.disabled = !idle || !prepared || !slot.dispatch_enabled || !boundInstance() || Boolean(error);
+          choose.addEventListener("click", () => chooseCondemn(slot, boundInstance()));
+          controls.append(choose);
+          panel.append(title, detail, controls);
           article.append(panel);
         }
         return article;

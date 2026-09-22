@@ -81,6 +81,11 @@ class ManagerVendorControl:
                 return
             if action not in {"vendor-start", "vendor-resume", "vendor-discover"}:
                 raise ValueError("unknown vendor action")
+            from .condemn_job import CondemnJobStore
+
+            condemn = CondemnJobStore(store).current()
+            if condemn and condemn["state"] not in {"complete", "stopped"}:
+                raise RuntimeError("Continue or stop the Condemn job first.")
             permit = self.permits.inspect_permit(client_id)
             now = self.clock()
             if (

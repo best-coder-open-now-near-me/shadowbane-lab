@@ -154,6 +154,7 @@ class ForegroundWorkerOperationIngress:
                 WorkerOperationKind.PVE,
                 WorkerOperationKind.VENDOR,
                 WorkerOperationKind.GUARD,
+                WorkerOperationKind.CONDEMN,
             }:
                 has_inflight_automation = True
         if not has_inflight_automation:

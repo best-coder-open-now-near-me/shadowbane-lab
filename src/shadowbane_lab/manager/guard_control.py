@@ -119,6 +119,11 @@ class ManagerGuardControl:
             if action in {"guard-pause", "guard-stop", "guard-travel"}:
                 jobs.request(job_id, action.removeprefix("guard-"))
                 return
+            from .condemn_job import CondemnJobStore
+
+            condemn = CondemnJobStore(store).current()
+            if condemn and condemn["state"] not in {"complete", "stopped"}:
+                raise RuntimeError("Continue or stop the Condemn job first.")
             permit, now = self.permits.inspect_permit(client_id), self.clock()
             if (
                 permit is None

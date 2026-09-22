@@ -19,7 +19,7 @@ from typing import NoReturn, Protocol, runtime_checkable
 from urllib.parse import urlsplit
 
 LOOPBACK_HOST = "127.0.0.1"
-MAX_ACTION_BODY_BYTES = 4_096
+MAX_ACTION_BODY_BYTES = 16_384
 DEFAULT_MAX_CONCURRENT_REQUESTS = 16
 DEFAULT_HEADER_TIMEOUT_SECONDS = 2.0
 DEFAULT_BODY_TIMEOUT_SECONDS = 2.0
@@ -32,6 +32,7 @@ _CLIENT_ACTIONS_WITH_INSTANCE = frozenset({
     "vendor-start", "vendor-pause", "vendor-resume", "vendor-stop", "vendor-discover",
     "guard-start", "guard-pause", "guard-resume", "guard-stop",
     "guard-travel", "guard-continue", "guard-discover",
+    "condemn-prepare", "condemn-start", "condemn-pause", "condemn-resume", "condemn-stop",
 })
 _ALL_ACTIONS = _GLOBAL_ACTIONS | _CLIENT_ACTIONS_WITHOUT_INSTANCE | _CLIENT_ACTIONS_WITH_INSTANCE
 
@@ -83,6 +84,7 @@ class DashboardService(Protocol):
         client_id: str | None = None,
         instance_id: str | None = None,
         job_id: str | None = None,
+        selection: dict | None = None,
     ) -> dict[str, object]: ...
 
 
@@ -200,7 +202,7 @@ def _require_identifier(value: object, field_name: str) -> str:
 
 def _validate_action_payload(
     payload: object,
-) -> tuple[str, str | None, str | None, str | None]:
+) -> tuple[str, str | None, str | None, str | None, dict | None]:
     if not isinstance(payload, dict) or any(not isinstance(key, str) for key in payload):
         _request_error(
             HTTPStatus.BAD_REQUEST,
@@ -225,8 +227,11 @@ def _validate_action_payload(
 
     if action in {"vendor-pause", "vendor-resume", "vendor-stop",
                   "guard-start", "guard-pause", "guard-resume", "guard-stop",
-                  "guard-travel", "guard-continue"}:
+                  "guard-travel", "guard-continue",
+                  "condemn-pause", "condemn-resume", "condemn-stop"}:
         expected_fields.add("job_id")
+    if action == "condemn-start":
+        expected_fields.add("selection")
     actual_fields = set(payload)
     if actual_fields != expected_fields:
         missing = sorted(expected_fields - actual_fields)
@@ -253,11 +258,32 @@ def _validate_action_payload(
     job_id = payload.get("job_id")
     if "job_id" in expected_fields and (
         not isinstance(job_id, str) or re.fullmatch(
-            r"operation-[0-9a-f]{32}" if action.startswith("guard-") else r"[0-9a-f]{32}", job_id,
+            r"operation-[0-9a-f]{32}"
+            if action.startswith(("guard-", "condemn-")) else r"[0-9a-f]{32}", job_id,
         ) is None
     ):
         _request_error(HTTPStatus.BAD_REQUEST, "invalid-job", "An exact job selection is required.")
-    return action, client_id, instance_id, job_id
+    selection = payload.get("selection")
+    if action == "condemn-start":
+        valid = isinstance(selection, dict) and set(selection) == {
+            "preparation_id", "sha256", "crests", "buildings"}
+        if valid:
+            valid = (isinstance(selection["preparation_id"], str)
+                and re.fullmatch(r"operation-[0-9a-f]{32}", selection["preparation_id"]) is not None
+                and isinstance(selection["sha256"], str)
+                and re.fullmatch(r"[0-9a-f]{64}", selection["sha256"]) is not None
+                and isinstance(selection["crests"], list) and 0 < len(selection["crests"]) <= 512
+                and all(isinstance(t, str) and re.fullmatch(r"[45]:[1-9][0-9]{0,9}", t)
+                        and int(t[2:]) < 2**32 for t in selection["crests"])
+                and len(set(selection["crests"])) == len(selection["crests"])
+                and isinstance(selection["buildings"], list)
+                and 0 < len(selection["buildings"]) <= 512
+                and all(type(b) is int and 0 < b < 2**32 for b in selection["buildings"])
+                and len(set(selection["buildings"])) == len(selection["buildings"]))
+        if not valid:
+            _request_error(HTTPStatus.BAD_REQUEST, "invalid-selection",
+                           "Choose observed crests and buildings.")
+    return action, client_id, instance_id, job_id, selection
 
 
 class _DashboardRequestHandler(BaseHTTPRequestHandler):
@@ -355,7 +381,7 @@ class _DashboardRequestHandler(BaseHTTPRequestHandler):
             )
             return
         try:
-            action, client_id, instance_id, job_id = self._read_action_request()
+            action, client_id, instance_id, job_id, selection = self._read_action_request()
         except _RequestError as exc:
             self._send_error(exc.status, exc.code, exc.message)
             return
@@ -365,6 +391,7 @@ class _DashboardRequestHandler(BaseHTTPRequestHandler):
                 client_id=client_id,
                 instance_id=instance_id,
                 **({"job_id": job_id} if job_id is not None else {}),
+                **({"selection": selection} if selection is not None else {}),
             )
             self._require_service_result(result)
         except DashboardError as exc:
@@ -466,7 +493,7 @@ class _DashboardRequestHandler(BaseHTTPRequestHandler):
             return
         self._send_json(HTTPStatus.OK, result)
 
-    def _read_action_request(self) -> tuple[str, str | None, str | None, str | None]:
+    def _read_action_request(self) -> tuple[str, str | None, str | None, str | None, dict | None]:
         if self.headers.get("Transfer-Encoding") is not None:
             _request_error(
                 HTTPStatus.BAD_REQUEST,

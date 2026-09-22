@@ -209,6 +209,8 @@ class CondemnPlanStore:
         ):
             raise ValueError("invalid crest preparation")
         operation_id(record["preparation_id"])
+        if record["nearby"].get("operation_id") != record["preparation_id"]:
+            raise ValueError("crest preparation has another discovery source")
         context = CondemnContext(
             Lifetime(**record["context"]["lifetime"]), record["context"]["root"]
         )
