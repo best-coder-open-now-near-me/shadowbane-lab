@@ -73,7 +73,10 @@ bounded cancellation handling inside the original live transaction; it does not
 adopt the already-released session. Exact host source 2432777 is now activated
 after confirmed closure; 430 module hashes and 8,928 unchanged retained files are
 verified. The same reviewed client relaunched with its unchanged native extension.
-Next: town login, fresh preparation and the remaining nation selection.
+Town login and fresh preparation succeeded. The current batch applies the same
+48 nations to 29 loaded towers (two newly observed, one prior tower outside this
+view). Six towers are sealed and the job is running. Next: complete this selection
+and review the coverage difference.
 Earlier uncertain attempts remain retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 

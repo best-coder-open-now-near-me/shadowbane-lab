@@ -1148,3 +1148,13 @@ transaction in the prior game lifetime remain preserved. House of Shinobi,
 Celestials and BIB stay excluded as whole nations. Full selected-batch completion
 and wider town coverage remain open. Source integration is still pending through
 vendor-rolling and native-lifecycle-hardening into reviewed main.
+
+
+Town login is confirmed. Fresh preparation observed 141 scoped crests and 29
+accessible guard buildings; the same 48 nations were selected, excluding the
+three friendly nations by their whole-nation identities. The new finite batch
+contains 1,392 targets. Two buildings are newly observed and one from the prior
+28-building view is no longer loaded, so this is not a complete town census.
+The batch is running: six towers are sealed, 288 existing entries and 27 newly
+verified entries are confirmed. The prior lifetime's records remain untouched.
+Next: finish the selected batch, then review the coverage difference.
