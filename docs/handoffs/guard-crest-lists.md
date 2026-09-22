@@ -1194,3 +1194,32 @@ Validation: 3,308 host tests passed, 12 skipped; Ruff and diff checks passed.
 Regression coverage includes changed proof/job/cycle rejection after warming the
 cache, fresh summary results, lifetime eviction, the slot bound, slow supervision
 checks and exception propagation to shutdown revocation.
+
+
+### Host 0.3.45 installed and stopped-job timing compared
+
+Exact source 90faae014046fd8bac6c21ad7b05b3793e6c4e7b was packaged from the
+clean pushed feature branch. Wheel SHA-256:
+`c6122988ec8d5f29599fd40a86701803c504b94dde9ee46331374d65ed92db95`.
+All 430 installed module hashes passed. The manager was switched through normal
+dispatch Pause while the game stayed open and the Condemn job remained in review.
+Of 9,072 prior worker files, 9,064 are unchanged; the eight changed files are the
+launch reservation, dispatch permit, replaced worker heartbeat and five exact
+worker capability records. Saved jobs, receipts and pending native intent did
+not change. The existing dashboard shortcut now points to host 0.3.45.
+
+The identical bounded eight-refresh probe measured 1.547–2.469s dashboard reads
+and a maximum permit issuance gap of 0.287s (previously 2.088s). The probe's plain
+file observer saw one transient PermissionError during atomic replacement;
+production read/retry behavior was unchanged. This qualifies renewal timing for
+this stopped-job workload, not every future load or full selected-batch success.
+The two-second permit lifetime and native one-second lease remain unchanged.
+
+Twenty-seven towers already have sealed proofs covering 1,296 targets. The two
+unfinished towers contain the remaining 96 selected targets, including three
+already confirmed entries that can be freshly observed. After the requested game
+restart, prepare fresh observations and select only these two remaining towers;
+do not repeat the 27 completed towers or adopt the retained old transaction.
+The exact private identities and source proof remain in the local deployment
+handoff. The three friendly nations stay excluded. Next: user game closure,
+relaunch/login, finish the two-tower selection, then review broader coverage.

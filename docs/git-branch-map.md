@@ -79,9 +79,11 @@ view). The run reached 1,299 confirmed entries (27 sealed towers plus three),
 then stopped with one Add in flight when the manager dispatch permit expired.
 Host 0.3.45 retains bounded exact-instance summary proof caches and renews on a
 250ms monotonic cadence; the two-second permit lifetime and pending-action
-barriers are unchanged. Next: validate and install the host, compare renewal
-timing against the stopped job, then finish the selection in a fresh game
-lifetime and review the coverage difference.
+barriers are unchanged. Exact source 90faae0 is installed with all 430 module
+hashes verified; 9,064 saved records are unchanged. The same stopped-job probe
+reduced the maximum permit gap from 2.088s to 0.287s. Next: restart the game
+to clear the retained interrupted transaction, prepare fresh observations and
+finish only the two unfinished towers, then review the coverage difference.
 Earlier uncertain attempts remain retained.
 No merge, full-town coverage, or completed aggression rollout is implied.
 
