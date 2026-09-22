@@ -46,3 +46,47 @@ client/extension migration, apply with Shadowbane closed, then verify user login
 and the selected-building Condemn workflow. Do not launch the game automatically.
 Source branch: codex/guard-upgrades, for integration through codex/vendor-rolling
 and codex/native-lifecycle-hardening to reviewed main. No merge is implied.
+
+
+## Installed and verified
+
+Exact package source `f534588623745878aadaeab0bd54b6143815351b` is installed in
+the isolated test VM. The original source checkpoint `92e99e4` was followed by
+a native whole-file byte-array identity correction; the actual original/prepared
+image, relocation and mutation checks then passed. The earlier failed package
+was not installed.
+
+The final package passed 3,228 Python tests (18 skips), Ruff, both native profiles'
+required tests, actual-file bindings, 63 movement IPC tests per profile, and
+installed wheel/entry-point/panel/contract checks. All 61 artifact hashes and the
+archive integrity were verified. The two known graphics transparency diagnostics
+remain deferred in each profile; this is not graphics or live Condemn acceptance.
+
+- Archive: `2b0cdb5f89357c9ec3f3c747671e7d78e10245192f478b4d55ed01d80ad1cc70`.
+- Full DLL: `af33485a8cc7d139be998723b12665c48470d097cfc7452aa837719cea11260d`.
+- Host wheel: `947b086a63f0f96f8fd1a9764def837097f393390fd645e6ea33222a37baa341`.
+
+Shadowbane was observed closed before preparation and again before applying.
+The idle manager and its verified wrapper were stopped; no game was terminated.
+The migration dry run passed, then updated three official-client files and four
+Vendor Test inventory entries (prepared EXE, two assets, extension DLL). Eleven
+verified rollback files cover both clients and the extension/launcher metadata.
+All 8,543 retained settings and history files matched before and after the new
+manager started. Native DLL version 1.8.25.0 and host/source identity are verified.
+The authenticated manager is healthy, with no bound client or active job.
+
+The existing WonderBane Vendor Test shortcut still starts the same isolated
+runtime. The WonderBane Vendor Dashboard shortcut was backed up and retargeted
+from its older host 0.3.31 interpreter to 0.3.36. The other desktop shortcuts were
+not changed. The game remains closed for the user to launch.
+
+Superseded 1.8.24/0.3.35 staging and private failed-build/rollback evidence remain
+retained locally and must not be applied. No client binaries, credentials or
+captures were published. Source and this handoff are pushed on codex/guard-upgrades;
+normal main remains clean. Integration is still through vendor-rolling and
+native-lifecycle-hardening to reviewed main; no PR or merge has occurred.
+
+Completed: official client patch, matching extension/host, preserved records,
+manager activation and shortcut verification. Next: user login through WonderBane
+Vendor Test, then combined selected-building Condemn preparation/execution and
+pause/resume qualification. No automatic Condemn action was performed here.

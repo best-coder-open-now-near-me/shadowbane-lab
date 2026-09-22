@@ -760,3 +760,17 @@ combined live qualification still requires catalog preparation, selected buildin
 and crest execution, native completion proof, and retained pause/resume progress.
 Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
 -> reviewed main; no PR or merge has been performed.
+
+
+## Client patch and combined installation - September 22
+
+The user's required official-client patch superseded the staged 1.8.24 package.
+[Client 1.3.38.10](../client-update-20260922.md) is now installed with native
+1.8.25 / host 0.3.36, exact package source `f534588`. It includes the complete
+Condemn manager workflow plus narrow reviewed-build identities for the two-byte
+version-only executable change. All required package checks and the VM migration
+passed; 8,543 retained files match and the manager is healthy. The game was left
+closed, with the existing Vendor Test shortcut ready for user login. The earlier
+1.8.24 payload must not be applied. No Condemn action was performed during patching.
+Next active todo: verify user login, then prepare the catalog and qualify the
+selected-building native completion and retained pause/resume workflow live.
