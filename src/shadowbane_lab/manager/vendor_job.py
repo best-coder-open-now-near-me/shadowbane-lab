@@ -21,7 +21,12 @@ from shadowbane_lab.client_extension.vendor_batch import (
     _owner,
     fill_available_slots,
 )
-from shadowbane_lab.client_extension.vendor_completion import _read_record, keep_completed_batch
+from shadowbane_lab.client_extension.vendor_completion import (
+    _read_record,
+    keep_completed_batch,
+    validate_completed_batch,
+    validate_completed_keep,
+)
 from shadowbane_lab.client_extension.vendor_wire import (
     IN_FLIGHT,
     READY,
@@ -294,31 +299,41 @@ def run_vendor_job(
 
         guarded = GuardedSession()
 
-        def completed(path: Path) -> dict | None:
-            if not path.exists():
-                return None
-            value = json.loads(_read_record(path))
-            if any(
-                value.get(key) != record[key]
-                for key in (
-                    "process_id",
-                    "process_creation_filetime_utc",
-                    "window",
-                    "vendor_id",
-                )
-            ):
-                raise VendorBatchStopped("action evidence belongs to another vendor or client")
-            if value["state"] != "complete":
-                raise VendorBatchStopped("interrupted action journal requires review; never replay")
-            return value
-
         try:
-            # Recovery reads existing journals before deciding whether a phase
-            # may run. A crash between a receipt and job save cannot duplicate it.
-            batch = completed(create_path)
+            # Read each bounded journal once. A completed label cannot replace
+            # the exact Create -> inventory chain after a job-save interruption.
+            batch_raw = _read_record(create_path) if create_path.exists() else None
+            batch = None
+            if batch_raw is not None:
+                try:
+                    batch, batch_initial = validate_completed_batch(batch_raw)
+                except ValueError as exc:
+                    raise VendorBatchStopped(
+                        "interrupted or invalid Create evidence; never replay"
+                    ) from exc
+                if (
+                    any(batch[key] != record[key] for key in (
+                        "process_id", "process_creation_filetime_utc", "window", "vendor_id",
+                    ))
+                    or _owner(batch_initial) != _owner(initial)
+                    or _items(batch_initial) != _items(initial)
+                ):
+                    raise VendorBatchStopped("action evidence belongs to another vendor or client")
             if keep_path.exists():
-                kept = completed(keep_path)
-                record.update(kept=len(kept["kept"]), excluded=len(kept["excluded"]))
+                if batch_raw is None:
+                    raise VendorBatchStopped(
+                        "Keep evidence has no source Create journal; review required"
+                    )
+                try:
+                    kept = validate_completed_keep(_read_record(keep_path), batch_raw)
+                except ValueError as exc:
+                    raise VendorBatchStopped(
+                        "invalid or unfinished Keep evidence; never replay"
+                    ) from exc
+                record.update(
+                    created=len(batch["items"]), capacity=batch["capacity"], phase="keeping",
+                    kept=len(kept["kept"]), excluded=len(kept["excluded"]),
+                )
                 update("complete", "Batch finished; retained items are confirmed in inventory.")
                 return record
             before_action()
