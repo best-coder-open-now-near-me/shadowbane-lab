@@ -5,7 +5,7 @@ Execution update: September 23. The current review base is
 [inclusion inventory and execution queue](integration-status-20260923.md).
 Carpenter is waiting for its building to finish. Guard coverage, vendor recovery
 and the passive recorder, and strict diagnostic CI gates are integrated; host
-0.3.46 package/CI verification is current. Full town/vendor behavior still needs
+0.3.46 is packaged and locally verified; hosted CI is current. Full town/vendor behavior still needs
 the live observations recorded in the execution queue.
 
 Planning date: September 23, 2026. This plan coordinates the repository review,

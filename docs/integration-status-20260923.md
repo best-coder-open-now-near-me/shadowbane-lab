@@ -120,13 +120,21 @@ CMake outputs are under `build/native-full` and `build/native-diagnostics-only`.
 Four fixture executable copies under `artifacts/vendor-native-build/Release`
 are hash-linked to their original build paths by `fixture-copies.json`. They are
 local test artifacts, not published client binaries or deployment payloads.
-The reviewed source will be exported from a clean commit for wheel verification.
+Host wheel built from clean release source
+`370da56abe0724f13f9e15a3afd952163a906198`:
+`shadowbane_lab-0.3.46-py3-none-any.whl`, SHA-256
+`b06d27cf06194bdef20cca4372309f8474e0d3cab31dcf60f320dc9318af9f02`.
+All 430 packaged source/data files match the source export. An isolated local
+installation verified version, module origins, the coverage dashboard and the
+vendor recorder entry point. The wheel and verification receipt remain under
+`artifacts/catch-up/package/`; this is prepared host source, not VM activation.
+Later documentation-only commits do not change that package identity.
 
 ## Execution queue
 
 1. Complete: current-base/movement reconciliation and the three integrated source
    slices, with the independent read-only vendor capture mode.
-2. Active: verify the 0.3.46 wheel and current-head hosted CI for PR #25.
+2. Active: current-head hosted CI for PR #25; local 0.3.46 wheel verification is complete.
 3. Next: obtain merge authorization, merge preserving ancestry, then fast-forward
    main and apply reviewed required checks. Branch/worktree retirement remains
    separate because historical/deferred work and active owners are retained.
