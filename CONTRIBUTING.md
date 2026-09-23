@@ -59,6 +59,8 @@ git push -u origin HEAD
 Open a PR targeting `main`, or identify its explicit pending dependency. Include
 the exact source SHA, included and excluded work, validation results, and remaining
 acceptance checks. Publishing source does not update an installed client or VM.
+The [integration inventory](docs/integration-status-20260923.md) records the
+separately verified host activation and remaining gameplay acceptance.
 
 Use `.github/workflows/ci.yml` for the current shared validation requirements.
 These include Ruff, Python 3.11/3.12/3.13 tests, both Win32 native profiles, PowerShell syntax validation, and the duel matrix.

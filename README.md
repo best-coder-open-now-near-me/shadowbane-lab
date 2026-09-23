@@ -13,10 +13,11 @@ All 15 hosted checks passed for its exact reviewed head `e8062fd`.
 The [integration inventory](docs/integration-status-20260923.md) records retained
 source, deferred lanes, validation and remaining acceptance.
 
-Host **0.3.46** is built and locally verified, **not deployed**. The
-[catch-up plan](docs/catch-up-plan-20260923.md) tracks the remaining guard/Condemn
-and vendor live observations and workflow completion. Carpenter discovery waits
-for its building to finish; no carpenter capability is claimed.
+Host **0.3.46 is installed and its manager is healthy in the test VM**. No game
+is running or bound there, and no gameplay acceptance is claimed. The
+[catch-up plan](docs/catch-up-plan-20260923.md) tracks identification of the active
+client, the remaining guard/Condemn and vendor observations, and carpenter
+building readiness and service discovery.
 
 Read the [branch map](docs/git-branch-map.md) before choosing a development base,
 and the [contributor workflow](CONTRIBUTING.md) before starting a new task.

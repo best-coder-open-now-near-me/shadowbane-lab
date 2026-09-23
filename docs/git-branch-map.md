@@ -15,9 +15,10 @@ remain historical source references until separately audited for retirement;
 they are not the current development base.
 
 The [integration inventory](integration-status-20260923.md) preserves the audited
-remote-tip snapshot, deferred lanes and dirty drafts. Host 0.3.46 is built and
-locally verified but not deployed. Guard/vendor live qualification and carpenter
-discovery remain open. Follow the [catch-up plan](catch-up-plan-20260923.md) for
+remote-tip snapshot, deferred lanes and dirty drafts. Host 0.3.46 is installed
+and its manager is healthy in the test VM, with no game launched or bound.
+Guard/vendor live qualification and carpenter discovery remain open; identifying
+the user's active client and confirming building readiness are next. Follow the [catch-up plan](catch-up-plan-20260923.md) for
 current work and the serialized client observation queue.
 
 Everything below is historical evidence unless explicitly requalified in the

@@ -7,9 +7,10 @@ source history. All 15 hosted checks passed on that head. The
 [inclusion inventory and execution queue](integration-status-20260923.md) record
 the merged source, deferred lanes, package identity and remaining acceptance.
 Guard coverage, vendor recovery and the passive recorder, and strict diagnostic
-CI gates are integrated. Host **0.3.46 is built and locally verified, not deployed**.
-Live guard/vendor evidence remains pending. Carpenter discovery waits for its
-building to finish.
+CI gates are integrated. Host **0.3.46 is installed and its manager is healthy
+in the test VM**, with no game launched or bound. Live guard/vendor evidence
+remains pending. Next, confirm which client the user is using and carpenter
+building readiness before starting the shared observation queue.
 
 Planning date: September 23, 2026. The original planning rationale and milestones
 below remain useful; their starting inventory is historical. Current status and
@@ -40,7 +41,7 @@ Current evidence, not promises about the present live session:
 | Guards | Carried-gold upgrades, confirmed spending, Travel and remembered-guard Continue here | Wider census, genuinely new-guard continuation, rank completion and terminal-state qualification |
 | Condemn | 30 observed towers / 1,410 current-nation entries; 47 nations at the latest audit | Five unopened Irekei Barracks, wider coverage; nation inheritance/combat behavior remains unverified |
 | Vendors | One uninterrupted three-item Create/wait/Keep batch; native navigation and durable records | Automatic recipe/Inventory lifecycle, saved town selection and cross-vendor scheduling, full affix/resource qualification |
-| Carpenter | No carpenter-specific implementation or documented failure found in inspected source | Building still being constructed; intended behavior and failing boundary remain unknown |
+| Carpenter | No carpenter-specific implementation or documented failure found in inspected source | Building readiness, intended behavior and failing boundary remain to be confirmed |
 
 The September 22 CI for `74f34a3` passed its required jobs. Its ideal-transparency
 diagnostics fail as documented; production suppression is separately tested.
@@ -56,7 +57,7 @@ instructions to create duplicate long-lived tasks or activate old tasks.
 | A: integration and reliability | Coordinator owns main, shared contracts, package and live-test queue | Merged inventory and verified package completed; coordinate remaining release/live gates | Independent of B/C/D analysis and focused source work |
 | B: guards and Condemn | One worker owns shared discovery plus both workflow completions | Barracks diagnosis and scoped coverage/terminal-state plan | Can code/test while C works; live UI access is serialized |
 | C: vendor rolling | One worker owns vendor plan, policy and scheduler | Automatic multi-vendor capacity run with saved selection | Starts from current main, with source-only recovery/recorder work included |
-| D: carpenter | One worker owns reproduction and boundary diagnosis | Reproducible failure and client/server ownership finding | Discovery waits for the completed building; implementation scope follows evidence |
+| D: carpenter | One worker owns reproduction and boundary diagnosis | Reproducible failure and client/server ownership finding | Discovery waits for confirmed client/building readiness; implementation follows evidence |
 
 Before editing shared files, assign one owner for that checkpoint. In particular,
 native command-channel/runtime wiring, shared navigation, manager worker/control,
@@ -211,14 +212,20 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Complete: guard coverage/terminal visibility, exact vendor Create/Keep recovery,
   passive vendor workflow recorder and narrow diagnostic CI classification.
 - Complete: combined local validation, all 15 hosted checks on `e8062fd`, and an
-  exact-source host 0.3.46 wheel with isolated local verification.
+  exact-source host 0.3.46 wheel with isolated local verification. Main merge
+  `555f6bf` push CI also passed.
 - Complete: the available historical schema-2 Create passed the current validator
   read-only in the VM. No authentic Keep journal was available; historical Keep
   compatibility remains unverified. No guest/game state changed.
-- Active: obtain fresh read-only manager/game status before staging and activating
-  host 0.3.46 at a verified healthy idle boundary. It is not yet deployed.
+- Complete: host 0.3.46 VM installation and healthy manager activation; all 430
+  installed hashes matched, 9,234 of 9,235 ledger files were unchanged, and only
+  the expected idle dispatch permit was revoked. Jobs and proofs were preserved.
+  No game was launched and no historical request was replayed.
+- Active: confirm the user's active client and whether to resume the test VM
+  with a fresh game lifetime/login. The VM manager is currently healthy and unbound.
 - Next live observations: one manually opened Irekei Barracks; vendor recipe and
-  Inventory ownership walkthrough. Carpenter waits for the finished building.
+  Inventory ownership walkthrough after manual readiness. Carpenter needs its
+  active client and building readiness confirmed. No automatic spending starts.
 - Subsequent: production town vendor navigation/scheduling, qualified affix and
   resource/disposal/recurrence behavior, and guard/Condemn coverage/rank acceptance.
 - Deferred: broad refactors, unrelated historical feature lanes, and branch/worktree

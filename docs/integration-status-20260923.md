@@ -11,8 +11,9 @@ jobs on both push and pull-request runs, plus the duel matrix. See the
 [push CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/35911105223),
 [pull-request CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/35911109603)
 and [duel matrix](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/35911109519).
-The merge is source delivery; host 0.3.46 remains built and locally verified,
-not deployed. Later commits need their own checks.
+The [main push CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/35912650959)
+also passed on merge `555f6bf`. Host 0.3.46 activation is separately verified
+below; no gameplay acceptance is implied. Later commits need their own checks.
 
 The normal project checkout was fast-forwarded cleanly to `555f6bf`. Main branch
 protection was applied and verified through the GitHub API: required contexts
@@ -118,8 +119,8 @@ offline DOM smoke. No live client action was issued by these source changes.
 
 ## Combined validation and release boundary
 
-Built, undeployed host release: **0.3.46**. Native source and version are unchanged
-from `74f34a3`; the tested native source is identical across the catch-up merges.
+Installed host release: **0.3.46**, with activation evidence below. Native source
+and version are unchanged from `74f34a3`; the tested native source is identical across the catch-up merges.
 
 - Complete local host suite: **3,378 passed, 18 skipped**. Thirteen fixture-related
   skips were subsequently exercised through the bound checks below; five require
@@ -145,8 +146,8 @@ Host wheel built from clean release source
 All 430 packaged source/data files match the source export. An isolated local
 installation verified version, module origins, the coverage dashboard and the
 vendor recorder entry point. The wheel and verification receipt remain under
-`artifacts/catch-up/package/`; this is prepared host source, not VM activation.
-Later documentation-only commits do not change that package identity.
+`artifacts/catch-up/package/`. Later documentation-only commits do not change
+that package identity. The same wheel was installed and activated as recorded below.
 
 ## Read-only historical journal qualification
 
@@ -163,6 +164,26 @@ validation runner remains in the integration worktree's ignored
 `artifacts/catch-up/check-one-vm-create.py`. This read-only check did not activate
 host 0.3.46 or replay any old request.
 
+## Verified host activation - September 23
+
+Fresh VM inspection found no game or manager process before activation. Host
+0.3.46 was staged beside 0.3.45, and all 430 installed source/data hashes matched
+the verified `370da56` wheel above. The manager was then activated: PID 9888,
+healthy, `bound_count=0`, and `slots=[]`. The game was not launched.
+
+Of 9,235 prior ledger files, 9,234 remained byte-identical. The sole change was
+`vendor-testing/vendor-client/dispatch.permit`: strict parsing confirmed
+`allowed=false` and `health=unbound`, the expected idle dispatch revocation.
+No job or historical proof changed, and no request was replayed. Host 0.3.45
+and configuration backups remain under the VM's
+`upgrades/host-0.3.46-370da56` rollback directory.
+
+The private activation receipt remains at
+`E:/virtual-machines/shadowbane-testing/diagnostics/guard-host-0.3.46-370da56/activation.json`.
+This is verified host installation and manager health, not guard/vendor gameplay
+acceptance or a carpenter capability. The next step is to identify the user's
+active client: the test VM currently has no game, and another client may be in use.
+
 ## Execution queue
 
 1. Complete: baseline/movement reconciliation, guard coverage, vendor recovery,
@@ -172,20 +193,22 @@ host 0.3.46 or replay any old request.
    fast-forward and verified required-check protection. Start subsequent work
    from `origin/main`; retain deferred branches and active worktrees for separate
    owner/dirty-file/remote-reachability review.
-3. Complete: exact-source host 0.3.46 wheel build and isolated local installation
-   checks. Deployment is still pending; preserve existing jobs, journals and
-   installed component identities before any controlled activation.
+3. Complete: exact-source host 0.3.46 package checks, side-by-side VM installation
+   and healthy manager activation, with 430 installed hashes verified and all
+   jobs/historical proofs preserved. No game was launched.
 4. Complete: read-only validation of the available historical schema-2 Create.
    No authentic Keep journal was available; retain that qualification limit.
-5. Active: obtain fresh read-only manager/game status, then stage and activate
-   host 0.3.46 only at a verified healthy idle boundary with retained journals.
-   Host deployment is not yet complete.
+5. Active: identify the user's active client and whether the next observations
+   belong there or require a fresh test-VM game lifetime/login. The VM manager
+   is healthy and unbound; game launch awaits that clarification.
 6. Pending live evidence: one manually opened Irekei Barracks and a non-spending
-   vendor recipe/Inventory ownership walkthrough. Carpenter discovery waits for
-   its building to finish. All client UI work uses one serialized queue.
+   vendor recipe/Inventory ownership walkthrough once the client and manual
+   readiness are confirmed. Carpenter also needs building readiness confirmed.
+   All client UI work uses one serialized queue; no automatic spending starts.
 7. Follow-on: town vendor navigation/scheduling and qualified disposal/recurrence;
    guard new-area/rank/resource acceptance and broader Condemn coverage. Preserve
    carried-gold-only funding, whole-nation exclusions and uncertain receipts.
 
-Source integration does not certify installation or live acceptance. No live
-mutation or deployment was performed by this catch-up source checkpoint.
+Source integration and host activation do not certify gameplay acceptance. No
+automatic crafting, spending, Condemn write or other gameplay mutation occurred
+in this activation checkpoint.
