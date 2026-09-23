@@ -27,8 +27,8 @@ from shadowbane_lab.client_observation.native_structure_deposit import read_nati
 from shadowbane_lab.client_observation.native_vendor_dialog import (
     NativeVendorDialogCompatibilityError,
 )
-from shadowbane_lab.client_observation.native_vendor_queue import _ReadSet
-from shadowbane_lab.client_observation.native_vendor_roster import _text
+from shadowbane_lab.client_observation.native_vendor_queue import _ReadSet, read_native_vendor_queue
+from shadowbane_lab.client_observation.native_vendor_roster import _text, read_native_vendor_roster
 from shadowbane_lab.client_observation.native_warehouse_withdrawal import (
     read_native_warehouse_withdrawal,
 )
@@ -105,6 +105,12 @@ READERS = {
     "guard": read_native_guard_upgrade,
     "withdrawal": read_native_warehouse_withdrawal,
     "deposit": read_native_structure_deposit,
+}
+
+
+VENDOR_READERS = {
+    "vendor_roster": read_native_vendor_roster,
+    "vendor_queue": read_native_vendor_queue,
 }
 
 
@@ -208,6 +214,8 @@ def main():
     parser.add_argument("--creation", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--stop-file", type=Path, required=True)
+    parser.add_argument("--vendors", action="store_true",
+                        help="include owned vendor roster, recipe, production and Inventory reads")
     parser.add_argument("--condemn-responses", action="store_true",
                         help="include native 1.8.23 Condemn receive/processing events")
     parser.add_argument("--duration", type=float, default=1800)
@@ -216,6 +224,8 @@ def main():
     memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", args.process_id)
     try:
         readers = dict(READERS)
+        if args.vendors:
+            readers.update(VENDOR_READERS)
         if args.condemn_responses:
             from shadowbane_lab.client_extension.condemn_responses import CondemnResponseReader
             from shadowbane_lab.client_extension.event_reader import (
