@@ -1,16 +1,19 @@
 # Git branch map
 
-## Current planning and development base - September 23
+## Current integration candidate - September 23
 
-The current product base is `codex/guard-upgrades@74f34a3`; `main@047147d`
-remains the shared destination. Use the [catch-up plan](catch-up-plan-20260923.md)
-for current integration, guard/Condemn, vendor and carpenter work assignments.
-It supersedes older starting-branch and scheduling advice below, while retaining
-the historical source and live-acceptance records. A reconciled integration
-candidate and merge are still pending. Ancestry-only movement commits include
-already-equivalent patches; do not count all 27 as missing implementation.
-The planning document is published on `codex/catch-up-plan` for inclusion in the
-reviewed candidate and `main`; it does not itself integrate divergent history.
+Use `origin/codex/integrate-current-development` for current product work.
+[PR #25](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/25)
+targets `main`; review/merge are pending. Checkpoint `688ec7e` includes
+`guard-upgrades@74f34a3`, plan `179f065`, and movement tip `dfa766a` by ancestry.
+Its file tree is identical to `179f065`; the older package conflicts were resolved
+by preserving current required checks. The [integration inventory](integration-status-20260923.md)
+records every fetched remote tip, deferred lanes, dirty drafts and next actions.
+Follow the [catch-up plan](catch-up-plan-20260923.md) for coordinated feature work.
+
+Everything below is historical evidence unless explicitly requalified in the
+current inventory. Older 'current', 'active' and 'next' headings do not override
+this starting point or imply today's installation, job state or acceptance.
 
 Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay

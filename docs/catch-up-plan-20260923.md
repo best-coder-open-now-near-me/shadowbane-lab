@@ -1,5 +1,10 @@
 # Integration and town-workflow catch-up plan
 
+Execution update: September 23. The current review base is
+`origin/codex/integrate-current-development`; see the
+[inclusion inventory and execution queue](integration-status-20260923.md).
+Carpenter is waiting for its building to finish. Other lanes are underway.
+
 Planning date: September 23, 2026. This plan coordinates the repository review,
 guard upgrades, Condemn, vendor rolling, and carpenter discovery. It records
 planned execution; it does not claim a merge, deployment, or new live acceptance.

@@ -23,11 +23,12 @@ git pull --ff-only
 git switch -c codex/describe-the-change
 ```
 
-Until a reconciled candidate supersedes it, dependent work uses
-`origin/codex/guard-upgrades`, verified at `74f34a3` on September 23, as its
-explicit product base. Record that dependency in its PR. Follow the
-[catch-up plan](docs/catch-up-plan-20260923.md) for parallel ownership and
-integration. Never assume the currently checked-out topic is current.
+While PR #25 awaits review, dependent work uses
+`origin/codex/integrate-current-development` as its explicit product base. Fetch
+before branching and record the dependency in the PR. The
+[integration inventory](docs/integration-status-20260923.md) records included and
+deferred source; the [catch-up plan](docs/catch-up-plan-20260923.md) assigns
+parallel ownership. Never assume the currently checked-out topic is current.
 
 ## Keep independent tasks in separate checkouts
 
@@ -71,8 +72,8 @@ certify their exact commit only.
 git fetch origin --prune
 git branch -a --contains <commit-sha>
 git log --all --oneline -- path/to/file
-git log origin/main..origin/codex/guard-upgrades --oneline
-git rev-list --left-right --count origin/main...origin/codex/guard-upgrades
+git log origin/main..origin/codex/integrate-current-development --oneline
+git rev-list --left-right --count origin/main...origin/codex/integrate-current-development
 ```
 
 A branch being pushed does not mean it was merged into `main`. Compare ancestry

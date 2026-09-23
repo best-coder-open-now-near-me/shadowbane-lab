@@ -4,16 +4,17 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-The current product baseline is
-[`codex/guard-upgrades`](https://github.com/best-coder-open-now-near-me/shadowbane-lab/tree/codex/guard-upgrades),
-verified at `74f34a348de7662c49eb2ad05a149ce575d58f92` on September 23.
-It includes the vendor and runtime-hardening histories; divergent branches still
-need content-level reconciliation. The normal checkout remains on `main`, the
-shared merge destination; no merge or deployment is implied.
+The current development and review candidate is
+[`codex/integrate-current-development`](https://github.com/best-coder-open-now-near-me/shadowbane-lab/tree/codex/integrate-current-development),
+targeting `main` in [PR #25](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/25).
+It contains the guard/vendor/runtime baseline `74f34a3`, the catch-up plan, and
+reconciled movement history. The [integration inventory](docs/integration-status-20260923.md)
+records included and deferred work, current validation and remaining acceptance.
+The normal checkout remains on `main`; no merge or deployment is implied.
+
 The [catch-up plan](docs/catch-up-plan-20260923.md) coordinates integration,
-guards/Condemn, vendor rolling and carpenter discovery, with parallel ownership
-and a shared live-test queue. The [Condemn handoff](docs/handoffs/guard-crest-lists.md)
-and [guard Travel handoff](docs/handoffs/guard-travel.md) record recent acceptance.
+guards/Condemn, vendor rolling and carpenter discovery. Carpenter is waiting for
+its building to finish; independent source work continues in isolated worktrees.
 
 Read the [branch map](docs/git-branch-map.md) before choosing a development base,
 and the [contributor workflow](CONTRIBUTING.md) before starting a new task.
