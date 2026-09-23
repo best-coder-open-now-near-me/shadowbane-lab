@@ -1,0 +1,8 @@
+cue must preserve native transparency on both sides of its depth
+cue must preserve native transparency on both sides of its depth
+native alpha=.5 foreground=1 depth_write=0 expected_rgb=131,16,19 actual_rgb=116,31,37
+native alpha=.5 foreground=1 depth_write=1 expected_rgb=131,16,19 actual_rgb=127,0,0
+native alpha=.5 foreground=0 depth_write=0 expected_rgb=84,122,143 actual_rgb=84,122,143
+wholesale-early-counterexample depth_write=0 early_rgb=142,61,72
+native alpha=.5 foreground=0 depth_write=1 expected_rgb=84,122,143 actual_rgb=84,122,143
+wholesale-early-counterexample depth_write=1 early_rgb=142,61,72
