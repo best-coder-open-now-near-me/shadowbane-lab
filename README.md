@@ -4,17 +4,20 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-The current development and review candidate is
-[`codex/integrate-current-development`](https://github.com/best-coder-open-now-near-me/shadowbane-lab/tree/codex/integrate-current-development),
-targeting `main` in [PR #25](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/25).
-It contains the guard/vendor/runtime baseline `74f34a3`, the catch-up plan, and
-reconciled movement history. The [integration inventory](docs/integration-status-20260923.md)
-records included and deferred work, current validation and remaining acceptance.
-The normal checkout remains on `main`; no merge or deployment is implied.
+Start new work from freshly fetched `origin/main`.
+[PR #25](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/25)
+merged the consolidated development history as
+`555f6bf8d7609a03c5a4828c56c464879b34d8dd`, including the guard/vendor/runtime
+baseline, reconciled movement history, and the catch-up source changes.
+All 15 hosted checks passed for its exact reviewed head `e8062fd`.
+The [integration inventory](docs/integration-status-20260923.md) records retained
+source, deferred lanes, validation and remaining acceptance.
 
-The [catch-up plan](docs/catch-up-plan-20260923.md) coordinates integration,
-guards/Condemn, vendor rolling and carpenter discovery. Carpenter is waiting for
-its building to finish; independent source work continues in isolated worktrees.
+Host **0.3.46 is installed and its manager is healthy in the test VM**. No game
+is running or bound there, and no gameplay acceptance is claimed. The
+[catch-up plan](docs/catch-up-plan-20260923.md) tracks identification of the active
+client, the remaining guard/Condemn and vendor observations, and carpenter
+building readiness and service discovery.
 
 Read the [branch map](docs/git-branch-map.md) before choosing a development base,
 and the [contributor workflow](CONTRIBUTING.md) before starting a new task.
