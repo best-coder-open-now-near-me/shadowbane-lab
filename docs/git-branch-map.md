@@ -1,15 +1,24 @@
 # Git branch map
 
-## Current integration candidate - September 23
+## Canonical development base - September 23
 
-Use `origin/codex/integrate-current-development` for current product work.
+Use freshly fetched `origin/main` for current product work.
 [PR #25](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/25)
-targets `main`; review/merge are pending. Checkpoint `688ec7e` includes
-`guard-upgrades@74f34a3`, plan `179f065`, and movement tip `dfa766a` by ancestry.
-Its file tree is identical to `179f065`; the older package conflicts were resolved
-by preserving current required checks. The [integration inventory](integration-status-20260923.md)
-records every fetched remote tip, deferred lanes, dirty drafts and next actions.
-Follow the [catch-up plan](catch-up-plan-20260923.md) for coordinated feature work.
+merged as `555f6bf8d7609a03c5a4828c56c464879b34d8dd`, preserving the ancestry of
+reviewed head `e8062fd67151ad3e3f4eb792be05a34be78a4cb5`. All 15 hosted checks
+passed on that exact head. Main now contains `guard-upgrades@74f34a3`, movement
+`dfa766a`, plan `179f065`, guard coverage `ef5deeb`, vendor recovery `69f54cf`,
+passive vendor recorder `f0ed883`, and diagnostic CI policy `79505be`.
+The normal project checkout is clean on `main@555f6bf`, and main protection
+requires the eight verified check contexts. The old integration/feature refs
+remain historical source references until separately audited for retirement;
+they are not the current development base.
+
+The [integration inventory](integration-status-20260923.md) preserves the audited
+remote-tip snapshot, deferred lanes and dirty drafts. Host 0.3.46 is built and
+locally verified but not deployed. Guard/vendor live qualification and carpenter
+discovery remain open. Follow the [catch-up plan](catch-up-plan-20260923.md) for
+current work and the serialized client observation queue.
 
 Everything below is historical evidence unless explicitly requalified in the
 current inventory. Older 'current', 'active' and 'next' headings do not override

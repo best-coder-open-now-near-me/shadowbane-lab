@@ -1,11 +1,29 @@
 # Integration status - September 23, 2026
 
-## Current candidate and delivery
+## Merged delivery and current base
 
-`codex/integrate-current-development` is the shared review candidate for
-[PR #25](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/25),
-targeting `main`. Start independent product work from its freshly fetched remote
-ref. The normal checkout remains on `main`; review and merge are pending.
+Start independent product work from freshly fetched `origin/main`.
+[PR #25](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/25)
+merged on September 23 as `555f6bf8d7609a03c5a4828c56c464879b34d8dd`, preserving
+reviewed head `e8062fd67151ad3e3f4eb792be05a34be78a4cb5` and its source ancestry.
+All 15 hosted checks for that exact head completed successfully: the seven CI
+jobs on both push and pull-request runs, plus the duel matrix. See the
+[push CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/35911105223),
+[pull-request CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/35911109603)
+and [duel matrix](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/35911109519).
+The merge is source delivery; host 0.3.46 remains built and locally verified,
+not deployed. Later commits need their own checks.
+
+The normal project checkout was fast-forwarded cleanly to `555f6bf`. Main branch
+protection was applied and verified through the GitHub API: required contexts
+`quality`, `python-tests (3.11)`, `python-tests (3.12)`, `python-tests (3.13)`,
+`native-tests (full)`, `native-tests (diagnostics-only)`, `powershell-syntax`, and
+`matrix`, bound to GitHub Actions. Branches must be up to date; enforcement also
+covers administrators. PRs and resolved conversations are required, with zero
+mandatory approving reviewers. Force pushes and branch deletion are disabled;
+merge commits remain permitted to preserve ancestry.
+
+## Historical reconciliation checkpoint
 
 Checkpoint `688ec7ed15fb4a2ec9cb6933da76675253df8b01` contains product
 `74f34a3`, catch-up plan `179f065`, and movement tip `dfa766a` by ancestry.
@@ -85,14 +103,14 @@ The table predates the new guard/vendor/CI worker deliveries, tracked below.
 
 ## Integrated catch-up slices
 
-The candidate retains these published source tips by merge ancestry:
+Merged `main` retains these published source tips by merge ancestry:
 
 | Source tip | Delivered behavior | Remaining qualification |
 | --- | --- | --- |
 | `ef5deeb` guard coverage | Bounded candidate/exception detail, observed guard ranks, selected-building Condemn completion, crash-accounting schedules | Opened Barracks observation, new-area/max-rank/resource outcomes |
-| `69f54cf` vendor recovery | Exact Create/Keep source digest, ownership, partition and observed receipt-chain validation before recovery | Historical private journal/live qualification |
+| `69f54cf` vendor recovery | Exact Create/Keep source digest, ownership, partition and observed receipt-chain validation before recovery | One historical schema-2 Create validated; authentic historical Keep and live qualification remain open |
 | `f0ed883` vendor recorder | Optional read-only `--vendors` workflow mode; strict recipe, roster and Inventory channels | Manual non-spending menu walkthrough; native open/select contract |
-| `79505be` CI diagnostics | Narrow expected-pixel-failure classification replaces blanket tolerance | Hosted-run confirmation; rendering limitation remains unresolved |
+| `79505be` CI diagnostics | Narrow expected-pixel-failure classification replaces blanket tolerance | Hosted gate passed on `e8062fd`; rendering limitation remains unresolved |
 
 Independent source reviews found no actionable issue in vendor recovery or the
 CI gate. The guard/dashboard integration was also reviewed and exercised with an
@@ -100,8 +118,8 @@ offline DOM smoke. No live client action was issued by these source changes.
 
 ## Combined validation and release boundary
 
-Host release candidate: **0.3.46**. Native source and version are unchanged from
-`74f34a3`; the tested native source is identical across the catch-up merges.
+Built, undeployed host release: **0.3.46**. Native source and version are unchanged
+from `74f34a3`; the tested native source is identical across the catch-up merges.
 
 - Complete local host suite: **3,378 passed, 18 skipped**. Thirteen fixture-related
   skips were subsequently exercised through the bound checks below; five require
@@ -115,8 +133,8 @@ Host release candidate: **0.3.46**. Native source and version are unchanged from
 - Ruff, PowerShell script parsing, actual dashboard script syntax, Markdown links
   and whitespace checks passed. Worker handoffs record the focused fault tests.
 
-Local validation evidence is in this worktree's ignored `artifacts/catch-up/`;
-CMake outputs are under `build/native-full` and `build/native-diagnostics-only`.
+Local validation evidence remains in the `integration-current` worktree's ignored
+`artifacts/catch-up/`; CMake outputs are under `build/native-full` and `build/native-diagnostics-only`.
 Four fixture executable copies under `artifacts/vendor-native-build/Release`
 are hash-linked to their original build paths by `fixture-copies.json`. They are
 local test artifacts, not published client binaries or deployment payloads.
@@ -130,19 +148,44 @@ vendor recorder entry point. The wheel and verification receipt remain under
 `artifacts/catch-up/package/`; this is prepared host source, not VM activation.
 Later documentation-only commits do not change that package identity.
 
+## Read-only historical journal qualification
+
+The current `e8062fd` Create validator was executed in guest memory against the
+one identified complete schema-2 Create journal: 1,779 bytes, one item and one
+observed request. Validation passed with the unchanged installed Snapshot and
+owner/item helpers. No `keep.json` was found under the vendor-manager ledger,
+so authentic historical Keep compatibility remains unverified; synthetic Keep
+coverage and source review do not replace that evidence.
+
+Only the validation result was returned. No private journal contents were
+exported, and no guest/game files or gameplay state were changed. The private
+validation runner remains in the integration worktree's ignored
+`artifacts/catch-up/check-one-vm-create.py`. This read-only check did not activate
+host 0.3.46 or replay any old request.
+
 ## Execution queue
 
-1. Complete: current-base/movement reconciliation and the three integrated source
-   slices, with the independent read-only vendor capture mode.
-2. Active: current-head hosted CI for PR #25; local 0.3.46 wheel verification is complete.
-3. Next: obtain merge authorization, merge preserving ancestry, then fast-forward
-   main and apply reviewed required checks. Branch/worktree retirement remains
-   separate because historical/deferred work and active owners are retained.
-4. Pending live evidence: one opened Irekei Barracks; vendor recipe/Inventory
-   ownership trace. Carpenter discovery waits for its building to finish.
-5. Follow-on: town vendor navigation/scheduling and qualified disposal/recurrence;
-   guard rank and coverage acceptance. Preserve current spending/exclusion policy.
+1. Complete: baseline/movement reconciliation, guard coverage, vendor recovery,
+   passive vendor recorder and diagnostic CI policy, with combined local tests
+   and all 15 hosted checks on `e8062fd`.
+2. Complete: authorized PR #25 merge preserving ancestry, clean normal-main
+   fast-forward and verified required-check protection. Start subsequent work
+   from `origin/main`; retain deferred branches and active worktrees for separate
+   owner/dirty-file/remote-reachability review.
+3. Complete: exact-source host 0.3.46 wheel build and isolated local installation
+   checks. Deployment is still pending; preserve existing jobs, journals and
+   installed component identities before any controlled activation.
+4. Complete: read-only validation of the available historical schema-2 Create.
+   No authentic Keep journal was available; retain that qualification limit.
+5. Active: obtain fresh read-only manager/game status, then stage and activate
+   host 0.3.46 only at a verified healthy idle boundary with retained journals.
+   Host deployment is not yet complete.
+6. Pending live evidence: one manually opened Irekei Barracks and a non-spending
+   vendor recipe/Inventory ownership walkthrough. Carpenter discovery waits for
+   its building to finish. All client UI work uses one serialized queue.
+7. Follow-on: town vendor navigation/scheduling and qualified disposal/recurrence;
+   guard new-area/rank/resource acceptance and broader Condemn coverage. Preserve
+   carried-gold-only funding, whole-nation exclusions and uncertain receipts.
 
-Source integration does not certify installation or live acceptance. Guards and
-Condemn share one client UI admission queue with vendor/carpenter work. No live
+Source integration does not certify installation or live acceptance. No live
 mutation or deployment was performed by this catch-up source checkpoint.
