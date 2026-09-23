@@ -18,7 +18,7 @@ jobs:
       - name: Install quality tools
         run: python -m pip install ruff
       - name: Lint
-        run: ruff check src tests
+        run: ruff check src tests scripts/check_transparency_diagnostics.py
 
   python-tests:
     runs-on: windows-latest
@@ -44,6 +44,9 @@ jobs:
         profile: [full, diagnostics-only]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - name: Configure Win32 profile
         run: >-
           cmake -S native/wonderbane_extension
@@ -54,15 +57,16 @@ jobs:
         run: cmake --build build/native-${{ matrix.profile }} --config Release
       - name: Run native tests
         run: ctest --test-dir build/native-${{ matrix.profile }} -C Release -LE stretch-diagnostic --output-on-failure
-      - name: Record deferred ideal transparency diagnostics
-        continue-on-error: true
-        run: ctest --test-dir build/native-${{ matrix.profile }} -C Release -L stretch-diagnostic --output-on-failure --output-junit stretch-diagnostics.xml
+      - name: Check deferred transparency diagnostic outcomes
+        run: python scripts/check_transparency_diagnostics.py --build-dir build/native-${{ matrix.profile }}
       - name: Retain ideal transparency diagnostic results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: stretch-diagnostics-${{ matrix.profile }}
-          path: build/native-${{ matrix.profile }}/stretch-diagnostics.xml
+          path: |
+            build/native-${{ matrix.profile }}/stretch-diagnostics.xml
+            build/native-${{ matrix.profile }}/stretch-diagnostics.log
           if-no-files-found: error
 
   powershell-syntax:

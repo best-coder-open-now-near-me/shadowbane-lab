@@ -1,0 +1,10 @@
+native/effect transparency must respect relative depth
+native/effect transparency must respect relative depth
+OpenGL draw test: 4.6.0 NVIDIA 596.36
+Enabled draw mean (test context, one trail segment): 0.152 ms
+Maximum line capacity draw mean (test context): 0.608 ms
+Native transparency requirement: effect-front=0 depth-write=0 expected RGB=127,0,128 late-pass RGB=0,0,255 absolute error=254/765 UNRESOLVED
+Native transparency requirement: effect-front=0 depth-write=1 expected RGB=127,0,128 late-pass RGB=127,0,0 absolute error=128/765 UNRESOLVED
+Native transparency requirement: effect-front=1 depth-write=0 expected RGB=0,0,255 late-pass RGB=0,0,255 absolute error=0/765 PASS
+Native transparency requirement: effect-front=1 depth-write=1 expected RGB=0,0,255 late-pass RGB=0,0,255 absolute error=0/765 PASS
+Transmission information: identical scene RGBA/depth, required behind blue=191 vs 64; source alpha is not recoverable from scene snapshots
