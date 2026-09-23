@@ -119,3 +119,98 @@ def test_control_change_during_capture_is_rejected():
     m.read_block = read
     with pytest.raises(RuntimeError, match="changed"):
         read_window_context(m)
+
+
+@pytest.mark.parametrize("vendors", [False, True])
+def test_vendor_capture_cli_is_opt_in_and_retains_exact_lifetime(tmp_path, monkeypatch, vendors):
+    from unittest.mock import Mock
+
+    from shadowbane_lab.client_observation import workflow_capture
+    from tests.test_native_vendor_queue import add_recipe, fixture
+
+    m = add_recipe(fixture())
+    m.put(m.base_address, "<2s", b"MZ")
+    m.close = Mock()
+    opened = Mock(return_value=m)
+    monkeypatch.setattr(workflow_capture.WindowsReadOnlyProcessMemory, "open_for_process", opened)
+    args = ["workflow_capture", "--process-id", str(m.pid), "--creation", "100",
+            "--output", str(tmp_path / "capture"), "--stop-file", str(tmp_path / "stop"),
+            "--duration", "0.05", "--interval", "0.05"]
+    if vendors:
+        args.append("--vendors")
+    monkeypatch.setattr("sys.argv", args)
+    assert workflow_capture.main() == 0
+    opened.assert_called_once_with("sb.exe", m.pid)
+    m.close.assert_called_once_with()
+    records = [json.loads(line) for line in (tmp_path / "capture").read_text().splitlines()]
+    start = records[0]
+    assert start["process_id"] == m.pid
+    assert start["process_creation_filetime_utc"] == 100
+    assert start["executable_sha256"] == m.executable_sha256
+    assert start["read_only"] and not start["server_acceptance_verified"]
+    assert ("vendor_roster" in start["channels"]) == vendors
+    assert ("vendor_queue" in start["channels"]) == vendors
+    if vendors:
+        queue = next(r for r in records if r.get("channel") == "vendor_queue")
+        assert queue["state"] == "observed"
+        assert queue["data"]["creation_recipe"]["template"]["object_id"] == 26990
+        assert queue["data"]["vendor"]["object_id"] == 2517204
+        assert not queue["data"]["command_admitted"]
+
+
+def test_vendor_capture_preserves_closed_recipe_inventory_transitions(tmp_path):
+    from shadowbane_lab.client_observation.workflow_capture import VENDOR_READERS
+    from tests.test_native_vendor_inventory import ITEM_ID, inventory_fixture
+    from tests.test_native_vendor_queue import MANAGER, add_recipe, fixture
+
+    m = fixture()
+    m.put(MANAGER + 0x78, "<I", 0)
+    clock = Clock()
+    stages = iter((add_recipe(fixture()), inventory_fixture()))
+
+    def sleep(seconds):
+        clock.sleep(seconds)
+        next_stage = next(stages, None)
+        if next_stage is not None:
+            m.data = next_stage.data
+            m.reads.clear()
+
+    result = record_workflow(
+        m, tmp_path / "capture", tmp_path / "stop", process_id=m.pid, creation=100,
+        duration=0.6, interval=0.2, readers={"windows": read_window_context, **VENDOR_READERS},
+        clock=clock, sleep=sleep, alive=lambda: True,
+    )
+    records = [json.loads(line) for line in (tmp_path / "capture").read_text().splitlines()]
+    queue = [r for r in records if r.get("channel") == "vendor_queue"]
+    assert [r["state"] for r in queue] == ["unavailable", "observed", "observed"]
+    assert "data" not in queue[0]
+    assert queue[1]["data"]["creation_recipe"]["qualified_random_scepter"]
+    assert queue[1]["data"]["inventory"] is None
+    assert queue[2]["data"]["creation_recipe"] is None
+    inventory = queue[2]["data"]["inventory"]
+    assert inventory["items"][0]["item"]["object_id"] == ITEM_ID
+    assert not inventory["complete_inventory"] and inventory["capacity"] is None
+    assert result["counts"]["vendor_queue"] == {"observed": 2, "unavailable": 1}
+    assert all(r["state"] == "unavailable" for r in records
+               if r.get("channel") == "vendor_roster")
+    assert records[-1]["reason"] == "deadline"
+
+
+def test_vendor_roster_capture_retains_unverified_membership(tmp_path):
+    from shadowbane_lab.client_observation.workflow_capture import VENDOR_READERS
+    from tests.test_native_vendor_roster import roster_fixture
+
+    m, clock = roster_fixture(), Clock()
+    record_workflow(
+        m, tmp_path / "capture", tmp_path / "stop", process_id=m.pid, creation=100,
+        duration=0.2, interval=0.2, readers=VENDOR_READERS,
+        clock=clock, sleep=clock.sleep, alive=lambda: True,
+    )
+    records = [json.loads(line) for line in (tmp_path / "capture").read_text().splitlines()]
+    roster = next(r for r in records if r.get("channel") == "vendor_roster")
+    assert roster["state"] == "observed"
+    assert [row["vendor"]["object_id"] for row in roster["data"]["vendors"]] == [101, 102]
+    assert not roster["data"]["town_membership_verified"]
+    assert not roster["data"]["management_permission_verified"]
+    queue = next(r for r in records if r.get("channel") == "vendor_queue")
+    assert queue["state"] == "unavailable" and "data" not in queue

@@ -77,3 +77,38 @@ Then complete saved building/vendor/recipe selections and the multi-vendor
 capacity run as one end-to-end slice. Shared worker/dashboard/channel edits
 remain coordinated by the integration owner. Unknown affixes stay kept;
 unqualified disposal and recurring spending remain disabled.
+
+## Ready passive vendor walkthrough recorder
+
+The optional `--vendors` mode now joins the existing window/control context with
+`vendor_roster` and `vendor_queue` channels. It uses the same pinned read-only
+process handle and existing duration/stop/output safeguards. The strict queue
+reader includes current recipe selection, production state and owned Inventory;
+missing or changing ownership is recorded as unavailable. Displayed Inventory
+entries never imply complete inventory coverage or known capacity.
+
+Run using the host that contains this source checkpoint, after supplying the
+fresh verified PID/creation pair and two new private artifact paths:
+
+```powershell
+& $vendorHostPython -m shadowbane_lab.client_observation.workflow_capture `
+    --vendors --process-id $vendorProcessId --creation $vendorCreationFiletime `
+    --output $vendorCapturePath --stop-file $vendorStopPath `
+    --duration 300 --interval 0.2
+```
+
+The paths must have an existing private parent directory; neither output nor stop
+marker may already exist. After `Workflow recorder armed.`, perform only the
+ordinary menu walkthrough above. Create the stop marker to end early, or let the
+five-minute deadline finish. The recorder does not open menus, craft, transfer,
+Keep, Junk, acquire a native command channel, or attach a debugger. Retain the
+session-end record and exact source identity with the private evidence.
+
+Validation for this recorder checkpoint: all 54 workflow/vendor queue, roster
+and inventory tests passed; affected-file Ruff and diff checks passed. Tests use
+the real strict memory readers for closed-menu, recipe and Inventory transitions,
+separate unavailable channels, unchanged opt-in behavior and exact-lifetime CLI
+binding/handle cleanup. Native rebuilding and live acceptance are not claimed.
+
+Next active todo: the serialized non-spending vendor menu capture. Automatic
+recipe/Inventory commands and the complete multi-vendor capacity run remain open.
