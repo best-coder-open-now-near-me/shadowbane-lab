@@ -10,10 +10,6 @@ on:
       - "src/shadowbane_lab/rollouts/**"
       - "src/shadowbane_lab/rulesets/**"
   pull_request:
-    paths:
-      - ".github/workflows/duel-matrix.yml"
-      - "src/shadowbane_lab/rollouts/**"
-      - "src/shadowbane_lab/rulesets/**"
 
 permissions:
   contents: read

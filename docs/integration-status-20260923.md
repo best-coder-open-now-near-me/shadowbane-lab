@@ -24,6 +24,12 @@ covers administrators. PRs and resolved conversations are required, with zero
 mandatory approving reviewers. Force pushes and branch deletion are disabled;
 merge commits remain permitted to preserve ancestry.
 
+The follow-through PR removes only the duel matrix's `pull_request` path filter:
+with `matrix` required, documentation-only PRs otherwise never emit that check
+and cannot merge. Every PR now schedules it; existing manual and push policies
+and the matrix job itself are unchanged. Hosted checks must validate this final
+follow-through head before merge.
+
 ## Historical reconciliation checkpoint
 
 Checkpoint `688ec7ed15fb4a2ec9cb6933da76675253df8b01` contains product

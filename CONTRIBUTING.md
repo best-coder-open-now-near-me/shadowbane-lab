@@ -68,7 +68,9 @@ Main protection requires these eight GitHub Actions check contexts and an
 up-to-date branch, including for administrators. Changes go through a PR with
 resolved conversations; no mandatory approving-review count has been added.
 Force pushes and branch deletion are disabled. Existing CI results certify
-their exact commit only.
+their exact commit only. The required duel-matrix workflow runs on every PR,
+including documentation-only changes; path filters would leave its required
+`matrix` check pending indefinitely. Its manual and push triggers are unchanged.
 
 ## Find apparently missing work
 
