@@ -4,14 +4,16 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-The current runtime-hardening and rolling feature integration is on
-[`codex/native-lifecycle-hardening`](https://github.com/best-coder-open-now-near-me/shadowbane-lab/compare/main...codex/native-lifecycle-hardening),
-starting from navigation inspector `14d117e8c5194c6dff55dac608b2d3f683187d31`.
-It retains the earlier consolidated development history. The normal checkout
-remains on `main`; no merge or deployment is implied. The
-[active handoff](docs/handoffs/native-lifecycle-hardening.md) records included
-feature revisions, completed repairs and the required rendering gates that still
-block a complete acceptance package.
+The current product baseline is
+[`codex/guard-upgrades`](https://github.com/best-coder-open-now-near-me/shadowbane-lab/tree/codex/guard-upgrades),
+verified at `74f34a348de7662c49eb2ad05a149ce575d58f92` on September 23.
+It includes the vendor and runtime-hardening histories; divergent branches still
+need content-level reconciliation. The normal checkout remains on `main`, the
+shared merge destination; no merge or deployment is implied.
+The [catch-up plan](docs/catch-up-plan-20260923.md) coordinates integration,
+guards/Condemn, vendor rolling and carpenter discovery, with parallel ownership
+and a shared live-test queue. The [Condemn handoff](docs/handoffs/guard-crest-lists.md)
+and [guard Travel handoff](docs/handoffs/guard-travel.md) record recent acceptance.
 
 Read the [branch map](docs/git-branch-map.md) before choosing a development base,
 and the [contributor workflow](CONTRIBUTING.md) before starting a new task.

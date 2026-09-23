@@ -1,5 +1,17 @@
 # Git branch map
 
+## Current planning and development base - September 23
+
+The current product base is `codex/guard-upgrades@74f34a3`; `main@047147d`
+remains the shared destination. Use the [catch-up plan](catch-up-plan-20260923.md)
+for current integration, guard/Condemn, vendor and carpenter work assignments.
+It supersedes older starting-branch and scheduling advice below, while retaining
+the historical source and live-acceptance records. A reconciled integration
+candidate and merge are still pending. Ancestry-only movement commits include
+already-equivalent patches; do not count all 27 as missing implementation.
+The planning document is published on `codex/catch-up-plan` for inclusion in the
+reviewed candidate and `main`; it does not itself integrate divergent history.
+
 Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
