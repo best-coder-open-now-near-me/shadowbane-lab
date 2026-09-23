@@ -83,13 +83,53 @@ The table predates the new guard/vendor/CI worker deliveries, tracked below.
 - Power Palettes and terrain drafts remain discoverable at the remote tips above;
   no client binaries, private captures or credentials enter this integration.
 
+## Integrated catch-up slices
+
+The candidate retains these published source tips by merge ancestry:
+
+| Source tip | Delivered behavior | Remaining qualification |
+| --- | --- | --- |
+| `ef5deeb` guard coverage | Bounded candidate/exception detail, observed guard ranks, selected-building Condemn completion, crash-accounting schedules | Opened Barracks observation, new-area/max-rank/resource outcomes |
+| `69f54cf` vendor recovery | Exact Create/Keep source digest, ownership, partition and observed receipt-chain validation before recovery | Historical private journal/live qualification |
+| `f0ed883` vendor recorder | Optional read-only `--vendors` workflow mode; strict recipe, roster and Inventory channels | Manual non-spending menu walkthrough; native open/select contract |
+| `79505be` CI diagnostics | Narrow expected-pixel-failure classification replaces blanket tolerance | Hosted-run confirmation; rendering limitation remains unresolved |
+
+Independent source reviews found no actionable issue in vendor recovery or the
+CI gate. The guard/dashboard integration was also reviewed and exercised with an
+offline DOM smoke. No live client action was issued by these source changes.
+
+## Combined validation and release boundary
+
+Host release candidate: **0.3.46**. Native source and version are unchanged from
+`74f34a3`; the tested native source is identical across the catch-up merges.
+
+- Complete local host suite: **3,378 passed, 18 skipped**. Thirteen fixture-related
+  skips were subsequently exercised through the bound checks below; five require
+  Windows symlink privileges unavailable in this environment.
+- Full and diagnostics-only Win32 Release builds passed. Each required CTest
+  suite executed **169 passes and three private-client-image skips**.
+- Strict diagnostic classifier passed in both profiles, retaining the two known
+  effects and two known cue pixel counterexamples as explicitly unresolved.
+- Bound host/native IPC suites: **63 passed per profile**, no skips.
+- Host/native wire contract suites: **81 passed**, no skips.
+- Ruff, PowerShell script parsing, actual dashboard script syntax, Markdown links
+  and whitespace checks passed. Worker handoffs record the focused fault tests.
+
+Local validation evidence is in this worktree's ignored `artifacts/catch-up/`;
+CMake outputs are under `build/native-full` and `build/native-diagnostics-only`.
+Four fixture executable copies under `artifacts/vendor-native-build/Release`
+are hash-linked to their original build paths by `fixture-copies.json`. They are
+local test artifacts, not published client binaries or deployment payloads.
+The reviewed source will be exported from a clean commit for wheel verification.
+
 ## Execution queue
 
-1. Complete: current-base and movement-history reconciliation, published in PR #25.
-2. Active: independent guard/Condemn coverage, vendor recovery, and strict
-   diagnostic CI gates; combine validated commits in this candidate.
-3. Next: run exact combined checks, update PR acceptance state, and obtain the
-   review/authorization required for merge and branch-protection changes.
+1. Complete: current-base/movement reconciliation and the three integrated source
+   slices, with the independent read-only vendor capture mode.
+2. Active: verify the 0.3.46 wheel and current-head hosted CI for PR #25.
+3. Next: obtain merge authorization, merge preserving ancestry, then fast-forward
+   main and apply reviewed required checks. Branch/worktree retirement remains
+   separate because historical/deferred work and active owners are retained.
 4. Pending live evidence: one opened Irekei Barracks; vendor recipe/Inventory
    ownership trace. Carpenter discovery waits for its building to finish.
 5. Follow-on: town vendor navigation/scheduling and qualified disposal/recurrence;
@@ -97,4 +137,4 @@ The table predates the new guard/vendor/CI worker deliveries, tracked below.
 
 Source integration does not certify installation or live acceptance. Guards and
 Condemn share one client UI admission queue with vendor/carpenter work. No live
-mutation or deployment is performed by the reconciliation checkpoint.
+mutation or deployment was performed by this catch-up source checkpoint.
