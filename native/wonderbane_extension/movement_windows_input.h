@@ -1,0 +1,102 @@
+#pragma once
+#include <Windows.h>
+#include <Xinput.h>
+#include "movement_controls.h"
+#include "movement_native_ui.h"
+#include <optional>
+namespace wonderbane::extension::movement {
+// Resolve the HWND stored by the reviewed native CreateWindow path.
+// No foreground-window guessing or enumeration heuristic.
+bool NativeInputWindow(HWND&) noexcept;
+inline constexpr wchar_t settings_message_name[] = L"ShadowbaneLab.NativeMovement.OpenSettings.v1";
+struct InputCallbacks {
+    void* context = nullptr;
+    bool (*ui)(void*, POINT, NativeUiState&) noexcept = nullptr;
+    // Called synchronously on the exact HWND thread. The runtime captures the
+    // current scene/grant here and defers nested stops until actuation returns.
+    void (*safety)(void*, HWND, StopReason, bool destroying) noexcept = nullptr;
+    bool (*open_settings)(void*, HWND, std::uint64_t creation) noexcept = nullptr;
+    void (*key_observed)(void*, std::uint32_t event) noexcept = nullptr;
+};
+struct CapturedInput {
+    Input input{};
+    std::optional<POINT> press_origin;
+};
+// One process-pinned instance. Keyboard hook/original records remain alive after
+// retirement for an already fetched callback; ordinary disable uses Configure.
+class WindowsInput {
+public:
+    WindowsInput(const Controls& controls, InputCallbacks callbacks) noexcept
+        : controls_(controls), callbacks_(callbacks) {}
+    bool Bind(HWND) noexcept;
+    bool Configure(const Settings&) noexcept;
+    bool Snapshot(CapturedInput&) noexcept;
+    void Retire() noexcept;
+    // Cancel a buffered gesture without delivering its old click in a new UI/scene.
+    void Suspend() noexcept;
+    void CancelPointer() noexcept;
+    bool Available() const noexcept;
+    bool ControllerApiAvailable() const noexcept { return platform_.controller && platform_.capabilities; }
+    bool ControllerConnected() const noexcept { return controller_connected_; }
+    // Four configured movement bindings only, never arbitrary text keys.
+    std::uint32_t DiagnosticPhysicalKeys() const noexcept {
+        std::uint32_t mask = 0;
+        if (GetCurrentThreadId() != thread_) { return 0; }
+        for (std::size_t i = 0; i != settings_.keys.size(); ++i) {
+            if (platform_.key(settings_.keys[i]) & 0x8000) { mask |= 1U << i; }
+        }
+        return mask;
+    }
+    void DiagnosticKeys(std::uint32_t& suppressed, std::uint32_t& original) const noexcept {
+        suppressed = original = 0;
+        if (GetCurrentThreadId() != thread_) { return; }
+        for (std::size_t i = 0; i != settings_.keys.size(); ++i) {
+            if (suppressed_[settings_.keys[i]]) { suppressed |= 1U << i; }
+            if (original_down_[settings_.keys[i]]) { original |= 1U << i; }
+        }
+    }
+private:
+    using KeyboardCall = void (__cdecl*)(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t);
+    struct Platform {
+        decltype(&GetForegroundWindow) foreground = &GetForegroundWindow;
+        decltype(&GetAsyncKeyState) key = &GetAsyncKeyState;
+        decltype(&GetCursorPos) cursor = &GetCursorPos;
+        decltype(&XInputGetState) controller = nullptr;
+        decltype(&XInputGetCapabilities) capabilities = nullptr;
+    } platform_{};
+    static void __cdecl Keyboard(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t);
+    static LRESULT CALLBACK Window(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
+    bool BindVerified(HWND, std::uint32_t*, KeyboardCall) noexcept;
+    bool Current() const noexcept;
+    bool Query(POINT, NativeUiState&) noexcept;
+    bool Key(std::uint32_t, std::uint32_t, std::uint32_t, std::uint32_t) noexcept;
+    LRESULT Message(UINT, WPARAM, LPARAM);
+    void Cancel(StopReason, bool notify) noexcept;
+    void Safety(StopReason, bool destroying = false) noexcept;
+    bool Inside(POINT) const noexcept;
+    bool Cursor(POINT&) const noexcept;
+    bool ExactFocus() const noexcept;
+    void Restore() noexcept;
+    const Controls& controls_;
+    InputCallbacks callbacks_{};
+    Settings settings_{};
+    HWND window_ = nullptr;
+    DWORD thread_ = 0;
+    UINT settings_message_ = 0;
+    std::uint64_t process_creation_ = 0;
+    std::uintptr_t base_ = 0, manager_ = 0;
+    std::uint32_t* key_slot_ = nullptr;
+    KeyboardCall original_ = nullptr;
+    HMODULE xinput_ = nullptr;
+    bool bound_ = false, terminal_ = false, verified_ = false, callback_active_ = false, attempted_ = false;
+    bool device_reset_ = true, controller_connected_ = false, controller_moving_ = false;
+    std::array<bool, 256> suppressed_{}, original_down_{};
+    bool mouse_pending_ = false, mouse_dragging_ = false, mouse_up_owned_ = false;
+    std::uint16_t mouse_button_ = 0;
+    UINT down_message_ = 0;
+    WPARAM down_wparam_ = 0;
+    LPARAM down_lparam_ = 0;
+    POINT press_{}, pointer_{};
+    friend struct WindowsInputTestAccess;
+};
+}

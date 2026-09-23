@@ -180,13 +180,11 @@ failure stops the run and records the concrete reader error in the terminal reas
 Copy `configs/wonderbane-pve.template.json` inside the game VM. Verify that the target
 window is exactly 1920 by 955 at DPI scale 1.0 and that the client reports the expected
 bindings. The verified WonderBane character hotbar has Shadow Touch (`ASS-013`) on F2;
-inspect the current character config before enabling input:
+inspect the automatically resolved current-character config before enabling input:
 
 ```powershell
 $env:PYTHONPATH = "src"
-$hotbar = Get-ChildItem "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\Config\SCREEN_GAME_*_Wonderbane.cfg" | Select-Object -First 1
-.\.venv\Scripts\python.exe -m shadowbane_lab.cli client inspect-hotbar `
-  $hotbar.FullName `
+.\.venv\Scripts\python.exe -m shadowbane_lab.cli client inspect-active-profile `
   --json
 ```
 

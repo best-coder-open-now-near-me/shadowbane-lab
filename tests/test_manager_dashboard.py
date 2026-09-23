@@ -46,6 +46,7 @@ class _RecordingService:
         *,
         client_id: str | None = None,
         instance_id: str | None = None,
+        job_id: str | None = None,
     ) -> dict[str, object]:
         self.execute_calls.append((action, client_id, instance_id))
         if self.execute_error is not None:
@@ -121,6 +122,33 @@ class DashboardServerTests(unittest.TestCase):
         self.assertEqual("/", suggested.path)
         self.assertEqual("", suggested.query)
         self.assertEqual([token], parse_qs(suggested.fragment)["token"])
+
+    def test_explicit_token_and_fixed_port_survive_a_manager_restart(self) -> None:
+        token = self.server.authorization_token
+        port = self.server.port
+        authorization = self._authorization
+        self.server.stop()
+        self.server = DashboardServer(
+            self.service,
+            port=port,
+            authorization_token=token,
+        ).start()
+
+        status, _, body = self._request(
+            "GET",
+            "/api/v1/status",
+            headers=authorization,
+        )
+
+        self.assertEqual(HTTPStatus.OK, status)
+        self.assertEqual("gaming-pc-east", json.loads(body)["node_id"])
+        self.assertEqual(token, self.server.authorization_token)
+
+    def test_explicit_token_rejects_weak_or_malformed_values(self) -> None:
+        for token in ("short", "!" * 64, "a" * 40):
+            with self.subTest(token=token[:12]):
+                with self.assertRaisesRegex(ValueError, "authorization_token"):
+                    DashboardServer(self.service, authorization_token=token)
 
     def test_public_html_has_strict_security_headers_and_no_embedded_token(self) -> None:
         status, headers, body = self._request("GET", "/")
@@ -351,6 +379,35 @@ class DashboardServerTests(unittest.TestCase):
                 self.assertEqual(HTTPStatus.OK, status, body)
                 self.assertEqual(expected_call, self.service.execute_calls[-1])
 
+    def test_vendor_controls_require_authentication_and_exact_instance(self):
+        for action in ("vendor-start", "vendor-pause", "vendor-resume", "vendor-stop",
+                       "guard-discover", "guard-start", "guard-pause",
+                       "guard-resume", "guard-stop"):
+            payload = {
+                "action": action, "client_id": "front-left", "instance_id": "client-abc",
+            }
+            if action in {"vendor-pause", "vendor-resume", "vendor-stop",
+                          "guard-start", "guard-pause", "guard-resume", "guard-stop"}:
+                payload["job_id"] = ("operation-" if action.startswith("guard-") else "") + "a" * 32
+            body = json.dumps(payload)
+            status, _, _ = self._request(
+                "POST", "/api/v1/actions", body=body,
+                headers={"Content-Type": "application/json"},
+            )
+            self.assertEqual(HTTPStatus.UNAUTHORIZED, status)
+            status, _, _ = self._request(
+                "POST", "/api/v1/actions", body=body,
+                headers={**self._authorization, "Content-Type": "application/json"},
+            )
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertEqual((action, "front-left", "client-abc"), self.service.execute_calls[-1])
+        status, _, _ = self._request(
+            "POST", "/api/v1/actions",
+            body=json.dumps({"action": "vendor-start", "client_id": "front-left"}),
+            headers={**self._authorization, "Content-Type": "application/json"},
+        )
+        self.assertEqual(HTTPStatus.BAD_REQUEST, status)
+
     def test_action_endpoint_rejects_unknown_missing_and_extra_fields(self) -> None:
         invalid_payloads = (
             ({}, "unknown-action"),
@@ -507,6 +564,9 @@ class DashboardServerTests(unittest.TestCase):
         self.assertIn("window.setInterval(pollStatus, statusPollMilliseconds)", source)
         self.assertIn('document.addEventListener("visibilitychange", pollStatus)', source)
         self.assertIn("document.hidden", source)
+        self.assertIn("this dashboard will reconnect automatically", source.casefold())
+        self.assertIn('app.classList.add("stale")', source)
+        self.assertIn('app.classList.remove("stale")', source)
 
     def test_stop_is_idempotent_and_closed_server_cannot_restart(self) -> None:
         self.assertTrue(self.server.is_running)

@@ -4,14 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shadowbane-lab"
-version = "0.1.0"
+version = "0.3.46"
 description = "Deterministic simulation and bot-policy tooling for Shadowbane"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
+shadowbane-navigation-inspector = "shadowbane_lab.navigation_inspector.app:main"
 shadowbane-lab = "shadowbane_lab.cli:main"
+shadowbane-runtime-consistency = "shadowbane_lab.runtime_consistency.__main__:main"
+shadowbane-terrain-audit = "shadowbane_lab.world_data.terrain_seam_cli:main"
+shadowbane-terrain-trace-analysis = "shadowbane_lab.diagnostics.terrain_trace_analysis:main"
+shadowbane-terrain-branch-hits = "shadowbane_lab.diagnostics.terrain_branch_hits:main"
+shadowbane-terrain-material-poll = "shadowbane_lab.diagnostics.terrain_material_poll:main"
 
 [project.optional-dependencies]
 simulation = [
@@ -25,8 +31,15 @@ client = [
     "PyAutoGUI>=0.9.54",
     "Pillow>=11.0",
 ]
+client-extension = [
+    "capstone>=5.0.6,<6",
+]
 test = [
+    "capstone>=5.0.6,<6",
     "jsonschema>=4.23",
+    "Pillow>=11.0",
+    "PyAutoGUI>=0.9.54",
+    "pytest>=8.3",
     "ruff>=0.12",
 ]
 
@@ -34,11 +47,13 @@ test = [
 where = ["src"]
 
 [tool.setuptools.package-data]
+"shadowbane_lab.navigation_inspector" = ["build_identity.json"]
 "shadowbane_lab.rulesets" = ["data/*.json"]
 "shadowbane_lab.differential" = ["data/*.json"]
 "shadowbane_lab.client_observation" = ["data/*.json"]
 "shadowbane_lab.manager" = ["static/*.html"]
 "shadowbane_lab.progression" = ["data/*.json"]
+"shadowbane_lab.equipment" = ["data/*.json"]
 
 [tool.ruff]
 line-length = 100
@@ -46,3 +61,16 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# The texture-engine consolidation predates this branch by one commit. Limit the temporary
+# exception to its two existing line-wrap findings while the asset facade remains fully linted.
+"src/shadowbane_lab/client_extension/texture_cache.py" = ["E501"]
+"tests/test_texture_cache_engine.py" = ["E501"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "tests"]
+testpaths = ["tests"]
+
+[tool.setuptools.data-files]
+"share/shadowbane-lab/sky-horizon" = ["assets/sky-horizon/clear-day.sky", "assets/sky-horizon/clear-day.json", "assets/sky-horizon/manifest.json"]

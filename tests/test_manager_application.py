@@ -1,5 +1,12 @@
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import Mock
 
+from shadowbane_lab.client_extension.runtime_status import (
+    ExtensionRuntimeSnapshot,
+    ExtensionRuntimeState,
+)
 from shadowbane_lab.client_input import WindowBounds
 from shadowbane_lab.manager.application import ManagerDashboardApplication
 from shadowbane_lab.manager.dashboard import DashboardError
@@ -205,6 +212,7 @@ class _StaticWorkerSupervisor:
         *,
         instance_id: str | None,
         lifecycle_dispatch_enabled: bool,
+        renew_permit: bool = True,
     ) -> WorkerSlotHealthSnapshot:
         if instance_id is None:
             return WorkerSlotHealthSnapshot(
@@ -248,12 +256,44 @@ class _StaticOperationStatus:
         return self.snapshots
 
 
+class _RecordingExtensionStatus:
+    def __init__(self) -> None:
+        self.inspections: list[tuple[int | None, int | None]] = []
+
+    def inspect(
+        self,
+        process_id: int | None,
+        process_creation_filetime_utc: int | None,
+    ) -> ExtensionRuntimeSnapshot:
+        self.inspections.append((process_id, process_creation_filetime_utc))
+        if process_id is None:
+            return ExtensionRuntimeSnapshot(
+                state=ExtensionRuntimeState.UNBOUND,
+                ready=False,
+            )
+        assert process_creation_filetime_utc is not None
+        return ExtensionRuntimeSnapshot(
+            state=ExtensionRuntimeState.INITIALIZED,
+            ready=True,
+            process_id=process_id,
+            process_creation_filetime_utc=process_creation_filetime_utc,
+            extension_version="1.0.0",
+            abi_version=1,
+            initialized_at_filetime_utc=process_creation_filetime_utc + 1,
+            heartbeat_file_name=(f"heartbeat-{process_id}-{process_creation_filetime_utc}.json"),
+        )
+
+
 def _application(
     session: _RecordingSession,
     *clients: ClientInstanceSnapshot,
     worker_state: WorkerHealthState = WorkerHealthState.HEALTHY,
     worker_controller: _RecordingWorkerController | None = None,
     operation_status: _StaticOperationStatus | None = None,
+    extension_status: _RecordingExtensionStatus | None = None,
+    vendor_control=None,
+    guard_control=None,
+    condemn_control=None,
 ) -> tuple[ManagerDashboardApplication, _StaticRegistry]:
     registry = _StaticRegistry(
         ClientRegistrySnapshot(
@@ -283,6 +323,10 @@ def _application(
             worker_supervisor,
             worker_controller=worker_controller,
             operation_status=operation_status,
+            extension_status=extension_status,
+            vendor_control=vendor_control,
+            guard_control=guard_control,
+            condemn_control=condemn_control,
             launch_timeout_seconds=12.0,
             poll_seconds=0.25,
         ),
@@ -291,6 +335,104 @@ def _application(
 
 
 class ManagerDashboardApplicationTests(unittest.TestCase):
+    def test_condemn_selection_requires_current_exact_binding(self):
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(ManagerSessionSnapshot(
+            node_id=NODE_ID,
+            slots=(_slot("client-01", instance_id=bound.instance_id), _slot("client-02")),
+        ))
+        control = Mock()
+        control.summary.return_value = {"prepared": None, "job": None}
+        application, _ = _application(session, bound, condemn_control=control)
+        selection = dict(preparation_id="operation-" + "a" * 32, sha256="b" * 64,
+                         crests=["5:20"], buildings=[100])
+        application.execute("condemn-start", client_id="client-01",
+                            instance_id=bound.instance_id, selection=selection)
+        control.execute.assert_called_once_with("condemn-start", "client-01", bound.instance_id,
+                                                job_id=None, selection=selection)
+        self.assertTrue(application.status()["slots"][0]["condemn_available"])
+        with self.assertRaises(DashboardError):
+            application.execute("condemn-start", client_id="client-01",
+                                instance_id="other", selection=selection)
+        self.assertEqual(control.execute.call_count, 1)
+
+    def test_guard_controls_and_progress_require_current_exact_binding(self):
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(ManagerSessionSnapshot(
+            node_id=NODE_ID,
+            slots=(_slot("client-01", instance_id=bound.instance_id), _slot("client-02")),
+        ))
+        control = Mock()
+        control.summary.return_value = {"job": {"upgrades_started": 3}}
+        application, registry = _application(session, bound, guard_control=control)
+        for action in ("guard-discover", "guard-start", "guard-pause",
+                       "guard-resume", "guard-stop"):
+            kwargs = {"job_id": "operation-" + "a" * 32} if action in {
+                "guard-start", "guard-pause", "guard-resume", "guard-stop",
+            } else {}
+            application.execute(action, client_id="client-01", instance_id=bound.instance_id,
+                                **kwargs)
+            control.execute.assert_called_with(action, "client-01", bound.instance_id,
+                                               job_id=kwargs.get("job_id"))
+        self.assertEqual(3, application.status()["slots"][0]["guard"]["job"]["upgrades_started"])
+        self.assertTrue(application.status()["slots"][0]["guard_available"])
+        before = control.execute.call_count
+        with self.assertRaises(DashboardError):
+            application.execute("guard-start", client_id="client-01", instance_id="other")
+        self.assertEqual(before, control.execute.call_count)
+        self.assertEqual([], session.calls)
+
+    def test_vendor_actions_and_status_require_current_exact_binding(self):
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(ManagerSessionSnapshot(
+            node_id=NODE_ID,
+            slots=(_slot("client-01", instance_id=bound.instance_id), _slot("client-02")),
+        ))
+        control = Mock()
+        control.summary.return_value = {"state": "cooking", "created": 3}
+        application, registry = _application(session, bound, vendor_control=control)
+        for action in ("vendor-start", "vendor-pause", "vendor-resume", "vendor-stop"):
+            application.execute(action, client_id="client-01", instance_id=bound.instance_id)
+            control.execute.assert_called_with(action, "client-01", bound.instance_id, job_id=None)
+        self.assertEqual(3, application.status()["slots"][0]["vendor"]["created"])
+        self.assertTrue(application.status()["slots"][0]["vendor_available"])
+        before = control.execute.call_count
+        with self.assertRaises(DashboardError):
+            application.execute("vendor-start", client_id="client-01", instance_id="other")
+        self.assertEqual(before, control.execute.call_count)
+        self.assertEqual([], session.calls)
+
+    def test_status_exposes_extension_health_for_exact_process_lifetime(self) -> None:
+        bound = _client("instance-101", 101)
+        session = _RecordingSession(
+            ManagerSessionSnapshot(
+                node_id=NODE_ID,
+                slots=(
+                    _slot("client-01", instance_id=bound.instance_id),
+                    _slot("client-02"),
+                ),
+            )
+        )
+        extension_status = _RecordingExtensionStatus()
+        application, _ = _application(
+            session,
+            bound,
+            extension_status=extension_status,
+        )
+
+        status = application.status()
+
+        self.assertEqual(1, status["extension_ready_count"])
+        self.assertEqual("initialized", status["slots"][0]["extension"]["state"])
+        self.assertEqual("unbound", status["slots"][1]["extension"]["state"])
+        self.assertEqual(
+            [
+                (bound.process_id, bound.process_started_at_100ns),
+                (None, None),
+            ],
+            extension_status.inspections,
+        )
+
     def test_reconciliation_adopts_each_safe_open_instance_once(self) -> None:
         first = _client("instance-101", 101)
         second = _client("instance-202", 202)
@@ -320,6 +462,58 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
             [("client-01", first.instance_id), ("client-02", second.instance_id)],
             controller.starts,
         )
+
+    def test_slow_reconciliation_does_not_starve_exact_worker_renewal(self) -> None:
+        for scenario in ("healthy", "paused", "exited", "replaced"):
+            with self.subTest(scenario=scenario):
+                bound = _client("instance-101", 101)
+                session = _RecordingSession(ManagerSessionSnapshot(
+                    node_id=NODE_ID,
+                    slots=(_slot("client-01", instance_id=bound.instance_id), _slot("client-02")),
+                ))
+                application, registry = _application(session, bound)
+                worker = registry.worker_supervisor
+                worker.inspect = Mock(wraps=worker.inspect)
+                entered, release = threading.Event(), threading.Event()
+                original = session.refresh
+
+                def slow_refresh(entered=entered, release=release, original=original):
+                    entered.set()
+                    if not release.wait(5):
+                        raise RuntimeError("test refresh was not released")
+                    return original()
+
+                session.refresh = slow_refresh
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    pending = pool.submit(application.reconcile_instances)
+                    try:
+                        self.assertTrue(entered.wait(2))
+                        if scenario == "paused":
+                            session.snapshot_value = ManagerSessionSnapshot(
+                                node_id=NODE_ID,
+                                slots=(
+                                    _slot("client-01", instance_id=bound.instance_id,
+                                          state=ManagerSlotState.PAUSED),
+                                    _slot("client-02"),
+                                ),
+                            )
+                        elif scenario in {"exited", "replaced"}:
+                            registry.snapshot = ClientRegistrySnapshot(
+                                node_id=NODE_ID,
+                                clients=(
+                                    () if scenario == "exited" else (_client("instance-202", 202),)
+                                ),
+                            )
+                        application.supervise()
+                        calls = [call for call in worker.inspect.call_args_list
+                                 if call.args == ("client-01",)]
+                        self.assertEqual(1, len(calls))
+                        self.assertEqual(scenario == "healthy",
+                                         calls[0].kwargs["lifecycle_dispatch_enabled"])
+                        self.assertEqual(bound.instance_id, calls[0].kwargs["instance_id"])
+                    finally:
+                        release.set()
+                    pending.result(timeout=2)
 
     def test_reconciliation_releases_worker_after_verified_exit(self) -> None:
         bound = _client("instance-101", 101)
@@ -632,7 +826,7 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
 
         self.assertEqual(
             [
-                ("start-all", 12.0, 0.25),
+                ("start", "client-02", 12.0, 0.25),
                 ("refresh",),
                 ("tile-all",),
                 ("start", "client-02", 12.0, 0.25),

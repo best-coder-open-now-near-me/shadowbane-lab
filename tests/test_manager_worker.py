@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from shadowbane_lab.manager.manifest import parse_manager_manifest
 from shadowbane_lab.manager.supervisor import ProcessLifetimeSnapshot
@@ -146,6 +147,89 @@ class ManagerWorkerTests(unittest.TestCase):
         )
         self.assertTrue(gate.allows_dispatch())
         self.assertFalse(gate.is_set())
+
+
+    def test_transient_permit_read_lock_recovers_but_never_extends_expiry(self):
+        self.ledger.publish(_heartbeat())
+        self._supervisor().inspect(
+            CLIENT_ID, instance_id=INSTANCE_ID, lifecycle_dispatch_enabled=True,
+        )
+        now = [1001.5]
+        gate = WorkerDispatchGate(
+            self.ledger, node_id=NODE_ID, client_id=CLIENT_ID, instance_id=INSTANCE_ID,
+            worker_id=WORKER_ID, process=self.process, clock=lambda: now[0],
+        )
+        original = Path.open
+        attempts = [0]
+        def locked(path, *args, **kwargs):
+            if path.name == "dispatch.permit":
+                attempts[0] += 1
+                if attempts[0] < 3:
+                    raise PermissionError(13, "temporary Windows lock")
+            return original(path, *args, **kwargs)
+        with patch.object(Path, "open", locked):
+            self.assertTrue(gate.allows_dispatch())
+        self.assertEqual(3, attempts[0])
+        attempts[0] = 0
+        def expires_during_read(path, *args, **kwargs):
+            if path.name == "dispatch.permit":
+                now[0] = 1004
+            return locked(path, *args, **kwargs)
+        with patch.object(Path, "open", expires_during_read):
+            self.assertFalse(gate.allows_dispatch())
+        with patch.object(Path, "open", side_effect=PermissionError(13, "permanent denial")):
+            self.assertFalse(gate.allows_dispatch())
+
+    def test_dispatch_diagnostic_uses_the_same_strict_fresh_permit(self):
+        self.ledger.publish(_heartbeat())
+        self._supervisor().inspect(
+            CLIENT_ID, instance_id=INSTANCE_ID, lifecycle_dispatch_enabled=True,
+        )
+        now = [1001.5]
+        gate = WorkerDispatchGate(
+            self.ledger, node_id=NODE_ID, client_id=CLIENT_ID, instance_id=INSTANCE_ID,
+            worker_id=WORKER_ID, process=self.process, clock=lambda: now[0],
+        )
+        self.assertIsNone(gate.denial_reason())
+        now[0] = 1004
+        self.assertIn("expired", gate.denial_reason())
+        with patch.object(self.ledger, "inspect_permit", side_effect=PermissionError("locked")):
+            self.assertIn("PermissionError", gate.denial_reason())
+        with patch.object(self.ledger, "inspect_permit", return_value=None):
+            self.assertEqual("dispatch permit is missing", gate.denial_reason())
+        self._supervisor(now=1004).revoke(CLIENT_ID, reason="owner paused client")
+        self.assertIn("owner paused client", gate.denial_reason())
+
+    def test_worker_record_replace_retries_transient_reader_lock(self) -> None:
+        self.ledger.publish(_heartbeat())
+        original_replace = Path.replace
+        attempts = 0
+
+        def intermittently_locked(source: Path, target: Path) -> Path:
+            nonlocal attempts
+            if source.name.startswith(".dispatch."):
+                attempts += 1
+                if attempts < 3:
+                    raise PermissionError(13, "record is transiently locked", str(target))
+            return original_replace(source, target)
+
+        with (
+            patch.object(Path, "replace", intermittently_locked),
+            patch("shadowbane_lab.manager.worker.sleep") as retry_sleep,
+        ):
+            health = self._supervisor().inspect(
+                CLIENT_ID,
+                instance_id=INSTANCE_ID,
+                lifecycle_dispatch_enabled=True,
+            )
+
+        self.assertTrue(health.dispatch_allowed)
+        self.assertEqual(3, attempts)
+        self.assertEqual([0.01, 0.02], [call.args[0] for call in retry_sleep.call_args_list])
+        permit = self.ledger.inspect_permit(CLIENT_ID)
+        self.assertIsNotNone(permit)
+        assert permit is not None
+        self.assertTrue(permit.allowed)
 
     def test_lifecycle_pause_blocks_dispatch_without_hiding_worker_health(self) -> None:
         self.ledger.publish(_heartbeat())

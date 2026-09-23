@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shadowbane-lab.invalid/schemas/research-case-v1.schema.json",
+  "title": "Shadowbane Lab research case v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "case_id", "revision", "title", "owner", "created_at_utc",
+    "target_profile", "coverage_domains", "question", "hypotheses", "state",
+    "blocked_reason", "claim_ids", "contradiction_groups", "simulator_bindings", "gap_ids",
+    "required_fingerprint_sections", "required_capture_channels", "experiments",
+    "run_manifest_ids", "conclusion", "reviewer", "limitations", "invalidation_conditions",
+    "follow_up_case_ids"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "case_id": {"$ref": "#/$defs/identifier"},
+    "revision": {"type": "integer", "minimum": 1, "maximum": 1000000},
+    "title": {"type": "string", "minLength": 1, "maxLength": 512},
+    "owner": {"$ref": "#/$defs/identifier"},
+    "created_at_utc": {"type": "string", "pattern": "Z$"},
+    "target_profile": {"$ref": "#/$defs/identifier"},
+    "coverage_domains": {"$ref": "#/$defs/strings"},
+    "question": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "hypotheses": {
+      "type": "array", "minItems": 2, "maxItems": 10000,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["hypothesis_id", "statement", "discriminating_observations"],
+        "properties": {
+          "hypothesis_id": {"$ref": "#/$defs/identifier"},
+          "statement": {"type": "string", "minLength": 1, "maxLength": 4096},
+          "discriminating_observations": {"$ref": "#/$defs/strings"}
+        }
+      }
+    },
+    "state": {"enum": ["draft", "ready", "collecting", "evidence_complete", "reviewed", "closed"]},
+    "blocked_reason": {"type": ["string", "null"]},
+    "claim_ids": {"$ref": "#/$defs/strings"},
+    "contradiction_groups": {"$ref": "#/$defs/strings"},
+    "simulator_bindings": {"$ref": "#/$defs/strings"},
+    "gap_ids": {"$ref": "#/$defs/strings"},
+    "required_fingerprint_sections": {
+      "type": "array", "uniqueItems": true,
+      "items": {"enum": ["client", "environment", "execution", "fixture", "runtime", "service"]}
+    },
+    "required_capture_channels": {"$ref": "#/$defs/strings"},
+    "experiments": {
+      "type": "array", "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["experiment_id", "revision"],
+        "properties": {
+          "experiment_id": {"$ref": "#/$defs/identifier"},
+          "revision": {"type": "integer", "minimum": 1, "maximum": 1000000}
+        }
+      }
+    },
+    "run_manifest_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/artifact_id"}},
+    "conclusion": {"type": ["string", "null"]},
+    "reviewer": {"type": ["string", "null"]},
+    "limitations": {"$ref": "#/$defs/strings"},
+    "invalidation_conditions": {"$ref": "#/$defs/strings"},
+    "follow_up_case_ids": {"$ref": "#/$defs/strings"}
+  },
+  "$defs": {
+    "identifier": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"},
+    "artifact_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "strings": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 4096}}
+  }
+}

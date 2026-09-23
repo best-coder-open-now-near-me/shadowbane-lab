@@ -1,0 +1,30 @@
+{
+  "cache_relative_path": "cache/Textures.cache",
+  "patch_id": "wonderbane-1.0.5-55fbad5f.restrained-cel-v1",
+  "replacements": [
+    {
+      "artifact_file_name": "shadowbane-beast-1706016-basecolor-hand-grade-sigmoid-claws.png",
+      "artifact_sha256": "9ee9e5f01b97ea41c31062c0b094940a2aa1ca454a0fce2796b158e3300ac59c",
+      "depth": 4,
+      "group_id": 0,
+      "height": 1024,
+      "resource_id": 1706002,
+      "result_payload_sha256": "fe4cd1caaabd68f0232d69f171bcae85fda0eec68ca0a780143f42be8d761d84",
+      "source_payload_sha256": "e53a1cf37b00dcb3f681c713b864c3bef423fca1c8dcb300b36c438d92a077c8",
+      "width": 1024
+    },
+    {
+      "artifact_file_name": "13306_5000191-accent-final.png",
+      "artifact_sha256": "6dbddd6ee597e1da276dcacb52f9ae72908c053c5f8e5b658f7de453e915c61a",
+      "depth": 3,
+      "group_id": 0,
+      "height": 1024,
+      "resource_id": 5000190,
+      "result_payload_sha256": "8e381fef68da97dd4ffc4ad5181b9a3a9c138d3980666798606b8ce5cb6bff61",
+      "source_payload_sha256": "c314b1f639b4ad487485658b55b57f92d250eec3fb09218ab7e4730ebe979ed5",
+      "width": 1024
+    }
+  ],
+  "schema_version": 1,
+  "source_cache_sha256": "cb3ea8c036e4227a7d0a7d02d72f49229c8365e190dd7535318aec753e7c3b3e"
+}

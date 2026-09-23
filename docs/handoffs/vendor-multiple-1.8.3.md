@@ -1,0 +1,159 @@
+# Vendor multiple-slot candidate 1.8.3 / host 0.3.11
+
+Branch: `codex/vendor-rolling`. Integration destination:
+`codex/native-lifecycle-hardening`, then reviewed `main`. This work is not merged.
+The test runtime is now native 1.8.3 / host 0.3.11. Launch, loaded DLL,
+manager/worker binding and desktop shortcuts are verified; the live multiple-slot
+Create has passed with one free slot. Automatic Keep of that item is pending.
+
+## Live basis
+
+On September 14, the owner clicked Create in Malik's Create Multiple Items
+window with the random Gilded Scepter selected, quantity 1 and three free slots.
+The passive trace recorded one outgoing Produce request (wire quantity 0,
+multiple-slot flag 1), three successful server confirmations, and three distinct
+item IDs. An independent queue read matched all three as cooking. All replies
+reported remaining count 0. The tracer finished and detached normally.
+The recipe closed after Create. This qualifies quantity 1 only; larger quantities
+remain rejected. It does not establish the cause of the earlier single-Create
+timeout.
+
+Private evidence remains in the test runtime's vendor-manager directory:
+`multiple-create-qualified.json`, the timestamped multiple-create trace, and
+`multiple-create-trace-status.json`. No raw capture or client binary is published.
+The later queue read failed because the selected vendor was unavailable;
+the manual batch's current disposition is unconfirmed.
+
+## Implemented behavior
+
+The native controller snapshots the free-slot count before dispatch. Multiple
+mode expects that many new items; single mode still expects one. Partial arrivals
+remain pending. Removed or excess items, owner changes and invalid observations
+make the request unresolved. Repeating a request returns the cached submission
+without another invocation. A completed receipt identifies one member and carries
+the full queue snapshot for host reconciliation.
+
+The host persists the expected count before sending, then records all additions
+atomically only after the exact request's full transition. Recipe closure does
+not invalidate a pending receipt or require reopening after a full queue is
+confirmed. Partial timeouts never retry or authorize Keep. Rank growth does not
+expand the request already submitted; subsequent free capacity requires the
+same qualified recipe mode before another request.
+
+Single-item Create journals remain schema 1. Multiple-slot journals use schema 2,
+with expected_item_count and item_ids per request. Keep validates the complete
+request chain and retains unknown affixes once, with inventory confirmation.
+Confirmed Tier 1/2 exclusions remain queued; automatic disposal is still disabled.
+Existing single-item journals remain readable.
+
+Native 1.8.3 is required for multiple-slot automatic dispatch. Native 1.8.2
+rejects that command without dispatch; a host upgrade alone is insufficient.
+No wire envelope size or command number changed.
+
+## Initial source validation
+
+The focused suite passed 74 tests plus 106 subtests. The full host run passed
+2170 tests with 15 skips and 597 subtests, with one version-consistency failure;
+all five tests in that version suite passed after correcting all runtime version
+surfaces. Whole-tree Ruff passed. The Win32 full build passed all 142 executed required
+native tests; three image-binding tests skipped without their private inputs and
+will run explicitly in the exact package builder.
+
+Those native/package gates are complete in the receipt below. Installed live
+multiple-slot Create and Keep remain pending against a fresh process. Preserve the three manual
+diagnostic items; do not fabricate a manager journal to adopt them. Native window
+opening and exclusion/disposal/resources remain broader unfinished vendor work.
+
+## Exact package - September 14
+
+Packaged source: `bd08ffc33b768e7ea934f89613c12e819a075d20`.
+Private package: `E:/Projects/shadowbane/artifacts/vendor-packages/111da90e`.
+All 60 manifest file hashes/sizes and ZIP CRC verified.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| ZIP | 6b116601cb3e58a5959b955b0c3e26a0495992c3b62371b5ba4b65ebab1fb289 |
+| Full DLL | c6189c4256345d385203a1a5787f52aecc989a40c20dff47fcf587c1458ea055 |
+| Host wheel | cc0210a489006a4101a24ba3b9dcdd01f754ff12f30136d18a77712a04eb1958 |
+| Bootstrap manifest for sb.exe | 8a802184e9d7ed762a5ed70026764714726f4e6dc811969567a8be47e7fca227 |
+
+The exact builder passed 2171 Python tests (12 skips), whole-tree Ruff, both
+Win32 profiles' 142 executed required native tests, explicit private image-binding
+checks, IPC suites, and installed-wheel contracts. The two known ideal-transparency
+diagnostics still fail in both profiles and remain recorded separately; they do
+not qualify unrelated graphics work.
+
+All seven [CI jobs passed](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/34911296025)
+for the packaged source. The source is pushed to the feature branch; no merge or
+PR is implied.
+
+VM preparation uses a new `C:/ShadowbaneLab-Guided/vendor-1.8.3-bd08ffc`
+directory because S has insufficient free space for another full client.
+The original game and manager remain untouched. The candidate launcher imports
+current Config settings once after the old game closes, preserves the baseline
+Config archive, and verifies package and loaded DLL identity. No new game has
+been launched. Private staged inputs/scripts:
+`E:/virtual-machines/shadowbane-testing/diagnostics/vendor-1.8.3-bd08ffc`.
+
+Preparation completed at 2026-09-15T00:07:37Z (September 14 locally).
+The installed wheel/source and DLL version/hash were independently rechecked.
+The old game process remained running unchanged. About 897 MiB remains on C.
+The candidate launcher is staged and syntax-checked; no shortcut switch, new
+manager startup, or game launch has occurred.
+
+Next: close the current game, switch the game/manager to the candidate,
+then qualify one automatic multiple-slot batch and Keep. Existing old-instance
+journals remain private and must never be resumed against a new process.
+
+## Verified launch and manager switch
+
+The owner closed the previous game. The prepared client launched at
+2026-09-15T00:12:47Z (September 14 locally), loaded the exact full DLL above, and
+preserved current settings through the one-time import. The private launch
+receipt binds the new executable, process lifetime and window.
+
+The old manager had no discovered clients after that game closed. Its exact
+process and manifest were checked before stopping it. A fresh host 0.3.11 manager
+uses the candidate's separate manifest, token and worker-state directory. The
+installed host source, healthy worker, vendor capability, new game lifetime and
+window all passed verification. No crafting job was submitted or resumed.
+
+Both existing test VM desktop links, WonderBane Vendor Test and WonderBane Vendor
+Dashboard, now target the new runtime. Their old copies are preserved privately
+under the candidate's vendor-manager/previous-shortcuts directory. The dashboard
+opener supplies the candidate's authentication token without exposing it.
+
+The immediate queue read did not find a valid in-world game root, so it could not
+inspect Malik or the earlier manual items. Next: log in as Treehugger and open
+Malik's quantity-1 random Gilded Scepter recipe in Create Multiple Items, inspect
+current production, then qualify one automatic capacity batch and Keep.
+
+## First automatic multiple-mode Create
+
+After login, independent observation found Malik at capacity four: three
+completed items from the manual trace and one empty slot. The random Gilded
+Scepter recipe was in multiple-slot mode, quantity 1. Exact process/window,
+building, vendor, recipe, foreground readiness and idle-operation checks passed.
+
+One manager Start submitted one native Create. The schema-2 journal recorded
+expected_item_count 1 and one observed item. An independent queue read matched
+that item as cooking and confirmed all three pre-existing completed items remained.
+This verifies automatic dispatch through the multiple-mode path with one free
+slot; it is not yet an automatic multi-addition qualification.
+
+The live job remains cooking with no Keep sent. The owner was asked to open
+Malik's Inventory for inventory-confirmed automatic Keep. No manual item was
+adopted and no disposal or replacement batch was started. Private evidence:
+vendor-manager/multiple-start-request.json, multiple-live-observation.json,
+multiple-qualified.json and the native manager's per-job journals.
+
+Next: verify this item's automatic Keep, then qualify automatic multiple-mode
+Create with several free slots when capacity is available.
+
+## Priority change: town-wide management
+
+The item completed, but the manager stopped in review with an ownership/operation
+change before any Keep. The live queue still contains all four items and Inventory
+was not observed. The owner redirected work to selecting buildings and operating
+all vendors in town. The [town plan](../town-vendor-plan.md) is now the active
+sequence; this job stays preserved and is not replayed.

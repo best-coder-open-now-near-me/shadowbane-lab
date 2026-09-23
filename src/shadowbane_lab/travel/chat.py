@@ -95,11 +95,14 @@ class GoChatCommandAssembler:
             for command in (
                 "/go",
                 "/pve",
+                "/blacklist",
                 "/stop",
                 "/zone",
                 *GoChatCommandAssembler._DIRECT_COMMAND_ALIASES,
             )
         ):
+            return True
+        if normalized.startswith("/blacklist "):
             return True
         if normalized.startswith("/go "):
             return True
@@ -126,6 +129,8 @@ class GoChatCommandAssembler:
             normalized == "/go"
             or normalized.startswith("/go ")
             or normalized.rstrip() == "/pve"
+            or normalized.rstrip() == "/blacklist"
+            or normalized.startswith("/blacklist ")
             or normalized.rstrip() == "/stop"
             or normalized.rstrip() == "/zone"
             or normalized.startswith("/zone ")
@@ -206,6 +211,7 @@ class WindowsGoChatCommandListener:
         on_command: Callable[[str], None],
         on_interaction: Callable[[], None] | None = None,
         on_pointer: Callable[[PhysicalPointerInteraction], None] | None = None,
+        pointer_claims_interaction: Callable[[PhysicalPointerInteraction], bool] | None = None,
     ) -> None:
         if not isinstance(guard, ForegroundWindowGuard):
             raise ValueError("guard must be ForegroundWindowGuard")
@@ -215,10 +221,13 @@ class WindowsGoChatCommandListener:
             raise ValueError("on_interaction must be callable when present")
         if on_pointer is not None and not callable(on_pointer):
             raise ValueError("on_pointer must be callable when present")
+        if pointer_claims_interaction is not None and not callable(pointer_claims_interaction):
+            raise ValueError("pointer_claims_interaction must be callable when present")
         self._guard = guard
         self._on_command = on_command
         self._on_interaction = on_interaction
         self._on_pointer = on_pointer
+        self._pointer_claims_interaction = pointer_claims_interaction
         self._assembler = GoChatCommandAssembler()
         self._closed = threading.Event()
         self._ready = threading.Event()
@@ -574,7 +583,12 @@ class WindowsGoChatCommandListener:
             return
         self._assembler.reset()
         cancels_active_operation = interaction is None or interaction.button != "middle"
-        if cancels_active_operation and self._on_interaction is not None:
+        claimed = bool(
+            interaction is not None
+            and self._pointer_claims_interaction is not None
+            and self._pointer_claims_interaction(interaction)
+        )
+        if cancels_active_operation and not claimed and self._on_interaction is not None:
             self._on_interaction()
         if interaction is not None and self._on_pointer is not None:
             self._submitted_pointers += 1

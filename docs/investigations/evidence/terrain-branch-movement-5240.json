@@ -1,0 +1,55 @@
+{
+  "cleanup": {
+    "debug_register_clear_completed": true,
+    "debugger_worker_exited": true,
+    "explicit_detach_error": "DebugActiveProcessStop failed: [WinError 5] Access is denied.",
+    "explicit_detach_succeeded": false,
+    "post_exit_debugger_present": false,
+    "post_exit_repaired_signatures": {
+      "edge_0": "eb68",
+      "edge_1": "e97a000000",
+      "edge_2": "e90f010000",
+      "edge_3": "e984000000"
+    },
+    "process_exit_detach_required": true
+  },
+  "completed_at_utc": "2026-09-03T17:49:32.174863Z",
+  "elapsed_seconds": 15.047,
+  "executable_path": "S:\\ShadowbaneLab-Guided\\20260903-ed9aa5b\\Wonderbane-graphics-wb-55fbad5f-4b602995-cel-1.6.13\\sb.exe",
+  "executable_sha256": "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8",
+  "extension_sha256": "01e4297798c3c2ca4212d997f0793b8a4af0bb98d429f31d9e07a9dc029f42a4",
+  "hit_event_count": 0,
+  "image_base": "0x00400000",
+  "interpretation": "A hit proves only that the matching-material edge-copy completion branch executed; zero hits do not attribute the visible seam to another path without a movement run.",
+  "observations": [],
+  "process_creation_filetime_utc": 134329293478567243,
+  "process_id": 5240,
+  "profile_id": "wonderbane-a9a5-terrain-edge-copy-v1",
+  "repaired_signatures_before": {
+    "edge_0": "eb68",
+    "edge_1": "e97a000000",
+    "edge_2": "e90f010000",
+    "edge_3": "e984000000"
+  },
+  "repaired_signatures_while_attached": {
+    "edge_0": "eb68",
+    "edge_1": "e97a000000",
+    "edge_2": "e90f010000",
+    "edge_3": "e984000000"
+  },
+  "schema_version": 1,
+  "scope": {
+    "breakpoint_role_disabled_on_each_hit": true,
+    "client_code_writes": false,
+    "client_data_writes": false,
+    "game_input": "operator-keyboard",
+    "memory_scans": false,
+    "pixels_read": false,
+    "retained_observations_one_per_role": true,
+    "texture_bytes_read": false,
+    "thread_debug_registers_temporarily_modified": true
+  },
+  "started_at_utc": "2026-09-03T17:49:10.868367Z",
+  "status": "captured_no_branch_activity",
+  "unique_branch_count": 0
+}

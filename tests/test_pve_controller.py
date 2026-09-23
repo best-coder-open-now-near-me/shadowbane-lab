@@ -17,6 +17,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetIdentityReadError,
     NativeTargetPositionObservation,
 )
+from shadowbane_lab.navigation_inspector.events import PlanEvent
 from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.pve import (
     CombatLogSource,
@@ -1670,8 +1671,9 @@ class PvEApproachControllerTests(unittest.TestCase):
         self.assertEqual("arrived", arrived.status.value)
         self.assertTrue(arrived.decision.terminal)
 
-    def test_stalled_native_chase_replans_with_astar_before_blind_escape(self) -> None:
+    def test_stalled_native_chase_backtracks_before_astar_replan(self) -> None:
         navigation = SparseNavigationMap()
+        events = []
         approach = PvEApproachController(
             PvEApproachConfig(
                 native_progress_grace_ms=100,
@@ -1684,6 +1686,7 @@ class PvEApproachControllerTests(unittest.TestCase):
                 ),
             ),
             navigation_map=navigation,
+            planner=WeightedAStarPlanner(observer=events.append),
         )
 
         def observe(now_ms: int):
@@ -1702,11 +1705,20 @@ class PvEApproachControllerTests(unittest.TestCase):
         self.assertEqual(TravelManeuver.DIRECT, observe(100).decision.maneuver)
         self.assertEqual(TravelManeuver.DIRECT, observe(200).decision.maneuver)
 
-        replanned = observe(300)
+        backtrack = observe(300)
+        replanned = observe(400)
 
+        self.assertEqual("moving", backtrack.status.value)
+        self.assertEqual(TravelManeuver.ESCAPE_BACKTRACK, backtrack.decision.maneuver)
+        assert backtrack.decision.click_destination is not None
+        self.assertEqual(90.0, backtrack.decision.click_destination.x)
+        self.assertEqual(200.0, backtrack.decision.click_destination.y)
+        self.assertGreater(len(navigation.blocked), 0)
         self.assertEqual("moving", replanned.status.value)
         self.assertEqual(TravelManeuver.DIRECT, replanned.decision.maneuver)
-        self.assertGreater(len(navigation.blocked), 0)
+        plans = [event for event in events if isinstance(event, PlanEvent)]
+        self.assertEqual(10.0, plans[-1].cell_size)
+        self.assertEqual(1, plans[-1].planner_clearance_cells)
 
     def test_initial_astar_no_route_becomes_recoverable_approach_failure(self) -> None:
         class NoRoutePlanner(WeightedAStarPlanner):
@@ -2141,33 +2153,38 @@ class PvERunnerTests(unittest.TestCase):
             dispatcher.intents,
         )
 
-    def test_runner_dispatches_astar_approach_then_attacks_on_arrival(self) -> None:
+    def test_runner_preserves_combat_actions_while_verifying_approach_arrival(self) -> None:
         clock = AdvancingClock()
         combat_dispatcher = RecordingPvEDispatcher()
         movement_dispatcher = RecordingMovementDispatcher()
         runner = PvERunner(
-            controller=PvEController(PvEControllerConfig(maximum_kills=1)),
+            controller=PvEController(
+                PvEControllerConfig(
+                    maximum_kills=1,
+                    opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
+                    opening_followup_delay_ms=200,
+                )
+            ),
             health_reader=SequenceHealthSource(
                 (
                     _absent(),
                     _target("turtle"),
                     _target("turtle"),
-                    _target("turtle"),
+                    *[_target("turtle")] * 9,
                     _target("turtle", current=0),
                 )
             ),
-            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 5),
-            player_position_reader=SequencePlayerPositionSource((_player_position(),) * 5),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 15),
+            player_position_reader=SequencePlayerPositionSource((_player_position(),) * 15),
             target_position_reader=SequenceTargetPositionSource(
                 (
                     _target_position(None),
                     _target_position("turtle", 200.0, 200.0),
                     _target_position("turtle", 200.0, 200.0),
-                    _target_position("turtle", 110.0, 200.0),
-                    _target_position("turtle", 110.0, 200.0),
+                    *[_target_position("turtle", 110.0, 200.0)] * 10,
                 )
             ),
-            combat_log_reader=SequenceCombatLogSource(((),) * 5),
+            combat_log_reader=SequenceCombatLogSource(((),) * 15),
             dispatcher=combat_dispatcher,
             approach_controller=PvEApproachController(
                 PvEApproachConfig(
@@ -2189,13 +2206,13 @@ class PvERunnerTests(unittest.TestCase):
 
         result = runner.run()
 
-        self.assertEqual(PvEPhase.COMPLETE, result.final_phase)
+        self.assertEqual(PvEPhase.COMPLETE, result.final_phase, result.terminal_reason)
         self.assertEqual(1, len(movement_dispatcher.decisions))
-        self.assertEqual(1, len(movement_dispatcher.stop_decisions))
+        self.assertEqual(0, len(movement_dispatcher.stop_decisions))
         self.assertEqual(
             [
                 PvEIntent.ACQUIRE_NEXT_MOB,
-                PvEIntent.ATTACK_SELECTED_TARGET,
+                PvEIntent.CAST_SHADOW_TOUCH,
                 PvEIntent.ATTACK_SELECTED_TARGET,
             ],
             combat_dispatcher.intents,
@@ -2204,7 +2221,15 @@ class PvERunnerTests(unittest.TestCase):
         self.assertEqual("moving", movement_steps[0].approach_status)
         self.assertTrue(movement_steps[0].approach_input_accepted)
         self.assertEqual("arrived", movement_steps[1].approach_status)
-        self.assertTrue(movement_steps[1].movement_stop_accepted)
+        self.assertIsNone(movement_steps[1].movement_stop_accepted)
+        self.assertIsNone(movement_steps[1].movement_arrival_confirmed)
+        self.assertTrue(movement_steps[2].movement_arrival_confirmed)
+        attacks = [
+            step for step in result.trace if step.input_accepted
+            and step.decision.intent is PvEIntent.ATTACK_SELECTED_TARGET
+        ]
+        self.assertEqual(1, len(attacks))
+        self.assertEqual(300, attacks[0].decision.now_ms)
         self.assertEqual("direct", movement_steps[0].as_dict()["approach"]["maneuver"])
 
     def test_runner_completes_one_native_observation_driven_kill(self) -> None:

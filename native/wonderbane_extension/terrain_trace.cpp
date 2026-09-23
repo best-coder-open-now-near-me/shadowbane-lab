@@ -1,0 +1,697 @@
+#include "terrain_trace.h"
+#include "extension_api.h"
+
+#include <algorithm>
+#include <array>
+#include <atomic>
+#include <cmath>
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
+#include <cwchar>
+#include <new>
+
+namespace wonderbane::extension {
+namespace {
+
+constexpr unsigned int kTexture2d = 0x0DE1U;
+constexpr unsigned int kTexture0 = 0x84C0U;
+constexpr std::size_t kMaxDraws = 8192U;
+constexpr std::size_t kMaxUnits = 4U;
+constexpr std::size_t kMaxStack = 24U;
+// The diagnostic is deliberately not usable as a frame-time benchmark.
+constexpr double kQueryBudgetSeconds = 0.250;
+enum class Phase { disabled, idle, armed, capturing, sealed, pending, publishing };
+
+struct GlApi {
+    void (APIENTRY* integer)(unsigned int, int*) = nullptr;
+    void (APIENTRY* real)(unsigned int, float*) = nullptr;
+    void (APIENTRY* parameter)(unsigned int, unsigned int, int*) = nullptr;
+    void (APIENTRY* level)(unsigned int, int, unsigned int, int*) = nullptr;
+    void (APIENTRY* environment)(unsigned int, unsigned int, int*) = nullptr;
+    const unsigned char* (APIENTRY* string)(unsigned int) = nullptr;
+    void (APIENTRY* active)(unsigned int) = nullptr;
+    HGLRC (WINAPI* context)() = nullptr;
+    PROC (WINAPI* proc)(LPCSTR) = nullptr;
+    void (APIENTRY* program)(unsigned int, unsigned int, int*) = nullptr;
+    void (APIENTRY* environment_real)(unsigned int, unsigned int, float*) = nullptr;
+};
+struct TextureState {
+    int enabled = 0, binding = 0;
+    // width, height, internal format, border; level zero only.
+    std::array<int, 4U> level{};
+    // min/mag filters, wrap S/T.
+    std::array<int, 4U> sampler{};
+    int env_mode = 0;
+    // 1D, 3D, cube, rectangle enables; -1 means not observed.
+    std::array<int, 4U> alternate_targets{};
+    std::array<int, 4U> texgen{}; // S,T,R,Q enables; parameters unnecessary when disabled.
+    std::array<float, 4U> env_color{};
+    // combine RGB/alpha, RGB sources 0..2, alpha sources 0..2,
+    // RGB operands 0..2, alpha operands 0..2, RGB/alpha scales.
+    std::array<int, 16U> combine{};
+    std::array<float, 16U> matrix{};
+};
+struct DrawRecord {
+    std::uint64_t qpc = 0;
+    std::uint32_t caller_rva = 0;
+    TerrainSubmission submission{};
+    unsigned int mode = 0, index_type = 0, list = 0;
+    int first = 0, count = 0;
+    bool list_source_stable = false;
+    unsigned int stack_count = 0;
+    std::array<std::uint32_t, kMaxStack> stack{};
+    // depth test/write/func, alpha test/func, blend/src/dst, lighting, fog, cull.
+    std::array<int, 11U> state{};
+    // -1 means unsupported/unqueried, never an inferred default.
+    std::array<float, 4U> blend_color{-1.0F, -1.0F, -1.0F, -1.0F};
+    std::array<int, 6U> blend_detail{}; // RGB src/dst, alpha src/dst, RGB/alpha equation
+    std::array<int, 15U> stencil_detail{}; // enable, front func/value/ref/write/fail/zfail/zpass, back equivalent
+    std::array<int, 4U> color_mask{};
+    int program = -1, framebuffer = -1, pipeline = -1;
+    // vertex enable/binding, fragment enable/binding. Absent capability: enable=0,
+    // binding=-1; advertised capability with missing helper: binding=-1.
+    std::array<int, 4U> arb_programs{};
+    // render mode, sample buffers/count, color sum, scissor, polygon offset fill,
+    // color logic op, maximum user clip planes. -1 is unavailable.
+    std::array<int, 8U> raster{};
+    std::array<int, 2U> polygon_mode{};
+    std::array<int, 4U> scissor_box{};
+    std::array<int, 6U> clip_planes{};
+    std::array<float, 2U> depth_range{};
+    float alpha_ref = 0.0F;
+    std::array<float, 4U> color{};
+    std::array<float, 16U> model_view{}, projection{};
+    std::array<int, 4U> viewport{};
+    int active_unit = 0;
+    bool active_unit_restored = true;
+    std::array<TextureState, kMaxUnits> textures{};
+};
+struct TraceFrame {
+    std::uint64_t sequence = 0, requested_qpc = 0, start_qpc = 0, end_qpc = 0;
+    std::uint64_t query_ticks = 0;
+    HGLRC context = nullptr;
+    DWORD thread = 0;
+    bool main_clear = false, done3d = false, extra_depth_clear = false;
+    bool context_mismatch = false, helpers_available = false;
+    bool multitexture = false, combine_supported = false;
+    bool gl14 = false, gl20 = false, framebuffer_supported = false;
+    bool blend_color_supported = false;
+    bool extensions_known = false, arb_vertex = false, arb_fragment = false;
+    bool unobserved_program_path = true, texture3d = false, cube = false, rectangle = false;
+    bool multisample = false, color_sum = false, pipeline_supported = false;
+    int compatibility = -1;
+    unsigned int unit_count = 0, omitted_units = 0;
+    std::uint64_t observed = 0, overflow = 0, unsafe = 0, budget_skipped = 0;
+    std::size_t retained = 0;
+    std::array<DrawRecord, kMaxDraws> draws{};
+};
+
+SRWLOCK g_lock = SRWLOCK_INIT;
+std::atomic<Phase> g_phase{Phase::disabled};
+TraceFrame* g_frame = nullptr;
+GlApi g_gl{};
+HANDLE g_request = nullptr;
+HANDLE g_idle = nullptr;
+std::uintptr_t g_image_base = 0;
+std::size_t g_image_size = 0;
+std::uint64_t g_creation = 0, g_frequency = 0, g_sequence = 0;
+DWORD g_pid = 0;
+wchar_t g_directory[MAX_PATH]{};
+char g_executable_sha256[65U]{};
+
+struct Exclusive {
+    Exclusive() noexcept { AcquireSRWLockExclusive(&g_lock); }
+    ~Exclusive() { ReleaseSRWLockExclusive(&g_lock); }
+};
+std::uint64_t Counter() noexcept {
+    LARGE_INTEGER value{};
+    QueryPerformanceCounter(&value);
+    return static_cast<std::uint64_t>(value.QuadPart);
+}
+bool Token(const char* text, const char* token) noexcept {
+    if (text == nullptr) { return false; }
+    const std::size_t size = std::strlen(token);
+    for (const char* at = text; (at = std::strstr(at, token)) != nullptr; at += size) {
+        if ((at == text || at[-1] == ' ') && (at[size] == '\0' || at[size] == ' ')) {
+            return true;
+        }
+    }
+    return false;
+}
+bool VersionAtLeast(const char* version, int wanted_major, int wanted_minor) noexcept {
+    int major = 0, minor = 0;
+    return version != nullptr && sscanf_s(version, "%d.%d", &major, &minor) == 2
+        && (major > wanted_major || (major == wanted_major && minor >= wanted_minor));
+}
+bool Version13(const char* version) noexcept { return VersionAtLeast(version, 1, 3); }
+bool ValidProc(PROC proc) noexcept {
+    const auto address = reinterpret_cast<std::uintptr_t>(proc);
+    return address > 3U && address != UINTPTR_MAX;
+}
+bool LocalOrdinaryDirectory(const wchar_t* path) noexcept {
+    // Refuse UNC, device paths, mapped network drives, and reparse parents.
+    if (path == nullptr || std::wcslen(path) < 3U || path[1] != L':'
+        || path[2] != L'\\') { return false; }
+    wchar_t root[]{path[0], L':', L'\\', L'\0'};
+    if (GetDriveTypeW(root) != DRIVE_FIXED) { return false; }
+    wchar_t prefix[MAX_PATH]{};
+    if (wcscpy_s(prefix, path) != 0) { return false; }
+    const std::size_t length = std::wcslen(prefix);
+    for (std::size_t index = 3U; index <= length; ++index) {
+        if (index != length && prefix[index] != L'\\') { continue; }
+        const wchar_t saved = prefix[index];
+        prefix[index] = L'\0';
+        const DWORD attributes = GetFileAttributesW(prefix);
+        prefix[index] = saved;
+        if (attributes == INVALID_FILE_ATTRIBUTES
+            || (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0U
+            || (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U) { return false; }
+    }
+    return true;
+}
+void LoadGl() noexcept {
+    const HMODULE module = GetModuleHandleW(L"opengl32.dll");
+    if (module == nullptr) { return; }
+#define WB_TRACE_GL(field, name) g_gl.field = reinterpret_cast<decltype(g_gl.field)>(GetProcAddress(module, name))
+    WB_TRACE_GL(integer, "glGetIntegerv");
+    WB_TRACE_GL(real, "glGetFloatv");
+    WB_TRACE_GL(parameter, "glGetTexParameteriv");
+    WB_TRACE_GL(level, "glGetTexLevelParameteriv");
+    WB_TRACE_GL(environment, "glGetTexEnviv");
+    WB_TRACE_GL(environment_real, "glGetTexEnvfv");
+    WB_TRACE_GL(string, "glGetString");
+    WB_TRACE_GL(context, "wglGetCurrentContext");
+    WB_TRACE_GL(proc, "wglGetProcAddress");
+#undef WB_TRACE_GL
+}
+void DetectCapabilities(TraceFrame& frame) noexcept {
+    frame.helpers_available = g_gl.integer != nullptr && g_gl.real != nullptr
+        && g_gl.parameter != nullptr && g_gl.level != nullptr
+        && g_gl.environment != nullptr && g_gl.string != nullptr;
+    if (!frame.helpers_available) { return; }
+    const auto* version = reinterpret_cast<const char*>(g_gl.string(0x1F02U));
+    const auto* extensions = reinterpret_cast<const char*>(g_gl.string(0x1F03U));
+    if (version == nullptr) { frame.helpers_available = false; return; }
+    frame.gl14 = VersionAtLeast(version, 1, 4);
+    frame.gl20 = VersionAtLeast(version, 2, 0);
+    // Core in 1.4; the earlier imaging subset is optional.
+    frame.blend_color_supported = frame.gl14 || Token(extensions, "GL_EXT_blend_color")
+        || Token(extensions, "GL_ARB_imaging");
+    frame.framebuffer_supported = VersionAtLeast(version, 3, 0)
+        || Token(extensions, "GL_ARB_framebuffer_object") || Token(extensions, "GL_EXT_framebuffer_object");
+    frame.extensions_known = extensions != nullptr;
+    frame.arb_vertex = Token(extensions, "GL_ARB_vertex_program");
+    frame.arb_fragment = Token(extensions, "GL_ARB_fragment_program");
+    frame.compatibility = -1;
+    if (VersionAtLeast(version, 1, 1) && !VersionAtLeast(version, 3, 0)) frame.compatibility = 1;
+    if (VersionAtLeast(version, 3, 2)) {
+        int profile = 0; g_gl.integer(0x9126U, &profile);
+        frame.compatibility = (profile & 2) != 0 ? 1 : 0;
+    }
+    // These advertised alternate material mechanisms are deliberately unqueried.
+    // Presence is conservative unknown, not evidence that any one is active.
+    frame.pipeline_supported = VersionAtLeast(version, 4, 1)
+        || Token(extensions, "GL_ARB_separate_shader_objects");
+    frame.unobserved_program_path = !frame.extensions_known
+        || Token(extensions, "GL_EXT_separate_shader_objects")
+        || (!frame.gl20 && Token(extensions, "GL_ARB_shader_objects"))
+        || Token(extensions, "GL_NV_vertex_program")
+        || Token(extensions, "GL_NV_fragment_program")
+        || Token(extensions, "GL_ATI_fragment_shader")
+        || Token(extensions, "GL_EXT_vertex_shader")
+        || Token(extensions, "GL_NV_register_combiners")
+        || Token(extensions, "GL_NV_texture_shader")
+        || Token(extensions, "GL_EXT_fragment_lighting")
+        || Token(extensions, "GL_EXT_light_texture")
+        || Token(extensions, "GL_ATI_envmap_bumpmap");
+    frame.texture3d = VersionAtLeast(version, 1, 2) || Token(extensions, "GL_EXT_texture3D");
+    frame.cube = Version13(version) || Token(extensions, "GL_ARB_texture_cube_map")
+        || Token(extensions, "GL_EXT_texture_cube_map");
+    frame.rectangle = VersionAtLeast(version, 3, 1) || Token(extensions, "GL_ARB_texture_rectangle")
+        || Token(extensions, "GL_EXT_texture_rectangle") || Token(extensions, "GL_NV_texture_rectangle");
+    frame.multisample = Version13(version) || Token(extensions, "GL_ARB_multisample");
+    frame.color_sum = frame.gl14 || Token(extensions, "GL_EXT_secondary_color");
+    g_gl.program = nullptr;
+    if (frame.arb_vertex || frame.arb_fragment) {
+        const PROC program = g_gl.proc == nullptr ? nullptr : g_gl.proc("glGetProgramivARB");
+        if (ValidProc(program)) g_gl.program = reinterpret_cast<decltype(g_gl.program)>(program);
+    }
+    const bool core = Version13(version);
+    frame.multitexture = core || Token(extensions, "GL_ARB_multitexture");
+    frame.combine_supported = core || Token(extensions, "GL_ARB_texture_env_combine")
+        || Token(extensions, "GL_EXT_texture_env_combine");
+    g_gl.active = nullptr;
+    int units = 1;
+    if (frame.multitexture) {
+        const PROC active = g_gl.proc == nullptr ? nullptr : g_gl.proc(
+            core ? "glActiveTexture" : "glActiveTextureARB");
+        if (!ValidProc(active)) { frame.helpers_available = false; return; }
+        g_gl.active = reinterpret_cast<decltype(g_gl.active)>(active);
+        g_gl.integer(0x84E2U, &units); // GL_MAX_TEXTURE_UNITS
+    }
+    if (units < 1 || units > 256) { frame.helpers_available = false; return; }
+    frame.unit_count = static_cast<unsigned int>(std::min(units, static_cast<int>(kMaxUnits)));
+    frame.omitted_units = static_cast<unsigned int>(units) - frame.unit_count;
+}
+bool OwnerMatches(TraceFrame& frame) noexcept {
+    if (GetCurrentThreadId() != frame.thread || g_gl.context == nullptr
+        || g_gl.context() != frame.context) {
+        frame.context_mismatch = true;
+        return false;
+    }
+    return true;
+}
+void ReadState(DrawRecord& draw, const TraceFrame& frame) noexcept {
+    constexpr unsigned int states[]{0x0B71U, 0x0B72U, 0x0B74U, 0x0BC0U,
+        0x0BC1U, 0x0BE2U, 0x0BE1U, 0x0BE0U, 0x0B50U, 0x0B60U, 0x0B44U};
+    for (std::size_t index = 0; index < draw.state.size(); ++index) {
+        g_gl.integer(states[index], &draw.state[index]);
+    }
+    draw.blend_detail.fill(-1); draw.stencil_detail.fill(-1);
+    draw.blend_color.fill(-1.0F);
+    if (frame.blend_color_supported) g_gl.real(0x8005U, draw.blend_color.data());
+    draw.blend_detail[0] = draw.state[6]; draw.blend_detail[1] = draw.state[7];
+    if (frame.gl14) {
+        g_gl.integer(0x80CBU, &draw.blend_detail[2]);
+        g_gl.integer(0x80CAU, &draw.blend_detail[3]);
+        g_gl.integer(0x8009U, &draw.blend_detail[4]);
+    }
+    if (frame.gl20) {
+        g_gl.integer(0x883DU, &draw.blend_detail[5]);
+        g_gl.integer(0x8B8DU, &draw.program);
+    }
+    if (frame.pipeline_supported) g_gl.integer(0x825AU, &draw.pipeline);
+    if (frame.framebuffer_supported) g_gl.integer(0x8CA6U, &draw.framebuffer);
+    constexpr unsigned int stencil[]{0x0B90U,0x0B92U,0x0B93U,0x0B97U,0x0B98U,
+        0x0B94U,0x0B95U,0x0B96U,0x8800U,0x8CA4U,0x8CA3U,0x8CA5U,0x8801U,0x8802U,0x8803U};
+    for (std::size_t i=0;i<(frame.gl20?15U:8U);++i) g_gl.integer(stencil[i], &draw.stencil_detail[i]);
+    g_gl.integer(0x0C23U, draw.color_mask.data());
+    draw.arb_programs.fill(-1);
+    constexpr unsigned int program_targets[]{0x8620U, 0x8804U};
+    const bool program_supported[]{frame.arb_vertex, frame.arb_fragment};
+    for (std::size_t i=0;i<2U;++i) {
+        if (program_supported[i]) {
+            g_gl.integer(program_targets[i], &draw.arb_programs[i*2]);
+            if (g_gl.program) g_gl.program(program_targets[i], 0x8677U, &draw.arb_programs[i*2+1]);
+        } else if (frame.extensions_known) draw.arb_programs[i*2]=0;
+    }
+    draw.raster.fill(-1); draw.clip_planes.fill(-1);
+    g_gl.integer(0x0C40U, &draw.raster[0]); // GL_RENDER_MODE
+    if (frame.multisample) {
+        g_gl.integer(0x80A8U, &draw.raster[1]); g_gl.integer(0x80A9U, &draw.raster[2]);
+    } else if (frame.extensions_known) draw.raster[1]=draw.raster[2]=0;
+    if (frame.color_sum) g_gl.integer(0x8458U, &draw.raster[3]);
+    else if (frame.extensions_known) draw.raster[3]=0;
+    g_gl.integer(0x0C11U, &draw.raster[4]); g_gl.integer(0x8037U, &draw.raster[5]);
+    g_gl.integer(0x0BF2U, &draw.raster[6]); g_gl.integer(0x0D32U, &draw.raster[7]);
+    g_gl.integer(0x0B40U, draw.polygon_mode.data());
+    g_gl.integer(0x0C10U, draw.scissor_box.data());
+    for (int i=0;i<std::min(6,draw.raster[7]);++i) g_gl.integer(0x3000U+i, &draw.clip_planes[i]);
+    g_gl.real(0x0B70U, draw.depth_range.data());
+    g_gl.real(0x0BC2U, &draw.alpha_ref);
+    g_gl.real(0x0B00U, draw.color.data());
+    g_gl.real(0x0BA6U, draw.model_view.data());
+    g_gl.real(0x0BA7U, draw.projection.data());
+    g_gl.integer(0x0BA2U, draw.viewport.data());
+    draw.active_unit = static_cast<int>(kTexture0);
+    if (frame.multitexture) { g_gl.integer(0x84E0U, &draw.active_unit); }
+    for (unsigned int unit = 0; unit < frame.unit_count; ++unit) {
+        if (g_gl.active != nullptr) { g_gl.active(kTexture0 + unit); }
+        auto& texture = draw.textures[unit];
+        texture.alternate_targets.fill(-1); texture.texgen.fill(-1);
+        constexpr unsigned int targets[]{0x0DE0U, 0x806FU, 0x8513U, 0x84F5U};
+        const bool supported[]{true,frame.texture3d,frame.cube,frame.rectangle};
+        for (std::size_t i=0;i<4U;++i) {
+            if (supported[i]) g_gl.integer(targets[i], &texture.alternate_targets[i]);
+            else if (frame.extensions_known) texture.alternate_targets[i]=0;
+            g_gl.integer(0x0C60U+static_cast<unsigned int>(i), &texture.texgen[i]);
+        }
+        texture.env_color.fill(NAN);
+        if (g_gl.environment_real) g_gl.environment_real(0x2300U,0x2201U,texture.env_color.data());
+        g_gl.integer(kTexture2d, &texture.enabled);
+        g_gl.integer(0x8069U, &texture.binding);
+        g_gl.real(0x0BA8U, texture.matrix.data());
+        g_gl.environment(0x2300U, 0x2200U, &texture.env_mode);
+        constexpr unsigned int parameters[]{0x2801U, 0x2800U, 0x2802U, 0x2803U};
+        constexpr unsigned int levels[]{0x1000U, 0x1001U, 0x1003U, 0x1005U};
+        for (std::size_t index = 0; index < 4U; ++index) {
+            g_gl.parameter(kTexture2d, parameters[index], &texture.sampler[index]);
+            g_gl.level(kTexture2d, 0, levels[index], &texture.level[index]);
+        }
+        if (frame.combine_supported) {
+            constexpr unsigned int combine[]{0x8571U, 0x8572U,
+                0x8580U, 0x8581U, 0x8582U, 0x8588U, 0x8589U, 0x858AU,
+                0x8590U, 0x8591U, 0x8592U, 0x8598U, 0x8599U, 0x859AU,
+                0x8573U, 0x0D1CU};
+            for (std::size_t index = 0; index < texture.combine.size(); ++index) {
+                g_gl.environment(0x2300U, combine[index], &texture.combine[index]);
+            }
+        }
+    }
+    if (g_gl.active != nullptr) {
+        g_gl.active(static_cast<unsigned int>(draw.active_unit));
+        int restored = 0;
+        g_gl.integer(0x84E0U, &restored);
+        draw.active_unit_restored = restored == draw.active_unit;
+    }
+}
+
+// Diagnostic material gate only: never authorizes replay, disables effects, or
+// promotes a caller RVA into ownership/ABI authority.
+const char* QuadMaterialGate(const DrawRecord& draw, const TraceFrame& frame) noexcept {
+    if (draw.submission != TerrainSubmission::immediate || draw.mode != 7U
+        || (draw.caller_rva != 0x538ED0U && draw.caller_rva != 0xD8F13U)) return "not_reviewed_quad";
+    if (!frame.helpers_available || frame.compatibility != 1 || !frame.extensions_known
+        || frame.unobserved_program_path) return "unknown_program_path";
+    if (frame.gl20 ? draw.program != 0 : draw.program != -1) return "glsl_active_or_unknown";
+    if (frame.pipeline_supported && draw.pipeline != 0) return "pipeline_active_or_unknown";
+    for (std::size_t i=0;i<2U;++i) {
+        if (draw.arb_programs[i*2] != 0) return "arb_active_or_unknown";
+        if ((i==0 ? frame.arb_vertex : frame.arb_fragment) && draw.arb_programs[i*2+1]<0)
+            return "arb_binding_unknown";
+    }
+    if (draw.state[8] != 0 || draw.state[9] != 0 || draw.raster[3] != 0)
+        return "lighting_fog_or_color_sum";
+    if (frame.unit_count == 0 || frame.omitted_units != 0 || !draw.active_unit_restored)
+        return "texture_units_unknown";
+    for (unsigned int unit=0;unit<frame.unit_count;++unit) {
+        const auto& t=draw.textures[unit];
+        for (const int enabled:t.alternate_targets) if (enabled != 0) return "alternate_target_or_unknown";
+        if (t.enabled != 0 && t.enabled != 1) return "texture_enable_unknown";
+        if (!t.enabled) continue;
+        if (unit != 0) return "additional_texture_unit";
+        for (const int enabled:t.texgen) if (enabled != 0) return "texgen_or_unknown";
+        if (t.env_mode != 0x2100) return "environment_not_modulate";
+        if (t.binding <= 0) return "texture_binding_unknown";
+        for (const float value:t.matrix) if (!std::isfinite(value)) return "texture_matrix_unknown";
+    }
+    for (const float value:draw.color) if (!std::isfinite(value)) return "current_color_unknown";
+    return "fixed_function_material_candidate";
+}
+
+// Streaming JSON runs only on the existing publisher, never on a draw hook.
+struct Json {
+    HANDLE file = INVALID_HANDLE_VALUE;
+    bool ok = true;
+    std::array<char, 65536U> buffer{};
+    std::size_t used = 0;
+    void Flush() noexcept {
+        if (!ok || used == 0U) { return; }
+        DWORD written = 0;
+        ok = WriteFile(file, buffer.data(), static_cast<DWORD>(used), &written, nullptr)
+            != FALSE && written == used;
+        used = 0;
+    }
+    void Print(const char* format, ...) noexcept {
+        char part[2048U]{};
+        va_list arguments;
+        va_start(arguments, format);
+        const int length = vsnprintf_s(part, sizeof(part), _TRUNCATE, format, arguments);
+        va_end(arguments);
+        if (length < 0) { ok = false; return; }
+        if (used + static_cast<std::size_t>(length) > buffer.size()) { Flush(); }
+        if (!ok) { return; }
+        std::memcpy(buffer.data() + used, part, static_cast<std::size_t>(length));
+        used += static_cast<std::size_t>(length);
+    }
+    template <typename T, std::size_t N>
+    void Array(const std::array<T, N>& values, std::size_t count = N) noexcept {
+        Print("[");
+        for (std::size_t i = 0; i < count; ++i) {
+            if (i != 0) { Print(","); }
+            const double value = static_cast<double>(values[i]);
+            if (std::isfinite(value)) { Print("%.9g", value); }
+            else { Print("null"); }
+        }
+        Print("]");
+    }
+};
+void WriteFrame(Json& json, const TraceFrame& frame) noexcept {
+    const bool interval_complete = frame.main_clear && frame.done3d
+        && !frame.extra_depth_clear && !frame.context_mismatch;
+    json.Print("{\"schema_version\":1,\"extension_version\":\"%u.%u.%u\","
+        "\"process_id\":%lu,\"process_creation_filetime_utc\":%llu,"
+        "\"executable_sha256\":\"%s\",\"sequence\":%llu,"
+        "\"qpc_frequency\":%llu,\"requested_qpc\":%llu,\"start_qpc\":%llu,"
+        "\"end_qpc\":%llu,\"query_ticks\":%llu,\"render_thread_id\":%lu,"
+        "\"context_token\":%llu,\"reviewed_interval_complete\":%s,"
+        "\"main_clear_seen\":%s,\"done3d_seen\":%s,\"extra_depth_clear\":%s,"
+        "\"context_or_thread_mismatch\":%s,\"helpers_available\":%s,"
+        "\"unit_count\":%u,\"omitted_units\":%u,\"combine_supported\":%s,"
+        "\"observed_submissions\":%llu,\"retained_submissions\":%zu,"
+        "\"capacity_skipped\":%llu,\"unsafe_query_skipped\":%llu,"
+        "\"query_budget_skipped\":%llu,",
+        WONDERBANE_EXTENSION_VERSION_MAJOR, WONDERBANE_EXTENSION_VERSION_MINOR,
+        WONDERBANE_EXTENSION_VERSION_PATCH,
+        g_pid, g_creation, g_executable_sha256, frame.sequence, g_frequency,
+        frame.requested_qpc, frame.start_qpc, frame.end_qpc, frame.query_ticks,
+        frame.thread, static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(frame.context)),
+        interval_complete ? "true" : "false", frame.main_clear ? "true" : "false",
+        frame.done3d ? "true" : "false", frame.extra_depth_clear ? "true" : "false",
+        frame.context_mismatch ? "true" : "false", frame.helpers_available ? "true" : "false",
+        frame.unit_count, frame.omitted_units, frame.combine_supported ? "true" : "false",
+        frame.observed, frame.retained, frame.overflow, frame.unsafe, frame.budget_skipped);
+    json.Print("\"scope\":{\"pixels_read\":false,\"texture_bytes_read\":false,"
+        "\"texture_target\":\"2D-level-zero\",\"texture_ids_are_cache_keys\":false,"
+        "\"display_lists\":\"entry-state-only-not-internal-draws\","
+        "\"stack\":\"bounded-client-rvas-evidence-not-authority\","
+        "\"timings\":\"intrusive-diagnostic-not-frame-benchmark\","
+        "\"state\":\"original-submission-before-extension-passes\","
+        "\"unhooked_or_driver_internal_draws_observed\":false},\"draws\":[");
+    for (std::size_t index = 0; index < frame.retained; ++index) {
+        const auto& draw = frame.draws[index];
+        if (index != 0) { json.Print(","); }
+        json.Print("{\"ordinal\":%zu,\"qpc\":%llu,\"submission\":%u,"
+            "\"caller_rva\":%u,\"mode\":%u,\"first\":%d,\"count\":%d,"
+            "\"index_type\":%u,\"list\":%u,\"list_source_stable\":%s,\"client_stack_rvas\":",
+            index + 1U, draw.qpc, static_cast<unsigned int>(draw.submission), draw.caller_rva,
+            draw.mode, draw.first, draw.count, draw.index_type, draw.list,
+            draw.list_source_stable ? "true" : "false");
+        json.Array(draw.stack, draw.stack_count);
+        if (draw.submission == TerrainSubmission::multi_elements) {
+            json.Print(",\"submission_label\":\"multi_elements\",\"count_unit\":\"subdraws\"");
+        }
+        json.Print(",\"state\":"); json.Array(draw.state);
+        json.Print(",\"transmission_state\":{\"unavailable\":-1,\"program\":%d,\"framebuffer\":%d,\"blend_rgb_alpha_factors_equations\":", draw.program, draw.framebuffer);
+        json.Array(draw.blend_detail);
+        json.Print(",\"blend_constant_rgba\":"); json.Array(draw.blend_color);
+        json.Print(",\"stencil_enable_front_back\":"); json.Array(draw.stencil_detail);
+        json.Print(",\"color_write_rgba\":"); json.Array(draw.color_mask); json.Print("}");
+        json.Print(",\"quad_support\":{\"material_gate\":\"%s\",\"replay_eligible\":false,"
+            "\"remaining\":\"query-side-effects,pre-draw-depth-stencil,coverage,ABI,source-equivalence\","
+            "\"compatibility\":%d,\"extensions_known\":%s,\"unobserved_program_path\":%s,"
+            "\"arb_vertex_supported\":%s,\"arb_fragment_supported\":%s,\"arb_enable_binding\":",
+            QuadMaterialGate(draw,frame),frame.compatibility,frame.extensions_known?"true":"false",
+            frame.unobserved_program_path?"true":"false",frame.arb_vertex?"true":"false",frame.arb_fragment?"true":"false");
+        json.Array(draw.arb_programs);
+        json.Print(",\"pipeline_supported\":%s,\"pipeline_binding\":%d",
+            frame.pipeline_supported?"true":"false",draw.pipeline);
+        json.Print(",\"raster\":");json.Array(draw.raster);
+        json.Print(",\"polygon_mode\":");json.Array(draw.polygon_mode);
+        json.Print(",\"scissor_box\":");json.Array(draw.scissor_box);
+        json.Print(",\"clip_planes\":");json.Array(draw.clip_planes);
+        json.Print(",\"depth_range\":");json.Array(draw.depth_range);json.Print("}");
+        json.Print(",\"alpha_ref\":"); json.Array(std::array<float, 1>{draw.alpha_ref});
+        json.Print(",\"color\":"); json.Array(draw.color);
+        json.Print(",\"model_view\":"); json.Array(draw.model_view);
+        json.Print(",\"projection\":"); json.Array(draw.projection);
+        json.Print(",\"viewport\":"); json.Array(draw.viewport);
+        json.Print(",\"active_unit\":%d,\"active_unit_restored\":%s,\"textures\":[",
+            draw.active_unit, draw.active_unit_restored ? "true" : "false");
+        for (unsigned int unit = 0; unit < frame.unit_count; ++unit) {
+            const auto& texture = draw.textures[unit];
+            if (unit != 0) { json.Print(","); }
+            json.Print("{\"unit\":%u,\"enabled\":%d,\"binding\":%u,\"level\":",
+                unit, texture.enabled, static_cast<unsigned int>(texture.binding));
+            json.Array(texture.level);
+            json.Print(",\"sampler\":"); json.Array(texture.sampler);
+            json.Print(",\"env_mode\":%d,\"combine\":", texture.env_mode);
+            if (frame.combine_supported) { json.Array(texture.combine); }
+            else { json.Print("null"); }
+            json.Print(",\"alternate_targets\":");json.Array(texture.alternate_targets);
+            json.Print(",\"texgen_enabled\":");json.Array(texture.texgen);
+            json.Print(",\"env_color\":");json.Array(texture.env_color);
+            json.Print(",\"matrix\":"); json.Array(texture.matrix);
+            json.Print("}");
+        }
+        json.Print("]}");
+    }
+    json.Print("]}\n");
+}
+
+} // namespace
+
+void StartTerrainTrace(const wchar_t* status_path, const std::uintptr_t image_base,
+    const std::size_t image_size, const char* executable_sha256) noexcept {
+#ifdef WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY
+    (void)status_path; (void)image_base; (void)image_size; (void)executable_sha256;
+#else
+    wchar_t enabled[4U]{};
+    if (GetEnvironmentVariableW(L"WONDERBANE_TERRAIN_TRACE", enabled, 4U) != 1U
+        || enabled[0] != L'1' || image_base == 0 || image_size == 0
+        || executable_sha256 == nullptr || std::strlen(executable_sha256) != 64U) { return; }
+    Exclusive lock;
+    if (g_phase.load() != Phase::disabled || status_path == nullptr
+        || wcscpy_s(g_directory, status_path) != 0) { return; }
+    wchar_t* slash = std::wcsrchr(g_directory, L'\\');
+    if (slash == nullptr) { return; }
+    *slash = L'\0';
+    if (!LocalOrdinaryDirectory(g_directory)) { return; }
+    FILETIME creation{}, exit{}, kernel{}, user{};
+    LARGE_INTEGER frequency{};
+    if (!GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user)
+        || !QueryPerformanceFrequency(&frequency) || frequency.QuadPart <= 0) { return; }
+    g_creation = (static_cast<std::uint64_t>(creation.dwHighDateTime) << 32U)
+        | creation.dwLowDateTime;
+    g_pid = GetCurrentProcessId();
+    wchar_t event_name[128U]{};
+    swprintf_s(event_name, L"Local\\WonderBaneTerrainTrace-%lu-%llu", g_pid, g_creation);
+    g_request = CreateEventW(nullptr, FALSE, FALSE, event_name);
+    if (g_request == nullptr) { return; }
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        CloseHandle(g_request); g_request = nullptr; return;
+    }
+    swprintf_s(event_name, L"Local\\WonderBaneTerrainTrace-%lu-%llu-idle", g_pid, g_creation);
+    g_idle = CreateEventW(nullptr, TRUE, FALSE, event_name);
+    const DWORD idle_error = GetLastError();
+    if (g_idle == nullptr || idle_error == ERROR_ALREADY_EXISTS) {
+        if (g_idle != nullptr) { CloseHandle(g_idle); g_idle = nullptr; }
+        CloseHandle(g_request); g_request = nullptr; return;
+    }
+    g_frame = new (std::nothrow) TraceFrame{};
+    if (g_frame == nullptr) {
+        CloseHandle(g_idle); g_idle = nullptr;
+        CloseHandle(g_request); g_request = nullptr; return;
+    }
+    g_image_base = image_base;
+    g_image_size = image_size;
+    g_frequency = static_cast<std::uint64_t>(frequency.QuadPart);
+    strcpy_s(g_executable_sha256, executable_sha256);
+    LoadGl();
+    g_phase.store(Phase::idle);
+    SetEvent(g_idle);
+#endif
+}
+void StopTerrainTrace() noexcept {
+    if (g_phase.load() == Phase::disabled) { return; }
+    Exclusive lock;
+    g_phase.store(Phase::disabled);
+    if (g_request != nullptr) { CloseHandle(g_request); g_request = nullptr; }
+    if (g_idle != nullptr) { CloseHandle(g_idle); g_idle = nullptr; }
+    delete g_frame; g_frame = nullptr;
+}
+void TerrainTraceClear(const bool reviewed, const unsigned int mask) noexcept {
+    const Phase phase = g_phase.load();
+    if (phase != Phase::armed && phase != Phase::capturing) { return; }
+    Exclusive lock;
+    if (g_phase.load() == Phase::armed && reviewed) {
+        auto& frame = *g_frame;
+        frame.context = g_gl.context == nullptr ? nullptr : g_gl.context();
+        frame.thread = GetCurrentThreadId();
+        frame.start_qpc = Counter();
+        frame.main_clear = frame.context != nullptr;
+        if (frame.main_clear) { DetectCapabilities(frame); }
+        g_phase.store(Phase::capturing);
+    } else if (g_phase.load() == Phase::capturing && (mask & 0x100U) != 0U) {
+        g_frame->extra_depth_clear = true;
+    }
+}
+void TerrainTraceDone3d() noexcept {
+    if (g_phase.load() != Phase::capturing) { return; }
+    Exclusive lock;
+    if (g_phase.load() != Phase::capturing) { return; }
+    if (OwnerMatches(*g_frame)) { g_frame->done3d = true; }
+    g_phase.store(Phase::sealed);
+}
+bool IsTerrainTraceCapturing() noexcept { return g_phase.load() == Phase::capturing; }
+void TerrainTraceDraw(const TerrainSubmission submission, const std::uintptr_t caller,
+    const unsigned int mode, const int first, const int count, const unsigned int index_type,
+    const unsigned int list, const bool list_source_stable, const bool query_safe) noexcept {
+    if (g_phase.load() != Phase::capturing) { return; }
+    Exclusive lock;
+    if (g_phase.load() != Phase::capturing) { return; }
+    auto& frame = *g_frame;
+    ++frame.observed;
+    if (!query_safe || !frame.helpers_available || !OwnerMatches(frame)) {
+        ++frame.unsafe; return;
+    }
+    if (frame.retained == kMaxDraws) { ++frame.overflow; return; }
+    if (static_cast<double>(frame.query_ticks) / static_cast<double>(g_frequency)
+        >= kQueryBudgetSeconds) { ++frame.budget_skipped; return; }
+    auto& draw = frame.draws[frame.retained++];
+    draw = {};
+    draw.qpc = Counter();
+    draw.submission = submission;
+    draw.mode = mode; draw.first = first; draw.count = count;
+    draw.index_type = index_type; draw.list = list; draw.list_source_stable = list_source_stable;
+    if (caller >= g_image_base && caller - g_image_base < g_image_size) {
+        draw.caller_rva = static_cast<std::uint32_t>(caller - g_image_base);
+    }
+    void* stack[kMaxStack]{};
+    const USHORT captured = CaptureStackBackTrace(1U, static_cast<DWORD>(kMaxStack), stack, nullptr);
+    for (USHORT index = 0; index < captured; ++index) {
+        const auto address = reinterpret_cast<std::uintptr_t>(stack[index]);
+        if (address >= g_image_base && address - g_image_base < g_image_size) {
+            draw.stack[draw.stack_count++] = static_cast<std::uint32_t>(address - g_image_base);
+        }
+    }
+    ReadState(draw, frame);
+    frame.query_ticks += Counter() - draw.qpc;
+}
+bool TerrainTracePresent() noexcept {
+    const Phase phase = g_phase.load();
+    if (phase == Phase::disabled || phase == Phase::pending || phase == Phase::publishing) {
+        return false;
+    }
+    Exclusive lock;
+    const Phase current = g_phase.load();
+    if (current == Phase::idle && WaitForSingleObject(g_request, 0) == WAIT_OBJECT_0) {
+        ResetEvent(g_idle);
+        // Reset only metadata; bounded record storage is overwritten lazily.
+        g_frame->sequence = ++g_sequence;
+        g_frame->requested_qpc = Counter();
+        g_frame->start_qpc = g_frame->end_qpc = g_frame->query_ticks = 0;
+        g_frame->context = nullptr; g_frame->thread = 0;
+        g_frame->main_clear = g_frame->done3d = g_frame->extra_depth_clear = false;
+        g_frame->context_mismatch = g_frame->helpers_available = false;
+        g_frame->multitexture = g_frame->combine_supported = false;
+        g_frame->unit_count = g_frame->omitted_units = 0;
+        g_frame->observed = g_frame->overflow = g_frame->unsafe = g_frame->budget_skipped = 0;
+        g_frame->retained = 0;
+        g_phase.store(Phase::armed);
+    } else if (current == Phase::armed || current == Phase::capturing || current == Phase::sealed) {
+        g_frame->end_qpc = Counter();
+        if (current != Phase::armed) { OwnerMatches(*g_frame); }
+        g_phase.store(Phase::pending);
+        return true;
+    }
+    return false;
+}
+void PublishPendingTerrainTrace() noexcept {
+    if (g_phase.load() != Phase::pending) { return; }
+    Exclusive lock;
+    if (g_phase.load() != Phase::pending) { return; }
+    g_phase.store(Phase::publishing);
+    wchar_t final_path[MAX_PATH]{}, temporary_path[MAX_PATH]{};
+    const auto& frame = *g_frame;
+    const bool paths = swprintf_s(final_path, L"%s\\terrain-trace-%lu-%llu-%llu.json",
+        g_directory, g_pid, g_creation, frame.sequence) > 0
+        && swprintf_s(temporary_path, L"%s.partial", final_path) > 0;
+    if (paths && LocalOrdinaryDirectory(g_directory)) {
+        const HANDLE file = CreateFileW(temporary_path, GENERIC_WRITE, 0U, nullptr,
+            CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+        if (file != INVALID_HANDLE_VALUE) {
+            Json json; json.file = file;
+            WriteFrame(json, frame); json.Flush();
+            const bool complete = json.ok && FlushFileBuffers(file) != FALSE;
+            CloseHandle(file);
+            if (complete) { MoveFileExW(temporary_path, final_path, MOVEFILE_WRITE_THROUGH); }
+            // Failures remain .partial and are never represented as complete evidence.
+        }
+    }
+    g_phase.store(Phase::idle);
+    if (g_idle != nullptr) { SetEvent(g_idle); }
+}
+
+} // namespace wonderbane::extension

@@ -4,7 +4,8 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from shadowbane_lab.client_input import WindowBounds
 from shadowbane_lab.manager import (
@@ -15,6 +16,7 @@ from shadowbane_lab.manager import (
     ManagedWorkerController,
     ProcessLifetimeSnapshot,
     SubprocessWorkerLauncher,
+    WorkerDispatchGate,
     WorkerDispatchPermit,
     WorkerHealthState,
     WorkerHeartbeat,
@@ -30,6 +32,7 @@ from shadowbane_lab.manager import (
     new_worker_operation,
     parse_manager_manifest,
 )
+from shadowbane_lab.manager.worker_runtime import _OperationStopSignal
 
 NODE_ID = "gaming-pc-east"
 CLIENT_ID = "client-01"
@@ -160,6 +163,51 @@ def _heartbeat(*, instance_id: str, observed_at: float = 100.0) -> WorkerHeartbe
 
 
 class ExactClientWorkerRuntimeTests(unittest.TestCase):
+    def test_internal_cancel_interrupts_active_engine_operation(self) -> None:
+        class PendingCancellationLedger:
+            def pending_for(self, **_kwargs):
+                return (SimpleNamespace(kind=WorkerOperationKind.CANCEL),)
+
+        signal = _OperationStopSignal(
+            _StopSignal(),
+            PendingCancellationLedger(),
+            ExactClientWorkerBinding.from_client(CLIENT_ID, _client()),
+            WORKER_ID,
+            WORKER_PROCESS_ID,
+            WORKER_PROCESS_STARTED,
+        )
+
+        self.assertTrue(signal.is_set())
+
+    def test_first_cancellation_cause_survives_later_gate_recovery(self):
+        gate = Mock(spec=WorkerDispatchGate)
+        gate.denial_reason.side_effect = ["dispatch permit expired 0.010s ago", None]
+        ledger = Mock()
+        signal = _OperationStopSignal(
+            gate, ledger, ExactClientWorkerBinding.from_client(CLIENT_ID, _client()),
+            WORKER_ID, WORKER_PROCESS_ID, WORKER_PROCESS_STARTED,
+        )
+        self.assertTrue(signal.is_set())
+        signal.trip("later shutdown")
+        self.assertTrue(signal.is_set())
+        self.assertEqual("dispatch permit expired 0.010s ago", signal.reason)
+        gate.denial_reason.assert_called_once()
+        ledger.pending_for.assert_not_called()
+
+    def test_inbox_error_is_latched_with_its_actual_reason(self):
+        ledger = Mock()
+        ledger.pending_for.side_effect = PermissionError("test ledger locked")
+        signal = _OperationStopSignal(
+            _StopSignal(), ledger, ExactClientWorkerBinding.from_client(CLIENT_ID, _client()),
+            WORKER_ID, WORKER_PROCESS_ID, WORKER_PROCESS_STARTED,
+        )
+        self.assertTrue(signal.is_set())
+        self.assertIn("operation inbox read failed: PermissionError", signal.reason)
+        self.assertIn("test ledger locked", signal.reason)
+        ledger.pending_for.side_effect = None
+        self.assertTrue(signal.is_set())
+        ledger.pending_for.assert_called_once()
+
     def test_runtime_publishes_ready_only_while_exact_game_identity_exists(self) -> None:
         manifest = _manifest()
         client = _client()
@@ -411,6 +459,7 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
         self.assertIsNotNone(stop_receipt)
         assert pve_receipt is not None and stop_receipt is not None
         self.assertEqual(WorkerOperationState.CANCELLED, pve_receipt.state)
+        self.assertIn("explicit cancel or stop operation is pending", pve_receipt.detail)
         self.assertEqual(WorkerOperationState.SUCCEEDED, stop_receipt.state)
 
 
@@ -444,7 +493,7 @@ class ManagedWorkerControllerTests(unittest.TestCase):
         self.assertEqual(WORKER_PROCESS_ID, request.process_id)
         self.assertEqual("detach requested", request.reason)
 
-    def test_replaced_instance_is_stopped_before_new_worker_launch(self) -> None:
+    def test_replaced_instance_must_exit_before_new_worker_launch(self) -> None:
         manifest = _manifest()
         replacement = _client(
             process_id=202,
@@ -470,10 +519,9 @@ class ManagedWorkerControllerTests(unittest.TestCase):
             process_id = controller.ensure_started(CLIENT_ID, replacement)
             request = ledger.inspect_stop_request(CLIENT_ID, WORKER_ID)
 
-        self.assertEqual(7777, process_id)
+        self.assertIsNone(process_id)
         self.assertIsNotNone(request)
-        self.assertEqual(1, len(launcher.bindings))
-        self.assertEqual(replacement.instance_id, launcher.bindings[0].instance_id)
+        self.assertEqual([], launcher.bindings)
 
     def test_stop_request_schema_is_strict_and_round_trips(self) -> None:
         request = WorkerStopRequest(
@@ -513,6 +561,74 @@ class ManagedWorkerControllerTests(unittest.TestCase):
         self.assertIn("shadowbane_lab.cli", argv)
         self.assertIn(client.instance_id, argv)
         self.assertFalse(popen.call_args.kwargs["shell"])
+
+
+
+def test_operation_maintenance_runs_between_heartbeats_and_stops_on_revocation():
+    import threading
+
+    from shadowbane_lab.manager import WorkerDispatchPermit, WorkerHealthState
+
+    manifest, client = _manifest(), _client()
+    process = ProcessLifetimeSnapshot(WORKER_PROCESS_ID, WORKER_PROCESS_STARTED)
+    stop = _StopSignal()
+    entered, release = threading.Event(), threading.Event()
+    now = 0.0
+    maintenance_times, heartbeat_sequences, delays = [], [], []
+
+    class Executor:
+        def execute(self, operation, *, stop_signal):
+            entered.set()
+            assert release.wait(5), "test must release the blocked strategy"
+            return WorkerOperationExecution(WorkerOperationState.CANCELLED, "test release")
+
+    with tempfile.TemporaryDirectory() as directory:
+        heartbeat_ledger = WorkerHeartbeatLedger(manifest, directory)
+        operation_ledger = WorkerOperationLedger(manifest, directory)
+        operation = None
+
+        def drive(seconds):
+            nonlocal now, operation
+            delays.append(seconds)
+            now += seconds
+            heartbeat = heartbeat_ledger.inspect(CLIENT_ID).records[0]
+            heartbeat_sequences.append(heartbeat.sequence)
+            permit = WorkerDispatchPermit(
+                node_id=NODE_ID, client_id=CLIENT_ID, instance_id=client.instance_id,
+                worker_id=heartbeat.worker_id, process_id=heartbeat.process_id,
+                process_started_at_100ns=heartbeat.process_started_at_100ns,
+                heartbeat_sequence=heartbeat.sequence, health_state=WorkerHealthState.HEALTHY,
+                allowed=now < 1.0, issued_at=time.time(), expires_at=time.time() + 30,
+                reason="controlled permit revocation",
+            )
+            heartbeat_ledger.publish_permit(permit)
+            if operation is None:
+                operation = new_worker_operation(permit, WorkerOperationKind.TRAVEL, "/go 120 600")
+                operation_ledger.submit(operation)
+            if now >= 1.25:
+                release.set()
+                stop.stopped = True
+
+        def maintain(current, signal):
+            assert entered.wait(5)
+            assert current == operation and not signal.is_set()
+            maintenance_times.append(now)
+
+        runtime = ExactClientWorkerRuntime(
+            manifest, ExactClientWorkerBinding.from_client(CLIENT_ID, client),
+            heartbeat_ledger, _StaticRegistry(client), _ProcessInspector(process),
+            operation_ledger=operation_ledger, operation_executor=Executor(),
+            operation_maintenance=maintain, monotonic_clock=lambda: now,
+            process_id=WORKER_PROCESS_ID, heartbeat_interval_seconds=1.0, sleeper=drive,
+        )
+        try:
+            assert runtime.serve(stop_signal=stop) == 0
+        finally:
+            release.set()
+    assert maintenance_times == [0.25, 0.5, 0.75]
+    assert delays == [0.25] * 5
+    assert len(set(heartbeat_sequences[:4])) == 1
+    assert heartbeat_sequences[4] > heartbeat_sequences[3]
 
 
 if __name__ == "__main__":

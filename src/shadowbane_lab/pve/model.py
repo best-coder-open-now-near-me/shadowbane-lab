@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 from math import hypot, isfinite
+from typing import TYPE_CHECKING
 
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationObservation,
@@ -18,6 +19,9 @@ from shadowbane_lab.client_observation import (
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.travel.model import TravelDecision, TravelDestination
+
+if TYPE_CHECKING:
+    from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
 
 
 def _positive_integer(value: int, field_name: str) -> None:
@@ -347,9 +351,24 @@ class PvEObservation:
     player_action: NativePlayerActionObservation | None = None
     target_identity: NativeTargetIdentityObservation | None = None
     population: NativeCharacterPopulationObservation | None = None
+    authority_snapshot: PvETargetAuthoritySnapshot | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.now_ms, "now_ms")
+        if self.authority_snapshot is not None:
+            from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
+
+            if not isinstance(self.authority_snapshot, PvETargetAuthoritySnapshot):
+                raise ValueError("authority_snapshot must be PvETargetAuthoritySnapshot")
+            if self.population is None:
+                raise ValueError("authority snapshot requires the sampled population")
+            if (
+                self.authority_snapshot.local_player_object_key
+                != self.population.local_player_object_key
+                or {(c.target_token, c.object_key) for c in self.authority_snapshot.characters}
+                != {(c.token, c.object_key) for c in self.population.characters}
+            ):
+                raise ValueError("authority snapshot and population resolved different identities")
         if not isinstance(self.target, NativeTargetHealthObservation):
             raise ValueError("target must be NativeTargetHealthObservation")
         if not isinstance(self.player, NativePlayerVitalsObservation):
@@ -542,6 +561,7 @@ class PvERunTraceStep:
     approach_input_reason: str | None = None
     movement_stop_accepted: bool | None = None
     movement_stop_reason: str | None = None
+    movement_arrival_confirmed: bool | None = None
     population_character_count: int | None = None
     population_attack_eligible_count: int | None = None
     population_selected_target_token: str | None = None
@@ -549,6 +569,11 @@ class PvERunTraceStep:
     population_scan_generation: int | None = None
 
     def __post_init__(self) -> None:
+        if self.movement_arrival_confirmed is not None:
+            if type(self.movement_arrival_confirmed) is not bool:
+                raise ValueError("movement_arrival_confirmed must be boolean when present")
+            if self.approach_decision is None or not self.approach_decision.terminal:
+                raise ValueError("arrival confirmation requires a terminal approach decision")
         if not isinstance(self.decision, PvEControllerDecision):
             raise ValueError("decision must be PvEControllerDecision")
         if not isinstance(self.target_present, bool):
@@ -784,6 +809,7 @@ class PvERunTraceStep:
                     ),
                     "input_accepted": self.approach_input_accepted,
                     "input_reason": self.approach_input_reason,
+                    "movement_arrival_confirmed": self.movement_arrival_confirmed,
                     "movement_stop_accepted": self.movement_stop_accepted,
                     "movement_stop_reason": self.movement_stop_reason,
                 }

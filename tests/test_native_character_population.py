@@ -5,11 +5,14 @@ import unittest
 from pathlib import Path
 
 from shadowbane_lab.client_observation import (
+    NativeCharacterKind,
     NativeCharacterPopulationProfile,
     NativeCharacterPopulationReader,
+    NativeCharacterPopulationReadError,
     NativeMemoryRegion,
     load_bundled_native_character_population_profile,
 )
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
 
 
 def _profile() -> NativeCharacterPopulationProfile:
@@ -21,6 +24,10 @@ def _profile() -> NativeCharacterPopulationProfile:
         player_pointer_rva=0x100,
         selected_pointer_rva=0x104,
         arc_character_vtable_rva=0x1000,
+        object_type_offset=0x10,
+        object_uuid_offset=0x14,
+        player_object_uuid=53,
+        npc_object_uuid=37,
         current_health_offset=0x20,
         maximum_health_offset=0x24,
         position_component_offset=0x28,
@@ -33,6 +40,7 @@ def _profile() -> NativeCharacterPopulationProfile:
         banker_descriptor_rva=0x210,
         trainer_descriptor_rva=0x218,
         minion_descriptor_rva=0x220,
+        pet_data_descriptor_rva=0x228,
         descriptor_key_offset=4,
         sparse_value_pointer_offset=4,
         maximum_sparse_table_bits=4,
@@ -62,6 +70,8 @@ class FakeScanningProcess:
         self.memory: dict[int, bytes] = {}
         self.closed = False
         self.find_calls = 0
+        self.identity_changes: dict[int, tuple[int, int]] = {}
+        self.block_reads: dict[int, int] = {}
         self.player = 0x10000
         self.crab = 0x20000
         self.trainer = 0x22000
@@ -77,6 +87,7 @@ class FakeScanningProcess:
                 profile.banker_descriptor_rva,
                 profile.trainer_descriptor_rva,
                 profile.minion_descriptor_rva,
+                profile.pet_data_descriptor_rva,
             ),
             start=11,
         ):
@@ -86,13 +97,20 @@ class FakeScanningProcess:
             )
         self._character(
             self.player,
+            object_key=(1001, 53),
             health=(100.0, 100.0),
             position=(100.0, 5.0, -200.0),
             action_target=self.crab,
         )
-        self._character(self.crab, health=(75.0, 75.0), position=(108.0, 5.0, -206.0))
+        self._character(
+            self.crab,
+            object_key=(2001, 37),
+            health=(75.0, 75.0),
+            position=(108.0, 5.0, -206.0),
+        )
         self._character(
             self.trainer,
+            object_key=(2002, 37),
             health=(750.0, 750.0),
             position=(101.0, 5.0, -201.0),
             sparse=(14, 0x50000),
@@ -105,6 +123,7 @@ class FakeScanningProcess:
         self,
         address: int,
         *,
+        object_key: tuple[int, int],
         health: tuple[float, float],
         position: tuple[float, float, float],
         action_target: int = 0,
@@ -113,6 +132,7 @@ class FakeScanningProcess:
         profile = self.profile
         block = bytearray(profile.object_read_size)
         struct.pack_into("<I", block, 0, self.base_address + profile.arc_character_vtable_rva)
+        struct.pack_into("<II", block, profile.object_type_offset, *object_key)
         struct.pack_into("<ff", block, profile.current_health_offset, *health)
         component = address + 0x1000
         value = address + 0x1100
@@ -132,6 +152,16 @@ class FakeScanningProcess:
         return self._read(address, size)
 
     def read_block(self, address: int, size: int) -> bytes:
+        self.block_reads[address] = self.block_reads.get(address, 0) + 1
+        if self.block_reads[address] == 2 and address in self.identity_changes:
+            block = bytearray(self._read(address, size))
+            struct.pack_into(
+                "<II",
+                block,
+                self.profile.object_type_offset,
+                *self.identity_changes[address],
+            )
+            return bytes(block)
         return self._read(address, size)
 
     def _read(self, address: int, size: int) -> bytes:
@@ -156,6 +186,116 @@ class FakeScanningProcess:
 
 
 class NativeCharacterPopulationTests(unittest.TestCase):
+    def _pet_process(self, owner: tuple[int, int] = (1001, 53)) -> FakeScanningProcess:
+        process = FakeScanningProcess(_profile())
+        block = bytearray(process.memory[process.crab])
+        struct.pack_into("<II", block, process.profile.sparse_data_offset, 0x53000, 0)
+        process.memory[process.crab] = bytes(block)
+        process.memory[0x53000] = struct.pack("<II", 16, 0x54000)
+        process.memory[0x54000] = struct.pack("<II", *owner)
+        return process
+
+    def test_pet_owner_is_inline_exact_key_and_protects_pet(self) -> None:
+        process = self._pet_process()
+        observation = NativeCharacterPopulationReader(process.profile, process).observe()
+        pet = next(c for c in observation.characters if c.object_key == NativeObjectKey(2001, 37))
+        self.assertEqual(NativeObjectKey(1001, 53), pet.owner_object_key)
+        self.assertEqual(NativeCharacterKind.PET, pet.character_kind)
+        self.assertEqual(("pet",), pet.protected_roles)
+        self.assertFalse(pet.attack_eligible)
+        self.assertFalse(pet.minion)
+
+    def test_invalid_owner_key_rejects_candidate(self) -> None:
+        for owner in ((0, 0), (1001, 0), (0, 53), (2001, 37)):
+            with self.subTest(owner=owner):
+                process = self._pet_process(owner)
+                observation = NativeCharacterPopulationReader(process.profile, process).observe()
+                self.assertEqual(1, len(observation.characters))
+                self.assertEqual(2, observation.rejected_candidates)
+
+    def test_unsigned_pet_and_owner_identity_are_preserved(self) -> None:
+        process = self._pet_process((0xFFFFFF30, 53))
+        observation = NativeCharacterPopulationReader(process.profile, process).observe()
+        pet = next(c for c in observation.characters if c.character_kind == NativeCharacterKind.PET)
+        self.assertEqual(0xFFFFFF30, pet.owner_object_key.object_type)
+
+    def test_duplicate_pet_descriptor_rejects_candidate(self) -> None:
+        process = self._pet_process()
+        block = bytearray(process.memory[process.crab])
+        struct.pack_into("<II", block, process.profile.sparse_data_offset, 0x53000, 1)
+        process.memory[process.crab] = bytes(block)
+        process.memory[0x53000] *= 2
+        observation = NativeCharacterPopulationReader(process.profile, process).observe()
+        self.assertEqual(1, len(observation.characters))
+
+    def test_changing_owner_or_table_rejects_candidate(self) -> None:
+        for changed_address in (0x54000, 0x53000):
+            with self.subTest(address=changed_address):
+                process = self._pet_process()
+                original_read = process.read
+                reads = 0
+
+                def changing_read(
+                    address: int, size: int, original_read=original_read,
+                    changed_address=changed_address,
+                ) -> bytes:
+                    nonlocal reads
+                    raw = original_read(address, size)
+                    if address == changed_address:
+                        reads += 1
+                        if reads >= 2:
+                            return struct.pack("<II", 999, 53)
+                    return raw
+
+                process.read = changing_read
+                observation = NativeCharacterPopulationReader(process.profile, process).observe()
+                self.assertEqual(1, len(observation.characters))
+
+    def test_absent_pet_descriptor_does_not_prove_unowned(self) -> None:
+        process = FakeScanningProcess(_profile())
+        observation = NativeCharacterPopulationReader(process.profile, process).observe()
+        self.assertTrue(all(c.owner_object_key is None for c in observation.characters))
+
+    def test_dismissal_and_allocation_reuse_do_not_retain_old_pet_owner(self) -> None:
+        for resummoned_pet in (True, False):
+            with self.subTest(resummoned_pet=resummoned_pet):
+                process = self._pet_process()
+                reader = NativeCharacterPopulationReader(process.profile, process, clock=lambda: 0)
+                first = reader.observe()
+                original = next(
+                    c for c in first.characters if c.character_kind == NativeCharacterKind.PET
+                )
+                dismissed_block = bytearray(process.memory[process.crab])
+                struct.pack_into("<I", dismissed_block, 0, 0)
+                process.memory[process.crab] = bytes(dismissed_block)
+                process.memory[process.base_address + process.profile.selected_pointer_rva] = (
+                    struct.pack("<I", 0)
+                )
+                dismissed = reader.observe()
+                self.assertIsNone(dismissed.selected_target_token)
+                self.assertNotIn(original.object_key, [c.object_key for c in dismissed.characters])
+                # Synthetic same-address reuse is stricter than the observed live
+                # resummon, which allocated a different address as well as a new key.
+                process._character(
+                    process.crab, object_key=(2003, 37), health=(75, 75),
+                    position=(108, 5, -206),
+                    sparse=(16, 0x53000) if resummoned_pet else None,
+                )
+                refreshed = reader.observe()
+                current = next(
+                    c for c in refreshed.characters if c.object_key == NativeObjectKey(2003, 37)
+                )
+                self.assertEqual(original.token, current.token)
+                self.assertNotEqual(original.object_key, current.object_key)
+                self.assertEqual(1, process.find_calls)
+                if resummoned_pet:
+                    self.assertEqual(original.owner_object_key, current.owner_object_key)
+                    self.assertFalse(current.attack_eligible)
+                else:
+                    self.assertIsNone(current.owner_object_key)
+                    self.assertEqual(NativeCharacterKind.NPC, current.character_kind)
+                self.assertEqual(NativeObjectKey(1001, 53), original.owner_object_key)
+
     def test_observes_loaded_characters_without_changing_selection(self) -> None:
         profile = _profile()
         process = FakeScanningProcess(profile)
@@ -178,6 +318,17 @@ class NativeCharacterPopulationTests(unittest.TestCase):
         self.assertFalse(trainer.attack_eligible)
         self.assertEqual(trainer.token, observation.selected_target_token)
         self.assertEqual(crab.token, observation.player_action_target_token)
+        assert observation.local_player_object_key is not None
+        assert crab.object_key is not None
+        self.assertEqual(
+            (1001, 53),
+            (
+                observation.local_player_object_key.object_type,
+                observation.local_player_object_key.object_uuid,
+            ),
+        )
+        self.assertEqual((2001, 37), (crab.object_key.object_type, crab.object_key.object_uuid))
+        self.assertEqual(NativeCharacterKind.NPC, crab.character_kind)
         self.assertEqual(1, observation.rejected_candidates)
         self.assertEqual(1, observation.scan_generation)
 
@@ -201,11 +352,72 @@ class NativeCharacterPopulationTests(unittest.TestCase):
         self.assertEqual(2, process.find_calls)
         self.assertEqual(2, observation.scan_generation)
 
+    def test_rejects_same_address_when_uuid_changes_during_read(self) -> None:
+        profile = _profile()
+        process = FakeScanningProcess(profile)
+        process.identity_changes[process.crab] = (9999, 37)
+        reader = NativeCharacterPopulationReader(profile, process)
+
+        observation = reader.observe()
+
+        self.assertNotIn(
+            (2001, 37),
+            tuple(
+                (character.object_key.object_type, character.object_key.object_uuid)
+                for character in observation.characters
+                if character.object_key is not None
+            ),
+        )
+        self.assertEqual(2, observation.rejected_candidates)
+
+    def test_rejects_zero_identity_without_exposing_unknown_as_permission(self) -> None:
+        profile = _profile()
+        process = FakeScanningProcess(profile)
+        process.identity_changes[process.crab] = (0, 0)
+        reader = NativeCharacterPopulationReader(profile, process)
+
+        observation = reader.observe()
+
+        self.assertEqual(2, observation.rejected_candidates)
+
+    def test_duplicate_native_keys_fail_the_coherent_snapshot(self) -> None:
+        profile = _profile()
+        process = FakeScanningProcess(profile)
+        trainer = bytearray(process.memory[process.trainer])
+        struct.pack_into("<II", trainer, profile.object_type_offset, 2001, 37)
+        process.memory[process.trainer] = bytes(trainer)
+        reader = NativeCharacterPopulationReader(profile, process)
+
+        with self.assertRaisesRegex(
+            NativeCharacterPopulationReadError,
+            "object identities are duplicated",
+        ):
+            reader.observe()
+
+    def test_unrecognized_object_uuid_remains_unknown(self) -> None:
+        profile = _profile()
+        process = FakeScanningProcess(profile)
+        trainer = bytearray(process.memory[process.trainer])
+        struct.pack_into("<II", trainer, profile.object_type_offset, 2002, 99)
+        process.memory[process.trainer] = bytes(trainer)
+        reader = NativeCharacterPopulationReader(profile, process)
+
+        observation = reader.observe()
+
+        unknown = next(
+            character
+            for character in observation.characters
+            if character.object_key == NativeObjectKey(2002, 99)
+        )
+        self.assertEqual(NativeCharacterKind.UNKNOWN, unknown.character_kind)
+
     def test_bundled_profile_matches_current_wonderbane_layout(self) -> None:
         profile = load_bundled_native_character_population_profile()
 
         self.assertEqual("ef43784b", profile.executable_sha256[:8])
         self.assertEqual(0x114165C, profile.arc_character_vtable_rva)
+        self.assertEqual((0x18, 0x1C), (profile.object_type_offset, profile.object_uuid_offset))
+        self.assertEqual((53, 37), (profile.player_object_uuid, profile.npc_object_uuid))
         self.assertEqual(0x5CC, profile.current_health_offset)
         self.assertEqual(0x4B0, profile.position_component_offset)
         self.assertEqual(0xAF8, profile.action_target_pointer_offset)

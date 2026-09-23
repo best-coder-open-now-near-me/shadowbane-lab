@@ -81,6 +81,7 @@ from shadowbane_lab.client_observation.native_message_hud import (
 )
 from shadowbane_lab.client_observation.native_population import (
     NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION,
+    NativeCharacterKind,
     NativeCharacterObservation,
     NativeCharacterPopulationCompatibilityError,
     NativeCharacterPopulationError,
@@ -96,6 +97,7 @@ from shadowbane_lab.client_observation.native_population import (
 )
 from shadowbane_lab.client_observation.native_position import (
     NATIVE_POSITION_PROFILE_SCHEMA_VERSION,
+    NativeGroundedPlayerPositionObservation,
     NativePlayerPositionCompatibilityError,
     NativePlayerPositionError,
     NativePlayerPositionObservation,
@@ -136,6 +138,17 @@ from shadowbane_lab.client_observation.native_runegates import (
     load_native_runegate_registry_profile,
     load_native_runegate_registry_profile_text,
     open_windows_native_runegate_registry_reader,
+)
+from shadowbane_lab.client_observation.native_snapshot import (
+    NATIVE_PLAYER_SNAPSHOT_SCHEMA_VERSION,
+    NativePlayerSnapshot,
+    NativePlayerSnapshotCompatibilityError,
+    NativePlayerSnapshotError,
+    NativePlayerSnapshotProfiles,
+    NativePlayerSnapshotReader,
+    NativePlayerSnapshotReadError,
+    load_bundled_native_player_snapshot_profiles,
+    open_windows_native_player_snapshot_reader,
 )
 from shadowbane_lab.client_observation.native_target_action import (
     NATIVE_TARGET_ACTION_PROFILE_SCHEMA_VERSION,
@@ -302,6 +315,7 @@ __all__ = [
     "NATIVE_MESSAGE_HUD_PROFILE_SCHEMA_VERSION",
     "NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION",
     "NativeCharacterObservation",
+    "NativeCharacterKind",
     "NativeCharacterPopulationCompatibilityError",
     "NativeCharacterPopulationError",
     "NativeCharacterPopulationObservation",
@@ -337,6 +351,7 @@ __all__ = [
     "NativeGroupProfile",
     "NativeGroupProfileLoadError",
     "NativeGroupReadError",
+    "NativeGroundedPlayerPositionObservation",
     "NativeGroupReader",
     "NativeHealthProfileLoadError",
     "NativeMemoryRegion",
@@ -370,6 +385,13 @@ __all__ = [
     "NativeTargetIdentityReadError",
     "NativeTargetIdentityReader",
     "NATIVE_VITALS_PROFILE_SCHEMA_VERSION",
+    "NATIVE_PLAYER_SNAPSHOT_SCHEMA_VERSION",
+    "NativePlayerSnapshot",
+    "NativePlayerSnapshotCompatibilityError",
+    "NativePlayerSnapshotError",
+    "NativePlayerSnapshotProfiles",
+    "NativePlayerSnapshotReadError",
+    "NativePlayerSnapshotReader",
     "NATIVE_ZONE_PROFILE_SCHEMA_VERSION",
     "VENDOR_BUY_WINDOW_OPCODE",
     "VENDOR_DIALOG_OPCODE",
@@ -475,6 +497,7 @@ __all__ = [
     "load_bundled_native_target_action_profile",
     "load_bundled_native_target_identity_profile",
     "load_bundled_native_vitals_profile",
+    "load_bundled_native_player_snapshot_profiles",
     "load_bundled_native_zone_profile",
     "load_native_health_profile",
     "load_native_character_population_profile",
@@ -520,6 +543,7 @@ __all__ = [
     "open_windows_native_player_training_reader",
     "open_windows_native_vendor_dialog_tracer",
     "open_windows_bundled_native_vendor_dialog_tracer",
+    "open_windows_native_player_snapshot_reader",
     "open_windows_native_player_vitals_reader",
     "open_windows_native_current_zone_reader",
     "open_windows_native_group_reader",

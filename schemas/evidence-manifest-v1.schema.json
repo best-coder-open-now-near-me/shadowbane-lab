@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shadowbane-lab.invalid/schemas/evidence-manifest-v1.schema.json",
+  "title": "Shadowbane Lab evidence manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_id", "created_at_utc", "fingerprint_id", "case_id", "experiment_id", "run_id", "terminal_state", "required_channels", "completed_channels", "omissions", "warnings", "artifacts"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "manifest_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "created_at_utc": {"type": "string"},
+    "fingerprint_id": {"type": ["string", "null"]},
+    "case_id": {"type": ["string", "null"]},
+    "experiment_id": {"type": ["string", "null"]},
+    "run_id": {"type": ["string", "null"]},
+    "terminal_state": {"enum": ["complete", "incomplete", "failed", "imported"]},
+    "required_channels": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "completed_channels": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "omissions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "warnings": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "artifacts": {"type": "array", "minItems": 1, "items": {"$ref": "artifact-descriptor-v1.schema.json#/$defs/artifact"}}
+  }
+}

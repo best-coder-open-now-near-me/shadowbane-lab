@@ -61,3 +61,9 @@ This keeps broad tolerances from hiding regressions in unrelated mechanics.
 The repository currently contains the recorder, canonical trace codec, comparator, and open gap
 ledger. It does not claim emulator parity yet: the public MagicBane source lacks the deployment
 power rows/tokens, and no authoritative runtime trace has been supplied.
+
+The planned [evidence spine](evidence-spine.md) closes the orchestration gap without changing this
+comparison authority. A research case binds the exact fingerprints, hypotheses, experiment,
+synchronized producer records, raw artifact IDs, normalized trace, comparison result, and affected
+gap entries. Required capture channels that are missing or dropped make the run incomplete rather
+than widening comparison tolerance.

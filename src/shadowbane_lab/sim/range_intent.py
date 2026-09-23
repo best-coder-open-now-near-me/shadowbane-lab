@@ -18,6 +18,8 @@ from shadowbane_lab.sim.actions import (
 )
 
 CLOSE_RANGE_ACTION_KEY = "sim.range.close"
+OPEN_RANGE_ACTION_KEY = "sim.range.open"
+RANGE_MINIMUM_FEATURE = "range.minimum"
 RANGE_MAXIMUM_FEATURE = "range.maximum"
 
 
@@ -86,4 +88,38 @@ def close_range_action(
         ),
         features=(NamedScalar(RANGE_MAXIMUM_FEATURE, band.maximum),),
         tags=("movement", "locomotion", "range.close"),
+    )
+
+
+def open_range_action(
+    band: RangeBand,
+    *,
+    action_key: str = OPEN_RANGE_ACTION_KEY,
+    duration_ms: int = 200,
+    allowed_relations: tuple[Relation, ...] = (Relation.ENEMY,),
+) -> ActionSpec:
+    """Build one target-relative retreat intent for a ranged combatant."""
+
+    if not isinstance(band, RangeBand):
+        raise ValueError("band must be RangeBand")
+    if band.minimum <= 0:
+        raise ValueError("an open-range band requires a positive minimum")
+    return ActionSpec(
+        action_key=action_key,
+        targeting=TargetingSpec(
+            kind=TargetKind.ENTITY,
+            allowed_relations=allowed_relations,
+        ),
+        phases=(
+            ActionPhase(
+                kind=PhaseKind.ACTIVE,
+                duration_ms=duration_ms,
+                effects=(MoveEntity(SubjectRef.ACTOR, MovementMode.WALK_AWAY),),
+            ),
+        ),
+        features=(
+            NamedScalar(RANGE_MINIMUM_FEATURE, band.minimum),
+            NamedScalar(RANGE_MAXIMUM_FEATURE, band.maximum),
+        ),
+        tags=("movement", "locomotion", "range.open"),
     )

@@ -371,27 +371,49 @@ class NativeWorldMapReader:
             raise NativeWorldMapReadError(
                 f"native world-map scan failed: {type(exc).__name__}"
             ) from exc
-        candidates: list[int] = []
+        candidates: list[tuple[int, NativeWorldMapObservation]] = []
         rejected: list[str] = []
         for address in hits:
             if address % profile.pointer_size:
                 continue
             try:
-                self._observation(address, self._read_snapshot(address))
+                observation = self._observation(address, self._read_snapshot(address))
             except NativeWorldMapReadError as exc:
                 if len(rejected) < 3:
                     rejected.append(f"{address:#x}: {exc}")
                 continue
-            candidates.append(address)
-        unique = tuple(sorted(set(candidates)))
+            candidates.append((address, observation))
+        unique = tuple(
+            sorted(
+                {address: observation for address, observation in candidates}.items()
+            )
+        )
+        if len(unique) == 1:
+            return unique[0][0]
+        areas = {
+            address: observation.content_width * observation.content_height
+            for address, observation in unique
+        }
+        maximum_area = max(areas.values(), default=0)
+        largest = tuple(address for address, area in areas.items() if area == maximum_area)
+        if len(largest) == 1:
+            return largest[0]
+        active_largest = tuple(
+            address
+            for address, observation in unique
+            if address in largest and observation.is_open
+        )
+        if len(active_largest) == 1:
+            return active_largest[0]
         if len(unique) != 1:
             detail = "" if not rejected else f"; samples: {'; '.join(rejected)}"
             raise NativeWorldMapReadError(
                 "native world-map owner resolution was ambiguous: "
                 f"found {len(unique)} validated objects from {len(hits)} vtable matches"
+                f" ({len(largest)} largest, {len(active_largest)} active-largest)"
                 f"{detail}"
             )
-        return unique[0]
+        raise AssertionError("unreachable world-map owner resolution state")
 
     def _read_snapshot(self, address: int) -> bytes:
         profile = self._profile

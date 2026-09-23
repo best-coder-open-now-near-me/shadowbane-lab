@@ -314,3 +314,53 @@ class NativeGroupCliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class NativeGroupFactoryTests(unittest.TestCase):
+    def test_explicit_client_never_uses_name_selection(self):
+        from shadowbane_lab.client_observation.native_group import open_windows_native_group_reader
+
+        process = FakeProcessMemory()
+        with (
+            patch(
+                "shadowbane_lab.client_observation.native_group.WindowsReadOnlyProcessMemory.open_for_process",
+                return_value=process,
+            ) as exact,
+            patch(
+                "shadowbane_lab.client_observation.native_group.WindowsReadOnlyProcessMemory.open_unique",
+            ) as unique,
+        ):
+            with open_windows_native_group_reader(_profile(), process_id=process.pid) as reader:
+                self.assertEqual(reader.process_id, process.pid)
+                self.assertFalse(process.closed)
+            exact.assert_called_once_with("sb.exe", process.pid)
+            unique.assert_not_called()
+            self.assertTrue(process.closed)
+
+    def test_explicit_client_failure_never_falls_back(self):
+        from shadowbane_lab.client_observation.native_group import open_windows_native_group_reader
+
+        with (
+            patch(
+                "shadowbane_lab.client_observation.native_group.WindowsReadOnlyProcessMemory.open_for_process",
+                side_effect=OSError("client exited"),
+            ),
+            patch(
+                "shadowbane_lab.client_observation.native_group.WindowsReadOnlyProcessMemory.open_unique",
+            ) as unique,
+        ):
+            with self.assertRaises(OSError):
+                open_windows_native_group_reader(_profile(), process_id=123)
+            unique.assert_not_called()
+
+    def test_incompatible_explicit_client_handle_is_closed(self):
+        from shadowbane_lab.client_observation.native_group import open_windows_native_group_reader
+
+        process = FakeProcessMemory()
+        process.executable_sha256 = "ff" * 32
+        with patch(
+            "shadowbane_lab.client_observation.native_group.WindowsReadOnlyProcessMemory.open_for_process",
+            return_value=process,
+        ):
+            with self.assertRaises(NativeGroupCompatibilityError):
+                open_windows_native_group_reader(_profile(), process_id=process.pid)
+        self.assertTrue(process.closed)

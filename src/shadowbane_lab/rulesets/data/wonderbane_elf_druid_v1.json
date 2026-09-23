@@ -1,0 +1,289 @@
+{
+  "schema_version": 1,
+  "extension_id": "shadowbane.wonderbane-guide-trio.v1",
+  "base_ruleset_id": "shadowbane.wonderbane-sundancer-deflock.v1",
+  "milestone_levels": [75],
+  "additional_sources": [
+    {
+      "source_id": "wonderbane-elf-healer-druid-template-20260829",
+      "kind": "wiki",
+      "uri": "https://shadowbanetemplates.weebly.com/druid-templates.html",
+      "revision": "retrieved-2026-08-29",
+      "retrieved_on": "2026-08-29"
+    },
+    {
+      "source_id": "morloch-druid-powers-20260829",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php/Druid_Powers",
+      "revision": "retrieved-2026-08-29",
+      "retrieved_on": "2026-08-29"
+    },
+    {
+      "source_id": "morloch-base-class-powers-20260829",
+      "kind": "wiki",
+      "uri": "https://morloch.shadowbaneemulator.com/index.php/Base_Class_Powers",
+      "revision": "retrieved-2026-08-29",
+      "retrieved_on": "2026-08-29"
+    }
+  ],
+  "additional_actions": [
+    {
+      "action_key": "shadowbane.druid.grasp_of_thorns",
+      "display_name": "Grasp of Thorns",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.druid.grasp_of_thorns"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-druid-powers-20260829", "locator": "Grasp of Thorns rank 40 row"}],
+      "unresolved": ["Current WonderBane power tokens, deployment stack order, and same-power refresh behavior remain unverified."],
+      "spec": {
+        "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 120, "requires_line_of_sight": true},
+        "costs": [{"resource_key": "mana", "amount": 93.4}],
+        "phases": [{
+          "kind": "active", "duration_ms": 2000,
+          "effects": [
+            {"op": "deal_damage", "subject": "target", "amount": {"distribution": "uniform", "minimum": 12, "maximum": 24}, "damage_type": "pierce", "source_key": "grasp_of_thorns.initial"},
+            {"op": "apply_effect", "subject": "target", "effect_key": "grasp_of_thorns", "duration_ms": 30000, "magnitude": 1, "stacking_key": "GraspOfThorns", "tags": ["debuff", "pierce", "damage_over_time"], "modifiers": [
+              {"op": "periodic_pulse", "periodic_key": "grasp_of_thorns.periodic", "interval_ms": 5000, "tick_count": 6, "effects": [
+                {"op": "deal_damage", "subject": "target", "amount": {"distribution": "uniform", "minimum": 12, "maximum": 24}, "damage_type": "pierce", "source_key": "grasp_of_thorns.periodic"}
+              ]}
+            ]},
+            {"op": "remove_effect", "subject": "target", "effect_key": null, "matching_tag": "movement.flight"},
+            {"op": "apply_effect", "subject": "target", "effect_key": "grasp_of_thorns_snare", "duration_ms": 15000, "magnitude": 1, "stacking_key": "Snare", "tags": ["debuff", "effect", "snare"], "modifiers": [
+              {"op": "scalar_multiplier", "scalar_key": "move_speed", "factor": 0.4}
+            ]}
+          ],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 2000,
+        "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "expected_damage", "value": 126}, {"name": "snare_duration_ms", "value": 15000}, {"name": "effect_duration_ms", "value": 30000}],
+        "tags": ["combat", "damage", "pierce", "damage_over_time", "control", "snare", "anti_flight", "applies.grasp_of_thorns"],
+        "hit_roll": "power"
+      },
+      "progression": {"professions": ["druid"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.druid.hedge_of_thorns",
+      "display_name": "Hedge of Thorns",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.druid.hedge_of_thorns"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-druid-powers-20260829", "locator": "Hedge of Thorns rank 40 row"}],
+      "unresolved": ["Current WonderBane power tokens, deployment stack order, and area target ordering remain unverified."],
+      "spec": {
+        "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 120, "requires_line_of_sight": true},
+        "costs": [{"resource_key": "mana", "amount": 109.4}],
+        "phases": [{
+          "kind": "active", "duration_ms": 3000,
+          "effects": [{"op": "area_effect", "origin": "target", "radius": 40, "allowed_relations": ["enemy"], "maximum_targets": 7, "effects": [
+            {"op": "deal_damage", "subject": "target", "amount": {"distribution": "uniform", "minimum": 9, "maximum": 22}, "damage_type": "pierce", "source_key": "hedge_of_thorns.initial"},
+            {"op": "apply_effect", "subject": "target", "effect_key": "hedge_of_thorns", "duration_ms": 30000, "magnitude": 1, "stacking_key": "HedgeOfThorns", "tags": ["debuff", "pierce", "damage_over_time"], "modifiers": [
+              {"op": "periodic_pulse", "periodic_key": "hedge_of_thorns.periodic", "interval_ms": 5000, "tick_count": 6, "effects": [
+                {"op": "deal_damage", "subject": "target", "amount": {"distribution": "uniform", "minimum": 9, "maximum": 22}, "damage_type": "pierce", "source_key": "hedge_of_thorns.periodic"}
+              ]}
+            ]},
+            {"op": "remove_effect", "subject": "target", "effect_key": null, "matching_tag": "movement.flight"},
+            {"op": "apply_effect", "subject": "target", "effect_key": "hedge_of_thorns_snare", "duration_ms": 15000, "magnitude": 1, "stacking_key": "Snare", "tags": ["debuff", "effect", "snare"], "modifiers": [
+              {"op": "scalar_multiplier", "scalar_key": "move_speed", "factor": 0.4}
+            ]}
+          ]}],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 13000,
+        "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "expected_damage", "value": 108.5}, {"name": "snare_duration_ms", "value": 15000}, {"name": "effect_duration_ms", "value": 30000}, {"name": "area_radius", "value": 40}],
+        "tags": ["combat", "damage", "pierce", "damage_over_time", "control", "snare", "anti_flight", "area", "applies.hedge_of_thorns"],
+        "hit_roll": "power"
+      },
+      "progression": {"professions": ["druid"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.druid.blight",
+      "display_name": "Blight",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.druid.blight"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-druid-powers-20260829", "locator": "Blight rank 40 row"}],
+      "unresolved": ["Current WonderBane power tokens, deployment stack order, and same-power refresh behavior remain unverified."],
+      "spec": {
+        "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 120, "requires_line_of_sight": true},
+        "costs": [{"resource_key": "mana", "amount": 71.8}],
+        "phases": [{
+          "kind": "active", "duration_ms": 3000,
+          "effects": [
+            {"op": "deal_damage", "subject": "target", "amount": {"distribution": "uniform", "minimum": 13, "maximum": 46}, "damage_type": "poison", "source_key": "blight.initial"},
+            {"op": "apply_effect", "subject": "target", "effect_key": "blight", "duration_ms": 30000, "magnitude": 1, "stacking_key": "Blight", "tags": ["debuff", "poison", "damage_over_time"], "modifiers": [
+              {"op": "periodic_pulse", "periodic_key": "blight.periodic", "interval_ms": 5000, "tick_count": 6, "effects": [
+                {"op": "deal_damage", "subject": "target", "amount": {"distribution": "uniform", "minimum": 10, "maximum": 22}, "damage_type": "poison", "source_key": "blight.periodic"}
+              ]}
+            ]}
+          ],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 3000,
+        "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "expected_damage", "value": 125.5}, {"name": "effect_duration_ms", "value": 30000}],
+        "tags": ["combat", "damage", "poison", "damage_over_time", "applies.blight"],
+        "hit_roll": "power"
+      },
+      "progression": {"professions": ["druid"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.druid.call_lightning",
+      "display_name": "Call Lightning",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.druid.call_lightning"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-druid-powers-20260829", "locator": "Call Lightning rank 40 row"}],
+      "unresolved": ["Current WonderBane power tokens, deployment stack order, and area target ordering remain unverified."],
+      "spec": {
+        "targeting": {"kind": "entity", "allowed_relations": ["enemy"], "minimum_range": 0, "maximum_range": 120, "requires_line_of_sight": true},
+        "costs": [{"resource_key": "mana", "amount": 93.8}],
+        "phases": [{
+          "kind": "active", "duration_ms": 3000,
+          "effects": [{"op": "area_effect", "origin": "target", "radius": 32, "allowed_relations": ["enemy"], "maximum_targets": 7, "effects": [
+            {"op": "deal_damage", "subject": "target", "amount": {"distribution": "uniform", "minimum": 18, "maximum": 84}, "damage_type": "lightning", "source_key": "call_lightning"},
+            {"op": "remove_effect", "subject": "target", "effect_key": null, "matching_tag": "movement.flight"},
+            {"op": "apply_effect", "subject": "target", "effect_key": "call_lightning_stun", "duration_ms": 3000, "magnitude": 1, "stacking_key": "Stun", "tags": ["control.stun"]},
+            {"op": "apply_effect", "subject": "target", "effect_key": "stun_immunity", "duration_ms": 9000, "magnitude": 1, "stacking_key": "NoStun", "tags": ["immunity.stun"]}
+          ]}],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 13000,
+        "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "expected_damage", "value": 51}, {"name": "control_duration_ms", "value": 3000}, {"name": "area_radius", "value": 32}],
+        "tags": ["combat", "damage", "lightning", "control", "area", "anti_flight"],
+        "hit_roll": "power"
+      },
+      "progression": {"professions": ["druid"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.druid.regrowth",
+      "display_name": "Regrowth",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.druid.regrowth"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-druid-powers-20260829", "locator": "Regrowth rank 40 row"}],
+      "unresolved": ["The self-target duel mapping does not yet model group healing, hate generation, or current deployment identifiers."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [{"resource_key": "mana", "amount": 75}],
+        "phases": [{
+          "kind": "active", "duration_ms": 2500,
+          "effects": [
+            {"op": "remove_effect", "subject": "actor", "effect_key": null, "matching_tag": "bleeding"},
+            {"op": "restore_resource", "subject": "actor", "resource_key": "health", "amount": {"distribution": "uniform", "minimum": 19, "maximum": 40}},
+            {"op": "apply_effect", "subject": "actor", "effect_key": "regrowth", "duration_ms": 10000, "magnitude": 1, "stacking_key": "Regrowth", "tags": ["buff", "healing_over_time"], "modifiers": [
+              {"op": "periodic_pulse", "periodic_key": "regrowth.periodic", "interval_ms": 2000, "tick_count": 5, "effects": [
+                {"op": "restore_resource", "subject": "actor", "resource_key": "health", "amount": {"distribution": "uniform", "minimum": 11, "maximum": 22}}
+              ]}
+            ]}
+          ],
+          "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false
+        }],
+        "cooldown_ms": 2500,
+        "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "expected_healing", "value": 112}, {"name": "effect_duration_ms", "value": 10000}],
+        "tags": ["combat", "healing", "healing_over_time", "self", "cleanse.bleeding", "applies.regrowth"],
+        "hit_roll": null
+      },
+      "progression": {"professions": ["druid"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.healer.blessed_mending",
+      "display_name": "Blessed Mending",
+      "rank": 20,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.healer.blessed_mending"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-base-class-powers-20260829", "locator": "Blessed Mending rank 0-40 table"}],
+      "unresolved": ["The self-target duel mapping does not yet model allied targets, hate generation, or current deployment identifiers."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [{"resource_key": "mana", "amount": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 8.48, "value_max": 27.2}}],
+        "phases": [{"kind": "active", "duration_ms": 2000, "effects": [
+          {"op": "remove_effect", "subject": "actor", "effect_key": null, "matching_tag": "bleeding"},
+          {"op": "restore_resource", "subject": "actor", "resource_key": "health", "amount": {"distribution": "uniform", "minimum": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 6, "value_max": 20}, "maximum": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 15, "value_max": 46}}}
+        ], "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false}],
+        "cooldown_ms": 2000,
+        "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "expected_healing", "value": {"interpolation": "linear", "rank_min": 0, "rank_max": 40, "value_min": 10.5, "value_max": 33}}],
+        "tags": ["combat", "healing", "self", "cleanse.bleeding"],
+        "hit_roll": null
+      },
+      "progression": {"professions": ["druid"], "granted_level": 1, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.healer.prayer_of_mending",
+      "display_name": "Prayer of Mending",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.healer.prayer_of_mending"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-base-class-powers-20260829", "locator": "Prayer of Mending rank 40 row"}],
+      "unresolved": ["The self-target duel mapping does not yet model group members, hate generation, or current deployment identifiers."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [{"resource_key": "mana", "amount": 72.2}],
+        "phases": [{"kind": "active", "duration_ms": 5000, "effects": [
+          {"op": "remove_effect", "subject": "actor", "effect_key": null, "matching_tag": "bleeding"},
+          {"op": "restore_resource", "subject": "actor", "resource_key": "health", "amount": {"distribution": "uniform", "minimum": 29, "maximum": 67}}
+        ], "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false}],
+        "cooldown_ms": 15000,
+        "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [{"name": "expected_healing", "value": 48}],
+        "tags": ["combat", "healing", "self", "group_heal", "cleanse.bleeding"],
+        "hit_roll": null
+      },
+      "progression": {"professions": ["druid"], "granted_level": 1, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.healer.braiallas_aid",
+      "display_name": "Braialla's Aid",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.healer.braiallas_aid"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-base-class-powers-20260829", "locator": "Braialla's Aid fixed rank 40 row"}],
+      "unresolved": ["The self-target duel mapping does not yet model allied targets or current deployment identifiers."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [{"resource_key": "mana", "amount": 70}],
+        "phases": [{"kind": "active", "duration_ms": 4000, "effects": [
+          {"op": "remove_effect", "subject": "actor", "effect_key": null, "matching_tag": "poison"},
+          {"op": "remove_effect", "subject": "actor", "effect_key": null, "matching_tag": "disease"}
+        ], "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false}],
+        "cooldown_ms": 4000,
+        "required_actor_tags": [], "forbidden_actor_tags": [],
+        "features": [],
+        "tags": ["combat", "cleanse", "cleanse.poison", "cleanse.disease", "self"],
+        "hit_roll": null
+      },
+      "progression": {"professions": ["druid"], "granted_level": 1, "maximum_rank": 40, "fixed_rank": 40, "skill_requirements": [], "power_requirements": []}
+    },
+    {
+      "action_key": "shadowbane.druid.oaken_flesh",
+      "display_name": "Oaken Flesh",
+      "rank": 40,
+      "status": "compiled_with_override",
+      "concrete": {"server_power_token": null, "server_id_string": null, "client_binding_key": "shadowbane.druid.oaken_flesh"},
+      "provenance": [{"fields": ["rank", "progression", "spec"], "source_id": "morloch-druid-powers-20260829", "locator": "Oaken Flesh rank 40 row"}],
+      "unresolved": ["The current Druid page lists cold rather than slash resistance; current WonderBane power data must resolve that source-era conflict and the published 1000-point breakpoint."],
+      "spec": {
+        "targeting": {"kind": "self", "allowed_relations": [], "minimum_range": 0, "maximum_range": null, "requires_line_of_sight": false},
+        "costs": [{"resource_key": "mana", "amount": 25}],
+        "phases": [{"kind": "active", "duration_ms": 200, "effects": [
+          {"op": "apply_effect", "subject": "actor", "effect_key": "oaken_flesh", "duration_ms": 300000, "magnitude": 1, "stacking_key": "DamageAbsorber", "tags": ["buff", "effect", "damage_absorber"], "modifiers": [
+            {"op": "resistance_adjustment", "damage_type": "crush", "amount": 75},
+            {"op": "resistance_adjustment", "damage_type": "pierce", "amount": 75},
+            {"op": "resistance_adjustment", "damage_type": "cold", "amount": 75},
+            {"op": "damage_breakpoint", "breakpoint_key": "physical", "threshold": 1000, "damage_types": ["crush", "pierce", "slash"]}
+          ]}
+        ], "delivery": {"kind": "immediate", "projectile_speed_units_per_second": null}, "interruptible": true, "movement_allowed": false}],
+        "cooldown_ms": 300200,
+        "required_actor_tags": [], "forbidden_actor_tags": ["oaken_flesh"],
+        "features": [{"name": "resistance_bonus", "value": 75}, {"name": "damage_breakpoint", "value": 1000}, {"name": "effect_duration_ms", "value": 300000}],
+        "tags": ["combat", "buff", "defensive", "damage_absorber", "physical"],
+        "hit_roll": null
+      },
+      "progression": {"professions": ["druid"], "granted_level": 10, "maximum_rank": 40, "fixed_rank": null, "skill_requirements": [], "power_requirements": []}
+    }
+  ]
+}

@@ -15,6 +15,8 @@ from shadowbane_lab.manager.manifest import (
     load_manager_manifest,
     loads_manager_manifest,
     parse_manager_manifest,
+    retarget_manager_client_directories,
+    retarget_manager_clients,
 )
 
 
@@ -41,6 +43,84 @@ def _payload(*clients: dict[str, object]) -> dict[str, object]:
 
 
 class ManagerManifestTests(unittest.TestCase):
+    def test_retargets_every_slot_to_a_unique_full_size_runtime(self) -> None:
+        original = parse_manager_manifest(
+            _payload(_client("client-01"), _client("client-02", left=1280))
+        )
+
+        retargeted = retarget_manager_client_directories(
+            original,
+            {
+                "client-01": PureWindowsPath(r"C:\Runtimes\deployment-01\client-01"),
+                "client-02": PureWindowsPath(r"C:\Runtimes\deployment-01\client-02"),
+            },
+            resolution_width=1920,
+            resolution_height=955,
+        )
+
+        self.assertEqual((None, None), tuple(client.window_tile for client in retargeted.clients))
+        self.assertEqual(
+            (
+                PureWindowsPath(r"C:\Runtimes\deployment-01\client-01"),
+                PureWindowsPath(r"C:\Runtimes\deployment-01\client-02"),
+            ),
+            tuple(client.launch.working_directory for client in retargeted.clients),
+        )
+        self.assertTrue(
+            all(
+                client.launch.arguments == ("-windowed", "-resolution", "1920x955")
+                for client in retargeted.clients
+            )
+        )
+
+    def test_isolated_runtime_retarget_rejects_missing_or_shared_directories(self) -> None:
+        original = parse_manager_manifest(
+            _payload(_client("client-01"), _client("client-02", left=1280))
+        )
+
+        with self.assertRaisesRegex(ManagerManifestError, "cover every manager slot"):
+            retarget_manager_client_directories(
+                original,
+                {"client-01": PureWindowsPath(r"C:\Runtimes\client-01")},
+            )
+        with self.assertRaisesRegex(ManagerManifestError, "must be unique"):
+            retarget_manager_client_directories(
+                original,
+                {
+                    "client-01": PureWindowsPath(r"C:\Runtimes\shared"),
+                    "client-02": PureWindowsPath(r"C:\Runtimes\SHARED"),
+                },
+            )
+
+    def test_retargets_every_slot_without_changing_operational_ownership(self) -> None:
+        original = parse_manager_manifest(
+            _payload(_client("client-01"), _client("client-02", left=1280))
+        )
+
+        retargeted = retarget_manager_clients(
+            original,
+            PureWindowsPath(r"C:\Reviewed\WonderBane-1.0.5"),
+            executable_name="sb.exe",
+        )
+
+        self.assertEqual(original.node_id, retargeted.node_id)
+        self.assertEqual(
+            tuple(client.client_id for client in original.clients),
+            tuple(client.client_id for client in retargeted.clients),
+        )
+        self.assertEqual(
+            tuple(client.window_tile for client in original.clients),
+            tuple(client.window_tile for client in retargeted.clients),
+        )
+        for before, after in zip(original.clients, retargeted.clients, strict=True):
+            self.assertEqual(before.launch.arguments, after.launch.arguments)
+            self.assertEqual(before.launch.environment, after.launch.environment)
+            self.assertEqual(
+                PureWindowsPath(r"C:\Reviewed\WonderBane-1.0.5\sb.exe"),
+                after.launch.executable,
+            )
+            self.assertEqual(("sb.exe",), after.expected_executable_names)
+
     def test_expands_reviewed_slots_and_retiles_without_mutating_launch_config(self) -> None:
         original = parse_manager_manifest(_payload())
 
@@ -223,6 +303,8 @@ class ManagerManifestTests(unittest.TestCase):
             "MESA_EXTENSION_MAX_YEAR": "2001",
             "MESA_GL_VERSION_OVERRIDE": None,
             "MESA_GLSL_VERSION_OVERRIDE": None,
+            "WONDERBANE_CEL_PROFILE": "flat",
+            "WONDERBANE_PERFORMANCE_PROFILE": "frame",
         }
 
         manifest = parse_manager_manifest(_payload(client))
@@ -234,6 +316,8 @@ class ManagerManifestTests(unittest.TestCase):
                 ("MESA_EXTENSION_MAX_YEAR", "2001"),
                 ("MESA_GLSL_VERSION_OVERRIDE", None),
                 ("MESA_GL_VERSION_OVERRIDE", None),
+                ("WONDERBANE_CEL_PROFILE", "flat"),
+                ("WONDERBANE_PERFORMANCE_PROFILE", "frame"),
             ),
             manifest.clients[0].launch.environment,
         )
@@ -249,6 +333,8 @@ class ManagerManifestTests(unittest.TestCase):
             {"LIBGL_ALWAYS_SOFTWARE": True},
             {"MESA_EXTENSION_MAX_YEAR": "2026"},
             {"MESA_GL_VERSION_OVERRIDE": "4.6"},
+            {"WONDERBANE_CEL_PROFILE": "adaptive"},
+            {"WONDERBANE_PERFORMANCE_PROFILE": "verbose"},
         )
         for environment in rejected:
             client = _client()
@@ -259,6 +345,46 @@ class ManagerManifestTests(unittest.TestCase):
                     "unsupported variable|must be one of",
                 ):
                     parse_manager_manifest(_payload(client))
+
+    def test_accepts_explicit_removal_of_software_renderer_overrides(self) -> None:
+        client = _client()
+        client["launch"]["environment"] = {
+            "GALLIUM_DRIVER": None,
+            "LIBGL_ALWAYS_SOFTWARE": None,
+            "WONDERBANE_CEL_PROFILE": "flat",
+        }
+
+        manifest = parse_manager_manifest(_payload(client))
+
+        self.assertEqual(
+            (
+                ("GALLIUM_DRIVER", None),
+                ("LIBGL_ALWAYS_SOFTWARE", None),
+                ("WONDERBANE_CEL_PROFILE", "flat"),
+            ),
+            manifest.clients[0].launch.environment,
+        )
+        self.assertEqual(
+            client["launch"]["environment"],
+            manifest.to_dict()["clients"][0]["launch"]["environment"],
+        )
+
+    def test_accepts_native_rendering_and_full_diagnostics(self) -> None:
+        client = _client()
+        client["launch"]["environment"] = {
+            "WONDERBANE_CEL_PROFILE": "native",
+            "WONDERBANE_PERFORMANCE_PROFILE": "full",
+        }
+
+        manifest = parse_manager_manifest(_payload(client))
+
+        self.assertEqual(
+            (
+                ("WONDERBANE_CEL_PROFILE", "native"),
+                ("WONDERBANE_PERFORMANCE_PROFILE", "full"),
+            ),
+            manifest.clients[0].launch.environment,
+        )
 
     def test_rejects_unknown_launch_flags_aliases_and_positional_values(self) -> None:
         rejected = (

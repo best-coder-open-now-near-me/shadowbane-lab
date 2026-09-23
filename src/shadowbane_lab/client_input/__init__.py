@@ -74,6 +74,12 @@ from shadowbane_lab.client_input.stop import (
     StopSignal,
     WindowsHotkeyEmergencyStop,
 )
+from shadowbane_lab.client_input.tagged_click import (
+    WORLD_MAP_ACTION_TEST_INPUT_TAG,
+    TaggedPointerButtonSender,
+    WindowsTaggedPointerButtonSender,
+    WorldMapTestInputBackend,
+)
 from shadowbane_lab.client_input.window import (
     ForegroundWindowGuard,
     StaticVisibleWindowInspector,
@@ -148,6 +154,10 @@ __all__ = [
     "WindowsForegroundWindowInspector",
     "WindowsVisibleWindowInspector",
     "WindowsHotkeyEmergencyStop",
+    "WORLD_MAP_ACTION_TEST_INPUT_TAG",
+    "TaggedPointerButtonSender",
+    "WindowsTaggedPointerButtonSender",
+    "WorldMapTestInputBackend",
     "load_calibration",
     "load_calibration_text",
     "load_arcane_hotkeys",

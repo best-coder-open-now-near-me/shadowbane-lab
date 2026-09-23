@@ -52,6 +52,26 @@ class NativeCombatEventParserTests(unittest.TestCase):
                 event = self.parser.parse(_entry(message))
                 self.assertEqual(NativeCombatEventKind.PLAYER_KILLED, event.kind)
 
+    def test_anonymous_native_incoming_templates_have_no_attributed_name(self) -> None:
+        cases = (
+            ("Someone hits YOU for 12 points of damage!",
+             NativeCombatEventKind.TARGET_HIT_PLAYER, 12.0),
+            ("Someone misses YOU!", NativeCombatEventKind.TARGET_MISSED_PLAYER, None),
+        )
+        for message, kind, amount in cases:
+            with self.subTest(message=message):
+                event = self.parser.parse(_entry(message, sequence=12))
+                self.assertEqual(kind, event.kind)
+                self.assertIsNone(event.target_name)
+                self.assertEqual(amount, event.amount)
+                self.assertEqual(12, event.sequence)
+                self.assertEqual(message, event.message)
+
+    def test_named_incoming_message_retains_exact_spelling(self) -> None:
+        event = self.parser.parse(_entry("someone hits YOU for 3 points of damage!"))
+        self.assertEqual("someone", event.target_name)
+        self.assertEqual(NativeCombatEventKind.TARGET_HIT_PLAYER, event.kind)
+
     def test_unrecognized_native_message_is_preserved_as_other(self) -> None:
         entry = _entry("[Combat] Info: You have gained a level!")
 

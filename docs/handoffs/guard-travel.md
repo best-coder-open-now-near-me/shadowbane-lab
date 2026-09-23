@@ -1,0 +1,189 @@
+# Guard travel controls
+
+Installed in the test VM from `codex/guard-upgrades`; safe Travel and
+same-character Continue here after moving are live-verified.
+Integration destination: `codex/vendor-rolling`, then
+`codex/native-lifecycle-hardening`, then reviewed `main`.
+
+Travel and Continue here live in the manager dashboard, with no game overlay.
+Travel completes and accounts for the current funding cycle before displaying
+Safe to move. Continue here scans fresh building rosters, opens personal menus
+only for newly discovered guards, and extends the same durable job. Guards outside
+the current scan remain remembered but are not scheduled. New guards have priority;
+known guards retain rank floors, timers, upgrade counts, and confirmed gold totals.
+An area without remaining offers returns to Travel; it does not claim maximum rank.
+
+Each area retains immutable discovery digests and its original process/scene
+ownership. Fresh owned rosters admit future cycles under the current area scene;
+historical receipts are never rebound. Worker restarts preserve this progress.
+This does not import progress into a new game lifetime.
+The upgraded manager requires the matching travel-capable worker. Uncertain
+requests remain blocked; Travel cannot clear the existing live navigation failure.
+
+Validation: focused scheduler, discovery, dashboard, and worker tests cover safe
+transaction boundaries, area merging, new guard priority, retained rank timers,
+wrong-scene rejection, and guard-menu skipping from a fresh owned roster.
+
+Next: cover additional areas and finish rank progression as available gold allows.
+The installed client is 1.8.22 / host 0.3.33; the prior failed request and all
+174 confirmed first-pass upgrade records remain untouched.
+
+## Navigation lease regression
+
+The heartbeat/clock race is reproduced: renewing the shared heartbeat after the
+caller's clock sample makes the previous HostLeaseIsActive return false for an
+otherwise current host. The regression fails on the old implementation and passes
+with an additional clock sample after observing a newer heartbeat. Expired and
+actually future heartbeats, and wrong host generations, still fail. All six native
+movement/vendor/city/navigation/guard/funding channel tests pass. The retained live
+error does not uniquely prove this was its cause; no historical receipt is invented.
+
+Release versions for packaging: native 1.8.22 / host 0.3.32. Installation requires
+closing the game. The 174 prior upgrade receipts remain archived; the new lifetime
+requires fresh guard verification once. Subsequent Travel scans in that lifetime
+reuse remembered guards and do not restart the completed pass.
+
+## Verified package and VM staging
+
+Release source: `cd8c8a8d41a696817daf2ade6e676d264637d09e` (pushed), including
+travel checkpoint `f28eb21` and lease fix `68a9e23`. Host 0.3.32 / native 1.8.22.
+The exact committed package passes 2,775 Python tests (18 environment-dependent
+skips), Ruff, required native checks in both profiles, IPC/binding checks, installed
+entry points, and six additional installed guard wire-contract checks. The two
+pre-existing optional graphics transparency diagnostics still fail in each profile;
+they remain recorded diagnostic limitations, not claimed fixed by this update.
+
+Package archive SHA-256:
+`3195ad4496a3929718fa4f603f76f57c930376874afbb02c3a80d6c489f1036a`.
+Full DLL SHA-256:
+`740db74bc52451187d5aed383096467f944ae84bc8087936ba0b4d3df3e30f5f`.
+Wheel SHA-256:
+`92ac4ede7a872c8ff5e8216df8c486cfb70c8a172f721fc080f159891347e393`.
+
+VM staging and exact-baseline validation passed. Only the extension changes in the
+client inventory; the current official executable and assets remain unchanged.
+The manager host is staged separately. No running component has been replaced and
+no gold action was issued. Existing settings, receipts and journals remain retained.
+The current stopped job still reports 174 upgrades and 24,868,800 confirmed gold
+spent. User closure has been requested because the extension is loaded by the game.
+Normal checkout remains on main; this lane awaits integration via vendor-rolling.
+
+## Activation verified
+
+The user closed the game. Its original process remained alive without a window;
+its exact executable, process lifetime and absent window were verified before
+ending that leftover process. The previous manager and worker had already exited.
+The staged update applied successfully with five rollback files. All 5,578 retained
+record/settings files matched their pre-update hashes, including old uncertain
+requests. No spending or navigation request was replayed.
+
+Installed native DLL, prepared executable, source identity and host 0.3.32 match
+the verified package. The manager restarted hidden and its authenticated dashboard
+serves Travel and Continue here. The existing WonderBane Vendor Test shortcut still
+points to the same updated launcher. The game was not automatically launched.
+The user has been asked to log Poley into town; loaded-module/worker checks and
+live travel acceptance remain next. This is installation verification, not a claim
+that guard maximum rank or full-town coverage has been achieved.
+
+## Live discovery and safe Travel verified
+
+Poley is verified in the updated client; the loaded extension reports 1.8.22 and
+the healthy worker advertises the travel-capable protocol. The first discovery
+cancelled after 21 guards because a dispatch permit expired. All 44 window attempts
+were terminal and the journal was idle; no gold moved. That operation remains
+retained. A new read-only discovery was admitted after those checks. A 40-second
+permit watch observed continuous renewal; the original interruption's cause is
+not proven or claimed fixed.
+
+The new discovery completed its candidate pass: 174 guards, 31 verified building
+rosters, 60 candidates, and 379 terminal window attempts. Coverage is partial;
+this is not a full-town census. A new carried-gold job started from that exact plan.
+Travel was requested while its first cycle was active. The cycle confirmed that
+the guard was already upgrading at observed rank 3, recorded its wait timer, and
+then paused. The dashboard reports Safe to move; the active cycle and operation
+are empty, and the spending journal is idle. No gold was spent in this new job.
+
+All 174 guard records remain in the same job. The user has been asked to move
+Poley toward another area; Continue here and new-area merging are the remaining
+live acceptance steps. No historical request was cleared or replayed.
+
+## Same-character area continuation fix
+
+Live Continue here stopped before scanning or spending because ordinary travel
+changed the movement lifetime epoch while the client root and manager remained
+unchanged. A movement epoch is a transaction boundary, not a permanent town key.
+
+Host 0.3.33 separates persistent character ownership from current-area admission.
+It checks the reviewed local character before/after discovery and before each
+cycle. Historical plans and receipts retain their original digests and scenes.
+Only keys observed in the latest complete owned building rosters gain that area's
+fresh scene for future cycles; native transaction scene checks remain unchanged.
+Worker capability v4 prevents an older worker from accepting these jobs.
+
+Legacy jobs may gain character ownership only at an idle Travel boundary with
+zero spending, deposits, withdrawals or upgrades, no active cycle, and only
+confirmed navigation in their retained no-spend cycles. Paid or unresolved legacy
+jobs require review. This allows the live unspent 174-guard job to continue without
+rewriting its progress or adopting old financial receipts.
+
+Validation: 2,798 Python tests passed (12 environment-dependent skips), followed
+by 93 guard job/worker tests after the final migration/recovery checks; Ruff and
+diff checks pass. The native 1.8.22 extension remains unchanged; no game restart
+is required for this host fix.
+The published host is now installed; live acceptance is recorded below.
+
+## Host 0.3.33 activation and Continue here accepted
+
+Host source 4f20a81cd963d203950bb3d8663bf922babc689f is pushed and installed.
+Wheel SHA-256:
+8971fdeb4d040438f6607b5c8eab540e8930c7f5c0de25615bb36afe47455f2d.
+All 417 installed package-file hashes match. The idle worker was stopped through
+its exact stop request; the manager was restarted without restarting the game.
+All 5,834 retained job files matched their pre-update hashes. The launcher,
+dashboard helper and host metadata have rollback copies. Native source remains
+cd8c8a8 / extension 1.8.22; client binaries and assets were unchanged.
+
+The new v4 worker continued the same 174-guard job from movement epoch 2 to 14.
+The fresh scan completed 60 building attempts (54 observed, six not submitted),
+verified 30 rosters and remembered 168 guards without opening personal menus.
+No new guard was found in this area. The six guards outside this scan retained
+their exact progress and are excluded from current scheduling.
+
+The original plan remains byte-equivalent as structured data, including its
+historical scene. Current-area cycles use the fresh scene. At acceptance,
+37 completed resumed cycles had confirmed navigation and correctly returned
+waiting for guards already upgrading, with zero additional gold spent. The job
+remains running and will check their ranks again. No old request was replayed.
+
+Remaining: additional-area coverage and eventual rank completion. Maximum rank
+and full-town coverage are still unverified. Adding newly found guards is covered
+by regression tests; this live area exercised remembered-guard continuation.
+
+## September 20 restart and fresh-position run
+
+The user restarted the game and positioned Poley elsewhere in town. The installed
+host 0.3.33 / native 1.8.22 were verified unchanged. The manager was not running;
+it was restarted through its existing helper without restarting the game.
+
+Attachment initially failed because a historical worker PID had been reused by
+a protected Windows service. The VM's independently observed boot time proved
+29 worker heartbeat/reservation records belonged to processes from before this
+boot. They were archived byte-for-byte under the worker ledger's retirement
+directory, with source paths, hashes and boot evidence, while holding the launch
+lock. Guard jobs and transaction journals were untouched. Attachment and worker
+health then succeeded. Automatic retirement of such obsolete heartbeat records
+remains a manager maintenance improvement; no process-inspection check was weakened.
+
+Fresh discovery completed 335 terminal attempts across 60 candidate buildings,
+verifying 150 guards in 27 building rosters. All 150 overlap the previous census
+of 174; this position added no guards and did not expose the other 24. Historical
+jobs remain retained, but their old process/scene bindings were not imported.
+
+A new carried-gold job started from the exact fresh selection. At acceptance,
+five upgrades were confirmed (three observed at rank 4 and two at rank 3),
+with 1,918,950 deposited and spent, zero warehouse withdrawals, and all completed
+cycle actions confirmed. The worker is healthy and the job remains running.
+
+Next: let this run advance ranks as carried gold allows, and use Travel / Safe to
+move / Continue here for additional positions to expand coverage. Full-town
+coverage and maximum rank remain unverified.

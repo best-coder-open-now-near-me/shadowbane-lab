@@ -1,0 +1,435 @@
+# Project recovery ledger
+
+## Current integration: 2026-09-03 01:38 America/New_York
+
+The user authorized integrating the completed lanes now. They are combined on
+`codex/client-convergence-v2` at initial code checkpoint `fa2947c`, with the
+portable Windows path follow-up recorded below. This section
+supersedes every historical queue below; integration is no longer merely planned.
+No VM, installed game, previous release, topic ref, stash, or unrelated dirty
+worktree was changed.
+
+### Integrated source checkpoints
+
+| Lane | Included source tip | Integration commit |
+| --- | --- | --- |
+| PvE / reviewed renderer boundary | `3a605e4` | `5877b78` |
+| Asset-mod facade / pristine texture engine | `ba95232` | `ba5d4da` |
+| Read-only terrain seam auditor | `8df7694` | `729d308` |
+| Sustained contours / Graphics Lab schema 2 | `bc076d7` | `605d11c` |
+| Portable vanilla diagnostics / standalone utilities | `f6c1980` | `4aa172f` |
+| Legal-build simulator / calculator allocation / typed budgets | `b8543a2` | `fa2947c` |
+
+All six source tips are ancestors of the combined checkpoint. The simulator was
+pinned from the latest fetched committed tip at 01:31; its separate task may
+continue producing later work. Do not mistake this checkpoint for completion of
+every future simulator feature.
+
+Older preservation `43be8c9`, PvP data `d035f74`, streaming `5b3e1ec`, cel
+`de9367f`, replayed SDR `db7dd16`, and replayed Druid `be4fac0` are also
+confirmed ancestors. The old independent prototype and policy-ablation workflows
+remain history, not newly enabled runtime code. Older exact-map refs are retained;
+current native capture plus exact event/worker routing remain the production path,
+not a wholesale replay of the older out-of-process listener.
+
+### Integration repairs and validation
+
+- Preserved recovery's exact main-clear / done3D ownership when merging contours.
+  The sole text conflict was resolved by retaining both renderer journals.
+- Assigned the union a distinct extension version **1.6.10**. Native version
+  surfaces, launcher/publisher defaults, hashes, and version tests agree.
+- Graphics Lab and DLL use live-control schema 2 together. Saved schema-1 presets
+  migrate; old schema-1 live clients are intentionally incompatible. Legacy
+  five-sample contours remain the default; sustained filtering is opt-in.
+- Replaced wall-clock timing in the vendor-dialog fake backend with a deterministic
+  test clock. The live tracer's timeout behavior is unchanged.
+- Fixed slotted-dataclass parent serialization in the new simulator budget report
+  and its line-wrap lint failure. No legality/budget gate was weakened.
+- Full local Python 3.11 suite after the portable path correction:
+  **1,412 passed, 7 skipped, 211 subtests passed**. Ruff passes. The seven local
+  skips require symlink-creation privileges. The real Windows 8.3-alias regression
+  runs locally; Python 3.12/3.13 are covered by the shared CI matrix.
+- Win32 Release: **12/12 native tests in each profile**, full and diagnostics-only.
+  Frozen-client routine validation passed both relocation directions and
+  every-byte drift rejection without executing the game.
+- All 34 tracked PowerShell files parse. The wheel builds and installs into an
+  isolated package directory; asset, terrain, panel, portable, optimization and
+  bundled calculator/equipment/training resources load from that installation.
+- Bounded offline Assassin search completed (2 mutations, seed 7, rollout seed 1,
+  distance 6, 60 ticks, equipment pool 2); this is workflow smoke evidence, not a
+  balance or gameplay-performance claim.
+
+### Local artifacts and publishing state
+
+Built with MSVC 19.51 / Win32 Release using short output paths to avoid Windows
+MSBuild path-length failures:
+
+| Artifact | Path | SHA-256 |
+| --- | --- | --- |
+| Full 1.6.10 DLL | `E:/Projects/shadowbane/build/convergence-20260903-full/Release/wonderbane-extension.dll` | `6ca02bafa7c74a7cb01e40edf1b3eee30c1ac5857b6f80da06502dd0fe8c196e` |
+| Diagnostics-only 1.6.10 DLL | `E:/Projects/shadowbane/build/convergence-20260903-diagnostics/Release/wonderbane-extension.dll` | `e89fe27fe02c07494add7265f530bd74c93ae1d9be19ad247d3b129235269c6b` |
+| Combined wheel with portable path correction | Integration worktree: `build/integration-wheel-path-fix/shadowbane_lab-0.1.0-py3-none-any.whl` | `e5b0893e0d98cc34e3485726217ed412323871f38bbf246791e70447ba6a4daa` |
+
+The user explicitly approved publishing the remaining source/history, resolving
+the earlier upload blocker. The complete integration through `bd66e45` was pushed
+and its exact remote head verified on 2026-09-03.
+
+[The first combined CI run](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33720047846)
+passed lint, PowerShell parsing and both native profiles, but all three Python
+versions exposed the same four portable path failures: runner temporary paths
+use an 8.3 alias while preflight/output checks used the expanded path. This
+follow-up shares filesystem-aware path comparison between capture and preflight,
+canonicalizes the location-lookup assertion, and rejects evidence-path redirects
+outside the package. Exact PID/creation time, executable hashes, module/residue
+checks and different-path rejection remain enforced.
+
+The corrected wheel was rebuilt and imported from an isolated installation.
+The 1.6.10 native artifacts are unchanged. Check the exact latest published tip's
+[shared CI results](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/workflows/ci.yml?query=branch%3Acodex%2Fclient-convergence-v2)
+before deployment; local success alone does not certify the runner matrix.
+
+### Next work
+
+1. Use published convergence as the base for subsequent work and require green
+   shared CI for the exact release tip. Source integration and upload approval
+   are complete; do not restart from one of the older topic branches.
+2. Separately authorize a testing-VM release of the matched 1.6.10 DLL and panel.
+   Verify a second launch, ordinary legacy outlines and pre-UI completeness first;
+   then measure sustained-mode A/B visual and frame-cost evidence.
+3. Keep the plain VM unchanged. Portable vanilla diagnostics and the extension's
+   diagnostics-only profile are distinct choices, not implicit deployment steps.
+4. Collect the pristine-cache terrain report and outstanding hotspot/warm-revisit
+   evidence when resuming those investigations.
+5. The sandbox session/asset activation coordinator is still unimplemented;
+   integrating the asset compiler does not supply that planned UI/workflow.
+   Normal/class buffers and later renderer stages likewise remain future work.
+
+The original main-checkout formatting edits/untracked evidence, old broken streaming
+draft and reject file, stash, and testing-share files remain preserved. The unsafe
+untracked network residency launcher was neither executed nor incorporated.
+
+## Archived reassessment: 2026-09-03 01:04 America/New_York
+
+This section supersedes the September 2 status/queue below. The earlier audit is
+retained as dated evidence. The user reports the parallel slices mostly finished,
+with simulator work still active; the inspected renderer/terrain handoffs agree.
+
+### Completed source versus unfinished acceptance
+
+| Lane | Pinned tip | Current disposition |
+| --- | --- | --- |
+| PvE / reviewed scene-boundary recovery | `pve-target-authority@3a605e4` | Unchanged; recovery 1.6.9 built/pushed, live acceptance still pending |
+| Asset facade | `mod-asset-facade@ba95232` | Completed offline compiler/materializer; no activation coordinator |
+| Terrain seam audit | `terrain-seam-audit@8df7694` | Implemented, pushed, all seven CI jobs passed; real-cache audit not yet performed |
+| Sustained contours | `renderer-sustained-contours@bc076d7` | Implemented, pushed, push/PR CI passed; draft PR #24, live/performance validation and packaging pending |
+| Portable diagnostics | `portable-vanilla-diagnostics@f6c1980` | Unchanged released tool; still outside shared convergence source |
+| Simulator | `legal-build-map-elites-foundation@7bac704` | Active work; latest inspected push/PR checks failing. Hold out of this non-simulator integration batch |
+| Sandbox session coordinator | No implementation ref found | Still planned, despite completion of the other parallel slices |
+
+Terrain now supplies read-only border/gradient/corner analysis, fail-closed CZone
+role correlation, source hashes, per-map JSON, deterministic heatmaps, schemas and
+a CLI. It does not repair terrain. Its completed handoff explicitly leaves the
+first real WonderBane archive run pending.
+[Terrain CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33713371438).
+
+Contours now supplies optional same-direction second-ring support, independent
+thresholds, four diagnostic views, Graphics Control schema 2, preset migration,
+parameter/revision evidence and native fixtures. Legacy contours remain the
+default. The previous source-export commits were replaced by one implementation
+commit directly above `ba95232`; this was a rewritten branch tip, not another
+implementation to merge separately.
+[Contour PR #24](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/24).
+[Contour push CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33713745063).
+[Contour PR CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33713748247).
+
+The inspected simulator tip has advanced well beyond the earlier rank repair.
+Its current failures include duplicate initial candidate digests and a strict
+action-prerequisite expectation, plus the quality gate. Do not treat the earlier
+`b65eb73` green checkpoint as evidence for this new tip, and do not interfere
+with the still-active simulator work to finish renderer integration.
+[Inspected simulator CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33714554271).
+
+### New integration footguns
+
+1. Both renderer recovery and sustained contours independently use extension
+   version **1.6.9**, but only recovery includes the reviewed main-scene clear and
+   exact pre-UI boundary. Contours still inherits the old 1.6.8 scene logic.
+   Preserve recovery as the integration base; merge the contour implementation
+   into it, never deploy the contour branch wholesale as a replacement.
+2. The native contour DLL and Python panel must ship together: schema-1 saved
+   presets migrate, but schema-1 **live mappings** are rejected by the new panel.
+   Updating only the panel could again make an older running client disappear
+   from discovery. This is intentional protocol rejection, not lost shader settings.
+3. Contour publication/launch scripts deliberately remain pinned to the old 1.6.8
+   artifact. A combined source tree must receive a distinct release version,
+   freshly built hashes, matching launcher/publisher/package checks and a matching
+   panel. Preserve the existing recovery 1.6.9 artifact as a rollback reference.
+4. A non-mutating recovery + contour merge preview reports one textual conflict
+   in `docs/client-extension.md`. Native files auto-merge, but that is not a build
+   or semantic-validation result. Verify both scene ownership and new contour
+   uniforms/control fields in the combined runtime.
+5. Recovery + terrain and terrain + contours preview without textual conflicts.
+   Each includes the asset-facade ancestry, so merge that shared history once.
+   Recovery + portable diagnostics also previews cleanly.
+
+### Revised next-work queue
+
+1. Integrate the finished **non-simulator** slices into
+   `codex/client-convergence-v2`: recovery/PvE -> asset facade -> terrain audit ->
+   sustained contours -> portable diagnostics. Use small validated checkpoints;
+   do not wait for simulator completion or fold in its moving tip.
+2. Stabilize the shared timing-sensitive vendor-dialog fixture as needed for the
+   combined gate. Run the full Python matrix, lint, both Win32 profiles/CTest,
+   PowerShell parsing, package boundaries and focused terrain/contour/control tests.
+   The tests from each original branch do not certify their union.
+3. Seal the integrated renderer under a distinct version with a matching panel.
+   Then use an authorized testing-VM release to check ordinary legacy rendering
+   first, followed by sustained/diagnostic A/B evidence at the same camera, zone,
+   resolution, content profile and backend. Keep the plain VM untouched.
+4. Run the read-only terrain audit against the pristine frozen archives and retain
+   its source identities; do not use whichever modified cache happens to be installed.
+5. Build the missing verified sandbox coordinator. Surface provenance, world
+   targets, normal/class buffers and repair remain later work.
+6. Integrate a pinned, validated simulator checkpoint when that work is ready.
+
+The main checkout's six tracked formatting edits, 229 untracked entries, the old
+streaming worktree's eight edits plus reject file, and the old stash are still
+preserved. The testing share remains at `d00af62` with its existing 22 untracked
+files. No runtime source, client package or VM was changed by this reassessment.
+The earlier documentation checkpoint `d02c060` was still local at reassessment
+start; publishing the ledger is not a feature integration or deployment.
+
+## Archived audit: 2026-09-02
+
+Snapshot: 2026-09-02 23:42 America/New_York (2026-09-03 UTC).
+This is a branch/evidence inventory, not a claim that all listed features are
+integrated, deployed, or live-verified. Re-fetch before acting: two remote tips
+advanced during this audit.
+
+## Start here
+
+Keep `codex/client-convergence-v2` as the one long-lived experiment/product
+branch. It was still at `a6344d8` when inspected; newer product work has accumulated
+on topic branches instead of returning to convergence. This ledger's documentation
+checkpoint does not merge that code.
+
+The committed work is recoverable. In the main repository:
+
+- No commits reachable from local branches were absent from all fetched origin refs.
+- `git fsck --no-reflogs --unreachable` found no unreachable commits.
+- These checks do not protect uncommitted files or guarantee another machine's
+  unpushed work has been captured.
+- No branches, stashes, files, or worktrees were deleted, reset, or rewritten.
+
+## Exact feature inventory
+
+All branch names below have the `codex/` prefix unless stated otherwise.
+Counts compare the audited tips, before this documentation checkpoint.
+
+| Lane | Verified remote tip | What is present | Integration / acceptance state |
+| --- | --- | --- | --- |
+| Shared convergence | `client-convergence-v2@a6344d8` | Preserved features, simulator/PvP data, non-render ownership extractions, evidence/diagnostic tools and integrity gates | Does not contain the newer lanes below |
+| PvE + renderer recovery | `pve-target-authority@3a605e4` | Bounded native action transport/probe, exact active-character CFG selection, reviewed pre-UI capture boundary, extension 1.6.9 | 31 commits beyond convergence; not yet merged back; visual acceptance pending |
+| Texture engine + public asset facade | `mod-asset-facade@ba95232` | Shared cache mutation engine, mod schema, build-specific components, conflict resolution, immutable compiled texture profiles and receipts | 23 commits unique versus PvE; no client installation/relaunch coordinator or Texture Lab GUI in this slice |
+| Texture predecessor | `texture-lab-sandbox@949ec3d` | Shared texture-cache engine extraction | Fully contained by mod facade; do not merge separately |
+| Legal builds + training | `legal-build-map-elites-foundation@b65eb73` | Legal-build compiler, candidate/strict archive admission, compiler-backed mutation, semantic-duel evaluation and Irekei Assassin search | 5 commits unique versus PvE, forked at `3999d2e`; repaired push CI passes, PR matrix pending |
+| Contour topic | `renderer-sustained-contours@9891839` | Mod facade plus two source-export workflow commits | No sustained-contour implementation yet; still lacks the 1.6.9 boundary recovery |
+| Terrain topic | `terrain-seam-audit@ba95232` | Exactly the asset-facade tree/history | No terrain audit changes yet |
+| Portable clean-client diagnostics | `portable-vanilla-diagnostics@f6c1980` | Standalone read-only capture app, portable package, location lookup and separately launched Druid macro utility | 6 commits unique versus PvE; released separately, not integrated into convergence |
+| Portable predecessor | `vanilla-diagnostics-release@fff9381` | Original isolated vanilla capture/release | Contained by portable branch; do not merge separately |
+| Proposed sandbox coordinator | `verified-texture-sandbox-session` | Design/handoff only in the inspected refs | No remote branch or implementation found at the snapshot |
+
+The old `pvp-current-client-data@d035f74`, preserved-feature integration,
+`client-streaming-telemetry@5b3e1ec`, manager reliability tip, old convergence
+attempts, and both frozen v2 aliases are already ancestors of `a6344d8`.
+They are not missing feature merges. Do not replay them.
+
+## Handoff drift resolved during this audit
+
+The simulator handoff described a training loop while the remote initially exposed
+only `ba1c70c` (compiler/archive foundation). A fresh push to `f485037` supplied
+the training implementation during the audit, followed by rank repair `b65eb73`.
+Treat the committed implementation as the source of truth, not the older prose:
+
+- The module is `shadowbane_lab.optimization.irekei_assassin`, not
+  `shadowbane_lab.build_optimization.irekei_assassin`.
+- Its documented options include `--iterations`, `--rollout-seeds`,
+  `--distances` and `--max-ticks`; do not copy the older generations/offspring command.
+- The current documentation permits trained-attribute mutation and describes a
+  Deflock/Elf Druid league, unlike the earlier handoff.
+- PR #23 appeared during the final recheck and targets `codex/pve-target-authority`.
+  The earlier missing-PR concern is resolved.
+- Candidate training is not a verified current-live optimum. Opaque requirements,
+  affix effects and full training-cost legality remain explicit gaps.
+
+## Validation blockers
+
+### Training: rank mismatch repaired; PR checks still pending
+
+At `f485037`, all three Python jobs (3.11/3.12/3.13) fail the two end-to-end
+training tests. The guide ruleset has Shadow Bolt compiled at rank 40 while the
+selected build requests rank 5. The experiment constructs a default guide ruleset
+before submitting the presets' rank selections. Preserve the compiler's exact-rank
+rejection; the repair must reconcile build/ruleset inputs instead of weakening
+the legality boundary.
+
+Native full/diagnostics-only, quality and PowerShell checks passed in that run.
+[Failed training CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33711846973).
+
+`b65eb73` subsequently derives exact rank overrides from all three presets and
+rejects conflicting requests. Its full push matrix passed. PR #23's separate
+matrix was still running at this snapshot; the rank-mismatch blocker is repaired,
+not an outstanding implementation todo.
+[Repaired push CI](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33712055555).
+[Training PR](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/23).
+[PR checks](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33712187220).
+
+### Shared test: vendor-dialog wall-clock sensitivity
+
+The renderer 1.6.9 push matrix passed, but the PR matrix failed
+`NativeVendorDialogTracerTests.test_captures_request_and_decoded_menu_with_option`
+with `4 != 1`. The older foundation run at `ba1c70c` failed the same test on a
+different Python version. The fixture uses a real 100 ms timeout and 10 ms settling
+window. This is evidence of a timing-sensitive test, not proof of a renderer
+regression; make the fixture deterministic and rerun both matrices.
+
+[Renderer push passed](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33711354235).
+[Renderer PR failed](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33711354783).
+[Earlier foundation failure](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33706837893).
+
+### Portable diagnostics: release success is not shared-CI success
+
+The v1.0.1 release workflow succeeded, but the inherited Linux protocol CI failed:
+missing Pillow/Capstone-dependent coverage and Windows-path deployment assertions.
+Carry this source into the current dependency/platform-aware validation matrix;
+do not equate a successful portable build with a green shared product.
+
+[Portable release](https://github.com/best-coder-open-now-near-me/shadowbane-lab/releases/tag/vanilla-diagnostics-portable-v1.0.1).
+[Inherited CI failure](https://github.com/best-coder-open-now-near-me/shadowbane-lab/actions/runs/33640028087).
+
+Asset facade `ba95232` and contour export `9891839` have successful shared CI.
+The latter validates the inherited asset code/export workflow, not a new contour algorithm.
+
+## Merge feasibility and order
+
+Non-mutating `git merge-tree --write-tree` previews found no textual conflicts for:
+
+- `3a605e4 + ba95232` (PvE/renderer + assets);
+- `3a605e4 + b65eb73` (PvE/renderer + training);
+- `3a605e4 + f6c1980` (PvE/renderer + portable diagnostics).
+
+These are pairwise previews, not a validated combined build. No real merges were
+performed. The shared ancestors are respectively `46a295f`, `3999d2e`, and
+`99b37c7`. The training branch is missing eight PvE-side commits, including
+active-profile selection and 1.6.9 recovery; it must not replace the PvE tip.
+
+Recovery queue:
+
+1. Stabilize the shared vendor-dialog fixture in its own checkpoint, and confirm
+   PR #23's final matrix after the already-pushed rank repair. Recheck moving refs
+   before editing.
+2. Merge the PvE/1.6.9 history into convergence, then the asset facade, then the
+   repaired training slice, then portable diagnostics. Preserve each feature's
+   boundaries and evidence; do not select one entire branch as the replacement.
+3. Run the complete Python/dependency matrix, lint, PowerShell parser, both Win32
+   profiles/CTest, package boundaries, and focused new-feature tests on the combined
+   source. Commit and push each validated integration slice.
+4. Reconcile stale PR destinations only after choosing the containing checkpoint.
+   PR #22 still targets renderer recovery, PR #21 targets main for already inherited
+   texture tools, and draft PR #16 targets an old simulator-CI branch. Do not click
+   merge on all three as a substitute for this convergence.
+5. Prepare an exact testing-VM package and verify the 1.6.9 outline recovery live.
+   Keep deployment distinct from source integration; do not touch the plain VM.
+6. Deliver the verified sandbox session coordinator as the next end-to-end
+   asset-testing workflow, then continue terrain audit and contour work from the
+   new shared tip.
+7. Only after capture ownership and experiment identity are stable, proceed to
+   semantic surface provenance, world targets, normal/class buffers, AO and the
+   larger compatibility-renderer sequence.
+
+## Ownership boundaries to retain
+
+- Asset facade: public package identities, build variants and explicit conflicts.
+  One internal texture engine owns texture-cache parsing and binary mutation.
+- Sandbox coordinator: orchestrates verified installation, exact launch, renderer
+  settings acknowledgement and evidence identity. It must reuse the existing
+  package/process/graphics/evidence owners, not replace them with one service.
+- Baseline content is a first-class `vanilla-assets` descriptor above the current
+  non-empty texture-plan type. It does not mean the whole client is unmodified.
+- Materialized profiles remain immutable verified sources, never live client caches
+  or writable hard links. Switching needs a durable journal and recovery states.
+- Receipts form a chain: materialization -> closed-client switch -> exact launched
+  session. Record PID plus creation time, canonical executable/hash, extension
+  version/hash, content receipt/hash and applied renderer revision.
+- Terrain audit is read-only: borders, gradients, material layers, corners, source
+  hashes and coordinates. No terrain repair, cache writes, or authoritative draw
+  classification belongs in that audit.
+- Contours own depth-edge logic and versioned graphics controls, not cache writes.
+  Their current asset-based branch must incorporate 1.6.9 before renderer edits
+  are promoted; otherwise the early-capture regression can return.
+- Simulator owns offline legality, rules, search and replay. It must not depend on
+  the renderer, native actuation or a live game to validate the training loop.
+- Truly plain-client diagnostics remain distinct from an extension's
+  diagnostics-only build. Consolidating their source does not authorize deploying
+  the extension or automatically starting the bundled macro.
+
+## Local leftovers: preserve, do not replay blindly
+
+| Location / history | Observed state | Disposition |
+| --- | --- | --- |
+| Main `wreck-texture-cache-swap` checkout | Six tracked Python formatting changes; 229 untracked entries under `status -uall`, including patches, screenshots, scratch analyses and worktree markers | Do not stage wholesale or clean recursively; private evidence stays private |
+| `.worktrees/client-streaming-telemetry` | Eight modified files plus `performance_telemetry.cpp.rej`; partial `hotspot/frame_activity` schema-2 patch | Python diff contains a broken consecutive `elif`; not a release candidate. Modern convergence already implements schema-2 `aggregate/frame_summary` with grouped counters. Reconcile intent, do not replay the draft |
+| Other registered worktrees | No tracked/untracked changes at the snapshot | Clean does not mean retired; many are historical or detached release snapshots |
+| Testing share clone | `pve-target-authority@d00af62`, 22 pre-existing untracked helpers/screenshots | Remote-tracking state in this separate clone is stale; preserve files before any later fast-forward |
+| `stash@{0}` | `45b836d`, old simulator/pre-main-update stash | Still retained; prior preservation registry records its tracked work and private audit evidence. Do not pop or drop casually |
+
+Local refs that report "ahead" of their own old upstream are not necessarily
+unpublished: the manager, graphics baseline and simulator tips are all retained
+through other fetched remote refs.
+
+Historical independent tips also remain on origin: the initial simulator prototype,
+Shadow Mantle ablation recipes, earlier exact-map dispatch histories, and the
+Assassin SDR preservation branch. Ancestry alone does not prove whether a replayed
+feature is missing. The old prototype is explicitly superseded; ablations are
+experiments; SDR patches have replay equivalents. Keep the refs until feature-level
+coverage and private evidence are verified. Do not resurrect old workflows/reverts
+just to make every branch an ancestor.
+
+## Existing tools versus remaining field work
+
+Convergence already includes exact-process observation snapshots, record-store
+ownership, package/runtime-drift separation, camera producer/consumer contracts,
+aggregate frame/cache/upload telemetry, markers, timeline correlation and a CPU-stack
+capture planner. The broken streaming draft is not the only copy of those intentions.
+See `docs/refactor-boundaries.md`, `docs/evidence-spine-delivery-plan.md` and the
+diagnostics modules before starting another rewrite.
+
+This inventory does not certify all live evidence collection as finished.
+The Maelstrom stationary slowdown, preserved captures, warm revisit and optional
+short CPU-stack capture remain investigation work. Texture lifetime tracking is
+conditional on evidence of repeat uploads; no new invasive capture is authorized here.
+The untracked network residency launcher must not be executed or incorporated.
+
+## Deployment truth
+
+No VM was changed in this audit. The testing share is a separate clone, not the
+main checkout or the renderer implementation worktree. A branch push does not update
+its scripts, DLLs, installed packages or running client.
+
+The prior 1.6.9 release is built and pushed, but testing publication and visual
+acceptance are pending. Use the pinned artifact hashes and acceptance conditions in
+`docs/investigations/renderer-scene-boundary.md` on `pve-target-authority@3a605e4`
+until that journal is merged here. The required latest-frame facts include a
+verified mapping, exactly one main scene/boundary, successful composite, zero late
+world draws, and a boundary after the final world draw. Also verify text/UI,
+character and prop outlines, baseline reset, repeat launch, revisit and frame time.
+
+## Keeping this ledger useful
+
+Every future handoff should record: exact source commit, containing convergence
+commit (or "not merged"), validation run, artifact hash/profile, deployed target
+(or "not deployed"), and the next concrete todo. Planned, implemented, CI-verified,
+integrated, packaged and live-verified are different states.
+
+Refresh this snapshot at each integration checkpoint. Keep historical journals as
+evidence, but use this ledger for the current queue rather than old chat claims.

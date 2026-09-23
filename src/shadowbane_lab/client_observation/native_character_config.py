@@ -1,0 +1,234 @@
+"""Read the local-player identity used by the client's SCREEN_GAME paths.
+
+New fields require their own build review, not the older native-layout family.
+See docs/active-character-profile.md for the offline mapping evidence.
+"""
+
+from __future__ import annotations
+
+import struct
+from dataclasses import dataclass, replace
+
+from .native_health import ReadOnlyProcessMemory
+from .native_object import NativeObjectKey
+
+
+class ActiveCharacterError(RuntimeError):
+    """No trustworthy active-character configuration can be established."""
+
+
+@dataclass(frozen=True, slots=True)
+class CharacterConfigLayout:
+    executable_sha256: str
+    player_pointer_rva: int
+    character_config_enabled_rva: int
+    character_vtable_rva: int
+    name_offset: int
+    server_offset: int
+
+
+# Load/save routines at RVAs 0x795DA0 and 0x7963E0 in this exact executable.
+REVIEWED_CHARACTER_CONFIG_LAYOUTS = (
+    CharacterConfigLayout(
+        executable_sha256="55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc",
+        player_pointer_rva=0x16A2D98,
+        character_config_enabled_rva=0x16A7C60,
+        character_vtable_rva=0x114165C,
+        name_offset=0xC48,
+        server_offset=0xC90,
+    ),
+    # September 12: exact prepared-image load/save/UTF-16 encoder fingerprints
+    # match the documented calibration; no family-wide compatibility fallback.
+    CharacterConfigLayout(
+        executable_sha256="bb63469eb35917e6b3f58be75d29f94855c9868024271222465b4db62f0e3a87",
+        player_pointer_rva=0x16A2D98,
+        character_config_enabled_rva=0x16A7C60,
+        character_vtable_rva=0x114165C,
+        name_offset=0xC48,
+        server_offset=0xC90,
+    ),
+)
+
+# Exact load/save, selected-player and string routines are unchanged across
+# the reviewed 1.3.38.7, 1.3.38.9 and 1.3.38.10 builds.
+REVIEWED_CHARACTER_CONFIG_LAYOUTS += (
+    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
+            executable_sha256="b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3"),
+    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
+            executable_sha256="e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891"),
+    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
+            executable_sha256="761f375e422332cac2512398bb935af38b30267b9b3a7a5cede9f87e98982442"),
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveCharacterIdentity:
+    player_pointer: int
+    character_name: str
+    server_name: str
+
+    @property
+    def config_filename(self) -> str:
+        # Core::String formats each UTF-16 code unit as four hexadecimal digits.
+        encoded = self.character_name.encode("utf-16-be").hex().upper()
+        return f"SCREEN_GAME_{encoded}_{self.server_name}.cfg"
+
+
+@dataclass(frozen=True, slots=True)
+class SelectedPlayerIdentity:
+    object_key: NativeObjectKey
+    character_name: str
+    server_name: str
+
+
+class NativeCharacterConfigReader:
+    """Bounded reads through an already-open, read-only process handle."""
+
+    def __init__(self, process: ReadOnlyProcessMemory) -> None:
+        self.process = process
+        layout = next(
+            (
+                item
+                for item in REVIEWED_CHARACTER_CONFIG_LAYOUTS
+                if item.executable_sha256 == process.executable_sha256.lower()
+            ),
+            None,
+        )
+        if process.executable_name.casefold() != "sb.exe" or process.pointer_size != 4:
+            raise ActiveCharacterError("active-character selection requires reviewed 32-bit sb.exe")
+        if layout is None:
+            raise ActiveCharacterError(
+                "active-character mapping is not reviewed for client SHA-256 "
+                f"{process.executable_sha256}; review its config-selection layout before use"
+            )
+        creation = getattr(process, "process_creation_filetime_utc", None)
+        if isinstance(creation, bool) or not isinstance(creation, int) or creation <= 0:
+            raise ActiveCharacterError("active-character selection requires process creation time")
+        self.layout = layout
+        self.process_creation_filetime_utc = creation
+
+    def observe(self) -> ActiveCharacterIdentity:
+        first = self._snapshot()
+        if self._snapshot() != first:
+            raise ActiveCharacterError("active character changed during profile selection; retry")
+        return first
+
+    def observe_local_key(self) -> NativeObjectKey:
+        """Read the calibrated local typed key, bracketed by full character identity."""
+        if self.process.executable_sha256.lower() not in {
+            layout.executable_sha256 for layout in REVIEWED_CHARACTER_CONFIG_LAYOUTS[1:]
+        }:
+            raise ActiveCharacterError("local player key is not reviewed for this image")
+        before = self.observe()
+        raw = self._read(before.player_pointer + 0x18, 8)
+        key = NativeObjectKey(*struct.unpack("<II", raw))
+        if not key.object_type or key.object_uuid != 53:
+            raise ActiveCharacterError("local character is not a calibrated player")
+        if self.observe() != before or self._read(before.player_pointer + 0x18, 8) != raw:
+            raise ActiveCharacterError("local player changed during identity read")
+        return key
+
+    def observe_selected_player(self) -> SelectedPlayerIdentity:
+        """Exact-image remote-player identity, bracketed by local and selection reads."""
+        if self.process.executable_sha256.lower() not in {
+            layout.executable_sha256 for layout in REVIEWED_CHARACTER_CONFIG_LAYOUTS[1:]
+        }:
+            raise ActiveCharacterError("selected-player identity is not reviewed for this image")
+        local = self.observe()
+        slot = self.process.base_address + 0x16A2DA4
+
+        def sample() -> SelectedPlayerIdentity:
+            pointer = struct.unpack("<I", self._read(slot, 4))[0]
+            if pointer == local.player_pointer:
+                raise ActiveCharacterError("select another player")
+            self._range(pointer, self.layout.server_offset + 16, alignment=4)
+            vtable = struct.pack("<I", self.process.base_address + self.layout.character_vtable_rva)
+            if self._read(pointer, 4) != vtable:
+                raise ActiveCharacterError("selected object is not a reviewed character")
+            raw_key = self._read(pointer + 0x18, 8)
+            key = NativeObjectKey(*struct.unpack("<II", raw_key))
+            if not key.object_type or key.object_uuid != 53:
+                raise ActiveCharacterError("selected character is not a calibrated player")
+            name = self._string(pointer + self.layout.name_offset)
+            server = self._string(pointer + self.layout.server_offset)
+            if (not name.strip() or any(ord(c) < 32 for c in name)
+                    or server != local.server_name):
+                raise ActiveCharacterError("selected player name/server is invalid")
+            if (self._read(slot, 4) != struct.pack("<I", pointer)
+                    or self._read(pointer, 4) != vtable
+                    or self._read(pointer + 0x18, 8) != raw_key):
+                raise ActiveCharacterError("selected player changed during identity read")
+            return SelectedPlayerIdentity(key, name, server)
+
+        first = sample()
+        if sample() != first or self.observe() != local:
+            raise ActiveCharacterError("player identity changed during selection sample")
+        return first
+
+    def _snapshot(self) -> ActiveCharacterIdentity:
+        base = self.process.base_address
+        layout = self.layout
+        flag_address = base + layout.character_config_enabled_rva
+        if self._read(flag_address, 1) != b"\x01":
+            raise ActiveCharacterError(
+                "character-specific configuration is not active; log in first"
+            )
+        pointer_address = base + layout.player_pointer_rva
+        pointer = struct.unpack("<I", self._read(pointer_address, 4))[0]
+        self._range(pointer, layout.server_offset + 16, alignment=4)
+        if self._read(pointer, 4) != struct.pack("<I", base + layout.character_vtable_rva):
+            raise ActiveCharacterError("local player is not a reviewed ArcCharacter instance")
+        name = self._string(pointer + layout.name_offset)
+        server = self._string(pointer + layout.server_offset)
+        for value in (name, server):
+            if (
+                not value
+                or value != value.strip()
+                or any(ord(char) < 32 or ord(char) == 127 or char in '<>:"/\\|?*' for char in value)
+                or value.endswith(".")
+            ):
+                raise ActiveCharacterError("character/server contains an invalid filename value")
+        if (
+            self._read(pointer_address, 4) != struct.pack("<I", pointer)
+            or self._read(flag_address, 1) != b"\x01"
+        ):
+            raise ActiveCharacterError("active character changed during profile selection; retry")
+        identity = ActiveCharacterIdentity(pointer, name, server)
+        if len(identity.config_filename.encode("utf-8")) >= 290:
+            raise ActiveCharacterError("character configuration filename exceeds client bounds")
+        return identity
+
+    def _string(self, address: int) -> str:
+        header = self._read(address, 16)
+        begin, end, capacity = struct.unpack_from("<III", header, 4)
+        if end <= begin or end - begin > 128 or (end - begin) % 2 or capacity < end + 2:
+            raise ActiveCharacterError("active character Core::String bounds are invalid")
+        self._range(begin, end - begin + 2, alignment=2)
+        if capacity > 0x7FFEFFFF:
+            raise ActiveCharacterError("active character Core::String capacity is invalid")
+        raw = self._read(begin, end - begin + 2)
+        if raw[-2:] != b"\x00\x00" or self._read(address, 16) != header:
+            raise ActiveCharacterError("active character string changed or is not terminated")
+        try:
+            return raw[:-2].decode("utf-16-le")
+        except UnicodeError as exc:
+            raise ActiveCharacterError("active character string is not valid UTF-16") from exc
+
+    @staticmethod
+    def _range(address: int, size: int, *, alignment: int = 1) -> None:
+        if address < 0x10000 or address + size > 0x7FFEFFFF or address % alignment:
+            raise ActiveCharacterError("active character pointer is outside the bounded user range")
+
+    def _read(self, address: int, size: int) -> bytes:
+        self._range(address, size)
+        chunks = []
+        for offset in range(0, size, 64):
+            length = min(64, size - offset)
+            try:
+                chunk = self.process.read(address + offset, length)
+            except Exception as exc:
+                raise ActiveCharacterError("could not read the bound active character") from exc
+            if len(chunk) != length:
+                raise ActiveCharacterError("partial active character read")
+            chunks.append(chunk)
+        return b"".join(chunks)

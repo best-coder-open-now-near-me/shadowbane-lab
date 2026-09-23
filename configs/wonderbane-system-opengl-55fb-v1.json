@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "profile_id": "wonderbane-55fb-system-opengl-v1",
+  "file_count": 2,
+  "files": [
+    {
+      "relative_path": "libgallium_wgl.dll",
+      "size": 52321280,
+      "sha256": "43f5422ff4764973a8db15252495031937eda81e3c7fc0f91fd12d6342b738c0"
+    },
+    {
+      "relative_path": "opengl32.dll",
+      "size": 105472,
+      "sha256": "6a804058a4cc1386f38698ec16e078990681f6961598c20a7d6be9a20a4d74de"
+    }
+  ]
+}

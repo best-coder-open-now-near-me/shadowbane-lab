@@ -1,0 +1,120 @@
+{
+  "id": "clear-day-v1",
+  "description": "Authored azure sky, warm horizon haze, broad sun glow and twelve fixed cirrus patches. Infinite distance; no scenery or weather simulation.",
+  "zenith": [
+    0.13,
+    0.31,
+    0.56
+  ],
+  "horizon": [
+    0.72,
+    0.77,
+    0.78
+  ],
+  "nadir": [
+    0.42,
+    0.49,
+    0.54
+  ],
+  "sun": [
+    0.36,
+    0.32,
+    -0.877
+  ],
+  "sun_color": [
+    1.0,
+    0.87,
+    0.64
+  ],
+  "cloud_color": [
+    0.91,
+    0.93,
+    0.96
+  ],
+  "clouds": [
+    {
+      "azimuth": 15,
+      "elevation": 24,
+      "width": 24,
+      "height": 4,
+      "opacity": 0.48
+    },
+    {
+      "azimuth": 34,
+      "elevation": 27,
+      "width": 17,
+      "height": 3,
+      "opacity": 0.4
+    },
+    {
+      "azimuth": 70,
+      "elevation": 40,
+      "width": 30,
+      "height": 5,
+      "opacity": 0.3
+    },
+    {
+      "azimuth": 104,
+      "elevation": 32,
+      "width": 20,
+      "height": 3,
+      "opacity": 0.38
+    },
+    {
+      "azimuth": 150,
+      "elevation": 19,
+      "width": 28,
+      "height": 3,
+      "opacity": 0.32
+    },
+    {
+      "azimuth": 182,
+      "elevation": 36,
+      "width": 22,
+      "height": 4,
+      "opacity": 0.4
+    },
+    {
+      "azimuth": 220,
+      "elevation": 28,
+      "width": 31,
+      "height": 4,
+      "opacity": 0.4
+    },
+    {
+      "azimuth": 248,
+      "elevation": 44,
+      "width": 20,
+      "height": 3,
+      "opacity": 0.3
+    },
+    {
+      "azimuth": 290,
+      "elevation": 22,
+      "width": 26,
+      "height": 3,
+      "opacity": 0.5
+    },
+    {
+      "azimuth": 310,
+      "elevation": 27,
+      "width": 18,
+      "height": 2,
+      "opacity": 0.36
+    },
+    {
+      "azimuth": 340,
+      "elevation": 48,
+      "width": 26,
+      "height": 3,
+      "opacity": 0.3
+    },
+    {
+      "azimuth": 355,
+      "elevation": 25,
+      "width": 17,
+      "height": 2,
+      "opacity": 0.4
+    }
+  ]
+}

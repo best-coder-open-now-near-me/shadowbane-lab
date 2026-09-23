@@ -124,6 +124,7 @@ class TravelPhase(StrEnum):
 
 class TravelManeuver(StrEnum):
     DIRECT = "direct"
+    ESCAPE_BACKTRACK = "escape_backtrack"
     ESCAPE_BACK_LEFT = "escape_back_left"
     ESCAPE_BACK_RIGHT = "escape_back_right"
     ESCAPE_SWEEP_LEFT = "escape_sweep_left"
@@ -134,6 +135,8 @@ class TravelManeuver(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class TravelControllerConfig:
+    maximum_click_distance: float = 50.0
+    escape_backtrack_distance: float = 10.0
     maximum_session_ms: int = 300_000
     click_interval_ms: int = 4_000
     maximum_clicks: int = 100
@@ -158,6 +161,12 @@ class TravelControllerConfig:
     minimum_health_fraction: float = 0.5
 
     def __post_init__(self) -> None:
+        _finite(self.maximum_click_distance, "maximum_click_distance")
+        if self.maximum_click_distance <= 0:
+            raise ValueError("maximum_click_distance must be positive")
+        _finite(self.escape_backtrack_distance, "escape_backtrack_distance")
+        if self.escape_backtrack_distance <= 0:
+            raise ValueError("escape_backtrack_distance must be positive")
         for value, field_name in (
             (self.maximum_session_ms, "maximum_session_ms"),
             (self.click_interval_ms, "click_interval_ms"),
@@ -234,7 +243,17 @@ class TravelDecision:
     maneuver: TravelManeuver | None = None
     terminal_reason: str | None = None
 
+    click_destination: Vector2 | None = None
+    arrival_destination: TravelDestination | None = None
+
     def __post_init__(self) -> None:
+        if self.click_destination is not None:
+            if not isinstance(self.click_destination, Vector2) or self.minimap_direction is None:
+                raise ValueError("click destination requires a movement direction")
+        if self.arrival_destination is not None and not isinstance(
+            self.arrival_destination, TravelDestination
+        ):
+            raise ValueError("arrival destination must be a TravelDestination")
         for value, field_name in (
             (self.decision_id, "decision_id"),
             (self.now_ms, "now_ms"),
@@ -301,7 +320,13 @@ class TravelRunResult:
     stop_input_accepted: bool | None = None
     stop_input_reason: str | None = None
 
+    arrival_confirmed: bool | None = None
+
     def __post_init__(self) -> None:
+        if self.arrival_confirmed is not None and type(self.arrival_confirmed) is not bool:
+            raise ValueError("arrival_confirmed must be boolean when present")
+        if self.arrival_confirmed is False and self.final_phase is TravelPhase.COMPLETE:
+            raise ValueError("unconfirmed arrival cannot complete a travel run")
         if self.final_phase not in (TravelPhase.COMPLETE, TravelPhase.STOPPED):
             raise ValueError("travel run result must be terminal")
         if not isinstance(self.terminal_reason, str) or not self.terminal_reason.strip():

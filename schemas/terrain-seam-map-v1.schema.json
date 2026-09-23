@@ -1,0 +1,556 @@
+{
+  "$defs": {
+    "corner": {
+      "additionalProperties": false,
+      "properties": {
+        "edge_deltas": {
+          "additionalProperties": false,
+          "properties": {
+            "left_y": {
+              "type": "integer"
+            },
+            "lower_x": {
+              "type": "integer"
+            },
+            "right_y": {
+              "type": "integer"
+            },
+            "upper_x": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "lower_x",
+            "upper_x",
+            "left_y",
+            "right_y"
+          ],
+          "type": "object"
+        },
+        "junction": {
+          "$ref": "#/$defs/tileCoordinate"
+        },
+        "mean": {
+          "maximum": 255,
+          "minimum": 0,
+          "type": "number"
+        },
+        "spread": {
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tiles": {
+          "additionalProperties": false,
+          "properties": {
+            "lower_left": {
+              "$ref": "#/$defs/tileCoordinate"
+            },
+            "lower_right": {
+              "$ref": "#/$defs/tileCoordinate"
+            },
+            "upper_left": {
+              "$ref": "#/$defs/tileCoordinate"
+            },
+            "upper_right": {
+              "$ref": "#/$defs/tileCoordinate"
+            }
+          },
+          "required": [
+            "lower_left",
+            "lower_right",
+            "upper_left",
+            "upper_right"
+          ],
+          "type": "object"
+        },
+        "values": {
+          "additionalProperties": false,
+          "properties": {
+            "lower_left": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "lower_right": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "upper_left": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "upper_right": {
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "lower_left",
+            "lower_right",
+            "upper_left",
+            "upper_right"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "junction",
+        "tiles",
+        "values",
+        "spread",
+        "mean",
+        "edge_deltas"
+      ],
+      "type": "object"
+    },
+    "differenceStatistics": {
+      "additionalProperties": false,
+      "properties": {
+        "absolute_maximum": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "absolute_mean": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "absolute_p50": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "absolute_p95": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "absolute_rms": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "maximum": {
+          "type": "integer"
+        },
+        "mean": {
+          "type": "number"
+        },
+        "minimum": {
+          "type": "integer"
+        },
+        "nonzero_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sample_count": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sample_count",
+        "nonzero_count",
+        "minimum",
+        "maximum",
+        "mean",
+        "absolute_maximum",
+        "absolute_mean",
+        "absolute_rms",
+        "absolute_p50",
+        "absolute_p95"
+      ],
+      "type": "object"
+    },
+    "gradientSideStatistics": {
+      "additionalProperties": false,
+      "properties": {
+        "absolute_maximum": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "absolute_p95": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maximum": {
+          "type": "integer"
+        },
+        "mean": {
+          "type": "number"
+        },
+        "minimum": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "minimum",
+        "maximum",
+        "mean",
+        "absolute_maximum",
+        "absolute_p95"
+      ],
+      "type": "object"
+    },
+    "mapSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "corner_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "diagnostic_score": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_border_absolute": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_border_absolute_p95": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_corner_spread": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_gradient_discontinuity_absolute": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "max_gradient_discontinuity_absolute_p95": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "nonzero_border_seam_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "seam_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "x_seam_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "y_seam_count": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "seam_count",
+        "x_seam_count",
+        "y_seam_count",
+        "corner_count",
+        "nonzero_border_seam_count",
+        "max_border_absolute",
+        "max_border_absolute_p95",
+        "max_gradient_discontinuity_absolute",
+        "max_gradient_discontinuity_absolute_p95",
+        "max_corner_spread",
+        "diagnostic_score"
+      ],
+      "type": "object"
+    },
+    "seam": {
+      "additionalProperties": false,
+      "properties": {
+        "axis": {
+          "enum": [
+            "x",
+            "y"
+          ]
+        },
+        "border_delta": {
+          "$ref": "#/$defs/differenceStatistics"
+        },
+        "diagnostic_score": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "first_inward_gradient": {
+          "$ref": "#/$defs/gradientSideStatistics"
+        },
+        "first_tile": {
+          "$ref": "#/$defs/tileCoordinate"
+        },
+        "gradient_discontinuity": {
+          "$ref": "#/$defs/differenceStatistics"
+        },
+        "second_inward_gradient": {
+          "$ref": "#/$defs/gradientSideStatistics"
+        },
+        "second_tile": {
+          "$ref": "#/$defs/tileCoordinate"
+        }
+      },
+      "required": [
+        "axis",
+        "first_tile",
+        "second_tile",
+        "border_delta",
+        "first_inward_gradient",
+        "second_inward_gradient",
+        "gradient_discontinuity",
+        "diagnostic_score"
+      ],
+      "type": "object"
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "terrainMap": {
+      "additionalProperties": false,
+      "properties": {
+        "corners": {
+          "items": {
+            "$ref": "#/$defs/corner"
+          },
+          "type": "array"
+        },
+        "group_id": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "height_tiles": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "issues": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "map_id": {
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "missing_tiles": {
+          "items": {
+            "$ref": "#/$defs/tileCoordinate"
+          },
+          "type": "array"
+        },
+        "roles": {
+          "items": {
+            "enum": [
+              "height",
+              "material",
+              "unclassified"
+            ]
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "seams": {
+          "items": {
+            "$ref": "#/$defs/seam"
+          },
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "complete",
+            "incomplete",
+            "mixed-tile-dimensions",
+            "insufficient-tile-dimensions"
+          ]
+        },
+        "summary": {
+          "$ref": "#/$defs/mapSummary"
+        },
+        "tile_height": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tile_width": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tiles": {
+          "items": {
+            "$ref": "#/$defs/tile"
+          },
+          "type": "array"
+        },
+        "width_tiles": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "zone_references": {
+          "items": {
+            "$ref": "#/$defs/zoneReference"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "group_id",
+        "map_id",
+        "width_tiles",
+        "height_tiles",
+        "status",
+        "tile_width",
+        "tile_height",
+        "roles",
+        "zone_references",
+        "missing_tiles",
+        "issues",
+        "tiles",
+        "seams",
+        "corners",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "tile": {
+      "additionalProperties": false,
+      "properties": {
+        "data_offset": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "entry_index": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "group_id": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "payload_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "resource_id": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stored_size": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "tile": {
+          "$ref": "#/$defs/tileCoordinate"
+        },
+        "uncompressed_size": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "tile",
+        "entry_index",
+        "group_id",
+        "resource_id",
+        "data_offset",
+        "uncompressed_size",
+        "stored_size",
+        "payload_sha256"
+      ],
+      "type": "object"
+    },
+    "tileCoordinate": {
+      "maxItems": 2,
+      "minItems": 2,
+      "prefixItems": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "minimum": 0,
+          "type": "integer"
+        }
+      ],
+      "type": "array"
+    },
+    "zoneReference": {
+      "additionalProperties": false,
+      "properties": {
+        "first_reference_offset": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "layer_index": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "role": {
+          "enum": [
+            "height",
+            "material"
+          ]
+        },
+        "template_group_id": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "template_id": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "tile_reference_count": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "template_group_id",
+        "template_id",
+        "layer_index",
+        "role",
+        "first_reference_offset",
+        "tile_reference_count"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://shadowbanelab.local/schemas/terrain-seam-map-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "analysis_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "map": {
+      "$ref": "#/$defs/terrainMap"
+    },
+    "schema_version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_sha256",
+    "map"
+  ],
+  "title": "Shadowbane Terrain Seam Map Detail v1",
+  "type": "object"
+}

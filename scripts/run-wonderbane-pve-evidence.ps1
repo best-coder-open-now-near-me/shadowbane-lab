@@ -28,18 +28,7 @@ foreach ($path in @($RepositoryRoot, $PythonPath, $ClientProfile)) {
 if (-not (Test-Path -LiteralPath $NavigationCacheDirectory -PathType Container)) {
     throw "WonderBane client cache directory was not found: $NavigationCacheDirectory"
 }
-if (-not $HotbarConfig) {
-    $hotbars = @(
-        Get-ChildItem `
-            "$env:USERPROFILE\Downloads\WonderbaneClient\Wonderbane\Config\SCREEN_GAME_*_Wonderbane.cfg" `
-            -File
-    )
-    if ($hotbars.Count -ne 1) {
-        throw "Expected exactly one WonderBane character hotbar; found $($hotbars.Count)."
-    }
-    $HotbarConfig = $hotbars[0].FullName
-}
-if (-not (Test-Path -LiteralPath $HotbarConfig -PathType Leaf)) {
+if ($HotbarConfig -and -not (Test-Path -LiteralPath $HotbarConfig -PathType Leaf)) {
     throw "WonderBane character hotbar was not found: $HotbarConfig"
 }
 if (-not $EvidenceOutput) {
@@ -59,10 +48,14 @@ if ($visibleClients.Count -ne 1) {
 }
 
 $env:PYTHONPATH = Join-Path $RepositoryRoot "src"
+$hotbarArguments = @()
+if ($HotbarConfig) {
+    $hotbarArguments = @("--hotbar-config", $HotbarConfig)
+}
 & $PythonPath -u -m shadowbane_lab.cli client run-pve `
     --client-profile $ClientProfile `
     --combat-source "hud" `
-    --hotbar-config $HotbarConfig `
+    @hotbarArguments `
     --navigation-cache-directory $NavigationCacheDirectory `
     --policy "proc-assassin" `
     --max-kills $MaximumKills `

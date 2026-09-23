@@ -5,6 +5,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+/.worktrees/
+/worktrees/
 build/
 dist/
 
@@ -12,6 +14,13 @@ dist/
 artifacts/
 runs/
 captures/
+
+# Evidence-spine local object stores and rebuildable indexes
+evidence/objects/
+evidence/staging/
+evidence/indexes/
+*.sqlite-shm
+*.sqlite-wal
 
 # Machine-specific client calibration/layouts (templates remain tracked)
 configs/*.local.json

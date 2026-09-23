@@ -1,0 +1,190 @@
+import unittest
+import uuid
+from dataclasses import replace
+from pathlib import Path
+from unittest.mock import patch
+
+from shadowbane_lab.client_extension.action_channel import (
+    NativeActionChannelError,
+    NativeActionChannelTimeout,
+    NativeActionResult,
+    NativeActionResultStage,
+    NativeClientProcessIdentity,
+)
+from shadowbane_lab.client_extension.vendor_session import NativeVendorSession
+from shadowbane_lab.client_extension.vendor_wire import (
+    _RECEIPT,
+    READY,
+    Command,
+    Host,
+    Outcome,
+    Receipt,
+    Snapshot,
+    Verb,
+)
+from tests.test_vendor_batch import KEY, snapshot
+
+
+class Transport:
+    host_process_identity = NativeClientProcessIdentity(123, 456)
+    host_lease_generation = 7
+    mode = "normal"
+    closed = False
+
+    def __init__(self, identity):
+        self.identity = identity
+        self.commands = []
+
+    def submit(self, command, *, timeout_ms):
+        self.commands.append(command)
+        data = command.encode_slot(sequence=1, created_tick=100, deadline_tick=100 + timeout_ms)
+        assert len(data) == 768
+        request = KEY if self.mode == "wrong_request" else command.payload.request_key
+        window = 2000 if self.mode == "wrong_window" else command.payload.window
+        host = Host(124 if self.mode == "wrong_host" else 123, 7, 456)
+        raw = _RECEIPT.pack(
+            uuid.UUID(request).bytes, host.encode(), window, Outcome.OBSERVED,
+            READY, snapshot().encode(), 0x57425631, 0, bytes(16), bytes(24),
+        )
+        return NativeActionResult(
+            1, command.command_id, 1,
+            NativeActionResultStage.FAILED if self.mode == "contradiction"
+            else NativeActionResultStage.SUBMITTED_TO_CLIENT,
+            0, 100, 5760, "native_vendor_receipt_v1", raw,
+        )
+
+    def close(self):
+        self.closed = True
+
+
+class VendorSessionTests(unittest.TestCase):
+    def test_typed_session_correlates_client_host_request_and_window(self):
+        with patch(
+            "shadowbane_lab.client_extension.vendor_session.channel.WindowsNativeActionCommandTransport",
+            Transport,
+        ):
+            session = NativeVendorSession(NativeClientProcessIdentity(988, 12345), 1000)
+            result = session.inspect()
+            self.assertEqual(Outcome.OBSERVED, result.outcome)
+            self.assertEqual(Verb.INSPECT, session._transport.commands[0].kind)
+            session.close()
+            self.assertTrue(session._transport.closed)
+            with self.assertRaises(NativeActionChannelError):
+                session.inspect()
+
+    def test_mismatched_or_contradictory_receipts_are_rejected(self):
+        for mode in ("wrong_request", "wrong_window", "wrong_host", "contradiction"):
+            with self.subTest(mode=mode), patch(
+                "shadowbane_lab.client_extension.vendor_session.channel."
+                "WindowsNativeActionCommandTransport", Transport,
+            ):
+                session = NativeVendorSession(NativeClientProcessIdentity(988, 12345), 1000)
+                session._transport.mode = mode
+                try:
+                    with self.assertRaises(NativeActionChannelError):
+                        session.inspect()
+                    self.assertEqual(1, len(session._transport.commands))
+                finally:
+                    session.close()
+
+
+    def test_only_read_only_expired_lease_is_retried_with_fresh_identity(self):
+        with patch(
+            "shadowbane_lab.client_extension.vendor_session.channel."
+            "WindowsNativeActionCommandTransport", Transport,
+        ), patch("shadowbane_lab.client_extension.vendor_session.time.sleep"):
+            session = NativeVendorSession(NativeClientProcessIdentity(988, 12345), 1000)
+            original = session._transport.submit
+
+            def submit(command, original=original, **kwargs):
+                result = original(command, **kwargs)
+                if len(session._transport.commands) == 1:
+                    return replace(result, stage=NativeActionResultStage.FAILED,
+                                   error_code=13, detail="invalid_or_expired_vendor_lease")
+                return result
+
+            session._transport.submit = submit
+            self.assertEqual(Outcome.OBSERVED, session.inspect().outcome)
+            commands = session._transport.commands
+            self.assertEqual([Verb.INSPECT, Verb.INSPECT], [c.kind for c in commands])
+            self.assertNotEqual(commands[0].command_id, commands[1].command_id)
+            self.assertNotEqual(commands[0].payload.request_key, commands[1].payload.request_key)
+            session.close()
+
+    def test_failed_inspection_is_bounded_and_mutations_are_never_retried(self):
+        for verb in (Verb.INSPECT, Verb.CREATE, Verb.KEEP):
+            with self.subTest(verb=verb), patch(
+                "shadowbane_lab.client_extension.vendor_session.channel."
+                "WindowsNativeActionCommandTransport", Transport,
+            ), patch("shadowbane_lab.client_extension.vendor_session.time.sleep"):
+                session = NativeVendorSession(NativeClientProcessIdentity(988, 12345), 1000)
+                original = session._transport.submit
+
+                def submit(command, original=original, **kwargs):
+                    return replace(original(command, **kwargs),
+                                   stage=NativeActionResultStage.FAILED, error_code=13,
+                                   detail="invalid_or_expired_vendor_lease")
+
+                session._transport.submit = submit
+                with self.assertRaisesRegex(NativeActionChannelError, "expired_vendor_lease"):
+                    if verb == Verb.INSPECT:
+                        session.inspect()
+                    elif verb == Verb.CREATE:
+                        session.create(snapshot(), KEY)
+                    else:
+                        session.keep(snapshot(), 42, KEY)
+                self.assertEqual(3 if verb == Verb.INSPECT else 1,
+                                 len(session._transport.commands))
+                session.close()
+
+
+    def test_inspection_timeout_is_bounded_and_unknown_service_is_not_retried(self):
+        for mode in ("timeout", "unknown"):
+            with self.subTest(mode=mode), patch(
+                "shadowbane_lab.client_extension.vendor_session.channel."
+                "WindowsNativeActionCommandTransport", Transport,
+            ), patch("shadowbane_lab.client_extension.vendor_session.time.sleep"):
+                session = NativeVendorSession(NativeClientProcessIdentity(988, 12345), 1000)
+                original = session._transport.submit
+
+                def submit(command, original=original, mode=mode, **kwargs):
+                    result = original(command, **kwargs)
+                    if mode == "timeout":
+                        raise NativeActionChannelTimeout("inspection timed out")
+                    return replace(result, stage=NativeActionResultStage.FAILED,
+                                   error_code=13, detail="unknown_command_kind")
+
+                session._transport.submit = submit
+                with self.assertRaises(NativeActionChannelError):
+                    session.inspect()
+                self.assertEqual(3 if mode == "timeout" else 1,
+                                 len(session._transport.commands))
+                session.close()
+
+
+class VendorCrossLanguageTests(unittest.TestCase):
+    def test_cpp_snapshot_command_and_receipt_match_python(self):
+        fixture = Path(__file__).parent / "fixtures" / "native_vendor_wire_v1.hex"
+        raw_snapshot, raw_command, raw_receipt = (
+            bytes.fromhex(line) for line in fixture.read_text().splitlines()
+        )
+        state = snapshot()
+        self.assertEqual(state, Snapshot.decode(raw_snapshot))
+        key = str(uuid.UUID(bytes=bytes(range(1, 17))))
+        command = Command(Host(1234, 7, 0x1122334455667788), 0x76543210, key, state)
+        self.assertEqual(raw_command, command.encode(Verb.CREATE))
+        result = Receipt.decode(raw_receipt)
+        self.assertEqual(key, result.request_key)
+        self.assertEqual(command.host, result.host)
+        self.assertEqual(command.window, result.window)
+        self.assertEqual(state, result.snapshot)
+        self.assertEqual(Outcome.SUBMITTED, result.outcome)
+        self.assertEqual(288, len(raw_snapshot))
+        self.assertEqual(576, len(raw_command))
+        self.assertEqual(384, len(raw_receipt))
+        malformed = bytearray(raw_snapshot)
+        malformed[272] = 1
+        with self.assertRaises(ValueError):
+            Snapshot.decode(bytes(malformed))
+        with self.assertRaises(ValueError):
+            replace(command, expected=Snapshot()).encode(Verb.CREATE)

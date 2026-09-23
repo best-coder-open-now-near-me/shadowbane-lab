@@ -7,17 +7,22 @@ host into which travel, PvE, and later group tactics are composed.
 
 from __future__ import annotations
 
+import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
 import time
+import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import isfinite
 from pathlib import Path
 from typing import Protocol
+
+from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
 
 from .manifest import ManagerManifest
 from .model import ClientInstanceSnapshot, ClientRegistrySnapshot
@@ -33,6 +38,7 @@ from .registry import derive_client_instance_id
 from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
 from .worker import (
     DEFAULT_WORKER_HEARTBEAT_TIMEOUT_SECONDS,
+    WorkerDispatchGate,
     WorkerHeartbeat,
     WorkerHeartbeatLedger,
     WorkerHeartbeatPublisher,
@@ -45,6 +51,10 @@ class ExactClientWorkerError(RuntimeError):
     """Raised when exact worker ownership cannot be established safely."""
 
 
+class _WorkerNotLaunched(ExactClientWorkerError):
+    """The launcher failed before creating a process."""
+
+
 @dataclass(frozen=True, slots=True)
 class ExactClientWorkerBinding:
     """Only the immutable game identity needed by a per-client worker."""
@@ -54,6 +64,7 @@ class ExactClientWorkerBinding:
     game_process_id: int
     game_process_started_at_100ns: int
     game_window_handle: int
+    worker_id: str | None = None
 
     @classmethod
     def from_client(
@@ -74,6 +85,11 @@ class ExactClientWorkerBinding:
     def validate_for(self, manifest: ManagerManifest) -> None:
         if not isinstance(manifest, ManagerManifest):
             raise ValueError("manifest must be ManagerManifest")
+        if (
+            self.worker_id is not None
+            and re.fullmatch(r"worker-[0-9a-f]{32}", self.worker_id) is None
+        ):
+            raise ExactClientWorkerError("invalid reserved worker identity")
         known = {config.client_id for config in manifest.clients}
         if self.client_id not in known:
             raise ExactClientWorkerError(f"unknown manifest client_id {self.client_id!r}")
@@ -127,12 +143,29 @@ class _OperationStopSignal:
         self._worker_process_id = worker_process_id
         self._worker_process_started_at_100ns = worker_process_started_at_100ns
         self._local = threading.Event()
+        self._reason_lock = threading.Lock()
+        self._reason: str | None = None
 
-    def trip(self) -> None:
-        self._local.set()
+    @property
+    def reason(self) -> str | None:
+        with self._reason_lock:
+            return self._reason
+
+    def trip(self, reason: str = "worker operation stopped locally") -> None:
+        with self._reason_lock:
+            if self._reason is None:
+                self._reason = reason[:256]
+            self._local.set()
 
     def is_set(self) -> bool:
-        if self._local.is_set() or self._dispatch_gate.is_set():
+        if self._local.is_set():
+            return True
+        if isinstance(self._dispatch_gate, WorkerDispatchGate):
+            denial = self._dispatch_gate.denial_reason()
+        else:
+            denial = "worker dispatch gate stopped" if self._dispatch_gate.is_set() else None
+        if denial is not None:
+            self.trip(denial)
             return True
         try:
             pending = self._ledger.pending_for(
@@ -143,9 +176,20 @@ class _OperationStopSignal:
                 worker_process_started_at_100ns=self._worker_process_started_at_100ns,
                 now=time.time(),
             )
-        except (OSError, RuntimeError, ValueError):
+        except (OSError, RuntimeError, ValueError) as exc:
+            self.trip(f"operation inbox read failed: {type(exc).__name__}: {exc}")
             return True
-        return any(operation.kind is WorkerOperationKind.STOP for operation in pending)
+        interrupted = any(
+            operation.kind
+            in {
+                WorkerOperationKind.CANCEL,
+                WorkerOperationKind.STOP,
+            }
+            for operation in pending
+        )
+        if interrupted:
+            self.trip("explicit cancel or stop operation is pending")
+        return interrupted
 
 
 @dataclass(slots=True)
@@ -169,6 +213,9 @@ class ExactClientWorkerRuntime:
         *,
         operation_ledger: WorkerOperationLedger | None = None,
         operation_executor: WorkerOperationExecutor | None = None,
+        operation_maintenance: Callable[[WorkerOperation, StopSignal], None] | None = None,
+        operation_initializer: Callable[[str, ProcessLifetimeSnapshot], None] | None = None,
+        monotonic_clock: Callable[[], float] = time.monotonic,
         process_id: int | None = None,
         heartbeat_interval_seconds: float = 1.0,
         sleeper: Callable[[float], None] = time.sleep,
@@ -190,6 +237,12 @@ class ExactClientWorkerRuntime:
             or heartbeat_interval_seconds <= 0
         ):
             raise ValueError("heartbeat_interval_seconds must be finite and positive")
+        if operation_initializer is not None and not callable(operation_initializer):
+            raise ValueError("operation_initializer must be callable")
+        if operation_maintenance is not None and not callable(operation_maintenance):
+            raise ValueError("operation_maintenance must be callable")
+        if not callable(monotonic_clock):
+            raise ValueError("monotonic_clock must be callable")
         if not callable(sleeper):
             raise ValueError("sleeper must be callable")
         if (operation_ledger is None) != (operation_executor is None):
@@ -222,6 +275,9 @@ class ExactClientWorkerRuntime:
         self._sleep = sleeper
         self._operation_ledger = operation_ledger
         self._operation_executor = operation_executor
+        self._operation_maintenance = operation_maintenance
+        self._operation_initializer = operation_initializer
+        self._monotonic = monotonic_clock
 
     @property
     def process(self) -> ProcessLifetimeSnapshot:
@@ -236,6 +292,7 @@ class ExactClientWorkerRuntime:
             client_id=self._binding.client_id,
             instance_id=self._binding.instance_id,
             process=self._process,
+            worker_id=self._binding.worker_id,
         )
         publisher.publish(
             WorkerRuntimeState.STARTING,
@@ -244,7 +301,10 @@ class ExactClientWorkerRuntime:
         final_detail = "worker runtime stopped"
         active_operation: _ActiveWorkerOperation | None = None
         evidence_sequence = 0
+        next_heartbeat = self._monotonic()
         try:
+            if self._operation_initializer is not None:
+                self._operation_initializer(publisher.worker_id, self._process)
             while stop_signal is None or not stop_signal.is_set():
                 request = self._ledger.inspect_stop_request(
                     self._binding.client_id,
@@ -271,20 +331,34 @@ class ExactClientWorkerRuntime:
                     active_operation = None
                 if active_operation is None:
                     active_operation = self._start_next_operation(publisher)
-                publisher.publish(
-                    WorkerRuntimeState.RUNNING,
-                    dispatch_ready=True,
-                    detail=(
-                        "exact game identity and guarded dispatch boundary are ready"
-                        if active_operation is None
-                        else (
-                            f"{active_operation.operation.kind.value} operation "
-                            f"{active_operation.operation.operation_id} is active"
+                if active_operation is not None and self._operation_maintenance is not None:
+                    # Renewal is independent of heartbeat publication and runs on
+                    # this worker's supervision thread, never the strategy thread.
+                    # A revoked permit is latched before any maintenance callback.
+                    if not active_operation.stop_signal.is_set():
+                        self._operation_maintenance(
+                            active_operation.operation, active_operation.stop_signal
                         )
-                    ),
-                    evidence_sequence=evidence_sequence,
+                now = self._monotonic()
+                if self._operation_maintenance is None or now >= next_heartbeat:
+                    publisher.publish(
+                        WorkerRuntimeState.RUNNING,
+                        dispatch_ready=True,
+                        detail=(
+                            "exact game identity and guarded dispatch boundary are ready"
+                            if active_operation is None
+                            else (
+                                f"{active_operation.operation.kind.value} operation "
+                                f"{active_operation.operation.operation_id} is active"
+                            )
+                        ),
+                        evidence_sequence=evidence_sequence,
+                    )
+                    next_heartbeat = now + self._interval
+                delay = self._interval if self._operation_maintenance is None else min(
+                    0.25, max(0.0, next_heartbeat - self._monotonic())
                 )
-                self._sleep(self._interval)
+                self._sleep(delay)
             final_detail = "local worker stop signal was set"
             if active_operation is not None:
                 self._cancel_active_operation(
@@ -343,23 +417,8 @@ class ExactClientWorkerRuntime:
         if not pending:
             return None
         operation = pending[0]
-        observed_at = time.time()
-        ledger.publish_receipt(
-            WorkerOperationReceipt.for_operation(
-                operation,
-                WorkerOperationState.ACCEPTED,
-                observed_at=observed_at,
-                detail="accepted by exact per-client worker",
-            )
-        )
-        ledger.publish_receipt(
-            WorkerOperationReceipt.for_operation(
-                operation,
-                WorkerOperationState.ACTIVE,
-                observed_at=max(time.time(), observed_at),
-                detail="executing through the exact worker dispatch gate",
-            )
-        )
+        if not ledger.claim_for_execution(operation, now=time.time()):
+            return None
         operation_stop = _OperationStopSignal(
             publisher.dispatch_gate(),
             ledger,
@@ -381,6 +440,11 @@ class ExactClientWorkerRuntime:
                 result = WorkerOperationExecution(
                     WorkerOperationState.FAILED,
                     detail=(str(exc)[:512] or "worker operation failed"),
+                )
+            if operation_stop.reason and result.state is not WorkerOperationState.SUCCEEDED:
+                result = replace(
+                    result,
+                    detail=f"{operation_stop.reason}; {result.detail or 'operation stopped'}"[:512],
                 )
             results.put(result)
 
@@ -431,7 +495,7 @@ class ExactClientWorkerRuntime:
         ledger = self._operation_ledger
         if ledger is None:
             raise ExactClientWorkerError("active operation has no operation ledger")
-        active.stop_signal.trip()
+        active.stop_signal.trip(detail)
         active.thread.join(timeout=max(2.0, self._interval * 2.0))
         if active.thread.is_alive():
             ledger.publish_receipt(
@@ -542,6 +606,9 @@ class SubprocessWorkerLauncher:
             sys.executable if python_executable is None else python_executable
         ).resolve(strict=False)
         self._heartbeat_interval_ms = heartbeat_interval_ms
+        self._children: dict[str, subprocess.Popen[bytes]] = {}
+        self._durable_children: set[str] = set()
+        self._children_lock = threading.Lock()
 
     def launch(self, binding: ExactClientWorkerBinding) -> int:
         if not isinstance(binding, ExactClientWorkerBinding):
@@ -573,6 +640,8 @@ class SubprocessWorkerLauncher:
             str(self._heartbeat_interval_ms),
             "--live",
         )
+        if binding.worker_id is not None:
+            argv += ("--worker-id", binding.worker_id)
         creation_flags = 0
         if os.name == "nt":
             creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -591,8 +660,43 @@ class SubprocessWorkerLauncher:
                     creationflags=creation_flags,
                 )
         except OSError as exc:
-            raise ExactClientWorkerError(f"could not launch exact client worker: {exc}") from exc
+            raise _WorkerNotLaunched(f"could not launch exact client worker: {exc}") from exc
+        with self._children_lock:
+            finished = {
+                token
+                for token, child in self._children.items()
+                if token in self._durable_children and child.poll() is not None
+            }
+            for token in finished:
+                del self._children[token]
+            self._durable_children.difference_update(finished)
+            self._children[binding.worker_id or f"unreserved-{uuid.uuid4().hex}"] = process
         return process.pid
+
+    def recover(
+        self, process_id: int, inspector: ProcessLifetimeInspector, *, worker_id: str
+    ) -> ProcessLifetimeSnapshot | None:
+        """Reinspect a retained child; None proves that this child exited."""
+        with self._children_lock:
+            child = self._children.get(worker_id)
+        if child is None or child.pid != process_id:
+            raise ExactClientWorkerError("worker launch has no retained process ownership")
+        if child.poll() is not None:
+            return None
+        process = inspector.inspect(process_id)
+        if child.poll() is not None:
+            return None
+        if not isinstance(process, ProcessLifetimeSnapshot) or process.process_id != process_id:
+            raise ExactClientWorkerError(
+                f"launched worker {process_id} requires attachment recovery"
+            )
+        return process
+
+    def acknowledge_reservation(self, worker_id: str) -> None:
+        """Allow reaping only after the controller durably recorded or retired ownership."""
+        with self._children_lock:
+            if worker_id in self._children:
+                self._durable_children.add(worker_id)
 
 
 class ManagedWorkerController:
@@ -637,6 +741,18 @@ class ManagedWorkerController:
         client_id: str,
         client: ClientInstanceSnapshot,
     ) -> int | None:
+        directory = self._ledger.root / self._manifest.node_id / client_id
+        # Validate the slot before constructing any filesystem transaction path.
+        ExactClientWorkerBinding.from_client(client_id, client).validate_for(self._manifest)
+        with exclusive_record_lock(directory / ".launch.lock"):
+            return self._ensure_started_owned(client_id, client, directory / ".launch-reservation")
+
+    def _ensure_started_owned(
+        self,
+        client_id: str,
+        client: ClientInstanceSnapshot,
+        reservation_path: Path,
+    ) -> int | None:
         binding = ExactClientWorkerBinding.from_client(client_id, client)
         binding.validate_for(self._manifest)
         snapshot = self._ledger.inspect(client_id)
@@ -667,13 +783,96 @@ class ManagedWorkerController:
                     record,
                     reason="worker is bound to a replaced or stopping game instance",
                 )
-        if reusable:
+        if live:
             return None
-        return self._launcher.launch(binding)
+        if reservation_path.exists():
+            reservation = self._read_reservation(reservation_path)
+            process_id = reservation["process_id"]
+            started = reservation["process_started_at_100ns"]
+            if process_id is not None and started is None:
+                recover = getattr(self._launcher, "recover", None)
+                if callable(recover):
+                    process = recover(
+                        process_id, self._process_inspector, worker_id=reservation["worker_id"]
+                    )
+                    if process is not None:
+                        reservation["process_started_at_100ns"] = process.process_started_at_100ns
+                        reservation["state"] = "started"
+                        publish_atomic_record(
+                            reservation_path,
+                            json.dumps(reservation).encode(),
+                            temporary_label="worker-launch",
+                        )
+                        self._acknowledge_reservation(reservation["worker_id"])
+                        return None
+                    # Only the retained child handle can establish exit before attachment.
+                    reservation_path.unlink()
+                    self._acknowledge_reservation(reservation["worker_id"])
+                    return self._ensure_started_owned(client_id, client, reservation_path)
+            if process_id is None or started is None:
+                raise ExactClientWorkerError("previous worker launch requires explicit recovery")
+            process = self._process_inspector.inspect(process_id)
+            if process is not None and process.process_started_at_100ns == started:
+                return None
+            # Only verified exit/PID replacement retires the reservation.
+            reservation_path.unlink()
+        binding = replace(binding, worker_id=f"worker-{uuid.uuid4().hex}")
+        reservation = {
+            "schema_version": 1,
+            "worker_id": binding.worker_id,
+            "instance_id": client.instance_id,
+            "process_id": None,
+            "process_started_at_100ns": None,
+            "state": "launching",
+        }
+        publish_atomic_record(
+            reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
+        )
+        try:
+            process_id = self._launcher.launch(binding)
+        except _WorkerNotLaunched:
+            # This exception is emitted only before Popen returned a child.
+            reservation_path.unlink()
+            raise
+        reservation["process_id"] = process_id
+        reservation["state"] = "unverified"
+        publish_atomic_record(
+            reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
+        )
+        recover = getattr(self._launcher, "recover", None)
+        process = (
+            recover(process_id, self._process_inspector, worker_id=reservation["worker_id"])
+            if callable(recover)
+            else self._process_inspector.inspect(process_id)
+        )
+        if not isinstance(process, ProcessLifetimeSnapshot) or process.process_id != process_id:
+            raise ExactClientWorkerError(
+                f"launched worker {process_id} requires attachment recovery"
+            )
+        reservation["process_started_at_100ns"] = process.process_started_at_100ns
+        reservation["state"] = "started"
+        publish_atomic_record(
+            reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
+        )
+        self._acknowledge_reservation(reservation["worker_id"])
+        return process_id
+
+    def _acknowledge_reservation(self, worker_id: str) -> None:
+        acknowledge = getattr(self._launcher, "acknowledge_reservation", None)
+        if callable(acknowledge):
+            acknowledge(worker_id)
 
     def request_stop(self, client_id: str, *, reason: str) -> int:
         if not isinstance(reason, str) or not reason.strip() or reason != reason.strip():
             raise ValueError("reason must be canonical non-empty text")
+        # Share launch ownership across processes: a stop arriving while Popen or
+        # initial verification is in flight must observe the completed reservation.
+        canonical = self._ledger.inspect(client_id).client_id
+        directory = self._ledger.root / self._manifest.node_id / canonical
+        with exclusive_record_lock(directory / ".launch.lock"):
+            return self._request_stop_owned(canonical, reason=reason)
+
+    def _request_stop_owned(self, client_id: str, *, reason: str) -> int:
         snapshot = self._ledger.inspect(client_id)
         if snapshot.issues:
             raise ExactClientWorkerError(
@@ -684,20 +883,79 @@ class ManagedWorkerController:
             if self._is_live(record):
                 self._request_record_stop(record, reason=reason)
                 stopped += 1
+        path = self._ledger.root / self._manifest.node_id / client_id / ".launch-reservation"
+        if path.exists():
+            reservation = self._read_reservation(path)
+            pid, started = (
+                reservation.get("process_id"),
+                reservation.get("process_started_at_100ns"),
+            )
+            worker_id = reservation.get("worker_id")
+            if pid is not None and started is not None and worker_id is not None:
+                process = self._process_inspector.inspect(pid)
+                if (
+                    isinstance(process, ProcessLifetimeSnapshot)
+                    and process.process_started_at_100ns == started
+                    and all(record.worker_id != worker_id for record in snapshot.records)
+                ):
+                    self._ledger.publish_stop_request(
+                        WorkerStopRequest(
+                            node_id=self._manifest.node_id,
+                            client_id=client_id,
+                            worker_id=worker_id,
+                            process_id=pid,
+                            process_started_at_100ns=started,
+                            requested_at=self._clock(),
+                            reason=reason,
+                        )
+                    )
+                    stopped += 1
         return stopped
 
+    @staticmethod
+    def _read_reservation(path: Path) -> dict:
+        try:
+            if path.is_symlink() or path.stat().st_size > 4096:
+                raise ValueError("reservation must be a bounded regular file")
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if (
+                not isinstance(value, dict)
+                or set(value)
+                != {
+                    "schema_version",
+                    "worker_id",
+                    "instance_id",
+                    "process_id",
+                    "process_started_at_100ns",
+                    "state",
+                }
+                or type(value["schema_version"]) is not int
+                or value["schema_version"] != 1
+            ):
+                raise ValueError("invalid reservation schema")
+            if re.fullmatch(r"worker-[0-9a-f]{32}", value.get("worker_id", "")) is None:
+                raise ValueError("invalid reserved worker identity")
+            if not isinstance(value.get("instance_id"), str) or not value["instance_id"]:
+                raise ValueError("missing reserved instance")
+            for name in ("process_id", "process_started_at_100ns"):
+                number = value.get(name)
+                if number is not None and (type(number) is not int or number <= 0):
+                    raise ValueError("invalid reserved process lifetime")
+            if value.get("state") not in {"launching", "unverified", "started"}:
+                raise ValueError("invalid reservation state")
+            if (
+                value.get("process_started_at_100ns") is not None
+                and value.get("process_id") is None
+            ):
+                raise ValueError("incomplete reserved process lifetime")
+            return value
+        except (OSError, ValueError, TypeError) as exc:
+            raise ExactClientWorkerError(f"invalid worker launch reservation: {exc}") from exc
+
     def _is_live(self, heartbeat: WorkerHeartbeat) -> bool:
-        if self._clock() - heartbeat.observed_at >= self._timeout:
-            return False
         process = self._process_inspector.inspect(heartbeat.process_id)
-        return (
-            isinstance(process, ProcessLifetimeSnapshot)
-            and (process.process_started_at_100ns == heartbeat.process_started_at_100ns)
-            and heartbeat.runtime_state
-            not in {
-                WorkerRuntimeState.STOPPED,
-                WorkerRuntimeState.FAILED,
-            }
+        return isinstance(process, ProcessLifetimeSnapshot) and (
+            process.process_started_at_100ns == heartbeat.process_started_at_100ns
         )
 
     def _request_record_stop(self, heartbeat: WorkerHeartbeat, *, reason: str) -> None:

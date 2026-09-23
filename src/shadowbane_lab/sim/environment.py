@@ -177,6 +177,14 @@ class ReferenceEnvironment:
             except (KeyError, ProtocolMismatchError, ValueError) as exc:
                 events.append(self._rejection_event(decision, f"reason.{self._reason_tag(exc)}"))
                 continue
+            # Correlations belong to an actor's entire execution history. Reject
+            # during admission, before any accepted actor spends resources or
+            # schedules work; one invalid decision does not abort a partial tick.
+            if (decision.agent_id, decision.correlation_id) in self._executions:
+                events.append(
+                    self._rejection_event(decision, "reason.duplicate_action_correlation")
+                )
+                continue
             accepted.append((decision, action))
 
         for decision, action in accepted:

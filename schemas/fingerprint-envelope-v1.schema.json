@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shadowbane-lab.invalid/schemas/fingerprint-envelope-v1.schema.json",
+  "title": "Shadowbane Lab complete fingerprint envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "fingerprint_id", "capture_id", "captured_at_utc", "sections"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "fingerprint_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "capture_id": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "captured_at_utc": {"type": "string"},
+    "sections": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "applicability", "durable", "volatile", "source_artifact_ids", "reason", "findings"],
+        "properties": {
+          "name": {"enum": ["client", "runtime", "service", "environment", "fixture", "execution"]},
+          "applicability": {"enum": ["applicable", "not_applicable"]},
+          "durable": {"type": "object"},
+          "volatile": {"type": "object"},
+          "source_artifact_ids": {"type": "array", "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}, "uniqueItems": true},
+          "reason": {"type": ["string", "null"]},
+          "findings": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        }
+      }
+    }
+  }
+}

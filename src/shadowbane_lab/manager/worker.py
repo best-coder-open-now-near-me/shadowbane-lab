@@ -18,8 +18,14 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from math import isfinite
 from pathlib import Path
-from time import time
+from time import sleep, time
 from typing import NoReturn
+
+from shadowbane_lab.record_store import (
+    publish_atomic_record,
+    read_record_bytes,
+    replace_record_with_retry,
+)
 
 from .manifest import ManagerManifest
 from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
@@ -32,6 +38,7 @@ DEFAULT_WORKER_FUTURE_TOLERANCE_SECONDS = 2.0
 DEFAULT_WORKER_DISPATCH_PERMIT_TTL_SECONDS = 2.0
 DEFAULT_MAX_WORKER_RECORD_BYTES = 16_384
 DEFAULT_MAX_WORKER_RECORDS_PER_SLOT = 256
+_ATOMIC_REPLACE_RETRY_DELAYS_SECONDS = (0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.5)
 
 _ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 _WORKER_ID_PATTERN = re.compile(r"worker-[0-9a-f]{32}\Z")
@@ -82,6 +89,17 @@ _STOP_REQUEST_REQUIRED_FIELDS = frozenset(
         "reason",
     }
 )
+
+
+def _replace_worker_record(temporary: Path, target: Path) -> None:
+    """Replace one local worker record despite bounded transient reader locks."""
+
+    replace_record_with_retry(
+        temporary,
+        target,
+        retry_delays_seconds=_ATOMIC_REPLACE_RETRY_DELAYS_SECONDS,
+        sleeper=sleep,
+    )
 
 
 class WorkerHeartbeatError(RuntimeError):
@@ -718,7 +736,6 @@ class WorkerHeartbeatLedger:
             )
         directory = self._slot_directory(canonical)
         target = directory / f"{heartbeat.worker_id}.json"
-        temporary = directory / f".{heartbeat.worker_id}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
         payload = json.dumps(
             heartbeat.to_dict(),
             ensure_ascii=True,
@@ -729,17 +746,13 @@ class WorkerHeartbeatLedger:
         if len(payload) > self._max_record_bytes:
             raise WorkerHeartbeatLedgerError("serialized worker heartbeat exceeds size limit")
         try:
-            directory.mkdir(parents=True, exist_ok=True)
-            with temporary.open("xb") as destination:
-                destination.write(payload)
-                destination.flush()
-                os.fsync(destination.fileno())
-            temporary.replace(target)
+            publish_atomic_record(
+                target,
+                payload,
+                temporary_label=heartbeat.worker_id,
+                replacer=_replace_worker_record,
+            )
         except OSError as exc:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise WorkerHeartbeatLedgerError(f"could not persist worker heartbeat: {exc}") from exc
         return target
 
@@ -755,7 +768,6 @@ class WorkerHeartbeatLedger:
             )
         directory = self._slot_directory(canonical)
         target = directory / "dispatch.permit"
-        temporary = directory / f".dispatch.{os.getpid()}.{uuid.uuid4().hex}.tmp"
         payload = json.dumps(
             permit.to_dict(),
             ensure_ascii=True,
@@ -766,17 +778,13 @@ class WorkerHeartbeatLedger:
         if len(payload) > self._max_record_bytes:
             raise WorkerHeartbeatLedgerError("serialized worker dispatch permit exceeds size limit")
         try:
-            directory.mkdir(parents=True, exist_ok=True)
-            with temporary.open("xb") as destination:
-                destination.write(payload)
-                destination.flush()
-                os.fsync(destination.fileno())
-            temporary.replace(target)
+            publish_atomic_record(
+                target,
+                payload,
+                temporary_label="dispatch",
+                replacer=_replace_worker_record,
+            )
         except OSError as exc:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise WorkerHeartbeatLedgerError(
                 f"could not persist worker dispatch permit: {exc}"
             ) from exc
@@ -792,7 +800,7 @@ class WorkerHeartbeatLedger:
                 return None
             if target.is_symlink() or not target.is_file():
                 raise WorkerHeartbeatFormatError("dispatch permit must be a regular file")
-            source = target.read_bytes()
+            source = read_record_bytes(target, self._max_record_bytes)
         except OSError as exc:
             raise WorkerHeartbeatLedgerError(
                 f"could not read worker dispatch permit: {exc}"
@@ -821,7 +829,6 @@ class WorkerHeartbeatLedger:
             )
         directory = self._slot_directory(canonical)
         target = directory / f"stop.{request.worker_id}"
-        temporary = directory / f".stop.{request.worker_id}.{os.getpid()}.{uuid.uuid4().hex}.tmp"
         payload = json.dumps(
             request.to_dict(),
             ensure_ascii=True,
@@ -832,17 +839,13 @@ class WorkerHeartbeatLedger:
         if len(payload) > self._max_record_bytes:
             raise WorkerHeartbeatLedgerError("serialized worker stop request exceeds size limit")
         try:
-            directory.mkdir(parents=True, exist_ok=True)
-            with temporary.open("xb") as destination:
-                destination.write(payload)
-                destination.flush()
-                os.fsync(destination.fileno())
-            temporary.replace(target)
+            publish_atomic_record(
+                target,
+                payload,
+                temporary_label=f"stop.{request.worker_id}",
+                replacer=_replace_worker_record,
+            )
         except OSError as exc:
-            try:
-                temporary.unlink(missing_ok=True)
-            except OSError:
-                pass
             raise WorkerHeartbeatLedgerError(
                 f"could not persist worker stop request: {exc}"
             ) from exc
@@ -863,7 +866,7 @@ class WorkerHeartbeatLedger:
                 return None
             if target.is_symlink() or not target.is_file():
                 raise WorkerHeartbeatFormatError("worker stop request must be a regular file")
-            source = target.read_bytes()
+            source = read_record_bytes(target, self._max_record_bytes)
         except OSError as exc:
             raise WorkerHeartbeatLedgerError(f"could not read worker stop request: {exc}") from exc
         if len(source) > self._max_record_bytes:
@@ -905,24 +908,13 @@ class WorkerHeartbeatLedger:
             raise WorkerHeartbeatLedgerError(
                 f"could not inspect heartbeat directory for {canonical}: {exc}"
             ) from exc
-        if len(entries) > self._max_records_per_slot:
-            issue = WorkerLedgerIssue(
-                file_name="*",
-                code="record-limit-exceeded",
-                detail=(
-                    f"slot contains {len(entries)} heartbeat records; "
-                    f"limit is {self._max_records_per_slot}"
-                ),
-            )
-            return WorkerLedgerSnapshot(client_id=canonical, records=(), issues=(issue,))
-
         records: list[WorkerHeartbeat] = []
         issues: list[WorkerLedgerIssue] = []
         for entry in entries:
             try:
                 if entry.is_symlink() or not entry.is_file():
                     raise WorkerHeartbeatFormatError("heartbeat entry must be a regular file")
-                source = entry.read_bytes()
+                source = read_record_bytes(entry, self._max_record_bytes)
                 if len(source) > self._max_record_bytes:
                     raise WorkerHeartbeatFormatError("heartbeat record exceeds size limit")
                 heartbeat = loads_worker_heartbeat(source.decode("utf-8", errors="strict"))
@@ -941,6 +933,23 @@ class WorkerHeartbeatLedger:
                         detail=str(exc)[:512],
                     )
                 )
+        active_count = sum(
+            record.runtime_state
+            not in {
+                WorkerRuntimeState.STOPPED,
+                WorkerRuntimeState.FAILED,
+            }
+            for record in records
+        )
+        if active_count > self._max_records_per_slot:
+            issues.append(
+                WorkerLedgerIssue(
+                    file_name="*",
+                    code="record-limit-exceeded",
+                    detail=(f"slot contains {active_count} active records; "
+                            f"limit is {self._max_records_per_slot}"),
+                )
+            )
         records.sort(key=lambda item: (item.observed_at, item.worker_id), reverse=True)
         issues.sort(key=lambda item: (item.file_name, item.code, item.detail))
         return WorkerLedgerSnapshot(
@@ -1032,6 +1041,7 @@ class WorkerSupervisor:
         *,
         instance_id: str | None,
         lifecycle_dispatch_enabled: bool,
+        renew_permit: bool = True,
     ) -> WorkerSlotHealthSnapshot:
         """Return health; effective dispatch is a conjunction, never an assumption."""
 
@@ -1054,6 +1064,7 @@ class WorkerSupervisor:
                         issues=ledger.issues,
                     ),
                     now=now,
+                    renew_permit=renew_permit,
                 )
             if ledger.issues:
                 return self._publish_health(
@@ -1067,6 +1078,7 @@ class WorkerSupervisor:
                         issues=ledger.issues,
                     ),
                     now=now,
+                    renew_permit=renew_permit,
                 )
             if not ledger.records:
                 return self._publish_health(
@@ -1078,6 +1090,7 @@ class WorkerSupervisor:
                         detail="no worker heartbeat has claimed this exact slot",
                     ),
                     now=now,
+                    renew_permit=renew_permit,
                 )
 
             assessments = tuple(
@@ -1096,6 +1109,7 @@ class WorkerSupervisor:
                         detail="multiple live worker process lifetimes claim this manifest slot",
                     ),
                     now=now,
+                    renew_permit=renew_permit,
                 )
             selected = active[0] if active else assessments[0]
             dispatch_allowed = (
@@ -1117,6 +1131,7 @@ class WorkerSupervisor:
                     detail=detail,
                 ),
                 now=now,
+                renew_permit=renew_permit,
             )
 
     def revoke(self, client_id: str, *, reason: str) -> WorkerDispatchPermit:
@@ -1144,6 +1159,7 @@ class WorkerSupervisor:
         health: WorkerSlotHealthSnapshot,
         *,
         now: float,
+        renew_permit: bool = True,
     ) -> WorkerSlotHealthSnapshot:
         heartbeat = health.heartbeat
         expires_at = now + self._permit_ttl
@@ -1166,7 +1182,8 @@ class WorkerSupervisor:
             expires_at=expires_at,
             reason=health.detail or f"worker health is {health.state.value}",
         )
-        self._ledger.publish_permit(permit)
+        if renew_permit:
+            self._ledger.publish_permit(permit)
         return health
 
     def _assess(
@@ -1216,14 +1233,6 @@ class WorkerSupervisor:
         if prior is None or heartbeat.sequence > prior.sequence:
             self._last_seen[(heartbeat.client_id, heartbeat.worker_id)] = heartbeat
 
-        if age >= self._timeout:
-            return _AssessedHeartbeat(
-                heartbeat,
-                WorkerHealthState.STALE,
-                age,
-                "worker heartbeat expired",
-                False,
-            )
         try:
             process = self._process_inspector.inspect(heartbeat.process_id)
         except (OSError, RuntimeError, ValueError):
@@ -1251,6 +1260,14 @@ class WorkerSupervisor:
                 age,
                 "exact worker process lifetime is no longer running",
                 False,
+            )
+        if age >= self._timeout:
+            return _AssessedHeartbeat(
+                heartbeat,
+                WorkerHealthState.STALE,
+                age,
+                "worker heartbeat expired",
+                True,
             )
         if heartbeat.instance_id != instance_id:
             return _AssessedHeartbeat(
@@ -1338,27 +1355,37 @@ class WorkerDispatchGate:
         self._clock = clock
         self._future_tolerance = float(future_tolerance_seconds)
 
+    def denial_reason(self) -> str | None:
+        """Evaluate one fresh permit and explain a denial without relaxing it."""
+        try:
+            permit = self._ledger.inspect_permit(self._client_id)
+            now = _require_time(self._clock(), "clock result")
+        except (OSError, RuntimeError, ValueError, WorkerHeartbeatError) as exc:
+            return f"dispatch permit read failed: {type(exc).__name__}: {exc}"[:256]
+        if permit is None:
+            return "dispatch permit is missing"
+        if not permit.allowed:
+            return f"dispatch denied ({permit.health_state.value}): {permit.reason}"[:256]
+        if permit.issued_at > now + self._future_tolerance:
+            return "dispatch permit was issued in the future"
+        if now >= permit.expires_at:
+            return f"dispatch permit expired {now - permit.expires_at:.3f}s ago"
+        if (
+            permit.node_id != self._node_id
+            or permit.client_id != self._client_id
+            or permit.instance_id != self._instance_id
+            or permit.worker_id != self._worker_id
+            or permit.process_id != self._process.process_id
+            or permit.process_started_at_100ns != self._process.process_started_at_100ns
+        ):
+            return "dispatch permit belongs to another worker or client lifetime"
+        if permit.health_state is not WorkerHealthState.HEALTHY:
+            return f"dispatch worker health is {permit.health_state.value}"
+        return None
+
     def allows_dispatch(self) -> bool:
         """Return true only for a current permit matching every exact identity."""
-
-        try:
-            now = _require_time(self._clock(), "clock result")
-            permit = self._ledger.inspect_permit(self._client_id)
-        except (OSError, RuntimeError, ValueError, WorkerHeartbeatError):
-            return False
-        if permit is None or not permit.allowed:
-            return False
-        if permit.issued_at > now + self._future_tolerance or now >= permit.expires_at:
-            return False
-        return (
-            permit.node_id == self._node_id
-            and permit.client_id == self._client_id
-            and permit.instance_id == self._instance_id
-            and permit.worker_id == self._worker_id
-            and permit.process_id == self._process.process_id
-            and (permit.process_started_at_100ns == self._process.process_started_at_100ns)
-            and permit.health_state is WorkerHealthState.HEALTHY
-        )
+        return self.denial_reason() is None
 
     def is_set(self) -> bool:
         """Implement ``StopSignal`` semantics for ``GuardedInputExecutor``."""
@@ -1400,7 +1427,7 @@ class WorkerHeartbeatPublisher:
         self._emergency_stop = False
         self._closed = False
         self._last: WorkerHeartbeat | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     @property
     def worker_id(self) -> str:
@@ -1465,10 +1492,9 @@ class WorkerHeartbeatPublisher:
         with self._lock:
             if self._closed:
                 return self._last
-        final = self.publish(WorkerRuntimeState.STOPPED, detail=detail)
-        with self._lock:
+            final = self.publish(WorkerRuntimeState.STOPPED, detail=detail)
             self._closed = True
-        return final
+            return final
 
 
 __all__ = [

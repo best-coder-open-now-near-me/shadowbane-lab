@@ -241,3 +241,11 @@ powers:
 
 The current greedy utility policy remains useful as a deterministic probe, but the corpus—not a
 utility constant—decides what behavior the environment exposes.
+
+## Evidence-spine integration
+
+The corpus remains the reviewed claim authority. The planned
+[evidence spine](evidence-spine.md) does not infer or promote claims automatically; it verifies that
+live-verified claims reference sealed research cases, complete fingerprints, immutable artifacts,
+and discriminating experiment results. It also generates stale-build, orphan-reference, coverage,
+and next-evidence findings without duplicating corpus content in a mutable database.

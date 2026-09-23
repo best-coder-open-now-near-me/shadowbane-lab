@@ -103,6 +103,39 @@ meaningfully distinct, reproducible behavior.
 **Gate:** policies generalize across scenario and build permutations, and live deployment
 cannot bypass authoritative validation.
 
+## Evidence-spine delivery program
+
+Further live-mechanics and forensic work should use the evidence spine rather than create new
+standalone artifact families. The durable delivery sequence is:
+
+1. Extract shared strict-JSON, digest, timestamp, path, tree-inventory, and create-only primitives
+   without changing existing public artifacts.
+2. Add content-addressed artifact storage, sealed evidence manifests, verification receipts, and a
+   rebuildable query index.
+3. Compose client, runtime, service, environment, character, and lab-execution identity into one
+   mandatory fingerprint envelope.
+4. Add versioned research-case and experiment contracts with bounded steps, capture requirements,
+   safety policy, repetition design, and explicit hypotheses.
+5. Align native, extension, semantic-decision, input-audit, simulator, process, screen, log, and
+   authorized network-summary records through monotonic clocks, producer sequence, correlation,
+   and synchronization markers.
+6. Seal three end-to-end case families: runtime health, vendor-dialog observation, and one combat
+   breakpoint differential.
+7. Generate coverage, next-evidence, stale-build, and change-impact reports from the corpus,
+   layouts, cases, simulator bindings, tests, and gap ledger.
+8. Add semantic binary alignment, asset dependency graphs, protocol reconstruction, and passive
+   runtime discovery only after those producers can use the common evidence contracts.
+
+The complete architecture, schemas to introduce, module boundaries, migrations, validation
+matrix, commit cadence, and per-slice gates are defined in
+[the evidence-spine specification](evidence-spine.md) and
+[delivery plan](evidence-spine-delivery-plan.md). ADR 0004 makes canonical JSON manifests the
+durable truth, content-addressed objects the raw evidence store, and SQLite a disposable index.
+
+**Gate:** each named mechanic can be traced from exact fingerprints and immutable raw artifacts to
+a discriminating experiment, normalized trace, profile-specific claim, simulator binding,
+differential result, regression test, and declared invalidation rule.
+
 ## Current world-navigation investigation
 
 - Read and validate the client cache directory without copying gameplay textures into the
@@ -132,8 +165,8 @@ server correction remains observable.
 
 - Complete-sheet JSON profiles compile source-pinned attack, defense, weapon, power, mitigation,
   proc, passive-defense, stacking, immunity, and interruption mechanics without fallback stats.
-- Single-seed and compiled-once multi-seed Assassin-versus-Warlock runs carry formula revision,
-  sheet source revision, and compatibility acceptance in every result.
+- Single-seed and compiled-once multi-seed guide duels among the Assassin, Warlock and Druid carry
+  formula revision, sheet source revision, and compatibility acceptance in every result.
 - Shadow Touch, Shadow Bolt, and Steal Breath now carry current-client token mappings as well as
   historical canonical IDStrings.
 - Stances are mutually exclusive snapshot state, travel drops to normal on an unavoided hit, and
@@ -141,11 +174,14 @@ server correction remains observable.
   caps, and per-victim hit gates.
 - Timed scalar modifiers, deterministic periodic pulses, resistance adjustments, and cumulative
   post-resistance breakpoints execute Steal Breath and Psychic Shield without power-name logic.
+- The source-pinned Elf Healer Druid adds target-relative kiting, target-centered thorn/lightning
+  areas, typed poison/disease cleansing, three distinct healing shapes, Oaken Flesh pre-fight
+  cooldown state, and complete matchup matrices against both existing builds.
 - The remaining data work is current WonderBane differential validation, complete live combat
-  sheets, authoritative stance modifiers and AoE rows, resolution of the Psychic Shield
-  1000-versus-750 breakpoint conflict, and expansion from the present representative action
-  slice to the selected Assassin and Warlock movesets. The runner rejects any selected unresolved
-  action meanwhile.
+  sheets, authoritative stance modifiers and AoE rows, resolution of the Psychic Shield and Oaken
+  Flesh breakpoint/resistance conflicts, passive resource regeneration and expansion from the
+  present representative action slice to additional selected movesets. The runner rejects any
+  selected unresolved action meanwhile.
 
-**Gate:** representative live traces promote both sheets and selected action rows to
+**Gate:** representative live traces promote all three sheets and selected action rows to
 `live_verified`, after which the default strict CLI runs without acceptance overrides.

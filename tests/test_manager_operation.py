@@ -117,7 +117,109 @@ class WorkerOperationContractTests(unittest.TestCase):
         self.assertTrue(duplicate.duplicate)
         self.assertEqual(operation, duplicate.operation)
 
-    def test_priority_stop_precedes_travel_and_expired_work_is_terminal(self) -> None:
+    def test_duplicate_submission_succeeds_when_the_inbox_is_full(self) -> None:
+        operation = new_worker_operation(
+            _permit(),
+            WorkerOperationKind.PVE,
+            "/pve",
+            now=100.0,
+            operation_id="operation-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = WorkerOperationLedger(
+                _manifest(),
+                directory,
+                max_records_per_slot=1,
+                clock=lambda: 100.0,
+            )
+
+            first = ledger.submit(operation)
+            duplicate = ledger.submit(operation)
+
+        self.assertFalse(first.duplicate)
+        self.assertTrue(duplicate.duplicate)
+
+    def test_accepted_operation_expires_before_worker_activation(self) -> None:
+        operation = new_worker_operation(
+            _permit(),
+            WorkerOperationKind.PVE,
+            "/pve",
+            now=100.0,
+            ttl_seconds=1.0,
+            operation_id="operation-cccccccccccccccccccccccccccccccc",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = WorkerOperationLedger(_manifest(), directory, clock=lambda: 100.0)
+            ledger.submit(operation)
+            ledger.publish_receipt(
+                WorkerOperationReceipt.for_operation(
+                    operation,
+                    WorkerOperationState.ACCEPTED,
+                    observed_at=100.25,
+                )
+            )
+
+            pending = ledger.pending_for(
+                client_id=CLIENT_ID,
+                instance_id=INSTANCE_ID,
+                worker_id=WORKER_ID,
+                worker_process_id=WORKER_PROCESS_ID,
+                worker_process_started_at_100ns=WORKER_PROCESS_STARTED,
+                now=101.5,
+            )
+            receipt = ledger.inspect_receipt(CLIENT_ID, operation.operation_id)
+
+        self.assertEqual((), pending)
+        self.assertIsNotNone(receipt)
+        assert receipt is not None
+        self.assertEqual(WorkerOperationState.EXPIRED, receipt.state)
+
+    def test_terminal_retention_frees_bounded_inbox_capacity(self) -> None:
+        old = new_worker_operation(
+            _permit(),
+            WorkerOperationKind.PVE,
+            "/pve",
+            now=100.0,
+            operation_id="operation-dddddddddddddddddddddddddddddddd",
+        )
+        replacement = new_worker_operation(
+            _permit(),
+            WorkerOperationKind.STOP,
+            "/stop",
+            now=120.0,
+            operation_id="operation-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = WorkerOperationLedger(
+                _manifest(),
+                directory,
+                max_records_per_slot=1,
+                terminal_retention_seconds=10.0,
+                clock=lambda: 120.0,
+            )
+            ledger.submit(old)
+            for state, observed_at in (
+                (WorkerOperationState.ACCEPTED, 100.1),
+                (WorkerOperationState.ACTIVE, 100.2),
+                (WorkerOperationState.SUCCEEDED, 100.3),
+            ):
+                ledger.publish_receipt(
+                    WorkerOperationReceipt.for_operation(
+                        old,
+                        state,
+                        observed_at=observed_at,
+                    )
+                )
+
+            submission = ledger.submit(replacement)
+            snapshots = ledger.inspect_slot(CLIENT_ID)
+            old_receipt = ledger.inspect_receipt(CLIENT_ID, old.operation_id)
+
+        self.assertFalse(submission.duplicate)
+        self.assertEqual([replacement], [snapshot.operation for snapshot in snapshots])
+        self.assertIsNone(old_receipt)
+
+    def test_control_operations_precede_travel_and_expired_work_is_terminal(self) -> None:
         travel = new_worker_operation(
             _permit(),
             WorkerOperationKind.TRAVEL,
@@ -134,9 +236,17 @@ class WorkerOperationContractTests(unittest.TestCase):
             now=100.5,
             operation_id="operation-44444444444444444444444444444444",
         )
+        cancel = new_worker_operation(
+            _permit(),
+            WorkerOperationKind.CANCEL,
+            "physical-client-interaction",
+            now=100.25,
+            operation_id="operation-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        )
         with tempfile.TemporaryDirectory() as directory:
             ledger = WorkerOperationLedger(_manifest(), directory)
             ledger.submit(travel)
+            ledger.submit(cancel)
             ledger.submit(stop)
 
             pending = ledger.pending_for(
@@ -147,7 +257,7 @@ class WorkerOperationContractTests(unittest.TestCase):
                 worker_process_started_at_100ns=WORKER_PROCESS_STARTED,
                 now=100.75,
             )
-            self.assertEqual([stop, travel], list(pending))
+            self.assertEqual([stop, cancel, travel], list(pending))
 
             remaining = ledger.pending_for(
                 client_id=CLIENT_ID,
@@ -159,7 +269,7 @@ class WorkerOperationContractTests(unittest.TestCase):
             )
             receipt = ledger.inspect_receipt(CLIENT_ID, travel.operation_id)
 
-        self.assertEqual((stop,), remaining)
+        self.assertEqual((stop, cancel), remaining)
         self.assertIsNotNone(receipt)
         assert receipt is not None
         self.assertEqual(WorkerOperationState.EXPIRED, receipt.state)

@@ -179,6 +179,23 @@ class GoChatCommandAssemblerTests(unittest.TestCase):
         self.assertEqual([], interactions)
         self.assertEqual([pointer], pointer_events)
 
+    def test_claimed_pointer_defers_route_replacement_to_extension(self) -> None:
+        interactions: list[str] = []
+        pointer_events: list[PhysicalPointerInteraction] = []
+        listener = WindowsGoChatCommandListener(
+            ForegroundWindowGuard(_load_profile(), StaticWindowInspector(_valid_snapshot())),
+            on_command=lambda _: None,
+            on_interaction=lambda: interactions.append("cancel"),
+            on_pointer=pointer_events.append,
+            pointer_claims_interaction=lambda pointer: pointer.button == "right",
+        )
+
+        pointer = PhysicalPointerInteraction(800, 400, "right")
+        listener._handle_pointer_interaction(pointer)
+
+        self.assertEqual([], interactions)
+        self.assertEqual([pointer], pointer_events)
+
     def test_queued_pointer_is_guarded_off_the_hook_thread(self) -> None:
         delivered = threading.Event()
         pointer_events: list[PhysicalPointerInteraction] = []

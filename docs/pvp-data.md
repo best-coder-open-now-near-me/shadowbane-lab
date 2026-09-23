@@ -212,15 +212,41 @@ rank curves, equipment statistics, resource formulas, hit/defense/resistance beh
 interrupt and crowd-control rules unless it explicitly displays them. Those remain separate
 coverage domains.
 
+### 2026-09-01 current equipment candidate catalog
+
+The bundled `wonderbane_equipment_candidate_v1` catalog provides the first composable equipment
+input for simulations. It verifies the official WonderBane 1.0.5 manifest, current item and effect
+dictionaries, and the member identities in all four current treasure-table archives before
+combining them with a pinned public MagicBane SQL snapshot. It contains 3,253 equippable base
+items, 746 numeric modifier rows, 199 prefix/suffix pools, and 9,624 item/pool routes. The official
+dictionary contributes 327 current prefix names and 294 current suffix names.
+
+```python
+from shadowbane_lab.equipment import AffixPosition, load_bundled_equipment_catalog
+
+catalog = load_bundled_equipment_catalog()
+item = catalog.item(29390)  # Rha'khanakar
+prefixes = catalog.choices_for(680106, AffixPosition.PREFIX)
+```
+
+The evidence boundary is intentional. Current item IDs and names, affix-name dictionaries, file
+hashes, and archive member IDs are current-client facts. Base numeric stats, modifier values,
+pool contents, and routes remain historical candidates until the current serialized payloads are
+decoded or representative live items agree. The current archives contain one item table and eight
+modifier tables absent from the historical snapshot. Only 37 historical modifier action IDs are
+also direct current display keys, so the catalog does not invent names for the remaining actions.
+Class and rune requirement tokens are preserved but opaque; the affix API validates item/prefix/
+suffix compatibility, not character eligibility.
+
 ## Remaining acquisition order
 
-Cross-check representative calculator builds against live character sheets, starting with the
-universal boon and resource totals. Then collect current WonderBane complete combat sheets and
-ranked power definitions. The pinned emulator source now supplies explicit candidate formulas for
-hit/attack rating, weapon damage, resistance, power scaling, interrupts, and effect stacking;
-representative live differentials are still required before profiles may be labeled
-`live_verified`. Use focused executable analysis for current equipment/enchantment rows, full
-Assassin and Warlock power data, and any field where the deployment differs from the pinned
-formula revision. The ranked power pass must explicitly record stance transitions and modifiers,
+Decode the current serialized treasure-table payloads next, including the new table IDs, baked
+unique-item effects, human-readable requirement tokens, and exact per-slot Vorgrim Auxiliary
+values. Cross-check representative calculator builds against live character sheets, starting with
+the universal boon and resource totals. Then collect current WonderBane complete combat sheets and
+ranked power definitions. The current hit system is known to be a smoothed ATR/Defense ratio curve;
+the older absolute-difference formula is superseded, and exact coefficients and clamps still need
+live-code extraction. Other pinned emulator formulas remain candidates until representative live
+differentials pass. The ranked power pass must explicitly record stance transitions and modifiers,
 plus each area power's caster/target origin, radius, relation set, target limit, and hit/avoidance
 behavior.
