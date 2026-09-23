@@ -181,8 +181,8 @@ Of 9,235 prior ledger files, 9,234 remained byte-identical. The sole change was
 `vendor-testing/vendor-client/dispatch.permit`: strict parsing confirmed
 `allowed=false` and `health=unbound`, the expected idle dispatch revocation.
 No job or historical proof changed, and no request was replayed. Host 0.3.45
-and configuration backups remain under the VM's
-`upgrades/host-0.3.46-370da56` rollback directory.
+remains in the runtime's `host-0.3.45` directory. Configuration and dashboard
+shortcut backups are in `upgrades/host-0.3.46-370da56` for rollback.
 
 The private activation receipt remains at
 `E:/virtual-machines/shadowbane-testing/diagnostics/guard-host-0.3.46-370da56/activation.json`.
