@@ -361,7 +361,7 @@ def _run_building_discovery(
                     else "partial"
                 )
                 save()
-            if not record[plural] and not (guard and record["buildings_verified"]):
+            if not record[plural] and not (guard and (record["buildings_verified"] or roster_only)):
                 raise VendorBatchStopped(
                     f"No {noun} windows were verified; "
                     "review building access and discovery readiness."

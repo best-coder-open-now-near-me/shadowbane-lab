@@ -332,3 +332,21 @@ def test_character_change_after_preparation_never_starts_job(setup):
     with pytest.raises(GuardFundingCycleStopped, match="character changed"):
         f.executor.execute(f.operation("guard start " + DISCOVERY, JOB), stop_signal=f.stop)
     assert f.jobs.current() is None and not f.calls
+
+
+def test_summary_separates_current_area_and_observed_rank_from_expected_rank(setup):
+    f = setup
+    record = f.begin()
+    record["area_indices"] = [1]
+    record["guards"][0].update(state="waiting", minimum_rank=4, observed_rank=3)
+    record["guards"][1].update(state="unavailable", minimum_rank=1, observed_rank=1)
+    f.jobs.save(record)
+    before = f.jobs.path(JOB).read_bytes()
+    result = f.control.summary("client", "instance")["job"]
+    assert result["outside_area"] == result["nearby"] == 1
+    assert result["guard_states"] == dict(ready=0, waiting=1, insufficient=0, unavailable=1)
+    assert result["nearby_states"] == dict(ready=0, waiting=0, insufficient=0, unavailable=1)
+    assert result["observed_ranks"] == [dict(rank=1, count=1), dict(rank=3, count=1)]
+    assert not result["maximum_rank_verified"]
+    assert f.jobs.path(JOB).read_bytes() == before
+    assert not f.calls

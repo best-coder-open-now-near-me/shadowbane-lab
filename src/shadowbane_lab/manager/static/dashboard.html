@@ -224,9 +224,11 @@
         return button;
       };
 
+      const coverageOpen = new Map();
+
       const chooseCondemn = (slot, instanceId) => {
         const prepared = slot.condemn?.prepared;
-        if (!prepared || !instanceId) return;
+        if (!prepared?.buildings.length || !prepared.catalog.entries.length || !instanceId) return;
         const dialog = document.createElement("dialog");
         dialog.className = "condemn-dialog";
         const title = document.createElement("h2");
@@ -491,6 +493,16 @@
             ? `${job.guards} guards remembered · ${job.nearby} in this area · ${job.upgrades_started} upgrades started · ${job.spent.toLocaleString()} gold spent · ${job.waiting} waiting`
             : prepared ? `${prepared.guards} guards verified in ${prepared.buildings} of ${prepared.candidate_buildings} nearby buildings`
             : "Uses building gold and carried gold only. Stops when the next upgrade is unaffordable.";
+          if (job?.nearby_states) {
+            const states = job.nearby_states;
+            progress.textContent += ` · Here: ${states.ready} ready, ${states.waiting} waiting, ${states.insufficient} short of gold, ${states.unavailable} without an available offer · ${job.outside_area} outside this area`;
+          } else if (prepared?.unavailable_buildings) {
+            progress.textContent += ` · ${prepared.unavailable_buildings} building rosters unavailable`;
+          }
+          if (job?.observed_ranks?.length) {
+            const ranks = job.observed_ranks.map(r => `${r.count} at rank ${r.rank}`).join(", ");
+            progress.textContent += ` · Last observed ranks: ${ranks}`;
+          }
           const scope = document.createElement("p");
           scope.className = "detail";
           scope.textContent = "Nearby loaded buildings only. Full town coverage and maximum rank are not yet verified.";
@@ -530,7 +542,9 @@
           const detail = document.createElement("p");
           detail.className = "detail";
           detail.textContent = error || (job ? `${job.detail} ${job.completed} of ${job.total} confirmed.`
-            : prepared ? `${prepared.catalog.entries.length} crests and ${prepared.buildings.length} nearby guard buildings ready to select.`
+            : prepared ? (prepared.buildings.length
+              ? `${prepared.catalog.entries.length} crests and ${prepared.buildings.length} nearby guard buildings ready to select.`
+              : "No selectable guard buildings in the latest scan. Inspect building coverage before preparing again.")
             : "Prepare the list, then return to the game. No crest dragging is needed.");
           const controls = document.createElement("div");
           controls.className = "actions";
@@ -544,13 +558,50 @@
             button.disabled = !enabled || !boundInstance() || Boolean(error);
             controls.append(button);
           }
+          if (Number.isInteger(job?.completed_buildings)) {
+            detail.textContent += ` ${job.completed_buildings} of ${job.buildings} selected buildings confirmed; ${job.remaining_buildings} remain.`;
+          }
+          const coverage = prepared?.coverage;
+          if (coverage) {
+            const counts = document.createElement("p");
+            counts.className = "detail";
+            counts.textContent = `Latest scan: ${coverage.candidate_buildings} candidates · ${coverage.verified_guard_buildings} verified with guards · ${coverage.verified_no_guard_buildings} verified without guards · ${coverage.unavailable_buildings} unavailable · ${coverage.unverified_buildings} unverified. Full town coverage remains unverified.`;
+            panel.append(title, detail, counts);
+            const inspection = document.createElement("details");
+            inspection.className = "detail";
+            inspection.open = coverageOpen.get(slot.client_id) === prepared.preparation_id;
+            inspection.addEventListener("toggle", () => {
+              if (!inspection.isConnected) return;
+              if (inspection.open) {
+                coverageOpen.set(slot.client_id, prepared.preparation_id);
+                if (coverageOpen.size > 32) coverageOpen.delete(coverageOpen.keys().next().value);
+              } else {
+                coverageOpen.delete(slot.client_id);
+              }
+            });
+            const label = document.createElement("summary");
+            label.textContent = "Inspect building coverage";
+            const list = document.createElement("ul");
+            list.className = "condemn-choices";
+            const labels = {verified_guards: "Verified guards", verified_no_guards: "Verified without guards", unavailable: "Unavailable", unverified: "Unverified"};
+            for (const row of coverage.buildings) {
+              const item = document.createElement("li");
+              const count = row.guards === null ? "guard count unknown" : `${row.guards} guards`;
+              item.textContent = `${row.name || "Building"} (#${row.building[0]}): ${labels[row.state] || "Unverified"}, ${count}. ${row.detail}`;
+              list.append(item);
+            }
+            inspection.append(label, list);
+            panel.append(inspection);
+          } else {
+            panel.append(title, detail);
+          }
           const choose = document.createElement("button");
           choose.type = "button";
           choose.textContent = "Choose crests and buildings";
-          choose.disabled = !idle || !prepared || !slot.dispatch_enabled || !boundInstance() || Boolean(error);
+          choose.disabled = !idle || !prepared?.buildings.length || !prepared.catalog.entries.length || !slot.dispatch_enabled || !boundInstance() || Boolean(error);
           choose.addEventListener("click", () => chooseCondemn(slot, boundInstance()));
           controls.append(choose);
-          panel.append(title, detail, controls);
+          panel.append(controls);
           article.append(panel);
         }
         return article;

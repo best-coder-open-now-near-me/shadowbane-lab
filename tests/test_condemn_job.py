@@ -446,3 +446,38 @@ def test_job_waits_through_cancelled_poll_under_original_owner(setup, monkeypatc
     assert len(attempts) == 4 and len(cancelled) == 1
     assert attempts[0]["state"] == "state_verified"
     assert len(attempts[0]["cancelled_polls"]) == 1
+
+
+@pytest.mark.parametrize("pause_after", [1, 2, 3, 4])
+def test_summary_only_completes_buildings_with_every_selected_crest(
+    setup, monkeypatch, tmp_path, pause_after,
+):
+    from shadowbane_lab.manager.condemn_control import ManagerCondemnControl
+
+    original = ScopedTransport.submit
+    ensured = []
+
+    def submit(self, command, timeout_ms):
+        result = original(self, command, timeout_ms)
+        if command.kind.name == "ENSURE":
+            ensured.append(command.payload.target)
+            if len(ensured) == pause_after:
+                setup.jobs.request(setup.record["job_id"], "pause")
+        return result
+
+    monkeypatch.setattr(ScopedTransport, "submit", submit)
+    setup.run()
+    control = ManagerCondemnControl(tmp_path, "node", None, None)
+    result = control.summary("client", "instance")
+    assert "error" not in result
+    job = result["job"]
+    assert job["completed"] == pause_after
+    assert job["completed_buildings"] == pause_after // 2
+    assert job["remaining_buildings"] == 2 - pause_after // 2
+    assert job["buildings"] == 2
+    progress = CondemnProgressStore(setup.base.store.root)
+    before = progress.read()
+    # A fresh manager derives the same counts from durable proofs, without replay.
+    restarted = ManagerCondemnControl(tmp_path, "node", None, None)
+    assert restarted.summary("client", "instance") == result
+    assert progress.read() == before and len(ensured) == pause_after

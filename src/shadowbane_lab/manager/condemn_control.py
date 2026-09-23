@@ -6,7 +6,7 @@ import json
 import threading
 import time
 import uuid
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from pathlib import Path
 
 from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
@@ -85,6 +85,11 @@ class ManagerCondemnControl:
             current = jobs.current()
             if current:
                 completed = jobs.progress(current)
+                selected_buildings = Counter(t[:16] for t in current["selection"]["targets"])
+                completed_counts = Counter(t[:16] for t in completed)
+                completed_buildings = sum(
+                    completed_counts[key] == count for key, count in selected_buildings.items()
+                )
                 result["job"] = dict(
                     job_id=current["job_id"],
                     state=current["state"],
@@ -92,7 +97,9 @@ class ManagerCondemnControl:
                     control=jobs.control(current["job_id"]),
                     completed=len(completed),
                     total=len(current["selection"]["targets"]),
-                    buildings=len({t[:16] for t in current["selection"]["targets"]}),
+                    buildings=len(selected_buildings),
+                    completed_buildings=completed_buildings,
+                    remaining_buildings=len(selected_buildings) - completed_buildings,
                 )
         except (OSError, ValueError, RuntimeError, KeyError, TypeError) as exc:
             result["error"] = str(exc) or "Saved Condemn progress needs review."
