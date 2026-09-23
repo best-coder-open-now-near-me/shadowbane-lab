@@ -1,5 +1,23 @@
 # Town vendor management
 
+## Current status - September 23, 2026
+
+Start vendor follow-on work from freshly fetched `origin/main`, which now contains
+the consolidated development history and vendor recovery/recorder source. Use the
+[catch-up plan](catch-up-plan-20260923.md),
+[current integration inventory and execution queue](integration-status-20260923.md),
+and [vendor recovery/workflow handoff](handoffs/vendor-recovery-20260923.md).
+The next vendor work is live qualification of the ordinary recipe and Inventory
+ownership contract, then complete town capacity orchestration. Host activation
+does not establish that gameplay acceptance.
+
+The September 14 ownership, findings and sequence below are historical planning
+context, superseded by the current execution queue. Retain the detailed production
+requirements; do not restart from the old branch or infer today's client state
+from its historical census or interrupted batch.
+
+## Historical September 14 context
+
 Active owner: codex/vendor-rolling. Integration destination:
 codex/native-lifecycle-hardening, then reviewed main. No merge is implied.
 
