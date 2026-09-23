@@ -247,13 +247,54 @@ def verified_building_entries(rosters, nearby, identity, context):
             result.append(dict(building=list(building), name=_label(row["display_name"]),
                                guards=len(guards)))
     complete = verified == len(candidates)
-    if (not verified or len(hirelings) > 4096
+    if (len(hirelings) > 4096
             or rosters.get("buildings_verified") != verified
             or rosters.get("guards_observed") != guard_total
             or rosters.get("candidate_buildings_verified") is not complete
             or rosters["state"] != ("complete" if complete else "partial")):
         raise ValueError("verified building discovery totals changed")
     return sorted(result, key=lambda b: b["building"])
+
+
+def _coverage(record):
+    """Describe every candidate from an already validated, immutable preparation.
+
+    Unavailable windows do not distinguish range from unsupported services. Old
+    cache-only plans cannot establish either an empty roster or accessible guards.
+    This projection never changes selection, claims town membership, or scans jobs.
+    """
+    rosters = {
+        row["building"]["object_id"]: row
+        for row in record.get("verified_rosters", {}).get("roster", [])
+    }
+    rows = []
+    for candidate in record["nearby"]["roster"]["buildings"]:
+        building = candidate["building"]
+        observed = rosters.get(building["object_id"])
+        guards = None
+        if observed is None:
+            state, detail = "unverified", "Cached candidate; building roster not verified."
+        elif observed["state"] == "unavailable":
+            state = "unavailable"
+            detail = observed.get("detail", "Building roster unavailable; guard count unknown.")
+            if not isinstance(detail, str):
+                raise ValueError("invalid building coverage detail")
+            detail = detail[:4096]
+        else:
+            guards = len(observed["guards"])
+            state = "verified_guards" if guards else "verified_no_guards"
+            detail = "Owned roster verified." if guards else "Owned roster verified without guards."
+        rows.append(dict(building=[building["object_id"], building["object_type"]],
+                         name=candidate["display_name"], state=state, guards=guards, detail=detail))
+    return dict(
+        candidate_buildings=len(rows),
+        verified_guard_buildings=sum(r["state"] == "verified_guards" for r in rows),
+        verified_no_guard_buildings=sum(r["state"] == "verified_no_guards" for r in rows),
+        unavailable_buildings=sum(r["state"] == "unavailable" for r in rows),
+        unverified_buildings=sum(r["state"] == "unverified" for r in rows),
+        town_coverage_verified=False,
+        buildings=sorted(rows, key=lambda row: row["building"]),
+    )
 
 
 class CondemnPlanStore:
@@ -347,6 +388,7 @@ class CondemnPlanStore:
             sha256=hashlib.sha256(canonical(record)).hexdigest(),
             catalog=catalog,
             buildings=buildings,
+            coverage=_coverage(record),
             town_coverage_verified=False,
             management_permission_verified=False,
         )

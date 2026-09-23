@@ -624,3 +624,49 @@ def test_fresh_area_confirmed_cycle_is_accounted_once_after_restart(setup):
     assert first["upgrades_started"] == second["upgrades_started"] == 1
     assert len(f.calls) == 1
     assert f.jobs.read(JOB)["plan"]["targets"][0]["scene"] == 1
+
+
+@pytest.mark.parametrize("boundary", ["before_accounting", "after_accounting"])
+@pytest.mark.parametrize("outcome", ["started", "waiting", "insufficient", "unavailable"])
+@pytest.mark.parametrize("restart_delay", [0, 3600])
+def test_restart_fault_schedule_accounts_once_without_new_dispatch_after_authority_loss(
+    setup, monkeypatch, boundary, outcome, restart_delay,
+):
+    f = setup
+    f.begin()
+    save = GuardJobStore.save
+    fired = []
+
+    def terminate_at_accounting(self, record):
+        if not fired and record["active_cycle"] is None and record["guards"][0]["last_cycle"]:
+            fired.append(record["guards"][0]["last_cycle"])
+            if boundary == "after_accounting":
+                save(self, record)
+            raise KeyboardInterrupt("worker terminated at accounting boundary")
+        return save(self, record)
+
+    def cycle(*args, **kwargs):
+        record = f.result(*args, **kwargs)
+        record.update(state=outcome, observed_rank=1)
+        if outcome == "started":
+            record.update(deposited=80, spent=100, quoted_cost=100)
+        _write(f.store.root / "guard-funding-cycles" / (record["operation_id"] + ".json"), record)
+
+    monkeypatch.setattr(GuardJobStore, "save", terminate_at_accounting)
+    with pytest.raises(KeyboardInterrupt):
+        f.run(cycle_runner=cycle)
+    assert len(f.calls) == len(fired) == 1
+    cycle_path = f.store.root / "guard-funding-cycles" / (fired[0] + ".json")
+    proof = cycle_path.read_bytes()
+    f.clock[0] += restart_delay
+    # A restart after dispatch authority loss may account for confirmed work,
+    # but elapsed timers must never cause another native mutation.
+    result = f.run(cancelled=lambda: True)
+    expected = (80, 100, 1) if outcome == "started" else (0, 0, 0)
+    assert (result["deposited"], result["spent"], result["upgrades_started"]) == expected
+    assert result["state"] == "stopped" and result["active_cycle"] is None
+    assert result["guards"][0]["observed_rank"] == 1
+    assert result["guards"][0]["minimum_rank"] == (2 if outcome == "started" else 1)
+    assert not result["maximum_rank_verified"]
+    assert f.run(cancelled=lambda: True) == result
+    assert len(f.calls) == 1 and cycle_path.read_bytes() == proof

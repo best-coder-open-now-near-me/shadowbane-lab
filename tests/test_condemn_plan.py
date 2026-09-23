@@ -197,3 +197,15 @@ def test_existing_preparation_is_immutable(setup):
             record["registry"],
         )
     assert plans.path(preparation).read_bytes() == before
+
+
+def test_legacy_cache_never_reports_accessible_or_empty_buildings(setup):
+    _, plans, preparation, summary = setup
+    before = plans.path(preparation).read_bytes()
+    coverage = summary["coverage"]
+    assert coverage["candidate_buildings"] == coverage["unverified_buildings"] == 2
+    assert coverage["verified_guard_buildings"] == coverage["verified_no_guard_buildings"] == 0
+    assert all(r["state"] == "unverified" and r["guards"] is None
+               for r in coverage["buildings"])
+    assert plans.summary(preparation)["sha256"] == summary["sha256"]
+    assert plans.path(preparation).read_bytes() == before

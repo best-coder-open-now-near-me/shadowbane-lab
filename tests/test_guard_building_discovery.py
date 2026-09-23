@@ -411,3 +411,19 @@ def test_roster_only_scan_preserves_partial_coverage(setup):
     assert result["state"] == "partial" and result["guards_observed"] == 1
     assert result["roster"][0]["state"] == "unavailable"
     assert not result["candidate_buildings_verified"]
+
+
+def test_all_unavailable_personal_guard_scan_still_requires_review(setup):
+    setup.session.mode = "all_unavailable"
+    with pytest.raises(VendorBatchStopped, match="No guard windows were verified"):
+        setup.run()
+    assert json.loads(setup.path.read_bytes())["state"] == "review"
+
+
+def test_cancelled_unavailable_roster_pass_cannot_be_published_as_finished(setup):
+    setup.session.mode = "all_unavailable"
+    with pytest.raises(VendorBatchStopped, match="cancelled"):
+        setup.run(roster_only=True, cancelled=lambda: bool(setup.session.calls))
+    saved = json.loads(setup.path.read_bytes())
+    assert saved["state"] == "cancelled" and len(saved["attempts"]) == 1
+    assert "candidate_buildings_verified" not in saved

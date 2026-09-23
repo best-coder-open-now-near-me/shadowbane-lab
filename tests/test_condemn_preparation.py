@@ -185,3 +185,39 @@ def test_prepared_roster_evidence_cannot_be_rebound(setup, case):
     _write(plans.path(setup.operation.operation_id), record)
     with pytest.raises(ValueError):
         plans.current()
+
+
+def test_coverage_keeps_verified_no_guard_buildings_and_exact_candidate_identities(setup):
+    result = setup.run()
+    coverage = result["coverage"]
+    assert coverage["candidate_buildings"] == 2
+    assert coverage["verified_guard_buildings"] == 1
+    assert coverage["verified_no_guard_buildings"] == 1
+    assert coverage["unavailable_buildings"] == coverage["unverified_buildings"] == 0
+    assert [(r["building"], r["state"], r["guards"]) for r in coverage["buildings"]] == [
+        ([100, 8], "verified_guards", 1), ([200, 8], "verified_no_guards", 0),
+    ]
+    assert not coverage["town_coverage_verified"]
+
+
+def test_all_unavailable_pass_publishes_exceptions_without_any_selectable_guard(setup):
+    setup.navigation.mode = "all_unavailable"
+    for row in setup.roster["roster"]["buildings"]:
+        row["display_name"] = "Irekei Barracks"
+        row["hirelings"] = []
+    setup.roster["hirelings"] = 0
+    result = setup.run()
+    assert result["buildings"] == []
+    coverage = result["coverage"]
+    assert coverage["candidate_buildings"] == coverage["unavailable_buildings"] == 2
+    assert coverage["verified_no_guard_buildings"] == coverage["verified_guard_buildings"] == 0
+    assert {tuple(r["building"]) for r in coverage["buildings"]} == {(100, 8), (200, 8)}
+    assert all(r["guards"] is None and "no action was submitted" in r["detail"]
+               for r in coverage["buildings"])
+    plans = CondemnPlanStore(setup.store)
+    before = plans.path(result["preparation_id"]).read_bytes()
+    assert CondemnPlanStore(setup.store).current() == result
+    with pytest.raises(ValueError, match="observed crests and guard buildings"):
+        plans.select(result["preparation_id"], result["sha256"], ["5:20"], [100])
+    assert plans.path(result["preparation_id"]).read_bytes() == before
+    assert not (setup.store.root / "condemn-cycles").exists()

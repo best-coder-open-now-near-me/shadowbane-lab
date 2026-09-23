@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections import Counter
 from pathlib import Path
 
 from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
@@ -71,7 +72,16 @@ class ManagerGuardControl:
                     "candidate_buildings",
                 )
             }
+            summary["prepared"]["unavailable_buildings"] = (
+                prepared["candidate_buildings"] - prepared["buildings"]
+            )
         if current:
+            guards = current["guards"]
+            area = current.get("area_indices", list(range(len(guards))))
+            states = ("ready", "waiting", "insufficient", "unavailable")
+            all_counts = Counter(g["state"] for g in guards)
+            nearby_counts = Counter(guards[i]["state"] for i in area)
+            ranks = Counter(g["observed_rank"] for g in guards)
             summary["job"] = {
                 k: current[k]
                 for k in (
@@ -90,7 +100,13 @@ class ManagerGuardControl:
                 control=jobs.control(current["job_id"]),
                 guards=len(current["guards"]),
                 waiting=sum(g["state"] == "waiting" for g in current["guards"]),
-                nearby=len(current.get("area_indices", current["guards"])),
+                nearby=len(area),
+                outside_area=len(guards) - len(area),
+                guard_states={state: all_counts[state] for state in states},
+                nearby_states={state: nearby_counts[state] for state in states},
+                observed_ranks=[
+                    dict(rank=rank, count=count) for rank, count in sorted(ranks.items())
+                ],
             )
         return summary
 
