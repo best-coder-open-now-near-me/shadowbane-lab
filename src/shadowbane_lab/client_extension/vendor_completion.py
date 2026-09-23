@@ -40,13 +40,12 @@ def _read_record(path: Path, limit: int = 1024 * 1024) -> bytes:
 def _observed_requests(batch: dict, initial: Snapshot, items: list) -> bool:
     """Validate one-to-one legacy receipts or the complete multiple-slot chain."""
     requests = batch.get("requests")
-    if not isinstance(requests, list) or not requests:
+    if not isinstance(requests, list) or len(requests) > 16:
         return False
     if any(not isinstance(r, dict) or r.get("state") != "observed" for r in requests):
         return False
-    if batch["schema_version"] == 1:
-        return not initial.multiple and [r.get("item_id") for r in requests] == items
-    if initial.multiple != 1:
+    multiple = batch["schema_version"] == 2
+    if initial.multiple != int(multiple):
         return False
     seen = _items(initial)
     flattened = []
@@ -56,13 +55,16 @@ def _observed_requests(batch: dict, initial: Snapshot, items: list) -> bool:
         for request in requests:
             key = str(uuid.UUID(request["request_key"]))
             expected = Snapshot.decode(bytes.fromhex(request["expected_snapshot"]))
-            additions = request["item_ids"]
-            count = request["expected_item_count"]
+            additions = request["item_ids"] if multiple else [request["item_id"]]
+            count = request["expected_item_count"] if multiple else 1
             if (
-                key in keys or not expected.random_scepter or expected.multiple != 1
-                or _owner(expected) != _owner(initial) or len(expected.slots) < capacity
+                key in keys or not uuid.UUID(key).int
+                or not expected.random_scepter or expected.multiple != initial.multiple
+                or _owner(expected) != _owner(initial)
+                or not capacity <= len(expected.slots) <= batch["capacity"]
                 or _items(expected) != seen
-                or type(count) is not int or count != expected.free_slots or not count
+                or type(count) is not int or not 0 < count <= expected.free_slots
+                or (multiple and count != expected.free_slots)
                 or not isinstance(additions, list) or len(additions) != count
                 or any(type(item) is not int or not 0 < item < 2**32 for item in additions)
                 or len(set(additions)) != count or seen & set(additions)
@@ -75,6 +77,99 @@ def _observed_requests(batch: dict, initial: Snapshot, items: list) -> bool:
     except (KeyError, TypeError, ValueError, AttributeError):
         return False
     return flattened == items
+
+
+def validate_completed_batch(raw: bytes) -> tuple[dict, Snapshot]:
+    """Validate the complete observed chain, including historical single-slot jobs.
+
+    A terminal label alone cannot certify completion after a job-save gap. These
+    checks never adopt pending requests or grant authority to replay commands.
+    """
+    try:
+        batch = json.loads(raw)
+        initial = Snapshot.decode(bytes.fromhex(batch["initial_snapshot"]))
+        items, capacity = batch["items"], batch["capacity"]
+        history = batch["capacity_history"]
+        if (
+            type(batch["schema_version"]) is not int or batch["schema_version"] not in (1, 2)
+            or batch["operation"] != "fill_available_slots" or batch["state"] != "complete"
+            or not uuid.UUID(batch["batch_id"]).int or not initial.random_scepter
+            or any(type(batch[key]) is not int or not 0 < batch[key] < 2**bits
+                   for key, bits in (("process_id", 32), ("process_creation_filetime_utc", 64),
+                                     ("window", 32), ("vendor_id", 32)))
+            or batch["vendor_id"] != initial.vendor
+            or type(capacity) is not int or not len(initial.slots) <= capacity <= 16
+            or not isinstance(history, list) or not 1 <= len(history) <= 16
+            or any(type(value) is not int for value in history)
+            or history != sorted(set(history))
+            or history[0] != len(initial.slots) or history[-1] != capacity
+            or type(batch["planned_rolls"]) is not int
+            or batch["planned_rolls"] != capacity - len(_items(initial))
+            or not isinstance(items, list) or len(items) != batch["planned_rolls"]
+            or any(type(item) is not int or not 0 < item < 2**32 for item in items)
+            or len(set(items)) != len(items) or set(items) & _items(initial)
+            or not _observed_requests(batch, initial, items)
+        ):
+            raise ValueError("inconsistent completed Create evidence")
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise ValueError("expected a complete, observed vendor Create journal") from exc
+    return batch, initial
+
+
+def validate_completed_keep(raw: bytes, batch_raw: bytes) -> dict:
+    """Require the exact source batch and its observed inventory receipt chain.
+
+    At most sixteen receipts are checked once at recovery. This reads historical
+    evidence only; it never adopts pending requests or sends native commands.
+    """
+    batch, initial = validate_completed_batch(batch_raw)
+    try:
+        kept = json.loads(raw)
+        items = batch["items"]
+        decisions = kept["decisions"]
+        requests = kept["requests"]
+        if (
+            type(kept["schema_version"]) is not int or kept["schema_version"] != 1
+            or kept["operation"] != "keep_completed_batch" or kept["state"] != "complete"
+            or not items
+            or kept["source_batch_sha256"] != hashlib.sha256(batch_raw).hexdigest()
+            or any(type(kept[key]) is not type(batch[key]) or kept[key] != batch[key]
+                   for key in ("batch_id", "process_id", "process_creation_filetime_utc",
+                               "window", "vendor_id"))
+            or not isinstance(decisions, dict) or set(decisions) != {str(item) for item in items}
+            or any(not isinstance(value, dict)
+                   or value.get("disposition") not in ("keep", "exclude")
+                   for value in decisions.values())
+            or not isinstance(kept["kept"], list) or not isinstance(kept["excluded"], list)
+            or any(type(item) is not int for item in kept["kept"] + kept["excluded"])
+            or kept["kept"] != [item for item in items
+                                if decisions[str(item)]["disposition"] == "keep"]
+            or kept["excluded"] != [item for item in items
+                                    if decisions[str(item)]["disposition"] == "exclude"]
+            or not isinstance(requests, list) or len(requests) != len(kept["kept"])
+        ):
+            raise ValueError("inconsistent completed Keep evidence")
+        remaining = _items(initial) | set(items)
+        capacity = batch["capacity"]
+        keys = {str(uuid.UUID(request["request_key"])) for request in batch["requests"]}
+        for item, request in zip(kept["kept"], requests, strict=True):
+            key = str(uuid.UUID(request["request_key"]))
+            expected = Snapshot.decode(bytes.fromhex(request["expected_snapshot"]))
+            if (
+                key in keys or not uuid.UUID(key).int
+                or request["state"] != "observed_in_inventory"
+                or type(request["item_id"]) is not int or request["item_id"] != item
+                or _owner(expected) != _owner(initial) or not expected.inventory
+                or len(expected.slots) < capacity or _items(expected) != remaining
+                or any(slot.state != 2 for slot in expected.slots if slot.item in items)
+            ):
+                raise ValueError("inconsistent inventory receipt chain")
+            keys.add(key)
+            capacity = len(expected.slots)
+            remaining.remove(item)
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise ValueError("expected a complete Keep journal for the exact Create batch") from exc
+    return kept
 
 
 def _decisions(batch: dict, capture: Path | None) -> dict[int, dict]:
@@ -135,23 +230,12 @@ def keep_completed_batch(
     if not 0 < acceptance_timeout <= 60:
         raise ValueError("invalid completion timeout")
     raw = _read_record(Path(batch_journal))
-    batch = json.loads(raw)
-    initial = Snapshot.decode(bytes.fromhex(batch["initial_snapshot"]))
+    batch, initial = validate_completed_batch(raw)
     items = batch["items"]
     if (
-        batch.get("schema_version") not in (1, 2)
-        or batch.get("operation") != "fill_available_slots"
-        or batch.get("state") != "complete"
-        or not initial.random_scepter
+        not items
         or batch["process_id"] != session.identity.process_id
         or batch["process_creation_filetime_utc"] != session.identity.creation_filetime_utc
-        or batch["vendor_id"] != initial.vendor
-        or not isinstance(items, list)
-        or not 1 <= len(items) <= 16
-        or any(type(item) is not int or not 0 < item < 2**32 for item in items)
-        or len(set(items)) != len(items)
-        or set(items) & _items(initial)
-        or not _observed_requests(batch, initial, items)
     ):
         raise ValueError("expected an observed batch belonging to this live client")
     decisions = _decisions(batch, capture)

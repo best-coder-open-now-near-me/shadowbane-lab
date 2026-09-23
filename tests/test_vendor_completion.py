@@ -1,3 +1,4 @@
+import copy
 import json
 import tempfile
 import unittest
@@ -173,6 +174,42 @@ class VendorCompletionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.run_keep()
         self.assertEqual([], self.session.calls)
+
+    def test_legacy_create_chain_is_verified_before_keep_or_journal_creation(self):
+        original = json.loads(self.batch.read_bytes())
+
+        def changed_owner(record):
+            from shadowbane_lab.client_extension.vendor_wire import Snapshot
+            request = record["requests"][0]
+            expected = Snapshot.decode(bytes.fromhex(request["expected_snapshot"]))
+            request["expected_snapshot"] = replace(expected, building=999).encode().hex()
+
+        mutations = {
+            "missing request": lambda r: r["requests"].pop(),
+            "pending request": lambda r: r["requests"][0].update(state="prepared"),
+            "wrong owner": changed_owner,
+            "changed queue": lambda r: r["requests"][1].update(
+                expected_snapshot=r["requests"][0]["expected_snapshot"]),
+            "duplicate UUID": lambda r: r["requests"][1].update(
+                request_key=r["requests"][0]["request_key"]),
+            "invalid UUID": lambda r: r["requests"][0].update(request_key="invalid"),
+            "unknown item": lambda r: r["requests"][0].update(item_id=999),
+            "wrong operation": lambda r: r.update(operation="keep_completed_batch"),
+            "wrong count": lambda r: r.update(planned_rolls=3),
+            "incomplete capacity": lambda r: r.update(capacity=3, planned_rolls=3,
+                                                       capacity_history=[2, 3]),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                changed = copy.deepcopy(original)
+                mutate(changed)
+                raw = json.dumps(changed).encode()
+                self.batch.write_bytes(raw)
+                with self.assertRaises(ValueError):
+                    self.run_keep()
+                self.assertFalse(self.journal.exists())
+                self.assertEqual([], self.session.calls)
+                self.assertEqual(raw, self.batch.read_bytes())
 
     def test_confirmed_exclusion_stays_in_production_while_unknown_is_kept(self):
         items = self.created["items"]

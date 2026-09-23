@@ -1,3 +1,4 @@
+import copy
 import json
 import shutil
 import tempfile
@@ -221,6 +222,123 @@ class VendorJobTests(unittest.TestCase):
         self.store.save(result)
         self.assertEqual(2, self.run_job(resume=True)["kept"])
         self.assertEqual(2, len(self.session.keeps))
+
+    def test_completed_keep_requires_its_exact_observed_chain(self):
+        result = self.run_job()
+        directory = self.store.directory(result["job_id"])
+        keep_path = directory / "keep.json"
+        original = json.loads(keep_path.read_bytes())
+        create_bytes = (directory / "create.json").read_bytes()
+        calls = (len(self.session.calls), len(self.session.keeps))
+
+        def change_snapshot(record, **changes):
+            request = record["requests"][0]
+            from shadowbane_lab.client_extension.vendor_wire import Snapshot
+            expected = Snapshot.decode(bytes.fromhex(request["expected_snapshot"]))
+            request["expected_snapshot"] = replace(expected, **changes).encode().hex()
+
+        mutations = {
+            "wrong operation": lambda r: r.update(operation="fill_available_slots"),
+            "wrong schema": lambda r: r.update(schema_version=True),
+            "different source bytes": lambda r: r.update(source_batch_sha256="0" * 64),
+            "different batch": lambda r: r.update(batch_id="12345678-1234-5678-9abc-def012345678"),
+            "missing inventory receipt": lambda r: r["requests"].pop(),
+            "pending request": lambda r: r["requests"][0].update(state="submitted"),
+            "wrong item": lambda r: r["requests"][0].update(item_id=999),
+            "duplicate UUID": lambda r: r["requests"][1].update(
+                request_key=r["requests"][0]["request_key"]),
+            "invalid UUID": lambda r: r["requests"][0].update(request_key="invalid"),
+            "missing disposition": lambda r: r["decisions"].pop(str(r["kept"][0])),
+            "missing item": lambda r: r["kept"].pop(),
+            "duplicate kept item": lambda r: r["kept"].append(r["kept"][0]),
+            "overlapping disposition": lambda r: r["excluded"].append(r["kept"][0]),
+            "wrong building": lambda r: change_snapshot(r, building=999),
+            "missing inventory": lambda r: change_snapshot(r, inventory=0),
+            "lost production": lambda r: change_snapshot(r, slots=(Slot(600), Slot(700))),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                changed = copy.deepcopy(original)
+                mutate(changed)
+                changed_bytes = json.dumps(changed).encode()
+                keep_path.write_bytes(changed_bytes)
+                result.update(state="running", kept=0)
+                self.store.save(result)
+                with self.assertRaises(VendorBatchStopped):
+                    self.run_job(resume=True)
+                self.assertEqual("review", self.store.current()["state"])
+                self.assertEqual(calls, (len(self.session.calls), len(self.session.keeps)))
+                self.assertEqual(changed_bytes, keep_path.read_bytes())
+                self.assertEqual(create_bytes, (directory / "create.json").read_bytes())
+
+    def test_orphan_keep_and_changed_create_never_count_as_finished(self):
+        result = self.run_job()
+        directory = self.store.directory(result["job_id"])
+        create_path, keep_path = directory / "create.json", directory / "keep.json"
+        original_create, original_keep = create_path.read_bytes(), keep_path.read_bytes()
+        calls = (len(self.session.calls), len(self.session.keeps))
+        for source in (None, original_create + b" "):
+            with self.subTest(source_exists=source is not None):
+                if source is None:
+                    create_path.unlink()
+                else:
+                    create_path.write_bytes(source)
+                result.update(state="running", kept=0)
+                self.store.save(result)
+                with self.assertRaises(VendorBatchStopped):
+                    self.run_job(resume=True)
+                self.assertEqual("review", self.store.current()["state"])
+                self.assertEqual(calls, (len(self.session.calls), len(self.session.keeps)))
+                self.assertEqual(original_keep, keep_path.read_bytes())
+
+    def test_create_from_another_building_cannot_complete_same_vendor_job(self):
+        from shadowbane_lab.client_extension.vendor_wire import Snapshot
+        result = self.run_job()
+        initial = Snapshot.decode(bytes.fromhex(result["initial_snapshot"]))
+        result.update(
+            state="running", initial_snapshot=replace(initial, building=999).encode().hex(),
+        )
+        self.store.save(result)
+        with self.assertRaises(VendorBatchStopped):
+            self.run_job(resume=True)
+        self.assertEqual("review", self.store.current()["state"])
+        self.assertEqual((2, 2), (len(self.session.calls), len(self.session.keeps)))
+
+    def test_multiple_completed_recovery_restores_progress_without_native_calls(self):
+        self.session = MultipleJobSession(self.store)
+        result = self.run_job()
+        result.update(state="running", phase="filling", created=0, kept=0)
+        self.store.save(result)
+        from shadowbane_lab.manager import vendor_job
+        original_read = vendor_job._read_record
+        with (
+            patch.object(vendor_job, "_read_record", wraps=original_read) as read,
+            patch.object(
+                self.session, "inspect", side_effect=AssertionError("unexpected native call"),
+            ),
+        ):
+            recovered = self.run_job(resume=True)
+        self.assertEqual(("complete", "keeping", 3, 3), (
+            recovered["state"], recovered["phase"], recovered["created"], recovered["kept"],
+        ))
+        for name in ("create.json", "keep.json"):
+            self.assertEqual(
+                1, sum(Path(call.args[0]).name == name for call in read.call_args_list),
+            )
+        self.assertEqual((1, 3), (len(self.session.calls), len(self.session.keeps)))
+
+    def test_completed_exclusion_recovery_preserves_its_receipts(self):
+        with patch("shadowbane_lab.client_extension.vendor_completion._decisions", return_value={
+            101: {"disposition": "exclude", "reason": "confirmed_low_tier"},
+            102: {"disposition": "keep", "reason": "unknown_affix_preserved"},
+        }):
+            result = self.run_job()
+        result.update(state="running", kept=0, excluded=0)
+        self.store.save(result)
+        recovered = self.run_job(resume=True)
+        self.assertEqual((1, 1), (recovered["kept"], recovered["excluded"]))
+        self.assertEqual([102], self.session.keeps)
+        self.assertTrue(any(slot.item == 101 for slot in self.session.state.slots))
 
     def test_new_start_refuses_unfinished_job_and_foreign_resume(self):
         self.sleep = lambda seconds: setattr(self, "cancel", True)
