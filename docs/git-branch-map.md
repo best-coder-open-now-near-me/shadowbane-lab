@@ -2,21 +2,22 @@
 
 ## Active VM candidate - September 24
 
-Combined furniture preview/recorder native 1.8.29 / host 0.3.49 from exact source
-`0193dd74662eb368c4961a2ab8d9db6826fb70b4` is installed and verified in the VM.
-The existing Vendor Test shortcut is the user launch entry point. Saved records,
-settings, rollback backups, all five shortcuts and the actual new manager were
-verified. Live capture proved a preview startup collision with the existing
-renderer; the preview task is fixing it for reserved 1.8.30 / 0.3.50. Ordinary
-Bench drag receives an unchanged empty primary scene list and needs server-handler
-investigation. Capture is stopped; fresh preview acceptance follows the corrected
-package. See the [deployment handoff](handoffs/furniture-response-diagnostics.md). PR #35 contains
+Corrected furniture preview/recorder native 1.8.30 / host 0.3.50 from exact source
+`8ba181868fca7ca113f94361b61118ce74a9d4a1` is installed and verified in the VM.
+The existing Vendor Test shortcut remains the user launch entry point. Saved
+records/settings, rollback backups, all five shortcuts and the actual new manager
+were verified. The user authorized stopping the old windowless process after
+normal window closure left it alive. Corrected startup registration, panel creation,
+preview appearance/input and normal exit still require live verification.
+
+The prior 1.8.29 capture proved a renderer-first preview startup collision, fixed
+by this candidate. Ordinary Bench drag separately receives an unchanged empty
+primary scene list and needs server-handler investigation. The old capture is
+stopped; a fresh verified process/capture is needed for further live tests. See the
+[deployment handoff](handoffs/furniture-response-diagnostics.md). PR #35 contains
 the combined source; PR #37 carries the recorder and latest deployment docs.
-Both target `main` and remain unmerged by this deployment. Corrected native 1.8.30 / host 0.3.50 source
-`8ba181868fca7ca113f94361b61118ce74a9d4a1` has passed complete package validation
-and is staged/verified in the VM, awaiting normal game closure before activation.
-The active client is still 1.8.29 / 0.3.49. Earlier installed or staged versions
-below are historical checkpoints.
+Both target `main` and remain unmerged by this deployment. Earlier installed or
+staged versions below are historical checkpoints.
 
 ## Current client update - September 24
 

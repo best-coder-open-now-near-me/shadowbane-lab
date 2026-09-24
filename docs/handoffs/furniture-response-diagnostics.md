@@ -12,7 +12,8 @@ can produce that same result. See the
 evidence boundary in [draft PR #37](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/37).
 Native version 1.8.28 and host 0.3.48 passed complete package validation at source
 `c764e22d1bd94fe3a84fd53a31d42d4c959d8a20`. The combined preview/recorder
-1.8.29 / 0.3.49 candidate is now installed; live capture remains pending.
+1.8.30 / 0.3.50 corrected candidate is now installed; corrected live preview
+acceptance remains pending.
 See the combined package and deployment record below.
 The independent real-time preview remains in
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35).
@@ -275,10 +276,25 @@ At 18:11 UTC, VM preparation returned `prepared_not_applied` and read-only
 validation returned `update_verified_not_applied`: 434 installed modules verified,
 9,426 retained files inventoried, executable and active game unchanged. Private
 receipts are in the diagnostics share under `furnishing-preview-fix-20260924/
-guest-prepare.json` and `guest-validation.json`. Normal game closure confirmation
-is pending before application.
+guest-prepare.json` and `guest-validation.json`.
 
-The separate update is prepared from the currently installed source `0193dd7`
+The user closed the game window, but the exact old process remained alive with
+no HWND. After explicit authorization, only that lifetime was stopped. The
+updater then installed and verified source `8ba1818`, native 1.8.30 / host 0.3.50.
+The executable remains unchanged and only the DLL inventory entry changed.
+All 9,426 retained files matched through application; manager activation refreshed
+only its expected revoked/unbound dispatch permit (9,425 unchanged). Five runtime
+files are backed up under `upgrades/furnishing-preview-1.8.30/rollback`.
+
+All five existing shortcuts and non-launching preflight passed. Actual manager
+PID 9132 / parent 6628 uses `host-0.3.50/Scripts/python.exe`; its API is healthy,
+unbound, with no slots. No game was running at verification. Private activation
+receipts are retained under the same corrected diagnostics-share directory.
+The user was directed to open Vendor Test and log in as Bart, holding furniture
+actions until startup registration and panel creation are checked read-only.
+Corrected live acceptance and normal process exit still need verification.
+
+The separate update was prepared from the prior installed source `0193dd7`
 (native 1.8.29 / host 0.3.49), with new private helpers and payload under
 `artifacts/furnishing-preview-fix-20260924`. Earlier payloads remain intact.
 Plan SHA-256: `f068a0c0a658a545a553e43c24cb33127baaa163f91f1d354eab72ea7a9897a4`.
@@ -301,9 +317,9 @@ loading text. Private captures and client binaries stay in local artifact storag
    retained files, shortcuts, launcher preflight and actual new manager verified.
 3. Complete: fresh client and recorder verified; normal placement response and
    the missing-preview-controls startup cause captured without input automation.
-4. Active: install the verified staged renderer-first startup fix after normal
-   game closure, verify actual startup registration/panel creation and then conduct
-   fresh preview acceptance. Staging is complete; activation is pending.
+4. Active: after launch/login, verify actual corrected startup registration and
+   panel creation, then conduct fresh preview acceptance with passive capture.
+   Corrected installation and manager/launcher checks are complete.
 5. Obtain the server Furniture handler/response-builder evidence for the ordinary
    placement finding; resume guard/Condemn and vendor live checks in the serialized
    client queue. The private developer finding is prepared, not sent.
