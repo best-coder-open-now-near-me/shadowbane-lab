@@ -3,7 +3,7 @@
 ## Current scope - September 24
 
 The user stopped carpenter work and set guard investigation aside. Vendor rolling
-is the sole active product lane. PR #35's cutout fix `6ea434c` and PR #37's passive
+continues alongside the resumed PvP lane. PR #35's cutout fix `6ea434c` and PR #37's passive
 recorder/live findings remain preserved; unfinished automatic-preview work is not
 a release candidate. No carpenter package, deployment or live test should proceed
 without renewed direction. The installed VM runtime described below is unchanged.

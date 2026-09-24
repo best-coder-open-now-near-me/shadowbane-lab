@@ -1,6 +1,6 @@
 # Integration and town-workflow catch-up plan
 
-Execution update: September 24. **Vendor rolling is the sole active product lane.**
+Execution update: September 24. **PvP resumes alongside random vendor rolling.**
 The user set guard investigation aside and then explicitly stopped carpenter work.
 Preserve their source, installed runtime and private evidence; do not continue
 carpenter implementation, packaging or live tests without renewed direction.
@@ -17,6 +17,22 @@ Its startup/panel verification, material failure and placement evidence are reta
 in the [deployment handoff](handoffs/furniture-response-diagnostics.md).
 The later cutout shader fix `6ea434c` is source-only in PR #35; automatic preview
 integration and visual acceptance are unfinished.
+
+PvP restart status: freshly fetched `main@a91dfd5` contains the identity,
+attack-list command and passive native-event work through `542c632`. Saved
+player identity, add/remove/list/clear, command concurrency, party/pet observations,
+attacker-key calibration and stale/retired trace rejection have source evidence.
+These are not completed automatic combat. Full listed-target binding, attributed
+response ingestion, native player selection/attack and PvE-to-PvP recovery remain
+unfinished. Native event records still explicitly publish combat_authority=false.
+
+Next PvP boundary is receive-to-processing identity: preserve one original event
+across native retries and deferred processing, reject reused message addresses,
+and revalidate the current character generation at consumption. Continue from
+current main, not the old native-lifecycle branch. The existing
+[PvP plan](pve-pvp-attack-list-plan.md) retains the detailed evidence; older
+installation claims in that document are historical. No new attack, capture or
+deployment was started by this status audit.
 
 Planning date: September 23, 2026. The original planning rationale and milestones
 below remain useful; their starting inventory is historical. Current status and
@@ -237,9 +253,13 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Stopped at user direction: carpenter implementation and live testing, including
   automatic preview integration. Preserve pushed source and unfinished edits;
   no further package/deployment or user test is scheduled for this lane.
-- Active: vendor rolling; qualify recipe/Inventory control ownership and complete
-  the bounded town workflow against evidence. The source audit is independent of
-  the game and will identify the minimal remaining live walkthrough.
+- Active: resume PvP at receive-to-processing event identity and current-character
+  validation, then response ingestion, listed-player selection and combat
+  transitions. Source audit confirms the prior foundation is already in main.
+- Vendor continuation: random-roll recipe list and Inventory qualification, then
+  bounded town rolling. The user clarified random rolls specifically; fixed-affix
+  crafting is not the requested walkthrough. Await the visible recipe list and
+  selected vendor/recipe before game observation.
 - Complete source checkpoint: vendor discovery scene/root handoff fix
   `37d919a` on `codex/vendor-town-workflow`, draft PR #38 to main.
   241 focused tests passed (one optional native fixture skipped), Ruff/diff and
