@@ -9,8 +9,24 @@ retained records, and non-launching preflight are verified. Source branch
 through [PR #34](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/34);
 that PR records final-head checks and merge status. See the
 [update review](client-update-20260924.md) for exact package identities and rollback.
-The next live step is the user's launch/login, then Barracks/vendor observations.
+Launch/login is verified. Carpenter placement diagnosis is now the active live
+step; Barracks/vendor observations follow when the client is available.
 Use freshly fetched `origin/main` after PR #34 merges for further development.
+
+## Carpenter discovery and graphics - September 24
+
+`main` remains the development base and shared merge destination. Documentation
+branch `codex/carpenter-discovery-20260924` records the
+[verified carpenter findings](handoffs/carpenter-discovery-20260924.md) and current
+live-test queue; it awaits normal review into `main`.
+
+Independent graphics branch `codex/furnishing-preview` is published in
+[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35).
+Its read-only selected-resource observer at `a98a9d39d79a7ceb0535c24183ae84ee7f56a283`
+has been exercised on the current VM client without installation. Rendering is
+unfinished and outside main; source publication does not establish a usable
+preview or successful furniture placement. That task retains ownership of its
+worktree and preview modules. The coordinator remains the sole VM operator.
 
 ## Canonical development base - September 23
 
