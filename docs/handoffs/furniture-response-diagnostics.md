@@ -246,6 +246,46 @@ Final private evidence is retained as `live-workflow-copy.jsonl`,
 while the corrected package is developed. Re-arm capture against a fresh verified
 process before the next live test; the current recorder is no longer running.
 
+## Corrected startup candidate - 1.8.30 / 0.3.50
+
+The qualified corrected combined package is built from exact pushed source
+`8ba181868fca7ca113f94361b61118ce74a9d4a1` on `codex/furnishing-preview`
+([PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)).
+The renderer now remains the sole persistent matrix-import owner and publishes
+bounded preview events after the original GL call. Preview no longer tries to
+replace imports already owned by the renderer. Tests execute renderer-first
+startup and actual wrappers, including in-flight Stop/re-enable, foreign hooks/
+callers, display lists and context loss.
+
+Exact private package root is the preview worktree's `artifacts/p30/b8690f3e`.
+ZIP SHA-256: `befcb3d987d91fa8979e4a1217aa889fd950636315c8a84c0d24f25f85e94136`.
+Full DLL SHA-256: `3d8680c50eb708061027863620381702a8a0d2461ebedce9dfcc2a87cacd6817`.
+Wheel SHA-256: `c6ceeb9661907c61c4a6803389e8d7dd609f51fd04751be37061d966cb7d36c3`.
+All 61 recorded artifacts, ZIP integrity/hash, internal wheel identity and native
+version were independently checked. The seven reviewed bootstrap writes reproduce
+the same prepared executable bytes. Rejected package attempts are excluded.
+
+Required validation passes: 3,823 host tests (18 skipped), 200 native cases in
+each profile plus separately verified private-image probes, all 63 movement IPC
+tests per profile, and installed-wheel/panel/contract checks. The two pre-existing
+transparency stretch findings remain separately recorded per profile. Corrected
+live preview acceptance is not established by these checks.
+
+At 18:11 UTC, VM preparation returned `prepared_not_applied` and read-only
+validation returned `update_verified_not_applied`: 434 installed modules verified,
+9,426 retained files inventoried, executable and active game unchanged. Private
+receipts are in the diagnostics share under `furnishing-preview-fix-20260924/
+guest-prepare.json` and `guest-validation.json`. Normal game closure confirmation
+is pending before application.
+
+The separate update is prepared from the currently installed source `0193dd7`
+(native 1.8.29 / host 0.3.49), with new private helpers and payload under
+`artifacts/furnishing-preview-fix-20260924`. Earlier payloads remain intact.
+Plan SHA-256: `f068a0c0a658a545a553e43c24cb33127baaa163f91f1d354eab72ea7a9897a4`.
+The next live check will inspect qualified corrected-DLL registration and panel
+creation before asking the user to repeat selection/preview actions. The corrected
+symbol manifest is retained privately; all inspections remain read-only.
+
 ## Capture and next todos
 
 Use the existing workflow recorder with `--furniture-responses`, pinned to the
@@ -261,8 +301,9 @@ loading text. Private captures and client binaries stay in local artifact storag
    retained files, shortcuts, launcher preflight and actual new manager verified.
 3. Complete: fresh client and recorder verified; normal placement response and
    the missing-preview-controls startup cause captured without input automation.
-4. Active: preview task fixes renderer-first startup and validates the corrected
-   combined package; coordinate installation and fresh preview acceptance afterward.
+4. Active: install the verified staged renderer-first startup fix after normal
+   game closure, verify actual startup registration/panel creation and then conduct
+   fresh preview acceptance. Staging is complete; activation is pending.
 5. Obtain the server Furniture handler/response-builder evidence for the ordinary
    placement finding; resume guard/Condemn and vendor live checks in the serialized
    client queue. The private developer finding is prepared, not sent.

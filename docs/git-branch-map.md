@@ -12,8 +12,11 @@ Bench drag receives an unchanged empty primary scene list and needs server-handl
 investigation. Capture is stopped; fresh preview acceptance follows the corrected
 package. See the [deployment handoff](handoffs/furniture-response-diagnostics.md). PR #35 contains
 the combined source; PR #37 carries the recorder and latest deployment docs.
-Both target `main` and remain unmerged by this deployment. Earlier installed or
-staged versions below are historical checkpoints.
+Both target `main` and remain unmerged by this deployment. Corrected native 1.8.30 / host 0.3.50 source
+`8ba181868fca7ca113f94361b61118ce74a9d4a1` has passed complete package validation
+and is staged/verified in the VM, awaiting normal game closure before activation.
+The active client is still 1.8.29 / 0.3.49. Earlier installed or staged versions
+below are historical checkpoints.
 
 ## Current client update - September 24
 
