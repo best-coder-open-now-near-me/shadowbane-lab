@@ -1,5 +1,13 @@
 # Git branch map
 
+## Current client update - September 24
+
+`codex/client-update-20260924` starts from `main@0620bcb` and adds exact
+1.3.38.11 compatibility (native 1.8.27 / host 0.3.47). Its integration
+destination is `main`; package/deployment and merge remain pending. See
+[the update review](client-update-20260924.md). Continue the broader guard,
+vendor and carpenter work from the canonical base below after this prerequisite.
+
 ## Canonical development base - September 23
 
 Use freshly fetched `origin/main` for current product work.
