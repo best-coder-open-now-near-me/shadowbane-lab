@@ -374,3 +374,36 @@ All required package gates pass. Earlier "unregistered" / "remaining wiring"
 notes above describe historical checkpoints. The remaining feature validation is
 supervised live acceptance after coordinator-owned staging and user client closure;
 no live result or placement authority is inferred from local tests.
+
+
+## Bench cutout shader qualification - September 24
+
+The installed 1.8.30 runtime started successfully. Its bounded resource journal
+rejected Bench at shader vtable `0x1149c18`, after the loaded texture, reference
+and metadata gates passed. No clone was attempted. RTTI identifies this exact
+class as ArcShaderStaticClipMap. This is a cutout shader, not alpha blending.
+
+Its begin/draw/end slots are thunks `0x11185` / `0x1bbd` / `0x25eb4`, resolving
+to `0x4f6eb0` / `0x4f6f50` / `0x4f70d0`. Begin enables depth and alpha testing,
+disables blending and polygon offset, and uses GL_GEQUAL with cutoff 0.9. Draw
+uses the same retained material, borrowed draw descriptor and mesh contract as
+the qualified static families. It obtains/releases a temporary selected texture,
+uses the already-gated ColorTexture bind slot, and dispatches mesh slot +0x2c
+with draw mask 0xb. Shutdown only uses shader guard bytes +0x14/+0x15 and native
+state management: cull helper `0x4f2770`, lighting/fog helper `0x4f2810`, then
+disables alpha testing. It does not dereference borrowed draw parameters.
+
+The common +0x14 slot is **setup**, thunk `0x25577` to `0x4effe0`, not shutdown
+or reference cleanup. It preserves the previously documented template retain and
+borrowed parameter rules. The same outer drain and shader-global-clear proof
+therefore applies to ClipMap; no bypass or substitute opaque shader is needed.
+All five used virtual slots must match the reviewed image before admission.
+
+Native selector `0x1c3f30` also gives material +0x40 precedence over texture alpha:
+when cutout is nonzero it skips the texture-alpha branch entirely. The resource
+gate now matches that precedence. Bench's observed flags select index 256.
+Regression coverage includes cutout with both texture-alpha values, each used
+method slot being replaced, exact queued shader identity and the 64 selector
+combinations. Live rendering remains unverified; automatic native-control
+integration is the next active item. No version bump or deployment accompanies
+this source checkpoint.

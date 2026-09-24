@@ -102,7 +102,7 @@ void Independent(){
 }
 void ShaderSelection(){
     for(A mask=0;mask<64;++mask){
-        Fixture f;const A expected=(mask&1?1U:0U)+(mask&2?8U:0U)+(mask&4?32U:0U)+(mask&8?64U:0U)+(mask&16?128U:0U)+(mask&32?256U:0U);
+        Fixture f;const A expected=(mask&1?1U:0U)+(mask&2?8U:0U)+(mask&4?32U:0U)+(mask&8?64U:0U)+((mask&16)&&!(mask&32)?128U:0U)+(mask&32?256U:0U);
         f.Put(base+0x13883f0,A{0});f.Put(base+0x13883f0+expected*4,shader);
         f.Put(base+0x16a7bd4,A{0x10000});f.Put(base+0x16a740c,A{1});f.Put(material+0x30,mask&2?A{0x10000}:0U);f.Put(material+0x40,mask&32?1U:0U);
         for(A at:{source,copy}){f.Put(at+0x13c,mask&1?1U:0U);f.Put(at+0x148,mask&4?A{0x1034}:A{0x1030});f.Put(at+0xcc,mask&8?0.5f:1.0f);f.Put(at+0x4018,mask&16?1U:0U);}
@@ -110,6 +110,23 @@ void ShaderSelection(){
     }
     Fixture f;f.Put(source+0xcc,0.5f);f.Put(copy+0xcc,0.5f);f.Put(base+0x13883f0+64*4,shader);f.Type(shader,0x1149c84);
     f.Words(base+0x1149c84+4,{base+0x6023,base+0xfeac,base+0xcd1f,base+0x227d7,base+0x25577});auto r=f.Make();assert(r->Source(Selection())&&f.Private(*r));
+}
+void Cutout(){
+    // Captured Bench selects table index 256. Texture alpha must not add 128.
+    for(A texture_alpha:{0U,1U}){
+        Fixture f;f.Put(material+0x40,A{1});f.Put(base+0x13883f0+256*4,shader);
+        f.Type(shader,0x1149c18);
+        f.Words(base+0x1149c18+4,{base+0x6023,base+0x11185,base+0x1bbd,base+0x25eb4,base+0x25577});
+        for(A at:{source,copy}){f.Put(at+0x4018,texture_alpha);}
+        auto r=f.Make();assert(r->Source(Selection())&&f.Private(*r)&&r->Wrapper(wrapper,copy));
+        for(A slot:{4U,8U,12U,16U,20U}){
+            A saved=0;Fixture::Read(&f,base+0x1149c18+slot,&saved,4);
+            f.Put(base+0x1149c18+slot,A{0});assert(!r->Source(Selection()));
+            f.Put(base+0x1149c18+slot,saved);assert(r->Source(Selection()));
+        }
+        // Native queue must still use the exact qualified shader object.
+        assert(f.Private(*r));f.Put(wrapper+0x18,shader+4);assert(!r->Wrapper(wrapper,copy));
+    }
 }
 void Bounds(){
     {Fixture f;for(A at:{source,copy}){const A root=f.Params(at,0,64,at+0x6000,0);f.Put(at+0x130,A{64});f.Words(at+0x6004,{root,at+0x6100,at+0x6100+63*40});
@@ -127,4 +144,4 @@ void Changing(){
     {Fixture f;auto r=f.Make();f.reenter=true;assert(r->Source(Selection()));f.current=false;assert(!f.Private(*r));}
 }
 }
-int main(){Normal();UnsafeSource();Metadata();Independent();ShaderSelection();Bounds();Changing();}
+int main(){Normal();UnsafeSource();Metadata();Independent();ShaderSelection();Cutout();Bounds();Changing();}

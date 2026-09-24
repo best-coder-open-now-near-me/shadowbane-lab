@@ -94,14 +94,15 @@ bool RenderResources::Metadata(Node& n) noexcept {
 bool RenderResources::Shader(Node& n,std::uint32_t flags,float opacity,float bias) noexcept {
     // Same selector arithmetic as native 0x1c3f30, with inactive vertex programs.
     // Evaluate the copied flag word, not the borrowed source's bit 0/shadow flags.
-    Address globals=0,program=0,lod=0,lod_enabled=0,lod_count=0,material_flags=0,material_alpha=0,texture_alpha=0;
+    Address globals=0,program=0,lod=0,lod_enabled=0,lod_count=0,material_flags=0,material_clip=0,texture_alpha=0;
     if(bias!=0||!Read(access_.base+0x16a7c30,globals)||(globals&255)
         ||!Read(n.render+0x114,program)||(program&255)||!Read(n.render+0x13c,lod)
         ||!Read(access_.base+0x16a7bd4,lod_enabled)||!Read(access_.base+0x16a740c,lod_count)
-        ||!Read(n.material+0x30,material_flags)||!Read(n.material+0x40,material_alpha)
+        ||!Read(n.material+0x30,material_flags)||!Read(n.material+0x40,material_clip)
         ||!Read(n.texture+0x18,texture_alpha)) { return false; }
     const Address special=(lod&255)&&((lod_enabled>>16)&255)&&lod_count ? 1U:0U;
-    Address index=(texture_alpha?1U:0U)+(material_alpha?2U:0U);
+    // Native material cutout takes precedence over texture alpha.
+    Address index=material_clip?2U:(texture_alpha?1U:0U);
     index=(opacity<0.995f?1U:0U)+index*2;
     index=((flags>>2)&1)+index*2;
     index=(((material_flags>>16)&255)?1U:0U)+index*4;
@@ -111,10 +112,11 @@ bool RenderResources::Shader(Node& n,std::uint32_t flags,float opacity,float bia
     Address type=0;
     if(!Read(n.shader,type)) { return false; }
     const bool alpha=type==access_.base+0x1149c84;
-    if(!alpha&&type!=access_.base+0x1149ca8) { return false; }
-    return Require(type+4,access_.base+0x6023)&&Require(type+8,access_.base+(alpha?0xfeacU:0x2339eU))
-        &&Require(type+12,access_.base+(alpha?0xcd1fU:0x1fc3U))
-        &&Require(type+16,access_.base+(alpha?0x227d7U:0x220fcU))&&Require(type+20,access_.base+0x25577);
+    const bool clip=type==access_.base+0x1149c18;
+    if(!alpha&&!clip&&type!=access_.base+0x1149ca8) { return false; }
+    return Require(type+4,access_.base+0x6023)&&Require(type+8,access_.base+(clip?0x11185U:alpha?0xfeacU:0x2339eU))
+        &&Require(type+12,access_.base+(clip?0x1bbdU:alpha?0xcd1fU:0x1fc3U))
+        &&Require(type+16,access_.base+(clip?0x25eb4U:alpha?0x227d7U:0x220fcU))&&Require(type+20,access_.base+0x25577);
 }
 bool RenderResources::Visit(Graph& graph,Address render,std::size_t parent,unsigned depth,bool copied) noexcept {
     if(graph.count==kNodes||depth>8) { return false; }
