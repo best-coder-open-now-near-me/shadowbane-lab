@@ -64,6 +64,11 @@ namespace vendor {
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&, std::uint32_t, bool&, bool&) noexcept { ++other_reads; return false; }
 bool InvokeNative(std::uintptr_t, wire::Verb, const wire::Snapshot&, std::uint32_t) noexcept { ++other_writes; return false; }
 }
+namespace vendor_menu {
+bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }
+wire::Outcome Invoke(std::uintptr_t, const movement::NativeScene&, wire::Verb,
+    const wire::Command&, Admission, void*) noexcept { ++other_writes; return wire::Outcome::unavailable; }
+}
 namespace city_window {
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }
 bool InvokeOpen(std::uintptr_t, const wire::Snapshot&) noexcept { ++other_writes; return false; }
@@ -132,6 +137,8 @@ int main() {
     gi.Upgrade({}); gq->verb = ex::guard_upgrade::wire::Verb::inspect; gi.Reopen({}, {});
     auto fq = std::make_shared<ex::guard_funding::QueuedCommand>(); Allow(fq); v::FundingInvoker fi(fq, scene, test_window);
     fi.Transfer(ex::guard_funding::wire::Verb::open_quote, {});
+    auto mq = std::make_shared<ex::vendor_menu::QueuedCommand>(); Allow(mq); v::MenuInvoker mi(mq, scene, test_window);
+    mi.Invoke(ex::vendor_menu::wire::Verb::open_recipe, {});
     Check(!other_reads && !other_writes, "Condemn barrier excludes every conflicting native invoker");
     state.kos = state.front = 500; state.list = 600; state.context = state.building;
     Frame(); Check(drained_order && drained_order < captured_order && !adds, "frame drains before row capture but cannot auto-advance");
@@ -178,5 +185,25 @@ int main() {
     v::CondemnInvoker bi(blocked, scene, test_window); ko::Cursor observed{};
     Check(!bi.Baseline(observed) && bi.Invoke(ko::native::Action::enable, {}, state) == ko::native::Result::unavailable
         && enables == 1, "guard ownership blocks Condemn admission in the opposite direction");
+    v::guard_controller = {};
+    struct MenuCall final : ex::vendor_menu::Invoker {
+        ex::vendor_menu::wire::Outcome Invoke(ex::vendor_menu::wire::Verb,
+            const ex::vendor_menu::wire::Command&) noexcept override { return ex::vendor_menu::wire::Outcome::submitted; }
+    } menu_call;
+    ex::vendor_menu::wire::Snapshot menu{};
+    menu.scene = menu.revision = 1; menu.root = 100; menu.manager = 200;
+    menu.menu = menu.front_hud = 300; menu.hireling = 400; menu.building = 20; menu.vendor = 777;
+    v::menu_controller.Observe(menu, true, runtime_tick);
+    ex::vendor_menu::wire::Command mc{}; mc.host = {10,1,456}; mc.window = 123; mc.request[0] = 10;
+    mc.expected = v::menu_controller.Current();
+    v::menu_controller.Execute(ex::vendor_menu::wire::Verb::open_recipe, mc, true, true, runtime_tick, menu_call);
+    Check(v::menu_controller.Busy(), "menu transaction owns the UI");
+    other_reads = other_writes = 0;
+    vi.Invoke(v::wire::Verb::create, {}, 0); ci.Open({});
+    ni.Open(ex::vendor_navigation::wire::Verb::building, {});
+    gi.Upgrade({}); gi.Reopen({}, {});
+    fi.Transfer(ex::guard_funding::wire::Verb::open_quote, {});
+    Check(!bi.Baseline(observed) && !other_reads && !other_writes,
+        "menu barrier excludes spending, navigation, guards, funding and Condemn");
     return failures;
 }

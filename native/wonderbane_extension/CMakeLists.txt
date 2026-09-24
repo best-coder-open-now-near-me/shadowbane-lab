@@ -35,6 +35,7 @@ add_library(
   movement_windows_input.cpp
   movement_runtime.cpp
   vendor_runtime.cpp
+  vendor_menu_native.cpp
   vendor_native.cpp
   guard_upgrade_native.cpp
   guard_funding_native.cpp
@@ -1324,5 +1325,24 @@ if(BUILD_TESTING)
     target_compile_options(wonderbane_extension_condemn_${kind}_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
     add_test(NAME wonderbane_extension_condemn_${kind} COMMAND wonderbane_extension_condemn_${kind}_test)
     set_tests_properties(wonderbane_extension_condemn_${kind} PROPERTIES TIMEOUT 15)
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_vendor_menu_controller_test vendor_menu_controller_test.cpp)
+  add_executable(wonderbane_extension_vendor_menu_channel_test vendor_menu_channel_test.cpp movement_controls.cpp)
+  add_executable(wonderbane_extension_vendor_menu_native_test vendor_menu_native_test.cpp vendor_menu_native.cpp vendor_native.cpp)
+  foreach(component controller channel native)
+    set(target wonderbane_extension_vendor_menu_${component}_test)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    target_compile_definitions(${target} PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+    target_compile_options(${target} PRIVATE /W4 /WX /permissive- /utf-8)
+    if(component STREQUAL "controller")
+      add_test(NAME wonderbane_extension_vendor_menu_${component} COMMAND ${target}
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/native_vendor_menu_wire_v1.hex")
+    else()
+      add_test(NAME wonderbane_extension_vendor_menu_${component} COMMAND ${target})
+    endif()
+    set_tests_properties(wonderbane_extension_vendor_menu_${component} PROPERTIES TIMEOUT 15)
   endforeach()
 endif()

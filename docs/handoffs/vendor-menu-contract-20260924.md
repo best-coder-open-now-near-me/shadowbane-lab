@@ -130,8 +130,9 @@ Private evidence checksums, without exporting capture contents:
 ## Implementation gates and next work
 
 The requested ordinary selection and Inventory open/close/reopen observations are
-complete. No further user walkthrough is currently queued. Typed automation is
-not implemented by this documentation checkpoint.
+complete. No further user walkthrough is currently queued. The subsequent [menu implementation](vendor-menu-implementation-20260924.md)
+provides typed operations and automatic Inventory opening for finished batches;
+it is source-only and has not been installed or live-accepted.
 
 1. Implement typed owner-thread open/select/reopen operations through the verified
    ordinary owned controls. Preserve exact process/scene, enabled/visible,

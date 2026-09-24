@@ -6,6 +6,7 @@
 #include "vendor_command_queue.h"
 #include "city_window_command_queue.h"
 #include "vendor_navigation_command_queue.h"
+#include "vendor_menu_command_queue.h"
 #include "guard_upgrade_command_queue.h"
 #include "condemn_command_queue.h"
 #include "guard_funding_command_queue.h"
@@ -142,6 +143,7 @@ struct Runtime {
     std::shared_ptr<vendor::QueuedCommand> vendor_pending;
     std::shared_ptr<city_window::QueuedCommand> city_window_pending;
     std::shared_ptr<vendor_navigation::QueuedCommand> vendor_navigation_pending;
+    std::shared_ptr<vendor_menu::QueuedCommand> vendor_menu_pending;
     std::shared_ptr<guard_upgrade::QueuedCommand> guard_upgrade_pending;
     std::shared_ptr<condemn::QueuedCommand> condemn_pending;
     std::shared_ptr<guard_funding::QueuedCommand> guard_funding_pending;
@@ -519,6 +521,36 @@ inline DWORD FinishVendorNavigationPending(Runtime& runtime, ULONGLONG now) noex
     vendor_navigation::Release(pending); runtime.vendor_navigation_pending.reset(); return ERROR_SUCCESS;
 }
 
+inline DWORD FinishVendorMenuPending(Runtime& runtime, ULONGLONG now) noexcept {
+    const auto& pending = runtime.vendor_menu_pending;
+    if (!pending) { return ERROR_SUCCESS; }
+    // An expired request that never reached the owning thread cannot block the
+    // channel forever while minimized/logged out. Never cancel an executing call.
+    if (now > pending->deadline) {
+        unsigned queued = 0;
+        if (pending->state.compare_exchange_strong(queued, 1)) {
+            vendor_menu::wire::Receipt receipt{};
+            receipt.host = pending->command.host; receipt.request = pending->command.request;
+            receipt.window = pending->command.window;
+            receipt.outcome = static_cast<unsigned>(vendor_menu::wire::Outcome::stale);
+            vendor_menu::Complete(pending, receipt);
+        }
+    }
+    if (pending->state.load(std::memory_order_acquire) != 2) { return ERROR_IO_PENDING; }
+    const auto outcome = static_cast<vendor_menu::wire::Outcome>(pending->receipt.outcome);
+    const bool accepted = outcome == vendor_menu::wire::Outcome::observed || outcome == vendor_menu::wire::Outcome::submitted;
+    movement::wire::Receipt wire_bytes{};
+    static_assert(sizeof(wire_bytes) == sizeof(pending->receipt));
+    std::memcpy(&wire_bytes, &pending->receipt, sizeof(wire_bytes));
+    constexpr char detail[] = "native_vendor_menu_receipt_v1";
+    if (!TryPublishResult(*runtime.storage, runtime.result_signal, static_cast<LONG64>(pending->sequence), pending->id,
+        accepted ? ClientActionResultStage::submitted_to_client : ClientActionResultStage::rejected_by_client,
+        accepted ? ERROR_SUCCESS : ERROR_REQUEST_ABORTED, detail, sizeof(detail) - 1, now,
+        &wire_bytes, pending->execution_thread)) { return ERROR_NOT_ENOUGH_QUOTA; }
+    InterlockedExchange64(&runtime.storage->header.command_read_sequence, static_cast<LONG64>(pending->sequence));
+    vendor_menu::Release(pending); runtime.vendor_menu_pending.reset(); return ERROR_SUCCESS;
+}
+
 inline DWORD FinishCondemnPending(Runtime& runtime, ULONGLONG now) noexcept {
     const auto& pending = runtime.condemn_pending;
     if (!pending) { return ERROR_SUCCESS; }
@@ -630,6 +662,10 @@ inline DWORD DrainCommands(
     }
     if (&storage == g_runtime.storage && g_runtime.vendor_navigation_pending) {
         const auto result = FinishVendorNavigationPending(g_runtime, now);
+        if (result != ERROR_SUCCESS) { return result; }
+    }
+    if (&storage == g_runtime.storage && g_runtime.vendor_menu_pending) {
+        const auto result = FinishVendorMenuPending(g_runtime, now);
         if (result != ERROR_SUCCESS) { return result; }
     }
     if (&storage == g_runtime.storage && g_runtime.condemn_pending) {
@@ -817,6 +853,38 @@ inline DWORD DrainCommands(
                 } catch (...) { return ERROR_NOT_ENOUGH_MEMORY; }
             }
             constexpr char detail[] = "invalid_or_expired_vendor_navigation_lease";
+            if (!TryPublishResult(storage, result_signal, expected_sequence, snapshot.command_id,
+                ClientActionResultStage::failed, ERROR_INVALID_DATA, detail, sizeof(detail) - 1, now)) {
+                return ERROR_NOT_ENOUGH_QUOTA;
+            }
+            InterlockedExchange64(&storage.header.command_read_sequence, expected_sequence); continue;
+        }
+        if (snapshot.kind >= 25U && snapshot.kind <= 31U) {
+            const auto verb = static_cast<vendor_menu::wire::Verb>(snapshot.kind);
+            vendor_menu::wire::Command payload{};
+            std::memcpy(&payload, &snapshot.movement, sizeof(payload));
+            const bool valid = snapshot.command_id && snapshot.payload_version == kClientActionPayloadVersion
+                && snapshot.created_tick && snapshot.created_tick <= now && now <= snapshot.deadline_tick
+                && snapshot.deadline_tick - snapshot.created_tick <= 5000
+                && !snapshot.flags && !snapshot.action_code && !snapshot.parameter_one && !snapshot.parameter_two
+                && !snapshot.argument_length && !snapshot.power_identifier_length
+                && movement::wire::Zero(snapshot.argument, sizeof(snapshot.argument))
+                && movement::wire::Zero(snapshot.power_identifier, sizeof(snapshot.power_identifier))
+                && vendor_menu::wire::Valid(verb, payload);
+            if (valid && &storage == g_runtime.storage && g_runtime.backing) {
+                try {
+                    auto lease = CaptureMovementLease(g_runtime.backing, payload.host, now);
+                    if (lease) {
+                        auto command = std::make_shared<vendor_menu::QueuedCommand>();
+                        command->id = snapshot.command_id; command->sequence = static_cast<std::uint64_t>(expected_sequence);
+                        command->deadline = snapshot.deadline_tick; command->verb = verb;
+                        command->command = payload; command->lease = std::move(lease);
+                        if (!vendor_menu::Queue(command)) { return ERROR_RETRY; }
+                        g_runtime.vendor_menu_pending = std::move(command); return ERROR_IO_PENDING;
+                    }
+                } catch (...) { return ERROR_NOT_ENOUGH_MEMORY; }
+            }
+            constexpr char detail[] = "invalid_or_expired_vendor_menu_lease";
             if (!TryPublishResult(storage, result_signal, expected_sequence, snapshot.command_id,
                 ClientActionResultStage::failed, ERROR_INVALID_DATA, detail, sizeof(detail) - 1, now)) {
                 return ERROR_NOT_ENOUGH_QUOTA;
@@ -1034,6 +1102,7 @@ inline void CloseRuntime() noexcept {
     if (runtime.vendor_pending) { vendor::Release(runtime.vendor_pending); runtime.vendor_pending.reset(); }
     if (runtime.city_window_pending) { city_window::Release(runtime.city_window_pending); runtime.city_window_pending.reset(); }
     if (runtime.vendor_navigation_pending) { vendor_navigation::Release(runtime.vendor_navigation_pending); runtime.vendor_navigation_pending.reset(); }
+    if (runtime.vendor_menu_pending) { vendor_menu::Release(runtime.vendor_menu_pending); runtime.vendor_menu_pending.reset(); }
     if (runtime.guard_upgrade_pending) { guard_upgrade::Release(runtime.guard_upgrade_pending); runtime.guard_upgrade_pending.reset(); }
     if (runtime.condemn_pending) { condemn::Release(runtime.condemn_pending); runtime.condemn_pending.reset(); }
     if (runtime.guard_funding_pending) { guard_funding::Release(runtime.guard_funding_pending); runtime.guard_funding_pending.reset(); }

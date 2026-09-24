@@ -27,6 +27,10 @@ from shadowbane_lab.client_extension.vendor_completion import (
     validate_completed_batch,
     validate_completed_keep,
 )
+from shadowbane_lab.client_extension.vendor_menu import (
+    open_inventory,
+    validate_completed_menu,
+)
 from shadowbane_lab.client_extension.vendor_wire import (
     IN_FLIGHT,
     READY,
@@ -122,6 +126,19 @@ class VendorJobStore:
             or not first.snapshot.random_scepter
         ):
             raise VendorBatchStopped("open the selected vendor's random Gilded Scepter recipe")
+        # Verify menu support on this exact native runtime before spending. A
+        # newer host must not create a batch and only then discover old commands.
+        menus = session.menu_session()
+        try:
+            supported = menus.inspect()
+            if (
+                supported.outcome != Outcome.OBSERVED or supported.window != window
+                or supported.flags & (IN_FLIGHT | UNRESOLVED)
+                or supported.snapshot.owner != _owner(first.snapshot)
+            ):
+                raise VendorBatchStopped("vendor menu support is not ready on this client")
+        finally:
+            menus.close()
         record = {
             "schema_version": 1,
             "job_id": uuid.uuid4().hex,
@@ -217,6 +234,7 @@ def run_vendor_job(
         directory = store.directory(record["job_id"])
         initial = Snapshot.decode(bytes.fromhex(record["initial_snapshot"]))
         create_path, keep_path = directory / "create.json", directory / "keep.json"
+        menu_path = directory / "inventory-menu.json"
 
         def update(state: str, detail: str):
             if record["state"] != state or record["detail"] != detail:
@@ -300,6 +318,20 @@ def run_vendor_job(
         guarded = GuardedSession()
 
         try:
+            # An acknowledgement lost across restart remains unresolved even if
+            # a window now happens to be visible. Never replay that journal.
+            if menu_path.exists():
+                menu_record, menu_initial, _ = validate_completed_menu(
+                    _read_record(menu_path, 256 * 1024)
+                )
+                if (
+                    menu_record["operation"] != "open_inventory"
+                    or any(menu_record[key] != record[key] for key in (
+                        "process_id", "process_creation_filetime_utc", "window",
+                    ))
+                    or menu_initial.owner != _owner(initial)
+                ):
+                    raise VendorBatchStopped("menu evidence belongs to another vendor or client")
             # Read each bounded journal once. A completed label cannot replace
             # the exact Create -> inventory chain after a job-save interruption.
             batch_raw = _read_record(create_path) if create_path.exists() else None
@@ -386,9 +418,21 @@ def run_vendor_job(
                 if any(slot.state != 2 for slot in s.slots if slot.item in batch["items"]):
                     update("cooking", "Items are cooking. Waiting for the batch to finish.")
                 elif not s.inventory:
-                    update(
-                        "inventory", "Open this vendor's Inventory to finalize the finished items."
-                    )
+                    update("inventory", "Opening this vendor's Inventory for the finished batch.")
+                    menus = session.menu_session()
+                    try:
+                        menu_owner = menus.inspect()
+                        if (
+                            menu_owner.window != window
+                            or menu_owner.snapshot.owner != _owner(initial)
+                        ):
+                            raise VendorBatchStopped("vendor changed before Inventory opening")
+                        open_inventory(
+                            menus, menu_path, menu_owner.snapshot,
+                            before_action=before_action, cancelled=stopped,
+                        )
+                    finally:
+                        menus.close()
                 else:
                     break
                 sleeper(0.5)
