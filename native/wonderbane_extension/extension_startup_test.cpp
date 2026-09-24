@@ -53,6 +53,7 @@ DWORD Start(const ProcessIdentity& identity) noexcept {
 }
 void Stop() noexcept { ++stops; }
 }
+namespace furnishing { bool Start() noexcept { assert(!fail_heartbeat); return true; } }
 namespace vendor { bool Start() noexcept { return true; } }
 namespace movement {
 int starts = 0;
@@ -104,6 +105,12 @@ int main() {
     assert(SetEnvironmentVariableW(kPerformanceProfileEnvironment, L"disabled"));
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS);
     assert(renderer_starts == 1 && telemetry_starts == 0 && renderer_stops == 0);
+    WonderBaneExtensionStatusV1 status{}; status.structure_size=sizeof(status);
+    assert(WonderBaneExtensionGetStatus(&status)==ERROR_SUCCESS);
+    char version[32]{};
+    assert(SUCCEEDED(StringCchPrintfA(version,32,"%u.%u.%u",status.extension_version_major,
+        status.extension_version_minor,status.extension_version_patch)));
+    assert(std::strcmp(version,kExtensionVersion)==0);
     assert(movement::starts == 1 && targeted_starts == 1 && targeted_stops == 0);
     assert(condemn::starts == 1 && condemn::stops == 0);
     assert(furniture::starts == 1 && furniture::stops == 0);

@@ -6,7 +6,8 @@ Source branch `codex/furnishing-preview` starts at freshly fetched
 `origin/main@a91dfd58322f6489bd49eccbb69e6db32c3a1bc5`. Integration destination:
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35) into `main`. This lane owns graphics discovery and the read-only
 furnishing observer; the coordinating carpenter task owns the live VM and
-ordinary selection/drop diagnosis. No preview renderer is enabled or deployed.
+ordinary selection/drop diagnosis. The [native preview runtime](furnishing-preview-runtime.md)
+is now implemented for local validation; no preview package has been deployed.
 
 The client already loads the actual furnishing model for its inventory row.
 Its existing Furniture Placement display is a floor image plus oriented bounds,

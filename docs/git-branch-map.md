@@ -9,10 +9,10 @@ records the real floorplan/model path, opt-in read-only observer, manifest-match
 Bench mesh/texture identity, and the shared-state mutations that still prevent
 assuming native draw replay is safe. The [continued native contract](handoffs/furnishing-native-render-contract.md)
 records occupancy as building identity, verified TQS/heading conventions, and
-private clone/static queue candidates. Clone eligibility and queue retirement
-remain under qualification; the [ownership review](handoffs/furnishing-preview-ownership.md)
-records exact queue and standard static shader cleanup behavior. It does not enable a 3D preview or
-change the live VM; ordinary carpenter input/placement diagnosis belongs to the
+private clone/static queue candidates. Clone eligibility and queue retirement now use bounded native ownership gates; the [ownership review](handoffs/furnishing-preview-ownership.md)
+records exact queue and standard static shader cleanup behavior. The [preview runtime](handoffs/furnishing-preview-runtime.md) now connects
+these ownership gates to opt-in Preview controls and the native 3D queue. It has
+not changed the live VM; ordinary carpenter input/placement diagnosis belongs to the
 coordinating task. This work remains outside main until its PR is merged.
 
 Before preview runtime wiring, this branch incorporated furniture response recorder
@@ -27,11 +27,13 @@ HUD/row ownership on a verified owner/lifetime callback.
 The private render ownership transaction now holds source/private references
 through exact queue retirement and handles Stop, context loss and native faults.
 Reviewed-image native call adapters now check the exact reference interfaces and
-owner/context, with C++/SEH fault containment; they remain unregistered.
+owner/context, with C++/SEH fault containment. The full-profile runtime now registers them
+through the existing owner callback and persistent frame/context observers.
 The source/private gate now qualifies the reviewed static mesh/loaded-texture
 family and validates queued shader/texture metadata before drawing.
-Next: cursor/floor pose, rotation, persistent frame/context wiring and Preview
-controls, then complete integration and visual validation. The coordinator separately owns selected-row live evidence;
+Cursor/floor pose, rotation and Preview/hold/cancel controls are implemented.
+Native 1.8.29 / host 0.3.49 are reserved for the coherent package. Next: exact-source
+full package validation, then coordinator-owned live visual acceptance. The coordinator separately owns selected-row live evidence;
 the observer now checks actor occupancy against the HUD structure and includes
 an optional bounded resource reader keyed to one owned entry. Ordinary Bench
 single-click selection is now observed; a subsequent drag rebuilt the row and

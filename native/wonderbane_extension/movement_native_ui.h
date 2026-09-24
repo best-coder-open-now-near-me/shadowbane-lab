@@ -14,6 +14,7 @@ struct NativeUiState {
     bool pointer_owned = true;
     bool camera_gesture = false;
     std::uintptr_t native_window = 0;
+    std::uintptr_t pointer_hud = 0; // Borrowed top-level hit, no ownership grant.
     POINT native_point{};
 };
 class NativeUi {

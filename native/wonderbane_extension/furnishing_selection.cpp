@@ -75,7 +75,7 @@ bool SelectionCapture::LayoutName(Address layout) noexcept {
 }
 bool SelectionCapture::Run(const Owner& owner, Selection& s) noexcept {
     s.root = owner.root; s.actor = owner.actor; s.structure = owner.parent; s.epoch = owner.epoch;
-    Address component = 0, pose = 0;
+    Address component = 0, pose = 0, visibility = 0;
     if (!owner.epoch || !Type(s.root, 0x1174884) || !Require(s.root + 0x64, 2)
         || !Require(access_.base + 0x16a7bfc, s.root) || !Require(access_.base + 0x16a2d98, s.actor)
         || !Type(s.actor, 0x114165c) || !Read(s.actor + 0x4b0, component) || !Read(component, pose)
@@ -83,6 +83,7 @@ bool SelectionCapture::Run(const Owner& owner, Selection& s) noexcept {
         || !Read(s.structure + 0x18, s.building) || !ValidKey(s.building, 8)
         || !Hud(s.root, s.hud) || !Read(s.root + 0xa4, s.manager) || !Type(s.manager, 0x1171adc)
         || !Require(s.hud + 0x104, s.manager) || !Require(s.manager + 0xa8, s.hud)
+        || !Read(s.hud + 0x2a0, visibility) || !(visibility & 0xffU)
         || !Require(s.hud + 0x64c, s.structure)
         || !Type(s.hud + 4, 0x1167c2c)
         || !Type(access_.base + 0x1167c2c + 0x1c, 0x25167)

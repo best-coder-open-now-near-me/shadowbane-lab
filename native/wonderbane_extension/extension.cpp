@@ -11,6 +11,7 @@
 #include "graphics_control.h"
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
 #include "navigation_channel.h"
+#include "furnishing_runtime.h"
 #include "effects_runtime.h"
 #endif
 #include "graphics_status.h"
@@ -32,7 +33,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.8.28";
+constexpr char kExtensionVersion[] = "1.8.29";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -468,6 +469,9 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             // Optional native controls publish unavailable on unsupported binding.
             // Register only after shared startup succeeds; ordinary disable keeps
             // the owning-update consumer alive for safe re-enable.
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            (void)wonderbane::extension::furnishing::Start();
+#endif
             (void)wonderbane::extension::vendor::Start();
             (void)wonderbane::extension::movement::StartNativeMovementControls(identity);
         }

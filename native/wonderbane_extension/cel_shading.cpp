@@ -11,6 +11,7 @@
 #include "navigation_viewer.h"
 #include "effects_runtime.h"
 #include "selected_cue_runtime.h"
+#include "furnishing_events.h"
 #endif
 #include "terrain_trace.h"
 #include "terrain_mask_refresh.h"
@@ -1677,6 +1678,13 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
     if (!g_scene_mapping_verified || (mask != 0x4100U && mask != 0x4500U)
         || !IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva)) DiscardSkyScene();
 #endif
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    if ((mask & 0x100U) != 0U) {
+        furnishing::DepthClear(g_scene_mapping_verified && !g_immediate_primitive_open
+            && (mask == 0x4100U || mask == 0x4500U)
+            && IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva));
+    }
+#endif
     if ((mask & 0x100U) != 0U) {
         g_main_scene_camera_valid = false;
         DiscardPendingDepthEdgeScene();
@@ -2942,6 +2950,7 @@ DWORD StartStrongCelShading() noexcept {
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
         (void)StartSelectedCue(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
         (void)StartSky(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
+        furnishing::Renderer(true);
 #endif
         StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
         wchar_t status_path[MAX_PATH]{};
@@ -2956,6 +2965,7 @@ DWORD StartStrongCelShading() noexcept {
 void StopStrongCelShading() noexcept {
     const RenderLifecycleMutation mutation;
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    furnishing::Renderer(false);
     StopSelectedCue();
     StopSky();
 #endif

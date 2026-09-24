@@ -78,11 +78,11 @@ int main() {
     }
     Put(reinterpret_cast<std::uintptr_t>(manager.data()) + 0x28, std::uint32_t{0});
     hit = true;
-    Check(ui.Snapshot(point, state) && state.pointer_owned && !state.keyboard_owned, "native UI/map hit owns pointer only");
+    Check(ui.Snapshot(point, state) && state.pointer_owned && state.pointer_hud == 0x12340000 && !state.keyboard_owned, "native UI/map hit owns pointer only");
     hit = false; Put(image + 0x16a2dd0, std::uint8_t{1});
     Check(ui.Snapshot(point, state) && state.camera_gesture && !state.keyboard_owned && !state.pointer_owned, "camera gesture is separate from movement UI ownership");
     Put(image + 0x16a2dd0, std::uint8_t{0});
-    Check(ui.Snapshot({-1, 0}, state) && state.pointer_owned && !state.keyboard_owned, "leaving window suppresses drag without taking keyboard UI ownership");
+    Check(ui.Snapshot({-1, 0}, state) && state.pointer_owned && state.pointer_hud == 0 && !state.keyboard_owned, "leaving window suppresses drag without taking keyboard UI ownership");
     std::atomic<bool> result{true}; const auto before_foreign = hits;
     std::thread foreign([&] { wm::NativeUiState other; result = ui.Snapshot(point, other); }); foreign.join();
     Check(!result && hits == before_foreign, "foreign thread never calls native UI");

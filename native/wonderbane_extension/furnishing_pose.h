@@ -1,7 +1,7 @@
 #pragma once
 #include "furnishing_selection.h"
 namespace wonderbane::extension::furnishing {
-// Coordinates are client pixels, matching the native HUD rectangle getter.
+// Coordinates are native UI pixels after NativeClientPoint conversion.
 bool LayoutContains(const Selection&, int x, int y) noexcept;
 // Compose a floor-local point and quarter-turn heading with occupied-building
 // TQS. Nonuniform building scale is unavailable: rotated TQS would need shear.

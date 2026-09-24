@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.28 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.29 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -78,7 +78,7 @@ target_compile_definitions(
 )
 if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")
   target_sources(wonderbane_extension PRIVATE
-    furnishing_queue.cpp furnishing_selection.cpp furnishing_render_owner.cpp furnishing_native_calls.cpp furnishing_resources.cpp furnishing_pose.cpp
+    furnishing_queue.cpp furnishing_selection.cpp furnishing_render_owner.cpp furnishing_native_calls.cpp furnishing_resources.cpp furnishing_pose.cpp furnishing_controls.cpp furnishing_runtime.cpp
     navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
     selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp scene_context.cpp
     scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp
@@ -1402,4 +1402,36 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_furnishing_pose_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   add_test(NAME wonderbane_extension_furnishing_pose COMMAND wonderbane_extension_furnishing_pose_test)
   set_tests_properties(wonderbane_extension_furnishing_pose PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_furnishing_frame_test furnishing_frame_test.cpp)
+  target_compile_features(wonderbane_extension_furnishing_frame_test PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_furnishing_frame_test PRIVATE /W4 /WX /permissive- /utf-8)
+  set_property(TARGET wonderbane_extension_furnishing_frame_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_furnishing_frame COMMAND wonderbane_extension_furnishing_frame_test)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_furnishing_controls_test furnishing_selection.cpp furnishing_pose.cpp furnishing_controls.cpp furnishing_controls_test.cpp)
+  target_compile_features(wonderbane_extension_furnishing_controls_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_furnishing_controls_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_furnishing_controls_test PRIVATE /W4 /WX /permissive- /utf-8)
+  target_link_libraries(wonderbane_extension_furnishing_controls_test PRIVATE user32 gdi32 comctl32)
+  set_property(TARGET wonderbane_extension_furnishing_controls_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_furnishing_controls COMMAND wonderbane_extension_furnishing_controls_test)
+  set_tests_properties(wonderbane_extension_furnishing_controls PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_furnishing_runtime_test furnishing_selection.cpp furnishing_pose.cpp furnishing_queue.cpp furnishing_render_owner.cpp furnishing_controls.cpp furnishing_runtime_test.cpp)
+  target_compile_features(wonderbane_extension_furnishing_runtime_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_furnishing_runtime_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_furnishing_runtime_test PRIVATE /W4 /WX /permissive- /utf-8)
+  target_link_libraries(wonderbane_extension_furnishing_runtime_test PRIVATE user32 gdi32 comctl32 opengl32)
+  set_property(TARGET wonderbane_extension_furnishing_runtime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  foreach(mode normal rotate foreign alternate binding hidden scene modal no_floor stop context missed shader install1 install2 unsealed)
+    add_test(NAME wonderbane_extension_furnishing_runtime_${mode} COMMAND wonderbane_extension_furnishing_runtime_test ${mode})
+    set_tests_properties(wonderbane_extension_furnishing_runtime_${mode} PROPERTIES TIMEOUT 15)
+  endforeach()
 endif()

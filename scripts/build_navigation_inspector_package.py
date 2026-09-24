@@ -74,6 +74,13 @@ REQUIRED_FURNITURE_TESTS = frozenset({
     "wonderbane_extension_furnishing_native_calls",
     "wonderbane_extension_furnishing_resources",
     "wonderbane_extension_furnishing_pose",
+    "wonderbane_extension_furnishing_frame",
+    "wonderbane_extension_furnishing_controls",
+    *(f"wonderbane_extension_furnishing_runtime_{mode}" for mode in (
+        "normal", "rotate", "foreign", "alternate", "binding", "hidden", "scene",
+        "modal", "no_floor", "stop", "context", "missed", "shader",
+        "install1", "install2", "unsealed",
+    )),
     "wonderbane_extension_furniture_responses",
     *(f"wonderbane_extension_furniture_rollback_{i}" for i in (1, 2, 3, 4)),
 })
@@ -230,6 +237,14 @@ def main() -> int:
     cmake = Path(arguments.cmake).resolve()
     ctest = cmake.with_name("ctest.exe")
     contracts = [
+        "furnishing_queue.cpp",
+        "furnishing_selection.cpp",
+        "furnishing_render_owner.cpp",
+        "furnishing_native_calls.cpp",
+        "furnishing_resources.cpp",
+        "furnishing_pose.cpp",
+        "furnishing_controls.cpp",
+        "furnishing_runtime.cpp",
         "selected_cue.cpp",
         "selected_cue_gpu.cpp",
         "selected_cue_runtime.cpp",
@@ -782,6 +797,9 @@ else:
     )
     artifacts.extend(sorted(logs.glob("*.log")))
     artifacts.extend(sorted(logs.glob("*.xml")))
+    furnishing_handoff = output / "furnishing-preview-runtime.md"
+    shutil.copy2(source / "docs/handoffs/furnishing-preview-runtime.md", furnishing_handoff)
+    artifacts.append(furnishing_handoff)
     sky_handoff = output / "sky-horizon.md"
     shutil.copy2(source / "docs/handoffs/sky-horizon.md", sky_handoff)
     artifacts.append(sky_handoff)
@@ -823,6 +841,10 @@ else:
         "sky_asset": sky_manifest,
         "sky_binding_and_runtime_verified": bool(arguments.reviewed_client),
         "live_acceptance": "pending; no deployment performed",
+        "furnishing_preview_full_profile": True,
+        "furnishing_preview_opt_in": "Select a loaded item, then Preview in the occupied building",
+        "furnishing_preview_live_verified": False,
+        "furnishing_preview_policy": "Private clone; cursor/floor pose; no placement dispatch",
         "selected_cue_binding_verified": bool(arguments.reviewed_client),
         "movement_prepared_binding_verified": bool(arguments.reviewed_client),
         "source_identity": metadata,

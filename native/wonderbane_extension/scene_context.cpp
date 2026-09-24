@@ -3,6 +3,7 @@
 #include "render_lifetime.h"
 #include "selected_cue_runtime.h"
 #include "sky_runtime.h"
+#include "furnishing_events.h"
 namespace wonderbane::extension {
 namespace {
 using MakeCurrent = BOOL(WINAPI*)(HDC, HGLRC);
@@ -10,14 +11,16 @@ using CurrentContext = HGLRC(WINAPI*)();
 std::uint32_t* context_slot = nullptr;
 PVOID volatile original_context = nullptr;
 CurrentContext current_context = &wglGetCurrentContext;
+decltype(&wglGetCurrentDC) current_dc = &wglGetCurrentDC;
 BOOL WINAPI SceneMakeCurrent(HDC dc, HGLRC context) noexcept {
     const RenderCallbackLease lease;
     const auto call = reinterpret_cast<MakeCurrent>(
         InterlockedCompareExchangePointer(&original_context, nullptr, nullptr));
     if (call == nullptr) { return FALSE; }
-    if (context != current_context()) {
+    if (context != current_context() || dc != current_dc()) {
         // Release before unbinding while this thread still owns the old context.
         // A failed switch invalidates the scene too; it cannot resurrect authority.
+        furnishing::ContextLost();
         ReleaseSelectedCueContext();
         DiscardSkyScene();
     }
