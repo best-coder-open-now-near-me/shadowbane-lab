@@ -80,6 +80,8 @@ REQUIRED_FURNITURE_TESTS = frozenset({
         "normal", "rotate", "foreign", "caller", "alternate", "binding", "hidden", "scene",
         "modal", "no_floor", "stop", "reenable", "context", "missed", "shader",
         "context_install", "foreign_start", "unsealed",
+        "unsupported", "drop", "cancel", "refresh", "scene_edit",
+        "center", "control_install", "cancel_queued",
     )),
     "wonderbane_extension_furniture_responses",
     *(f"wonderbane_extension_furniture_rollback_{i}" for i in (1, 2, 3, 4)),

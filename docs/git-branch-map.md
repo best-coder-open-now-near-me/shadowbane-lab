@@ -2,6 +2,14 @@
 
 ## Furnishing preview investigation - September 24
 
+**Stopped at user request.** The user cancelled carpenter work on September 24.
+Branch `codex/furnishing-preview` / draft PR #35 retain shader checkpoint `6ea434c`
+and the subsequent automatic-control draft; neither is integrated into `main`.
+The [runtime handoff](handoffs/furnishing-preview-runtime.md) records preserved
+source, completed local checks, unqualified live behavior and installed source.
+No packaging, deployment or active carpenter todo remains authorized. Earlier
+next-step text below is historical and does not override this cancellation.
+
 Focused branch `codex/furnishing-preview` starts at `main@a91dfd5` and targets
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
 into `main`. The [renderer handoff](handoffs/furnishing-preview.md)

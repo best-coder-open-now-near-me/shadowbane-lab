@@ -2,32 +2,32 @@
 #include "furnishing_selection.h"
 #include <Windows.h>
 namespace wonderbane::extension::furnishing {
+// A process-pinned observer of the Furniture HUD's existing virtual dispatch.
+// Every native action is forwarded once; this class owns no placement input.
 class PreviewControls {
 public:
-    enum class Action { start, left, right, cancel, hold };
-    enum class Hit { outside, inside, unavailable };
+    enum class Action { select, left, right, cancel, drop, suspend };
     struct Events {
         void* context=nullptr;
-        void (*action)(void*,Action) noexcept=nullptr;
-        bool (*current)(void*,const Selection&) noexcept=nullptr;
-        Hit (*contains)(void*,const Selection&,int,int) noexcept=nullptr;
+        void (*action)(void*,Action,Address) noexcept=nullptr;
+        bool (*read)(Address,void*,std::size_t) noexcept=nullptr;
     };
     explicit PreviewControls(Events e) noexcept : events_(e) {}
-    bool Bind(HWND) noexcept;
-    void Show(const Selection*,bool active,const wchar_t* status) noexcept;
-    void Hide() noexcept;
+    bool Bind(HWND,Address reviewed_base) noexcept;
+    bool Current() const noexcept;
     void Retire() noexcept;
 private:
-    static LRESULT CALLBACK Panel(HWND,UINT,WPARAM,LPARAM);
+    static void __fastcall Selected(void*,void*,Address);
+    static void __fastcall Dropped(void*,void*,Address);
+    static void __fastcall Cancelled(void*,void*);
+    static void __fastcall Left(void*,void*);
+    static void __fastcall Right(void*,void*);
     static LRESULT CALLBACK Window(HWND,UINT,WPARAM,LPARAM,UINT_PTR,DWORD_PTR);
-    void Send(Action) noexcept;
-    void Paint() noexcept;
-    HWND window_=nullptr,panel_=nullptr;
+    void Send(Action,Address) noexcept;
+    HWND window_=nullptr;
     DWORD thread_=0;
     Events events_{};
-    Selection selection_{};
-    const wchar_t* status_=L"Select an item to preview";
-    int pressed_=-1;
-    bool visible_=false,active_=false,mouse_owned_=false,escape_owned_=false;
+    Address base_=0;
+    bool retired_=false,installed_=false;
 };
 }

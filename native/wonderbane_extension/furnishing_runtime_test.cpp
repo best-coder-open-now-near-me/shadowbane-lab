@@ -18,7 +18,8 @@ constexpr A fixture_image=0x400000, native_root=fixture_queue-0xfc, hud=0x310000
 HWND client=nullptr;
 DWORD owner_thread=0;
 bool sealed=true,foreground=true,modal=false;
-bool context_install=true;
+bool context_install=true,control_install=true;
+POINT cursor_point{100,100};
 std::vector<std::uint8_t> renderer_image(0x1766000);
 std::unordered_map<std::string,A*> renderer_imports;
 A& pushed=*reinterpret_cast<A*>(renderer_image.data()+0x1000);
@@ -41,7 +42,7 @@ FARPROC WINAPI Procedure(HMODULE,LPCSTR name) {
     return reinterpret_cast<FARPROC>(&UnusedGraphicsCall);
 }
 HWND WINAPI Foreground() { return foreground?client:nullptr; }
-BOOL WINAPI Cursor(LPPOINT point) { *point={100,100}; return TRUE; }
+BOOL WINAPI Cursor(LPPOINT point) { *point=cursor_point; return TRUE; }
 BOOL WINAPI ToClient(HWND,LPPOINT) { return TRUE; }
 void APIENTRY Integer(GLenum name,GLint* value) { *value=name==GL_MATRIX_MODE?GL_MODELVIEW:0; }
 }
@@ -81,6 +82,12 @@ std::uint32_t* FindImportAddressSlot(std::uint8_t*,std::size_t,const char*,const
     return slot;
 }
 DWORD ReplaceImportAddressSlot(std::uint32_t* slot,std::uint32_t expected,std::uint32_t replacement) noexcept {
+    const A address=reinterpret_cast<A>(slot);
+    if(address>=fixture_image+0x1167c68 && address<fixture_image+0x1167c68+0x250) {
+        if(!control_install && address==fixture_image+0x1167c68+0xbc) { return ERROR_ACCESS_DENIED; }
+        A actual=0; if(!Fixture::Read(&fixture,address,&actual,4) || actual!=expected) { return ERROR_INVALID_DATA; }
+        fixture.Put(address,replacement); return ERROR_SUCCESS;
+    }
     return ReplaceImportSlot(slot,expected,replacement);
 }
 DWORD StartSceneContextObservation(std::uint8_t*,std::size_t) noexcept { return context_install?ERROR_SUCCESS:ERROR_ACCESS_DENIED; }
@@ -116,7 +123,7 @@ bool NativeCalls::Enqueue(Address v,Address q) noexcept { return Fixture::Enqueu
 bool NativeCalls::Pool(QueueReceipt::Pool& p) const noexcept { return Fixture::Pool(&fixture,p); }
 bool NativeCalls::Erase(Address q,Address n) noexcept { return Fixture::Erase(&fixture,q,n); }
 NativeCalls::FloorResult NativeCalls::Floor(const Selection&,int x,int y,std::array<float,3>& out) noexcept {
-    assert(x==100 && y==100); out={1,2,3}; return floor_result;
+    assert((x==100 && y==100) || (x==264 && y==254)); out={1,2,3}; return floor_result;
 }
 bool RenderResources::Source(const Selection& s) noexcept { return Fixture::Source(&fixture,s); }
 bool RenderResources::Private(const Selection& s,Address c,Address* out,std::size_t cap,std::size_t* count) noexcept {
@@ -150,6 +157,8 @@ void Setup() {
     fixture.Put(fixture_image+0x16a7bfc,native_root); fixture.Put(fixture_image+0x16a2d98,actor);
     Type(native_root,0x1174884); fixture.Put(native_root+0x64,A{2}); fixture.Put(native_root+0x20,root_head); fixture.Put(native_root+0xa4,manager);
     Words(root_head,{link,link}); Words(link,{root_head,root_head,hud}); Type(hud,0x1167c68);
+    Type(fixture_image+0x1167c68+0xe4,0x19a9c); Type(fixture_image+0x1167c68+0xbc,0x1deee);
+    Type(fixture_image+0x1167c68+0x128,0x1e6c8); Type(fixture_image+0x1167c68+0x1f0,0xa245); Type(fixture_image+0x1167c68+0x1f4,0xcc1b);
     Type(hud+4,0x1167c2c); Type(fixture_image+0x1167c2c+0x1c,0x25167);
     Type(fixture_image+0x1167c68+0x14c,0x9e0d); Type(fixture_image+0x1167c68+0x154,0x140ba); Type(fixture_image+0x1167c68+0x244,0x22a39);
     Words(hud+8,{0,0,600,600}); fixture.Put(hud+0x640,6.25f); fixture.Put(hud+0x2a0,A{1});
@@ -158,7 +167,7 @@ void Setup() {
     fixture.Put(structure+0x4b0,building_component); fixture.Put(building_component,building_pose);
     fixture.Put(building_pose+0x20,f::Transform{0,0,0,1,0,0,0,1,1,1}); Words(structure+0x734,{floors,floors+12});
     Type(manager,0x1171adc); fixture.Put(manager+0xa8,hud); fixture.Put(hud+0x104,manager); fixture.Put(hud+0x64c,structure);
-    fixture.Put(hud+0x524,list); fixture.Put(hud+0x648,layout); fixture.Put(hud+0x660,entry);
+    fixture.Put(hud+0x508,A{0}); fixture.Put(hud+0x524,list); fixture.Put(hud+0x648,layout); fixture.Put(hud+0x660,entry);
     Words(hud+0x54,{children,children+8,children+8}); Words(children,{list,layout});
     Type(list,0x116acf0); fixture.Put(list+0x3bc,hud); fixture.Put(layout+0x3bc,hud);
     Words(layout+0x168,{name,name+26,name+28}); const char16_t label[]=u"BTNPROPLAYOUT"; fixture.Put(name,label);
@@ -199,13 +208,44 @@ int main(int argc,char** argv) {
         DestroyWindow(client); return 0;
     }
     assert(started && !Start()); auto* s=runtime.load(); fixture.renderer=&*s->render;
-    RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); assert(s->selected.hud==hud && !s->active);
-    Runtime::Action(s,PreviewControls::Action::start);
+    if(mode=="unsupported") { fixture.source_valid=false; }
+    if(mode=="center") { cursor_point={550,550}; }
+    if(mode=="control_install") {
+        control_install=false; RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
+        assert(s->terminal && !s->active && !fixture.clone_calls && !s->controls.Current());
+        DestroyWindow(client); return 0;
+    }
+    RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); assert(s->selected.hud==hud);
+    assert(!FindWindowExW(client,nullptr,L"WonderBaneFurnishingPreview",nullptr));
+    if(mode=="unsupported") {
+        assert(!s->active && s->rejected && !fixture.clone_calls);
+        fixture.source_valid=true;
+        for(unsigned i=0;i<20;++i) { RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); }
+        assert(!s->active && !fixture.clone_calls);
+        Runtime::Action(s,PreviewControls::Action::select,hud);
+    }
     RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
     assert(s->active && s->posed && composed==fixture_pose && fixture.model_refs==1 && fixture.clone_refs==1);
     if(mode=="rotate") {
-        Runtime::Action(s,PreviewControls::Action::hold); Runtime::Action(s,PreviewControls::Action::right);
-        RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); assert(s->held && composed[5]<-0.7f);
+        cursor_point={550,550};
+        Runtime::Action(s,PreviewControls::Action::right,hud+4); assert(s->turns==0);
+        Runtime::Action(s,PreviewControls::Action::right,hud);
+        RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); assert(s->posed && composed[5]<-0.7f && composed[0]==1 && composed[1]==2 && composed[2]==3);
+    }
+    if(mode=="drop" || mode=="cancel" || mode=="refresh" || mode=="scene_edit") {
+        if(mode=="drop" || mode=="cancel") {
+            Runtime::Action(s,mode=="drop"?PreviewControls::Action::drop:PreviewControls::Action::cancel,hud);
+            RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
+            assert(!s->active && !fixture.model_refs && s->suppressed);
+            RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); assert(fixture.clone_calls==1);
+            Runtime::Action(s,PreviewControls::Action::select,hud);
+        } else {
+            fixture.Put(hud+(mode=="scene_edit"?0x508:0x660),A{0x123456});
+            RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
+            assert(!s->active && !fixture.model_refs);
+            fixture.Put(hud+(mode=="scene_edit"?0x508:0x660),mode=="scene_edit"?A{0}:A{0x370000});
+        }
+        RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); assert(s->active && fixture.clone_calls==2);
     }
     if(mode=="foreign") {
         std::thread other([&] { s->Clear(true); DrainPush(); DrainPop(); ContextLost(); OwnerRetire(client); }); other.join();
@@ -233,6 +273,7 @@ int main(int argc,char** argv) {
     else if(mode=="no_floor") { floor_result=NativeCalls::FloorResult::miss; RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); s->Clear(true); DrainPush(); DrainPop(); assert(!s->posed && !fixture.enqueue_calls); }
     else {
         s->Clear(true); DrainPush(); assert(fixture.enqueue_calls==1 && fixture.nodes.size()==2);
+        if(mode=="cancel_queued") { Runtime::Action(s,PreviewControls::Action::cancel,hud); assert(fixture.releases.empty()); }
         if(mode=="stop" || mode=="reenable") {
             StopStrongCelShading(); assert(SceneMatrixObservationCurrent() && !s->enabled);
             if(mode=="reenable") { assert(StartStrongCelShading()==ERROR_SUCCESS); Renderer(true); }
@@ -247,18 +288,18 @@ int main(int argc,char** argv) {
         }
         DrainPush(); DrainPop(); assert(fixture.nodes.size()==2); // nested drain cannot retire outer
         DrainPop(); assert(fixture.nodes.empty() && fixture.erase_calls==2);
-        if(mode=="stop" || mode=="reenable") { assert(!fixture.model_refs && !fixture.clone_refs); }
+        if(mode=="stop" || mode=="reenable" || mode=="cancel_queued") { assert(!fixture.model_refs && !fixture.clone_refs); }
         if(mode=="reenable") {
-            Runtime::Action(s,PreviewControls::Action::cancel);
+            Runtime::Action(s,PreviewControls::Action::cancel,hud);
             RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
-            Runtime::Action(s,PreviewControls::Action::start);
+            Runtime::Action(s,PreviewControls::Action::select,hud);
             RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
             assert(s->active && s->posed && fixture.clone_calls==2);
             fixture.used=0; // This fixture reuses its two wrappers for the next frame.
             s->Clear(true); DrainPush(); DrainPop(); assert(fixture.nodes.empty() && !s->terminal);
         }
     }
-    Runtime::Action(s,PreviewControls::Action::cancel); RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
+    Runtime::Action(s,PreviewControls::Action::cancel,hud); RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
     assert(fixture.nodes.empty() && !fixture.model_refs && !fixture.clone_refs);
     RetireNativeOwnerServices(client); assert(s->terminal); StopStrongCelShading(); DestroyWindow(client);
 }

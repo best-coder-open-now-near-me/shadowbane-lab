@@ -1,6 +1,46 @@
 # Furnishing preview runtime
 
-## Delivery status
+## Stopped at user request - September 24
+
+The coordinating task relayed the user's cancellation: skip carpenter. Work is
+stopped; do not resume implementation, package, deploy or request live testing
+without a new user instruction. PR #35 remains a draft outside `main`.
+
+Shader checkpoint `6ea434c` qualifies Bench's native ClipMap family and fixes
+material-cutout precedence. The following preserved **draft source** removes the
+duplicate toolbar and observes Furniture HUD virtual selection/drop/cancel/rotation
+slots (+0xe4/+0xbc/+0x128/+0x1f0/+0x1f4), forwarding each stock call once. It adds
+automatic selection, native-floor positioning, retained position for rotation,
+unsupported-selection retry suppression and scene-edit priority (+0x508 must be
+null). Window input is forwarded, including ordinary drag/drop and Escape.
+No placement send or fabricated native scene entry was added.
+
+Before cancellation, the full Release extension built with warnings as errors;
+37 focused furnishing/renderer/context/UI tests and 402 host package/target tests
+passed, as did Ruff. Synthetic coverage includes native ABI forwarding, partial
+observer installation, unsupported selection, refresh, scene edit, cancellation
+during a queued draw and initial center-floor position. These do not qualify
+live rendering, native button availability or drag/refresh interaction in game.
+The combined draft has **not** passed a full package build or live acceptance.
+No new version was reserved and no package or VM change was made.
+
+Static investigation also established root +0x28 is an operation mode set from
+small integer commands by 0x79e990; it must not be treated as a dragged row pointer.
+The existing shared NativeUi gates remain unchanged. Native rotation manager
+commands 0x57a/0x57b dispatch the observed HUD slots. Ordinary drop still calls
+0x592970 -> 0x6e7560 and its existing server transaction. The unrelated empty
+placement response is not resolved by this local preview draft.
+
+Installed source remains `8ba181868fca7ca113f94361b61118ce74a9d4a1`
+(native 1.8.30 / host 0.3.50). Startup succeeded there; Bench then failed the old
+shader-family gate. Private package `artifacts/p30/b8690f3e` and ignored evidence
+remain retained. The instructions and package records below describe that
+historical manual-toolbar implementation, not this unqualified draft.
+There are no active carpenter todos. Deferred work requires explicit reopening:
+review/qualification of the combined draft, version coordination, complete package
+gates and supervised visual acceptance before any integration into `main`.
+
+## Historical delivery status
 
 Native 1.8.30 / host 0.3.50, branch `codex/furnishing-preview`, targets
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)

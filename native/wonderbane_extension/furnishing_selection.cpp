@@ -85,6 +85,7 @@ bool SelectionCapture::Run(const Owner& owner, Selection& s) noexcept {
         || !Require(s.hud + 0x104, s.manager) || !Require(s.manager + 0xa8, s.hud)
         || !Read(s.hud + 0x2a0, visibility) || !(visibility & 0xffU)
         || !Require(s.hud + 0x64c, s.structure)
+        || !Require(s.hud + 0x508, 0)
         || !Type(s.hud + 4, 0x1167c2c)
         || !Type(access_.base + 0x1167c2c + 0x1c, 0x25167)
         || !Type(access_.base + 0x1167c68 + 0x14c, 0x9e0d)

@@ -26,7 +26,7 @@ struct Runtime {
     std::optional<SelectionCapture> capture;
     std::optional<RenderResources> resources;
     std::optional<RenderOwner> render;
-    PreviewControls controls{{this,&Action,&UiCurrent,&Contains}};
+    PreviewControls controls{{this,&Action,&NativeCalls::Read}};
     FrameGate frame;
     std::atomic<bool> enabled{false};
     std::atomic<DWORD> owner_thread_id{0};
@@ -37,8 +37,8 @@ struct Runtime {
     Selection selected{},requested{};
     std::array<float,3> point{};
     unsigned turns=0;
-    bool bound=false,busy=false,terminal=false,active=false,start_pending=false,posed=false,held=false;
-    const wchar_t* status=L"Preview only - select Preview, then move over the floor plan";
+    bool bound=false,busy=false,terminal=false,active=false,posed=false;
+    bool selection_known=false,suppressed=false,rejected=false;
     static Runtime& Self(void* p) noexcept { return *static_cast<Runtime*>(p); }
     static bool Read(void*,Address at,void* out,std::size_t n) noexcept { return NativeCalls::Read(at,out,n); }
     static bool Owner(void* p) noexcept { return Self(p).native.Owner(); }
@@ -52,15 +52,7 @@ struct Runtime {
             && capture->Capture({root,static_cast<Address>(scene.actor),static_cast<Address>(scene.parent),scene.epoch},out);
     }
     bool Current(const Selection& old) noexcept {
-        Selection next{}; return !terminal && enabled.load(std::memory_order_acquire) && Capture(next) && next.SameIdentity(old);
-    }
-    static bool UiCurrent(void* p,const Selection& old) noexcept { return Self(p).Current(old); }
-    static PreviewControls::Hit Contains(void* p,const Selection& s,int x,int y) noexcept {
-        auto& self=Self(p); POINT mapped{};
-        const auto result=movement::NativeClientPoint(self.native.Base(),self.root,self.window,{x,y},mapped);
-        if(result==movement::NativePointResult::unavailable) { return PreviewControls::Hit::unavailable; }
-        return result==movement::NativePointResult::valid && LayoutContains(s,mapped.x,mapped.y)
-            ?PreviewControls::Hit::inside:PreviewControls::Hit::outside;
+        Selection next{}; return !terminal && controls.Current() && enabled.load(std::memory_order_acquire) && Capture(next) && next.SameIdentity(old);
     }
     static bool SelectionCurrent(void* p,const Selection& old) noexcept { return Self(p).Current(old); }
     static bool ResourceCurrent(void* p) noexcept {
@@ -90,29 +82,29 @@ struct Runtime {
             QueueReceipt::Access{this,&Read,&Owner,&Erase,native.Base()+0x1149d38});
         return true;
     }
-    static void Action(void* p,PreviewControls::Action action) noexcept {
+    static void Action(void* p,PreviewControls::Action action,Address target_hud) noexcept {
         auto& s=Self(p);
+        if(!s.native.Owner() || s.terminal || (target_hud && target_hud!=s.selected.hud)) { return; }
         switch(action) {
-        case PreviewControls::Action::start:
-            if(!s.active && !s.terminal && s.Current(s.selected)) {
-                s.requested=s.selected; s.start_pending=true; s.active=true; s.posed=s.held=false; s.turns=0;
-            } break;
-        case PreviewControls::Action::left: if(s.active) { s.turns=(s.turns+3)%4; } break;
-        case PreviewControls::Action::right: if(s.active) { s.turns=(s.turns+1)%4; } break;
-        case PreviewControls::Action::cancel: s.Cancel(); break;
-        case PreviewControls::Action::hold: if(s.active && s.posed) { s.held=!s.held; } break;
+        case PreviewControls::Action::select:
+            s.Cancel(); s.suppressed=s.rejected=false; break;
+        case PreviewControls::Action::left:
+            if(s.active && s.Current(s.requested)) { s.turns=(s.turns+3)%4; } break;
+        case PreviewControls::Action::right:
+            if(s.active && s.Current(s.requested)) { s.turns=(s.turns+1)%4; } break;
+        case PreviewControls::Action::cancel:
+        case PreviewControls::Action::drop:
+            s.suppressed=true; s.Cancel(); break;
+        case PreviewControls::Action::suspend: s.Cancel(); break;
         }
     }
     void Cancel() noexcept {
-        const bool was_active=active || start_pending;
-        active=start_pending=posed=held=false;
+        active=posed=false;
         if(render) { render->Close(); }
         // Native cleanup is deferred to Update or the matching drain, never a UI callback.
-        if(was_active) { status=L"Preview cancelled - select Preview to start again"; }
     }
     void Fail() noexcept {
         Cancel(); terminal=true; frame.Invalidate(); render->InvalidateContext();
-        status=L"Preview unavailable for this session";
     }
     void Cleanup() noexcept {
         if(render->CurrentState()==RenderOwner::State::owned) { (void)render->Clear(); }
@@ -121,60 +113,70 @@ struct Runtime {
     void Update(void* receiver,HWND hwnd) noexcept {
         const auto owner=owner_thread_id.load(std::memory_order_acquire);
         if((owner && owner!=GetCurrentThreadId()) || busy) { return; }
-        if(terminal) {
-            Selection fresh{};
-            if(Capture(fresh)) { controls.Show(&fresh,false,status); } else { controls.Hide(); }
-            return;
-        }
+        if(terminal) { return; }
         if(!bound) {
             if(!enabled.load(std::memory_order_acquire) || !native.Bind(hwnd)) { return; }
             bound=true; window=hwnd; thread=GetCurrentThreadId();
             owner_thread_id.store(thread,std::memory_order_release);
-            if(!ui.Bind(hwnd) || !controls.Bind(hwnd)) { Fail(); return; }
+            if(!ui.Bind(hwnd) || !controls.Bind(hwnd,native.Base())) { Fail(); return; }
         }
         if(thread!=GetCurrentThreadId() || hwnd!=window || !native.Owner()) { return; }
         busy=true;
         struct Reset { bool& busy; ~Reset() { busy=false; } } reset{busy};
-        if(frame.Draining()) { Fail(); controls.Hide(); return; }
-        if(!enabled.load(std::memory_order_acquire)) { Cancel(); Cleanup(); frame.Invalidate(); controls.Hide(); return; }
+        if(frame.Draining()) { Fail(); return; }
+        if(!enabled.load(std::memory_order_acquire)) { Cancel(); Cleanup(); frame.Invalidate(); return; }
         root=reinterpret_cast<Address>(receiver);
         movement::NativeScene next{}; Selection fresh{};
         const bool observed=movement::ReadNativeMovementLifetime(next) && movement::NativeMovementLifetimeCurrent(next);
         scene=observed?next:movement::NativeScene{};
-        if(!observed || !Capture(fresh)) { Cancel(); Cleanup(); controls.Hide(); return; }
-        if(active && !fresh.SameIdentity(requested)) { Cancel(); }
+        if(!observed || !Capture(fresh)) {
+            Cancel(); Cleanup(); selection_known=false; return;
+        }
+        if(!selection_known || !fresh.SameIdentity(selected)) {
+            Cancel(); suppressed=rejected=false; selection_known=true;
+        }
         selected=fresh;
-        if(!active) { Cleanup(); controls.Show(&selected,false,status); return; }
-        if(start_pending) {
-            Cleanup(); start_pending=false;
-            if(terminal || !render->Open() || !render->Acquire(selected)) {
-                Cancel(); Cleanup(); status=terminal?L"Preview unavailable for this session":L"This item's loaded model is unavailable for preview";
-                controls.Show(&selected,false,status); return;
-            }
-        }
+        if(!controls.Current()) { Fail(); return; }
         POINT cursor{}; movement::NativeUiState ui_state{};
-        const bool focused=GetForegroundWindow()==window;
-        if(!focused) { Cancel(); Cleanup(); controls.Hide(); return; }
-        if(!GetCursorPos(&cursor) || !ScreenToClient(window,&cursor) || !ui.Snapshot(cursor,ui_state)
-            || ui_state.global_owned || ui_state.keyboard_owned || ui_state.camera_gesture) {
-            Cancel(); Cleanup(); controls.Show(&selected,false,status); return;
+        // Observe the native UI without changing input ownership or its gates.
+        if(GetForegroundWindow()!=window || !GetCursorPos(&cursor) || !ScreenToClient(window,&cursor)
+            || !ui.Snapshot(cursor,ui_state) || ui_state.global_owned
+            || ui_state.keyboard_owned || ui_state.camera_gesture) {
+            Cancel(); Cleanup(); return;
         }
-        if(!held && ui_state.pointer_hud==selected.hud && LayoutContains(selected,ui_state.native_point.x,ui_state.native_point.y)) {
+        if(suppressed || rejected) { Cancel(); Cleanup(); return; }
+        if(!active) {
+            Cleanup();
+            if(terminal) { return; }
+            requested=selected; turns=0; posed=false;
+            if(!render->Open() || !render->Acquire(selected)) {
+                Cancel(); Cleanup(); rejected=true; return;
+            }
+            active=true;
+        }
+        const bool over_floor=ui_state.pointer_hud==selected.hud
+            && LayoutContains(selected,ui_state.native_point.x,ui_state.native_point.y);
+        if(over_floor || !posed) {
+            // Selecting a contract gives an immediate center-of-floor candidate.
+            // A native floor miss remains a miss; never invent a ground plane.
+            const double center_x=double(selected.rectangle[0])+selected.offset[0]+selected.dimensions[0]/2.0;
+            const double center_y=double(selected.rectangle[1])+selected.offset[1]+selected.dimensions[1]/2.0;
+            if(center_x<INT_MIN || center_x>INT_MAX || center_y<INT_MIN || center_y>INT_MAX) { Cancel(); rejected=true; Cleanup(); return; }
+            const int x=over_floor?ui_state.native_point.x:static_cast<int>(center_x);
+            const int y=over_floor?ui_state.native_point.y:static_cast<int>(center_y);
             std::array<float,3> candidate{};
-            const auto result=Current(selected)?native.Floor(selected,ui_state.native_point.x,ui_state.native_point.y,candidate):NativeCalls::FloorResult::unavailable;
-            if(result==NativeCalls::FloorResult::fault) { Fail(); controls.Show(&selected,false,status); return; }
+            const auto result=Current(selected)?native.Floor(selected,x,y,candidate):NativeCalls::FloorResult::unavailable;
+            if(result==NativeCalls::FloorResult::fault) { Fail(); return; }
             posed=result==NativeCalls::FloorResult::hit && Current(selected);
             if(posed) { point=candidate; }
         }
+        // Leaving the floor plan for the stock rotation controls preserves position.
         if(posed) {
             Transform pose{};
             if(!CandidatePose(selected,point,turns,pose) || !render->Pose(pose)) {
-                Cancel(); Cleanup(); status=L"Preview unavailable at this building or floor";
+                Cancel(); Cleanup(); rejected=true;
             }
         }
-        if(active) { status=held?L"Position held - rotate, or click the floor plan to follow again"
-            :posed?L"Preview only - click floor plan to hold; Esc cancels":L"Move over the selected floor plan to preview"; }
-        controls.Show(&selected,active,status);
     }
     void Clear(bool main) noexcept {
         if(owner_thread_id.load(std::memory_order_acquire)!=GetCurrentThreadId() || !bound || !native.Owner()) { return; }
@@ -204,7 +206,7 @@ struct Runtime {
         if(native.Owner() && !frame.Draining()) { Cleanup(); }
         // No rebinding after loss, including failed context switches. Any receipt
         // without a proven outer completion keeps its bounded references pinned.
-        terminal=true; frame.Invalidate(); render->InvalidateContext(); controls.Hide();
+        terminal=true; frame.Invalidate(); render->InvalidateContext();
     }
 };
 void MatrixChanged(bool push,std::uintptr_t caller) noexcept {

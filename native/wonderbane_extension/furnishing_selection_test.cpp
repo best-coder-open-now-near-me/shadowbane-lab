@@ -43,7 +43,7 @@ struct Memory {
         Put(building+0x4b0,building_component); Put(building_component,building_pose); Put(building_pose+0x20,transform);
         Words(building+0x734,{floors,floors+4});
         Type(manager,0x1171adc); Put(manager+0xa8,hud); Put(hud+0x104,manager); Put(hud+0x64c,building);
-        Put(hud+0x524,list); Put(hud+0x648,layout); Put(hud+0x660,entry);
+        Put(hud+0x508,A{0}); Put(hud+0x524,list); Put(hud+0x648,layout); Put(hud+0x660,entry);
         Words(hud+0x54,{children,children+8,children+8}); Words(children,{list,layout});
         Type(list,0x116acf0); Put(list+0x3bc,hud); Put(layout+0x3bc,hud);
         Words(layout+0x168,{name,name+26,name+28}); const char16_t label[] = u"BTNPROPLAYOUT"; Put(name,label);
@@ -84,7 +84,7 @@ int main() {
     // An old matching HUD cannot authorize a building after occupancy changes.
     for (auto field : {actor_pose+8,hud+0x64c,base+0x16a2d98,base+0x16a7bfc}) { Memory m; m.Put(field,A{building+4}); Reject(m); }
     for (auto field : {root,hud,manager,actor,building,list,row,entry,deed,model,render}) { Memory m; m.Put(field,base+0x1000); Reject(m); }
-    for (auto field : {hud+0x104,manager+0xa8,list+0x3bc,layout+0x3bc,row+0x3bc,row+0x458,row+0x44c,hud+0x660,list+0x404}) {
+    for (auto field : {hud+0x508,hud+0x104,manager+0xa8,list+0x3bc,layout+0x3bc,row+0x3bc,row+0x458,row+0x44c,hud+0x660,list+0x404}) {
         Memory m; m.Put(field,A{0x320000}); Reject(m);
     }
     for (auto field : {hud+0x628,building+0x18,entry+0x10,deed+0x7b8}) { Memory m; m.Put(field,A{0xffffffff}); Reject(m); }
