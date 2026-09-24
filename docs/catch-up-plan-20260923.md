@@ -34,6 +34,22 @@ current main, not the old native-lifecycle branch. The existing
 installation claims in that document are historical. No new attack, capture or
 deployment was started by this status audit.
 
+Read-only vendor observation on September 24 verified the open random-roll recipe
+against the exact installed runtime. Three stable samples agree on the selected
+row, activated row and retained Anthame template; Magic is mode 1, table 16.
+The seven production slots were empty. Current automation still explicitly
+requires Gilded Scepter, so this observation does not qualify dagger automation.
+The passive recorder ended normally at 21:16:41 UTC; private captures are retained.
+No crafting, inventory mutation, manager job or deployment was performed.
+
+Offline PvP qualification now maps deferred action construction, queue consumption
+and disposal, including discard and direct-processing paths. It also proves that
+an active socket can retain bytes before a character-generation change and decode
+them afterward. Decode-time freshness alone is therefore insufficient for combat
+authority. Next is a qualified ordered server session boundary (or proven connection
+replacement), followed by complete event-to-action identity handling. No user fight
+is needed for this investigation; automatic combat remains unfinished.
+
 Planning date: September 23, 2026. The original planning rationale and milestones
 below remain useful; their starting inventory is historical. Current status and
 next todos are recorded at the end and in the integration inventory. Source
@@ -253,13 +269,17 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Stopped at user direction: carpenter implementation and live testing, including
   automatic preview integration. Preserve pushed source and unfinished edits;
   no further package/deployment or user test is scheduled for this lane.
-- Active: resume PvP at receive-to-processing event identity and current-character
-  validation, then response ingestion, listed-player selection and combat
-  transitions. Source audit confirms the prior foundation is already in main.
+- Active: qualify the PvP ordered session boundary for buffered input, then
+  complete receive-to-action identity, response ingestion, listed-player selection
+  and combat transitions. Deferred ownership and socket read-ahead are mapped;
+  the prior foundation is already in main.
 - Vendor continuation: random-roll recipe list and Inventory qualification, then
   bounded town rolling. The user clarified random rolls specifically; fixed-affix
-  crafting is not the requested walkthrough. Await the visible recipe list and
-  selected vendor/recipe before game observation.
+  crafting is not the requested walkthrough. The open list is captured: selected
+  and activated Anthame (5051080:0)
+  match the retained recipe in Magic/random mode (table 16). Nested list ownership
+  and Normal/Magic/Formula bindings are verified. Next is the requested Balanced
+  Dagger selection transition, then Inventory close/reopen; no Create was sent.
 - Complete source checkpoint: vendor discovery scene/root handoff fix
   `37d919a` on `codex/vendor-town-workflow`, draft PR #38 to main.
   241 focused tests passed (one optional native fixture skipped), Ruff/diff and
