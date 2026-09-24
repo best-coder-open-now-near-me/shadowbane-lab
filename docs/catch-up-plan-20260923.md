@@ -240,12 +240,20 @@ owner and next action. No guessed carpentry recipes or generalized framework.
   native selection/placement/rotation in PR #35; validate the coherent package
   before another live test. Separate manual Preview/rotation controls are not the
   intended interaction.
-- Parallel: audit guard/Condemn and vendor production source for bounded work
-  independent of the live client. Keep package/version and native dispatch
-  ownership coordinated.
-- Waiting on external evidence: developer Furniture operation-3 handler and
-  operation-2 response builder/logs for original placement; prepared finding has
-  not been sent. Client serialization is not proof of server rejection.
+- Complete source checkpoint: vendor discovery scene/root handoff fix
+  `37d919a` on `codex/vendor-town-workflow`, draft PR #38 to main.
+  241 focused tests passed (one optional native fixture skipped), Ruff/diff and
+  coordinator review passed. Not merged, packaged or installed yet.
+- Complete audit: no further demonstrated offline guard/Condemn defect found;
+  current source is integrated. Broader coverage, newly discovered guards,
+  resource exhaustion and positive maximum-rank evidence need live qualification.
+- Parallel: statically qualify ordinary vendor recipe/Inventory control paths
+  to minimize the remaining live walkthrough. Automatic town rolling remains
+  incomplete; no speculative scheduler or command adapter is deployed.
+- Externally blocked: original carpenter placement needs developer Furniture
+  operation-3 handler and operation-2 response-builder evidence. The user
+  confirmed server code/logs are unavailable. A concrete developer note is saved
+  privately and has not been sent. Client serialization does not prove rejection.
 - Next live observations, when ready: qualified automatic preview test; one
   manually opened Irekei Barracks; vendor recipe and Inventory ownership
   walkthrough. Bart need not remain parked while source work proceeds.

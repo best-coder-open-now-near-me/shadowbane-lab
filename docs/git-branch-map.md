@@ -23,6 +23,22 @@ PR #35 contains the combined source; PR #37 carries the recorder and latest
 deployment docs. Both target `main` and remain unmerged by this deployment.
 Earlier installed or staged versions below are historical checkpoints.
 
+## Vendor discovery follow-through - September 24
+
+`codex/vendor-town-workflow@37d919a29bfee12ca9ce0eaa7422437b429bae63`
+targets `main` through [draft PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38).
+It preserves the originating city scene/root across the vendor discovery-to-navigation
+handoff and rejects stale or missing provenance before opening buildings. Guard
+behavior and durable review records are retained. City and navigation managers
+are intentionally different and are checked within their own phases.
+
+The exact source passed 241 focused tests (one optional native fixture skipped),
+Ruff and diff checks. Coordinator review found no remaining actionable findings.
+CI is tracked on the PR. The worktree is clean and pushed. This source is outside
+`main` and the installed preview package; next is review/integration and a future
+validated host package. Recipe/Inventory qualification and complete town rolling
+remain unfinished.
+
 ## Current client update - September 24
 
 Native 1.8.27 / host 0.3.47 from source `d74d3c3` is installed in the VM
