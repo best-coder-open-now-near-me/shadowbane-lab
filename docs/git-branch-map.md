@@ -32,24 +32,38 @@ PR #35 contains the combined source; PR #37 carries the recorder and latest
 deployment docs. Both target `main` and remain unmerged by this deployment.
 Earlier installed or staged versions below are historical checkpoints.
 
-## Vendor discovery follow-through - September 24
+## Vendor recipe-list automation - September 24
 
-`codex/vendor-town-workflow@37d919a29bfee12ca9ce0eaa7422437b429bae63`
+`codex/vendor-town-workflow@4e940739f62f364d769b391f061e73c2a18e0dd2`
 targets `main` through [draft PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38).
-It preserves the originating city scene/root across the vendor discovery-to-navigation
-handoff and rejects stale or missing provenance before opening buildings. Guard
-behavior and durable review records are retained. City and navigation managers
-are intentionally different and are checked within their own phases.
+It contains discovery scene/root provenance plus typed owner-thread recipe and
+Inventory controls, durable no-replay menu evidence, and automatic Inventory
+opening after a completed batch. Native menu support is checked before spending.
+Existing Gilded Scepter spending admission remains; arbitrary random recipes and
+the complete saved town runner are not enabled.
 
-The exact source passed 241 focused tests (one optional native fixture skipped),
-Ruff and diff checks. Coordinator review found no remaining actionable findings.
-CI is tracked on the PR. The worktree is clean and pushed. This source is outside
-`main` and the installed preview package; next is review/integration and a future
-validated host package. The random recipe switch and Inventory close/reopen
-walkthrough now pass on the installed runtime, with the same 65 displayed item
-identities after reopening. See the vendor branch's sanitized menu-contract
-handoff in PR #38. Typed menu actions, saved recipe admission, inventory
-freshness/completeness and complete town rolling remain unfinished.
+The full Win32 DLL build, 12 affected native tests and 172 affected host tests
+(85 subtests) passed, with Ruff/diff checks and independent source review. Earlier
+provenance changes passed 241 focused tests (one optional fixture skipped).
+Hosted CI remains tracked on the exact PR head. This source is pushed, outside
+main, and not packaged or installed. The normal checkout remains clean main.
+
+The random recipe switch and Inventory close/reopen walkthrough are complete.
+A follow-up read-only check identified the actual unnamed Inventory close control;
+its exact contract is being finished before package acceptance. Saved recipe
+admission, durable town visits and full resource/affix/disposal policy remain next.
+See the vendor branch's menu implementation and contract handoffs in PR #38.
+Private captures, credentials and binaries remain outside source delivery.
+
+## PvP continuation - September 24
+
+Main already includes the saved attack-list and identity/diagnostic foundation
+through `542c632`. Native listed-player selection, melee entry and conditional
+local combat exit are now qualified offline. Truthful submission receipts and
+serialized list/party/operation invalidation are the next implementation boundary.
+No native combat activation or live fight has been performed. Response-driven
+retaliation separately needs server session-order evidence across buffered input;
+explicit saved-list combat does not depend on that blocked source of authority.
 
 ## Current client update - September 24
 

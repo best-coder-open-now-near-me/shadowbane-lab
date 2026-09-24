@@ -5,11 +5,14 @@ The user set guard investigation aside and then explicitly stopped carpenter wor
 Preserve their source, installed runtime and private evidence; do not continue
 carpenter implementation, packaging or live tests without renewed direction.
 
-Freshly fetched `origin/main@a91dfd5` remains the canonical base. Vendor discovery
-provenance fix `37d919a` is pushed and reviewed in draft PR #38, with 241 focused
-tests passing (one optional fixture skipped). It is not installed. Remaining vendor
-work is typed recipe/Inventory actions, saved recipe admission and coherent town
-rolling; the ordinary selection and Inventory close/reopen walkthrough is complete.
+Freshly fetched `origin/main@a91dfd5` remains the canonical base. Vendor source
+`4e940739f62f364d769b391f061e73c2a18e0dd2` is pushed in draft PR #38. It includes
+the discovery provenance fix plus typed owner-thread recipe/Inventory commands,
+durable menu journals and automatic Inventory opening after a finished batch.
+The manager checks menu support before its first Create. The full Win32 build,
+12 affected native tests and 172 affected host tests (85 subtests) passed.
+Not packaged or installed. Saved arbitrary recipe admission and coherent town
+rolling remain unfinished; Gilded Scepter spending restrictions are retained.
 
 The VM still has native 1.8.30 / host 0.3.50 from exact source
 `8ba181868fca7ca113f94361b61118ce74a9d4a1`; the user launch entry point remains
@@ -27,13 +30,20 @@ These are not completed automatic combat. Full listed-target binding, attributed
 response ingestion, native player selection/attack and PvE-to-PvP recovery remain
 unfinished. Native event records still explicitly publish combat_authority=false.
 
-Next PvP boundary is receive-to-processing identity: preserve one original event
-across native retries and deferred processing, reject reused message addresses,
-and revalidate the current character generation at consumption. Continue from
-current main, not the old native-lifecycle branch. The existing
-[PvP plan](pve-pvp-attack-list-plan.md) retains the detailed evidence; older
-installation claims in that document are historical. No new attack, capture or
-deployment was started by this status audit.
+Explicit saved attack-list combat can progress independently of response-driven
+retaliation. Offline qualification maps ordinary player selection, native attack
+submission and the conditional local combat exit. Dispatcher success only means
+handled; Clear Target does not stop the retained combat target. Next is truthful
+request submission receipts plus list/party/operation invalidation and guarded
+cancellation, preserving native restrictions and reference ownership.
+
+Response-driven retaliation remains blocked on server session ordering across
+buffered input. A replacement link wrapper can retain the same socket; local
+receive/decode freshness cannot prove old-character events were fenced. This
+limitation does not block explicit saved-list combat. No fight or new user
+walkthrough is needed for the current source work. Continue from current main,
+not the old native-lifecycle branch. The [PvP plan](pve-pvp-attack-list-plan.md)
+retains historical detail; no new attack or deployment has been performed.
 
 Read-only vendor observation on September 24 verified the open random-roll recipe
 against the exact installed runtime. Three stable samples agree on the selected
@@ -47,8 +57,8 @@ Offline PvP qualification now maps deferred action construction, queue consumpti
 and disposal, including discard and direct-processing paths. It also proves that
 an active socket can retain bytes before a character-generation change and decode
 them afterward. Decode-time freshness alone is therefore insufficient for combat
-authority. Next is a qualified ordered server session boundary (or proven connection
-replacement), followed by complete event-to-action identity handling. No user fight
+authority. Response ingestion requires a qualified ordered server session boundary (or proven
+connection replacement), followed by complete event-to-action identity handling. No user fight
 is needed for this investigation; automatic combat remains unfinished.
 
 Planning date: September 23, 2026. The original planning rationale and milestones
@@ -270,26 +280,26 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Stopped at user direction: carpenter implementation and live testing, including
   automatic preview integration. Preserve pushed source and unfinished edits;
   no further package/deployment or user test is scheduled for this lane.
-- Active: qualify the PvP ordered session boundary for buffered input, then
-  complete receive-to-action identity, response ingestion, listed-player selection
-  and combat transitions. Deferred ownership and socket read-ahead are mapped;
-  the prior foundation is already in main.
-- Vendor continuation: random-roll recipe list and Inventory qualification, then
-  bounded town rolling. The user clarified random rolls specifically; fixed-affix
-  crafting is not the requested walkthrough. The open list is captured: selected
-  and activated Anthame (5051080:0) matched the retained recipe. The subsequent
-  Balanced Dagger (25860:0) selection also matched selected/activated/retained
-  state in Magic/random mode (table 16), quantity 1, single mode. Nested list
-  ownership and Normal/Magic/Formula bindings are verified. Inventory open,
-  closed and reopened states were captured for the same vendor; the reopened
-  display has the same 65 distinct Balanced Dagger identities. No Create was sent.
-  Next is typed owner-thread menu actions and saved recipe selection, retaining
-  current admission and pending-operation checks. Full inventory freshness and
-  completeness, generalized recipe admission and multiple mode remain unqualified.
-- Complete source checkpoint: vendor discovery scene/root handoff fix
-  `37d919a` on `codex/vendor-town-workflow`, draft PR #38 to main.
-  241 focused tests passed (one optional native fixture skipped), Ruff/diff and
-  coordinator review passed. Not merged, packaged or installed yet.
+- Active: finish the vendor recipe-list random-roll production slice: qualify
+  the actual Inventory close control, then saved recipe admission and durable
+  town visits. Keep the separate Create/Keep admission and recovery barriers.
+- Complete source checkpoint: `codex/vendor-town-workflow@4e94073`, draft PR #38
+  to main. Typed owner-thread menu operations and durable menu recovery now
+  integrate with the existing finished-batch Inventory/Keep handoff. The full DLL
+  build, 12 affected native tests, 172 affected host tests/85 subtests and Ruff
+  passed. Hosted CI is tracked separately; not merged, packaged or installed.
+- Complete live walkthrough: selected/activated/retained Anthame and Balanced
+  Dagger identities agree in Magic/random mode, table 16, quantity 1, single
+  mode. Inventory close/reopen retained the same 65 displayed item identities.
+  Full inventory freshness/completeness and generalized spending remain unproven.
+- Follow-up read-only capture: all three samples at 22:03 UTC identified the
+  owned Inventory list and one unnamed event-50 close control. The assumed named
+  CANCEL is absent. Correct that contract before candidate live acceptance;
+  the check sent no game command and did not change the installed runtime.
+- Parallel PvP qualification: native listed-player selection/attack and local
+  combat exit are mapped. Complete truthful submission receipts and guarded
+  cancellation before enabling the explicit saved-list combat runner. Automatic
+  response ingestion retains its separate server-session ordering blocker.
 - Set aside at user direction: further guard/Barracks investigation and live
   qualification. The user reports equivalent native functionality; that claim
   has not been independently inspected. Existing guard/Condemn work and receipts
