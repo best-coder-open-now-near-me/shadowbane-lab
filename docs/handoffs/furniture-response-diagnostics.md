@@ -97,6 +97,17 @@ failures; existing package policy retains these deferred findings. They do not
 establish complete graphics acceptance. Installation and live acceptance remain
 separate gates. Earlier failed package attempts are superseded by `dd4fb06e`.
 
+## VM preparation
+
+At 2026-09-24 13:58 UTC, the exact package was staged alongside the current host.
+Guest preparation returned `prepared_not_applied`; read-only validation returned
+`update_verified_not_applied`, verified 431 installed module files and inventoried
+9,424 retained files. The prepared executable and active game remain unchanged.
+Private receipts are retained under the VM diagnostics share in
+`furniture-response-20260924/guest-prepare.json` and `guest-validation.json`.
+Applying the DLL, activating the new host and verifying shortcuts still require
+normal game closure. The user can continue other activities with Bart meanwhile.
+
 ## Capture and next todos
 
 Use the existing workflow recorder with `--furniture-responses`, pinned to the
@@ -108,8 +119,9 @@ loading text. Private captures and client binaries stay in local artifact storag
 
 1. Complete: exact committed package, full host/native validation in both profiles
    and installed-wheel checks.
-2. Active: prepare and install the reviewed candidate after the user closes the game; preserve saved
-   jobs, journals and settings and verify the new process lifetime and mapping.
+2. Active: apply the staged, verified candidate after the user closes the game;
+   preserve saved jobs, journals and settings and verify the new process lifetime
+   and mapping. Preparation is complete; activation remains pending.
 3. Capture one ordinary placement attempt. Separate outgoing serialization,
    incoming record contents and resulting HUD collections; then fix the proven
    client boundary or provide the dev a precise server finding.

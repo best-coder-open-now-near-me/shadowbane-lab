@@ -17,7 +17,8 @@ Use freshly fetched `origin/main` after PR #34 merges for further development.
 `codex/furniture-response-diagnostics` targets `main` from `a91dfd5` through
 [draft PR #37](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/37).
 Exact source `c764e22d1bd94fe3a84fd53a31d42d4c959d8a20` passed the complete
-package gates; installation and a supervised placement capture remain pending.
+package gates. VM preparation is verified and staged alongside the active host;
+activation after game closure and a supervised placement capture remain pending.
 It owns the passive native Furniture message recorder and host capture path,
 versioned 1.8.28 / 0.3.48; see the
 [diagnostic handoff](handoffs/furniture-response-diagnostics.md) for exact scope,
