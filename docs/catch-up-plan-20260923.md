@@ -10,9 +10,10 @@ Guard coverage, vendor recovery and the passive recorder, and strict diagnostic
 CI gates are integrated. The September 24 client update is now installed:
 **client 1.3.38.11, native 1.8.27, host 0.3.47**, source `d74d3c3`. The manager
 is healthy and unbound, all five desktop shortcuts and launch preflight pass,
-and the game is closed for the user's launch/login. See the
+and the user has launched and logged in successfully. See the
 [client update](client-update-20260924.md) for package and preservation evidence.
-Live guard/vendor evidence remains pending; carpenter awaits building readiness.
+Live guard/vendor evidence remains pending. Carpenter discovery is active in the
+ready building; see the [September 24 findings](handoffs/carpenter-discovery-20260924.md).
 
 Planning date: September 23, 2026. The original planning rationale and milestones
 below remain useful; their starting inventory is historical. Current status and
@@ -226,11 +227,20 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Complete: reviewed client 1.3.38.11 update, native 1.8.27 / host 0.3.47 package,
   both VM client copies, five shortcuts and non-launching preflight. Of 9,441
   retained files, 9,440 are unchanged; only the revoked idle permit refreshed.
-- Active: user launch/login through WonderBane Modded Client, followed by fresh
-  game-lifetime verification. The VM manager is healthy and unbound.
-- Next live observations: one manually opened Irekei Barracks; vendor recipe and
-  Inventory ownership walkthrough after manual readiness. Carpenter needs its
-  active client and building readiness confirmed. No automatic spending starts.
+- Complete: user launch/login and exact client-lifetime verification; carpenter
+  hireling, Furniture Placement HUD, owned Bench deed, single-floor layout and
+  occupied building are observed. A single click selects the Bench successfully.
+- Active: carpenter placement diagnosis. Retrying after confirmed Bench selection
+  produced "Done Loading", rebuilt the list and cleared selection; the same deed
+  remains and both placed-scene collections are empty. Response capture or server
+  logs must distinguish missing records from client asset-creation failure. No
+  placement receipt or persistent result is established.
+- Parallel: the requested graphics task owns the real-time furnishing preview
+  on `codex/furnishing-preview`, draft PR #35. Its read-only resource helper has
+  captured the selected Bench; native rendering and visual acceptance remain open.
+- Next live observations after carpenter releases the client: one manually opened
+  Irekei Barracks; vendor recipe and Inventory ownership walkthrough. The manager
+  remains unbound; no automatic spending starts.
 - Subsequent: production town vendor navigation/scheduling, qualified affix and
   resource/disposal/recurrence behavior, and guard/Condemn coverage/rank acceptance.
 - Deferred: broad refactors, unrelated historical feature lanes, and branch/worktree
