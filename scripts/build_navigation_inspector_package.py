@@ -68,6 +68,7 @@ REQUIRED_CONDEMN_TESTS = frozenset({
 
 
 REQUIRED_FURNITURE_TESTS = frozenset({
+    "wonderbane_extension_furnishing_queue",
     "wonderbane_extension_furniture_responses",
     *(f"wonderbane_extension_furniture_rollback_{i}" for i in (1, 2, 3, 4)),
 })

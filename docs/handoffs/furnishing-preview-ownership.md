@@ -150,11 +150,52 @@ mesh index-zero change remains a separate gate.
   qualification recorded here, against the reviewed image.
 - Complete: clone vertex-program string/map payload ownership qualified; no
   hidden object references in the copied payloads.
-- Active: finalize resource/shader eligibility and exceptional/reentrant retirement
-  requirements before the native implementation slice.
+- Complete: bounded queue receipt implementation and native failure-path tests.
+- Active: implement owner capture/private render lifetime, including the remaining
+  resource/shader eligibility and exceptional/reentrant retirement requirements.
 - Pending: coordinate shared wiring ownership with the furniture response task,
   implement the coherent native preview slice, run native lifecycle/failure tests,
   and obtain real in-building visual acceptance with no placement messages.
 
 This checkpoint changes documentation only. The annotated methods and their
 callees were inspected directly; no runtime test is claimed for these conclusions.
+
+
+## Native queue receipt implementation checkpoint
+
+`furnishing_queue.h/.cpp` now implement the durable queue ownership component.
+It is linked into the full extension and has no startup/render hook yet. Its
+caller supplies exact-build read/owner/erase operations, retains the private
+render tree, and proves the matching outer drain/shader boundary before retirement.
+The component itself never acquires, releases, draws or modifies a render.
+
+The receipt validates up to 8,192 native queue nodes and 64 private renders,
+including parent/child/extremum links, unique nodes, red/black invariants and a
+reverse read check. It reserves room before native entry, distinguishes prepared
+from entered transactions, and matches inserted wrappers to the exact newly used
+pool interval. Pre-existing queue nodes and payloads must remain intact. Even a
+pre-entry discovery that a supposedly fresh private render is already queued
+quarantines that ownership rather than authorizing release.
+
+Retirement checks the frame ticket and owner, rewalks the current tree before
+every erase, and proves exact removal without damage to other entries afterward.
+A failed or uncertain erase is never retried. Reentry is refused while mutating.
+Partial insertion is counted accurately; consumed slots with no insertion do not
+invent draw success. Quarantine forbids replacement transactions and release.
+
+The full extension build and native test target passed using reviewed Visual
+Studio 2022 Win32 Release with warnings as errors. It exercises normal and partial submission, two-child
+rebalancing, the 8,192-node bound, malformed topology/red-black state, replaced
+wrappers, changed reads, wrong tickets, pre-existing private uses, owner loss,
+failed/partial erase and cleanup reentry. The package gate now requires this
+native test; all 199 package-gate host cases and repository Ruff pass. Earlier
+recorder integration passed 455 combined focused host cases. Local build evidence
+is retained under `artifacts/furnishing-preview/native-build-2022`; the initial
+2026-toolchain smoke build remains separately at `native-build` as non-authoritative
+scratch evidence. Neither build is an installable preview delivery.
+
+Next active item: implement owner-captured selection/pose and private render
+retains/cloning around this receipt, then persistent frame/context integration
+and the Preview user affordance. Shared native versions remain 1.8.28 inherited
+from recorder source c764e22; no new version or package has been assigned here.
+The complete preview, lifecycle validation and live visual acceptance remain open.

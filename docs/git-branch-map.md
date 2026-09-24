@@ -22,8 +22,8 @@ This preserves native 1.8.28 / host 0.3.48 diagnostics as a dependency; it does
 not merge either PR into `main` or authorize a preview deployment. Subsequent
 version assignment and packaging remain coordinated with that task.
 
-Next: qualify clone eligibility and queued-resource retirement, then implement
-the native preview. The coordinator separately owns selected-row live evidence;
+Next: implement owner-captured pose/private render lifetime around the tested
+native queue receipt, then frame/context wiring and the complete preview. The coordinator separately owns selected-row live evidence;
 the observer now checks actor occupancy against the HUD structure and includes
 an optional bounded resource reader keyed to one owned entry. Ordinary Bench
 single-click selection is now observed; a subsequent drag rebuilt the row and
