@@ -20,7 +20,7 @@ public:
         bool (*erase)(void*, Address queue, Address node) noexcept = nullptr;
         Address wrapper_type = 0;
     };
-    enum class State { idle, prepared, entering, submitted, quarantined };
+    enum class State { idle, prepared, entering, submitted, inspecting, quarantined };
     explicit QueueReceipt(Access access) noexcept : access_(access) {}
     QueueReceipt(const QueueReceipt&) = delete;
     QueueReceipt& operator=(const QueueReceipt&) = delete;
@@ -28,6 +28,9 @@ public:
                  std::uint64_t ticket) noexcept;
     bool Enter() noexcept;
     bool Complete(Pool) noexcept;
+    // Pre-drain metadata check. A rejected inspection leaves a submitted receipt
+    // available for exact retirement; it never authorizes release by itself.
+    bool Inspect(bool (*)(void*,Address wrapper,Address render) noexcept,void*) noexcept;
     // Caller proves matching outer drain completion (or no drain has begun).
     // The opaque ticket must still match the owner/context/frame generation.
     bool Retire(std::uint64_t ticket) noexcept;

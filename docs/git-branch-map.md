@@ -28,8 +28,10 @@ The private render ownership transaction now holds source/private references
 through exact queue retirement and handles Stop, context loss and native faults.
 Reviewed-image native call adapters now check the exact reference interfaces and
 owner/context, with C++/SEH fault containment; they remain unregistered.
-Next: resource/shader qualification, cursor/floor pose, persistent frame/context
-wiring and the complete preview. The coordinator separately owns selected-row live evidence;
+The source/private gate now qualifies the reviewed static mesh/loaded-texture
+family and validates queued shader/texture metadata before drawing.
+Next: cursor/floor pose, rotation, persistent frame/context wiring and Preview
+controls, then complete integration and visual validation. The coordinator separately owns selected-row live evidence;
 the observer now checks actor occupancy against the HUD structure and includes
 an optional bounded resource reader keyed to one owned entry. Ordinary Bench
 single-click selection is now observed; a subsequent drag rebuilt the row and

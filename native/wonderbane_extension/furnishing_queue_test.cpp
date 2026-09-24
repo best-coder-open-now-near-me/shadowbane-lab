@@ -206,6 +206,10 @@ void PartialSubmission() {
     assert(q->Prepare(queue, {pool, 16, 0}, renders, 2, 7)); assert(q->Enter());
     m.Wrapper(pool, render); m.Add(node2, pool + 32, render2);
     assert(q->Complete({pool, 16, 2})); assert(q->SubmittedCount() == 1);
+    assert(!q->Inspect([](void* context,A,A) noexcept {
+        auto& receipt=*static_cast<Q*>(context); assert(!receipt.Retire(7)); return false;
+    },q.get()));
+    assert(q->CurrentState()==Q::State::submitted && !q->ReleaseAllowed());
     assert(q->Retire(7)); assert(q->ReleaseAllowed() && m.erases == 1);
 }
 }

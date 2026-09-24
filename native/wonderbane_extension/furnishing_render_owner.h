@@ -27,6 +27,7 @@ public:
         bool (*compose)(void*, Address clone, const Transform&) noexcept = nullptr;
         bool (*enqueue)(void*, Address clone, Address queue) noexcept = nullptr;
         bool (*pool)(void*, QueueReceipt::Pool&) noexcept = nullptr;
+        bool (*wrapper)(void*,Address wrapper,Address render) noexcept = nullptr;
     };
     enum class State { empty, acquiring, owned, submitting, submitted, retiring, releasing, quarantined };
     RenderOwner(Operations operations, QueueReceipt::Access access) noexcept : operations_(operations), receipt_(access) {}

@@ -70,7 +70,7 @@ bool RenderOwner::Pose(const Transform& parent) noexcept {
 bool RenderOwner::Submit(Address queue, std::uint64_t ticket) noexcept {
     if (busy_ || state_ != State::owned) { return false; }
     const Busy busy(busy_); QueueReceipt::Pool pool{};
-    if (!Current() || !operations_.pool || !operations_.enqueue) { return false; }
+    if (!Current() || !operations_.pool || !operations_.enqueue || !operations_.wrapper) { return false; }
     if (!PrivateTree(false)) { Quarantine(); return false; }
     if (!Current() || !operations_.pool(operations_.context, pool)) { return false; }
     if (!receipt_.Prepare(queue, pool, renders_.data(), count_, ticket)) {
@@ -85,7 +85,16 @@ bool RenderOwner::Submit(Address queue, std::uint64_t ticket) noexcept {
     // No-insertion is a known owned state. Partial insertion is real submitted
     // ownership; it must retire even if admission/selection changed during entry.
     state_ = receipt_.ReleaseAllowed() ? State::owned : State::submitted;
-    return state_ == State::submitted;
+    if (state_ != State::submitted) { return false; }
+    if (!receipt_.Inspect(operations_.wrapper, operations_.context)) {
+        // Submission occurs before the native drain iterator begins. Rejected
+        // metadata can retire here without any shader having consumed our copy.
+        if (!Owner() || !receipt_.Retire(ticket) || state_ == State::quarantined) { Quarantine(); return false; }
+        state_ = State::owned; ticket_ = 0;
+        if (!Current()) { ClearOwned(); }
+        return false;
+    }
+    return true;
 }
 bool RenderOwner::Retire(std::uint64_t ticket) noexcept {
     if (busy_ || state_ != State::submitted || ticket != ticket_) { return false; }

@@ -18,7 +18,7 @@ struct Fixture {
     std::vector<A> nodes;
     R* renderer=nullptr;
     bool owned=true,current=true,source_valid=true,private_valid=true,clone_null=false,alias=false;
-    bool fault_after=false,fail_erase=false;
+    bool fault_after=false,fail_erase=false,wrapper_valid=true;
     unsigned step=0,fail_at=0,close_at=0,stale_at=0,context_at=0,reenter_at=0;
     unsigned model_refs=0,clone_refs=0,retain_calls=0,clone_calls=0,compose_calls=0,enqueue_calls=0,erase_calls=0;
     unsigned submit_count=2,used=0;
@@ -81,6 +81,10 @@ struct Fixture {
         }
         f.used=2; f.Tree(); return f.Finish();
     }
+    static bool Wrapper(void* c,A,A) noexcept {
+        auto& f=*static_cast<Fixture*>(c); assert(!f.releases.size());
+        assert(!f.renderer->Retire(7)&&!f.renderer->Clear()); return f.wrapper_valid;
+    }
     static bool Pool(void* c,Q::Pool& out) noexcept { out={pool,16,static_cast<Fixture*>(c)->used}; return true; }
     static bool Read(void* c,A at,void* out,std::size_t size) noexcept {
         auto& f=*static_cast<Fixture*>(c); auto* bytes=static_cast<unsigned char*>(out);
@@ -92,7 +96,7 @@ struct Fixture {
         const auto found=std::find(f.nodes.begin(),f.nodes.end(),n); assert(found!=f.nodes.end()); f.nodes.erase(found); f.Tree(); return true;
     }
     std::unique_ptr<R> Make() {
-        Tree(); auto r=std::make_unique<R>(R::Operations{this,Owner,Current,Source,Retain,Clone,Release,Private,Compose,Enqueue,Pool},Q::Access{this,Read,Owner,Erase,wrapper_type});
+        Tree(); auto r=std::make_unique<R>(R::Operations{this,Owner,Current,Source,Retain,Clone,Release,Private,Compose,Enqueue,Pool,Wrapper},Q::Access{this,Read,Owner,Erase,wrapper_type});
         renderer=r.get(); return r;
     }
     void Quarantined(R& r) {
@@ -150,6 +154,10 @@ void Qualification() {
     { Fixture f; auto r=f.Make(); f.alias=true; assert(!r->Acquire(Selection())); f.Quarantined(*r); }
     { Fixture f; auto r=f.Make(); f.private_valid=false; assert(!r->Acquire(Selection())); assert(f.releases.empty()); f.Quarantined(*r); }
     { Fixture f; auto r=f.Make(); assert(r->Acquire(Selection())); f.private_valid=false; assert(!r->Submit(queue,7)); f.Quarantined(*r); }
+    { Fixture f;auto r=f.Make();assert(r->Acquire(Selection()));f.wrapper_valid=false;assert(!r->Submit(queue,7));
+      assert(f.nodes.empty()&&f.releases.empty()&&f.erase_calls==2&&r->CurrentState()==R::State::owned);assert(r->Clear()); }
+    { Fixture f;auto r=f.Make();assert(r->Acquire(Selection()));f.wrapper_valid=false;f.fail_erase=true;
+      assert(!r->Submit(queue,7));f.Quarantined(*r); }
     for(unsigned count:{0U,1U}) {
         Fixture f; auto r=f.Make(); assert(r->Acquire(Selection())); f.submit_count=count; assert(r->Submit(queue,7)==(count!=0));
         if(count) { assert(r->SubmittedCount()==1 && r->Retire(7)); } assert(r->Clear() && !f.model_refs && !f.clone_refs);

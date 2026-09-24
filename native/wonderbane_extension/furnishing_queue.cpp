@@ -192,6 +192,15 @@ bool QueueReceipt::Complete(Pool pool) noexcept {
     if (!receipt_count_) { Reset(); return true; }
     state_ = State::submitted; return true;
 }
+bool QueueReceipt::Inspect(bool (*check)(void*,Address,Address) noexcept,void* context) noexcept {
+    if(state_!=State::submitted||!check) { return false; }
+    state_=State::inspecting;
+    bool valid=Capture(current_)&&CurrentEntries(current_);
+    for(std::size_t i=0;valid&&i<receipt_count_;++i) { valid=check(context,receipt_[i].wrapper,receipt_[i].render); }
+    valid=valid&&Capture(current_)&&CurrentEntries(current_);
+    if(state_!=State::inspecting) { return false; }
+    state_=State::submitted; return valid;
+}
 bool QueueReceipt::Retire(std::uint64_t ticket) noexcept {
     if (state_ != State::submitted || ticket != ticket_) { return false; }
     Quarantine();

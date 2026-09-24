@@ -302,3 +302,47 @@ faults. No client binary is executed. All 217 package-gate host cases and Ruff p
 Next active item: source/private resource and shader eligibility, then cursor/floor
 pose, persistent frame/context runtime and Preview controls. No version assignment,
 package, VM change or live visual acceptance has occurred in this lane.
+
+
+## Source/private resource and shader gate checkpoint
+
+`furnishing_resources.h/.cpp` now qualify the reviewed static furnishing family:
+up to 64 render nodes, depth 8, one selected index-zero ArcSinglePolyMesh and one
+loaded ArcColorTexture per node. Every node must have the exact render/reference
+interfaces, finite TQS/draw parameters, no active callbacks, no borrowed special
+data and inactive vertex programs. The image must be the reviewed ArcImage class,
+with its exact adjusted reference interface, a nonzero texture name and a texture
+accepted by the owner/current-context query. This path never requests asset loading
+or changes a shared mesh selection. Other asset families remain unavailable.
+
+The gate bounds and reverse-verifies render/texture Core strings, the vertex-program
+byte name and float4 parameter tree. Core.dll SHA-256
+`60039be6ca5bfb8d9bb0e3d01032a97217f113c97574e3618b80b5ffc1d880d6`
+was statically inspected at its manifest-matched host location alongside Math.dll.
+Core String copy/assignment use UTF-16 begin/end/capacity at +4/+8/+0xc and independent
+storage. The private inspection helper is retained at
+`artifacts/furnishing-preview/core_exports.py`; no DLL was executed or published.
+
+The shader selector reproduces 0x1c3f30 using the copied flags. The special bias
+must be zero (native constant 0x1141320); opacity threshold 0x1149e44 is 0.995f.
+Only the qualified static alpha/no-alpha shader classes and exact method slots
+are accepted. Clone postconditions compare hierarchy, local transforms, shared
+resource identity, metadata content and copied flags, and reject source/private
+ownership aliases. All private nodes and owned containers must remain distinct.
+
+Queue receipts now support a non-mutating pre-drain inspection of every exact
+wrapper. RenderOwner requires that inspection to match the qualified shader and
+texture; rejection retires the receipt before any native drain has begun. Uncertain
+retirement still quarantines ownership. The runtime must call submission before
+the native iterator begins; no hook has been registered yet.
+
+Full extension and all five furnishing native suites pass with VS2022 Win32
+Release /W4 /WX. Tests include the 64-node and 64-parameter bounds, 1,024-byte names,
+all 64 reviewed selector-input combinations, malformed or changing resources,
+invalid reference/virtual interfaces, private aliasing and pre-drain rejection.
+All 223 package-gate host cases and Ruff pass. These are synthetic native tests,
+not a game execution or visual acceptance claim.
+
+Next active item: cursor-to-floor pose and rotation, followed by persistent
+frame/context hooks and Preview controls. Version/package coordination and live
+visual validation remain pending; the VM has not been changed by this lane.
