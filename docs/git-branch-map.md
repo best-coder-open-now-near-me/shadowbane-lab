@@ -45,8 +45,11 @@ The exact source passed 241 focused tests (one optional native fixture skipped),
 Ruff and diff checks. Coordinator review found no remaining actionable findings.
 CI is tracked on the PR. The worktree is clean and pushed. This source is outside
 `main` and the installed preview package; next is review/integration and a future
-validated host package. Recipe/Inventory qualification and complete town rolling
-remain unfinished.
+validated host package. The random recipe switch and Inventory close/reopen
+walkthrough now pass on the installed runtime, with the same 65 displayed item
+identities after reopening. See the vendor branch's sanitized menu-contract
+handoff in PR #38. Typed menu actions, saved recipe admission, inventory
+freshness/completeness and complete town rolling remain unfinished.
 
 ## Current client update - September 24
 

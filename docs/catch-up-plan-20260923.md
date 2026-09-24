@@ -8,7 +8,8 @@ carpenter implementation, packaging or live tests without renewed direction.
 Freshly fetched `origin/main@a91dfd5` remains the canonical base. Vendor discovery
 provenance fix `37d919a` is pushed and reviewed in draft PR #38, with 241 focused
 tests passing (one optional fixture skipped). It is not installed. Remaining vendor
-work is ordinary recipe/Inventory qualification and coherent town rolling.
+work is typed recipe/Inventory actions, saved recipe admission and coherent town
+rolling; the ordinary selection and Inventory close/reopen walkthrough is complete.
 
 The VM still has native 1.8.30 / host 0.3.50 from exact source
 `8ba181868fca7ca113f94361b61118ce74a9d4a1`; the user launch entry point remains
@@ -276,10 +277,15 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Vendor continuation: random-roll recipe list and Inventory qualification, then
   bounded town rolling. The user clarified random rolls specifically; fixed-affix
   crafting is not the requested walkthrough. The open list is captured: selected
-  and activated Anthame (5051080:0)
-  match the retained recipe in Magic/random mode (table 16). Nested list ownership
-  and Normal/Magic/Formula bindings are verified. Next is the requested Balanced
-  Dagger selection transition, then Inventory close/reopen; no Create was sent.
+  and activated Anthame (5051080:0) matched the retained recipe. The subsequent
+  Balanced Dagger (25860:0) selection also matched selected/activated/retained
+  state in Magic/random mode (table 16), quantity 1, single mode. Nested list
+  ownership and Normal/Magic/Formula bindings are verified. Inventory open,
+  closed and reopened states were captured for the same vendor; the reopened
+  display has the same 65 distinct Balanced Dagger identities. No Create was sent.
+  Next is typed owner-thread menu actions and saved recipe selection, retaining
+  current admission and pending-operation checks. Full inventory freshness and
+  completeness, generalized recipe admission and multiple mode remain unqualified.
 - Complete source checkpoint: vendor discovery scene/root handoff fix
   `37d919a` on `codex/vendor-town-workflow`, draft PR #38 to main.
   241 focused tests passed (one optional native fixture skipped), Ruff/diff and
@@ -292,8 +298,9 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Retained carpenter finding: original placement needs server handler/response
   evidence, which is unavailable. The private developer note and raw captures
   remain saved. This lane is stopped, not awaiting another user request to the dev.
-- Next live observation, only when needed for vendor completion: ordinary recipe
-  selection and Inventory ownership. No Barracks or carpenter test is queued.
+- Complete live walkthrough: random recipe selection and Inventory close/reopen.
+  The recorder stopped normally at 21:30:36 UTC. Bart is released for normal use;
+  no further user test is currently queued. No Barracks or carpenter test is queued.
 - Subsequent: production town vendor navigation/scheduling and qualified affix,
   resource/disposal/recurrence behavior. Guard live work is set aside.
 - Deferred: broad refactors, unrelated historical feature lanes, and branch/worktree
