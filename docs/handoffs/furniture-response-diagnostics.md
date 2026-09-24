@@ -108,6 +108,18 @@ Private receipts are retained under the VM diagnostics share in
 Applying the DLL, activating the new host and verifying shortcuts still require
 normal game closure. The user can continue other activities with Bart meanwhile.
 
+## Preview package coordination
+
+Native 1.8.29 / host 0.3.49 are reserved for `codex/furnishing-preview` in
+[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35).
+That task owns the next version changes and exact-source package validation and
+must preserve this recorder and its required gates. Its integrated preview source
+is undergoing full validation; no accepted preview package or VM activation is
+claimed. The staged 1.8.28 / 0.3.48 candidate remains available. Decide whether to
+replace it with the combined preview package only after the latter qualifies,
+then coordinate activation after normal game closure. Avoid two unnecessary
+restarts when both lanes can be tested together.
+
 ## Capture and next todos
 
 Use the existing workflow recorder with `--furniture-responses`, pinned to the
