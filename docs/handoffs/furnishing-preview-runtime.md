@@ -6,8 +6,8 @@ Native 1.8.29 / host 0.3.49, branch `codex/furnishing-preview`, targets
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
 into `main`. This includes recorder dependency `c764e22` through merge `c890260`.
 The versions were reserved by the coordinating task on September 24.
-Source implementation and local validation are present; exact-source packaging
-and live visual acceptance are the remaining delivery steps. Nothing from this
+Source implementation and exact-source packaging are complete. Live visual
+acceptance and PR review/integration into `main` remain. Nothing from this
 preview lane has been installed or activated in the VM. The coordinating task
 owns deployment and the single restart, preserving the current game and rollback.
 
@@ -81,3 +81,50 @@ is inferred from synthetic engine or local GL tests.
 
 Private builds, test logs and original-client inspection remain under ignored
 `artifacts/`. Source docs are published; client binaries and captures are not.
+
+
+## Qualified package - September 24
+
+Exact pushed package source: `0193dd74662eb368c4961a2ab8d9db6826fb70b4`.
+Documentation-only updates after that source do not change the packaged runtime.
+The coordinator received this package for staged-candidate replacement review;
+activation and all VM actions remain with that task.
+
+Private package root:
+`C:/Users/mewhi/.codex/worktrees/c079/shadowbane/artifacts/p29/fc7b8466`.
+
+- `navigation-inspector-acceptance.zip` SHA-256:
+  `9ca0fe2e669677f83335a3f6ba8b62c5af270b2e23bc9fbe23d24936b68e67e4`.
+- `full/wonderbane-extension.dll` SHA-256:
+  `33cdf5f8bf656766ad944a1bc06ad76b60ebcb5b8cd4728cabebf7fdc9163365`.
+- `diagnostics-only/wonderbane-extension.dll` SHA-256:
+  `fe3b1654e1e5b778b976a8eaadc7203347130055bd920873b58544bddd195838`.
+- `dist/shadowbane_lab-0.3.49-py3-none-any.whl` SHA-256:
+  `07c74cc5ec944f996f5255df80d618d2707b7067ff5c4ba58c3c169fc0732010`.
+
+The receipt reports `acceptance_eligible: true`, no known failed required gates,
+and 36 executed validation steps. All 61 recorded files were independently
+checked for size/hash, and ZIP CRC/hash verification passed. This certifies a
+candidate for acceptance testing, not live visual acceptance.
+
+Final host suite: **3,811 passed, 18 skipped**. Each native profile passes **198**
+executed required-suite cases; the three private-image probes skipped in that
+generic suite were separately verified against the reviewed original client.
+Each profile passes **63 movement IPC tests** without skips. Wheel/source archive
+builds, isolated installation, entry point, panels and installed contracts pass.
+The two known transparency stretch diagnostics remain separately recorded per
+profile (four deferred findings), with no new required-gate failures.
+
+Reproduction uses the prepared project environment:
+`E:/Projects/shadowbane/.venv/Scripts/python.exe scripts/build_navigation_inspector_package.py --output-root artifacts/p29 --reviewed-client E:/Projects/shadowbane/artifacts/guard-deploy/client-update-20260924/official/sb.exe`.
+The default system Python lacked the `build` module. Its completed native checks
+were not substituted for the final prepared-environment run. Superseded package
+attempts `artifacts/p29/ba50d541` and `artifacts/p29/84fef440` are disposable;
+retained final evidence is the qualified package root above and the existing
+private `artifacts/furnishing-preview` build/static-review evidence.
+
+Next: the coordinator stages the qualified candidate while preserving the live
+client/rollback, then waits for the user to close the game for one restart.
+Supervised preview/recorder acceptance follows. PR #35 remains draft and outside
+`main` until that acceptance and required review; no merge or deployment is
+claimed by this source handoff.

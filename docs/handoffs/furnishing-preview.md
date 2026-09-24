@@ -7,13 +7,14 @@ Source branch `codex/furnishing-preview` starts at freshly fetched
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35) into `main`. This lane owns graphics discovery and the read-only
 furnishing observer; the coordinating carpenter task owns the live VM and
 ordinary selection/drop diagnosis. The [native preview runtime](furnishing-preview-runtime.md)
-is now implemented for local validation; no preview package has been deployed.
+is implemented and packaged from source `0193dd7`; its required checks pass.
+No preview package has been deployed by this lane; live acceptance remains pending.
 
 The client already loads the actual furnishing model for its inventory row.
 Its existing Furniture Placement display is a floor image plus oriented bounds,
-not a full 3D view. Reusing those native assets is feasible in principle. A safe
-render-only model submission and lifetime contract is still required before
-showing the model at a proposed placement. Do not call placement to manufacture
+not a full 3D view. The implemented runtime uses a private render copy of those loaded assets and
+keeps an exact native queue receipt through shader shutdown. The sections below
+record the earlier discovery that established this contract. Do not call placement to manufacture
 preview state, or treat a successful model load as server placement.
 
 ## Inspected inputs

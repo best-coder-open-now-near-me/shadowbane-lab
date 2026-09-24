@@ -32,8 +32,10 @@ through the existing owner callback and persistent frame/context observers.
 The source/private gate now qualifies the reviewed static mesh/loaded-texture
 family and validates queued shader/texture metadata before drawing.
 Cursor/floor pose, rotation and Preview/hold/cancel controls are implemented.
-Native 1.8.29 / host 0.3.49 are reserved for the coherent package. Next: exact-source
-full package validation, then coordinator-owned live visual acceptance. The coordinator separately owns selected-row live evidence;
+Native 1.8.29 / host 0.3.49 passed complete exact-source package validation at
+`0193dd74662eb368c4961a2ab8d9db6826fb70b4`; the runtime handoff records the
+qualified package hashes and all validation. Next: coordinator-owned staging,
+user-confirmed client closure, supervised live acceptance, then PR review/integration. The coordinator separately owns selected-row live evidence;
 the observer now checks actor occupancy against the HUD structure and includes
 an optional bounded resource reader keyed to one owned entry. Ordinary Bench
 single-click selection is now observed; a subsequent drag rebuilt the row and

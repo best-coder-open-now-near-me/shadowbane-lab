@@ -362,3 +362,15 @@ suites pass, including real ABI/fault stand-ins, translated/rotated/scaled build
 poses and moving layout bounds. The mandatory package gate passes 229 host cases.
 This checkpoint still has no registered runtime hooks or live preview. Next:
 persistent frame/context integration, owner controls and integrated validation.
+
+
+## Integrated runtime and package
+
+The production runtime, Preview/rotation/hold/cancel controls, native floor pose,
+persistent queue-drain observation and context/window retirement are integrated
+at source `0193dd7` (native 1.8.29 / host 0.3.49). The qualified package and exact
+hashes are recorded in [the runtime handoff](furnishing-preview-runtime.md).
+All required package gates pass. Earlier "unregistered" / "remaining wiring"
+notes above describe historical checkpoints. The remaining feature validation is
+supervised live acceptance after coordinator-owned staging and user client closure;
+no live result or placement authority is inferred from local tests.
