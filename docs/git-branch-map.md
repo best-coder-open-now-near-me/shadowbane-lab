@@ -5,8 +5,10 @@
 Focused branch `codex/furnishing-preview` starts at `main@a91dfd5` and targets
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
 into `main`. The [renderer handoff](handoffs/furnishing-preview.md)
-records the real floorplan/model path, opt-in read-only observer, and unresolved
-render-only lifetime/transform contracts. It does not enable a 3D preview or
+records the real floorplan/model path, opt-in read-only observer, manifest-matched
+Bench mesh/texture identity, and the shared-state mutations that still prevent
+assuming native draw replay is safe. Render-only lifetime/transform contracts
+remain unresolved. It does not enable a 3D preview or
 change the live VM; ordinary carpenter input/placement diagnosis belongs to the
 coordinating task. This work remains outside main until its PR is merged.
 

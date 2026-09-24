@@ -76,19 +76,39 @@ The current render metadata has unit scale, translation approximately
 `(0.001,0.001,-0.001)`, no children, and collision/bounds enabled. Mesh bounds
 are approximately `(-1.575,0,-0.688689)` to `(1.575,1.147893,0.715165)`.
 These are asset coordinates, not world placement or a server validity verdict.
-Materials, mesh submission and local-to-world transforms remain unqualified.
+The material prefix identifies one mesh, no specular texture, no decal or
+backface doubling, and one type-1 texture `0:622505` with transparency 0,
+wrapping and mipmapping enabled. This resource has a 26-byte header followed
+by exactly 256x256x3 bytes. Native channel order, UV orientation and material
+application still need qualification; no appearance has been visually accepted.
 
-All three inputs match the retained September 24 official manifest:
+The mesh prefix contains 106 vertices, 106 normals, 106 UV pairs and 62 triangles.
+All checked floating-point values are finite, every index is within the vertex
+array, and computed vertex extrema match the stored bounds. These private
+parsers leave five Render bytes and 530 Mesh bytes uninterpreted. This is a
+qualified identity and partial geometry/material audit, not a complete loader.
+
+All four inputs match the retained September 24 official manifest. A fresh
+anonymous fetch of the official manifest during this investigation returned
+identical entries for these four archives:
 
 | Input | SHA-256 | Retained original location |
 | --- | --- | --- |
 | CObjects | `f168b71c63b0f4affb8f53f8f970f9b555309ba6ead095e6e365b9be56b3843f` | September 24 official cache directory above |
 | Render | `5dd78baa0c5ae867e720ec05ba184624ad6dff363a576f48f941100d2e7d3667` | `E:/Projects/shadowbane/artifacts/guard-deploy/client-update-20260919/official/cache/Render.cache` |
 | Mesh | `136f6625faa98a13378274d044d2d5f6920babbb1cb84f2547ecdacbc24e4993` | `E:/Projects/shadowbane/artifacts/Mesh.cache` |
+| Textures | `1a142d73f8e1ef9bed8b56ef3a238203bc16a1da6df9c69b5ca625652d0d968a` | `E:/Projects/shadowbane/artifacts/guard-deploy/client-update-20260919/official/cache/Textures.cache` |
 
 The old top-level artifact Render.cache and Downloads Render.cache failed this
 identity check and were excluded. Private `bench-asset-chain.json` in the task's
-artifact directory retains the exact decoded values and source paths. No cache
+artifact directory retains the exact decoded values and source paths.
+`bench-material.json`, `bench-mesh.json` and `bench-texture.json` preserve the
+prefix audit; `current-official-manifest.json` preserves the fresh identity
+reference. Reproduction helpers are `bench_chain.py`, `qualify_material.py`,
+`bench_texture.py`, `audit_assets.py` and the thunk-resolving `method.py` there;
+they use the existing private parsers under `E:/Projects/shadowbane/artifacts/tools/`.
+The extracted texture payload remains private in that same task directory.
+No cache
 bytes or client geometry are published in the PR.
 
 Five Feudal Mercantile entries (`0:596000`, `0:596400`, `0:596800`, `0:882000`,
@@ -97,6 +117,37 @@ is not a single mesh obtainable from that prefix. Reuse the native destination
 structure and level geometry after reviewing its lifetime and draw contract.
 The existing Python object-navigation decoder provides collision metadata,
 not a textured 3D asset loader or an authoritative placement validator.
+
+## Native draw side effects
+
+Static review found concrete reasons not to replay the row model's native draw
+as an assumed detached preview:
+
+- ArcStaticObject's secondary interface at object `+0x44` has vtable `0x114350c`.
+  Its `+0x0c` slot reaches `0xe9910` and the general render walk `0x3b300`.
+  It is not established as a pure, independently positioned submission.
+- Producer `0x1cb100` allocates a global render wrapper, stores a raw render
+  pointer at wrapper `+0x1c`, and traverses child render objects. No scoped
+  retained preview handle has been established on this path.
+- Wrapper `0x1c8a90` calls native preparation `0x1cd970`, changes native render
+  state, and writes render `+0xec` from wrapper `+0x18` before draw `0x1cb700`.
+  Replaying it therefore mutates the shared render object.
+- Draw `0x1cb700` loads matrices using native camera state and changes the
+  native `GL_NORMALIZE` tracking global (preferred VA `0x1788c20`) according to
+  scale. Restoring driver GL state alone would not restore native caches.
+
+The existing `RenderSceneGeometry` callback contract requires a reviewed caller
+boundary and balanced matrices/framebuffer handling; it does not grant native
+model ownership or make these methods pure. The existing world composition
+safety check also states that no supported late path establishes complete native
+foreground coverage. A late ghost overlay cannot assume correct occlusion merely
+because a camera snapshot is available.
+
+Orientation getter `0xccee0` follows the object pose reference at `+0x4b0` to
+float `+0x110`. Transform helper `0xd5f30` copies a native transform, invokes an
+imported inverse, then transforms a point. These are leads for proving coordinate
+composition; native rotation units/sign and complete world/local conversion
+remain unresolved. No guessed transform is delivered as rendering behavior.
 
 ## Delivered observation boundary
 
@@ -162,8 +213,17 @@ from adding a 3D preview. The unnamed
 outer ArcListControl is expected; the nested LIST00 drag control must be checked
 by the ordinary-workflow lane. No correction to naming or input is inferred here.
 
+The coordinator additionally qualified the current structure class as
+`0x1177c0c`, with one available floor. Getter `0xf2990` computes count as
+`(model[+0x738] - model[+0x734]) / 4`; raw floor 0/display floor 1 is in range.
+Commands 373/374 in `0x6cb130` use bounds `0x68d680`, update `+0x628`, recalculate
+via `0x68b9e0` and refresh the label via `0x593270`, without writing row selection
+`+0x660`. Both arrows are unavailable for this one-floor building. This rules out
+an out-of-range selected floor for that sample, not placement invalidity generally.
+
 Next serialized evidence: select a row without dropping; compare `+0x660`, model
-and source class/key, then floor changes and close/reopen. Verify exact destination
+and source class/key, then close/reopen. Floor-change acceptance requires a
+separately qualified multi-floor destination. Verify exact destination
 structure identity/template/zone; do not identify it by its display name. Static
 review must then finish render-only submission, retained model/structure lifetime,
 local/world transforms and cancellation before a native preview hook is authored.
@@ -184,7 +244,7 @@ Full host validation passed **3,427 tests**, **20 skipped**, and **756 subtests*
 repository-wide Ruff passed. Recorder help exposes `--furnishings`. The new reader
 itself has not yet been run against the live process; the coordinator's independent
 samples qualify the listed field observations, not this implementation end to end.
-PR #35 remains draft with hosted checks pending; no merge is implied.
+PR #35 remains draft; hosted checks are tracked on its exact head. No merge is implied.
 
 Remaining todos: coordinator-owned single-row selection and observer qualification;
 reviewed detached render submission/lifetime and transform proof; then implement
