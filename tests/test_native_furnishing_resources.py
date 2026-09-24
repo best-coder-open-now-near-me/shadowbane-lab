@@ -59,8 +59,10 @@ def evidence(result):
     return result["rows"][0]["render_resources_raw"]
 
 
-def test_unselected_owned_row_yields_resource_evidence_without_render_admission():
+@pytest.mark.parametrize("texture_rva", [resources.SINGLE_TEXTURE_RVA, resources.COLOR_TEXTURE_RVA])
+def test_unselected_owned_row_yields_resource_evidence_without_render_admission(texture_rva):
     m = resource_fixture()
+    m.put(TEXTURE, "<I", m.base_address + texture_rva)
     result = capture(m)
     assert result["selected_entry_address"] == 0
     assert result["list_selected_control_address_raw"] == 0
@@ -209,3 +211,17 @@ def test_nonfinite_transforms_and_opacity_are_rejected(at):
     m.put(at, "<f", float("nan"))
     with pytest.raises(NativeVendorDialogCaptureError, match="nonfinite"):
         capture(m)
+
+
+def test_selected_row_resource_copy_still_does_not_grant_runtime_admission():
+    m = resource_fixture()
+    m.put(TEXTURE, "<I", m.base_address + resources.COLOR_TEXTURE_RVA)
+    m.put(HUD + 0x660, "<I", ENTRY)
+    m.put(LIST + 0x404, "<I", CONTROL)
+    result = capture(m)
+    assert result["rows"][0]["selected"] is True
+    assert result["list_selected_control_address_raw"] == CONTROL
+    assert evidence(result)["nodes"][0]["texture_set"]["textures"][0][
+        "shared_resource_reference"]["address"] == RESOURCE
+    assert not evidence(result)["selection_admitted"]
+    assert not result["command_admitted"]

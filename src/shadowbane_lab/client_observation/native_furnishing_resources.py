@@ -17,6 +17,7 @@ TEMPLATE_RVA = 0x114A074
 MESH_SET_RVA = 0x11499F4
 TEXTURE_SET_RVA = 0x114A5A4
 SINGLE_TEXTURE_RVA = 0x114A2F4
+COLOR_TEXTURE_RVA = 0x114A39C
 MAX_RENDER_NODES = 64
 MAX_RENDER_DEPTH = 8
 MAX_SET_MEMBERS = 16
@@ -62,10 +63,11 @@ def read_render_resources(r: _ReadSet, model: dict[str, int] | None) -> dict[str
     member_count = 0
     base = r.memory.base_address
 
-    def known(reference: dict[str, int] | None, expected: int) -> bool:
-        if reference and reference["class_rva"] != expected:
+    def known(reference: dict[str, int] | None, expected: int | tuple[int, ...]) -> bool:
+        classes = expected if isinstance(expected, tuple) else (expected,)
+        if reference and reference["class_rva"] not in classes:
             unknown.add(reference["class_rva"])
-        return reference is not None and reference["class_rva"] == expected
+        return reference is not None and reference["class_rva"] in classes
 
     def members(pointer: int) -> tuple[int, ...]:
         nonlocal member_count
@@ -85,9 +87,10 @@ def read_render_resources(r: _ReadSet, model: dict[str, int] | None) -> dict[str
         for value in members(pointer):
             texture = _object_reference(r, value)
             item: dict[str, object] = {"reference": texture}
-            if known(texture, SINGLE_TEXTURE_RVA):
+            if known(texture, (SINGLE_TEXTURE_RVA, COLOR_TEXTURE_RVA)):
                 assert texture is not None
-                # +0x5c is retained by native ArcSingleTexture clone 0x1df2d0.
+                # ArcColorTexture clone 0x1df650 delegates to ArcSingleTexture
+                # clone 0x1df2d0, which retains the shared resource at +0x5c.
                 # Its target class/readiness is deliberately not interpreted.
                 item["shared_resource_reference"] = _reference(r, texture["address"] + 0x5C)
             textures.append(item)

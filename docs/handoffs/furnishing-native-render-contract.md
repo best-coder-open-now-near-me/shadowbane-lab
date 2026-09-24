@@ -175,8 +175,9 @@ qualify that branch or require it disabled; a render clone alone is insufficient
 The texture-set copy dispatches virtually for each texture. ArcSingleTexture
 (vtable `0x114a2f4`, clone `0x1df2d0`) creates its own texture wrapper, copies
 metadata and **retains the shared resource at texture+0x5c** through the generic
-adjusted reference interface. ArcColorTexture and ArcAnimatedTexture have
-separate implementations. Do not claim all materials are independent or treat
+adjusted reference interface. ArcColorTexture (vtable `0x114a39c`) clone `0x1df650` delegates to
+`0x1df2d0`, so its `+0x5c` shared reference has the same reviewed ownership.
+ArcAnimatedTexture remains separately unqualified. Do not claim all materials are independent or treat
 an archive texture-type value as the loaded native class. No texture bytes or
 client binaries are required in published source.
 
@@ -226,8 +227,8 @@ invalidate the entire snapshot on reverse verification.
 
 Strict layout predicates (all RVAs): model `0x1143540`, secondary+0x44
 `0x114350c`; render `0x1149dbc`, secondary+0x30 `0x1149d94`; template
-`0x114a074`; mesh set `0x11499f4`; texture set `0x114a5a4`; single texture
-`0x114a2f4`. Unknown primary classes are reported without following their fields.
+`0x114a074`; mesh set `0x11499f4`; texture set `0x114a5a4`; single/color texture
+`0x114a2f4`/`0x114a39c`. Unknown primary classes are reported without following their fields.
 Unknown resource target/mesh classes are raw references only. In particular,
 texture+0x5c resource readiness is not interpreted from an assumed class layout.
 
@@ -244,3 +245,36 @@ calls, retain/release, loading, cloning, drawing or placement. A stable external
 copy still cannot prevent native address reuse. The focused helper/observer/
 recorder suite passes **115 tests**; Ruff passes. Next: coordinator resource
 baseline/selected snapshot, while queue and owner-thread qualification continues.
+
+
+## Selected Bench resource evidence
+
+The coordinator ran the helper transiently, with the exact process creation time
+and prepared executable hash, and obtained a reverse-rechecked selected snapshot.
+Its private receipt is `carpenter-investigation/20260924/selected-resource-graph.json`
+in the coordinator's VM evidence directory; no capture is published here.
+The requested entry key `5017277:30` is selected in both list and HUD, and actor
+occupancy matches structure key `4761372:8`. The screenshot separately shows
+"Furniture deed for Bench". No drop, placement or native function call occurred.
+
+The model/root/template/set classes match the static contract. The root has no
+children, callback flags 2 (registration bit 0 clear), opacity 1, feature bytes
+`[48,16]`, special bytes `[0,0]`, and a null borrowed `+0xf4`. Both current root
+TQS values are the asset-local offset `(0.001,0.001,-0.001)`, identity rotation
+and unit scale; this is not the candidate building/world pose. The mesh set
+has one element and selected index zero. Its actual class is
+**ArcSinglePolyMesh**, vtable `0x11498a0`, qualified by RTTI; no mesh fields are
+interpreted by the helper.
+
+The texture set has one element and selected index zero. Its actual texture is
+**ArcColorTexture**, vtable `0x114a39c`, rather than the initially permitted
+ArcSingleTexture. The initial helper correctly stopped at that unknown class.
+Static qualification of the color clone's direct delegation now permits copying
+its `+0x5c` resource reference only. The target resource class and readiness
+remain unknown until another copied observation; no arbitrary resource fields
+are read. The updated helper/observer/recorder suite passes **117 tests** and Ruff.
+
+This evidence establishes the selected model's simple static resource shape and
+supports further clone qualification independently of placement. It does not
+establish owned native references, GL context/thread admission, queue lifetime,
+rendering, collision validity or placement acceptance.
