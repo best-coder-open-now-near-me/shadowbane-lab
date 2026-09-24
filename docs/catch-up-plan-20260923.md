@@ -6,7 +6,7 @@ Preserve their source, installed runtime and private evidence; do not continue
 carpenter implementation, packaging or live tests without renewed direction.
 
 Freshly fetched `origin/main@a91dfd5` remains the canonical base. Vendor source
-`4e940739f62f364d769b391f061e73c2a18e0dd2` is pushed in draft PR #38. It includes
+`a1a0793b54287149b36e612267495791278bdd03` is pushed in draft PR #38. It includes
 the discovery provenance fix plus typed owner-thread recipe/Inventory commands,
 durable menu journals and automatic Inventory opening after a finished batch.
 The manager checks menu support before its first Create. The full Win32 build,
@@ -35,11 +35,12 @@ retaliation. Offline qualification maps ordinary player selection, native attack
 submission and the conditional local combat exit. Dispatcher success only means
 handled; Clear Target does not stop the retained combat target. Next is truthful
 request submission receipts plus list/party/operation invalidation and guarded
-cancellation, preserving native restrictions and reference ownership.
+cancellation, preserving native restrictions and reference ownership. See the
+[explicit-list combat handoff](handoffs/explicit-list-combat-20260924.md).
 
 Response-driven retaliation remains blocked on server session ordering across
-buffered input. A replacement link wrapper can retain the same socket; local
-receive/decode freshness cannot prove old-character events were fenced. This
+buffered input. The receive buffer can retain bytes across a local character
+change; decode-time freshness cannot prove old-character events were fenced. This
 limitation does not block explicit saved-list combat. No fight or new user
 walkthrough is needed for the current source work. Continue from current main,
 not the old native-lifecycle branch. The [PvP plan](pve-pvp-attack-list-plan.md)
@@ -280,10 +281,10 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Stopped at user direction: carpenter implementation and live testing, including
   automatic preview integration. Preserve pushed source and unfinished edits;
   no further package/deployment or user test is scheduled for this lane.
-- Active: finish the vendor recipe-list random-roll production slice: qualify
-  the actual Inventory close control, then saved recipe admission and durable
+- Active: finish saved random-recipe selection, automatic preparation and
+  generalized single-capacity crafting as one application slice, then durable
   town visits. Keep the separate Create/Keep admission and recovery barriers.
-- Complete source checkpoint: `codex/vendor-town-workflow@4e94073`, draft PR #38
+- Complete source checkpoint: `codex/vendor-town-workflow@a1a0793`, draft PR #38
   to main. Typed owner-thread menu operations and durable menu recovery now
   integrate with the existing finished-batch Inventory/Keep handoff. The full DLL
   build, 12 affected native tests, 172 affected host tests/85 subtests and Ruff
@@ -294,8 +295,14 @@ owner and next action. No guessed carpentry recipes or generalized framework.
   Full inventory freshness/completeness and generalized spending remain unproven.
 - Follow-up read-only capture: all three samples at 22:03 UTC identified the
   owned Inventory list and one unnamed event-50 close control. The assumed named
-  CANCEL is absent. Correct that contract before candidate live acceptance;
-  the check sent no game command and did not change the installed runtime.
+  CANCEL is absent. Correction `4608188` is pushed and the full DLL build plus
+  three native menu tests passed. The check sent no game command and did not
+  change the installed runtime.
+- Complete recipe catalog source: `a1a0793` exposes typed template keys, actual
+  labels and separate selected/activated/retained state through a bounded
+  read-only reader and inspection CLI. 139 catalog/CLI/vendor-reader tests and
+  101 subtests passed; Ruff/diff clean. This observation is not crafting
+  authority or a complete server catalog. Not installed or live-accepted.
 - Parallel PvP qualification: native listed-player selection/attack and local
   combat exit are mapped. Complete truthful submission receipts and guarded
   cancellation before enabling the explicit saved-list combat runner. Automatic

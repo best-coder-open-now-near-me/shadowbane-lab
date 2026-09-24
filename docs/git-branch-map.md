@@ -34,7 +34,7 @@ Earlier installed or staged versions below are historical checkpoints.
 
 ## Vendor recipe-list automation - September 24
 
-`codex/vendor-town-workflow@4e940739f62f364d769b391f061e73c2a18e0dd2`
+`codex/vendor-town-workflow@a1a0793b54287149b36e612267495791278bdd03`
 targets `main` through [draft PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38).
 It contains discovery scene/root provenance plus typed owner-thread recipe and
 Inventory controls, durable no-replay menu evidence, and automatic Inventory
@@ -49,9 +49,11 @@ Hosted CI remains tracked on the exact PR head. This source is pushed, outside
 main, and not packaged or installed. The normal checkout remains clean main.
 
 The random recipe switch and Inventory close/reopen walkthrough are complete.
-A follow-up read-only check identified the actual unnamed Inventory close control;
-its exact contract is being finished before package acceptance. Saved recipe
-admission, durable town visits and full resource/affix/disposal policy remain next.
+The follow-up Inventory close correction `4608188` passed its DLL build and
+three native menu tests. Catalog checkpoint `a1a0793` adds the bounded actual
+recipe-list reader and CLI; 139 affected tests and 101 subtests passed, with Ruff.
+Saved recipe admission, durable town visits and full resource/affix/disposal
+policy remain next. No live automated command has run.
 See the vendor branch's menu implementation and contract handoffs in PR #38.
 Private captures, credentials and binaries remain outside source delivery.
 
@@ -61,7 +63,9 @@ Main already includes the saved attack-list and identity/diagnostic foundation
 through `542c632`. Native listed-player selection, melee entry and conditional
 local combat exit are now qualified offline. Truthful submission receipts and
 serialized list/party/operation invalidation are the next implementation boundary.
-No native combat activation or live fight has been performed. Response-driven
+The [explicit-list combat handoff](handoffs/explicit-list-combat-20260924.md)
+records the entry/exit, receipt and mutation-fence contracts. No native combat
+activation or live fight has been performed. Response-driven
 retaliation separately needs server session-order evidence across buffered input;
 explicit saved-list combat does not depend on that blocked source of authority.
 
