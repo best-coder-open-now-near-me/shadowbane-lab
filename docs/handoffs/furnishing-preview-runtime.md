@@ -119,7 +119,7 @@ Reproduction uses the prepared project environment:
 `E:/Projects/shadowbane/.venv/Scripts/python.exe scripts/build_navigation_inspector_package.py --output-root artifacts/p29 --reviewed-client E:/Projects/shadowbane/artifacts/guard-deploy/client-update-20260924/official/sb.exe`.
 The default system Python lacked the `build` module. Its completed native checks
 were not substituted for the final prepared-environment run. Superseded package
-attempts `artifacts/p29/ba50d541` and `artifacts/p29/84fef440` are disposable;
+attempts `artifacts/p29/ba50d541` and `artifacts/p29/84fef440` were removed;
 retained final evidence is the qualified package root above and the existing
 private `artifacts/furnishing-preview` build/static-review evidence.
 
@@ -128,3 +128,45 @@ client/rollback, then waits for the user to close the game for one restart.
 Supervised preview/recorder acceptance follows. PR #35 remains draft and outside
 `main` until that acceptance and required review; no merge or deployment is
 claimed by this source handoff.
+
+
+## Live operator cues and coordinated restart
+
+Use the coordinating task's one restart. When convenient, the user closes
+WonderBane normally in the VM and confirms there. After that task updates and
+validates the closed client, launch **Vendor Test**, log in as **Bart**, retain
+the **Bench contract**, and wait for capture to be armed. Return to the occupied
+carpenter building and Furniture Placement. Select Bench once, then use Preview,
+rotation, hold/follow and Cancel first, without ordinary placement. The coordinator
+separately conducts one ordinary placement capture after preview has ended.
+
+The Preview bar is visible only for an admitted visible furnishing HUD, matching
+occupied building, selected owned static model and selected floor. No bar means
+that admission is unavailable; it is not evidence of a server or resource fault.
+The initial Preview button is an entry point, not prior proof of resource support.
+
+- `Move over the selected floor plan to preview`: the copy was acquired; no valid
+  floor point is currently selected.
+- `Preview only - click floor plan to hold; Esc cancels`: a candidate pose is ready.
+- `Position held - rotate, or click the floor plan to follow again`: hold mode.
+- `This item's loaded model is unavailable for preview`: qualification/acquisition
+  rejected the current loaded model. Do not infer which resource field failed.
+- `Preview unavailable at this building or floor`: candidate pose is unavailable,
+  including unsupported nonuniform/negative building scale.
+- `Preview unavailable for this session`: uncertain native ownership/lifecycle;
+  no replacement clone is allocated in that session.
+
+These status cues describe admission and pose, not proof that pixels were drawn.
+The operator must visually verify the actual textured model, scale, floor height,
+orientation, removal on cancellation and no placement dispatch. The supported
+resource path is the reviewed ArcStaticModel / ArcObjRender tree with one selected
+ArcSinglePolyMesh and loaded ArcColorTexture/ArcImage per node (up to 64 nodes).
+Other families remain unavailable. Graphics context/drawable loss disables this
+session; selecting the item again cannot override that lifetime decision.
+
+PR #35 includes recorder source `c764e22` and its package handoff `5beb192` through
+merge `c890260`; it does not include the coordinator's later recorder staging-only
+document `2672e26`. PR #37 and PR #35 remain separate unmerged reviews targeting
+`main`. The combined package contains recorder source already; neither a branch
+push nor staging merges either PR. Preserve the later staging documentation when
+reviewing the overlapping branches for integration.
