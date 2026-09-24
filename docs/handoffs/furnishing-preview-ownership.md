@@ -346,3 +346,19 @@ not a game execution or visual acceptance claim.
 Next active item: cursor-to-floor pose and rotation, followed by persistent
 frame/context hooks and Preview controls. Version/package coordination and live
 visual validation remain pending; the VM has not been changed by this lane.
+
+
+## Floor pose checkpoint - September 24
+
+Selection capture now journals the native HUD rectangle, scale and exact mapping
+interfaces. The guarded x86 floor adapter invokes only `0x5936d0`: normal no-hit,
+unavailable authority, successful finite XYZ and native fault are distinct.
+Quarter-turn candidate poses compose the floor-local point and negative-Y heading
+with the occupied building transform; unsupported nonuniform or negative building
+scale is rejected because the rotated result may require shear.
+
+The full Release extension builds with warnings as errors. Six furnishing CTest
+suites pass, including real ABI/fault stand-ins, translated/rotated/scaled building
+poses and moving layout bounds. The mandatory package gate passes 229 host cases.
+This checkpoint still has no registered runtime hooks or live preview. Next:
+persistent frame/context integration, owner controls and integrated validation.

@@ -3,6 +3,7 @@
 #include "movement_native_image.h"
 #include "movement_lifetime.h"
 #include <cstring>
+#include <cmath>
 
 namespace wonderbane::extension::furnishing {
 static_assert(sizeof(void*) == sizeof(Address));
@@ -27,6 +28,7 @@ bool NativeCalls::Configure() noexcept {
     calls_.release = reinterpret_cast<decltype(calls_.release)>(base_ + 0x89bd0);
     calls_.compose = reinterpret_cast<decltype(calls_.compose)>(base_ + 0x1c5950);
     calls_.enqueue = reinterpret_cast<decltype(calls_.enqueue)>(base_ + 0x1cb020);
+    calls_.floor = reinterpret_cast<decltype(calls_.floor)>(base_ + 0x5936d0);
     calls_.erase = reinterpret_cast<decltype(calls_.erase)>(base_ + 0x4d9a70);
     return true;
 }
@@ -116,4 +118,28 @@ bool NativeCalls::Pool(QueueReceipt::Pool& pool) const noexcept {
 bool NativeCalls::Erase(Address queue, Address node) noexcept {
     return Owner() && Pointer(queue) && Pointer(node) && Guard(Action::erase, queue, nullptr, nullptr, node);
 }
+NativeCalls::FloorResult NativeCalls::FloorCxx(Address hud, int x, int y, std::array<float,3>& point) noexcept {
+    try { return calls_.floor(reinterpret_cast<void*>(hud), x, y, &point) ? FloorResult::hit : FloorResult::miss; }
+    catch (...) { return FloorResult::fault; }
+}
+NativeCalls::FloorResult NativeCalls::FloorGuard(Address hud, int x, int y, std::array<float,3>& point) noexcept {
+    __try { return FloorCxx(hud,x,y,point); }
+    __except(EXCEPTION_EXECUTE_HANDLER) { return FloorResult::fault; }
+}
+NativeCalls::FloorResult NativeCalls::Floor(const Selection& s, int x, int y, std::array<float,3>& out) noexcept {
+    out = {};
+    Address type=0, structure=0, floor=0;
+    if (!Owner() || !calls_.floor || !ReadValue(s.hud,type) || type!=base_+0x1167c68
+        || !ReadValue(s.hud+0x64c,structure) || structure!=s.structure
+        || !ReadValue(s.hud+0x628,floor) || floor!=s.floor) { return FloorResult::unavailable; }
+    std::array<float,3> point{};
+    const auto result=FloorGuard(s.hud,x,y,point);
+    if (result==FloorResult::hit) {
+        for (float v:point) { if (!std::isfinite(v)) { return FloorResult::fault; } }
+        if (!Owner()) { return FloorResult::fault; }
+        out=point;
+    }
+    return result;
+}
+
 }

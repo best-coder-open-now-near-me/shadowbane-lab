@@ -35,6 +35,9 @@ struct Memory {
         Put(base + 0x16a7bfc, root); Put(base + 0x16a2d98, actor);
         Type(root, 0x1174884); Put(root + 0x64, A{2}); Put(root + 0x20, head); Put(root + 0xa4, manager);
         Words(head, {node,node}); Words(node, {head,head,hud}); Type(hud,0x1167c68);
+        Type(hud+4,0x1167c2c); Type(base+0x1167c2c+0x1c,0x25167);
+        Type(base+0x1167c68+0x14c,0x9e0d); Type(base+0x1167c68+0x154,0x140ba); Type(base+0x1167c68+0x244,0x22a39);
+        Words(hud+8,{100,100,600,600}); Put(hud+0x640,6.25012255f);
         Type(actor,0x114165c); Put(actor+0x4b0,actor_component); Put(actor_component,actor_pose); Put(actor_pose+8,building);
         Type(building,0x1177c0c); Words(building+0x18,{4761372,8});
         Put(building+0x4b0,building_component); Put(building_component,building_pose); Put(building_pose+0x20,transform);
@@ -85,7 +88,7 @@ int main() {
         Memory m; m.Put(field,A{0x320000}); Reject(m);
     }
     for (auto field : {hud+0x628,building+0x18,entry+0x10,deed+0x7b8}) { Memory m; m.Put(field,A{0xffffffff}); Reject(m); }
-    for (auto field : {hud+0x37c,hud+0x638,building_pose+0x20,building_pose+0x2c}) { Memory m; m.Put(field,std::numeric_limits<float>::quiet_NaN()); Reject(m); }
+    for (auto field : {hud+0x37c,hud+0x640,hud+0x638,building_pose+0x20,building_pose+0x2c}) { Memory m; m.Put(field,std::numeric_limits<float>::quiet_NaN()); Reject(m); }
     { Memory m; m.Put(hud+0x37c,0.0f); Reject(m); }
     { Memory m; m.Put(hud+0x630,A{0}); Reject(m); }
     { Memory m; m.Put(building_pose+0x2c,2.0f); Reject(m); }

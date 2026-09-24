@@ -83,7 +83,12 @@ bool SelectionCapture::Run(const Owner& owner, Selection& s) noexcept {
         || !Read(s.structure + 0x18, s.building) || !ValidKey(s.building, 8)
         || !Hud(s.root, s.hud) || !Read(s.root + 0xa4, s.manager) || !Type(s.manager, 0x1171adc)
         || !Require(s.hud + 0x104, s.manager) || !Require(s.manager + 0xa8, s.hud)
-        || !Require(s.hud + 0x64c, s.structure)) { return false; }
+        || !Require(s.hud + 0x64c, s.structure)
+        || !Type(s.hud + 4, 0x1167c2c)
+        || !Type(access_.base + 0x1167c2c + 0x1c, 0x25167)
+        || !Type(access_.base + 0x1167c68 + 0x14c, 0x9e0d)
+        || !Type(access_.base + 0x1167c68 + 0x154, 0x140ba)
+        || !Type(access_.base + 0x1167c68 + 0x244, 0x22a39)) { return false; }
     std::array<Address, 512> children{}; std::size_t count = 0;
     if (!Vector(s.hud + 0x54, children.data(), children.size(), count)
         || !Read(s.hud + 0x524, s.list) || !Read(s.hud + 0x648, s.layout)
@@ -118,6 +123,8 @@ bool SelectionCapture::Run(const Owner& owner, Selection& s) noexcept {
         || !Read(pose + 0x20, s.building_world) || !ValidTransform(s.building_world)
         || !Read(s.hud + 0x630, s.dimensions) || s.dimensions[0] <= 0 || s.dimensions[1] <= 0
         || !Read(s.hud + 0x638, s.offset) || !std::isfinite(s.offset[0]) || !std::isfinite(s.offset[1])
+        || !Read(s.hud + 8, s.rectangle)
+        || !Read(s.hud + 0x640, s.layout_scale) || !std::isfinite(s.layout_scale) || s.layout_scale <= 0
         || !Read(s.hud + 0x37c, s.zoom) || !std::isfinite(s.zoom) || s.zoom <= 0) { return false; }
     return true;
 }

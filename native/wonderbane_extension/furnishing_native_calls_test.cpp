@@ -28,6 +28,9 @@ void __fastcall Clone(void* receiver,void*,A* slot,bool recursive) { kind=2; rec
 void __fastcall Release(A* slot,void*,void* adopted) { kind=3; assert(!adopted); argument_seen=*slot; *slot=0; Fault(); }
 void __fastcall Compose(void* receiver,void*,const f::Transform* t) { kind=4; receiver_seen=reinterpret_cast<A>(receiver); assert(*t==pose); Fault(); }
 void __fastcall Enqueue(void* receiver,void*,void* q) { kind=5; receiver_seen=reinterpret_cast<A>(receiver); argument_seen=reinterpret_cast<A>(q); Fault(); }
+bool __fastcall Floor(void* receiver,void*,int x,int y,std::array<float,3>* point) {
+    kind=7; receiver_seen=reinterpret_cast<A>(receiver); assert(x==123 && y==456); *point={2,3,4}; Fault(); return mode!=3;
+}
 void __fastcall Erase(void* q,void*,void* n) { kind=6; receiver_seen=reinterpret_cast<A>(q); argument_seen=reinterpret_cast<A>(n); Fault(); }
 }
 namespace wonderbane::extension {
@@ -49,6 +52,7 @@ struct NativeCallsTestAccess {
         n.calls_.compose=reinterpret_cast<decltype(n.calls_.compose)>(&::Compose);
         n.calls_.enqueue=reinterpret_cast<decltype(n.calls_.enqueue)>(&::Enqueue);
         n.calls_.erase=reinterpret_cast<decltype(n.calls_.erase)>(&::Erase);
+        n.calls_.floor=reinterpret_cast<decltype(n.calls_.floor)>(&::Floor);
         n.calls_.context=&Context; n.calls_.dc=&Dc;
     }
 };
@@ -80,6 +84,13 @@ int main() {
     assert(n.Release(&slot) && !slot && argument_seen==clone && kind==3); slot=model; assert(n.Release(&slot) && !slot);
     Put(image+0x1388bf4,A{0x240000}); Put(image+0x12d6de8,A{16}); Put(image+0x1388c08,A{2});
     f::QueueReceipt::Pool pool{}; assert(n.Pool(pool) && pool.begin==0x240000 && pool.capacity==16 && pool.used==2);
+    alignas(4) std::array<unsigned char,0x680> h{};
+    f::Selection selection{}; selection.hud=reinterpret_cast<A>(h.data()); selection.structure=0x250000; selection.floor=0;
+    Put(selection.hud,image+0x1167c68); Put(selection.hud+0x64c,selection.structure); Put(selection.hud+0x628,selection.floor);
+    std::array<float,3> point{};
+    assert((n.Floor(selection,123,456,point)==f::NativeCalls::FloorResult::hit && point==std::array<float,3>({2,3,4})));
+    assert(receiver_seen==selection.hud && kind==7);
+    mode=3; assert((n.Floor(selection,123,456,point)==f::NativeCalls::FloorResult::miss && point==std::array<float,3>{})); mode=0;
     const auto prior=calls;
     reference_ok=false; slot=model; assert(!n.RetainModel(model,&slot)); reference_ok=true;
     Put(image+0x1149d70+4,image+0x127ac); slot=0; assert(!n.Clone(render,&slot)); Put(image+0x1149d70+4,image+0x127ab);
@@ -90,6 +101,7 @@ int main() {
     context=reinterpret_cast<HGLRC>(2); assert(!n.Owner() && !n.Compose(clone,pose)); context=reinterpret_cast<HGLRC>(1);
     std::thread foreign([&] { assert(!n.Owner() && !n.Compose(clone,pose)); }); foreign.join(); assert(calls==prior);
     for(mode=1;mode<=2;++mode) {
+        assert((n.Floor(selection,123,456,point)==f::NativeCalls::FloorResult::fault && point==std::array<float,3>{}));
         slot=model; assert(!n.RetainModel(model,&slot) && slot==model);
         slot=0; assert(!n.Clone(render,&slot) && slot==clone); // publication survives a native fault
         assert(!n.Compose(clone,pose) && !n.Enqueue(clone,queue) && !n.Erase(queue,node));

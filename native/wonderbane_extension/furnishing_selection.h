@@ -19,7 +19,8 @@ struct Selection {
     // The same native mapping inputs used by the floor-height method.
     std::array<std::int32_t, 2> dimensions{};
     std::array<float, 2> offset{};
-    float zoom = 0;
+    std::array<std::int32_t, 4> rectangle{};
+    float zoom = 0, layout_scale = 0;
     bool SameIdentity(const Selection&) const noexcept;
 };
 // This is a synchronous owner-thread capture, not a lifetime lease. The caller
