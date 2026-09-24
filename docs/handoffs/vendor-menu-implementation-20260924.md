@@ -46,10 +46,16 @@ parent invalidates the adapter.
 
 ## Remaining work
 
-The actual Inventory close control and full event-parent routes are dynamically
-checked, with no guessed fallback. They were not all captured by the earlier
-manual walkthrough; candidate live acceptance remains required. A missing named
-CANCEL or unsupported route returns unavailable and does not invoke another control.
+A follow-up read-only Inventory capture found one unnamed generic close control,
+not a named CANCEL. All three stable samples agree on event zero [50, 0, 0], empty
+native string payload, zero event parent and enabled/visible state. Exact static
+routing binds that event to the current manager-owned Inventory: handler 0x6c9300
+closes manager+0x7c and clears the Inventory-open flag. The adapter now requires
+that flag, unique unnamed control and complete qualified binding. Duplicate,
+named, hidden, disabled or changed-payload candidates are rejected. Recipe closing
+retains its independently observed named CANCEL contract. Focused mapped native
+regressions pass; no automated game command has run. Candidate live acceptance
+and full event-parent route acceptance remain required.
 
 Next: saved random-recipe admission and durable town plan/visit scheduling, followed
 by a coherent versioned package and supervised acceptance. Recipe preparation is

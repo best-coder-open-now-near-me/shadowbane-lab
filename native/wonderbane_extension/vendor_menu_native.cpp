@@ -133,6 +133,27 @@ bool Button(Reader& r, std::uint32_t hud, const wchar_t* name, std::uint32_t act
     }
     return r.ok && result;
 }
+bool InventoryClose(Reader& r, const wire::Snapshot& s, std::uint32_t& result) noexcept {
+    result = 0;
+    if (!s.inventory || s.front_hud != s.inventory || s.recipe) { return false; }
+    r.Require(s.manager + 0x7c, s.inventory); r.Require(s.manager + 0x58, 1);
+    r.Require(s.inventory, r.base + 0x116c64c);
+    r.Require(s.inventory + 0x104, s.manager); r.Require(s.inventory + 0x3f4, s.manager);
+    std::array<std::uint32_t, 512> children{};
+    const auto count = r.Vector(s.inventory + 0x54, children);
+    for (std::size_t i = 0; r.ok && i < count; ++i) {
+        const auto p = children[i]; r.Require(p + 0x3bc, s.inventory);
+        if (r.Word(p) != r.base + 0x1169ec0 || r.Word(p + 0x1d0) != 50) { continue; }
+        // Exact observed Inventory control is unnamed. Reject duplicate or named
+        // action-50 controls instead of guessing which one owns the close action.
+        if (result || !r.Name(p, L"") || !r.Visible(p) || !r.Action(p, 50) || r.Word(p + 0xe8)) { return false; }
+        // ArcString's final native fields are zero for this observed empty event.
+        // Its allocator and empty-buffer addresses remain native-owned values.
+        r.Require(p + 0x1ec, 0); r.Require(p + 0x1f0, 0);
+        result = p;
+    }
+    return r.ok && result;
+}
 bool Matches(std::uintptr_t base, const movement::NativeScene& scene, const wire::Snapshot& expected) noexcept {
     wire::Snapshot now{};
     if (!Capture(base, scene, now)) { return false; }
@@ -258,7 +279,7 @@ wire::Outcome Invoke(std::uintptr_t base, const movement::NativeScene& scene, wi
         case wire::Verb::open_recipe: return Button(r, current.menu, L"BTNCREATEITEM", 0x5a1, control);
         case wire::Verb::open_inventory: return Button(r, current.menu, L"BTNVIEW", 0x58c, control);
         case wire::Verb::close_recipe: return Button(r, current.recipe, L"CANCEL", 50, control);
-        case wire::Verb::close_inventory: return Button(r, current.inventory, L"CANCEL", 50, control);
+        case wire::Verb::close_inventory: return InventoryClose(r, current, control);
         case wire::Verb::random_mode: {
             Recipe g{}; if (!RecipeGraph(r, current, g)) { return false; } control = 0;
             for (std::size_t i = 0; r.ok && i < g.node_count; ++i) {

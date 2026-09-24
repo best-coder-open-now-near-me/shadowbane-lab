@@ -23,7 +23,7 @@ constexpr std::uint32_t ROOT=0x1000, MANAGER=0x2000, MENU=0x3000, HIRE=0x4000,
  PANEL=0xa000, BORDER=0xb000, LIST=0xc000, ROW1=0xd000, ROW2=0xe000,
  ENTRY1=0xf000, ENTRY2=0x10000, TEMPLATE1=0x11000, TEMPLATE2=0x12000,
  OPEN=0x13000, VIEW=0x14000, CANCEL=0x15000, MAGIC=0x16000, INVENTORY=0x17000,
- ICANCEL=0x18000, WRAPPER=0x19000, TAB=0x1a000, HEAD=0x1b000, ILIST=0x1c000;
+ ICANCEL=0x18000, WRAPPER=0x19000, TAB=0x1a000, HEAD=0x1b000, ILIST=0x1c000, ICANCEL2=0x1d000;
 std::uint32_t P(std::uint32_t off) { return base + off; }
 void Put(std::uint32_t off, std::uint32_t value) { std::memcpy(reinterpret_cast<void*>(P(off)), &value, 4); }
 std::uint32_t Word(std::uint32_t off) { std::uint32_t v; std::memcpy(&v, reinterpret_cast<void*>(P(off)), 4); return v; }
@@ -72,7 +72,7 @@ bool __fastcall Button(void* self,void*,std::uint32_t event,std::uint32_t flag) 
     if(reenter) nested=n::Invoke(base,scene,V::open_recipe,command,&Admit,nullptr);
     const auto p=reinterpret_cast<std::uint32_t>(self);
     if(p==P(OPEN)) Huds({RECIPE,MENU});
-    else if(p==P(VIEW)) { Put(MANAGER+0x7c,P(INVENTORY)); Huds({INVENTORY,MENU}); }
+    else if(p==P(VIEW)) { Put(MANAGER+0x7c,P(INVENTORY)); Put(MANAGER+0x58,1); Huds({INVENTORY,MENU}); }
     else if(p==P(CANCEL)||p==P(ICANCEL)) Huds({MENU});
     else { assert(p==P(MAGIC)); Put(RECIPE+0x404,1); Put(RECIPE+0x40c,3362971591U); Put(RECIPE+0x434,3362971591U); }
     return false; // Generic handler return is not action completion.
@@ -109,7 +109,7 @@ void Reset(bool recipe=true) {
     Put(ENTRY1,P(0x116c2d0)); Put(ENTRY1+0x10,26990); Put(ENTRY2,P(0x116c2d0)); Put(ENTRY2+0x10,5051080);
     Put(TEMPLATE1,P(0x1142748)); Put(TEMPLATE1+0x10,26990); Put(TEMPLATE2,P(0x1142748)); Put(TEMPLATE2+0x10,5051080);
     Put(INVENTORY,P(0x116c64c)); Put(INVENTORY+0x104,P(MANAGER)); Put(INVENTORY+0x3f4,P(MANAGER));
-    Vector(INVENTORY+0x54,{ICANCEL,ILIST}); Control(ICANCEL,0x1169ec0,INVENTORY,L"CANCEL"); Put(ICANCEL+0x1d0,50);
+    Vector(INVENTORY+0x54,{ICANCEL,ILIST}); Control(ICANCEL,0x1169ec0,INVENTORY); Put(ICANCEL+0x1d0,50);
     Control(ILIST,0x116acf0,INVENTORY); Put(INVENTORY+0x3f0,P(ILIST));
     if(recipe) Huds({RECIPE,MENU}); else Huds({MENU});
     scene={}; scene.epoch=1; scene.window=P(ROOT);
@@ -162,9 +162,30 @@ int main() {
     }
     Reset(); Prepare(); assert(Invoke(V::close_recipe)==O::submitted); Prepare(); assert(!command.expected.recipe && Invoke(V::close_recipe)==O::observed);
     Reset(false); Prepare(); assert(Invoke(V::open_inventory)==O::submitted); Prepare(); assert(command.expected.inventory && Invoke(V::close_inventory)==O::submitted);
-    Reset(false); Put(MANAGER+0x7c,P(INVENTORY)); Huds({INVENTORY,MENU}); Prepare(); Put(ICANCEL+0x1d0,0x50); assert(Invoke(V::close_inventory)==O::unavailable && !calls);
+    Reset(false); Put(MANAGER+0x7c,P(INVENTORY)); Put(MANAGER+0x58,1); Huds({INVENTORY,MENU}); Prepare(); Put(ICANCEL+0x1d0,0x50); assert(Invoke(V::close_inventory)==O::unavailable && !calls);
+    for(unsigned fault=0;fault<10;++fault) {
+        Reset(false); Put(MANAGER+0x7c,P(INVENTORY)); Put(MANAGER+0x58,1); Huds({INVENTORY,MENU}); Prepare();
+        switch(fault) {
+        case 0: Name(ICANCEL,L"CANCEL"); break; // Not this client's observed Inventory binding.
+        case 1: Control(ICANCEL2,0x1169ec0,INVENTORY); Put(ICANCEL2+0x1d0,50); Vector(INVENTORY+0x54,{ICANCEL,ILIST,ICANCEL2}); break;
+        case 2: Put(ICANCEL+0xe8,P(PANEL)); break;
+        case 3: Put(ICANCEL+0x1a8,1); break;
+        case 4: Put(ICANCEL+0x304,0x100); break;
+        case 5: Put(ICANCEL+0x1d4,1); break;
+        case 6: Put(ICANCEL+0x1ec,1); break;
+        case 7: Put(ICANCEL+0x1f0,1); break;
+        case 8: Put(MANAGER+0x58,0); break;
+        case 9: Put(ICANCEL+0x1e0,P(0x45000)); Put(ICANCEL+0x1e4,P(0x45002)); Put(ICANCEL+0x1e8,P(0x45002)); break;
+        }
+        assert(Invoke(V::close_inventory)==O::unavailable && !calls);
+    }
+    Reset(false); Put(MANAGER+0x7c,P(INVENTORY)); Put(MANAGER+0x58,1); Huds({INVENTORY,MENU});
+    // Match the retained allocated-but-empty ArcString, including its capacity.
+    Put(ICANCEL+0x1dc,P(0x46000)); Put(ICANCEL+0x1e0,P(0x45000)); Put(ICANCEL+0x1e4,P(0x45000)); Put(ICANCEL+0x1e8,P(0x45010));
+    Prepare(); assert(Invoke(V::close_inventory)==O::submitted && calls==1);
+    Reset(); Prepare(); Name(CANCEL,L""); assert(Invoke(V::close_recipe)==O::unavailable && !calls);
     for(unsigned fault=0;fault<4;++fault) {
-        Reset(false); Put(MANAGER+0x7c,P(INVENTORY)); Huds({INVENTORY,MENU}); Prepare();
+        Reset(false); Put(MANAGER+0x7c,P(INVENTORY)); Put(MANAGER+0x58,1); Huds({INVENTORY,MENU}); Prepare();
         if(fault==0) Put(INVENTORY+0x3f0,0);
         if(fault==1) Vector(INVENTORY+0x54,{ICANCEL});
         if(fault==2) Put(ILIST,P(0x1169ec0));
