@@ -1,6 +1,6 @@
 """Continuous read-only workflow evidence for one reviewed game-process lifetime.
 
-Window readers need only host Python; optional response capture requires native 1.8.23.
+Window readers need only host Python; response channels require a supporting native extension.
 Samples are sequential, not a transaction or a server receipt. Short-lived states
 between polls can be missed. This module never acquires an action channel.
 """
@@ -220,6 +220,8 @@ def main():
                         help="include read-only furnishing selection and native model references")
     parser.add_argument("--condemn-responses", action="store_true",
                         help="include native 1.8.23 Condemn receive/processing events")
+    parser.add_argument("--furniture-responses", action="store_true",
+                        help="include native Furniture lifecycle events; serializing is not sent")
     parser.add_argument("--duration", type=float, default=1800)
     parser.add_argument("--interval", type=float, default=0.2)
     args = parser.parse_args()
@@ -244,6 +246,16 @@ def main():
                 args.process_id, args.creation, WindowsSharedMemorySnapshotReader(),
             )
             readers["condemn_responses"] = lambda _: responses.drain()
+        if args.furniture_responses:
+            from shadowbane_lab.client_extension.event_reader import (
+                WindowsSharedMemorySnapshotReader,
+            )
+            from shadowbane_lab.client_extension.furniture_responses import FurnitureResponseReader
+
+            furniture_responses = FurnitureResponseReader(
+                args.process_id, args.creation, WindowsSharedMemorySnapshotReader(),
+            )
+            readers["furniture_responses"] = lambda _: furniture_responses.drain()
         result = record_workflow(
             memory, args.output, args.stop_file, process_id=args.process_id,
             creation=args.creation, duration=args.duration, interval=args.interval, readers=readers,

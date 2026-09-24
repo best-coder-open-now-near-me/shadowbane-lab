@@ -117,13 +117,13 @@ def test_targeted_action_gates_must_execute_once(tmp_path, name, outcome):
 
 @pytest.mark.parametrize(
     "name", sorted(builder.REQUIRED_VENDOR_TESTS | builder.REQUIRED_GUARD_TESTS
-                   | builder.REQUIRED_CONDEMN_TESTS),
+                   | builder.REQUIRED_CONDEMN_TESTS | builder.REQUIRED_FURNITURE_TESTS),
 )
 @pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "error", "duplicate"])
 def test_vendor_gates_must_execute_once(tmp_path, name, outcome):
     suite = ET.Element("testsuite")
     required_tests = (builder.REQUIRED_VENDOR_TESTS | builder.REQUIRED_GUARD_TESTS
-                      | builder.REQUIRED_CONDEMN_TESTS)
+                      | builder.REQUIRED_CONDEMN_TESTS | builder.REQUIRED_FURNITURE_TESTS)
     for required in required_tests:
         if required == name and outcome == "missing":
             continue

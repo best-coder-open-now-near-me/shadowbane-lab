@@ -15,6 +15,13 @@ records exact queue and standard static shader cleanup behavior. It does not ena
 change the live VM; ordinary carpenter input/placement diagnosis belongs to the
 coordinating task. This work remains outside main until its PR is merged.
 
+Before preview runtime wiring, this branch incorporated furniture response recorder
+source `c764e22` and its validated-package handoff `5beb192` from
+[PR #37](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/37).
+This preserves native 1.8.28 / host 0.3.48 diagnostics as a dependency; it does
+not merge either PR into `main` or authorize a preview deployment. Subsequent
+version assignment and packaging remain coordinated with that task.
+
 Next: qualify clone eligibility and queued-resource retirement, then implement
 the native preview. The coordinator separately owns selected-row live evidence;
 the observer now checks actor occupancy against the HUD structure and includes
@@ -39,6 +46,21 @@ that PR records final-head checks and merge status. See the
 [update review](client-update-20260924.md) for exact package identities and rollback.
 The next live step is the user's launch/login, then Barracks/vendor observations.
 Use freshly fetched `origin/main` after PR #34 merges for further development.
+
+## Furniture response diagnostics - September 24
+
+`codex/furniture-response-diagnostics` targets `main` from `a91dfd5` through
+[draft PR #37](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/37).
+Exact source `c764e22d1bd94fe3a84fd53a31d42d4c959d8a20` passed the complete
+package gates; installation and a supervised placement capture remain pending.
+It owns the passive native Furniture message recorder and host capture path,
+versioned 1.8.28 / 0.3.48; see the
+[diagnostic handoff](handoffs/furniture-response-diagnostics.md) for exact scope,
+validation state and next live step. This is separate from the preview modules in
+[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
+and discovery documentation in
+[PR #36](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/36).
+Neither source publication nor a message observation establishes placement success.
 
 ## Canonical development base - September 23
 

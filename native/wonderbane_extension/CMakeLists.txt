@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.27 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.28 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -30,6 +30,7 @@ add_library(
   movement_boundary_trace.cpp
   targeted_action_trace.cpp
   condemn_responses.cpp
+  furniture_responses.cpp
   condemn_native.cpp
   movement_controls.cpp
   movement_windows_input.cpp
@@ -1324,5 +1325,19 @@ if(BUILD_TESTING)
     target_compile_options(wonderbane_extension_condemn_${kind}_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
     add_test(NAME wonderbane_extension_condemn_${kind} COMMAND wonderbane_extension_condemn_${kind}_test)
     set_tests_properties(wonderbane_extension_condemn_${kind} PROPERTIES TIMEOUT 15)
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_furniture_responses_test furniture_responses_test.cpp)
+  target_compile_features(wonderbane_extension_furniture_responses_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_furniture_responses_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_furniture_responses_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  set_property(TARGET wonderbane_extension_furniture_responses_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_furniture_responses COMMAND wonderbane_extension_furniture_responses_test)
+  set_tests_properties(wonderbane_extension_furniture_responses PROPERTIES TIMEOUT 15)
+  foreach(step RANGE 1 4)
+    add_test(NAME wonderbane_extension_furniture_rollback_${step} COMMAND wonderbane_extension_furniture_responses_test ${step})
+    set_tests_properties(wonderbane_extension_furniture_rollback_${step} PROPERTIES TIMEOUT 15)
   endforeach()
 endif()
