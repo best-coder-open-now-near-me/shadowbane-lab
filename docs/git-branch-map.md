@@ -10,7 +10,8 @@ Bench mesh/texture identity, and the shared-state mutations that still prevent
 assuming native draw replay is safe. The [continued native contract](handoffs/furnishing-native-render-contract.md)
 records occupancy as building identity, verified TQS/heading conventions, and
 private clone/static queue candidates. Clone eligibility and queue retirement
-remain unresolved. It does not enable a 3D preview or
+remain under qualification; the [ownership review](handoffs/furnishing-preview-ownership.md)
+records exact queue and standard static shader cleanup behavior. It does not enable a 3D preview or
 change the live VM; ordinary carpenter input/placement diagnosis belongs to the
 coordinating task. This work remains outside main until its PR is merged.
 

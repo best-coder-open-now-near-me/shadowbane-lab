@@ -406,3 +406,8 @@ Next: continue private render-copy and queue-retirement qualification without
 changing shared native runtime wiring while the coordinator implements response
 diagnostics. The native preview remains unfinished; merge PR #35 into `main`
 only after its final implementation and required review/validation.
+
+
+The [continued ownership qualification](furnishing-preview-ownership.md) records
+exact queue insertion/erase behavior, borrowed shader parameters, two standard
+static shader shutdown paths, and the remaining native lifecycle gates.
