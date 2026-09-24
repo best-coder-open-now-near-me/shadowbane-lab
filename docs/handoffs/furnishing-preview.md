@@ -56,9 +56,10 @@ changed by this lane.
 | Placement handler | `0x6e7560` | Resolves floor point, builds FurnitureMsg operation 3 and dispatches; this is a server mutation |
 | Existing move/rotate state | `0x5937b0`, `0x5937e0` | Marks scene entry dirty before inherited operation; must not repurpose committed-object edits as preview |
 
-The floorplan and ordinary placement transforms are building-local; no world
-translation/yaw composition has been qualified for a new renderer. Do not copy
-floor coordinates into a world draw or assume the native rotation unit/sign.
+The floorplan and ordinary placement transforms are building-local. The
+[continued native contract review](furnishing-native-render-contract.md) records
+the subsequently verified TQS/heading conventions and occupied-building rule.
+Rotated-building runtime acceptance and a native render lifetime remain open.
 
 ## Asset findings
 
@@ -126,12 +127,14 @@ as an assumed detached preview:
 - ArcStaticObject's secondary interface at object `+0x44` has vtable `0x114350c`.
   Its `+0x0c` slot reaches `0xe9910` and the general render walk `0x3b300`.
   It is not established as a pure, independently positioned submission.
-- Producer `0x1cb100` allocates a global render wrapper, stores a raw render
+- Static producer `0x1cb020` allocates a global render wrapper, stores a raw render
   pointer at wrapper `+0x1c`, and traverses child render objects. No scoped
   retained preview handle has been established on this path.
-- Wrapper `0x1c8a90` calls native preparation `0x1cd970`, changes native render
-  state, and writes render `+0xec` from wrapper `+0x18` before draw `0x1cb700`.
-  Replaying it therefore mutates the shared render object.
+- Static wrapper `0x1c89a0` changes native render state and writes render
+  `+0xec` from wrapper `+0x18` before draw `0x1cb700`. Replaying it mutates the
+  shared render object. The earlier `0x1cb100`/`0x1c8a90` exploratory path is the
+  character variant, not the static model path; its extra `0x1cd970` preparation
+  must not be attributed to the static wrapper.
 - Draw `0x1cb700` loads matrices using native camera state and changes the
   native `GL_NORMALIZE` tracking global (preferred VA `0x1788c20`) according to
   scale. Restoring driver GL state alone would not restore native caches.
@@ -145,9 +148,9 @@ because a camera snapshot is available.
 
 Orientation getter `0xccee0` follows the object pose reference at `+0x4b0` to
 float `+0x110`. Transform helper `0xd5f30` copies a native transform, invokes an
-imported inverse, then transforms a point. These are leads for proving coordinate
-composition; native rotation units/sign and complete world/local conversion
-remain unresolved. No guessed transform is delivered as rendering behavior.
+imported inverse, then transforms a point. The continued review verifies
+TQS layout and radians/negative-heading composition statically against the exact
+Math.dll. These findings have not yet become accepted preview rendering behavior.
 
 ## Delivered observation boundary
 
@@ -174,7 +177,8 @@ not atomic native leases and cannot prove that an address was not reused.
 ## Durable implementation boundary
 
 1. The owner-update phase owns selected row, exact building/zone/floor and the
-   candidate pose. Reuse the verified ordinary coordinate conversion, then
+   candidate pose. The actor native parent identifies the occupied building;
+   require HUD equality and invalidate on leaving/changing that parent. Reuse the verified ordinary coordinate conversion, then
    establish the local-to-world transform and native orientation convention.
    A pose update must never invoke the commit handler or dirty an existing prop.
 2. Prefer the row's loaded model after proving its render-only submission and
@@ -185,9 +189,10 @@ not atomic native leases and cannot prove that an address was not reused.
    GPU resources only in its current context. No borrowed external-reader pointer
    may become a renderer handle. Cancel on row/deed/structure/floor replacement,
    HUD close, logout, scene/context loss, extension stop or explicit Cancel.
-4. For an in-world ghost, use the existing reviewed world/pre-UI boundary in
-   `cel_shading.cpp`, `SceneFrameState`, the same-context camera, and shared
-   `RenderCallbackLease`/`RenderLifecycleMutation`. A full building cutaway pane
+4. For an in-world ghost, qualify the native main-queue submission boundary
+   recorded in the continued review, with `SceneFrameState`, the same-context
+   camera, and shared `RenderCallbackLease`/`RenderLifecycleMutation`. A late
+   world/pre-UI draw alone does not establish complete foreground coverage. A full building cutaway pane
    needs its own reviewed viewport/camera/depth target; it cannot masquerade as
    the main world camera. Choose this presentation with the owner after actual
    geometry can be rendered safely.
@@ -250,3 +255,13 @@ Remaining todos: coordinator-owned single-row selection and observer qualificati
 reviewed detached render submission/lifetime and transform proof; then implement
 and visually qualify the actual real-time preview. Ordinary placement repair is
 owned separately. No branch or worktree is retired while these tasks are active.
+
+
+September 24 continuation: [native render contract](furnishing-native-render-contract.md)
+records occupied-building identity, TQS/heading proof, private render clone,
+corrected static queue path and unresolved queued-reference retirement. The
+observer now reports the actor's occupied building separately from the HUD and
+requires native-reference equality to mark them matching. The focused observer
+and recorder suite passes **68 tests**, including exit, changed parent, stale HUD,
+unknown classes and changed-memory rejection; focused Ruff passes. This adds no
+native hook or VM changes and does not close the remaining preview todos above.

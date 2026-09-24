@@ -186,3 +186,81 @@ def test_recorder_channel_is_opt_in_and_closes_read_only_handle(monkeypatch, tmp
     if enabled:
         assert readers["furnishings"] is read_native_furnishing_preview
     memory.close.assert_called_once()
+
+
+ACTOR, COMPONENT, POSE, OTHER_BUILDING = 0x410000, 0x420000, 0x430000, 0x440000
+
+
+def occupied_fixture():
+    m = furnishing_fixture()
+    for address, value in (
+        (0x1AA2D98, ACTOR), (ACTOR, 0x154165C),
+        (ACTOR + 0x4B0, COMPONENT), (COMPONENT, POSE),
+        (POSE + 8, STRUCTURE), (STRUCTURE, 0x1577C0C),
+    ):
+        m.put(address, "<I", value)
+    m.put(STRUCTURE + 0x18, "<II", 4761372, 8)
+    return m
+
+
+def test_actor_parent_identifies_building_and_hud_only_confirms_it():
+    m = occupied_fixture()
+    result = read_native_furnishing_preview(m)
+    occupancy = result["occupancy_raw"]
+    assert occupancy["occupied_building_key_raw"] == {"object_id": 4761372, "object_type": 8}
+    assert occupancy["hud_matches_occupied_building"] is True
+    assert not result["preview_pose_verified"]
+    assert not result["command_admitted"]
+    m.put(HUD + 0x64C, "<I", OTHER_BUILDING)
+    m.put(OTHER_BUILDING, "<I", 0x1577C0C)
+    # Even equal keys cannot substitute for the actual native parent object.
+    m.put(OTHER_BUILDING + 0x18, "<II", 4761372, 8)
+    result = read_native_furnishing_preview(m)
+    assert (result["occupancy_raw"]["occupied_building_key_raw"]
+            == occupancy["occupied_building_key_raw"])
+    assert result["occupancy_raw"]["hud_matches_occupied_building"] is False
+
+
+@pytest.mark.parametrize("address,value", [
+    (0x1AA2D98, 0), (ACTOR, 0x1542748), (ACTOR + 0x4B0, 0),
+    (COMPONENT, 0), (POSE + 8, 0), (STRUCTURE, 0x154381C),
+])
+def test_loading_exit_and_unreviewed_classes_do_not_infer_occupancy_from_hud(address, value):
+    m = occupied_fixture()
+    m.put(address, "<I", value)
+    result = read_native_furnishing_preview(m)["occupancy_raw"]
+    assert result["occupied_building_key_raw"] is None
+    assert result["hud_matches_occupied_building"] is False
+    if address in (0x1AA2D98, ACTOR):
+        assert (ACTOR + 0x4B0, 4) not in m.reads
+    if address == STRUCTURE:
+        assert (STRUCTURE + 0x18, 8) not in m.reads
+
+
+@pytest.mark.parametrize("address,size", [
+    (0x1AA2D98, 4), (ACTOR, 4), (ACTOR + 0x4B0, 4), (COMPONENT, 4),
+    (POSE + 8, 4), (STRUCTURE, 4), (STRUCTURE + 0x18, 8),
+])
+def test_occupancy_changes_invalidate_entire_hud_snapshot(address, size):
+    m = occupied_fixture()
+    m.change = (address, size, b"\xff" * size)
+    with pytest.raises(NativeVendorDialogCaptureError):
+        read_native_furnishing_preview(m)
+
+
+@pytest.mark.parametrize("key", [(0, 8), (4761372, 42)])
+def test_reviewed_parent_requires_valid_structure_identity(key):
+    m = occupied_fixture()
+    m.put(STRUCTURE + 0x18, "<II", *key)
+    with pytest.raises(NativeVendorDialogCaptureError, match="occupied building identity"):
+        read_native_furnishing_preview(m)
+
+
+def test_parent_change_reports_new_building_even_while_hud_is_stale():
+    m = occupied_fixture()
+    m.put(POSE + 8, "<I", OTHER_BUILDING)
+    m.put(OTHER_BUILDING, "<I", 0x1577C0C)
+    m.put(OTHER_BUILDING + 0x18, "<II", 123, 8)
+    result = read_native_furnishing_preview(m)["occupancy_raw"]
+    assert result["occupied_building_key_raw"] == {"object_id": 123, "object_type": 8}
+    assert result["hud_matches_occupied_building"] is False

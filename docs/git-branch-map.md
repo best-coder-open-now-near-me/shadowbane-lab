@@ -7,13 +7,16 @@ Focused branch `codex/furnishing-preview` starts at `main@a91dfd5` and targets
 into `main`. The [renderer handoff](handoffs/furnishing-preview.md)
 records the real floorplan/model path, opt-in read-only observer, manifest-matched
 Bench mesh/texture identity, and the shared-state mutations that still prevent
-assuming native draw replay is safe. Render-only lifetime/transform contracts
+assuming native draw replay is safe. The [continued native contract](handoffs/furnishing-native-render-contract.md)
+records occupancy as building identity, verified TQS/heading conventions, and
+private clone/static queue candidates. Clone eligibility and queue retirement
 remain unresolved. It does not enable a 3D preview or
 change the live VM; ordinary carpenter input/placement diagnosis belongs to the
 coordinating task. This work remains outside main until its PR is merged.
 
-Next: validate selected row/model identity, then qualify native render-only
-submission and candidate transforms before implementing the preview hook.
+Next: qualify clone eligibility and queued-resource retirement, then implement
+the native preview. The coordinator separately owns selected-row live evidence;
+the observer now checks actor occupancy against the HUD structure.
 
 ## Current client update - September 24
 

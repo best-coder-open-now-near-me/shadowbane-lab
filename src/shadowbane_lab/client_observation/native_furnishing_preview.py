@@ -23,6 +23,8 @@ REVIEWED_FURNISHING_EXECUTABLES = frozenset({
 })
 FURNITURE_HUD_RVA = 0x1167C68
 FURNITURE_ENTRY_RVA = 0x1169908
+ACTOR_RVA = 0x114165C
+STRUCTURE_RVA = 0x1177C0C
 
 
 def _reference(r: _ReadSet, address: int) -> dict[str, int] | None:
@@ -34,6 +36,39 @@ def _reference(r: _ReadSet, address: int) -> dict[str, int] | None:
     if not r.memory.base_address <= table < 0x80000000 or table % 4:
         raise NativeVendorDialogCaptureError("invalid furnishing object class")
     return {"address": pointer, "class_rva": table - r.memory.base_address}
+
+
+def _occupancy(r: _ReadSet, structure: dict[str, int] | None) -> dict[str, object]:
+    """Identify the occupied building from the actor, not the open HUD.
+
+    This copies the same pose-parent link used by the native lifetime observer.
+    Only the reviewed actor and structure classes grant field interpretation;
+    null/loading and other parent classes cannot establish building identity.
+    """
+    actor = _reference(r, r.memory.base_address + 0x16A2D98)
+    result: dict[str, object] = {
+        "actor_reference": actor, "parent_reference": None,
+        "occupied_building_key_raw": None,
+        "hud_matches_occupied_building": False,
+    }
+    if not actor or actor["class_rva"] != ACTOR_RVA:
+        return result
+    component = r.word(actor["address"] + 0x4B0)
+    pose = r.word(component) if component else 0
+    if not pose:
+        return result
+    parent = _reference(r, pose + 8)
+    result["parent_reference"] = parent
+    if not parent or parent["class_rva"] != STRUCTURE_RVA:
+        return result
+    object_id, object_type = struct.unpack("<II", r.read(parent["address"] + 0x18, 8))
+    if not object_id or object_type != 8:
+        raise NativeVendorDialogCaptureError("invalid occupied building identity")
+    result["occupied_building_key_raw"] = {
+        "object_id": object_id, "object_type": object_type,
+    }
+    result["hud_matches_occupied_building"] = parent == structure
+    return result
 
 
 def read_native_furnishing_preview(memory: VendorQueueMemory) -> dict[str, object]:
@@ -115,6 +150,7 @@ def read_native_furnishing_preview(memory: VendorQueueMemory) -> dict[str, objec
     zoom = struct.unpack("<f", r.read(hud + 0x37C, 4))[0]
     if not all(math.isfinite(v) for v in (x, y, zoom)) or width < 0 or height < 0:
         raise NativeVendorDialogCaptureError("invalid furnishing layout measurements")
+    structure = _reference(r, hud + 0x64C)
     result = {
         "schema_version": 1, "scope": "current_furnishing_hud_diagnostic",
         "process_id": memory.pid,
@@ -126,7 +162,8 @@ def read_native_furnishing_preview(memory: VendorQueueMemory) -> dict[str, objec
         "layout_control": layout_control,
         "layout_raw": {"width": width, "height": height, "x": x, "y": y, "zoom": zoom},
         "floor_index_raw": r.word(hud + 0x628),
-        "structure_reference": _reference(r, hud + 0x64C),
+        "structure_reference": structure,
+        "occupancy_raw": _occupancy(r, structure),
         # A scene entry is not the selected deed and is not placement confirmation.
         "scene_selection_address_raw": r.word(hud + 0x508),
         "preview_pose_verified": False, "render_lifetime_owned": False,
