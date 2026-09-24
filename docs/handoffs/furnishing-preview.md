@@ -4,7 +4,7 @@
 
 Source branch `codex/furnishing-preview` starts at freshly fetched
 `origin/main@a91dfd58322f6489bd49eccbb69e6db32c3a1bc5`. Integration destination:
-reviewed PR into `main`. This lane owns graphics discovery and the read-only
+[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35) into `main`. This lane owns graphics discovery and the read-only
 furnishing observer; the coordinating carpenter task owns the live VM and
 ordinary selection/drop diagnosis. No preview renderer is enabled or deployed.
 
@@ -69,6 +69,28 @@ appearance). Stone Bench, Long Bench, Pine Bench and other variants coexist.
 Names cannot identify the user's intended model. Use the owned row's source
 furnishing key and actual model reference; preserve the two-word key order.
 
+The coordinator subsequently confirmed the owned ArcDeed key as `622657:0`.
+The client key is `(id,type)`; archive notation below is `(group,resource)`, so
+this resolves to CObjects `0:622657` -> Render `0:622657` -> Mesh `0:622894`.
+The current render metadata has unit scale, translation approximately
+`(0.001,0.001,-0.001)`, no children, and collision/bounds enabled. Mesh bounds
+are approximately `(-1.575,0,-0.688689)` to `(1.575,1.147893,0.715165)`.
+These are asset coordinates, not world placement or a server validity verdict.
+Materials, mesh submission and local-to-world transforms remain unqualified.
+
+All three inputs match the retained September 24 official manifest:
+
+| Input | SHA-256 | Retained original location |
+| --- | --- | --- |
+| CObjects | `f168b71c63b0f4affb8f53f8f970f9b555309ba6ead095e6e365b9be56b3843f` | September 24 official cache directory above |
+| Render | `5dd78baa0c5ae867e720ec05ba184624ad6dff363a576f48f941100d2e7d3667` | `E:/Projects/shadowbane/artifacts/guard-deploy/client-update-20260919/official/cache/Render.cache` |
+| Mesh | `136f6625faa98a13378274d044d2d5f6920babbb1cb84f2547ecdacbc24e4993` | `E:/Projects/shadowbane/artifacts/Mesh.cache` |
+
+The old top-level artifact Render.cache and Downloads Render.cache failed this
+identity check and were excluded. Private `bench-asset-chain.json` in the task's
+artifact directory retains the exact decoded values and source paths. No cache
+bytes or client geometry are published in the PR.
+
 Five Feudal Mercantile entries (`0:596000`, `0:596400`, `0:596800`, `0:882000`,
 `0:884400`) have a null primary render in the shared CObject prefix. A building
 is not a single mesh obtainable from that prefix. Reuse the native destination
@@ -85,6 +107,10 @@ raw row identity, source/model references, layout/floor and scene selection.
 Copied bytes are rechecked in reverse order. It refuses unknown executables,
 ambiguous HUDs, detached/duplicate entries and malformed pointers/geometry.
 It never dereferences unknown model/source layouts beyond their class word.
+For the verified ArcDeed class (`0x1142468`) only, it also copies the furnishing
+key at `+0x7b8`. The live model class is ArcStaticObject (`0x1143540`); model
+geometry pointers are not exported or retained. List selection (`list+0x404`)
+and HUD selection (`HUD+0x660`) remain distinct observations.
 
 The continuous recorder has an explicit `--furnishings` option. Use it only
 with the existing exact process-ID/creation-time arguments and private output
@@ -130,7 +156,9 @@ not atomic native leases and cannot prove that an address was not reused.
 The coordinator observed a rendered floorplan, internal floor 0/display floor 1,
 400x400 layout at offsets (64,54), one kind-0x25 row with key5017277:30, and a null
 HUD selection despite reported dragging. The row already has non-null source
-and model references. This is separate from adding a 3D preview. The unnamed
+and model references (ArcDeed and ArcStaticObject respectively). Both list and
+HUD selection were null in the coordinator's stable sample. This is separate
+from adding a 3D preview. The unnamed
 outer ArcListControl is expected; the nested LIST00 drag control must be checked
 by the ordinary-workflow lane. No correction to naming or input is inferred here.
 
@@ -147,7 +175,18 @@ may occur before explicit confirmation. Compare GL state and performance with
 preview disabled and exercise both native profiles. A successful observer or
 unit test does not satisfy these visual/server gates.
 
-Source validation: 44 focused observer/recorder tests passed, plus Ruff. These
+Source validation: 51 focused observer/recorder tests passed, plus Ruff. These
 include both admitted hashes, changed selection/reference/geometry rejection,
 detached ownership, duplicate HUDs/rows, loading states and short reads. No native
 DLL was changed, built, deployed or visually qualified at this checkpoint.
+
+Full host validation passed **3,427 tests**, **20 skipped**, and **756 subtests**;
+repository-wide Ruff passed. Recorder help exposes `--furnishings`. The new reader
+itself has not yet been run against the live process; the coordinator's independent
+samples qualify the listed field observations, not this implementation end to end.
+PR #35 remains draft with hosted checks pending; no merge is implied.
+
+Remaining todos: coordinator-owned single-row selection and observer qualification;
+reviewed detached render submission/lifetime and transform proof; then implement
+and visually qualify the actual real-time preview. Ordinary placement repair is
+owned separately. No branch or worktree is retired while these tasks are active.

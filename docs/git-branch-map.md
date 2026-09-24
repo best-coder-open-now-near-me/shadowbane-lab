@@ -3,7 +3,8 @@
 ## Furnishing preview investigation - September 24
 
 Focused branch `codex/furnishing-preview` starts at `main@a91dfd5` and targets
-reviewed integration into `main`. The [renderer handoff](handoffs/furnishing-preview.md)
+[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
+into `main`. The [renderer handoff](handoffs/furnishing-preview.md)
 records the real floorplan/model path, opt-in read-only observer, and unresolved
 render-only lifetime/transform contracts. It does not enable a 3D preview or
 change the live VM; ordinary carpenter input/placement diagnosis belongs to the
@@ -648,4 +649,3 @@ live Continue here retains 174 guards and schedules the 168 in fresh rosters.
 Native 1.8.22 is unchanged. Additional town coverage/rank completion remain.
 Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
 -> reviewed main. The ordinary main checkout is unchanged.
-

@@ -77,8 +77,12 @@ def read_native_furnishing_preview(memory: VendorQueueMemory) -> dict[str, objec
         layout_control = {"address": layout, "name": _text(r, layout + 0x164)}
         if layout_control["name"] != "BTNPROPLAYOUT":
             raise NativeVendorDialogCaptureError("unexpected furnishing layout control")
+    controls = r.vector(listing + 0x408, 128)
+    list_selected = r.word(listing + 0x404)
+    if list_selected and list_selected not in controls:
+        raise NativeVendorDialogCaptureError("list selection is outside the owned controls")
     rows, entries = [], set()
-    for control in r.vector(listing + 0x408, 128):
+    for control in controls:
         r.require(control, base + 0x116AEBC, "furnishing row control type")
         r.require(control + 0x3BC, hud, "furnishing row owner")
         r.require(control + 0x458, listing, "furnishing row list")
@@ -89,12 +93,19 @@ def read_native_furnishing_preview(memory: VendorQueueMemory) -> dict[str, objec
         r.require(entry, base + FURNITURE_ENTRY_RVA, "furnishing entry type")
         r.require(entry + 8, 0x25, "furnishing entry kind")
         key = struct.unpack("<II", r.read(entry + 0x10, 8))
+        source = _reference(r, entry + 0x20)
+        furnishing_key = None
+        # ArcDeed only. Native getter 0x5c2c50 copies this exact key; an unknown
+        # source class remains diagnostic data, never an assumed deed layout.
+        if source and source["class_rva"] == 0x1142468:
+            key_id, key_type = struct.unpack("<II", r.read(source["address"] + 0x7B8, 8))
+            furnishing_key = {"object_id": key_id, "object_type": key_type}
         rows.append({
             "control_address": control, "entry_address": entry,
             "control_name": _text(r, control + 0x164),
             "entry_key_raw": {"object_id": key[0], "object_type": key[1]},
             "selected": entry == selected,
-            "source_reference": _reference(r, entry + 0x20),
+            "source_reference": source, "furnishing_key_raw": furnishing_key,
             "model_reference": _reference(r, entry + 0x24),
         })
     if selected and selected not in entries:
@@ -111,6 +122,7 @@ def read_native_furnishing_preview(memory: VendorQueueMemory) -> dict[str, objec
         "executable_sha256": memory.executable_sha256,
         "window_address": hud, "owner_address": manager,
         "selected_entry_address": selected, "rows": rows,
+        "list_selected_control_address_raw": list_selected,
         "layout_control": layout_control,
         "layout_raw": {"width": width, "height": height, "x": x, "y": y, "zoom": zoom},
         "floor_index_raw": r.word(hud + 0x628),

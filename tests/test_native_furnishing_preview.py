@@ -25,11 +25,12 @@ def furnishing_fixture(*, selected=True):
         (HUD + 0x660, ENTRY if selected else 0), (ENTRY, 0x1569908),
         (ENTRY + 8, 0x25), (LAYOUT + 0x3BC, HUD),
         (ENTRY + 0x20, SOURCE), (ENTRY + 0x24, MODEL),
-        (SOURCE, 0x1542748), (MODEL, 0x1542748),
+        (SOURCE, 0x1542468), (MODEL, 0x1542748),
         (HUD + 0x64C, STRUCTURE), (STRUCTURE, 0x154381C),
     ):
         m.put(address, "<I", value)
     m.put(ENTRY + 0x10, "<II", 5017277, 30)
+    m.put(SOURCE + 0x7B8, "<II", 622657, 0)
     m.put(HUD + 0x54, "<III", 0x160000, 0x160008, 0x160010)
     m.put(0x160000, "<II", LIST, LAYOUT)
     m.put(HUD + 0x630, "<ii", 400, 400)
@@ -56,7 +57,9 @@ def test_copies_exact_build_owned_selection_without_claiming_preview_or_placemen
                  "command_admitted"):
         assert result[flag] is False
     # Unknown native classes stay references: no inferred offsets or calls.
-    assert not any(SOURCE < address < SOURCE + 0x1000 for address, _ in m.reads)
+    assert result["rows"][0]["furnishing_key_raw"] == {"object_id": 622657, "object_type": 0}
+    assert result["list_selected_control_address_raw"] == 0
+    assert {a for a, _ in m.reads if SOURCE < a < SOURCE + 0x1000} == {SOURCE + 0x7B8}
     assert not any(MODEL < address < MODEL + 0x1000 for address, _ in m.reads)
 
 
@@ -73,7 +76,8 @@ def test_loading_and_unselected_states_remain_unavailable_not_guessed():
 
 
 @pytest.mark.parametrize("field,value", [
-    (ROOT + 0x64, 1), (HUD + 0x104, MANAGER + 4), (MANAGER + 0xA8, HUD + 4),
+    (LIST + 0x404, CONTROL + 4), (ROOT + 0x64, 1), (HUD + 0x104, MANAGER + 4),
+    (MANAGER + 0xA8, HUD + 4),
     (HUD + 0x660, ENTRY + 4), (HUD + 0x524, LIST + 4),
     (LIST + 0x3BC, HUD + 4), (CONTROL + 0x3BC, HUD + 4),
     (CONTROL + 0x458, LIST + 4), (ENTRY, 0x1569518), (ENTRY + 8, 9),
@@ -91,7 +95,7 @@ def test_rejects_detached_or_unknown_ownership(field, value):
 @pytest.mark.parametrize("address,size", [
     (HUD + 0x660, 4), (MANAGER + 0xA8, 4), (0x170000, 4),
     (ENTRY + 0x24, 4), (MODEL, 4), (HUD + 0x628, 4), (HUD + 0x638, 8),
-    (ROOT + 0x20, 4),
+    (ROOT + 0x20, 4), (SOURCE + 0x7B8, 8), (LIST + 0x404, 4),
 ])
 def test_rechecks_selection_geometry_lifetime_and_membership(address, size):
     m = furnishing_fixture()
@@ -141,3 +145,44 @@ def test_short_read_is_rejected():
     with pytest.raises(NativeVendorDialogCaptureError):
         read_native_furnishing_preview(m)
 
+
+
+def test_unknown_source_type_remains_raw_reference_without_interpreting_deed_fields():
+    m = furnishing_fixture()
+    m.put(SOURCE, "<I", 0x1542748)
+    result = read_native_furnishing_preview(m)
+    assert result["rows"][0]["furnishing_key_raw"] is None
+    assert (SOURCE + 0x7B8, 8) not in m.reads
+
+
+def test_retains_distinct_list_and_hud_selection_for_input_diagnosis():
+    m = furnishing_fixture(selected=False)
+    m.put(LIST + 0x404, "<I", CONTROL)
+    result = read_native_furnishing_preview(m)
+    assert result["list_selected_control_address_raw"] == CONTROL
+    assert result["selected_entry_address"] == 0
+    assert not result["rows"][0]["selected"]
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_recorder_channel_is_opt_in_and_closes_read_only_handle(monkeypatch, tmp_path, enabled):
+    from unittest.mock import Mock
+
+    from shadowbane_lab.client_observation import workflow_capture
+
+    memory = furnishing_fixture()
+    memory.close = Mock()
+    opener = Mock(return_value=memory)
+    recorder = Mock(return_value={"reason": "deadline"})
+    monkeypatch.setattr(workflow_capture.WindowsReadOnlyProcessMemory, "open_for_process", opener)
+    monkeypatch.setattr(workflow_capture, "record_workflow", recorder)
+    args = ["capture", "--process-id", "988", "--creation", "100",
+            "--output", str(tmp_path / "capture.jsonl"),
+            "--stop-file", str(tmp_path / "stop")]
+    monkeypatch.setattr("sys.argv", args + (["--furnishings"] if enabled else []))
+    assert workflow_capture.main() == 0
+    readers = recorder.call_args.kwargs["readers"]
+    assert ("furnishings" in readers) is enabled
+    if enabled:
+        assert readers["furnishings"] is read_native_furnishing_preview
+    memory.close.assert_called_once()
