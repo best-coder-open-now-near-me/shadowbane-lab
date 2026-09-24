@@ -42,6 +42,11 @@ bool ReadNativeMovementLifetimeDiagnostics(LifetimeDiagnostics&) noexcept;
 bool StartNativeMovementLifetime(HWND) noexcept;
 bool ObserveNativeMovementLifetime(void* native_window, NativeScene&) noexcept;
 bool NativeMovementLifetimeCurrent(const NativeScene&) noexcept;
+// Owner-only ABI check for an independently borrowed/retained ArcObj. Verifies
+// the already installed reference-finalizer binding; grants no object lifetime.
+// Supports cleanup after a scene change, but rejects terminal/broken observers.
+bool NativeMovementReferenceInterface(void* object, std::uintptr_t& receiver) noexcept;
+
 // Borrow the already established watch from any thread; never observe/rearm.
 // Revalidate after the caller's operation. A copy alone is not an ownership lease.
 bool ReadNativeMovementLifetime(NativeScene&) noexcept;

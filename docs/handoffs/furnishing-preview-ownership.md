@@ -267,3 +267,38 @@ Next active item: reviewed native operation adapters and resource/shader gates,
 followed by cursor/floor pose, persistent frame/context callbacks and Preview
 controls. Version/package coordination, native integration validation and real
 in-building visual acceptance remain pending. No new versions or VM changes.
+
+
+## Reviewed native call adapter checkpoint
+
+`furnishing_native_calls.h/.cpp` provide the actual x86 adapters for retain,
+recursive clone, adopting release, private transform composition, static enqueue,
+wrapper-pool reads and exact queue erase. Configuration requires one of the two
+reviewed September 24 file hashes and the loaded-code seal. It executes no game
+code. Binding requires the native window's thread/process, a current GL context,
+and its window drawable; every operation rechecks that owner/context.
+
+The adapter checks exact primary, virtual-base and reference interfaces before
+object calls. Static models must still use the existing lifetime observer's
+registered finalizer hook; private ArcRenderObject finalizers must match their
+reviewed native slot. The observer exposes an owner-only reference ABI check for
+independently borrowed/retained objects. It does not watch or retain those objects,
+and no observer lock is held across a native call. Terminal/broken observers reject
+this check. Selection/resource ownership remains the caller's separate obligation.
+
+C++ and Windows exceptions are contained without rewriting output/reference slots.
+Thus an output published before a fault, or a release consumed before a fault,
+remains visible to the RenderOwner quarantine rules. The adapters do not replace
+resource/shader qualification, exact queue membership, context generations or the
+matching outer-drain proof. They remain unregistered; no preview game calls occur.
+
+Validation: full extension build and 47 native tests pass with VS2022 Win32
+Release and warnings as errors (43 movement-lifetime cases plus four furnishing
+suites). The adapter suite uses controlled x86 stand-ins to check ECX/stack argument
+layouts, recursive clone, render secondary-interface adjustment, release adoption,
+reference-slot behavior, wrong owner/context/interface rejection, and C++/SEH
+faults. No client binary is executed. All 217 package-gate host cases and Ruff pass.
+
+Next active item: source/private resource and shader eligibility, then cursor/floor
+pose, persistent frame/context runtime and Preview controls. No version assignment,
+package, VM change or live visual acceptance has occurred in this lane.
