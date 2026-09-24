@@ -5,11 +5,12 @@ namespace wonderbane::extension::furnishing {
 class PreviewControls {
 public:
     enum class Action { start, left, right, cancel, hold };
+    enum class Hit { outside, inside, unavailable };
     struct Events {
         void* context=nullptr;
         void (*action)(void*,Action) noexcept=nullptr;
         bool (*current)(void*,const Selection&) noexcept=nullptr;
-        bool (*contains)(void*,const Selection&,int,int) noexcept=nullptr;
+        Hit (*contains)(void*,const Selection&,int,int) noexcept=nullptr;
     };
     explicit PreviewControls(Events e) noexcept : events_(e) {}
     bool Bind(HWND) noexcept;

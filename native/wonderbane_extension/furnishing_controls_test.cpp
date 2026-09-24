@@ -6,10 +6,13 @@
 namespace f=wonderbane::extension::furnishing;
 namespace {
 unsigned downs=0,ups=0,keys=0; WPARAM moved=0;
-std::array<unsigned,5> actions{}; bool current=true;
+std::array<unsigned,5> actions{}; bool current=true,geometry=true;
 void Action(void*,f::PreviewControls::Action a) noexcept { ++actions[static_cast<unsigned>(a)]; }
 bool Current(void*,const f::Selection&) noexcept { return current; }
-bool Contains(void*,const f::Selection& s,int x,int y) noexcept { return f::LayoutContains(s,x/2,y/2); }
+f::PreviewControls::Hit Contains(void*,const f::Selection& s,int x,int y) noexcept {
+    if(!geometry) { return f::PreviewControls::Hit::unavailable; }
+    return f::LayoutContains(s,x/2,y/2)?f::PreviewControls::Hit::inside:f::PreviewControls::Hit::outside;
+}
 LRESULT CALLBACK Base(HWND hwnd,UINT m,WPARAM w,LPARAM l) {
     if(m==WM_LBUTTONDOWN) { ++downs; } if(m==WM_LBUTTONUP) { ++ups; }
     if(m==WM_MOUSEMOVE) { moved=w; } if(m==WM_KEYDOWN || m==WM_KEYUP) { ++keys; }
@@ -43,6 +46,11 @@ int main() {
     current=false; SendMessageW(window,WM_LBUTTONUP,0,MAKELPARAM(200,200));
     SendMessageW(window,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(200,200)); assert(downs==1 && actions[3]>=2);
     SendMessageW(window,WM_LBUTTONUP,0,MAKELPARAM(200,200));
+    current=true; geometry=false;
+    const auto cancelled=actions[3];
+    SendMessageW(window,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(800,200));
+    SendMessageW(window,WM_LBUTTONUP,0,MAKELPARAM(800,200));
+    assert(downs==1 && ups==1 && actions[3]==cancelled+1);
     controls.Retire(); assert(!IsWindow(panel));
     SendMessageW(window,WM_LBUTTONDOWN,MK_LBUTTON,MAKELPARAM(200,200)); assert(downs==2);
     DestroyWindow(window);

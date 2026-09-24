@@ -107,12 +107,17 @@ LRESULT CALLBACK PreviewControls::Window(HWND hwnd,UINT message,WPARAM wp,LPARAM
     if((message==WM_LBUTTONDOWN || message==WM_LBUTTONDBLCLK) && self.mouse_owned_ && GetCapture()!=hwnd) {
         self.mouse_owned_=false; // a fresh down proves an earlier outside release
     }
-    if((message==WM_LBUTTONDOWN || message==WM_LBUTTONDBLCLK) && self.visible_ && self.active_
-        && self.events_.contains && self.events_.contains(self.events_.context,self.selection_,GET_X_LPARAM(lp),GET_Y_LPARAM(lp))) {
-        // Even a now-stale preview never forwards its initiating placement click.
-        self.mouse_owned_=true;
-        if(!self.events_.current || !self.events_.current(self.events_.context,self.selection_)) { self.Send(Action::cancel); }
-        SetCapture(hwnd); return 0;
+    if((message==WM_LBUTTONDOWN || message==WM_LBUTTONDBLCLK) && self.visible_ && self.active_) {
+        const bool current=self.events_.current && self.events_.current(self.events_.context,self.selection_);
+        const auto hit=current && self.events_.contains
+            ?self.events_.contains(self.events_.context,self.selection_,GET_X_LPARAM(lp),GET_Y_LPARAM(lp)):Hit::unavailable;
+        if(hit!=Hit::outside) {
+            // Unknown geometry cannot prove this is outside the placement region.
+            // Own both halves of this click even after cancelling stale preview.
+            self.mouse_owned_=true;
+            if(hit==Hit::unavailable) { self.Send(Action::cancel); }
+            SetCapture(hwnd); return 0;
+        }
     }
     if(message==WM_MOUSEMOVE && self.mouse_owned_) { wp&=~WPARAM(MK_LBUTTON); }
     return DefSubclassProc(hwnd,message,wp,lp);

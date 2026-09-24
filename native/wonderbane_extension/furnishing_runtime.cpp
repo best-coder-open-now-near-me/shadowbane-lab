@@ -64,10 +64,12 @@ struct Runtime {
         Selection next{}; return !terminal && enabled.load(std::memory_order_acquire) && Capture(next) && next.SameIdentity(old);
     }
     static bool UiCurrent(void* p,const Selection& old) noexcept { return Self(p).Current(old); }
-    static bool Contains(void* p,const Selection& s,int x,int y) noexcept {
+    static PreviewControls::Hit Contains(void* p,const Selection& s,int x,int y) noexcept {
         auto& self=Self(p); POINT mapped{};
-        return movement::NativeClientPoint(self.native.Base(),self.root,self.window,{x,y},mapped)==movement::NativePointResult::valid
-            && LayoutContains(s,mapped.x,mapped.y);
+        const auto result=movement::NativeClientPoint(self.native.Base(),self.root,self.window,{x,y},mapped);
+        if(result==movement::NativePointResult::unavailable) { return PreviewControls::Hit::unavailable; }
+        return result==movement::NativePointResult::valid && LayoutContains(s,mapped.x,mapped.y)
+            ?PreviewControls::Hit::inside:PreviewControls::Hit::outside;
     }
     static bool SelectionCurrent(void* p,const Selection& old) noexcept { return Self(p).Current(old); }
     static bool ResourceCurrent(void* p) noexcept {
