@@ -1,6 +1,6 @@
 #pragma once
 // Exact existing bootstrap_author.py bootstrap-v1 transformation for reviewed
-// WonderBane 1.3.38.6, 1.3.38.7, 1.3.38.9 and 1.3.38.10. All spans must match, then the restored whole-file SHA256
+// WonderBane 1.3.38.6, 1.3.38.7, 1.3.38.9, 1.3.38.10 and 1.3.38.11. All spans must match, then the restored whole-file SHA256
 // must match the reviewed original. This is not a permitted arbitrary patch mask.
 #include <array>
 #include <cstddef>
