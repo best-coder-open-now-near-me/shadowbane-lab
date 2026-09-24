@@ -29,8 +29,9 @@ missing guard roster-only provenance, and unchanged-scene success with distinct
 city/navigation managers. No native source, versions, packages or VM state changed.
 
 Next: review and merge this checkpoint, then include it in a future validated host
-package. Automatic recipe/Inventory selection and the complete town capacity run
-still require the non-spending menu qualification described below.
+package. The ordinary recipe switch and Inventory lifecycle are now observed;
+typed native automation and the complete town capacity run remain to implement.
+See the [current menu contract](vendor-menu-contract-20260924.md).
 
 ## Historical September 23 checkpoint
 
@@ -70,11 +71,14 @@ This host-only change does not alter native commands or require native rebuildin
 
 ## Recipe and Inventory qualification update
 
-The [September 24 menu contract](vendor-menu-contract-20260924.md) records newly
-observed Anthame/random recipe state, nested list/callback ownership and ordinary
-control bindings on native 1.8.30 / host 0.3.50. A requested Balanced Dagger switch
-and Inventory close/reopen remain pending. The earlier walkthrough below is
-historical planning context; preserve its unresolved production gates.
+The [September 24 menu contract](vendor-menu-contract-20260924.md) records observed
+Anthame-to-Balanced-Dagger selection, nested list/callback ownership and ordinary
+control bindings on native 1.8.30 / host 0.3.50. Inventory open/close/reopen is also
+observed with the same 65 item identities and normalized fields. These menu gates
+are complete; typed native operations, recipe generalization and the durable town
+run remain unimplemented. Inventory completeness is still unverified. No further
+user walkthrough is currently queued. The earlier walkthrough below is historical
+planning context; preserve the remaining production gates.
 
 ## Historical next step: acquire recipe and Inventory entry evidence
 
@@ -152,5 +156,6 @@ the real strict memory readers for closed-menu, recipe and Inventory transitions
 separate unavailable channels, unchanged opt-in behavior and exact-lifetime CLI
 binding/handle cleanup. Native rebuilding and live acceptance are not claimed.
 
-Next active todo: the serialized non-spending vendor menu capture. Automatic
-recipe/Inventory commands and the complete multi-vendor capacity run remain open.
+Current next todo: implement and qualify typed recipe/Inventory operations from
+the observed contract, then the complete multi-vendor capacity run. The historical
+manual menu capture requested here is complete; raw evidence remains private.

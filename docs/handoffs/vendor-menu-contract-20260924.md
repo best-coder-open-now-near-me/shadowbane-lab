@@ -21,7 +21,7 @@ package or game state.
 
 ## Observed ordinary menu contract
 
-All three samples agree on the following state:
+All three initial samples agree on the following state:
 
 | Field | Observed value |
 | --- | --- |
@@ -58,6 +58,48 @@ contract or generalize crafting admission from random-mode similarity. The
 separate hireling-roster channel was unavailable while this recipe was open;
 these observations do not establish roster completeness or management permission.
 
+## Completed recipe-switch and Inventory observations
+
+The user switched from Anthame to Balanced Dagger. All three samples in
+`snapshot-1790285225894507000.json` show requested template `25860:0` in the
+selected row, activated entry and retained template. Mode remains Magic/random
+`1`, table `16`, both affix fields equal sentinel `3362971591`, quantity is `1`
+and multiple mode is false. The exact process lifetime, executable, building and
+vendor match the initial capture. This establishes the ordinary requested recipe
+transition for this service; no crafting command was submitted.
+
+Initial Inventory (`snapshot-1790285301291643000.json`) and reopened Inventory
+(`snapshot-1790285434489244900.json`) each have three samples containing the same
+65 unique item identities, all with template `25860:0`. Offline comparison also
+confirms unchanged item-data availability, durability, value, base value, raw
+quantity and sorted effect token/source-type/train fields across all six samples.
+Raw item identities and effect tokens remain private.
+
+The continuous `inventory-reopen-workflow.jsonl` confirms the same building/vendor
+and seven production slots across these observed transitions, on September 24 UTC:
+
+| Observation | Timestamp |
+| --- | --- |
+| Inventory open | 21:29:10.439051 |
+| Inventory absent (`null`) | 21:30:00.881650 |
+| Inventory reopened | 21:30:06.872062 |
+
+The recorder ended on the requested stop marker at 21:30:36.665013 UTC: 34 JSONL
+records, 369 sampling cycles, no vendor-queue unavailable reads and no recorder
+errors. Other closed-menu channels remain explicitly unavailable. The menu
+open/close/reopen gate is complete for this observed owner. Both Inventory captures
+still report `complete_inventory=false` and unknown capacity; matching cached
+contents do not establish complete inventory coverage or a fresh server response.
+
+Private evidence checksums, without exporting capture contents:
+
+| Evidence identifier | SHA-256 |
+| --- | --- |
+| `snapshot-1790285225894507000.json` | `aa4c73565d0f81c14d80bd4fc5b3983ef1bec0899fa7e3e16e9ce7f41b0cd2c2` |
+| `snapshot-1790285301291643000.json` | `6e7ab51c5c631c596874f20ea7507a351e56166de6e68e9b10f474a09cab9e87` |
+| `snapshot-1790285434489244900.json` | `961235a6cd632a52fe6b1796a35794720f1db34d0137511da07322e3184743e6` |
+| `inventory-reopen-workflow.jsonl` | `4b948ad40f624aff8bea984a65633933ebb387debfb80d0f9eadaa907332b558` |
+
 ## Reviewed static call and lifetime boundaries
 
 - Root `+0xA4` owns the asset manager (`0x1171ADC`); manager `+0x78` owns the
@@ -85,31 +127,31 @@ these observations do not establish roster completeness or management permission
   corrects the earlier provisional description of that routine as a request.
   Window presence cannot establish fresh or complete inventory coverage.
 
-## Missing gates and next work
+## Implementation gates and next work
 
-1. Observe the pending user-selected Balanced Dagger switch. Verify a different
-   requested row becomes selected and activated, its retained template changes,
-   and the complete mode/table/sentinel/quantity/multiple state remains coherent.
-   Do not infer its key or treat Anthame's initial selection as this transition.
-2. Close the recipe without crafting, then observe Inventory open, close and
-   reopen for the same exact building/vendor. Verify manager flags, HUD/list
-   ownership and item identities; preserve unavailable/loading states. A populated
-   cached list still does not prove complete or fresh inventory.
-3. Before admitting a production recipe, qualify that requested recipe and mode
-   on its compatible service. Existing Gilded Scepter admission remains template
-   `26990:0`, mode 1, table 12 and both random sentinel fields. The dagger sample
-   does not replace that contract. Multiple mode is not qualified by merely
-   observing its opener control.
-4. Only after these gates, implement typed owner-thread open/select/reopen actions
-   through ordinary owned controls, with exact process/scene, enabled/visible,
-   foreground, lease and pending-operation checks; confirm the intended result
-   before continuing. Then integrate saved selection and the durable one-capacity
-   run across vendors. Unknown affixes stay kept; disposal and recurring spending
-   remain unqualified.
+The requested ordinary selection and Inventory open/close/reopen observations are
+complete. No further user walkthrough is currently queued. Typed automation is
+not implemented by this documentation checkpoint.
 
-No Create, Keep, Junk, resource transfer or old-job replay is needed for the
-remaining menu observations. The [vendor recovery handoff](vendor-recovery-20260923.md)
-records the existing job boundaries and the separate provenance fix in draft
+1. Implement typed owner-thread open/select/reopen operations through the verified
+   ordinary owned controls. Preserve exact process/scene, enabled/visible,
+   foreground, lease and pending-operation checks, and confirm the intended result
+   before continuing. Manual transition evidence does not itself qualify an
+   automated adapter or replace cancellation/scene-retirement validation.
+2. Keep recipe admission explicit. Existing Gilded Scepter crafting remains
+   template `26990:0`, mode 1, table 12 and both random sentinel fields. The dagger
+   selection contract does not admit dagger production or arbitrary recipes.
+   Recipe generalization, compatible service checks and multiple-mode behavior
+   still need implementation and qualification; an observed opener is insufficient.
+3. Integrate saved selection and the durable one-capacity run across vendors with
+   the qualified native operations and existing per-vendor Create/Keep receipts.
+   Menu pointers are visit-local, and uncertain old jobs must never be replayed.
+4. Unknown affixes stay kept. Disposal and recurring spending remain unqualified;
+   their policy and acceptance gates are unchanged.
+
+No Create, Keep, Junk, resource transfer or old-job replay occurred as part of
+these observations. The [vendor recovery handoff](vendor-recovery-20260923.md)
+records the existing job boundaries and separate provenance fix in draft
 [PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38).
 The provenance code checkpoint `37d919a` passed all 15 hosted checks before this
 documentation update; that does not establish gameplay acceptance or installation.
