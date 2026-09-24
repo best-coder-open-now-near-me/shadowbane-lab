@@ -1,18 +1,24 @@
 # Integration and town-workflow catch-up plan
 
-Execution update: September 23. **`origin/main` is now the canonical base.**
-[PR #25](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/25)
-merged as `555f6bf`, preserving reviewed head `e8062fd` and all contributing
-source history. All 15 hosted checks passed on that head. The
-[inclusion inventory and execution queue](integration-status-20260923.md) record
-the merged source, deferred lanes, package identity and remaining acceptance.
-Guard coverage, vendor recovery and the passive recorder, and strict diagnostic
-CI gates are integrated. The September 24 client update is now installed:
-**client 1.3.38.11, native 1.8.27, host 0.3.47**, source `d74d3c3`. The manager
-is healthy and unbound, all five desktop shortcuts and launch preflight pass,
-and the game is closed for the user's launch/login. See the
-[client update](client-update-20260924.md) for package and preservation evidence.
-Live guard/vendor evidence remains pending; carpenter awaits building readiness.
+Execution update: September 24. **Freshly fetched `origin/main@a91dfd5` is the
+canonical base.** PR #25 integrated guard coverage, vendor recovery/recorder and
+diagnostic CI gates; PR #34 integrated the reviewed client 1.3.38.11 update.
+
+The current VM candidate is native **1.8.30 / host 0.3.50**, exact combined
+preview/recorder source `8ba181868fca7ca113f94361b61118ce74a9d4a1`.
+The user's launch entry point is **WonderBane Vendor Test**. Startup and preview
+panel creation are verified. Bench visualization is blocked by an unsupported
+native material family; the preview task is correcting that and replacing
+duplicate buttons with automatic preview driven by native placement/rotation.
+Ordinary placement separately repeats an unchanged empty primary scene response
+and requires server-handler investigation. Captures are saved and stopped;
+Bart is free for other activities. See the
+[current deployment and live evidence](handoffs/furniture-response-diagnostics.md).
+
+Guard/Condemn and vendor source audits can proceed independently. Their live
+qualification remains queued, with one operator owning game/VM interaction.
+No full-town, maximum-rank, filtered recurring-vendor or carpenter placement
+acceptance is implied by installation or passing source tests.
 
 Planning date: September 23, 2026. The original planning rationale and milestones
 below remain useful; their starting inventory is historical. Current status and
@@ -226,11 +232,23 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Complete: reviewed client 1.3.38.11 update, native 1.8.27 / host 0.3.47 package,
   both VM client copies, five shortcuts and non-launching preflight. Of 9,441
   retained files, 9,440 are unchanged; only the revoked idle permit refreshed.
-- Active: user launch/login through WonderBane Modded Client, followed by fresh
-  game-lifetime verification. The VM manager is healthy and unbound.
-- Next live observations: one manually opened Irekei Barracks; vendor recipe and
-  Inventory ownership walkthrough after manual readiness. Carpenter needs its
-  active client and building readiness confirmed. No automatic spending starts.
+- Complete: carpenter reproduction, passive request/response recorder, combined
+  preview/recorder 1.8.30 / 0.3.50 deployment and live startup/panel verification.
+  The saved capture isolates the Bench material rejection before cloning and
+  reproduces an unchanged empty primary placement response.
+- Active: correct Bench material support and integrate automatic preview with
+  native selection/placement/rotation in PR #35; validate the coherent package
+  before another live test. Separate manual Preview/rotation controls are not the
+  intended interaction.
+- Parallel: audit guard/Condemn and vendor production source for bounded work
+  independent of the live client. Keep package/version and native dispatch
+  ownership coordinated.
+- Waiting on external evidence: developer Furniture operation-3 handler and
+  operation-2 response builder/logs for original placement; prepared finding has
+  not been sent. Client serialization is not proof of server rejection.
+- Next live observations, when ready: qualified automatic preview test; one
+  manually opened Irekei Barracks; vendor recipe and Inventory ownership
+  walkthrough. Bart need not remain parked while source work proceeds.
 - Subsequent: production town vendor navigation/scheduling, qualified affix and
   resource/disposal/recurrence behavior, and guard/Condemn coverage/rank acceptance.
 - Deferred: broad refactors, unrelated historical feature lanes, and branch/worktree
