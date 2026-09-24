@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 import struct
 
+from .native_furnishing_resources import _reference, read_render_resources
 from .native_vendor_dialog import (
     NativeVendorDialogCaptureError,
     NativeVendorDialogCompatibilityError,
@@ -25,17 +26,6 @@ FURNITURE_HUD_RVA = 0x1167C68
 FURNITURE_ENTRY_RVA = 0x1169908
 ACTOR_RVA = 0x114165C
 STRUCTURE_RVA = 0x1177C0C
-
-
-def _reference(r: _ReadSet, address: int) -> dict[str, int] | None:
-    """Record a borrowed reference without interpreting an unreviewed class."""
-    pointer = r.word(address)
-    if not pointer:
-        return None
-    table = r.word(pointer)  # Also rejects sentinel, unaligned and short reads.
-    if not r.memory.base_address <= table < 0x80000000 or table % 4:
-        raise NativeVendorDialogCaptureError("invalid furnishing object class")
-    return {"address": pointer, "class_rva": table - r.memory.base_address}
 
 
 def _occupancy(r: _ReadSet, structure: dict[str, int] | None) -> dict[str, object]:
@@ -71,13 +61,16 @@ def _occupancy(r: _ReadSet, structure: dict[str, int] | None) -> dict[str, objec
     return result
 
 
-def read_native_furnishing_preview(memory: VendorQueueMemory) -> dict[str, object]:
+def read_native_furnishing_preview(
+    memory: VendorQueueMemory, *, resource_entry_key: tuple[int, int] | None = None,
+) -> dict[str, object]:
     """Copy the one active furnishings HUD, its owned rows and selected references.
 
     Native row selection updates text; it does not establish a preview pose.
     Null model/selection/layout references are reported, not fabricated. No native
     functions are invoked and no objects are retained or changed. All copied
     bytes are rechecked; even a stable copy cannot prevent native address reuse.
+    Optional resource evidence is keyed to one owned row, not to selection.
     """
     if (
         memory.executable_name.casefold() != "sb.exe"
@@ -85,6 +78,13 @@ def read_native_furnishing_preview(memory: VendorQueueMemory) -> dict[str, objec
         or memory.pointer_size != 4
     ):
         raise NativeVendorDialogCompatibilityError("unsupported furnishing executable")
+    if resource_entry_key is not None and (
+        type(resource_entry_key) is not tuple or len(resource_entry_key) != 2
+        or any(type(value) is not int or not 0 <= value <= 0xFFFFFFFF
+               for value in resource_entry_key) or not resource_entry_key[0]
+    ):
+        raise NativeVendorDialogCaptureError("invalid furnishing resource entry key")
+    resource_matches = 0
     r, base = _ReadSet(memory), memory.base_address
     root = r.word(base + 0x16A7BFC)
     r.require(root, base + 0x1174884, "game window type")
@@ -143,6 +143,13 @@ def read_native_furnishing_preview(memory: VendorQueueMemory) -> dict[str, objec
             "source_reference": source, "furnishing_key_raw": furnishing_key,
             "model_reference": _reference(r, entry + 0x24),
         })
+        if resource_entry_key is not None and key == resource_entry_key:
+            resource_matches += 1
+            rows[-1]["render_resources_raw"] = read_render_resources(
+                r, rows[-1]["model_reference"],
+            )
+    if resource_entry_key is not None and resource_matches != 1:
+        raise NativeVendorDialogCaptureError("expected one owned furnishing resource row")
     if selected and selected not in entries:
         raise NativeVendorDialogCaptureError("selected furnishing is outside the owned list")
     width, height = struct.unpack("<ii", r.read(hud + 0x630, 8))

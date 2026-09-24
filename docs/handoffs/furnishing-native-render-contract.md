@@ -180,15 +180,18 @@ separate implementations. Do not claim all materials are independent or treat
 an archive texture-type value as the loaded native class. No texture bytes or
 client binaries are required in published source.
 
-The next coordinator-owned snapshot, once ordinary selection works, should bind
-the selected entry/deed/model and occupied structure in one process lifetime,
+An owned unselected row is sufficient for baseline resource evidence. Selection
+is a separate required gate for the eventual runtime candidate. The next
+coordinator-owned snapshot should bind the owned entry/deed/model and occupied
+structure in one process lifetime,
 then qualify the model's root render, bounded children, callback/feature flags,
 texture-set and actual texture classes, shared resource readiness and reference
 interfaces. No clone or draw call is needed for that read-only evidence. Owner
 update/render thread and context evidence must separately establish the proposed
-runtime boundary. Current captures establish model identity and occupancy only;
-they do not contain this resource graph or a selected native row. Runtime
-activation/visual qualification cannot proceed from the existing capture alone.
+runtime boundary. The coordinator subsequently confirmed ordinary single-click
+selection: list+0x404 points at the owned row control and HUD+0x660 at its owned
+entry. No drag/drop or Accept occurred. That establishes selection, not resource
+ownership, runtime admission or placement acceptance.
 
 ## Remaining acceptance
 
@@ -203,3 +206,41 @@ building, selected floor, cursor-following pose/orientation, clear Preview label
 depth/occlusion, cancellation, building/row changes, context/stop/reopen behavior,
 and evidence that no placement message is emitted before explicit confirmation.
 A successful observation test or offline disassembly is not preview completion.
+
+
+## Bounded helper for coordinator review
+
+`read_native_furnishing_preview(memory, resource_entry_key=(5017277, 30))`
+now optionally captures the one requested **owned entry key**, independently of
+whether it is selected. Use the existing read-only process handle admitted by
+exact PID, creation time and reviewed executable digest. This task did not run
+the helper on the VM. The default recorder remains unchanged and does not follow
+render resources unless this keyword is explicitly supplied by its caller.
+
+The result preserves normal `selected_entry_address`, list selection and per-row
+`selected`, and adds `render_resources_raw` only to the requested row. An absent
+or ambiguous owned key is an error; this argument never supplies a native pointer
+or changes selection. It uses the same read set as the HUD/row/occupancy capture,
+so changed ownership, graph links, flags, transforms or resource class words
+invalidate the entire snapshot on reverse verification.
+
+Strict layout predicates (all RVAs): model `0x1143540`, secondary+0x44
+`0x114350c`; render `0x1149dbc`, secondary+0x30 `0x1149d94`; template
+`0x114a074`; mesh set `0x11499f4`; texture set `0x114a5a4`; single texture
+`0x114a2f4`. Unknown primary classes are reported without following their fields.
+Unknown resource target/mesh classes are raw references only. In particular,
+texture+0x5c resource readiness is not interpreted from an assumed class layout.
+
+Bounds per requested row: 64 total render nodes, depth at most 8, 16 members per
+mesh/texture set and 256 total set members. Repeated/cyclic or null child nodes,
+invalid vectors/pointers, inconsistent secondary interfaces, and nonfinite TQS
+or opacity are rejected. These conservative evidence limits are not a claim
+that every legitimate furnishing fits them. Render+0xf4 is an untyped borrowed
+address and is never dereferenced. No geometry/texture payload is exported.
+
+`selection_admitted`, `render_lifetime_owned`, `resource_readiness_verified` and
+`native_calls_made` remain false. All reads are copied evidence with no native
+calls, retain/release, loading, cloning, drawing or placement. A stable external
+copy still cannot prevent native address reuse. The focused helper/observer/
+recorder suite passes **115 tests**; Ruff passes. Next: coordinator resource
+baseline/selected snapshot, while queue and owner-thread qualification continues.

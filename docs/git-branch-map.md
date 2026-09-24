@@ -16,7 +16,9 @@ coordinating task. This work remains outside main until its PR is merged.
 
 Next: qualify clone eligibility and queued-resource retirement, then implement
 the native preview. The coordinator separately owns selected-row live evidence;
-the observer now checks actor occupancy against the HUD structure.
+the observer now checks actor occupancy against the HUD structure and includes
+an optional bounded resource reader keyed to one owned entry. Ordinary Bench
+single-click selection is now observed; placement remains unconfirmed.
 
 ## Current client update - September 24
 
