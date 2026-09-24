@@ -1,5 +1,17 @@
 # Git branch map
 
+## Active VM candidate - September 24
+
+Combined furniture preview/recorder native 1.8.29 / host 0.3.49 from exact source
+`0193dd74662eb368c4961a2ab8d9db6826fb70b4` is installed and verified in the VM.
+The existing Vendor Test shortcut is the user launch entry point. Saved records,
+settings, rollback backups, all five shortcuts and the actual new manager were
+verified. Live process/capture and preview/placement acceptance are next; see the
+[deployment handoff](handoffs/furniture-response-diagnostics.md). PR #35 contains
+the combined source; PR #37 carries the recorder and latest deployment docs.
+Both target `main` and remain unmerged by this deployment. Earlier installed or
+staged versions below are historical checkpoints.
+
 ## Current client update - September 24
 
 Native 1.8.27 / host 0.3.47 from source `d74d3c3` is installed in the VM
@@ -28,9 +40,9 @@ and discovery documentation in
 [PR #36](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/36).
 Combined preview/recorder native 1.8.29 / host 0.3.49 package source
 `0193dd74662eb368c4961a2ab8d9db6826fb70b4` in PR #35 includes recorder `c764e22`
-and passed its required package gates. Combined VM staging is verified and
-supersedes the never-activated recorder-only candidate for the next restart;
-normal game closure, activation and live acceptance remain pending. PR #37 retains the
+and passed its required package gates. Combined VM installation is verified and
+supersedes the never-activated recorder-only candidate; live process/capture and
+preview/placement acceptance remain pending. PR #37 retains the
 recorder source and deployment handoff; both reviews target `main`, and neither
 has been merged by this coordination step.
 Neither source publication nor a message observation establishes placement success.

@@ -11,7 +11,9 @@ can produce that same result. See the
 `codex/furniture-response-diagnostics` targets `main` and provides the next passive
 evidence boundary in [draft PR #37](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/37).
 Native version 1.8.28 and host 0.3.48 passed complete package validation at source
-`c764e22d1bd94fe3a84fd53a31d42d4c959d8a20`. Installation and live capture remain pending.
+`c764e22d1bd94fe3a84fd53a31d42d4c959d8a20`. The combined preview/recorder
+1.8.29 / 0.3.49 candidate is now installed; live capture remains pending.
+See the combined package and deployment record below.
 The independent real-time preview remains in
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35).
 
@@ -139,16 +141,31 @@ VM diagnostics share under `furnishing-preview-20260924/guest-prepare.json` and
 `guest-validation.json`; the new guest upgrade directory is
 `upgrades/furnishing-preview-1.8.29`.
 
-The active runtime remains 1.8.27 / 0.3.47. Combined 1.8.29 / 0.3.49 supersedes
-the staged, never-activated recorder-only 1.8.28 / 0.3.48 candidate for the next
-restart. Both prior artifacts are retained. Normal game closure confirmation is
-pending; no DLL activation, manager switch or shortcut mutation has occurred.
+After the user confirmed normal game closure, combined 1.8.29 / 0.3.49 was
+installed and activated from exact source `0193dd7`. It supersedes the staged,
+never-activated recorder-only 1.8.28 / 0.3.48 candidate. The prepared executable
+remains unchanged; only the DLL entry changed in the client inventory. Five
+runtime files have verified rollback backups in the combined upgrade directory.
+All 9,426 retained files matched through application; manager activation then
+changed only the expected revoked, unbound `dispatch.permit` (9,425 unchanged).
+Crafting journals and saved settings were preserved.
+
+All five existing desktop shortcuts and the non-launching launcher preflight
+passed. Manager PID 9408 / parent 9256 was verified against the actual
+`host-0.3.49/Scripts/python.exe`; its API was healthy, unbound, with no slots and
+no running game. The initial immediate shutdown check preceded process exit;
+a fresh read confirmed the old manager and port absent before application.
+Private deployment receipts are retained under the VM diagnostics share in
+`furnishing-preview-20260924/guest-*.json`. The user was directed to launch the
+existing **WonderBane Vendor Test** shortcut, log in as Bart and wait for recorder
+arming before any preview or placement action. Live process/mapping verification
+and visual acceptance are still pending.
 PR #35 documentation head is `d70da4ce298d91f251ceb70b2e8bbd4b017ea7ef`;
 the packaged runtime remains `0193dd7`. Its ancestry includes PR #37 through
 `5beb192`, but later staging/coordination docs from this branch must be preserved
 when integrating the two reviews into `main`.
 
-After verified activation, use the existing Vendor Test shortcut and log in as
+Use the existing Vendor Test shortcut and log in as
 Bart with the Bench contract retained. Arm `--furniture-responses --furnishings`
 before live testing. In the occupied building, select the loaded Bench in
 Furniture Placement, choose Preview, move over the floor plan, click to hold,
@@ -171,11 +188,12 @@ loading text. Private captures and client binaries stay in local artifact storag
 
 1. Complete: exact committed package, full host/native validation in both profiles
    and installed-wheel checks.
-2. Active: apply the verified, staged combined preview/recorder candidate after
-   normal game closure. Preserve jobs, journals and settings and verify the new
-   process lifetime and mapping. Staging is complete; activation remains pending.
-3. Capture one ordinary placement attempt. Separate outgoing serialization,
-   incoming record contents and resulting HUD collections; then fix the proven
-   client boundary or provide the dev a precise server finding.
-4. Complete supervised preview acceptance with its task; resume the serialized
-   guard/Condemn and vendor live checks when carpenter testing releases the client.
+2. Complete: combined candidate installed after normal game closure; backups,
+   retained files, shortcuts, launcher preflight and actual new manager verified.
+3. Active: after the user's launch/login, verify the fresh process lifetime and
+   mapping, arm capture and conduct preview acceptance followed by one separate
+   ordinary placement attempt. Separate outgoing serialization, incoming records
+   and resulting HUD collections; fix the proven client boundary or provide the
+   dev a precise server finding.
+4. Resume serialized guard/Condemn and vendor live checks when carpenter testing
+   releases the client. Preview live findings remain coordinated with its task.
