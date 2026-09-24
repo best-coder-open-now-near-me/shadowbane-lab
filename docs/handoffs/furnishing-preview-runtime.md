@@ -7,8 +7,9 @@ Native 1.8.30 / host 0.3.50, branch `codex/furnishing-preview`, targets
 into `main`. This includes recorder dependency `c764e22` through merge `c890260`.
 The coordinating task reserved these corrective versions on September 24.
 The coordinator installed the previous 1.8.29 / 0.3.49 package and owns all VM
-input, deployment and restart actions. Corrected exact-source packaging is next;
-live visual acceptance and PR review/integration into `main` remain.
+input, deployment and restart actions. Corrected exact-source packaging passed;
+coordinator-owned deployment, live visual acceptance and PR review/integration
+into `main` remain.
 
 ### Confirmed startup failure and correction
 
@@ -38,7 +39,7 @@ startup and sends drains through its actual wrappers. It covers call-through,
 foreign callers/threads, display-list suppression, Stop and re-enable during
 submission, replaced imports, context loss and failed context registration.
 The focused Release build and 28 preview/renderer/context checks pass.
-Full exact-source package qualification is the next checkpoint.
+Full exact-source package qualification also passed; the qualified identity is below.
 
 ## Using the preview
 
@@ -87,77 +88,66 @@ even if the switch fails. Uncertain native calls, missing completion or broken
 queue proof retain at most the one model/clone transaction and disable preview
 for the session. A foreign thread cannot inspect or mutate owner state.
 
-## Previous package validation and remaining acceptance
+## Qualified corrective package - September 24
 
-The full Win32 Release DLL builds with warnings as errors; the required local
-native suite passes 198 executed tests (three private-image probes are checked
-separately by packaging). All 337 host package-gate cases pass. Local tests cover native ABI and faults, selection changes, resource families,
-queue membership, poses, actual Win32 click pairs, and production runtime flows
-using controlled engine calls. Runtime scenarios include nesting, rotation,
-Stop during submission, context loss, missing completion, nonzero shader state,
-foreign threads, alternate passes, replaced bindings, hidden HUD, modal input,
-missing floor, partial installation and unsealed images (the previous isolated startup fixture did not compose the renderer and preview installers). Required package gates
-include these and the furniture response recorder in both build profiles.
-
-Exact-source package validation and the reviewed original-image checks must pass
-before handing a candidate to the coordinator. Two pre-existing ideal-transparency
-stretch diagnostics are reported separately by the established builder; they do
-not verify this native preview. Live acceptance must verify the selected model's
-actual textures, scale, floor height and rotation; cancellation on selection,
-floor and occupancy changes; and no placement dispatch during preview. A rotated
-building and repeated preview/cancel cycles remain live checks. No live result
-is inferred from synthetic engine or local GL tests.
-
-Private builds, test logs and original-client inspection remain under ignored
-`artifacts/`. Source docs are published; client binaries and captures are not.
-
-
-## Qualified package - September 24
-
-Exact pushed package source: `0193dd74662eb368c4961a2ab8d9db6826fb70b4`.
+Exact pushed package source: `8ba181868fca7ca113f94361b61118ce74a9d4a1`.
 Documentation-only updates after that source do not change the packaged runtime.
-The coordinator received this package for staged-candidate replacement review;
+The coordinator received this candidate for independent staging verification;
 activation and all VM actions remain with that task.
 
 Private package root:
-`C:/Users/mewhi/.codex/worktrees/c079/shadowbane/artifacts/p29/fc7b8466`.
+`C:/Users/mewhi/.codex/worktrees/c079/shadowbane/artifacts/p30/b8690f3e`.
 
 - `navigation-inspector-acceptance.zip` SHA-256:
-  `9ca0fe2e669677f83335a3f6ba8b62c5af270b2e23bc9fbe23d24936b68e67e4`.
+  `befcb3d987d91fa8979e4a1217aa889fd950636315c8a84c0d24f25f85e94136`.
 - `full/wonderbane-extension.dll` SHA-256:
-  `33cdf5f8bf656766ad944a1bc06ad76b60ebcb5b8cd4728cabebf7fdc9163365`.
+  `3d8680c50eb708061027863620381702a8a0d2461ebedce9dfcc2a87cacd6817`.
 - `diagnostics-only/wonderbane-extension.dll` SHA-256:
-  `fe3b1654e1e5b778b976a8eaadc7203347130055bd920873b58544bddd195838`.
-- `dist/shadowbane_lab-0.3.49-py3-none-any.whl` SHA-256:
-  `07c74cc5ec944f996f5255df80d618d2707b7067ff5c4ba58c3c169fc0732010`.
+  `d83e823b74599a3573293b5934f16d1a7e34021fff0f291854b6a723c3878327`.
+- `dist/shadowbane_lab-0.3.50-py3-none-any.whl` SHA-256:
+  `c6ceeb9661907c61c4a6803389e8d7dd609f51fd04751be37061d966cb7d36c3`.
 
 The receipt reports `acceptance_eligible: true`, no known failed required gates,
 and 36 executed validation steps. All 61 recorded files were independently
 checked for size/hash, and ZIP CRC/hash verification passed. This certifies a
 candidate for acceptance testing, not live visual acceptance.
 
-Final host suite: **3,811 passed, 18 skipped**. Each native profile passes **198**
+Final host suite: **3,823 passed, 18 skipped**. Each native profile passes **200**
 executed required-suite cases; the three private-image probes skipped in that
 generic suite were separately verified against the reviewed original client.
 Each profile passes **63 movement IPC tests** without skips. Wheel/source archive
 builds, isolated installation, entry point, panels and installed contracts pass.
 The two known transparency stretch diagnostics remain separately recorded per
 profile (four deferred findings), with no new required-gate failures.
+The package gate explicitly requires all composed runtime cases, including
+caller isolation, re-enable, rejected foreign imports and failed context setup.
 
 Reproduction uses the prepared project environment:
-`E:/Projects/shadowbane/.venv/Scripts/python.exe scripts/build_navigation_inspector_package.py --output-root artifacts/p29 --reviewed-client E:/Projects/shadowbane/artifacts/guard-deploy/client-update-20260924/official/sb.exe`.
-The default system Python lacked the `build` module. Its completed native checks
-were not substituted for the final prepared-environment run. Superseded package
-attempts `artifacts/p29/ba50d541` and `artifacts/p29/84fef440` were removed;
-retained final evidence is the qualified package root above and the existing
-private `artifacts/furnishing-preview` build/static-review evidence.
+`E:/Projects/shadowbane/.venv/Scripts/python.exe scripts/build_navigation_inspector_package.py --output-root artifacts/p30 --reviewed-client E:/Projects/shadowbane/artifacts/guard-deploy/client-update-20260924/official/sb.exe`.
+The rejected runs `artifacts/p30/24480cbb` (version identity mismatch) and
+`artifacts/p30/9baad67b` (obsolete required test names) are excluded. Their logs
+and validation progress are archived with original locations under
+`artifacts/furnishing-preview/rejected-p30-evidence`; disposable build trees
+were removed. The previous deployed 1.8.29 package remains at
+`artifacts/p29/fc7b8466` as historical/rollback evidence, not the corrective candidate.
 
-Next: the coordinator stages the qualified candidate while preserving the live
-client/rollback, then waits for the user to close the game for one restart.
-Supervised preview/recorder acceptance follows. PR #35 remains draft and outside
-`main` until that acceptance and required review; no merge or deployment is
-claimed by this source handoff.
+Exact corrected DLL symbol map and read-only runtime manifest remain under
+`artifacts/furnishing-preview/runtime-symbols-p30-final`. The reconstructed DLL
+matches the packaged full DLL byte-for-byte. Runtime field offsets were checked
+against its disassembly. These diagnostics require exact module hash/base and
+process creation identity before use; they perform no writes or function calls.
+The manifest distinguishes registered callbacks, renderer readiness and actual
+owner/context binding. It is private evidence, not a replacement deployable DLL.
 
+Next: the coordinator independently verifies and stages the qualified candidate,
+then coordinates client closure and one restart. Supervised preview/recorder
+acceptance follows. PR #35 remains draft and outside `main` until acceptance and
+required review. Live appearance, floor height, rotation, textures, cancellation
+on selection/floor/occupancy changes and absence of placement dispatch must still
+be verified. A rotated building and repeated preview/cancel cycles remain live
+checks. No live result is inferred from synthetic engine or local GL tests.
+Private builds, captures and original-client inspection remain under ignored
+`artifacts/`; they are not published with source documentation.
 
 ## Live operator cues and coordinated restart
 
@@ -171,7 +161,9 @@ separately conducts one ordinary placement capture after preview has ended.
 
 The Preview bar is visible only for an admitted visible furnishing HUD, matching
 occupied building, selected owned static model and selected floor. No bar means
-that admission is unavailable; it is not evidence of a server or resource fault.
+that startup, owner/context binding or selection admission is unavailable; it is
+not evidence of a server or resource fault. The missing-bar startup collision in
+1.8.29 is diagnosed above; verify the corrected package before repeating input.
 The initial Preview button is an entry point, not prior proof of resource support.
 
 - `Move over the selected floor plan to preview`: the copy was acquired; no valid

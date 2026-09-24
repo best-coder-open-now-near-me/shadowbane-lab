@@ -11,9 +11,8 @@ assuming native draw replay is safe. The [continued native contract](handoffs/fu
 records occupancy as building identity, verified TQS/heading conventions, and
 private clone/static queue candidates. Clone eligibility and queue retirement now use bounded native ownership gates; the [ownership review](handoffs/furnishing-preview-ownership.md)
 records exact queue and standard static shader cleanup behavior. The [preview runtime](handoffs/furnishing-preview-runtime.md) now connects
-these ownership gates to opt-in Preview controls and the native 3D queue. It has
-not changed the live VM; ordinary carpenter input/placement diagnosis belongs to the
-coordinating task. This work remains outside main until its PR is merged.
+these ownership gates to opt-in Preview controls and the native 3D queue. The
+coordinating task owns deployment and ordinary carpenter input/placement diagnosis. This work remains outside main until its PR is merged.
 
 Before preview runtime wiring, this branch incorporated furniture response recorder
 source `c764e22` and its validated-package handoff `5beb192` from
@@ -37,9 +36,12 @@ The coordinator installed native 1.8.29 / host 0.3.49 from exact source
 confirmed renderer/preview matrix-import collision prevented preview startup.
 The focused correction reserves native 1.8.30 / host 0.3.50 and makes the renderer
 the sole persistent matrix-import owner. The runtime handoff records evidence
-and the renderer-first regression. Next: corrected exact-source packaging,
-coordinator-owned deployment and supervised live acceptance, then PR review
-and integration into `main`. The coordinator separately owns selected-row evidence;
+and the renderer-first regression. Exact corrective source
+`8ba181868fca7ca113f94361b61118ce74a9d4a1` passed all required package gates
+(3,823 host tests; 200 native cases per profile and separate binding/IPC checks).
+The qualified package is `artifacts/p30/b8690f3e`; hashes and read-only startup
+diagnostics are in the runtime handoff. Next: coordinator-owned deployment and
+supervised live acceptance, then PR review and integration into `main`. The coordinator separately owns selected-row evidence;
 the observer now checks actor occupancy against the HUD structure and includes
 an optional bounded resource reader keyed to one owned entry. Ordinary Bench
 single-click selection is now observed; a subsequent drag rebuilt the row and
