@@ -1,6 +1,7 @@
 #include "movement_boundary_trace.h"
 #include "targeted_action_trace.h"
 #include "condemn_responses.h"
+#include "furniture_responses.h"
 #include "movement_runtime.h"
 #include "vendor_runtime.h"
 #include "camera_observation.h"
@@ -10,6 +11,7 @@
 #include "graphics_control.h"
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
 #include "navigation_channel.h"
+#include "furnishing_runtime.h"
 #include "effects_runtime.h"
 #endif
 #include "graphics_status.h"
@@ -31,7 +33,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.8.27";
+constexpr char kExtensionVersion[] = "1.8.30";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -415,6 +417,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             // Optional passive tracing cannot disable an otherwise working client.
             (void)wonderbane::extension::StartTargetedActionTrace(identity);
             (void)wonderbane::extension::condemn::Start(identity);
+            (void)wonderbane::extension::furniture::Start(identity);
             const DWORD trace_result = wonderbane::extension::StartMovementBoundaryTrace(identity);
             movement_trace_started = trace_result == ERROR_SUCCESS;
             if (!movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
@@ -466,12 +469,16 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             // Optional native controls publish unavailable on unsupported binding.
             // Register only after shared startup succeeds; ordinary disable keeps
             // the owning-update consumer alive for safe re-enable.
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            (void)wonderbane::extension::furnishing::Start();
+#endif
             (void)wonderbane::extension::vendor::Start();
             (void)wonderbane::extension::movement::StartNativeMovementControls(identity);
         }
         if (result != ERROR_SUCCESS) {
             wonderbane::extension::StopTargetedActionTrace();
             wonderbane::extension::condemn::Stop();
+            wonderbane::extension::furniture::Stop();
             if (movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
             if (performance_telemetry_started) {
                 wonderbane::extension::StopPerformanceTelemetry();

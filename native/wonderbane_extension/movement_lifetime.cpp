@@ -500,6 +500,16 @@ bool NativeMovementLifetimeCurrent(const NativeScene& scene) noexcept {
     ReleaseSRWLockExclusive(&state.lock);
     return current;
 }
+bool NativeMovementReferenceInterface(void* object, std::uintptr_t& receiver) noexcept {
+    receiver = 0;
+    if (!object || !OnOwningThread()) { return false; }
+    AcquireSRWLockShared(&state.lock);
+    void* reference = nullptr;
+    const bool valid = state.started && !state.terminal && !state.binding_lost
+        && Intact(state.free_slot) && Reference(object, reference) && reference;
+    if (valid) { receiver = reinterpret_cast<std::uintptr_t>(reference); }
+    ReleaseSRWLockShared(&state.lock); return valid;
+}
 bool ReadNativeMovementLifetime(NativeScene& out) noexcept {
     out = {};
     NativeScene candidate{};

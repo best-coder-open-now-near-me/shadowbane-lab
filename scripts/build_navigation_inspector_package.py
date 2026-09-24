@@ -67,6 +67,27 @@ REQUIRED_CONDEMN_TESTS = frozenset({
 })
 
 
+REQUIRED_FURNITURE_TESTS = frozenset({
+    "wonderbane_extension_furnishing_queue",
+    "wonderbane_extension_furnishing_selection",
+    "wonderbane_extension_furnishing_render_owner",
+    "wonderbane_extension_furnishing_native_calls",
+    "wonderbane_extension_furnishing_resources",
+    "wonderbane_extension_furnishing_pose",
+    "wonderbane_extension_furnishing_frame",
+    "wonderbane_extension_furnishing_controls",
+    *(f"wonderbane_extension_furnishing_runtime_{mode}" for mode in (
+        "normal", "rotate", "foreign", "caller", "alternate", "binding", "hidden", "scene",
+        "modal", "no_floor", "stop", "reenable", "context", "missed", "shader",
+        "context_install", "foreign_start", "unsealed",
+        "unsupported", "drop", "cancel", "refresh", "scene_edit",
+        "center", "control_install", "cancel_queued",
+    )),
+    "wonderbane_extension_furniture_responses",
+    *(f"wonderbane_extension_furniture_rollback_{i}" for i in (1, 2, 3, 4)),
+})
+
+
 REQUIRED_TARGETED_ACTION_TESTS = frozenset({
     "wonderbane_extension_targeted_action_trace",
     "wonderbane_extension_targeted_action_trace_rollback",
@@ -218,6 +239,14 @@ def main() -> int:
     cmake = Path(arguments.cmake).resolve()
     ctest = cmake.with_name("ctest.exe")
     contracts = [
+        "furnishing_queue.cpp",
+        "furnishing_selection.cpp",
+        "furnishing_render_owner.cpp",
+        "furnishing_native_calls.cpp",
+        "furnishing_resources.cpp",
+        "furnishing_pose.cpp",
+        "furnishing_controls.cpp",
+        "furnishing_runtime.cpp",
         "selected_cue.cpp",
         "selected_cue_gpu.cpp",
         "selected_cue_runtime.cpp",
@@ -290,11 +319,11 @@ def main() -> int:
                 raise RuntimeError(
                     f"{profile}: movement source must have one owner: {movement_source}"
                 )
-        for condemn_source in ("condemn_responses", "condemn_native"):
-            if included_sources.count(condemn_source + ".cpp") != 1:
-                raise RuntimeError(f"{profile}: {condemn_source} must have one owner")
-            if included_sources.count(condemn_source + "_test.cpp"):
-                raise RuntimeError(f"{profile}: Condemn test entered runtime")
+        for observer_source in ("condemn_responses", "condemn_native", "furniture_responses"):
+            if included_sources.count(observer_source + ".cpp") != 1:
+                raise RuntimeError(f"{profile}: {observer_source} must have one owner")
+            if included_sources.count(observer_source + "_test.cpp"):
+                raise RuntimeError(f"{profile}: {observer_source} test entered runtime")
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
         for developer_source in ("movement_tree_probe.cpp", "targeted_action_trace_test.cpp"):
@@ -401,6 +430,7 @@ def main() -> int:
             "wonderbane_extension_movement_runtime_commands",
         }
         required_native_tests.update(REQUIRED_CONDEMN_TESTS)
+        required_native_tests.update(REQUIRED_FURNITURE_TESTS)
         required_native_tests.update(REQUIRED_TARGETED_ACTION_TESTS)
         required_native_tests.update(REQUIRED_VENDOR_TESTS)
         required_native_tests.update(REQUIRED_GUARD_TESTS)
@@ -769,6 +799,9 @@ else:
     )
     artifacts.extend(sorted(logs.glob("*.log")))
     artifacts.extend(sorted(logs.glob("*.xml")))
+    furnishing_handoff = output / "furnishing-preview-runtime.md"
+    shutil.copy2(source / "docs/handoffs/furnishing-preview-runtime.md", furnishing_handoff)
+    artifacts.append(furnishing_handoff)
     sky_handoff = output / "sky-horizon.md"
     shutil.copy2(source / "docs/handoffs/sky-horizon.md", sky_handoff)
     artifacts.append(sky_handoff)
@@ -810,6 +843,10 @@ else:
         "sky_asset": sky_manifest,
         "sky_binding_and_runtime_verified": bool(arguments.reviewed_client),
         "live_acceptance": "pending; no deployment performed",
+        "furnishing_preview_full_profile": True,
+        "furnishing_preview_opt_in": "Select a loaded item, then Preview in the occupied building",
+        "furnishing_preview_live_verified": False,
+        "furnishing_preview_policy": "Private clone; cursor/floor pose; no placement dispatch",
         "selected_cue_binding_verified": bool(arguments.reviewed_client),
         "movement_prepared_binding_verified": bool(arguments.reviewed_client),
         "source_identity": metadata,

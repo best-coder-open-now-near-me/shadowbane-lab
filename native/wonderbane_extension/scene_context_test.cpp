@@ -8,6 +8,8 @@ namespace wonderbane::extension {
 namespace {
 HGLRC observed_context = reinterpret_cast<HGLRC>(1);
 HGLRC WINAPI ReadContext() { return observed_context; }
+int previews=0;
+void PreviewLost() noexcept { ++previews; }
 std::atomic<int> releases{0}, invalidations{0}, calls{0};
 bool refuse_switch = false;
 HANDLE entered = nullptr, resume = nullptr;
@@ -36,6 +38,7 @@ DWORD ReplaceImportAddressSlot(std::uint32_t* slot, std::uint32_t expected,
 int main() {
     using namespace wonderbane::extension;
     current_context = &ReadContext;
+    furnishing::context_event.store(&PreviewLost);
     // No cue mapping/binding was started. Sky still receives context invalidation.
     assert(StartSceneContextObservation(nullptr, 0) == ERROR_SUCCESS);
     assert(StartSceneContextObservation(nullptr, 0) == ERROR_SUCCESS && installs == 1);
@@ -46,7 +49,11 @@ int main() {
     refuse_switch = true;
     assert(!dispatch(nullptr, reinterpret_cast<HGLRC>(2)));
     assert(releases == 3 && invalidations == 3 && observed_context == reinterpret_cast<HGLRC>(1));
+    assert(previews == 3);
+    // Changing the drawable of the same context also invalidates ownership.
     refuse_switch = false;
+    assert(dispatch(reinterpret_cast<HDC>(1), observed_context));
+    assert(previews == 4 && releases == 4);
     entered = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     resume = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     HANDLE mutated = CreateEventW(nullptr, TRUE, FALSE, nullptr);

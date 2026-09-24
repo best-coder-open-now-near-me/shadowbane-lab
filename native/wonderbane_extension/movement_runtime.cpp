@@ -232,6 +232,7 @@ public:
         // their original and finish their own exact-lifetime cleanup.
         controls.ObserveScene(0); controls.Shutdown(); pending_count = 0; scene = {};
         input.Retire();
+        RetireNativeOwnerServices(window);
         if (lifetime_started) { RetireNativeMovementLifetime(); }
         StopNativeMovementUpdates(); Publish();
     }

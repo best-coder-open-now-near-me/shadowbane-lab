@@ -84,7 +84,8 @@ bool NativeUi::Run(POINT client, NativeUiState& out) {
     else if (!next.pointer_owned) {
         // Native top-level hit testing respects visibility, UI rectangles,
         // transparent HUDs and their actual child hit tests, including world map.
-        next.pointer_owned = calls_.hit(reinterpret_cast<void*>(next.native_window), next.native_point.x, next.native_point.y) != nullptr;
+        next.pointer_hud = reinterpret_cast<std::uintptr_t>(calls_.hit(reinterpret_cast<void*>(next.native_window), next.native_point.x, next.native_point.y));
+        next.pointer_owned = next.pointer_hud != 0;
     }
     bool keyboard = true, pointer = true, camera = false, global = true;
     if (!Gates(next.native_window, keyboard, pointer, camera, global)) { return false; }

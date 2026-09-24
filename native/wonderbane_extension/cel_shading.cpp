@@ -11,6 +11,7 @@
 #include "navigation_viewer.h"
 #include "effects_runtime.h"
 #include "selected_cue_runtime.h"
+#include "furnishing_events.h"
 #endif
 #include "terrain_trace.h"
 #include "terrain_mask_refresh.h"
@@ -305,22 +306,30 @@ void MarkCompiledListStateChange() noexcept {
 }
 
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+#define WB_OBSERVE_FURNISHING_MATRIX(name) \
+    if constexpr (std::string_view(#name) == "PushMatrix" || std::string_view(#name) == "PopMatrix") { \
+        if (!g_active_display_list_capture.active && !g_immediate_primitive_open) { \
+            furnishing::Matrix(std::string_view(#name) == "PushMatrix", caller); \
+        } \
+    }
 #define WB_OBSERVE_SKY_UPLOAD(name) \
     if constexpr (std::string_view(#name) == "LoadMatrixf") { \
         ObserveSkyCameraUpload(reinterpret_cast<std::uintptr_t>(_ReturnAddress()), \
             !g_active_display_list_capture.active && !g_immediate_primitive_open); }
 #else
+#define WB_OBSERVE_FURNISHING_MATRIX(name)
 #define WB_OBSERVE_SKY_UPLOAD(name)
 #endif
 #define WB_DECLARE_LIST_STATE_HOOK(name, parameters, arguments) \
     PVOID volatile g_list_original_##name = nullptr; \
     std::uint32_t* g_list_slot_##name = nullptr; \
-    void APIENTRY ListState##name parameters noexcept { \
+    __declspec(noinline) void APIENTRY ListState##name parameters noexcept { \
         const RenderCallbackLease lease; \
+        [[maybe_unused]] const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress()); \
         MarkCompiledListStateChange(); \
         const auto original = LoadFunction<decltype(&ListState##name)>( \
             &g_list_original_##name); \
-        if (original != nullptr) { original arguments; WB_OBSERVE_SKY_UPLOAD(name) } \
+        if (original != nullptr) { original arguments; WB_OBSERVE_SKY_UPLOAD(name) WB_OBSERVE_FURNISHING_MATRIX(name) } \
     }
 WB_LIST_STATE_COMMANDS(WB_DECLARE_LIST_STATE_HOOK)
 #undef WB_DECLARE_LIST_STATE_HOOK
@@ -1677,6 +1686,13 @@ __declspec(noinline) void APIENTRY StrongClear(const unsigned int mask) noexcept
     if (!g_scene_mapping_verified || (mask != 0x4100U && mask != 0x4500U)
         || !IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva)) DiscardSkyScene();
 #endif
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    if ((mask & 0x100U) != 0U) {
+        furnishing::DepthClear(g_scene_mapping_verified && !g_immediate_primitive_open
+            && (mask == 0x4100U || mask == 0x4500U)
+            && IsReviewedSceneCall(caller, g_scene_image_base, kSceneClearReturnRva));
+    }
+#endif
     if ((mask & 0x100U) != 0U) {
         g_main_scene_camera_valid = false;
         DiscardPendingDepthEdgeScene();
@@ -2567,11 +2583,19 @@ void StopGraphicsPresentObservation() noexcept {
     );
 }
 
+bool SceneMatrixObservationCurrent() noexcept {
+    return g_list_slot_PushMatrix && g_list_slot_PopMatrix
+        && g_list_original_PushMatrix && g_list_original_PopMatrix
+        && *g_list_slot_PushMatrix == reinterpret_cast<std::uintptr_t>(&ListStatePushMatrix)
+        && *g_list_slot_PopMatrix == reinterpret_cast<std::uintptr_t>(&ListStatePopMatrix);
+}
+
 DWORD StartStrongCelShading() noexcept {
     const RenderLifecycleMutation mutation;
     static_assert(sizeof(void*) == sizeof(std::uint32_t));
 #define WB_CHECK_LIST_STATE_HOOK(name, parameters, arguments) \
-    if (g_list_slot_##name != nullptr) { \
+    if (g_list_slot_##name != nullptr && std::string_view(#name) != "PushMatrix" \
+        && std::string_view(#name) != "PopMatrix") { \
         return ERROR_ALREADY_INITIALIZED; \
     }
     WB_LIST_STATE_COMMANDS(WB_CHECK_LIST_STATE_HOOK)
@@ -2834,6 +2858,20 @@ DWORD StartStrongCelShading() noexcept {
             plan.symbol_name
         );
         plan.original = reinterpret_cast<PVOID>(GetProcAddress(opengl, plan.symbol_name));
+        // Matrix observers remain installed through Stop so a submitted preview
+        // can observe its matching outer drain. Re-enable accepts only our exact
+        // retained slot, wrapper and immutable original; it never chains hooks.
+        const bool matrix = std::strcmp(plan.symbol_name, "glPushMatrix") == 0
+            || std::strcmp(plan.symbol_name, "glPopMatrix") == 0;
+        if (matrix && *plan.slot_storage != nullptr) {
+            if (plan.slot != *plan.slot_storage || !plan.original
+                || plan.original != InterlockedCompareExchangePointer(plan.original_storage, nullptr, nullptr)
+                || *plan.slot != reinterpret_cast<std::uintptr_t>(plan.replacement)) {
+                return ERROR_INVALID_ADDRESS;
+            }
+            plan.slot = nullptr; // already owned; do not reinstall or rewrite its original
+            continue;
+        }
         const DWORD validation = ValidateResolvedImportHookPlan(plan);
         if (validation != ERROR_SUCCESS) { return validation; }
         if (plan.slot == nullptr) { continue; }
@@ -2942,6 +2980,7 @@ DWORD StartStrongCelShading() noexcept {
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
         (void)StartSelectedCue(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
         (void)StartSky(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
+        furnishing::Renderer(true);
 #endif
         StartTerrainMaskRefresh(image, nt->OptionalHeader.SizeOfImage, reviewed_hash);
         wchar_t status_path[MAX_PATH]{};
@@ -2956,6 +2995,7 @@ DWORD StartStrongCelShading() noexcept {
 void StopStrongCelShading() noexcept {
     const RenderLifecycleMutation mutation;
 #if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    furnishing::Renderer(false);
     StopSelectedCue();
     StopSky();
 #endif
@@ -2963,7 +3003,8 @@ void StopStrongCelShading() noexcept {
     StopTerrainTrace();
     bool restored = true;
 #define WB_RESTORE_LIST_STATE_HOOK(name, parameters, arguments) \
-    if (!RestoreHook(&g_list_slot_##name, &g_list_original_##name, \
+    if (std::string_view(#name) != "PushMatrix" && std::string_view(#name) != "PopMatrix" \
+        && !RestoreHook(&g_list_slot_##name, &g_list_original_##name, \
             reinterpret_cast<PVOID>(&ListState##name))) { restored = false; }
     WB_LIST_STATE_COMMANDS(WB_RESTORE_LIST_STATE_HOOK)
 #undef WB_RESTORE_LIST_STATE_HOOK

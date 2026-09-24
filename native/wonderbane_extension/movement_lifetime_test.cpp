@@ -478,6 +478,23 @@ int main(int argc, char** argv) {
     } else {
         Check(f->Observe(scene) && scene.epoch && wm::NativeMovementLifetimeCurrent(scene), "observe current native tuple");
         const auto first = scene;
+        std::uintptr_t independent_reference = 0;
+        Check(wm::NativeMovementReferenceInterface(f->next.data(), independent_reference)
+            && independent_reference == reinterpret_cast<std::uintptr_t>(f->next.data() + 0xe78),
+            "registered independent object reference ABI can be checked without watching it");
+        Check(!wm::NativeMovementReferenceInterface(nullptr, independent_reference) && !independent_reference,
+            "null reference check grants nothing");
+        std::thread reference_foreign([&] {
+            std::uintptr_t receiver = 1;
+            Check(!wm::NativeMovementReferenceInterface(f->next.data(), receiver) && !receiver,
+                "reference ABI check requires owner thread");
+        }); reference_foreign.join();
+        auto* independent_slot = reinterpret_cast<std::uintptr_t*>(f->next.data() + 0xe78);
+        const auto saved_independent = *independent_slot; *independent_slot = 0;
+        Check(!wm::NativeMovementReferenceInterface(f->next.data(), independent_reference) && !independent_reference,
+            "unknown independent reference never grants a receiver");
+        *independent_slot = saved_independent;
+        Check(wm::NativeMovementLifetimeCurrent(scene), "failed independent ABI check preserves scene watch");
         wm::NativeScene borrowed{};
         std::thread borrower([&] { Check(wm::ReadNativeMovementLifetime(borrowed), "foreign reader borrows existing watch"); });
         borrower.join();
@@ -685,6 +702,8 @@ int main(int argc, char** argv) {
             Check(f->Observe(scene) && scene.epoch != before_gap.epoch, "return to same tuple requires fresh epoch");
             wm::RetireNativeMovementLifetime();
             Check(!wm::NativeMovementLifetimeCurrent(scene) && !f->Observe(scene), "terminal retirement closes observer");
+            Check(!wm::NativeMovementReferenceInterface(f->next.data(), independent_reference) && !independent_reference,
+                "terminal observer cannot qualify independent reference cleanup");
             Check(CallRef(callback, expected_ref) && forwarded, "callback fetched before retirement still forwards");
         }
     }

@@ -1,5 +1,66 @@
 # Git branch map
 
+## Furnishing preview investigation - September 24
+
+**Stopped at user request.** The user cancelled carpenter work on September 24.
+Branch `codex/furnishing-preview` / draft PR #35 retain shader checkpoint `6ea434c`
+and the subsequent automatic-control draft; neither is integrated into `main`.
+The [runtime handoff](handoffs/furnishing-preview-runtime.md) records preserved
+source, completed local checks, unqualified live behavior and installed source.
+No packaging, deployment or active carpenter todo remains authorized. Earlier
+next-step text below is historical and does not override this cancellation.
+
+Focused branch `codex/furnishing-preview` starts at `main@a91dfd5` and targets
+[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
+into `main`. The [renderer handoff](handoffs/furnishing-preview.md)
+records the real floorplan/model path, opt-in read-only observer, manifest-matched
+Bench mesh/texture identity, and the shared-state mutations that still prevent
+assuming native draw replay is safe. The [continued native contract](handoffs/furnishing-native-render-contract.md)
+records occupancy as building identity, verified TQS/heading conventions, and
+private clone/static queue candidates. Clone eligibility and queue retirement now use bounded native ownership gates; the [ownership review](handoffs/furnishing-preview-ownership.md)
+records exact queue and standard static shader cleanup behavior. The [preview runtime](handoffs/furnishing-preview-runtime.md) now connects
+these ownership gates to opt-in Preview controls and the native 3D queue. The
+coordinating task owns deployment and ordinary carpenter input/placement diagnosis. This work remains outside main until its PR is merged.
+
+Before preview runtime wiring, this branch incorporated furniture response recorder
+source `c764e22` and its validated-package handoff `5beb192` from
+[PR #37](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/37).
+This preserves native 1.8.28 / host 0.3.48 diagnostics as a dependency; it does
+not merge either PR into `main` or authorize a preview deployment. Subsequent
+version assignment and packaging remain coordinated with that task.
+
+Native selection capture now enforces occupied-building identity and bounded
+HUD/row ownership on a verified owner/lifetime callback.
+The private render ownership transaction now holds source/private references
+through exact queue retirement and handles Stop, context loss and native faults.
+Reviewed-image native call adapters now check the exact reference interfaces and
+owner/context, with C++/SEH fault containment. The full-profile runtime now registers them
+through the existing owner callback and persistent frame/context observers.
+The source/private gate now qualifies the reviewed static mesh/loaded-texture
+family and validates queued shader/texture metadata before drawing.
+Cursor/floor pose, rotation and Preview/hold/cancel controls are implemented.
+The coordinator installed native 1.8.29 / host 0.3.49 from exact source
+`0193dd74662eb368c4961a2ab8d9db6826fb70b4`. Live selection checks passed, but a
+confirmed renderer/preview matrix-import collision prevented preview startup.
+The focused correction reserves native 1.8.30 / host 0.3.50 and makes the renderer
+the sole persistent matrix-import owner. The runtime handoff records evidence
+and the renderer-first regression. Exact corrective source
+`8ba181868fca7ca113f94361b61118ce74a9d4a1` passed all required package gates
+(3,823 host tests; 200 native cases per profile and separate binding/IPC checks).
+The qualified package is `artifacts/p30/b8690f3e`; hashes and read-only startup
+diagnostics are in the runtime handoff. Next: coordinator-owned deployment and
+supervised live acceptance, then PR review and integration into `main`. The coordinator separately owns selected-row evidence;
+the observer now checks actor occupancy against the HUD structure and includes
+an optional bounded resource reader keyed to one owned entry. Ordinary Bench
+single-click selection is now observed; a subsequent drag rebuilt the row and
+cleared selection, with placement still unconfirmed. Its retained scene list/map
+were empty; an optional bounded reader now records both independently, without
+inferring server omissions because asset setup can fail before insertion.
+The coordinator publishes
+its separate carpenter handoff through [PR #36](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/36),
+branch `codex/carpenter-discovery-20260924` (reported checkpoint `cf06c22`). Both
+PRs target `main`; neither branch push alone integrates the other lane.
+
 ## Current client update - September 24
 
 Native 1.8.27 / host 0.3.47 from source `d74d3c3` is installed in the VM
@@ -11,6 +72,21 @@ that PR records final-head checks and merge status. See the
 [update review](client-update-20260924.md) for exact package identities and rollback.
 The next live step is the user's launch/login, then Barracks/vendor observations.
 Use freshly fetched `origin/main` after PR #34 merges for further development.
+
+## Furniture response diagnostics - September 24
+
+`codex/furniture-response-diagnostics` targets `main` from `a91dfd5` through
+[draft PR #37](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/37).
+Exact source `c764e22d1bd94fe3a84fd53a31d42d4c959d8a20` passed the complete
+package gates; installation and a supervised placement capture remain pending.
+It owns the passive native Furniture message recorder and host capture path,
+versioned 1.8.28 / 0.3.48; see the
+[diagnostic handoff](handoffs/furniture-response-diagnostics.md) for exact scope,
+validation state and next live step. This is separate from the preview modules in
+[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
+and discovery documentation in
+[PR #36](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/36).
+Neither source publication nor a message observation establishes placement success.
 
 ## Canonical development base - September 23
 
