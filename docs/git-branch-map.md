@@ -26,6 +26,13 @@ validation state and next live step. This is separate from the preview modules i
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
 and discovery documentation in
 [PR #36](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/36).
+Combined preview/recorder native 1.8.29 / host 0.3.49 package source
+`0193dd74662eb368c4961a2ab8d9db6826fb70b4` in PR #35 includes recorder `c764e22`
+and passed its required package gates. Combined VM staging is verified and
+supersedes the never-activated recorder-only candidate for the next restart;
+normal game closure, activation and live acceptance remain pending. PR #37 retains the
+recorder source and deployment handoff; both reviews target `main`, and neither
+has been merged by this coordination step.
 Neither source publication nor a message observation establishes placement success.
 
 ## Canonical development base - September 23

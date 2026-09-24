@@ -110,15 +110,55 @@ normal game closure. The user can continue other activities with Bart meanwhile.
 
 ## Preview package coordination
 
-Native 1.8.29 / host 0.3.49 are reserved for `codex/furnishing-preview` in
-[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35).
-That task owns the next version changes and exact-source package validation and
-must preserve this recorder and its required gates. Its integrated preview source
-is undergoing full validation; no accepted preview package or VM activation is
-claimed. The staged 1.8.28 / 0.3.48 candidate remains available. Decide whether to
-replace it with the combined preview package only after the latter qualifies,
-then coordinate activation after normal game closure. Avoid two unnecessary
-restarts when both lanes can be tested together.
+The combined native 1.8.29 / host 0.3.49 candidate is published in
+[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
+from exact package source `0193dd74662eb368c4961a2ab8d9db6826fb70b4` on
+`codex/furnishing-preview`. Its ancestry includes recorder source `c764e22`; the
+native recorder and host reader remain unchanged. Workflow capture additionally
+supports `--furnishings` for read-only selection/model observations.
+
+The package reports all required gates passed: 3,811 host tests (18 skipped),
+198 native tests and 63 movement IPC tests in each profile, actual client binding
+checks and installed-wheel checks. The same two deferred transparency findings
+remain recorded for each profile. ZIP SHA-256:
+`9ca0fe2e669677f83335a3f6ba8b62c5af270b2e23bc9fbe23d24936b68e67e4`.
+Full DLL SHA-256:
+`33cdf5f8bf656766ad944a1bc06ad76b60ebcb5b8cd4728cabebf7fdc9163365`.
+Wheel SHA-256:
+`07c74cc5ec944f996f5255df80d618d2707b7067ff5c4ba58c3c169fc0732010`.
+The final package and receipt are retained privately in the preview worktree at
+`artifacts/p29/fc7b8466`. These checks qualify a live-test candidate, not visual
+acceptance.
+
+At 2026-09-24 15:52 UTC, combined VM preparation returned
+`prepared_not_applied` and `update_verified_not_applied`. It verified 434 installed
+module files and inventoried 9,426 retained files. All 61 package artifacts, ZIP
+integrity, internal source/version identities and unchanged prepared-executable
+bytes were independently verified before staging. Private receipts are in the
+VM diagnostics share under `furnishing-preview-20260924/guest-prepare.json` and
+`guest-validation.json`; the new guest upgrade directory is
+`upgrades/furnishing-preview-1.8.29`.
+
+The active runtime remains 1.8.27 / 0.3.47. Combined 1.8.29 / 0.3.49 supersedes
+the staged, never-activated recorder-only 1.8.28 / 0.3.48 candidate for the next
+restart. Both prior artifacts are retained. Normal game closure confirmation is
+pending; no DLL activation, manager switch or shortcut mutation has occurred.
+PR #35 documentation head is `d70da4ce298d91f251ceb70b2e8bbd4b017ea7ef`;
+the packaged runtime remains `0193dd7`. Its ancestry includes PR #37 through
+`5beb192`, but later staging/coordination docs from this branch must be preserved
+when integrating the two reviews into `main`.
+
+After verified activation, use the existing Vendor Test shortcut and log in as
+Bart with the Bench contract retained. Arm `--furniture-responses --furnishings`
+before live testing. In the occupied building, select the loaded Bench in
+Furniture Placement, choose Preview, move over the floor plan, click to hold,
+rotate, and Cancel or Esc. Verify appearance, texture, scale, height, cancellation
+and absence of placement serialization. Only after cancelling the preview should
+the user make one ordinary placement attempt for the original carpenter issue.
+The native preview currently admits only qualified preloaded static mesh /
+ColorTexture / ArcImage trees and uniform positive building scale; unsupported
+resources show unavailable. Preview does not establish valid placement or server
+acceptance. The preview task retains its detailed runtime/live-acceptance handoff.
 
 ## Capture and next todos
 
@@ -131,11 +171,11 @@ loading text. Private captures and client binaries stay in local artifact storag
 
 1. Complete: exact committed package, full host/native validation in both profiles
    and installed-wheel checks.
-2. Active: apply the staged, verified candidate after the user closes the game;
-   preserve saved jobs, journals and settings and verify the new process lifetime
-   and mapping. Preparation is complete; activation remains pending.
+2. Active: apply the verified, staged combined preview/recorder candidate after
+   normal game closure. Preserve jobs, journals and settings and verify the new
+   process lifetime and mapping. Staging is complete; activation remains pending.
 3. Capture one ordinary placement attempt. Separate outgoing serialization,
    incoming record contents and resulting HUD collections; then fix the proven
    client boundary or provide the dev a precise server finding.
-4. Continue preview implementation separately; resume the serialized guard/Condemn
-   and vendor live checks when this carpenter capture releases the client.
+4. Complete supervised preview acceptance with its task; resume the serialized
+   guard/Condemn and vendor live checks when carpenter testing releases the client.
