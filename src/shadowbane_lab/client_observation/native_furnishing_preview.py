@@ -10,6 +10,7 @@ import math
 import struct
 
 from .native_furnishing_resources import _reference, read_render_resources
+from .native_furnishing_scene import read_scene_collections
 from .native_vendor_dialog import (
     NativeVendorDialogCaptureError,
     NativeVendorDialogCompatibilityError,
@@ -63,6 +64,7 @@ def _occupancy(r: _ReadSet, structure: dict[str, int] | None) -> dict[str, objec
 
 def read_native_furnishing_preview(
     memory: VendorQueueMemory, *, resource_entry_key: tuple[int, int] | None = None,
+    include_scene_collections: bool = False,
 ) -> dict[str, object]:
     """Copy the one active furnishings HUD, its owned rows and selected references.
 
@@ -71,6 +73,7 @@ def read_native_furnishing_preview(
     functions are invoked and no objects are retained or changed. All copied
     bytes are rechecked; even a stable copy cannot prevent native address reuse.
     Optional resource evidence is keyed to one owned row, not to selection.
+    Optional scene collections describe retained client data, not server receipts.
     """
     if (
         memory.executable_name.casefold() != "sb.exe"
@@ -84,6 +87,8 @@ def read_native_furnishing_preview(
                for value in resource_entry_key) or not resource_entry_key[0]
     ):
         raise NativeVendorDialogCaptureError("invalid furnishing resource entry key")
+    if type(include_scene_collections) is not bool:
+        raise NativeVendorDialogCaptureError("invalid furnishing scene collection option")
     resource_matches = 0
     r, base = _ReadSet(memory), memory.base_address
     root = r.word(base + 0x16A7BFC)
@@ -176,5 +181,7 @@ def read_native_furnishing_preview(
         "preview_pose_verified": False, "render_lifetime_owned": False,
         "placement_confirmed": False, "command_admitted": False,
     }
+    if include_scene_collections:
+        result["scene_collections_raw"] = read_scene_collections(r, hud, manager)
     r.verify()
     return result

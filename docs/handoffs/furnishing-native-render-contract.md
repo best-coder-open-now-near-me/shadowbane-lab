@@ -351,3 +351,58 @@ invalidate preview admission and explicitly handle outstanding ownership. A
 missed/uncertain cleanup boundary must not lead to cross-thread native release,
 unbounded replacement copies or reuse after restart. No native hook is enabled
 until these conditions are implemented and exercised.
+
+
+## Retained scene collections after the row rebuild
+
+The coordinator's bounded post-drag observation found HUD `+0x444` circular
+tracking list empty and HUD `+0x668` furniture-map count zero, with a null root
+through sentinel `+4`. Manager keys `+0xf0/+0xf8` both remained `4761372:8`, the
+same occupied building identified through the actor parent. This is evidence
+that neither inspected collection retained a furniture entry at that moment;
+it is not evidence of an invisible retained entry or placement acceptance.
+
+The empty collections do **not** establish that the server omitted records.
+Native `0x593360` allocates AssetTrackingInfo, then calls setup `0x68bf60` before
+inserting either collection. Setup can fail through asset factory `0x51c510`;
+the caller destroys tracking/info on failure without inserting either entry.
+The coordinator separately owns request/response diagnostics to distinguish
+server data from native setup failure. This observer adds no response hook.
+
+`read_native_furnishing_preview(memory, include_scene_collections=True)` now
+adds `scene_collections_raw` using the same exact-build, owned-HUD read set and
+final reverse verification. Default recorder behavior is unchanged. This is
+copied evidence, not a native lease, and cannot exclude address reuse or changes
+between separate reads that later return to the same bytes.
+
+- Tracking list: HUD `+0x444` sentinel; node next/previous/payload at `+0/+4/+8`.
+  Both directions, unique non-null payloads, cycles and a 512-entry bound are
+  checked. Only AssetTrackingInfo `0x116dde8`, kind `+4 == 2`, grants reads of
+  instance key `+0x90`, asset key `+0x60`, floor `+0x28`, and object reference
+  `+0x68`. Referenced objects are not traversed.
+- Furniture map: HUD `+0x664/+0x668` sentinel/count; sentinel root/min/max at
+  `+4/+8/+0xc`; node parent/left/right at the same offsets, key at `+0x10`,
+  record reference at `+0x18`. Insertion `0x5947e0` qualifies these links and
+  extrema. Comparator `0x111bd0` orders unsigned type then id. The reader checks
+  links, strict ordering, count, extrema, cycles, duplicate record pointers and
+  a 512-record bound. ArcFurnitureInfo `0x117b364` alone permits asset `+8`,
+  matching instance `+0x10`, finite XYZ/rotation `+0x20/+0x2c`, and floor `+0x30`.
+- Null sentinels are unavailable, distinct from valid empty collections. Unknown
+  or null payloads are preserved as references and never treated as empty.
+  Collections are reported independently; a mismatch is not a server verdict.
+  Scene selection membership is evidence only, separate from deed selection.
+  Manager keys remain raw consistency evidence; actor occupancy identifies the
+  building. Placement, command, server completeness and native lifetime flags
+  remain false.
+
+Focused scene/resource/observer/recorder tests pass **169 cases**, including
+empty versus unavailable data, unknown classes, native unsigned tree ordering,
+corrupt links/counts, changing reads, collection independence and no native
+admission. Repository Ruff and diff whitespace checks pass. No live capture,
+native build, deployment or preview visual acceptance was performed for this
+checkpoint.
+
+Next: continue private render-copy and queue-retirement qualification without
+changing shared native runtime wiring while the coordinator implements response
+diagnostics. The native preview remains unfinished; merge PR #35 into `main`
+only after its final implementation and required review/validation.

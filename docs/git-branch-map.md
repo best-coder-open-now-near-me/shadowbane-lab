@@ -19,7 +19,10 @@ the native preview. The coordinator separately owns selected-row live evidence;
 the observer now checks actor occupancy against the HUD structure and includes
 an optional bounded resource reader keyed to one owned entry. Ordinary Bench
 single-click selection is now observed; a subsequent drag rebuilt the row and
-cleared selection, with placement still unconfirmed. The coordinator publishes
+cleared selection, with placement still unconfirmed. Its retained scene list/map
+were empty; an optional bounded reader now records both independently, without
+inferring server omissions because asset setup can fail before insertion.
+The coordinator publishes
 its separate carpenter handoff through [PR #36](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/36),
 branch `codex/carpenter-discovery-20260924` (reported checkpoint `cf06c22`). Both
 PRs target `main`; neither branch push alone integrates the other lane.
