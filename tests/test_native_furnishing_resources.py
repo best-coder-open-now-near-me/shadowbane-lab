@@ -42,9 +42,12 @@ def resource_fixture():
         (MESH, m.base_address + 0x114965C),
         (TEXTURE_SET, m.base_address + resources.TEXTURE_SET_RVA),
         (TEXTURE, m.base_address + resources.SINGLE_TEXTURE_RVA), (TEXTURE + 0x5C, RESOURCE),
-        (RESOURCE, m.base_address + 0x1140000),
+        (RESOURCE, m.base_address + resources.IMAGE_RVA),
     ):
         m.put(at, "<I", value)
+    m.put(RESOURCE + 0x38, "<II", 256, 256)
+    m.put(RESOURCE + 0x44, "<I", 74)
+    m.put(RESOURCE + 0x50, "<I", 0x100)
     render_node(m, RENDER)
     vector(m, MESH_SET, 0x24, MESH_VECTOR, [MESH])
     vector(m, TEXTURE_SET, 0x24, TEXTURE_VECTOR, [TEXTURE])
@@ -77,7 +80,12 @@ def test_unselected_owned_row_yields_resource_evidence_without_render_admission(
     assert node["template"]["mesh_references"][0]["address"] == MESH
     texture = node["texture_set"]["textures"][0]
     assert texture["shared_resource_reference"]["address"] == RESOURCE
-    assert not any(RESOURCE < at < RESOURCE + 0x1000 for at, _ in m.reads)
+    assert texture["image_raw"] == {
+        "width": 256, "height": 256, "texture_name": 74, "status_bytes": [0, 1],
+    }
+    assert {at for at, _ in m.reads if RESOURCE < at < RESOURCE + 0x1000} == {
+        RESOURCE + 0x38, RESOURCE + 0x44, RESOURCE + 0x50,
+    }
     for flag in ("selection_admitted", "render_lifetime_owned", "resource_readiness_verified",
                  "native_calls_made"):
         assert graph[flag] is False
@@ -95,6 +103,7 @@ def test_default_reader_does_not_follow_render_resources():
     (MODEL, MODEL + 0xC0), (RENDER, RENDER + 0x3C),
     (TEMPLATE, TEMPLATE + 0x1C), (MESH_SET, MESH_SET + 0x24),
     (TEXTURE_SET, TEXTURE_SET + 0x24), (TEXTURE, TEXTURE + 0x5C),
+    (RESOURCE, RESOURCE + 0x38),
 ])
 def test_unknown_classes_are_references_and_never_grant_field_interpretation(at, blocked):
     m = resource_fixture()
@@ -117,6 +126,7 @@ def test_null_loading_references_are_not_readiness(at):
     (RENDER + 0x30, 4), (RENDER + 0x3C, 12), (RENDER + 0x48, 40),
     (RENDER + 0x148, 4), (RENDER + 0xE8, 4), (TEXTURE_SET + 0x24, 12),
     (TEXTURE_VECTOR, 4), (TEXTURE + 0x5C, 4), (RESOURCE, 4),
+    (RESOURCE + 0x38, 8), (RESOURCE + 0x44, 4), (RESOURCE + 0x50, 4),
 ])
 def test_changed_resource_or_owner_invalidates_whole_snapshot(at, size):
     m = resource_fixture()

@@ -229,8 +229,9 @@ Strict layout predicates (all RVAs): model `0x1143540`, secondary+0x44
 `0x114350c`; render `0x1149dbc`, secondary+0x30 `0x1149d94`; template
 `0x114a074`; mesh set `0x11499f4`; texture set `0x114a5a4`; single/color texture
 `0x114a2f4`/`0x114a39c`. Unknown primary classes are reported without following their fields.
-Unknown resource target/mesh classes are raw references only. In particular,
-texture+0x5c resource readiness is not interpreted from an assumed class layout.
+Unknown resource target/mesh classes are raw references only. The reviewed
+ArcImage target (`0x11490f0`) permits the additional raw metadata listed below;
+resource readiness is never inferred from those values.
 
 Bounds per requested row: 64 total render nodes, depth at most 8, 16 members per
 mesh/texture set and 256 total set members. Repeated/cyclic or null child nodes,
@@ -270,7 +271,7 @@ The texture set has one element and selected index zero. Its actual texture is
 **ArcColorTexture**, vtable `0x114a39c`, rather than the initially permitted
 ArcSingleTexture. The initial helper correctly stopped at that unknown class.
 Static qualification of the color clone's direct delegation now permits copying
-its `+0x5c` resource reference only. The target resource class and readiness
+its `+0x5c` resource reference. The actual target class and context readiness
 remain unknown until another copied observation; no arbitrary resource fields
 are read. The updated helper/observer/recorder suite passes **117 tests** and Ruff.
 
@@ -278,3 +279,75 @@ This evidence establishes the selected model's simple static resource shape and
 supports further clone qualification independently of placement. It does not
 establish owned native references, GL context/thread admission, queue lifetime,
 rendering, collision validity or placement acceptance.
+
+
+## ArcImage metadata and row rebuild
+
+Static factory `0x18d340` and constructor `0x18d450`, plus RTTI, qualify ArcImage
+primary vtable `0x11490f0`. ArcColorTexture getter `0x1df630` reads the target's
+`+0x44` texture name; `0x192310` reads status byte `+0x51`. The reader now records
+only for that exact target class: width/height at `+0x38/+0x3c`, name `+0x44`,
+and raw status bytes `+0x50/+0x51`. It does not call these getters or export image
+payloads. A nonzero name or status byte is not proof of a usable texture in the
+preview's current GL context. No live ArcImage metadata has yet been captured.
+
+The coordinator's later user-driven selected drag rebuilt the row and entry,
+while the same deed key and model remained. Both native selection fields and
+scene selection became zero. No successful placement is inferred. A renderer
+must cancel on that generation/selection change even if the asset/model pointer
+is unchanged. The resource helper deliberately reacquires one owned entry by key
+and reports its new selection state; it never caches the old row/entry address.
+
+Focused helper/observer/recorder validation now passes **121 tests** and Ruff.
+The full host suite at `57d43f0` (before the four ArcImage cases) passed **3,493
+tests**, **20 skipped**, **756 subtests**. These remain source and copied-data
+checks; no native preview has been built, deployed or visually accepted.
+
+## Queue phase and owner-thread continuation
+
+Static review of the alternate producer found seven direct call sites. Each is
+preceded by a non-main depth clear: six cube-face paths at clear RVAs `0x796d94`,
+`0x796e2a`, `0x796ec0`, `0x796f5c`, `0x796ffc`, `0x797094`, and the reflected pass
+at `0x79764c`. The masks include the depth bit. The existing `StrongClear`
+invalidates the main camera and main-scene authority on such a clear. This
+supports using a single valid reviewed main-clear generation to distinguish the
+main drain, together with matching context/camera/owner and no nested drain.
+A shared drain return alone remains insufficient. There were no absolute-address
+references to the alternate producer or its thunk in the inspected image; this
+xref result is not a blanket guarantee about arbitrary runtime function pointers.
+
+Main queue construction/destruction uses complete window `+0xfc`. Its ordinary
+reset `0x4d9a00` and window destructor's equivalent `0x773bd0` return tree nodes
+without reading the wrapper payload; destructor cleanup `0x7a1940` also frees
+only the sentinel. Static pool wrapper destructor `0x1cab30` writes its base
+vtable and does not release or dereference the borrowed render. Pool reuse,
+queue-node disposal and render-reference release must therefore remain separate.
+
+A possible explicit retirement path is to track exactly the wrappers/nodes added
+for private render copies, then remove those nodes after the outer main drain
+using native tree erase `0x4d9a70` on the owner thread. That method rebalances and
+returns a 20-byte node; it does not release render payloads. This is a **candidate
+implementation contract**, not code already invoked or proof that a shader never
+retains additional data. Before adopting it, verify current node membership and
+payload identity, exclude special submissions/callbacks, track nested drains,
+and quarantine uncertain enqueue/erase outcomes rather than release early.
+
+The existing native update service runs only after the movement runtime has
+verified HWND process/thread identity and observed the scene on that owner.
+This service can own capture, native retains/cloning and candidate pose updates;
+a furnishing service would need its own registration, without replacing the
+vendor callback. Render admission must also compare the current render thread
+to that owner and validate the current context and unchanged actor parent. Merely
+copying `NativeScene` from another thread never acquires ownership.
+
+`StopStrongCelShading` restores ordinary GL hooks under a callback lease barrier.
+That barrier covers extension callbacks, not the native interval after enqueue.
+Therefore an in-flight native preview cannot depend on those hooks surviving
+Stop. Cleanup observation must remain process-pinned until retirement is proven,
+or Stop must defer retirement to a confirmed owner boundary. The extension
+already pins its module, and context/lifetime observers use persistent hooks.
+Window destruction terminates ordinary movement updates, so it must also
+invalidate preview admission and explicitly handle outstanding ownership. A
+missed/uncertain cleanup boundary must not lead to cross-thread native release,
+unbounded replacement copies or reuse after restart. No native hook is enabled
+until these conditions are implemented and exercised.

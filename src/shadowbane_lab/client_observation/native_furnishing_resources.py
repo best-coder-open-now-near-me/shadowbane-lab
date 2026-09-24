@@ -18,6 +18,7 @@ MESH_SET_RVA = 0x11499F4
 TEXTURE_SET_RVA = 0x114A5A4
 SINGLE_TEXTURE_RVA = 0x114A2F4
 COLOR_TEXTURE_RVA = 0x114A39C
+IMAGE_RVA = 0x11490F0
 MAX_RENDER_NODES = 64
 MAX_RENDER_DEPTH = 8
 MAX_SET_MEMBERS = 16
@@ -91,8 +92,20 @@ def read_render_resources(r: _ReadSet, model: dict[str, int] | None) -> dict[str
                 assert texture is not None
                 # ArcColorTexture clone 0x1df650 delegates to ArcSingleTexture
                 # clone 0x1df2d0, which retains the shared resource at +0x5c.
-                # Its target class/readiness is deliberately not interpreted.
-                item["shared_resource_reference"] = _reference(r, texture["address"] + 0x5C)
+                resource = _reference(r, texture["address"] + 0x5C)
+                item["shared_resource_reference"] = resource
+                if known(resource, IMAGE_RVA):
+                    assert resource is not None
+                    image = resource["address"]
+                    width, height = struct.unpack("<II", r.read(image + 0x38, 8))
+                    # ArcImage constructor 0x18d450 and ColorTexture getter
+                    # 0x1df630 ground these fields; byte +0x51 is read by 0x192310.
+                    # A name/status byte is not proof of readiness in our context.
+                    item["image_raw"] = {
+                        "width": width, "height": height,
+                        "texture_name": r.word(image + 0x44),
+                        "status_bytes": list(r.read(image + 0x50, 4)[:2]),
+                    }
             textures.append(item)
         out.update(selected_index_raw=r.word(pointer + 0x30), textures=textures)
         return out

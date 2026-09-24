@@ -18,7 +18,11 @@ Next: qualify clone eligibility and queued-resource retirement, then implement
 the native preview. The coordinator separately owns selected-row live evidence;
 the observer now checks actor occupancy against the HUD structure and includes
 an optional bounded resource reader keyed to one owned entry. Ordinary Bench
-single-click selection is now observed; placement remains unconfirmed.
+single-click selection is now observed; a subsequent drag rebuilt the row and
+cleared selection, with placement still unconfirmed. The coordinator publishes
+its separate carpenter handoff through [PR #36](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/36),
+branch `codex/carpenter-discovery-20260924` (reported checkpoint `cf06c22`). Both
+PRs target `main`; neither branch push alone integrates the other lane.
 
 ## Current client update - September 24
 
