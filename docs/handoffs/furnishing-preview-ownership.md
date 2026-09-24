@@ -230,3 +230,40 @@ Next: private render resource qualification and owner-thread clone/release, then
 pose, persistent frame/context cleanup and the Preview affordance. This remains
 unfinished preview work in PR #35 targeting main; the recorder dependency remains
 unchanged at source c764e22 (native 1.8.28 / host 0.3.48).
+
+
+## Private render ownership transaction checkpoint
+
+`furnishing_render_owner.h/.cpp` compose selection identity and queue receipts into
+one persistent ownership transaction. This is the production lifetime boundary;
+reviewed-image native operation adapters and resource/shader qualification are
+still required before it can be registered with owner/render callbacks. The
+component is linked, but startup does not instantiate or enable a preview.
+
+It retains the source model for the entire private render lifetime, keeping shared
+resources alive through private destruction. It publishes reference slots before
+native entry, refuses replacement while owning any copy, only changes pose when
+unqueued, and only releases after receipt retirement on the acquisition owner and
+graphics context. Private release precedes source-model release. A wrong drain
+ticket is ignored; an uncertain call or cleanup quarantines the bounded transaction
+without retry or replacement. Invalid private postconditions also quarantine.
+
+Cross-thread Close only closes admission. It does not release or remove cleanup
+observers. A normal matching drain can still retire after Close or a selection
+change and then release on its owner/context. Context invalidation is owner-thread
+only and preserves uncertain ownership. Reopening requires a completely empty
+transaction. The runtime must still prove the outer main drain and shader shutdown;
+this component cannot infer that proof from a ticket alone.
+
+All three furnishing native suites and the full extension build pass with VS2022
+Win32 Release and warnings as errors. The new suite uses synthetic operations to
+exercise pre/post-entry failures in retain, clone, compose, enqueue and release;
+partial/no insertion; cleanup faults; source/clone rejection; native reentry;
+selection/Stop changes during calls; and context loss. It never executes the game
+or establishes visual acceptance. The package gate requires this suite; 211 host
+gate cases and Ruff pass.
+
+Next active item: reviewed native operation adapters and resource/shader gates,
+followed by cursor/floor pose, persistent frame/context callbacks and Preview
+controls. Version/package coordination, native integration validation and real
+in-building visual acceptance remain pending. No new versions or VM changes.

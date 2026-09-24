@@ -78,7 +78,7 @@ target_compile_definitions(
 )
 if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")
   target_sources(wonderbane_extension PRIVATE
-    furnishing_queue.cpp furnishing_selection.cpp
+    furnishing_queue.cpp furnishing_selection.cpp furnishing_render_owner.cpp
     navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
     selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp scene_context.cpp
     scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp
@@ -874,7 +874,7 @@ endif()
 if(BUILD_TESTING)
   foreach(renderer_test wonderbane_extension_cel_shading_test wonderbane_extension_performance_telemetry_test)
     target_sources(${renderer_test} PRIVATE
-      furnishing_queue.cpp furnishing_selection.cpp
+      furnishing_queue.cpp furnishing_selection.cpp furnishing_render_owner.cpp
       navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
     selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp scene_context.cpp
     scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp
@@ -1362,4 +1362,14 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_furnishing_selection_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   add_test(NAME wonderbane_extension_furnishing_selection COMMAND wonderbane_extension_furnishing_selection_test)
   set_tests_properties(wonderbane_extension_furnishing_selection PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_furnishing_render_owner_test furnishing_queue.cpp furnishing_selection.cpp furnishing_render_owner.cpp furnishing_render_owner_test.cpp)
+  target_compile_features(wonderbane_extension_furnishing_render_owner_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_furnishing_render_owner_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_furnishing_render_owner_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  set_property(TARGET wonderbane_extension_furnishing_render_owner_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_furnishing_render_owner COMMAND wonderbane_extension_furnishing_render_owner_test)
+  set_tests_properties(wonderbane_extension_furnishing_render_owner PROPERTIES TIMEOUT 15)
 endif()

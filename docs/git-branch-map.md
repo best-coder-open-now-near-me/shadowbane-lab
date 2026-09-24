@@ -24,8 +24,10 @@ version assignment and packaging remain coordinated with that task.
 
 Native selection capture now enforces occupied-building identity and bounded
 HUD/row ownership on a verified owner/lifetime callback.
-Next: private render qualification/clone/pose around that capture and the tested
-native queue receipt, then frame/context wiring and the complete preview. The coordinator separately owns selected-row live evidence;
+The private render ownership transaction now holds source/private references
+through exact queue retirement and handles Stop, context loss and native faults.
+Next: native adapters/resource qualification, cursor/floor pose, persistent
+frame/context wiring and the complete preview. The coordinator separately owns selected-row live evidence;
 the observer now checks actor occupancy against the HUD structure and includes
 an optional bounded resource reader keyed to one owned entry. Ordinary Bench
 single-click selection is now observed; a subsequent drag rebuilt the row and
