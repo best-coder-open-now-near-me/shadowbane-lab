@@ -2,11 +2,15 @@
 
 ## Current client update - September 24
 
-`codex/client-update-20260924` starts from `main@0620bcb` and adds exact
-1.3.38.11 compatibility (native 1.8.27 / host 0.3.47). Its integration
-destination is `main`; package/deployment and merge remain pending. See
-[the update review](client-update-20260924.md). Continue the broader guard,
-vendor and carpenter work from the canonical base below after this prerequisite.
+Native 1.8.27 / host 0.3.47 from source `d74d3c3` is installed in the VM
+with official client 1.3.38.11. Both client copies, all five desktop shortcuts,
+retained records, and non-launching preflight are verified. Source branch
+`codex/client-update-20260924` starts at `main@0620bcb` and is delivered to `main`
+through [PR #34](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/34);
+that PR records final-head checks and merge status. See the
+[update review](client-update-20260924.md) for exact package identities and rollback.
+The next live step is the user's launch/login, then Barracks/vendor observations.
+Use freshly fetched `origin/main` after PR #34 merges for further development.
 
 ## Canonical development base - September 23
 

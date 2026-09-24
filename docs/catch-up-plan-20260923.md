@@ -7,10 +7,12 @@ source history. All 15 hosted checks passed on that head. The
 [inclusion inventory and execution queue](integration-status-20260923.md) record
 the merged source, deferred lanes, package identity and remaining acceptance.
 Guard coverage, vendor recovery and the passive recorder, and strict diagnostic
-CI gates are integrated. Host **0.3.46 is installed and its manager is healthy
-in the test VM**, with no game launched or bound. Live guard/vendor evidence
-remains pending. Next, confirm which client the user is using and carpenter
-building readiness before starting the shared observation queue.
+CI gates are integrated. The September 24 client update is now installed:
+**client 1.3.38.11, native 1.8.27, host 0.3.47**, source `d74d3c3`. The manager
+is healthy and unbound, all five desktop shortcuts and launch preflight pass,
+and the game is closed for the user's launch/login. See the
+[client update](client-update-20260924.md) for package and preservation evidence.
+Live guard/vendor evidence remains pending; carpenter awaits building readiness.
 
 Planning date: September 23, 2026. The original planning rationale and milestones
 below remain useful; their starting inventory is historical. Current status and
@@ -221,8 +223,11 @@ owner and next action. No guessed carpentry recipes or generalized framework.
   installed hashes matched, 9,234 of 9,235 ledger files were unchanged, and only
   the expected idle dispatch permit was revoked. Jobs and proofs were preserved.
   No game was launched and no historical request was replayed.
-- Active: confirm the user's active client and whether to resume the test VM
-  with a fresh game lifetime/login. The VM manager is currently healthy and unbound.
+- Complete: reviewed client 1.3.38.11 update, native 1.8.27 / host 0.3.47 package,
+  both VM client copies, five shortcuts and non-launching preflight. Of 9,441
+  retained files, 9,440 are unchanged; only the revoked idle permit refreshed.
+- Active: user launch/login through WonderBane Modded Client, followed by fresh
+  game-lifetime verification. The VM manager is healthy and unbound.
 - Next live observations: one manually opened Irekei Barracks; vendor recipe and
   Inventory ownership walkthrough after manual readiness. Carpenter needs its
   active client and building readiness confirmed. No automatic spending starts.
