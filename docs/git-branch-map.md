@@ -6,8 +6,11 @@ Combined furniture preview/recorder native 1.8.29 / host 0.3.49 from exact sourc
 `0193dd74662eb368c4961a2ab8d9db6826fb70b4` is installed and verified in the VM.
 The existing Vendor Test shortcut is the user launch entry point. Saved records,
 settings, rollback backups, all five shortcuts and the actual new manager were
-verified. Live process/capture and preview/placement acceptance are next; see the
-[deployment handoff](handoffs/furniture-response-diagnostics.md). PR #35 contains
+verified. Live capture proved a preview startup collision with the existing
+renderer; the preview task is fixing it for reserved 1.8.30 / 0.3.50. Ordinary
+Bench drag receives an unchanged empty primary scene list and needs server-handler
+investigation. Capture is stopped; fresh preview acceptance follows the corrected
+package. See the [deployment handoff](handoffs/furniture-response-diagnostics.md). PR #35 contains
 the combined source; PR #37 carries the recorder and latest deployment docs.
 Both target `main` and remain unmerged by this deployment. Earlier installed or
 staged versions below are historical checkpoints.

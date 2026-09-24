@@ -216,6 +216,36 @@ admission/presentation; more dragging is unnecessary. Private source evidence is
 under `carpenter-investigation/preview-1.8.29/7708-134347448189563515` in the guest
 and the host diagnostics share's `furnishing-preview-20260924/live-*` files.
 
+## Confirmed preview startup defect
+
+The missing bar is a startup collision, not an incorrect user selection. Exact
+live DLL globals show an allocated preview runtime, renderer-ready true, but no
+preview push/pop slots or owner/renderer/context callbacks installed. The game's
+matrix imports point to the existing renderer's wrappers (DLL RVAs `0x41b00` and
+`0x41a40`), while preview startup requires the raw OpenGL targets. The renderer
+starts first, so that requirement rejects the normal production startup path.
+No preview child window exists. A separate read-only comparison of the native
+selection gates passed all observable conditions and reverse-validated 122
+memory blocks. The exact package objects were relinked privately to recover
+symbol addresses; the reconstructed DLL hash matched the installed DLL exactly.
+
+The preview task owns the fix: the existing renderer remains the sole matrix
+import owner and publishes bounded events to preview, preserving native
+forwarding, display-list behavior, exact main-drain identity, stop/context and
+in-flight cleanup. Native 1.8.30 / host 0.3.50 are reserved for its corrected
+combined package. Regression coverage must run renderer-first startup; the old
+isolated runtime fixture used raw imports and did not expose this collision.
+No corrected source or package is claimed by this evidence checkpoint.
+
+The passive capture was explicitly stopped at 17:48:25 UTC after 5,450 samples;
+its 17 furniture events include the two normal-drag serialization observations
+at sequences 4 and 14, with no gaps, overwrites, rejected snapshots or lost tickets.
+Final private evidence is retained as `live-workflow-copy.jsonl`,
+`live-preview-globals.json`, `live-selection-gates.json` and
+`live-child-windows.json` in the diagnostics share. The user can use Bart normally
+while the corrected package is developed. Re-arm capture against a fresh verified
+process before the next live test; the current recorder is no longer running.
+
 ## Capture and next todos
 
 Use the existing workflow recorder with `--furniture-responses`, pinned to the
@@ -229,10 +259,10 @@ loading text. Private captures and client binaries stay in local artifact storag
    and installed-wheel checks.
 2. Complete: combined candidate installed after normal game closure; backups,
    retained files, shortcuts, launcher preflight and actual new manager verified.
-3. Active: after the user's launch/login, verify the fresh process lifetime and
-   mapping, arm capture and conduct preview acceptance followed by one separate
-   ordinary placement attempt. Separate outgoing serialization, incoming records
-   and resulting HUD collections; fix the proven client boundary or provide the
-   dev a precise server finding.
-4. Resume serialized guard/Condemn and vendor live checks when carpenter testing
-   releases the client. Preview live findings remain coordinated with its task.
+3. Complete: fresh client and recorder verified; normal placement response and
+   the missing-preview-controls startup cause captured without input automation.
+4. Active: preview task fixes renderer-first startup and validates the corrected
+   combined package; coordinate installation and fresh preview acceptance afterward.
+5. Obtain the server Furniture handler/response-builder evidence for the ordinary
+   placement finding; resume guard/Condemn and vendor live checks in the serialized
+   client queue. The private developer finding is prepared, not sent.
