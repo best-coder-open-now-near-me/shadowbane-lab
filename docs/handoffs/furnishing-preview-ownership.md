@@ -121,21 +121,37 @@ loss invalidates admission and requires an explicit owner-thread recovery proof;
 if absent, retain bounded quarantine until process teardown. A new Start must not
 silently discard the outstanding receipt or create more copies.
 
-Clone eligibility also needs the two copied render property maps at `+0x120` and
-`+0x12c` qualified. Their counts at `+0x124/+0x130` and copy paths were visible in
-`0x1c1e40`; the current copied helper has not observed them. Nonempty maps cannot
-be assumed inert. The copy's `+0x148` clears bit 0 and bits 6/7, preserves source
-bits 1/2/3/5 and sets bit 4. This is rechecked against the instructions; the
-runtime must validate the resulting clone rather than assume all source flags
-were copied. The shared mesh index-zero change remains a separate gate.
+Further inspection corrects the initial two-map hypothesis: `+0x120` is an
+owned byte string (begin/end/capacity at `+0x120/+0x124/+0x128`), and `+0x12c`
+is one tree with count at `+0x130`. The native writer identifies these as vertex
+program name (`VPNAME`) and parameters (`VPPARAM`); `+0x114` is its active flag
+(`VPACTIVE`). The copy allocates name length plus terminator, copies the bytes
+through `0x1d2b60`, and appends NUL. **`+0x124` is an end pointer, not a count.**
+
+Tree copy `0x1d0880` creates independent nodes through `0x1d1a60`. Payload copy
+consists of five DWORDs: an integer key at node `+0x10` and four float values
+at `+0x14..+0x20`. The parser writes at `0x1c76c0`, writer `0x1c7f28` and serializer
+`0x1c2ba3` confirm the four floats; copy/destruction make no payload retain or
+release calls. This removes the suspected hidden native-object ownership in
+these fields. The name and parameter values still need bounded source validation,
+and active vertex-program execution is not qualified by ordinary static shader
+shutdown. Current live evidence does not include these fields. A nonempty name
+alone is not proof that the program is active.
+
+The copy's `+0x148` clears bit 0 and bits 6/7, preserves source bits 1/2/3/5 and
+sets bit 4. This is rechecked against the instructions; the runtime must validate
+the resulting clone rather than assume all source flags were copied. The shared
+mesh index-zero change remains a separate gate.
 
 ## Current todos
 
 - Complete: owned scene-collection observer (`01397ac`), 169 focused tests.
 - Complete: exact wrapper comparator/erase and standard static shader normal-end
   qualification recorded here, against the reviewed image.
-- Active: qualify remaining clone property-map values and resource/shader
-  eligibility, then finalize the exceptional/reentrant retirement contract.
+- Complete: clone vertex-program string/map payload ownership qualified; no
+  hidden object references in the copied payloads.
+- Active: finalize resource/shader eligibility and exceptional/reentrant retirement
+  requirements before the native implementation slice.
 - Pending: coordinate shared wiring ownership with the furniture response task,
   implement the coherent native preview slice, run native lifecycle/failure tests,
   and obtain real in-building visual acceptance with no placement messages.
