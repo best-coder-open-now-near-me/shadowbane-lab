@@ -1,24 +1,22 @@
 # Integration and town-workflow catch-up plan
 
-Execution update: September 24. **Freshly fetched `origin/main@a91dfd5` is the
-canonical base.** PR #25 integrated guard coverage, vendor recovery/recorder and
-diagnostic CI gates; PR #34 integrated the reviewed client 1.3.38.11 update.
+Execution update: September 24. **Vendor rolling is the sole active product lane.**
+The user set guard investigation aside and then explicitly stopped carpenter work.
+Preserve their source, installed runtime and private evidence; do not continue
+carpenter implementation, packaging or live tests without renewed direction.
 
-The current VM candidate is native **1.8.30 / host 0.3.50**, exact combined
-preview/recorder source `8ba181868fca7ca113f94361b61118ce74a9d4a1`.
-The user's launch entry point is **WonderBane Vendor Test**. Startup and preview
-panel creation are verified. Bench visualization is blocked by an unsupported
-native material family; the preview task is correcting that and replacing
-duplicate buttons with automatic preview driven by native placement/rotation.
-Ordinary placement separately repeats an unchanged empty primary scene response
-and requires server-handler investigation. Captures are saved and stopped;
-Bart is free for other activities. See the
-[current deployment and live evidence](handoffs/furniture-response-diagnostics.md).
+Freshly fetched `origin/main@a91dfd5` remains the canonical base. Vendor discovery
+provenance fix `37d919a` is pushed and reviewed in draft PR #38, with 241 focused
+tests passing (one optional fixture skipped). It is not installed. Remaining vendor
+work is ordinary recipe/Inventory qualification and coherent town rolling.
 
-Guard/Condemn and vendor source audits can proceed independently. Their live
-qualification remains queued, with one operator owning game/VM interaction.
-No full-town, maximum-rank, filtered recurring-vendor or carpenter placement
-acceptance is implied by installation or passing source tests.
+The VM still has native 1.8.30 / host 0.3.50 from exact source
+`8ba181868fca7ca113f94361b61118ce74a9d4a1`; the user launch entry point remains
+WonderBane Vendor Test. Stopping carpenter work did not change the installed client.
+Its startup/panel verification, material failure and placement evidence are retained
+in the [deployment handoff](handoffs/furniture-response-diagnostics.md).
+The later cutout shader fix `6ea434c` is source-only in PR #35; automatic preview
+integration and visual acceptance are unfinished.
 
 Planning date: September 23, 2026. The original planning rationale and milestones
 below remain useful; their starting inventory is historical. Current status and
@@ -236,29 +234,28 @@ owner and next action. No guessed carpentry recipes or generalized framework.
   preview/recorder 1.8.30 / 0.3.50 deployment and live startup/panel verification.
   The saved capture isolates the Bench material rejection before cloning and
   reproduces an unchanged empty primary placement response.
-- Active: correct Bench material support and integrate automatic preview with
-  native selection/placement/rotation in PR #35; validate the coherent package
-  before another live test. Separate manual Preview/rotation controls are not the
-  intended interaction.
+- Stopped at user direction: carpenter implementation and live testing, including
+  automatic preview integration. Preserve pushed source and unfinished edits;
+  no further package/deployment or user test is scheduled for this lane.
+- Active: vendor rolling; qualify recipe/Inventory control ownership and complete
+  the bounded town workflow against evidence. The source audit is independent of
+  the game and will identify the minimal remaining live walkthrough.
 - Complete source checkpoint: vendor discovery scene/root handoff fix
   `37d919a` on `codex/vendor-town-workflow`, draft PR #38 to main.
   241 focused tests passed (one optional native fixture skipped), Ruff/diff and
   coordinator review passed. Not merged, packaged or installed yet.
-- Complete audit: no further demonstrated offline guard/Condemn defect found;
-  current source is integrated. Broader coverage, newly discovered guards,
-  resource exhaustion and positive maximum-rank evidence need live qualification.
-- Parallel: statically qualify ordinary vendor recipe/Inventory control paths
-  to minimize the remaining live walkthrough. Automatic town rolling remains
-  incomplete; no speculative scheduler or command adapter is deployed.
-- Externally blocked: original carpenter placement needs developer Furniture
-  operation-3 handler and operation-2 response-builder evidence. The user
-  confirmed server code/logs are unavailable. A concrete developer note is saved
-  privately and has not been sent. Client serialization does not prove rejection.
-- Next live observations, when ready: qualified automatic preview test; one
-  manually opened Irekei Barracks; vendor recipe and Inventory ownership
-  walkthrough. Bart need not remain parked while source work proceeds.
-- Subsequent: production town vendor navigation/scheduling, qualified affix and
-  resource/disposal/recurrence behavior, and guard/Condemn coverage/rank acceptance.
+- Set aside at user direction: further guard/Barracks investigation and live
+  qualification. The user reports equivalent native functionality; that claim
+  has not been independently inspected. Existing guard/Condemn work and receipts
+  remain preserved. Do not request another Barracks walkthrough without renewed
+  user direction.
+- Retained carpenter finding: original placement needs server handler/response
+  evidence, which is unavailable. The private developer note and raw captures
+  remain saved. This lane is stopped, not awaiting another user request to the dev.
+- Next live observation, only when needed for vendor completion: ordinary recipe
+  selection and Inventory ownership. No Barracks or carpenter test is queued.
+- Subsequent: production town vendor navigation/scheduling and qualified affix,
+  resource/disposal/recurrence behavior. Guard live work is set aside.
 - Deferred: broad refactors, unrelated historical feature lanes, and branch/worktree
   retirement until ownership, dirty files and retained remote history are checked.
 
