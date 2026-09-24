@@ -22,7 +22,9 @@ This preserves native 1.8.28 / host 0.3.48 diagnostics as a dependency; it does
 not merge either PR into `main` or authorize a preview deployment. Subsequent
 version assignment and packaging remain coordinated with that task.
 
-Next: implement owner-captured pose/private render lifetime around the tested
+Native selection capture now enforces occupied-building identity and bounded
+HUD/row ownership on a verified owner/lifetime callback.
+Next: private render qualification/clone/pose around that capture and the tested
 native queue receipt, then frame/context wiring and the complete preview. The coordinator separately owns selected-row live evidence;
 the observer now checks actor occupancy against the HUD structure and includes
 an optional bounded resource reader keyed to one owned entry. Ordinary Bench

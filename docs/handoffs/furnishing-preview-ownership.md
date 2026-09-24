@@ -199,3 +199,34 @@ retains/cloning around this receipt, then persistent frame/context integration
 and the Preview user affordance. Shared native versions remain 1.8.28 inherited
 from recorder source c764e22; no new version or package has been assigned here.
 The complete preview, lifecycle validation and live visual acceptance remain open.
+
+
+## Native owner selection checkpoint
+
+`furnishing_selection.h/.cpp` implement the synchronous native capture boundary.
+Its caller must supply the verified HWND/native-update owner, current lifetime
+watch and exact reviewed image. The capture does not itself grant a lease or call
+native code. It validates character occupancy first, then requires the one owned
+Furniture HUD to refer to that exact structure. An open HUD cannot keep a building
+eligible after the character leaves it.
+
+The capture validates the complete bounded HUD, child and row ownership chains,
+the HUD-selected deed and static model/root, the layout name/mapping values, the
+selected floor within the occupied structure, and the structure's finite world
+TQS. It rereads all consumed bytes in reverse and rechecks owner/lifetime admission
+before returning borrowed selection data. Native retain/clone callers must keep
+and recheck that authority; copied pointers are not ownership. Row, model, floor,
+building, actor or lifetime changes invalidate selection identity.
+
+Full extension and selection tests pass in VS2022 Win32 Release with warnings as
+errors. Tests include all collection bounds together (128 HUDs, 512 children,
+128 rows), duplicate ownership, detached/rebuilt selection, stale occupancy,
+invalid floor/transform/layout, every consumed field changing during capture,
+owner loss, and read/admission reentry. The mandatory package gate includes this
+suite; 205 host gate cases and Ruff pass. No native calls, renderer wiring,
+version change, package, deployment or live visual acceptance are claimed.
+
+Next: private render resource qualification and owner-thread clone/release, then
+pose, persistent frame/context cleanup and the Preview affordance. This remains
+unfinished preview work in PR #35 targeting main; the recorder dependency remains
+unchanged at source c764e22 (native 1.8.28 / host 0.3.48).
