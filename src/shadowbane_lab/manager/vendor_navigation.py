@@ -89,10 +89,6 @@ def _run_building_discovery(
             or nearby.get("game_creation_filetime") != binding.game_process_started_at_100ns
         ):
             raise VendorBatchStopped("the nearby building discovery belongs to another client")
-        if guard and any(
-            type(nearby.get(key)) is not int or nearby[key] <= 0 for key in ("scene", "root")
-        ):
-            raise VendorBatchStopped("The nearby guard candidates lack scene provenance.")
         candidates = nearby["roster"]["buildings"]
         ids = [row["building"]["object_id"] for row in candidates]
         if (
@@ -115,12 +111,12 @@ def _run_building_discovery(
             "town_membership_verified": False,
             "game_process_id": binding.game_process_id,
             "game_creation_filetime": binding.game_process_started_at_100ns,
+            "scene": nearby.get("scene"), "root": nearby.get("root"),
             "attempts": [],
             "roster": [],
         }
         if roster_only:
-            record.update(roster_only=True, scene=nearby["scene"], root=nearby["root"],
-                          guards_observed=0)
+            record.update(roster_only=True, guards_observed=0)
         baseline = None
         seen_guards = set()
 
@@ -152,8 +148,10 @@ def _run_building_discovery(
                     "A previous window request needs review; no retry was sent."
                 )
             if not state.empty:
-                if guard and (state.scene, state.root) != (nearby["scene"], nearby["root"]):
-                    raise VendorBatchStopped("The guard candidates belong to a different scene.")
+                # City Command and asset navigation use different managers.
+                # Their shared scene/root must still own the original candidates.
+                if (state.scene, state.root) != (record["scene"], record["root"]):
+                    raise VendorBatchStopped(f"The {noun} candidates belong to a different scene.")
                 identity = state.scene, state.root, state.manager
                 if baseline is not None and identity != baseline:
                     raise VendorBatchStopped("The building discovery scene or owner changed.")
@@ -279,6 +277,11 @@ def _run_building_discovery(
 
         save()
         try:
+            if any(
+                type(record[key]) is not int or not 0 < record[key] < 2**bits
+                for key, bits in (("scene", 64), ("root", 32))
+            ):
+                raise VendorBatchStopped(f"The nearby {noun} candidates lack scene provenance.")
             for candidate in candidates:
                 check()
                 building_id = candidate["building"]["object_id"]

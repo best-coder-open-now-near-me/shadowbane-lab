@@ -1,5 +1,39 @@
 # Vendor recovery and remaining town workflow - September 23
 
+## September 24: candidate scene provenance
+
+`codex/vendor-town-workflow` is based on freshly fetched `main@a91dfd5` and targets
+reviewed `main` through a new draft PR. This host-only checkpoint is not included
+in the furnishing-preview package or installed runtime.
+
+Vendor discovery previously checked scene continuity within each phase but dropped
+the originating scene/root between City Command discovery and building navigation.
+A scene change while the worker closed the city transport and opened navigation
+could therefore use old candidates against a new scene. The guard path already
+carried this provenance.
+
+Both modes now persist the city scene/root and expected snapshot before opening
+City Command, carry scene/root into navigation records and summaries, and require
+every navigation observation to match those original candidates. Missing, malformed,
+or stale provenance produces durable review before any building/hireling open.
+Old records are not migrated, rebound or replayed. City and asset navigation use
+different native managers, so manager pointers are checked within their own phase,
+not compared across the handoff.
+
+Validation: 241 focused vendor, city, guard, worker and Condemn-preparation tests
+passed; one optional native city-wire executable comparison skipped because its
+fixture executable was not built. Affected-file Ruff and diff checks passed. New
+regressions first reproduced stale/missing provenance dispatch, then verified no
+opens after a scene/root change during the real worker handoff, durable early review,
+missing guard roster-only provenance, and unchanged-scene success with distinct
+city/navigation managers. No native source, versions, packages or VM state changed.
+
+Next: review and merge this checkpoint, then include it in a future validated host
+package. Automatic recipe/Inventory selection and the complete town capacity run
+still require the non-spending menu qualification described below.
+
+## Historical September 23 checkpoint
+
 Source lane: `codex/vendor-town-workflow`, based on catch-up checkpoint `179f065`.
 Integration destination: `codex/integrate-current-development` / PR #25, then
 reviewed `main`. This source checkpoint is not installed or live-qualified.

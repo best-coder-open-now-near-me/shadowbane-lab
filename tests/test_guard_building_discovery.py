@@ -427,3 +427,16 @@ def test_cancelled_unavailable_roster_pass_cannot_be_published_as_finished(setup
     saved = json.loads(setup.path.read_bytes())
     assert saved["state"] == "cancelled" and len(saved["attempts"]) == 1
     assert "candidate_buildings_verified" not in saved
+
+
+@pytest.mark.parametrize("field", ["scene", "root"])
+@pytest.mark.parametrize("roster_only", [False, True])
+def test_missing_guard_provenance_is_durable_review_before_dispatch(setup, field, roster_only):
+    del setup.nearby[field]
+    with pytest.raises(VendorBatchStopped, match="scene provenance"):
+        setup.run(roster_only=roster_only)
+    assert not setup.session.calls
+    saved = json.loads(setup.path.read_text())
+    assert saved["state"] == "review" and saved[field] is None and not saved["attempts"]
+    summary = json.loads((setup.store.root / "guard-nearby-summary.json").read_text())
+    assert summary["state"] == "review" and summary[field] is None

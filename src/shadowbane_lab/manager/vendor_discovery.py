@@ -110,11 +110,10 @@ def _run_discovery(
                 if clock() >= deadline:
                     raise VendorBatchStopped("The game did not become ready for nearby discovery.")
                 sleep(0.1)
-            if guard:
-                record.update(
-                    scene=before.snapshot.scene, root=before.snapshot.root,
-                    expected=before.snapshot.encode().hex(),
-                )
+            record.update(
+                scene=before.snapshot.scene, root=before.snapshot.root,
+                expected=before.snapshot.encode().hex(),
+            )
             save("opening", "Opening the nearby-building window.")
             check()
             opened = session.open(before.snapshot, record["request_key"])
