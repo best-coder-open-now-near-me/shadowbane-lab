@@ -89,12 +89,13 @@ recursively clones/attaches children and returns one owned reference in the
 output slot. This is a candidate ownership path, not yet a qualified API call.
 
 The copy has independent world/local TQS (`+0x48`/`+0x70`), child vector and
-material set (`+0xe8`, copied through `0x1e3b30` and material virtual `+0x80`).
+texture set (`+0xe8`, RTTI ArcTextureSet, vtable `0x114a5a4`, copied through
+`0x1e3b30` and texture virtual `+0x80`).
 It retains a **shared template** at `+0xc4`, borrows `+0xf4`, copies secondary
 callbacks at `+0x34`, and resets registration/resource fields `+0xf8..+0x110`.
 Copy construction calls `0x1cd970(false,true)`, which selects index zero in the
 shared template mesh render-set under native locking. Therefore a private
-transform/material copy does not imply fully independent render resources.
+transform/texture-set copy does not imply fully independent render resources.
 Source eligibility, callbacks, dynamic/skinned material paths and shared mesh
 selection still require qualification before invoking the clone in production.
 
@@ -102,7 +103,7 @@ Compose `0x1c5950` writes private world TQS from parent TQS and local TQS:
 translation = parent translation + rotated/scaled local translation;
 quaternion = parent quaternion * local quaternion; scale = per-axis product.
 It recursively composes child copies. Destructor `0x1c2700` (adjusted `this`
-is render+0x34) destroys the owned material set, releases template/children,
+is render+0x34) destroys the owned texture set, releases template/children,
 and handles callback/registration cleanup. Do not replace it with raw free.
 
 ## Static submission and the main queue
@@ -116,7 +117,9 @@ Static enqueue takes render+0x30 and the queue. It uses a global frame wrapper
 pool, stores a **borrowed** render pointer at wrapper+0x1c and submits through
 `0x1c4340`, with recursive child submissions. Queue insertion `0x4d9830` uses
 native material/depth ordering. Flags 0x80 and 0x40 can create additional shadow
-or special submissions; they need qualification or explicit eligibility guards.
+or special submissions. The reviewed copy constructor clears these two bits
+(`+0x148` keeps source bits 1..5, sets bit 4 and clears bit 0); validate the
+postcondition instead of carrying shadow/special behavior into a preview.
 
 Static wrapper `0x1c89a0` assigns render+0xec from wrapper+0x18 and calls
 `0x1cb700(true,false)`. This path uses render world TQS and the native view,
@@ -132,6 +135,20 @@ main drain `0x79c730` at `0x79817e`. The drain's glPushMatrix returns at
 `0x79c7f7`, after this traversal. These are possible IAT boundaries; do not patch
 executable text, which the existing exact-image admission verifies in full.
 
+The same drain also has a second direct caller: alternate pass `0x797900`
+invokes it at `0x797a2c` using global queue `0x16aaec8`. Thus the drain's own
+push/pop return address does **not** identify the main queue. Native main-frame
+phase and camera/context evidence must distinguish these passes; do not recover
+a speculative caller or queue by walking the stack. Exact-image sealing does
+not make a shared return address unique.
+
+MainDisplay clears its queue through `0x4d9a00` at `0x797eca`, before its clear
+and new submissions. This tree reset returns 20-byte nodes to the native pool
+without dereferencing their wrapper/render payloads. It does not release render
+ownership. The reset and frame-wrapper pool are distinct lifetimes. Static
+enqueue also skips its own wrapper when that pool is full; it cannot promise
+submission success just because the clone and texture are ready.
+
 This drain does not itself clear the tree. Finishing its first traversal is not
 yet proof that no later native path will inspect the queued wrapper. Furthermore,
 `0x1cb000` only clears a native activity flag; it is **not queue retirement**.
@@ -145,6 +162,33 @@ addresses across pool resets. A render copy must outlive every queued raw use.
 Cross-thread Stop/context invalidation must defer native release to its owner;
 callback-only render leases do not cover the interval between enqueue and drain.
 An uncertain native call must quarantine ownership rather than guess a release.
+
+## Eligibility details and next live evidence
+
+Callback copy `0x197b40` duplicates source callback registrations when the source
+secondary flag at render `+0x38` has bit 0 set. An ordinary static preview must
+reject that case until those callbacks and retirement are independently owned.
+Render flag `+0xf0` enables a branch in `0x1cb700` that dereferences borrowed
+`+0xf4` and can create a resource at `+0x104`. A simple opaque preview must
+qualify that branch or require it disabled; a render clone alone is insufficient.
+
+The texture-set copy dispatches virtually for each texture. ArcSingleTexture
+(vtable `0x114a2f4`, clone `0x1df2d0`) creates its own texture wrapper, copies
+metadata and **retains the shared resource at texture+0x5c** through the generic
+adjusted reference interface. ArcColorTexture and ArcAnimatedTexture have
+separate implementations. Do not claim all materials are independent or treat
+an archive texture-type value as the loaded native class. No texture bytes or
+client binaries are required in published source.
+
+The next coordinator-owned snapshot, once ordinary selection works, should bind
+the selected entry/deed/model and occupied structure in one process lifetime,
+then qualify the model's root render, bounded children, callback/feature flags,
+texture-set and actual texture classes, shared resource readiness and reference
+interfaces. No clone or draw call is needed for that read-only evidence. Owner
+update/render thread and context evidence must separately establish the proposed
+runtime boundary. Current captures establish model identity and occupancy only;
+they do not contain this resource graph or a selected native row. Runtime
+activation/visual qualification cannot proceed from the existing capture alone.
 
 ## Remaining acceptance
 
