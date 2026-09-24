@@ -12,6 +12,18 @@ that PR records final-head checks and merge status. See the
 The next live step is the user's launch/login, then Barracks/vendor observations.
 Use freshly fetched `origin/main` after PR #34 merges for further development.
 
+## Furniture response diagnostics - September 24
+
+`codex/furniture-response-diagnostics` targets `main` from `a91dfd5`.
+It owns the passive native Furniture message recorder and host capture path,
+versioned 1.8.28 / 0.3.48; see the
+[diagnostic handoff](handoffs/furniture-response-diagnostics.md) for exact scope,
+validation state and next live step. This is separate from the preview modules in
+[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
+and discovery documentation in
+[PR #36](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/36).
+Neither source publication nor a message observation establishes placement success.
+
 ## Canonical development base - September 23
 
 Use freshly fetched `origin/main` for current product work.

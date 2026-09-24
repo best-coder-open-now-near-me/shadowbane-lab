@@ -67,6 +67,12 @@ REQUIRED_CONDEMN_TESTS = frozenset({
 })
 
 
+REQUIRED_FURNITURE_TESTS = frozenset({
+    "wonderbane_extension_furniture_responses",
+    *(f"wonderbane_extension_furniture_rollback_{i}" for i in (1, 2, 3, 4)),
+})
+
+
 REQUIRED_TARGETED_ACTION_TESTS = frozenset({
     "wonderbane_extension_targeted_action_trace",
     "wonderbane_extension_targeted_action_trace_rollback",
@@ -290,11 +296,11 @@ def main() -> int:
                 raise RuntimeError(
                     f"{profile}: movement source must have one owner: {movement_source}"
                 )
-        for condemn_source in ("condemn_responses", "condemn_native"):
-            if included_sources.count(condemn_source + ".cpp") != 1:
-                raise RuntimeError(f"{profile}: {condemn_source} must have one owner")
-            if included_sources.count(condemn_source + "_test.cpp"):
-                raise RuntimeError(f"{profile}: Condemn test entered runtime")
+        for observer_source in ("condemn_responses", "condemn_native", "furniture_responses"):
+            if included_sources.count(observer_source + ".cpp") != 1:
+                raise RuntimeError(f"{profile}: {observer_source} must have one owner")
+            if included_sources.count(observer_source + "_test.cpp"):
+                raise RuntimeError(f"{profile}: {observer_source} test entered runtime")
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
         for developer_source in ("movement_tree_probe.cpp", "targeted_action_trace_test.cpp"):
@@ -401,6 +407,7 @@ def main() -> int:
             "wonderbane_extension_movement_runtime_commands",
         }
         required_native_tests.update(REQUIRED_CONDEMN_TESTS)
+        required_native_tests.update(REQUIRED_FURNITURE_TESTS)
         required_native_tests.update(REQUIRED_TARGETED_ACTION_TESTS)
         required_native_tests.update(REQUIRED_VENDOR_TESTS)
         required_native_tests.update(REQUIRED_GUARD_TESTS)
