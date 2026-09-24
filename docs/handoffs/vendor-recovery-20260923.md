@@ -68,7 +68,15 @@ incorrect queue ownership and item partitions. Positive cases include rank
 growth, multiple-slot recipe closure, unknown preservation and retained exclusions.
 This host-only change does not alter native commands or require native rebuilding.
 
-## Next: acquire recipe and Inventory entry evidence
+## Recipe and Inventory qualification update
+
+The [September 24 menu contract](vendor-menu-contract-20260924.md) records newly
+observed Anthame/random recipe state, nested list/callback ownership and ordinary
+control bindings on native 1.8.30 / host 0.3.50. A requested Balanced Dagger switch
+and Inventory close/reopen remain pending. The earlier walkthrough below is
+historical planning context; preserve its unresolved production gates.
+
+## Historical next step: acquire recipe and Inventory entry evidence
 
 The current production implementation still requires a manually opened random
 Gilded Scepter recipe and later Inventory. It has no qualified typed recipe
