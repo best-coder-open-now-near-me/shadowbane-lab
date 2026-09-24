@@ -9,26 +9,17 @@
 #include "native_owner_services.h"
 #include "movement_lifetime.h"
 #include "movement_native_ui.h"
-#include "import_hook.h"
+#include "cel_shading.h"
 #include "render_lifetime.h"
 #include "scene_context.h"
 #include <gl/GL.h>
-#include <intrin.h>
 #include <new>
 #include <optional>
 
 namespace wonderbane::extension::furnishing {
 namespace {
-using MatrixCall=void(APIENTRY*)();
 struct Runtime;
-void APIENTRY Push() noexcept;
-void APIENTRY Pop() noexcept;
-Address HookPushAddress() noexcept { return reinterpret_cast<Address>(&Push); }
-Address HookPopAddress() noexcept { return reinterpret_cast<Address>(&Pop); }
 std::atomic<Runtime*> runtime{nullptr};
-MatrixCall original_push=nullptr,original_pop=nullptr;
-std::uint32_t* push_slot=nullptr;
-std::uint32_t* pop_slot=nullptr;
 struct Runtime {
     NativeCalls native;
     movement::NativeUi ui;
@@ -190,18 +181,12 @@ struct Runtime {
         frame.Clear(main && !terminal && enabled.load(std::memory_order_acquire));
         if(frame.Broken()) { Fail(); }
     }
-    bool Hooks() const noexcept {
-        Address push=0,pop=0;
-        return push_slot && pop_slot && NativeCalls::Read(reinterpret_cast<Address>(push_slot),&push,sizeof(push))
-            && NativeCalls::Read(reinterpret_cast<Address>(pop_slot),&pop,sizeof(pop))
-            && push==HookPushAddress() && pop==HookPopAddress();
-    }
     void Push() noexcept {
         if(owner_thread_id.load(std::memory_order_acquire)!=GetCurrentThreadId() || !bound || !native.Owner()) { return; }
         const auto ticket=frame.Enter();
         if(!ticket || !active || !posed || terminal || !enabled.load(std::memory_order_acquire)) { return; }
         GLint mode=0,list=0; glGetIntegerv(GL_MATRIX_MODE,&mode); glGetIntegerv(GL_LIST_INDEX,&list);
-        if(!Hooks() || mode!=GL_MODELVIEW || list || !Current(requested)) { Cancel(); return; }
+        if(!SceneMatrixObservationCurrent() || mode!=GL_MODELVIEW || list || !Current(requested)) { Cancel(); return; }
         (void)render->Submit(root+0xfc,ticket);
         if(render->CurrentState()==RenderOwner::State::quarantined) { Fail(); }
     }
@@ -222,19 +207,12 @@ struct Runtime {
         terminal=true; frame.Invalidate(); render->InvalidateContext(); controls.Hide();
     }
 };
-__declspec(noinline) void APIENTRY Push() noexcept {
+void MatrixChanged(bool push,std::uintptr_t caller) noexcept {
     const RenderCallbackLease lease;
-    const auto caller=reinterpret_cast<std::uintptr_t>(_ReturnAddress());
-    if(original_push) { original_push(); }
     auto* s=runtime.load(std::memory_order_acquire);
-    if(s && caller==s->native.Base()+0x79c73e) { s->Push(); }
-}
-__declspec(noinline) void APIENTRY Pop() noexcept {
-    const RenderCallbackLease lease;
-    const auto caller=reinterpret_cast<std::uintptr_t>(_ReturnAddress());
-    if(original_pop) { original_pop(); }
-    auto* s=runtime.load(std::memory_order_acquire);
-    if(s && caller==s->native.Base()+0x79c7f7) { s->Pop(); }
+    if(!s) { return; }
+    if(push && caller==s->native.Base()+0x79c73e) { s->Push(); }
+    if(!push && caller==s->native.Base()+0x79c7f7) { s->Pop(); }
 }
 void OwnerUpdate(void* root,HWND window) noexcept {
     const RenderCallbackLease lease;
@@ -259,24 +237,17 @@ bool Start() noexcept {
     auto* s=new(std::nothrow) Runtime;
     if(!s) { return false; }
     if(!s->Configure()) { delete s; return false; }
-    // Publish before installing either immutable call-through. A partial hook
-    // failure leaves only dormant forwarding hooks and a process-pinned record.
-    runtime.store(s,std::memory_order_release);
     const auto base=s->native.Base(); IMAGE_DOS_HEADER dos{}; IMAGE_NT_HEADERS32 nt{};
-    if(!NativeCalls::Read(base,&dos,sizeof(dos)) || dos.e_lfanew<=0 || dos.e_lfanew>0x1000
-        || !NativeCalls::Read(base+dos.e_lfanew,&nt,sizeof(nt)) || nt.OptionalHeader.SizeOfImage<0x16b0100) { return false; }
-    auto* image=reinterpret_cast<std::uint8_t*>(base); const auto size=nt.OptionalHeader.SizeOfImage;
-    auto* push=FindImportAddressSlot(image,size,"opengl32.dll","glPushMatrix");
-    auto* pop=FindImportAddressSlot(image,size,"opengl32.dll","glPopMatrix");
-    const auto module=GetModuleHandleW(L"opengl32.dll");
-    original_push=reinterpret_cast<MatrixCall>(GetProcAddress(module,"glPushMatrix"));
-    original_pop=reinterpret_cast<MatrixCall>(GetProcAddress(module,"glPopMatrix"));
-    if(!push || !pop || !original_push || !original_pop || *push!=reinterpret_cast<Address>(original_push)
-        || *pop!=reinterpret_cast<Address>(original_pop) || StartSceneContextObservation(image,size)!=ERROR_SUCCESS) { return false; }
-    if(ReplaceImportAddressSlot(push,*push,reinterpret_cast<Address>(&Push))!=ERROR_SUCCESS) { return false; }
-    push_slot=push;
-    if(ReplaceImportAddressSlot(pop,*pop,reinterpret_cast<Address>(&Pop))!=ERROR_SUCCESS) { return false; }
-    pop_slot=pop;
+    if(!SceneMatrixObservationCurrent()
+        || !NativeCalls::Read(base,&dos,sizeof(dos)) || dos.e_lfanew<=0 || dos.e_lfanew>0x1000
+        || !NativeCalls::Read(base+dos.e_lfanew,&nt,sizeof(nt)) || nt.OptionalHeader.SizeOfImage<0x16b0100
+        || StartSceneContextObservation(reinterpret_cast<std::uint8_t*>(base),nt.OptionalHeader.SizeOfImage)!=ERROR_SUCCESS) {
+        delete s; return false;
+    }
+    // The renderer is the sole matrix-IAT owner. All observers and the runtime
+    // remain process-pinned, including after renderer Stop/context loss.
+    runtime.store(s,std::memory_order_release);
+    matrix_event.store(&MatrixChanged,std::memory_order_release);
     renderer_event.store(&RendererChanged,std::memory_order_release);
     depth_clear_event.store(&Cleared,std::memory_order_release);
     context_event.store(&ContextChanged,std::memory_order_release);

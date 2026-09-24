@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.29 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.30 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -1425,12 +1425,19 @@ endif()
 
 if(BUILD_TESTING)
   add_executable(wonderbane_extension_furnishing_runtime_test furnishing_selection.cpp furnishing_pose.cpp furnishing_queue.cpp furnishing_render_owner.cpp furnishing_controls.cpp furnishing_runtime_test.cpp)
+  target_sources(wonderbane_extension_furnishing_runtime_test PRIVATE
+    banded_lighting.cpp depth_edges.cpp fixed_function_state.cpp graphics_control.cpp graphics_status.cpp
+    terrain_trace.cpp terrain_mask_refresh.cpp performance_telemetry.cpp scene_frame.cpp
+    navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
+    selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp
+    scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp
+    sky.cpp sky_draw.cpp sky_runtime.cpp sky_asset.rc)
   target_compile_features(wonderbane_extension_furnishing_runtime_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_furnishing_runtime_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_furnishing_runtime_test PRIVATE /W4 /WX /permissive- /utf-8)
-  target_link_libraries(wonderbane_extension_furnishing_runtime_test PRIVATE user32 gdi32 comctl32 opengl32)
+  target_link_libraries(wonderbane_extension_furnishing_runtime_test PRIVATE user32 gdi32 comctl32 opengl32 bcrypt shell32 ole32 uuid advapi32)
   set_property(TARGET wonderbane_extension_furnishing_runtime_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
-  foreach(mode normal rotate foreign alternate binding hidden scene modal no_floor stop context missed shader install1 install2 unsealed)
+  foreach(mode normal rotate foreign caller alternate binding hidden scene modal no_floor stop reenable context missed shader context_install foreign_start unsealed)
     add_test(NAME wonderbane_extension_furnishing_runtime_${mode} COMMAND wonderbane_extension_furnishing_runtime_test ${mode})
     set_tests_properties(wonderbane_extension_furnishing_runtime_${mode} PROPERTIES TIMEOUT 15)
   endforeach()

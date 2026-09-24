@@ -2,14 +2,43 @@
 
 ## Delivery status
 
-Native 1.8.29 / host 0.3.49, branch `codex/furnishing-preview`, targets
+Native 1.8.30 / host 0.3.50, branch `codex/furnishing-preview`, targets
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
 into `main`. This includes recorder dependency `c764e22` through merge `c890260`.
-The versions were reserved by the coordinating task on September 24.
-Source implementation and exact-source packaging are complete. Live visual
-acceptance and PR review/integration into `main` remain. Nothing from this
-preview lane has been installed or activated in the VM. The coordinating task
-owns deployment and the single restart, preserving the current game and rollback.
+The coordinating task reserved these corrective versions on September 24.
+The coordinator installed the previous 1.8.29 / 0.3.49 package and owns all VM
+input, deployment and restart actions. Corrected exact-source packaging is next;
+live visual acceptance and PR review/integration into `main` remain.
+
+### Confirmed startup failure and correction
+
+The user selected Bench while inside building 4761372:8 on floor 0. Read-only
+live checks confirmed all observable SelectionCapture gates (122 reverse-checked
+blocks), but the game HWND had no preview child window. The exact installed DLL
+had a published runtime and renderer_ready=1, with every preview callback and
+both preview import slots zero. The game matrix imports already pointed to the
+renderer wrappers (DLL RVAs 0x41b00 / 0x41a40). Preview startup rejected those
+imports because it expected bare OpenGL procedures. This was a startup ownership
+collision, not the user's selection, an open menu, or an asset-loading failure.
+Private receipts remain with the coordinator (`live-preview-globals.json`,
+`live-selection-gates.json`, `live-child-windows.json`). The exact old DLL symbol
+map and read-only diagnostic manifest remain in the ignored local directory
+`artifacts/furnishing-preview/runtime-symbols`; its reconstructed DLL is byte-for-byte
+identical to the previously packaged DLL. Do not deploy that diagnostic copy.
+
+The renderer now solely owns the matrix imports and dispatches preview events
+after original GL calls, preserving the game caller address. Its matrix wrappers
+remain installed across Stop, allowing matching outer completion to retire a
+submitted receipt. Re-enable accepts only those exact retained slots, originals
+and wrappers; foreign hooks remain rejected. Preview startup verifies this shared
+ownership and registers persistent callbacks without replacing imports.
+
+The runtime regression now runs the actual renderer installer before preview
+startup and sends drains through its actual wrappers. It covers call-through,
+foreign callers/threads, display-list suppression, Stop and re-enable during
+submission, replaced imports, context loss and failed context registration.
+The focused Release build and 28 preview/renderer/context checks pass.
+Full exact-source package qualification is the next checkpoint.
 
 ## Using the preview
 
@@ -44,7 +73,7 @@ building scale is supported; other scale can require unrepresentable shear.
 Unsupported assets show unavailable without entering a native clone operation.
 
 A verified main depth clear grants one outer native queue drain. Persistent
-`glPushMatrix` / `glPopMatrix` import observers identify its exact reviewed call
+renderer-owned `glPushMatrix` / `glPopMatrix` import observers identify its exact reviewed call
 sites and survive renderer Stop. The push observer adds only private renders,
 qualifies actual wrapper shader/texture metadata before iteration, and keeps an
 exact receipt. Only matching outer completion after shader shutdown retires its
@@ -58,7 +87,7 @@ even if the switch fails. Uncertain native calls, missing completion or broken
 queue proof retain at most the one model/clone transaction and disable preview
 for the session. A foreign thread cannot inspect or mutate owner state.
 
-## Validation and remaining acceptance
+## Previous package validation and remaining acceptance
 
 The full Win32 Release DLL builds with warnings as errors; the required local
 native suite passes 198 executed tests (three private-image probes are checked
@@ -67,7 +96,7 @@ queue membership, poses, actual Win32 click pairs, and production runtime flows
 using controlled engine calls. Runtime scenarios include nesting, rotation,
 Stop during submission, context loss, missing completion, nonzero shader state,
 foreign threads, alternate passes, replaced bindings, hidden HUD, modal input,
-missing floor, partial installation and unsealed images. Required package gates
+missing floor, partial installation and unsealed images (the previous isolated startup fixture did not compose the renderer and preview installers). Required package gates
 include these and the furniture response recorder in both build profiles.
 
 Exact-source package validation and the reviewed original-image checks must pass

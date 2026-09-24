@@ -8,27 +8,54 @@
 #include <string>
 #include <cstring>
 #include <thread>
+#include <unordered_map>
+#include <intrin.h>
+#include "graphics_status.h"
+#include "import_hook.h"
 namespace {
 Fixture fixture;
 constexpr A fixture_image=0x400000, native_root=fixture_queue-0xfc, hud=0x310000, actor=0x300000, structure=0x320000;
 HWND client=nullptr;
 DWORD owner_thread=0;
 bool sealed=true,foreground=true,modal=false;
-unsigned installed=0,fail_install=0;
-A pushed=0,popped=0;
+bool context_install=true;
+std::vector<std::uint8_t> renderer_image(0x1766000);
+std::unordered_map<std::string,A*> renderer_imports;
+A& pushed=*reinterpret_cast<A*>(renderer_image.data()+0x1000);
+A& popped=*reinterpret_cast<A*>(renderer_image.data()+0x1004);
+std::uintptr_t matrix_caller=0;
+void* Caller() { return reinterpret_cast<void*>(matrix_caller); }
+void APIENTRY UnusedGraphicsCall() {}
+HMODULE WINAPI RendererModule(LPCWSTR name) {
+    return name ? reinterpret_cast<HMODULE>(1) : reinterpret_cast<HMODULE>(renderer_image.data());
+}
+DWORD PresentConfiguration(const char*,const char*,std::uint32_t,const char*) noexcept { return ERROR_SUCCESS; }
 unsigned push_calls=0,pop_calls=0;
 f::NativeCalls::FloorResult floor_result=f::NativeCalls::FloorResult::hit;
 f::Transform composed{};
 void APIENTRY OriginalPush() { ++push_calls; }
 void APIENTRY OriginalPop() { ++pop_calls; }
 FARPROC WINAPI Procedure(HMODULE,LPCSTR name) {
-    return std::strcmp(name,"glPushMatrix")==0?reinterpret_cast<FARPROC>(&OriginalPush):reinterpret_cast<FARPROC>(&OriginalPop);
+    if(std::strcmp(name,"glPushMatrix")==0) { return reinterpret_cast<FARPROC>(&OriginalPush); }
+    if(std::strcmp(name,"glPopMatrix")==0) { return reinterpret_cast<FARPROC>(&OriginalPop); }
+    return reinterpret_cast<FARPROC>(&UnusedGraphicsCall);
 }
 HWND WINAPI Foreground() { return foreground?client:nullptr; }
 BOOL WINAPI Cursor(LPPOINT point) { *point={100,100}; return TRUE; }
 BOOL WINAPI ToClient(HWND,LPPOINT) { return TRUE; }
 void APIENTRY Integer(GLenum name,GLint* value) { *value=name==GL_MATRIX_MODE?GL_MODELVIEW:0; }
 }
+// Run the production renderer installer and its persistent matrix adapters first.
+// Only the module/import environment and GL procedures are controlled.
+#define GetModuleHandleW RendererModule
+#define GetProcAddress Procedure
+#define ConfigureGraphicsPresentEntry PresentConfiguration
+#define _ReturnAddress Caller
+#include "cel_shading.cpp"
+#undef _ReturnAddress
+#undef ConfigureGraphicsPresentEntry
+#undef GetProcAddress
+#undef GetModuleHandleW
 #define GetProcAddress Procedure
 #define GetForegroundWindow Foreground
 #define GetCursorPos Cursor
@@ -42,12 +69,21 @@ void APIENTRY Integer(GLenum name,GLint* value) { *value=name==GL_MATRIX_MODE?GL
 #undef glGetIntegerv
 namespace wonderbane::extension {
 std::uint32_t* FindImportAddressSlot(std::uint8_t*,std::size_t,const char*,const char* name) noexcept {
-    return std::strcmp(name,"glPushMatrix")==0?&pushed:&popped;
+    if(std::strcmp(name,"glPushMatrix")==0) { return &pushed; }
+    if(std::strcmp(name,"glPopMatrix")==0) { return &popped; }
+    auto& slot=renderer_imports[name];
+    if(!slot) {
+        const auto offset=std::strcmp(name,"SwapBuffers")==0?kReviewedSwapBuffersIatRva
+            :0x1100+renderer_imports.size()*4;
+        slot=reinterpret_cast<A*>(renderer_image.data()+offset);
+        *slot=reinterpret_cast<A>(Procedure(nullptr,name));
+    }
+    return slot;
 }
 DWORD ReplaceImportAddressSlot(std::uint32_t* slot,std::uint32_t expected,std::uint32_t replacement) noexcept {
-    assert(*slot==expected); if(++installed==fail_install) { return ERROR_ACCESS_DENIED; } *slot=replacement; return ERROR_SUCCESS;
+    return ReplaceImportSlot(slot,expected,replacement);
 }
-DWORD StartSceneContextObservation(std::uint8_t*,std::size_t) noexcept { return ERROR_SUCCESS; }
+DWORD StartSceneContextObservation(std::uint8_t*,std::size_t) noexcept { return context_install?ERROR_SUCCESS:ERROR_ACCESS_DENIED; }
 namespace movement {
 bool ReadNativeMovementLifetime(NativeScene& s) noexcept {
     s={actor,structure,0, native_root,{17,18},7}; return fixture.current;
@@ -90,6 +126,18 @@ bool RenderResources::Wrapper(Address,Address) noexcept { return fixture.wrapper
 }
 }
 namespace {
+void DrainPush() {
+    const auto before=push_calls;
+    matrix_caller=fixture_image+0x79c73e;
+    reinterpret_cast<void(APIENTRY*)()>(pushed)();
+    assert(push_calls==before+1);
+}
+void DrainPop() {
+    const auto before=pop_calls;
+    matrix_caller=fixture_image+0x79c7f7;
+    reinterpret_cast<void(APIENTRY*)()>(popped)();
+    assert(pop_calls==before+1);
+}
 void Words(A at,std::initializer_list<A> values) { for(A v:values) { fixture.Put(at,v); at+=4; } }
 void Type(A at,A rva) { fixture.Put(at,fixture_image+rva); }
 void Setup() {
@@ -128,12 +176,26 @@ int main(int argc,char** argv) {
     assert(argc==2); const std::string mode=argv[1]; owner_thread=GetCurrentThreadId(); Setup();
     pushed=reinterpret_cast<A>(&OriginalPush); popped=reinterpret_cast<A>(&OriginalPop);
     client=CreateWindowW(L"STATIC",L"preview runtime fixture",WS_OVERLAPPEDWINDOW,0,0,1000,800,nullptr,nullptr,GetModuleHandleW(nullptr),nullptr); assert(client);
-    if(mode=="install1") { fail_install=1; } if(mode=="install2") { fail_install=2; } if(mode=="unsealed") { sealed=false; }
+    if(mode=="context_install") { context_install=false; } if(mode=="unsealed") { sealed=false; }
+    auto* renderer_dos=reinterpret_cast<IMAGE_DOS_HEADER*>(renderer_image.data());
+    renderer_dos->e_magic=IMAGE_DOS_SIGNATURE; renderer_dos->e_lfanew=0x80;
+    auto* renderer_nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(renderer_image.data()+0x80);
+    renderer_nt->Signature=IMAGE_NT_SIGNATURE; renderer_nt->OptionalHeader.Magic=IMAGE_NT_OPTIONAL_HDR32_MAGIC;
+    renderer_nt->OptionalHeader.SizeOfImage=static_cast<DWORD>(renderer_image.size());
+    if(mode=="foreign_start") {
+        pushed=1;
+        assert(StartStrongCelShading()==ERROR_INVALID_ADDRESS && !Start() && !runtime.load());
+        DestroyWindow(client); return 0;
+    }
+    assert(StartStrongCelShading()==ERROR_SUCCESS && SceneMatrixObservationCurrent());
+    assert(pushed!=reinterpret_cast<A>(&OriginalPush) && popped!=reinterpret_cast<A>(&OriginalPop));
+    // The scene seal is exercised independently; this synthetic module has no
+    // native scene text. Publish the same readiness event after installation.
     Renderer(true);
     const bool started=Start();
-    if(fail_install || !sealed) {
+    if(!context_install || !sealed) {
         assert(!started && !furnishing_owner_service.load() && !fixture.retain_calls);
-        if(fail_install==2) { reinterpret_cast<MatrixCall>(pushed)(); assert(push_calls==1); }
+        assert(!runtime.load() && !matrix_event.load()); DrainPush(); assert(push_calls==1);
         DestroyWindow(client); return 0;
     }
     assert(started && !Start()); auto* s=runtime.load(); fixture.renderer=&*s->render;
@@ -146,31 +208,57 @@ int main(int argc,char** argv) {
         RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); assert(s->held && composed[5]<-0.7f);
     }
     if(mode=="foreign") {
-        std::thread other([&] { s->Clear(true); s->Push(); s->Pop(); ContextLost(); OwnerRetire(client); }); other.join();
+        std::thread other([&] { s->Clear(true); DrainPush(); DrainPop(); ContextLost(); OwnerRetire(client); }); other.join();
         assert(!s->terminal && !fixture.enqueue_calls && fixture.releases.empty());
     }
-    else if(mode=="alternate") { s->Clear(false); s->Push(); s->Pop(); assert(!fixture.enqueue_calls); }
-    else if(mode=="binding") { popped=0; s->Clear(true); s->Push(); s->Pop(); assert(!fixture.enqueue_calls && !s->active); }
-    else if(mode=="hidden") { fixture.Put(hud+0x2a0,A{0}); s->Clear(true); s->Push(); s->Pop(); assert(!fixture.enqueue_calls && !s->active); }
+    else if(mode=="caller") {
+        s->Clear(true); matrix_caller=0;
+        reinterpret_cast<void(APIENTRY*)()>(pushed)(); reinterpret_cast<void(APIENTRY*)()>(popped)();
+        assert(!fixture.enqueue_calls && !s->frame.Draining() && !s->terminal);
+        g_active_display_list_capture.active=true; DrainPush(); DrainPop();
+        g_active_display_list_capture.active=false;
+        assert(!fixture.enqueue_calls && !s->frame.Draining());
+    }
+    else if(mode=="alternate") { s->Clear(false); DrainPush(); DrainPop(); assert(!fixture.enqueue_calls); }
+    else if(mode=="binding") {
+        const auto saved=popped; popped=reinterpret_cast<A>(&OriginalPop);
+        s->Clear(true); DrainPush(); popped=saved; DrainPop();
+        assert(!fixture.enqueue_calls && !s->active);
+        StopStrongCelShading(); popped=1;
+        assert(StartStrongCelShading()==ERROR_INVALID_ADDRESS); popped=saved;
+    }
+    else if(mode=="hidden") { fixture.Put(hud+0x2a0,A{0}); s->Clear(true); DrainPush(); DrainPop(); assert(!fixture.enqueue_calls && !s->active); }
     else if(mode=="scene") { fixture.current=false; RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); assert(!s->active && !fixture.model_refs); }
     else if(mode=="modal") { modal=true; RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); assert(!s->active && !fixture.model_refs); }
-    else if(mode=="no_floor") { floor_result=NativeCalls::FloorResult::miss; RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); s->Clear(true); s->Push(); s->Pop(); assert(!s->posed && !fixture.enqueue_calls); }
+    else if(mode=="no_floor") { floor_result=NativeCalls::FloorResult::miss; RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client); s->Clear(true); DrainPush(); DrainPop(); assert(!s->posed && !fixture.enqueue_calls); }
     else {
-        s->Clear(true); s->Push(); assert(fixture.enqueue_calls==1 && fixture.nodes.size()==2);
-        if(mode=="stop") { Renderer(false); }
+        s->Clear(true); DrainPush(); assert(fixture.enqueue_calls==1 && fixture.nodes.size()==2);
+        if(mode=="stop" || mode=="reenable") {
+            StopStrongCelShading(); assert(SceneMatrixObservationCurrent() && !s->enabled);
+            if(mode=="reenable") { assert(StartStrongCelShading()==ERROR_SUCCESS); Renderer(true); }
+        }
         if(mode=="context" || mode=="missed" || mode=="shader") {
             if(mode=="context") { ContextLost(); }
             if(mode=="missed") { s->Clear(true); }
-            if(mode=="shader") { fixture.Put(fixture_image+0x16a9dd4,A{1}); s->Pop(); }
+            if(mode=="shader") { fixture.Put(fixture_image+0x16a9dd4,A{1}); DrainPop(); }
             assert(s->terminal && s->render->CurrentState()==R::State::quarantined && fixture.releases.empty());
             const auto clones=fixture.clone_calls; Renderer(true); RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
             assert(fixture.clone_calls==clones); DestroyWindow(client); return 0;
         }
-        s->Push(); s->Pop(); assert(fixture.nodes.size()==2); // nested drain cannot retire outer
-        s->Pop(); assert(fixture.nodes.empty() && fixture.erase_calls==2);
-        if(mode=="stop") { assert(!fixture.model_refs && !fixture.clone_refs); }
+        DrainPush(); DrainPop(); assert(fixture.nodes.size()==2); // nested drain cannot retire outer
+        DrainPop(); assert(fixture.nodes.empty() && fixture.erase_calls==2);
+        if(mode=="stop" || mode=="reenable") { assert(!fixture.model_refs && !fixture.clone_refs); }
+        if(mode=="reenable") {
+            Runtime::Action(s,PreviewControls::Action::cancel);
+            RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
+            Runtime::Action(s,PreviewControls::Action::start);
+            RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
+            assert(s->active && s->posed && fixture.clone_calls==2);
+            fixture.used=0; // This fixture reuses its two wrappers for the next frame.
+            s->Clear(true); DrainPush(); DrainPop(); assert(fixture.nodes.empty() && !s->terminal);
+        }
     }
     Runtime::Action(s,PreviewControls::Action::cancel); RunNativeOwnerServices(reinterpret_cast<void*>(native_root),client);
     assert(fixture.nodes.empty() && !fixture.model_refs && !fixture.clone_refs);
-    RetireNativeOwnerServices(client); assert(s->terminal); DestroyWindow(client);
+    RetireNativeOwnerServices(client); assert(s->terminal); StopStrongCelShading(); DestroyWindow(client);
 }

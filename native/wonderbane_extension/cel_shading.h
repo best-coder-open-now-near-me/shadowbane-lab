@@ -62,6 +62,9 @@ bool IsOutlinePrimitive(unsigned int mode, int count) noexcept;
 
 // Uses existing thread-local begin/list state; performs no graphics queries.
 bool AreNativeDrawQueriesSafe() noexcept;
+// Caller holds a render lease/mutation. Both persistent matrix imports must
+// still belong to this renderer; arbitrary preexisting hooks are never accepted.
+bool SceneMatrixObservationCurrent() noexcept;
 DWORD StartStrongCelShading() noexcept;
 void StopStrongCelShading() noexcept;
 DWORD StartGraphicsPresentObservation() noexcept;

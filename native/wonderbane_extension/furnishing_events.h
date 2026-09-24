@@ -1,7 +1,14 @@
 #pragma once
 #include <atomic>
+#include <cstdint>
 namespace wonderbane::extension::furnishing {
 // Registration is process-persistent. Unregistered optional preview has no effect.
+// The renderer owns the persistent matrix imports. Notifications occur after the
+// original GL call and carry the original game caller, never an adapter address.
+inline std::atomic<void (*)(bool, std::uintptr_t) noexcept> matrix_event{nullptr};
+inline void Matrix(bool push, std::uintptr_t caller) noexcept {
+    if(auto f=matrix_event.load(std::memory_order_acquire)) { f(push,caller); }
+}
 inline std::atomic<bool> renderer_ready{false};
 inline std::atomic<void (*)(bool) noexcept> renderer_event{nullptr};
 inline std::atomic<void (*)(bool) noexcept> depth_clear_event{nullptr};

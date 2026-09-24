@@ -32,10 +32,14 @@ through the existing owner callback and persistent frame/context observers.
 The source/private gate now qualifies the reviewed static mesh/loaded-texture
 family and validates queued shader/texture metadata before drawing.
 Cursor/floor pose, rotation and Preview/hold/cancel controls are implemented.
-Native 1.8.29 / host 0.3.49 passed complete exact-source package validation at
-`0193dd74662eb368c4961a2ab8d9db6826fb70b4`; the runtime handoff records the
-qualified package hashes and all validation. Next: coordinator-owned staging,
-user-confirmed client closure, supervised live acceptance, then PR review/integration. The coordinator separately owns selected-row live evidence;
+The coordinator installed native 1.8.29 / host 0.3.49 from exact source
+`0193dd74662eb368c4961a2ab8d9db6826fb70b4`. Live selection checks passed, but a
+confirmed renderer/preview matrix-import collision prevented preview startup.
+The focused correction reserves native 1.8.30 / host 0.3.50 and makes the renderer
+the sole persistent matrix-import owner. The runtime handoff records evidence
+and the renderer-first regression. Next: corrected exact-source packaging,
+coordinator-owned deployment and supervised live acceptance, then PR review
+and integration into `main`. The coordinator separately owns selected-row evidence;
 the observer now checks actor occupancy against the HUD structure and includes
 an optional bounded resource reader keyed to one owned entry. Ordinary Bench
 single-click selection is now observed; a subsequent drag rebuilt the row and
