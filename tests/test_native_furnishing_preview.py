@@ -1,0 +1,143 @@
+"""Synthetic ownership and consistency tests; live visual qualification is separate."""
+
+import pytest
+
+from shadowbane_lab.client_observation.native_furnishing_preview import (
+    REVIEWED_FURNISHING_EXECUTABLES,
+    read_native_furnishing_preview,
+)
+from shadowbane_lab.client_observation.native_vendor_dialog import (
+    NativeVendorDialogCaptureError,
+    NativeVendorDialogCompatibilityError,
+)
+from tests.test_native_vendor_queue import CONTROL, ENTRY, HUD, LIST, MANAGER, ROOT, fixture
+from tests.test_native_vendor_roster import text
+
+LAYOUT, SOURCE, MODEL, STRUCTURE = 0x210000, 0x220000, 0x230000, 0x240000
+
+
+def furnishing_fixture(*, selected=True):
+    m = fixture()
+    m.executable_sha256 = "7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f"
+    for address, value in (
+        (HUD, 0x1567C68), (MANAGER + 0xA8, HUD),
+        (HUD + 0x524, LIST), (HUD + 0x648, LAYOUT),
+        (HUD + 0x660, ENTRY if selected else 0), (ENTRY, 0x1569908),
+        (ENTRY + 8, 0x25), (LAYOUT + 0x3BC, HUD),
+        (ENTRY + 0x20, SOURCE), (ENTRY + 0x24, MODEL),
+        (SOURCE, 0x1542748), (MODEL, 0x1542748),
+        (HUD + 0x64C, STRUCTURE), (STRUCTURE, 0x154381C),
+    ):
+        m.put(address, "<I", value)
+    m.put(ENTRY + 0x10, "<II", 5017277, 30)
+    m.put(HUD + 0x54, "<III", 0x160000, 0x160008, 0x160010)
+    m.put(0x160000, "<II", LIST, LAYOUT)
+    m.put(HUD + 0x630, "<ii", 400, 400)
+    m.put(HUD + 0x638, "<ff", 64, 54)
+    m.put(HUD + 0x37C, "<f", 1)
+    text(m, LAYOUT + 0x164, 0x310000, "BTNPROPLAYOUT")
+    # Empty row names are observed live and must be preserved for diagnosis.
+    return m
+
+
+@pytest.mark.parametrize("digest", sorted(REVIEWED_FURNISHING_EXECUTABLES))
+def test_copies_exact_build_owned_selection_without_claiming_preview_or_placement(digest):
+    m = furnishing_fixture()
+    m.executable_sha256 = digest
+    result = read_native_furnishing_preview(m)
+    assert result["rows"][0]["entry_key_raw"] == {"object_id": 5017277, "object_type": 30}
+    assert result["rows"][0]["model_reference"]["address"] == MODEL
+    assert result["rows"][0]["source_reference"]["address"] == SOURCE
+    assert result["rows"][0]["control_name"] == ""
+    assert result["rows"][0]["selected"] is True
+    assert result["floor_index_raw"] == 0
+    assert result["layout_raw"] == {"width": 400, "height": 400, "x": 64, "y": 54, "zoom": 1}
+    for flag in ("preview_pose_verified", "render_lifetime_owned", "placement_confirmed",
+                 "command_admitted"):
+        assert result[flag] is False
+    # Unknown native classes stay references: no inferred offsets or calls.
+    assert not any(SOURCE < address < SOURCE + 0x1000 for address, _ in m.reads)
+    assert not any(MODEL < address < MODEL + 0x1000 for address, _ in m.reads)
+
+
+def test_loading_and_unselected_states_remain_unavailable_not_guessed():
+    m = furnishing_fixture(selected=False)
+    for address in (HUD + 0x64C, HUD + 0x648, ENTRY + 0x20, ENTRY + 0x24):
+        m.put(address, "<I", 0)
+    result = read_native_furnishing_preview(m)
+    assert result["selected_entry_address"] == 0
+    assert result["structure_reference"] is None
+    assert result["layout_control"] is None
+    assert result["rows"][0]["model_reference"] is None
+    assert result["rows"][0]["selected"] is False
+
+
+@pytest.mark.parametrize("field,value", [
+    (ROOT + 0x64, 1), (HUD + 0x104, MANAGER + 4), (MANAGER + 0xA8, HUD + 4),
+    (HUD + 0x660, ENTRY + 4), (HUD + 0x524, LIST + 4),
+    (LIST + 0x3BC, HUD + 4), (CONTROL + 0x3BC, HUD + 4),
+    (CONTROL + 0x458, LIST + 4), (ENTRY, 0x1569518), (ENTRY + 8, 9),
+    (HUD + 0x648, LAYOUT + 4), (LAYOUT + 0x3BC, HUD + 4),
+    (ENTRY + 0x24, 0xFFFFFFFF), (ENTRY + 0x20, SOURCE + 1),
+    (MODEL, 0), (MODEL, 0x80000000),
+])
+def test_rejects_detached_or_unknown_ownership(field, value):
+    m = furnishing_fixture()
+    m.put(field, "<I", value)
+    with pytest.raises(NativeVendorDialogCaptureError):
+        read_native_furnishing_preview(m)
+
+
+@pytest.mark.parametrize("address,size", [
+    (HUD + 0x660, 4), (MANAGER + 0xA8, 4), (0x170000, 4),
+    (ENTRY + 0x24, 4), (MODEL, 4), (HUD + 0x628, 4), (HUD + 0x638, 8),
+    (ROOT + 0x20, 4),
+])
+def test_rechecks_selection_geometry_lifetime_and_membership(address, size):
+    m = furnishing_fixture()
+    m.change = (address, size, bytes([255]) * size)
+    with pytest.raises(NativeVendorDialogCaptureError):
+        read_native_furnishing_preview(m)
+
+
+def test_rejects_ambiguous_huds_and_duplicate_rows():
+    m = furnishing_fixture()
+    m.put(0x190100, "<III", 0x190200, 0x190000, HUD)
+    m.put(0x190200, "<III", 0x190000, 0x190100, HUD + 0x1000)
+    m.put(0x190000 + 4, "<I", 0x190200)
+    m.put(HUD + 0x1000, "<I", 0x1567C68)
+    with pytest.raises(NativeVendorDialogCaptureError, match="one active"):
+        read_native_furnishing_preview(m)
+    m = furnishing_fixture()
+    m.put(LIST + 0x408, "<III", 0x170000, 0x170008, 0x170010)
+    m.put(0x170000, "<II", CONTROL, CONTROL)
+    with pytest.raises(NativeVendorDialogCaptureError):
+        read_native_furnishing_preview(m)
+
+
+@pytest.mark.parametrize("field,fmt,value", [
+    (HUD + 0x37C, "<f", float("nan")), (HUD + 0x638, "<f", float("inf")),
+    (HUD + 0x630, "<i", -1),
+])
+def test_rejects_invalid_layout_values(field, fmt, value):
+    m = furnishing_fixture()
+    m.put(field, fmt, value)
+    with pytest.raises(NativeVendorDialogCaptureError):
+        read_native_furnishing_preview(m)
+
+
+def test_rejects_wrong_build_before_memory_reads():
+    m = furnishing_fixture()
+    m.executable_sha256 = "0" * 64
+    with pytest.raises(NativeVendorDialogCompatibilityError):
+        read_native_furnishing_preview(m)
+    assert not m.reads
+
+
+def test_short_read_is_rejected():
+    m = furnishing_fixture()
+    read = m.read_block
+    m.read_block = lambda address, size: b"" if address == ENTRY else read(address, size)
+    with pytest.raises(NativeVendorDialogCaptureError):
+        read_native_furnishing_preview(m)
+

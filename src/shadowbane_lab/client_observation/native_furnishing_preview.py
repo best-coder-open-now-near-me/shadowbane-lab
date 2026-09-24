@@ -1,0 +1,124 @@
+"""Read-only evidence for the existing Furniture Placement HUD.
+
+This is an externally copied diagnostic snapshot, never a render-thread lease,
+placement decision, or server receipt. Exact native mappings and remaining
+qualification are documented in docs/handoffs/furnishing-preview.md.
+"""
+from __future__ import annotations
+
+import math
+import struct
+
+from .native_vendor_dialog import (
+    NativeVendorDialogCaptureError,
+    NativeVendorDialogCompatibilityError,
+)
+from .native_vendor_queue import VendorQueueMemory, _ReadSet
+from .native_vendor_roster import _text
+
+# Narrower than the historical vendor family: inspected 1.3.38.11 images only.
+REVIEWED_FURNISHING_EXECUTABLES = frozenset({
+    "6347b420c6c151995f168f16fd1624408dd8911698d11a4a74b26d211fb49f19",
+    "7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f",
+})
+FURNITURE_HUD_RVA = 0x1167C68
+FURNITURE_ENTRY_RVA = 0x1169908
+
+
+def _reference(r: _ReadSet, address: int) -> dict[str, int] | None:
+    """Record a borrowed reference without interpreting an unreviewed class."""
+    pointer = r.word(address)
+    if not pointer:
+        return None
+    table = r.word(pointer)  # Also rejects sentinel, unaligned and short reads.
+    if not r.memory.base_address <= table < 0x80000000 or table % 4:
+        raise NativeVendorDialogCaptureError("invalid furnishing object class")
+    return {"address": pointer, "class_rva": table - r.memory.base_address}
+
+
+def read_native_furnishing_preview(memory: VendorQueueMemory) -> dict[str, object]:
+    """Copy the one active furnishings HUD, its owned rows and selected references.
+
+    Native row selection updates text; it does not establish a preview pose.
+    Null model/selection/layout references are reported, not fabricated. No native
+    functions are invoked and no objects are retained or changed. All copied
+    bytes are rechecked; even a stable copy cannot prevent native address reuse.
+    """
+    if (
+        memory.executable_name.casefold() != "sb.exe"
+        or memory.executable_sha256 not in REVIEWED_FURNISHING_EXECUTABLES
+        or memory.pointer_size != 4
+    ):
+        raise NativeVendorDialogCompatibilityError("unsupported furnishing executable")
+    r, base = _ReadSet(memory), memory.base_address
+    root = r.word(base + 0x16A7BFC)
+    r.require(root, base + 0x1174884, "game window type")
+    r.require(root + 0x64, 2, "in-world state")
+    huds = r.hud_stack(root)
+    candidates = [hud for hud in huds if r.word(hud) == base + FURNITURE_HUD_RVA]
+    if len(candidates) != 1:
+        raise NativeVendorDialogCaptureError("expected one active furnishings HUD")
+    hud = candidates[0]
+    manager = r.word(root + 0xA4)
+    r.require(manager, base + 0x1171ADC, "city manager type")
+    r.require(hud + 0x104, manager, "furnishing HUD owner")
+    r.require(manager + 0xA8, hud, "manager furnishing HUD")
+    children = r.vector(hud + 0x54, 512)
+    listing, layout, selected = (r.word(hud + offset) for offset in (0x524, 0x648, 0x660))
+    if not listing or listing not in children:
+        raise NativeVendorDialogCaptureError("furnishing list is not owned by HUD")
+    r.require(listing, base + 0x116ACF0, "furnishing list type")
+    r.require(listing + 0x3BC, hud, "furnishing list owner")
+    layout_control = None
+    if layout:
+        if layout not in children:
+            raise NativeVendorDialogCaptureError("furnishing layout is not owned by HUD")
+        r.require(layout + 0x3BC, hud, "furnishing layout owner")
+        layout_control = {"address": layout, "name": _text(r, layout + 0x164)}
+        if layout_control["name"] != "BTNPROPLAYOUT":
+            raise NativeVendorDialogCaptureError("unexpected furnishing layout control")
+    rows, entries = [], set()
+    for control in r.vector(listing + 0x408, 128):
+        r.require(control, base + 0x116AEBC, "furnishing row control type")
+        r.require(control + 0x3BC, hud, "furnishing row owner")
+        r.require(control + 0x458, listing, "furnishing row list")
+        entry = r.word(control + 0x44C)
+        if entry in entries:
+            raise NativeVendorDialogCaptureError("duplicate furnishing row entry")
+        entries.add(entry)
+        r.require(entry, base + FURNITURE_ENTRY_RVA, "furnishing entry type")
+        r.require(entry + 8, 0x25, "furnishing entry kind")
+        key = struct.unpack("<II", r.read(entry + 0x10, 8))
+        rows.append({
+            "control_address": control, "entry_address": entry,
+            "control_name": _text(r, control + 0x164),
+            "entry_key_raw": {"object_id": key[0], "object_type": key[1]},
+            "selected": entry == selected,
+            "source_reference": _reference(r, entry + 0x20),
+            "model_reference": _reference(r, entry + 0x24),
+        })
+    if selected and selected not in entries:
+        raise NativeVendorDialogCaptureError("selected furnishing is outside the owned list")
+    width, height = struct.unpack("<ii", r.read(hud + 0x630, 8))
+    x, y = struct.unpack("<ff", r.read(hud + 0x638, 8))
+    zoom = struct.unpack("<f", r.read(hud + 0x37C, 4))[0]
+    if not all(math.isfinite(v) for v in (x, y, zoom)) or width < 0 or height < 0:
+        raise NativeVendorDialogCaptureError("invalid furnishing layout measurements")
+    result = {
+        "schema_version": 1, "scope": "current_furnishing_hud_diagnostic",
+        "process_id": memory.pid,
+        "process_creation_filetime_utc": memory.process_creation_filetime_utc,
+        "executable_sha256": memory.executable_sha256,
+        "window_address": hud, "owner_address": manager,
+        "selected_entry_address": selected, "rows": rows,
+        "layout_control": layout_control,
+        "layout_raw": {"width": width, "height": height, "x": x, "y": y, "zoom": zoom},
+        "floor_index_raw": r.word(hud + 0x628),
+        "structure_reference": _reference(r, hud + 0x64C),
+        # A scene entry is not the selected deed and is not placement confirmation.
+        "scene_selection_address_raw": r.word(hud + 0x508),
+        "preview_pose_verified": False, "render_lifetime_owned": False,
+        "placement_confirmed": False, "command_admitted": False,
+    }
+    r.verify()
+    return result
