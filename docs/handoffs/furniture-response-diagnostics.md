@@ -9,8 +9,9 @@ can produce that same result. See the
 [discovery review](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/36).
 
 `codex/furniture-response-diagnostics` targets `main` and provides the next passive
-evidence boundary. Native version 1.8.28 and host 0.3.48 passed focused validation; no
-installation or successful live capture is claimed by this source checkpoint.
+evidence boundary in [draft PR #37](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/37).
+Native version 1.8.28 and host 0.3.48 passed complete package validation at source
+`c764e22d1bd94fe3a84fd53a31d42d4c959d8a20`. Installation and live capture remain pending.
 The independent real-time preview remains in
 [draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35).
 
@@ -74,8 +75,27 @@ Independent read-only review matched the layouts and callbacks to the executable
 Host validation passes 147 focused furniture/workflow/Condemn tests and 193
 package-gate tests. Repository Ruff and whitespace checks pass. Both build profiles
 must include this observer exactly once, exclude its test harness, and execute all
-five native tests before packaging. Complete package/regression and live acceptance
-remain separate gates; no installation is implied by these focused checks.
+five native tests before packaging.
+
+The exact-source package `artifacts/f28/dd4fb06e/navigation-inspector-acceptance.zip`
+passed all required gates (`acceptance_eligible: true`, no known failed gates).
+Its SHA-256 is `01833840aafaf05c5f757dda8e98108f41650ffb6153b634ca67f2bf4a7b7784`.
+Full-profile DLL SHA-256:
+`a9310b43ef5b911385f2147328266418e92cd1a52382b54e5a4292ba80442a95`.
+Host wheel SHA-256:
+`f7f01e9b2b9c9b0a51ff924102f375fb6e6cf71191f728e56ac5e869bc46a9be`.
+The receipt and logs remain in that private artifact directory.
+
+Full host validation: 3,508 passed, 19 skipped. The additional environment skip is
+`test_replay_does_not_publish_and_return_live_rebinds_controls` because Tk reported
+no display. Each native profile passed 174 executed tests; three private-image
+probes skipped in the generic suite were separately checked against the reviewed
+client. Each profile also passed all 63 required movement IPC tests without skips.
+Actual client binding checks, wheel installation and installed entry points passed.
+Both profiles reproduced the two already documented transparency diagnostic
+failures; existing package policy retains these deferred findings. They do not
+establish complete graphics acceptance. Installation and live acceptance remain
+separate gates. Earlier failed package attempts are superseded by `dd4fb06e`.
 
 ## Capture and next todos
 
@@ -86,9 +106,9 @@ supervised normal Bench placement and retain the read-only HUD before/after
 observations alongside it. Do not infer success from a returned handler or generic
 loading text. Private captures and client binaries stay in local artifact storage.
 
-1. Active: build the exact committed package, run full host/native validation in
-   both profiles and verify installed-wheel behavior before requesting a restart.
-2. Install the reviewed candidate after the user closes the game; preserve saved
+1. Complete: exact committed package, full host/native validation in both profiles
+   and installed-wheel checks.
+2. Active: prepare and install the reviewed candidate after the user closes the game; preserve saved
    jobs, journals and settings and verify the new process lifetime and mapping.
 3. Capture one ordinary placement attempt. Separate outgoing serialization,
    incoming record contents and resulting HUD collections; then fix the proven
