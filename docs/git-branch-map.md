@@ -6,18 +6,22 @@ Corrected furniture preview/recorder native 1.8.30 / host 0.3.50 from exact sour
 `8ba181868fca7ca113f94361b61118ce74a9d4a1` is installed and verified in the VM.
 The existing Vendor Test shortcut remains the user launch entry point. Saved
 records/settings, rollback backups, all five shortcuts and the actual new manager
-were verified. The user authorized stopping the old windowless process after
-normal window closure left it alive. Corrected startup registration, panel creation,
-preview appearance/input and normal exit still require live verification.
+were verified. Live startup registration and preview panel creation now pass.
 
-The prior 1.8.29 capture proved a renderer-first preview startup collision, fixed
-by this candidate. Ordinary Bench drag separately receives an unchanged empty
-primary scene list and needs server-handler investigation. The old capture is
-stopped; a fresh verified process/capture is needed for further live tests. See the
-[deployment handoff](handoffs/furniture-response-diagnostics.md). PR #35 contains
-the combined source; PR #37 carries the recorder and latest deployment docs.
-Both target `main` and remain unmerged by this deployment. Earlier installed or
-staged versions below are historical checkpoints.
+The Bench preview still fails source-material qualification: the captured shader
+vtable RVA `0x1149c18` is outside the two currently supported families. No clone
+was attempted. PR #35 owns the material support investigation and the user's
+corrected interaction: automatic preview using native placement/rotation controls,
+without a separate Preview button or duplicate rotation buttons. Visual acceptance
+and normal exit remain unverified.
+
+Ordinary Bench drag independently reproduced the unchanged empty primary scene
+response in 1.8.30, matching 1.8.29; server-handler investigation remains necessary.
+The passive capture ended normally at 20:40:48 UTC and its evidence is preserved.
+See the [deployment handoff](handoffs/furniture-response-diagnostics.md).
+PR #35 contains the combined source; PR #37 carries the recorder and latest
+deployment docs. Both target `main` and remain unmerged by this deployment.
+Earlier installed or staged versions below are historical checkpoints.
 
 ## Current client update - September 24
 

@@ -323,3 +323,52 @@ loading text. Private captures and client binaries stay in local artifact storag
 5. Obtain the server Furniture handler/response-builder evidence for the ordinary
    placement finding; resume guard/Condemn and vendor live checks in the serialized
    client queue. The private developer finding is prepared, not sent.
+
+## Corrected startup and remaining live failures — September 24, 20:40 UTC
+
+Native 1.8.30 / host 0.3.50, exact source
+`8ba181868fca7ca113f94361b61118ce74a9d4a1`, was tested in verified PID 7060,
+creation FILETIME 134347552792447252. Startup registration, renderer callback
+ownership, native context binding and visible preview child creation all pass.
+The user selected Bench and clicked Preview; the bar reported that its loaded
+model was unavailable. This is a working click with failed model qualification,
+not evidence of a disabled button.
+
+A bounded read-only snapshot of the exact DLL's retained resource journal was
+stable: source_valid=0, private_valid=0, 71 reads, one source node, zero private
+nodes, empty owner slots/state and terminal=0. The final recorded read was shader
+object vtable `0x1549c18` (client RVA `0x1149c18`). Shader qualification allows
+only `0x1149c84` and `0x1149ca8`; all preceding source resource gates passed.
+The source failed before a clone was attempted. PR #35 owns investigation and
+validated support for this material family. No qualification check was bypassed.
+
+The user clarified the intended interaction: show the model automatically and use
+the game's existing placement and rotation controls. Separate Preview/rotation
+buttons duplicate the native interaction and are to be removed. Integration must
+preserve the distinction between local visualization and native placement sends.
+Do not request another manual-button acceptance test.
+
+The user separately confirmed an ordinary Bench drag. Complete native sequences
+1–7 contain operation 3 serialization followed 46 ms later by operation 2 decode,
+then processing/return at 78 ms. Requested XYZ was approximately
+(-1.9199624, 0.9989240, -5.5998902), rotation/floor zero. The before/after operation
+2 payloads are exactly equal: zero primary scene records, the same one secondary
+record and one consumed key documented in the earlier run. No returned primary
+Bench record was available to instantiate. No gaps, truncation, overwritten
+records, rejected records, ticket drops or reader errors were observed.
+Serialization and temporal proximity still do not establish server receipt,
+acceptance or rejection; server handler evidence remains the next placement step.
+
+Passive recording ended normally at 20:40:48 UTC after the stop marker. The game
+was left running. Private evidence remains under
+`artifacts/furnishing-preview-fix-20260924` and the matching VM diagnostics share:
+`live-resource-state.json`, `live-workflow-copy.jsonl`,
+`live-capture-status.json` and `preview-test.jpg`. Guest originals are under
+`carpenter-investigation/preview-1.8.30/7060-134347552792447252`.
+No captures, client binaries or credentials are included in this documentation
+checkpoint.
+
+Next active item: source-material support and automatic native-control preview
+integration in PR #35, followed by package validation before another live test.
+Original placement needs the developer's server-handler evidence. Guard/Condemn
+and vendor live qualification remain queued.
