@@ -230,9 +230,11 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Complete: user launch/login and exact client-lifetime verification; carpenter
   hireling, Furniture Placement HUD, owned Bench deed, single-floor layout and
   occupied building are observed. A single click selects the Bench successfully.
-- Active: carpenter placement diagnosis. The user reports direct dragging from
-  the deed list does nothing; a separate drag after confirmed selection still
-  needs observation. No placement receipt or persistent result is established.
+- Active: carpenter placement diagnosis. Retrying after confirmed Bench selection
+  produced "Done Loading", rebuilt the list and cleared selection; the same deed
+  remains and both placed-scene collections are empty. Response capture or server
+  logs must distinguish missing records from client asset-creation failure. No
+  placement receipt or persistent result is established.
 - Parallel: the requested graphics task owns the real-time furnishing preview
   on `codex/furnishing-preview`, draft PR #35. Its read-only resource helper has
   captured the selected Bench; native rendering and visual acceptance remain open.

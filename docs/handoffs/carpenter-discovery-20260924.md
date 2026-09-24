@@ -51,6 +51,47 @@ handler `0x61c6e0`), before release. Therefore a separate completed click is not
 established as a native requirement; click-then-drag is a diagnostic sequence, not
 a proven root-cause fix. Drag startup conditions remain under review.
 
+## Follow-up after the selected-deed drag
+
+The user retried and reported "Done Loading" with no visible change. A fresh
+read-only snapshot and screenshot show the same Bench deed key, source model,
+building and floor; however, the owned list row and entry were reconstructed,
+and list selection, HUD selection and scene selection are all zero. The same
+Bench remains listed and the floor plan shows no obvious placed item. This
+establishes a reset/rebuild rather than an unchanged selection, but does not prove
+whether a placement request was sent, rejected or completed.
+
+Static receive handler `0x3f68f0` handles ArcFurnitureMsg operation 2. Its nonzero
+`message+0x94` branch calls `0x6e6f40`, which refreshes the building/floor view,
+sets "Done Loading" through `0x593150`, then calls `0x6e7180` to rebuild deeds.
+Rebuild invokes HUD virtual `+0x208`, reaching `0x592800` and clearing selection.
+The setter's only identified direct/thunk caller is this refresh path, and the
+refresh helper's only identified direct/thunk caller is the incoming handler.
+This strongly supports a response-driven refresh, but no message payload was
+captured. The status text alone is not placement success.
+
+A subsequent bounded, reverse-checked capture found the scene list at `HUD+0x444`
+empty and the furniture map (`HUD+0x664`, count at `+0x668`) empty with null root.
+Manager keys at `+0xf0` and `+0xf8` both match the occupied destination building.
+There is no retained placement entry in this HUD, rather than merely a hidden
+entry. This does not prove that the server sent zero furniture records: handler
+`0x593360` inserts the scene tracker and furniture record only after setup
+`0x68bf60` succeeds; native asset-creation failure can discard an incoming record
+before insertion. The next discriminator is the response payload and setup result,
+or corresponding server logs. No unsupported server-fault claim is established.
+
+The operation-2 handler iterates scene-record pointers at message `+0x98..+0x9c`
+and consumed-deed keys at `+0xb0..+0xb4`. The refresh flag being zero does not skip
+records; failed building initialization can skip them, but the observed Done
+Loading path indicates that initialization succeeded. Both collections require
+strict type, pointer, cycle/count and reverse-read checks before interpretation.
+
+Private follow-up evidence: `after-user-drag.json` in the guest investigation
+folder, followed by `after-drag-manager-keys.json` and
+`after-drag-scene-state.json`; `after-user-drag.png` and
+`after-user-drag-detail.jpg` remain on the host. No
+additional game input or placement request was sent by the coordinator.
+
 ## Parallel ownership and delivery
 
 The user-requested graphics task owns `codex/furnishing-preview`,
@@ -73,10 +114,11 @@ captures, helper launch scripts and client binaries are excluded from delivery.
 
 ## Next todos
 
-1. Active: observe a separate drag of the now-selected Bench to an open floor-plan
-   location; establish whether drag acceptance, local location validation, request
-   dispatch or server completion is the failing boundary. Verify persistent
-   placement before claiming carpenter usable.
+1. Active: qualify request/response evidence or obtain matching server logs after
+   the selected-deed drag reproduced a reset with the Bench retained and scene
+   collections empty. Distinguish missing response records from failed client
+   asset creation before choosing a fix or server escalation.
+   Verify persistent placement before claiming carpenter usable.
 2. Continue graphics implementation and qualification in PR #35, using native
    ownership and occupied-building evidence. No speculative render hook deployment.
 3. Release the serialized VM client for pending Barracks/guard/Condemn coverage and
