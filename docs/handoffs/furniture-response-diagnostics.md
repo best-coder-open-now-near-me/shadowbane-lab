@@ -177,6 +177,45 @@ ColorTexture / ArcImage trees and uniform positive building scale; unsupported
 resources show unavailable. Preview does not establish valid placement or server
 acceptance. The preview task retains its detailed runtime/live-acceptance handoff.
 
+## First live evidence - September 24
+
+The user launched the combined candidate as Bart. Exact process lifetime
+`7708 / 134347448189563515` matched the reviewed prepared executable. The launcher
+receipt and 32-bit module enumeration confirmed native 1.8.29.0 and the qualified
+DLL hash. The first 64-bit module query saw only WOW64 loader modules; it was not
+evidence that the extension was absent. The exact-process graphics receipt also
+reports an active full renderer.
+
+Continuous read-only capture started at 17:37:19 UTC for 30 minutes at 100 ms,
+with `--furniture-responses --furnishings`. It was healthy with no gaps, rejected
+snapshots or lost tickets. This finite capture must be rechecked before a later
+live test; it does not automatically follow a replacement process.
+
+Retained history includes a normal Bench drag, explicitly confirmed by the user.
+Operation 3 serialized the Bench deed/building, finite requested coordinates and
+floor zero. Operation 2 decoded 47 ms later and processed/returned 93 ms after
+serialization. Its primary scene vector is empty, and the complete payload is
+identical to the pre-drag response. Its secondary/consumed key describes a
+different already-present item. For this reproduction there was no returned
+primary Bench record for the client to instantiate; failure during creation of a
+returned Bench model cannot explain that empty response. Serialization and timing
+do not prove server receipt, acceptance/rejection or persistence. Recorder
+`status_raw = 0` is not a server success code.
+
+The outgoing zero structure field matches the original client's constructor and
+normal drop handler; do not alter it speculatively. No server Furniture handler
+was found in this repository. A server investigation needs its operation-3 parser/
+handler and operation-2 response builder or logs, including deed resolution,
+validation outcome and the primary/secondary/consumed lists it emitted.
+
+Preview acceptance separately exposed a missing controls bar: the user correctly
+single-clicked the Bench, the read-only selection shows it selected, and the HUD
+matches the building occupied by the actor at floor zero. No preview appearance
+or input acceptance is claimed. The preview task is investigating native
+admission/presentation; more dragging is unnecessary. Private source evidence is
+under `carpenter-investigation/preview-1.8.29/7708-134347448189563515` in the guest
+and the host diagnostics share's `furnishing-preview-20260924/live-*` files.
+
 ## Capture and next todos
 
 Use the existing workflow recorder with `--furniture-responses`, pinned to the
