@@ -134,11 +134,12 @@ complete. No further user walkthrough is currently queued. The subsequent [menu 
 provides typed operations and automatic Inventory opening for finished batches;
 it is source-only and has not been installed or live-accepted.
 
-1. Implement typed owner-thread open/select/reopen operations through the verified
-   ordinary owned controls. Preserve exact process/scene, enabled/visible,
-   foreground, lease and pending-operation checks, and confirm the intended result
-   before continuing. Manual transition evidence does not itself qualify an
-   automated adapter or replace cancellation/scene-retirement validation.
+1. Typed owner-thread open/select/reopen operations are implemented through the
+   verified ordinary owned controls. Exact process/scene, enabled/visible,
+   foreground, lease and pending-operation checks are retained. Source tests and
+   DLL build pass; live automated acceptance remains outstanding. The later
+   Inventory capture and exact native handler qualify its unique unnamed close
+   control; recipe closing retains named CANCEL.
 2. Keep recipe admission explicit. Existing Gilded Scepter crafting remains
    template `26990:0`, mode 1, table 12 and both random sentinel fields. The dagger
    selection contract does not admit dagger production or arbitrary recipes.
@@ -156,3 +157,27 @@ records the existing job boundaries and separate provenance fix in draft
 [PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38).
 The provenance code checkpoint `37d919a` passed all 15 hosted checks before this
 documentation update; that does not establish gameplay acceptance or installation.
+
+## Recipe-list observation service
+
+The production read-only reader publishes the current owned recipe list as typed
+template keys and display labels. It traverses the qualified ItemCreation tab and
+list graph with bounded collections and reverse-read checks, preserving selected,
+activated and retained template identities separately. The inspection command is
+`client observe-native-vendor-recipes --process-id PID --json`.
+
+This catalog supplies display and selection data. It does not grant crafting,
+claim a complete server catalog, pin a native scene epoch or qualify a recipe's
+random table. The exact prepared client image is required; future images need
+review. Native owner-thread recipe preparation remains the final live check.
+
+The next complete application slice saves an immutable per-vendor random recipe
+specification, prepares it automatically, performs one capacity batch and collects
+its results. New generalized Create/Keep evidence must carry the saved recipe and
+preparation identity; historical Scepter journal validation remains unchanged.
+Town scheduling then rebinds stable vendor/building keys only between completed
+phases, with fresh queue reconciliation and no replay of uncertain requests.
+
+Catalog checkpoint validation: 139 catalog, CLI and existing vendor-reader tests
+passed (101 subtests). Fixtures are synthetic; Ruff and diff checks passed. The
+reader is source-only and was not installed into the active game runtime.

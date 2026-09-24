@@ -1392,6 +1392,33 @@ def observe_native_nearby_vendors(process_id: int, *, as_json: bool) -> int:
     return 0
 
 
+def observe_native_vendor_recipes(process_id: int, *, as_json: bool) -> int:
+    from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
+    from shadowbane_lab.client_observation.native_vendor_recipe_catalog import (
+        read_native_vendor_recipe_catalog,
+    )
+
+    try:
+        memory = WindowsReadOnlyProcessMemory.open_for_process("sb.exe", process_id)
+        try:
+            snapshot = read_native_vendor_recipe_catalog(memory)
+        finally:
+            memory.close()
+    except (OSError, ValueError, RuntimeError) as exc:
+        return _error(f"vendor recipe list unavailable: {exc}", as_json=as_json)
+    if as_json:
+        print(json.dumps({"ok": True, "snapshot": snapshot}, sort_keys=True))
+    else:
+        print(f"{len(snapshot['recipes'])} recipes in the current vendor list:")
+        for row in snapshot["recipes"]:
+            template = row["template"]
+            selected = " (selected)" if row["selected"] else ""
+            print(f"  {row['display_name'] or 'Unnamed recipe'} "
+                  f"[{template['object_id']}:{template['object_type']}]{selected}")
+        print("Current list only; availability and random mode are rechecked before use.")
+    return 0
+
+
 def observe_native_vendor_roster(process_id: int, *, as_json: bool, window: str = "vendor") -> int:
     from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
     from shadowbane_lab.client_observation.native_vendor_roster import read_native_vendor_roster
