@@ -16,8 +16,9 @@ The same typed menu service opens ordinary single-item recipes, selects a templa
 sets Magic/random mode and closes owned recipe/Inventory windows. Recipe preparation
 verifies retained, activated and selected template identity, table when requested,
 random sentinels, quantity and single mode. The separate menu protocol leaves
-Create/Keep and navigation payloads unchanged. Existing Gilded Scepter spending
-admission remains in place; dagger production is not enabled by selection evidence.
+legacy Create/Keep and navigation payloads unchanged. Legacy Gilded Scepter
+admission remains in place. The subsequent [saved-recipe slice](vendor-saved-recipes-20260924.md)
+adds independently admitted generalized random crafting.
 
 Native operations run on the existing owner thread, through ordinary owned controls.
 They recheck lifetime, foreground, producer lease, pending operation barriers,
@@ -57,9 +58,8 @@ retains its independently observed named CANCEL contract. Focused mapped native
 regressions pass; no automated game command has run. Candidate live acceptance
 and full event-parent route acceptance remain required.
 
-Next: saved random-recipe admission and durable town plan/visit scheduling, followed
-by a coherent versioned package and supervised acceptance. Recipe preparation is
-available to that orchestration; the dashboard does not yet save arbitrary recipes.
-Multiple-mode preparation, generalized crafting, full resource/affix policy and
-recurring spending are not completed. Preserve unknown affixes and old unresolved
-Create/Keep records.
+Saved random-recipe admission and dashboard selection are now implemented in the
+[saved-recipe slice](vendor-saved-recipes-20260924.md). Next: versioned package and
+supervised acceptance, then durable town plan/visit scheduling. Multiple-mode
+preparation, generalized affix exclusion policy and recurring spending remain
+uncompleted. Preserve unknown affixes and old unresolved Create/Keep records.

@@ -43,7 +43,21 @@ class NativeInvoker final : public Invoker {
 public:
     NativeInvoker(const std::shared_ptr<QueuedCommand>& command,
         const movement::NativeScene& scene, HWND window) : command_(command), scene_(scene), window_(window) {}
+    static bool AdmitRandom(void* context) noexcept {
+        auto& self = *static_cast<NativeInvoker*>(context);
+        const auto now = GetTickCount64();
+        return !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy()
+            && !navigation_controller.Busy() && !menu_controller.Busy()
+            && self.command_->lease && self.command_->lease->Current(now) && now <= self.command_->deadline
+            && self.command_->command.window == reinterpret_cast<std::uintptr_t>(self.window_)
+            && GetForegroundWindow() == self.window_ && !IsIconic(self.window_)
+            && movement::NativeMovementLifetimeCurrent(self.scene_);
+    }
     wire::Outcome Invoke(wire::Verb verb, const wire::Snapshot& expected, std::uint32_t item) noexcept override {
+        if (verb == wire::Verb::create_random) {
+            if (item || !AdmitRandom(this)) { return wire::Outcome::stale; }
+            return vendor_menu::InvokeRandomCreate(image_base, scene_, expected, &AdmitRandom, this);
+        }
         wire::Snapshot fresh{}; bool present = false, top = false;
         const auto now = GetTickCount64();
         if (condemn_controller.Busy() || funding_controller.Busy() || guard_controller.Busy() || navigation_controller.Busy() || menu_controller.Busy() || !command_->lease || !command_->lease->Current(now) || now > command_->deadline
@@ -266,7 +280,7 @@ void Update(void* root, HWND window) noexcept {
     wire::Snapshot snapshot{}; bool present = false, top = false;
     const bool valid = movement::ReadNativeMovementLifetime(scene) && scene.window == reinterpret_cast<std::uintptr_t>(root)
         && Capture(image_base, scene, snapshot, controller.PendingKeep(), present, top);
-    controller.Observe(snapshot, valid, present);
+    controller.Observe(snapshot, valid, present, GetTickCount64());
     auto menu_command = vendor_menu::Take();
     vendor_menu::wire::Snapshot menu_snapshot{};
     bool menu_valid = false;
@@ -385,7 +399,7 @@ void Update(void* root, HWND window) noexcept {
         const bool exact_window = command->command.window == reinterpret_cast<std::uintptr_t>(window);
         const bool ready = valid && !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy() && !navigation_controller.Busy() && !menu_controller.Busy() && exact_window && top && GetForegroundWindow() == window && !IsIconic(window);
         NativeInvoker invoker(command, scene, window);
-        Complete(command, controller.Execute(command->verb, command->command, live && exact_window, ready, invoker));
+        Complete(command, controller.Execute(command->verb, command->command, live && exact_window, ready, invoker, now));
     }
     busy = false;
 }

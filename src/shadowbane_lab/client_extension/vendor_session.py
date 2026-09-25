@@ -61,7 +61,7 @@ class NativeVendorSession:
         if result.detail != "native_vendor_receipt_v1":
             error = (
                 _RetryableInspectionError
-                if verb == Verb.INSPECT
+                if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM)
                 and result.stage == channel.NativeActionResultStage.FAILED
                 and result.error_code == 13
                 and result.detail == "invalid_or_expired_vendor_lease"
@@ -82,17 +82,27 @@ class NativeVendorSession:
             raise channel.NativeActionChannelError("vendor receipt contradicts transport result")
         return receipt
 
-    def inspect(self) -> Receipt:
+    def _inspect(self, verb: Verb) -> Receipt:
         # Only observation can be repeated. Every attempt has a fresh request
         # identity and still passes the native lifetime/lease/receipt checks.
         for attempt in range(3):
             try:
-                return self._submit(Verb.INSPECT, str(uuid.uuid4()))
+                return self._submit(verb, str(uuid.uuid4()))
             except (_RetryableInspectionError, channel.NativeActionChannelTimeout):
                 if attempt == 2:
                     raise
                 time.sleep(0.05)
         raise AssertionError("unreachable inspection retry")
+
+    def inspect(self) -> Receipt:
+        return self._inspect(Verb.INSPECT)
+
+    def inspect_random(self) -> Receipt:
+        """Prove generalized single-recipe support without spending."""
+        return self._inspect(Verb.INSPECT_RANDOM)
+
+    def create_random(self, expected: Snapshot, request_key: str) -> Receipt:
+        return self._submit(Verb.CREATE_RANDOM, request_key, expected)
 
     def create(self, expected: Snapshot, request_key: str) -> Receipt:
         return self._submit(Verb.CREATE, request_key, expected)

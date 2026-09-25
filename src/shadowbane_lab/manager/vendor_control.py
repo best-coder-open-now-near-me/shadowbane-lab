@@ -23,6 +23,12 @@ from .operation import (
 from .vendor_discovery import discovery_summary, open_city_session, run_discovery
 from .vendor_job import TERMINAL, VendorJobStore, _write, run_vendor_job
 from .vendor_navigation import open_navigation_session, run_building_discovery
+from .vendor_recipes import (
+    VendorRecipeStore,
+    read_context,
+    require_saved_owner,
+    run_recipe_selection,
+)
 
 
 class ManagerVendorControl:
@@ -41,11 +47,16 @@ class ManagerVendorControl:
     def discovery_summary(self, client_id, instance_id):
         return discovery_summary(self.store(client_id, instance_id)) if instance_id else None
 
-    def execute(self, action, client_id, instance_id, *, job_id=None):
+    def recipe_summary(self, client_id, instance_id):
+        return (VendorRecipeStore(self.store(client_id, instance_id)).summary()
+                if instance_id else None)
+
+    def execute(self, action, client_id, instance_id, *, job_id=None, selection=None):
         store = self.store(client_id, instance_id)
         with exclusive_record_lock(store.root / "admission.lock"):
             current = store.current()
-            if (action not in {"vendor-start", "vendor-discover"}
+            if (action not in {"vendor-start", "vendor-discover", "vendor-recipes",
+                               "vendor-recipe-save"}
                     and (not current or current["job_id"] != job_id)):
                 raise VendorBatchStopped("the selected vendor batch changed; refresh its controls")
             if action in {"vendor-pause", "vendor-stop"}:
@@ -63,7 +74,8 @@ class ManagerVendorControl:
                             if current["state"] in TERMINAL:
                                 return
                             directory = store.directory(current["job_id"])
-                            for name in ("create.json", "keep.json"):
+                            for name in ("create.json", "keep.json", "recipe-preparation.json",
+                                         "inventory-menu.json"):
                                 path = directory / name
                                 if (
                                     path.exists()
@@ -79,7 +91,8 @@ class ManagerVendorControl:
                     except TimeoutError:
                         pass
                 return
-            if action not in {"vendor-start", "vendor-resume", "vendor-discover"}:
+            if action not in {"vendor-start", "vendor-resume", "vendor-discover",
+                              "vendor-recipes", "vendor-recipe-save"}:
                 raise ValueError("unknown vendor action")
             from .condemn_job import CondemnJobStore
 
@@ -129,7 +142,27 @@ class ManagerVendorControl:
                     and not s.receipt.state.terminal
                 )
             ]
-            if action == "vendor-discover":
+            if action in {"vendor-recipes", "vendor-recipe-save"} or selection is not None:
+                capability = dict(expected_capability, capability="vendor_recipe_v1")
+                path = store.root / "vendor-recipe-capability.json"
+                if not path.exists() or json.loads(_read_record(path, 1024)) != capability:
+                    raise VendorBatchStopped("restart the worker with saved recipe support")
+            if action in {"vendor-recipes", "vendor-recipe-save"}:
+                if inflight or current and current["state"] not in {"complete", "stopped"}:
+                    raise VendorBatchStopped("finish or review the current vendor operation first")
+                if action == "vendor-recipes":
+                    command = "vendor recipes"
+                else:
+                    if (not isinstance(selection, dict)
+                            or set(selection) != {"catalog_id", "template"}
+                            or type(selection["template"]) is not int):
+                        raise VendorBatchStopped("choose a recipe from the current list")
+                    catalog = VendorRecipeStore(store).catalog(selection["catalog_id"])
+                    if not any(row["template"]["object_id"] == selection["template"]
+                               for row in catalog["snapshot"]["recipes"]):
+                        raise VendorBatchStopped("recipe is not in the current vendor list")
+                    command = f"vendor recipe {catalog['catalog_id']} {selection['template']}"
+            elif action == "vendor-discover":
                 if inflight or current and current["state"] not in TERMINAL:
                     raise VendorBatchStopped("another operation owns this worker")
                 city_capability = dict(expected_capability, capability="city_window_v1")
@@ -151,6 +184,13 @@ class ManagerVendorControl:
                         "finish, resume, or review the current operation first"
                     )
                 command = "vendor start"
+                if selection is not None:
+                    if not isinstance(selection, dict) or set(selection) != {"recipe_revision"}:
+                        raise VendorBatchStopped("an exact saved recipe revision is required")
+                    saved = VendorRecipeStore(store).current(selection["recipe_revision"])
+                    if saved is None:
+                        raise VendorBatchStopped("save a vendor recipe first")
+                    command += " " + saved["revision"]
             else:
                 if not current or current["state"] in TERMINAL:
                     raise VendorBatchStopped("no resumable vendor job")
@@ -197,8 +237,9 @@ def open_vendor_session(binding):
 class VendorWorkerExecutor:
     def __init__(self, root, node_id, binding, *, session_factory=open_vendor_session,
                  city_session_factory=open_city_session,
-                 navigation_session_factory=open_navigation_session):
+                 navigation_session_factory=open_navigation_session, recipe_reader=read_context):
         self.node_id = node_id
+        self.recipe_reader = recipe_reader
         self.city_session_factory = city_session_factory
         self.navigation_session_factory = navigation_session_factory
         self.root, self.binding, self.session_factory = Path(root), binding, session_factory
@@ -217,6 +258,15 @@ class VendorWorkerExecutor:
                 "capability": "vendor_batch_v1",
                 "worker_id": worker_id,
                 "process_id": process.process_id,
+                "process_started_at_100ns": process.process_started_at_100ns,
+            },
+        )
+
+        _write(
+            store.root / "vendor-recipe-capability.json",
+            {
+                "schema_version": 1, "capability": "vendor_recipe_v1",
+                "worker_id": worker_id, "process_id": process.process_id,
                 "process_started_at_100ns": process.process_started_at_100ns,
             },
         )
@@ -277,6 +327,21 @@ class VendorWorkerExecutor:
             finally:
                 navigation.close()
             return WorkerOperationExecution(WorkerOperationState.SUCCEEDED, record["detail"])
+        if operation.command == "vendor recipes" or operation.command.startswith("vendor recipe "):
+            if stop_signal.is_set():
+                return WorkerOperationExecution(WorkerOperationState.CANCELLED, "Selection paused.")
+            session = self.session_factory(binding)
+            try:
+                parts = operation.command.split()
+                detail = run_recipe_selection(
+                    store, binding, operation, session,
+                    catalog_id=parts[2] if len(parts) == 4 else None,
+                    template=int(parts[3]) if len(parts) == 4 else None,
+                    cancelled=stop_signal.is_set, reader=self.recipe_reader,
+                )
+            finally:
+                session.close()
+            return WorkerOperationExecution(WorkerOperationState.SUCCEEDED, detail)
         resume = operation.command.startswith("vendor resume ")
         if resume:
             current = store.current()
@@ -288,11 +353,25 @@ class VendorWorkerExecutor:
             )
         session = self.session_factory(binding)
         try:
+            selection = None
+            if operation.command.startswith("vendor start "):
+                selection = VendorRecipeStore(store).current(operation.command.split()[2])
+                selection = require_saved_owner(
+                    selection, binding, session, reader=self.recipe_reader)
+            elif resume and current.get("schema_version") == 2:
+                from shadowbane_lab.client_extension.vendor_wire import Snapshot
+
+                initial = Snapshot.decode(bytes.fromhex(current["initial_snapshot"]))
+                require_saved_owner(dict(owner=current["recipe_owner"],
+                                         building={"object_id": initial.building},
+                                         vendor={"object_id": initial.vendor}),
+                                    binding, session, reader=self.recipe_reader)
             record = run_vendor_job(
                 store,
                 session,
                 binding.game_window_handle,
                 resume=resume,
+                **({"selection": selection} if selection is not None else {}),
                 cancelled=stop_signal.is_set,
             )
         finally:

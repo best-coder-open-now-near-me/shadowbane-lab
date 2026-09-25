@@ -149,7 +149,7 @@ def _run(
         save()
         try:
             state = current(first)
-            if operation == "prepare_recipe":
+            if operation in ("prepare_recipe", "open_recipe_catalog"):
                 if state.inventory:
                     state = perform(Verb.CLOSE_INVENTORY, inventory_closed)
                 if state.recipe and state.multiple:
@@ -157,10 +157,12 @@ def _run(
                 state = perform(Verb.OPEN_RECIPE,
                                 lambda s: bool(s.recipe and s.front_hud == s.recipe
                                                and not s.multiple))
-                state = perform(Verb.SELECT_RECIPE, lambda s: s.selected(template))
-                state = perform(Verb.RANDOM_MODE, lambda s: s.random_recipe(template))
-                if not state.random_recipe(template, table):
-                    raise VendorBatchStopped("observed recipe does not match the requested table")
+                if operation == "prepare_recipe":
+                    state = perform(Verb.SELECT_RECIPE, lambda s: s.selected(template))
+                    state = perform(Verb.RANDOM_MODE, lambda s: s.random_recipe(template))
+                    if not state.random_recipe(template, table):
+                        raise VendorBatchStopped(
+                            "observed recipe does not match the requested table")
             else:
                 if state.recipe:
                     state = perform(Verb.CLOSE_RECIPE, recipe_closed)
@@ -197,6 +199,18 @@ def prepare_recipe(
                 clock=clock, sleeper=sleeper)
 
 
+def open_recipe_catalog(
+    session: MenuSession, journal: Path, expected_owner: Snapshot, *,
+    before_action: Callable[[], None] = lambda: None,
+    cancelled: Callable[[], bool] = lambda: False,
+    clock: Callable[[], float] = time.monotonic,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> dict:
+    """Open the owned single recipe list without selecting or crafting an item."""
+    return _run(session, journal, expected_owner, operation="open_recipe_catalog",
+                before_action=before_action, cancelled=cancelled, clock=clock, sleeper=sleeper)
+
+
 def open_inventory(
     session: MenuSession, journal: Path, expected_owner: Snapshot, *,
     before_action: Callable[[], None] = lambda: None,
@@ -221,7 +235,8 @@ def validate_completed_menu(raw: bytes) -> tuple[dict, Snapshot, Snapshot]:
     try:
         record = json.loads(raw)
         if (type(record["schema_version"]) is not int or record["schema_version"] != 1
-                or record["operation"] not in ("prepare_recipe", "open_inventory")
+                or record["operation"] not in (
+                    "prepare_recipe", "open_inventory", "open_recipe_catalog")
                 or record["state"] != "complete"):
             raise ValueError("invalid completed menu operation")
         request_bytes(record["operation_id"])
@@ -253,11 +268,17 @@ def validate_completed_menu(raw: bytes) -> tuple[dict, Snapshot, Snapshot]:
                 raise ValueError("invalid requested recipe identity")
             if not final.random_recipe(template, table):
                 raise ValueError("final recipe does not match the saved expectation")
+        elif record["operation"] == "open_recipe_catalog":
+            if (requested is not None or not final.recipe or final.multiple
+                    or final.front_hud != final.recipe):
+                raise ValueError("final single recipe catalog was not observed")
         elif requested is not None or not final.inventory or final.front_hud != final.inventory:
             raise ValueError("final Inventory was not observed")
         requests = record["requests"]
         order = ([Verb.CLOSE_INVENTORY, Verb.CLOSE_RECIPE, Verb.OPEN_RECIPE,
                   Verb.SELECT_RECIPE, Verb.RANDOM_MODE] if preparation
+                 else [Verb.CLOSE_INVENTORY, Verb.CLOSE_RECIPE, Verb.OPEN_RECIPE]
+                 if record["operation"] == "open_recipe_catalog"
                  else [Verb.CLOSE_RECIPE, Verb.OPEN_INVENTORY])
         if not isinstance(requests, list) or len(requests) > len(order):
             raise ValueError("invalid menu request count")

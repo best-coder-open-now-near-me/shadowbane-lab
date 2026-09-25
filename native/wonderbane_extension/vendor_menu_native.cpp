@@ -298,4 +298,35 @@ wire::Outcome Invoke(std::uintptr_t base, const movement::NativeScene& scene, wi
     if (!admit(context) || !Matches(base, scene, current) || !resolve(checked) || checked != control) { return O::stale; }
     return CallButton(base, control) ? O::submitted : O::uncertain;
 }
+vendor::wire::Outcome InvokeRandomCreate(std::uintptr_t base, const movement::NativeScene& scene,
+    const vendor::wire::Snapshot& expected, Admission admit, void* context) noexcept {
+    using O = vendor::wire::Outcome;
+    if (invoking.test_and_set(std::memory_order_acquire)) { return O::unavailable; }
+    InvokeGuard guard;
+    if (!admit || !vendor::wire::ValidSnapshot(expected) || !vendor::wire::RandomSingle(expected)) { return O::invalid; }
+    auto qualify = [&](wire::Snapshot& menu, std::uint32_t& control) noexcept {
+        if (!admit(context)) { return false; }
+        vendor::wire::Snapshot current{}; bool contains = false, top = false;
+        if (!vendor::Capture(base, scene, current, 0, contains, top) || !top) { return false; }
+        current.revision = expected.revision;
+        if (!vendor::wire::Equal(current, expected) || !Capture(base, scene, menu)
+            || menu.scene != expected.scene || menu.root != expected.root || menu.manager != expected.manager
+            || menu.menu != expected.menu || menu.hireling != expected.hireling || menu.vendor != expected.vendor
+            || menu.building != expected.building || menu.recipe != expected.recipe || menu.inventory
+            || menu.front_hud != expected.recipe || menu.item_template != expected.item_template
+            || menu.selected_template != expected.item_template || menu.activated_template != expected.item_template
+            || menu.table != expected.table || menu.mode != 1 || menu.prefix != 3362971591U
+            || menu.suffix != menu.prefix || menu.quantity != 1 || menu.multiple) { return false; }
+        Reader r{static_cast<std::uint32_t>(base)};
+        return Button(r, menu.recipe, L"CREATE", 0x458, control)
+            && movement::NativeMovementLifetimeCurrent(scene);
+    };
+    wire::Snapshot first{}, second{}; std::uint32_t control = 0, checked = 0;
+    if (!qualify(first, control) || !qualify(second, checked)
+        || checked != control || !wire::Equal(first, second)) { return O::stale; }
+    // Full control dispatch -> 63c350 resource/cost/name checks -> 63ce40.
+    // Dispatch is not acceptance: the shared ledger must observe one queue addition.
+    return CallButton(base, control) ? O::submitted : O::uncertain;
+}
+
 }

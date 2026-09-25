@@ -1,4 +1,5 @@
 #include "vendor_menu_native.h"
+#include "vendor_native.h"
 #undef NDEBUG
 #include <cassert>
 #include <cstdio>
@@ -17,13 +18,15 @@ m::NativeScene scene{}; n::wire::Command command{};
 unsigned calls = 0, selects = 0, activates = 0, scrolls = 0, admissions = 0;
 unsigned deny_at = 0, mutate_at = 0;
 bool detach_select = false, revoke_select = false, stale_select = false, reenter = false, detach_scroll = false;
+bool reenter_create = false, detach_create = false;
+wonderbane::extension::vendor::wire::Snapshot random_expected{};
 O nested = O::invalid;
 constexpr std::uint32_t ROOT=0x1000, MANAGER=0x2000, MENU=0x3000, HIRE=0x4000,
  PROD=0x5000, PROW=0x6000, PENTRY=0x7000, RECIPE=0x8000, PAGES=0x9000,
  PANEL=0xa000, BORDER=0xb000, LIST=0xc000, ROW1=0xd000, ROW2=0xe000,
  ENTRY1=0xf000, ENTRY2=0x10000, TEMPLATE1=0x11000, TEMPLATE2=0x12000,
  OPEN=0x13000, VIEW=0x14000, CANCEL=0x15000, MAGIC=0x16000, INVENTORY=0x17000,
- ICANCEL=0x18000, WRAPPER=0x19000, TAB=0x1a000, HEAD=0x1b000, ILIST=0x1c000, ICANCEL2=0x1d000;
+ ICANCEL=0x18000, WRAPPER=0x19000, TAB=0x1a000, HEAD=0x1b000, ILIST=0x1c000, ICANCEL2=0x1d000, CREATECONTROL=0x1e000;
 std::uint32_t P(std::uint32_t off) { return base + off; }
 void Put(std::uint32_t off, std::uint32_t value) { std::memcpy(reinterpret_cast<void*>(P(off)), &value, 4); }
 std::uint32_t Word(std::uint32_t off) { std::uint32_t v; std::memcpy(&v, reinterpret_cast<void*>(P(off)), 4); return v; }
@@ -48,6 +51,7 @@ void Huds(std::initializer_list<std::uint32_t> huds) {
 bool Admit(void*) noexcept {
     ++admissions;
     if(mutate_at==admissions) Put(OPEN+0x3bc,0);
+    if(detach_create && admissions==2) Put(CREATECONTROL+0x3bc,0);
     return live && (!deny_at || deny_at!=admissions);
 }
 void __fastcall Select(void* self,void*,void* row) {
@@ -70,10 +74,12 @@ void __fastcall Scroll(void* self,void*,std::uint32_t index) {
 bool __fastcall Button(void* self,void*,std::uint32_t event,std::uint32_t flag) {
     assert(event==0 && flag==1); ++calls;
     if(reenter) nested=n::Invoke(base,scene,V::open_recipe,command,&Admit,nullptr);
+    if(reenter_create) nested=n::InvokeRandomCreate(base,scene,random_expected,&Admit,nullptr);
     const auto p=reinterpret_cast<std::uint32_t>(self);
     if(p==P(OPEN)) Huds({RECIPE,MENU});
     else if(p==P(VIEW)) { Put(MANAGER+0x7c,P(INVENTORY)); Put(MANAGER+0x58,1); Huds({INVENTORY,MENU}); }
     else if(p==P(CANCEL)||p==P(ICANCEL)) Huds({MENU});
+    else if(p==P(CREATECONTROL)) { /* Dispatch may reject costs: no fake queue acceptance. */ }
     else { assert(p==P(MAGIC)); Put(RECIPE+0x404,1); Put(RECIPE+0x40c,3362971591U); Put(RECIPE+0x434,3362971591U); }
     return false; // Generic handler return is not action completion.
 }
@@ -84,7 +90,8 @@ void Jump(std::uint32_t off,std::uintptr_t target) {
 void Reset(bool recipe=true) {
     std::memset(reinterpret_cast<void*>(P(0x1000)),0,0x50000);
     data_at=0x30000; text_at=0x40000; live=true; calls=selects=activates=scrolls=admissions=0;
-    deny_at=mutate_at=0; detach_select=revoke_select=stale_select=reenter=detach_scroll=false; nested=O::invalid;
+    deny_at=mutate_at=0; detach_select=revoke_select=stale_select=reenter=detach_scroll=false;
+    reenter_create=detach_create=false; random_expected={}; nested=O::invalid;
     Put(0x16a7bfc,P(ROOT)); Put(ROOT,P(0x1174884)); Put(ROOT+0x64,2); Put(ROOT+0xa4,P(MANAGER)); Put(ROOT+0x20,P(HEAD));
     Put(MANAGER,P(0x1171adc)); Put(MANAGER+0x78,P(MENU)); Put(MANAGER+0xf0,123); Put(MANAGER+0xf4,8); Put(MANAGER+0xf8,123); Put(MANAGER+0xfc,8); Put(MANAGER+0x384,P(HIRE));
     Put(HIRE,P(0x1169518)); Put(HIRE+0x10,777); Put(HIRE+0x14,42);
@@ -96,7 +103,7 @@ void Reset(bool recipe=true) {
     Put(RECIPE,P(0x116bf7c)); Put(RECIPE+0x104,P(MANAGER)); Put(RECIPE+0x3b8,P(MANAGER)); Put(RECIPE+0x3c0,777); Put(RECIPE+0x3c4,42);
     Put(RECIPE+0x400,3362971591U); Put(RECIPE+0x408,P(TEMPLATE1)); Put(RECIPE+0x45c,P(ENTRY1)); Put(RECIPE+0x47c,12); Put(RECIPE+0x4d4,1);
     Put(RECIPE+0x518,P(PAGES)); Put(RECIPE+0x520,P(LIST));
-    Vector(RECIPE+0x54,{PAGES,CANCEL}); Control(CANCEL,0x1169ec0,RECIPE,L"CANCEL"); Put(CANCEL+0x1d0,50);
+    Vector(RECIPE+0x54,{PAGES,CANCEL,CREATECONTROL}); Control(CREATECONTROL,0x1169ec0,RECIPE,L"CREATE"); Put(CREATECONTROL+0x1d0,0x458); Control(CANCEL,0x1169ec0,RECIPE,L"CANCEL"); Put(CANCEL+0x1d0,50);
     Control(PAGES,0x116b510,RECIPE,L"ItemCreationPages"); Vector(PAGES+0x400,{TAB}); Put(TAB+4,P(PANEL)); Put(TAB+0x50,P(WRAPPER));
     Put(WRAPPER,P(0x116c2c0)); Put(WRAPPER+4,P(RECIPE)); Put(WRAPPER+8,P(0x238ad));
     Control(PANEL,0x1169ec0,RECIPE); Control(BORDER,0x11657c8,RECIPE);
@@ -119,6 +126,15 @@ void Prepare(std::uint32_t wanted=0) {
     assert(n::Capture(base,scene,command.expected)); command.expected.revision=1;
 }
 O Invoke(V verb) { return n::Invoke(base,scene,verb,command,&Admit,nullptr); }
+void RandomReady() {
+    Reset(); Put(RECIPE+0x408,P(TEMPLATE2)); Put(RECIPE+0x45c,P(ENTRY2)); Put(LIST+0x404,P(ROW2));
+    Put(RECIPE+0x47c,16); Put(RECIPE+0x404,1); Put(RECIPE+0x40c,3362971591U); Put(RECIPE+0x434,3362971591U);
+    bool present=false,top=false;
+    assert(wonderbane::extension::vendor::Capture(base,scene,random_expected,0,present,top) && top);
+    random_expected.revision=1;
+}
+O RandomCreate() { return n::InvokeRandomCreate(base,scene,random_expected,&Admit,nullptr); }
+
 int main() {
     auto* memory=VirtualAlloc(nullptr,0x1800000,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE);
     assert(memory); base=reinterpret_cast<std::uint32_t>(memory);
@@ -196,5 +212,26 @@ int main() {
     Reset(); Prepare(); ++command.expected.vendor; assert(Invoke(V::random_mode)==O::stale && !calls);
     Reset(); Prepare(); command.reserved[0]=1; assert(Invoke(V::random_mode)==O::invalid && !calls);
     Reset(); Prepare(); live=false; assert(Invoke(V::random_mode)==O::stale && !calls);
+    RandomReady(); assert(RandomCreate()==O::submitted && calls==1 && random_expected.item_template==5051080);
+    RandomReady(); reenter_create=true; assert(RandomCreate()==O::submitted && calls==1 && nested==O::unavailable);
+    RandomReady(); deny_at=2; assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); detach_create=true; assert(RandomCreate()==O::stale && !calls);
+    for(auto fault:{CREATECONTROL+0x1a8,CREATECONTROL+0xe8,CREATECONTROL+0x1d4,CREATECONTROL+0x3bc}) {
+        RandomReady(); Put(fault,1); assert(RandomCreate()==O::stale && !calls);
+    }
+    RandomReady(); Put(CREATECONTROL+0x304,0x100); assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); Put(CREATECONTROL+0x1d0,0x459); assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); Put(LIST+0x404,P(ROW1)); assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); Put(RECIPE+0x45c,P(ENTRY1)); assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); Put(RECIPE+0x408,P(TEMPLATE1)); assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); Put(RECIPE+0x47c,17); assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); Put(PAGES+0x40c,1); assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); Huds({MENU,RECIPE}); assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); Put(ENTRY2+0x14,40); assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); ++random_expected.vendor; assert(RandomCreate()==O::stale && !calls);
+    RandomReady(); random_expected.multiple=1; assert(RandomCreate()==O::invalid && !calls);
+    RandomReady(); random_expected.quantity=2; assert(RandomCreate()==O::invalid && !calls);
+    RandomReady(); random_expected.table=0; assert(RandomCreate()==O::invalid && !calls);
+    RandomReady(); live=false; assert(RandomCreate()==O::stale && !calls);
     assert(VirtualFree(memory,0,MEM_RELEASE)); std::puts("vendor menu native ownership, routing, cancellation, reentrancy and ordinary-call tests passed");
 }

@@ -65,6 +65,8 @@ bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&, std:
 bool InvokeNative(std::uintptr_t, wire::Verb, const wire::Snapshot&, std::uint32_t) noexcept { ++other_writes; return false; }
 }
 namespace vendor_menu {
+vendor::wire::Outcome InvokeRandomCreate(std::uintptr_t, const movement::NativeScene&,
+    const vendor::wire::Snapshot&, Admission, void*) noexcept { ++other_writes; return vendor::wire::Outcome::unavailable; }
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }
 wire::Outcome Invoke(std::uintptr_t, const movement::NativeScene&, wire::Verb,
     const wire::Command&, Admission, void*) noexcept { ++other_writes; return wire::Outcome::unavailable; }
@@ -199,7 +201,7 @@ int main() {
     v::menu_controller.Execute(ex::vendor_menu::wire::Verb::open_recipe, mc, true, true, runtime_tick, menu_call);
     Check(v::menu_controller.Busy(), "menu transaction owns the UI");
     other_reads = other_writes = 0;
-    vi.Invoke(v::wire::Verb::create, {}, 0); ci.Open({});
+    vi.Invoke(v::wire::Verb::create, {}, 0); vi.Invoke(v::wire::Verb::create_random, {}, 0); ci.Open({});
     ni.Open(ex::vendor_navigation::wire::Verb::building, {});
     gi.Upgrade({}); gi.Reopen({}, {});
     fi.Transfer(ex::guard_funding::wire::Verb::open_quote, {});
