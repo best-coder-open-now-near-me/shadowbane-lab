@@ -1,7 +1,8 @@
 # Explicit-list combat admission checkpoint
 
 Branch: `codex/explicit-list-combat`, based on freshly fetched `origin/main@a91dfd5`.
-Integration destination: `main` through a draft PR. This checkpoint changes saved-list
+Source checkpoint: `f9da2bfe9e2d699230e9473f9512f5dee0e8a790`, pushed.
+Integration destination: `main` through [draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39). Hosted CI is pending. This checkpoint changes saved-list
 mutation admission and adds its native consumer; it does not enable native attacks,
 install a package, change the running VM, or supply response-event authority.
 

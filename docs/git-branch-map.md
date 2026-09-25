@@ -3,7 +3,9 @@
 ## Explicit-list combat admission - September 24
 
 `codex/explicit-list-combat` starts from freshly fetched `origin/main@a91dfd5` and
-is intended for a draft PR to `main`. It delivers registered single-use admission
+is pushed at `f9da2bfe9e2d699230e9473f9512f5dee0e8a790` through
+[draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39)
+to `main`. It delivers registered single-use admission
 tickets through existing attack-list mutations, plus a native consumer and real
 process race tests. It does not activate combat. See the [admission handoff](handoffs/explicit-list-combat-admission.md)
 for schema, validation and the next owner-thread attack/cancellation transaction.
