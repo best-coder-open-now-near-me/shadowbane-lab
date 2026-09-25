@@ -1,7 +1,7 @@
 # Saved random vendor recipes - September 24
 
 Source: `codex/vendor-town-workflow`, draft [PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38), targeting `main`.
-This checkpoint is source-only. The VM remains native 1.8.30 / host 0.3.50;
+Native 1.8.31 / host 0.3.51 identify the pending vendor candidate. This checkpoint is source-only. The VM remains native 1.8.30 / host 0.3.50;
 no game command, crafting, deployment or live acceptance was performed for it.
 
 ## Behavior and ownership
@@ -52,3 +52,7 @@ for supervised acceptance. User acceptance must cover the actual recipe list,
 saving a choice and one available-capacity batch. Durable town visits, scheduling
 and repeat batches remain separate unfinished work. Private captures, binaries,
 credentials and build output are not part of this source delivery.
+
+The candidate starts from canonical main plus PR #38. Cancelled carpenter preview
+and recorder drafts are not included; their installed 1.8.30 rollback package and
+private evidence remain retained. No installation change is implied by versioning.
