@@ -6,13 +6,26 @@ The user stopped carpenter work and set guard investigation aside. Vendor rollin
 continues alongside the resumed PvP lane. PR #35's cutout fix `6ea434c` and PR #37's passive
 recorder/live findings remain preserved; unfinished automatic-preview work is not
 a release candidate. No carpenter package, deployment or live test should proceed
-without renewed direction. The installed VM runtime described below is unchanged.
+without renewed direction. The active vendor runtime below excludes those drafts.
 Follow the [updated catch-up plan](catch-up-plan-20260923.md) and vendor PR #38.
 
-## Active VM candidate - September 24
+## Active VM runtime - September 24
+
+Vendor native 1.8.31 / host 0.3.51 from exact source
+`9f96813a31fcd2073cf32cd23798e77a1b1a8b06` is installed after confirmed game
+closure. The new manager is healthy; all five shortcuts and non-launching preflight
+pass. 9,426 retained records/settings and 17 normal-client CFG files passed
+preservation; only the expected revoked idle permit changed during activation.
+Use **WonderBane Vendor Test**. Next: login and saved-recipe/one-batch acceptance.
+The [package handoff](handoffs/vendor-saved-recipes-package-20260924.md) records
+exact hashes, required gates, installation and rollback. No game launch, crafting,
+source merge or full-town acceptance is implied.
+
+## Prior VM runtime - September 24
 
 Corrected furniture preview/recorder native 1.8.30 / host 0.3.50 from exact source
-`8ba181868fca7ca113f94361b61118ce74a9d4a1` is installed and verified in the VM.
+`8ba181868fca7ca113f94361b61118ce74a9d4a1` was the prior verified VM runtime.
+Its package/rollback is preserved; the active vendor package supersedes it.
 The existing Vendor Test shortcut remains the user launch entry point. Saved
 records/settings, rollback backups, all five shortcuts and the actual new manager
 were verified. Live startup registration and preview panel creation now pass.
@@ -50,8 +63,8 @@ Native 1.8.31 / host 0.3.51 exact-source package gates passed: 3,647 host tests,
 The [package handoff](handoffs/vendor-saved-recipes-package-20260924.md) records
 hashes and skipped/deferred diagnostics. Isolated VM preparation is verified,
 including all 436 installed modules, 9,426 retained files and 17 normal-client CFG
-files. Waiting for game closure to apply; the active runtime is unchanged. Not applied
-or live-accepted; installed 1.8.30 / 0.3.50 remains unchanged. This candidate starts
+files. Installation, activation and all shortcut/preflight checks are now verified.
+Gameplay acceptance remains pending; the previous 1.8.30 / 0.3.50 rollback is retained. This candidate starts
 from main and excludes cancelled carpenter preview/recorder drafts. Full town
 visits/scheduling and generalized affix exclusion policy remain unfinished.
 
@@ -69,12 +82,13 @@ local combat exit are now qualified offline. Truthful submission receipts and
 serialized list/party/operation invalidation are the next implementation boundary.
 The isolated `codex/explicit-list-combat` worktree pushed mutation-fence source
 `f9da2bfe9e2d699230e9473f9512f5dee0e8a790`, with discoverability head
-`1a0b5b41e1693fdab6eab695387f8f3b1acc136f`, in
+`1a0b5b41e1693fdab6eab695387f8f3b1acc136f`, followed by exact owner cleanup
+`05386d0ed9152c0aff6824258834fb68137d4177`, in
 [draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39)
 to main. Seventy-two focused tests pass, including actual Windows producer/consumer
 races and crash/close-failure cases; both native profiles pass the fixture. Native
-combat activation and owner cleanup integration remain in progress and are not
-deployed. The branch is outside main and its active worktree must be preserved.
+combat activation remains in progress. Owner cleanup passed both DLL profiles
+and 49 native regression tests per profile; none of this combat source is deployed. The branch is outside main and its active worktree must be preserved.
 The [explicit-list combat handoff](handoffs/explicit-list-combat-20260924.md)
 records the entry/exit, receipt and mutation-fence contracts. No native combat
 activation or live fight has been performed. Response-driven

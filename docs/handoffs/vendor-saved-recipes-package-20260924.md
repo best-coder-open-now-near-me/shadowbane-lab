@@ -44,7 +44,7 @@ same prepared executable bytes as the currently installed client.
   The missed public version macro was corrected in `9f96813`; that failed attempt
   is excluded from the candidate and retained only as private diagnostic evidence.
 
-Hosted CI is tracked separately on exact PR head. No merge is implied.
+All hosted required checks pass on exact PR head `9f96813`. No merge is implied.
 
 ## Deployment boundary
 
@@ -67,6 +67,26 @@ All 436 installed host module files match the exact wheel; the validator invento
 The prepared executable is unchanged, crafting journals are untouched and the
 running 1.8.30 client remains active. State: `prepared_not_applied`.
 
-Next: after the user closes the game, apply and verify the candidate,
-then supervise actual recipe loading, saving a choice and one batch. Keep the
-original journals and unknown-affix policy intact. No live acceptance is claimed.
+## Installed and activated after confirmed closure
+
+After the user confirmed closure, the game-process check returned no instances.
+The exact old idle manager was verified and stopped. Application completed with
+five verified rollback files, unchanged executable bytes and unchanged crafting
+journals. All 9,426 retained files and 17 normal-client CFG files passed preservation.
+All five shortcuts and the non-launching preflight passed.
+
+Native **1.8.31** / host **0.3.51**, exact source `9f96813`, is now installed.
+The new manager is healthy and unbound; its process identity was independently
+verified against the `.51` interpreter. During activation, 9,425 retained files
+remained byte-identical; only the expected idle `dispatch.permit` changed, and it
+was verified revoked/unbound. All 17 normal-client CFG files remain unchanged.
+The game was not launched by the update, and no crafting action was submitted.
+
+Private receipts live under `upgrades/vendor-saved-recipes-1.8.31`: update receipt,
+retained-file inventories, immutable rollback, shortcut verification, launch
+preflight, activation and manager-process verification. The previous 1.8.30
+payload/rollback remains intact. Private helpers and package files stay outside Git.
+
+Next: launch **WonderBane Vendor Test**, log in as Bart, then supervise actual
+recipe loading, saving a choice and one batch. Preserve the original journals and
+unknown-affix policy. Gameplay acceptance and full town scheduling remain pending.

@@ -8,25 +8,27 @@ carpenter implementation, packaging or live tests without renewed direction.
 Freshly fetched `origin/main@a91dfd5` remains the canonical base. Vendor source
 `9f96813a31fcd2073cf32cd23798e77a1b1a8b06` is pushed in draft PR #38, with
 native 1.8.31 / host 0.3.51 passing all required exact-source package gates.
-The new host is prepared and verified separately beside the unchanged installed
-runtime; game closure is now required to apply it.
+After confirmed game closure, the candidate is installed and the new manager is
+healthy. All five shortcuts and launch preflight pass; the game has not been launched.
 The completed source slice loads actual recipes, saves an immutable choice per
 character/building/vendor, prepares its exact random specification, fills one
 available-capacity batch and automatically opens Inventory for Keep. The ordinary
 CREATE control preserves game resource/cost checks. New generalized evidence
 preserves unknown affixes and cannot be downgraded to legacy Scepter journals.
 The full Win32 build, 13 affected native tests and 895 affected host tests
-(449 subtests, 4 skips), Ruff and independent source review passed. No installation
-or live crafting is implied. Full town scheduling remains unfinished. See the
+(449 subtests, 4 skips), Ruff and independent source review passed. No live crafting
+or gameplay acceptance is implied. Full town scheduling remains unfinished. See the
 [versioned package and deployment boundary](handoffs/vendor-saved-recipes-package-20260924.md).
 
-The VM still has native 1.8.30 / host 0.3.50 from exact source
-`8ba181868fca7ca113f94361b61118ce74a9d4a1`; the user launch entry point remains
-WonderBane Vendor Test. Stopping carpenter work did not change the installed client.
-Its startup/panel verification, material failure and placement evidence are retained
-in the [deployment handoff](handoffs/furniture-response-diagnostics.md).
-The later cutout shader fix `6ea434c` is source-only in PR #35; automatic preview
-integration and visual acceptance are unfinished.
+The VM now has native 1.8.31 / host 0.3.51 from exact source `9f96813`;
+the user launch entry point remains WonderBane Vendor Test. All 436 module files
+match the exact wheel. Application preserved 9,426 retained files and 17 normal
+CFG files; activation changed only the expected revoked idle permit. The prior
+1.8.30 / 0.3.50 package and immutable rollback are retained. Cancelled carpenter
+preview/recorder drafts are excluded from this vendor package. Their source,
+material failure and placement evidence remain in the historical
+[deployment handoff](handoffs/furniture-response-diagnostics.md); no carpenter
+work or test is resumed.
 
 PvP restart status: freshly fetched `main@a91dfd5` contains the identity,
 attack-list command and passive native-event work through `542c632`. Saved
@@ -287,11 +289,15 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Stopped at user direction: carpenter implementation and live testing, including
   automatic preview integration. Preserve pushed source and unfinished edits;
   no further package/deployment or user test is scheduled for this lane.
-- Active: apply the prepared 1.8.31 / 0.3.51 vendor package after game closure
-  and supervise saved-recipe/one-batch acceptance. Durable town visits follow.
+- Active: after user launch/login, supervise saved-recipe/one-batch acceptance
+  in the installed 1.8.31 / 0.3.51 runtime. Durable town visits follow.
+- Complete activation: confirmed game closure, exact idle-manager stop, verified
+  installation/rollback, five shortcuts, launch preflight and healthy new manager.
+  All saved records/settings are preserved; only the expected idle permit was
+  refreshed during activation. No game launch or crafting action was submitted.
 - Complete isolated VM preparation: 436 installed modules match the wheel;
   9,426 retained files and 17 normal-client CFG files are inventoried. Game and
-  crafting records remain unchanged; application is waiting for game closure.
+  crafting records were preserved through application; preparation is complete.
 - Complete package qualification: exact source `9f96813`; 3,647 host tests,
   172 required native tests per profile, 63 movement IPC tests per profile,
   exact-client and installed-wheel gates pass. Two known transparency diagnostics
@@ -299,7 +305,7 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Complete saved-recipe slice: `eb7c239`, versioned as `a3a5d37` in PR #38.
   Recipe preferences, preparation, generalized Create, Inventory and Keep share
   durable ownership and recovery. Combined validation: 895 host tests, 449
-  subtests and 13 native tests passed; 4 host tests skipped. Not installed.
+  subtests and 13 native tests passed; 4 host tests skipped. Installed as `9f96813`.
 - Complete source checkpoint: `codex/vendor-town-workflow@a1a0793`, draft PR #38
   to main. Typed owner-thread menu operations and durable menu recovery now
   integrate with the existing finished-batch Inventory/Keep handoff. The full DLL
@@ -323,7 +329,8 @@ owner and next action. No guessed carpentry recipes or generalized framework.
   has pushed the Windows host/native mutation fence as `f9da2bf`, with handoff
   `1a0b5b4`, in draft PR #39 to main. Seventy-two focused tests pass, including
   real Windows races, crash ordering and close-failure retry. Native attack/cancel
-  transactions and owner cleanup integration remain in progress. No combat or
+  transaction integration remains in progress. Owner cleanup checkpoint
+  `05386d0` is pushed, with both DLL profiles and 49 native regressions passing. No combat or
   deployment performed.
   Native listed-player selection/attack and local
   combat exit are mapped. Complete truthful submission receipts and guarded
