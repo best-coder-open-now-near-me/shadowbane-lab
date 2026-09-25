@@ -63,7 +63,7 @@ jobs:
         shell: pwsh
         run: |
           $env:SHADOWBANE_COMBAT_FENCE_TEST_EXE = (Resolve-Path "build/native-${{ matrix.profile }}/Release/wonderbane_extension_combat_fence_test.exe").Path
-          python -m pytest tests/test_combat_fence.py -q
+          python -m pytest tests/test_combat_fence.py tests/test_combat_wire.py -q
       - name: Check deferred transparency diagnostic outcomes
         run: python scripts/check_transparency_diagnostics.py --build-dir build/native-${{ matrix.profile }}
       - name: Retain ideal transparency diagnostic results

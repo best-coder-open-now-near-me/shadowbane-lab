@@ -55,7 +55,7 @@ def register(store, client=None, **changes):
 
 
 def test_shared_fixture_roundtrip():
-    payload = bytes.fromhex((Path(__file__).parent / "fixtures/combat_fence_v1.hex").read_text())
+    payload = bytes.fromhex((Path(__file__).parent / "fixtures/combat_fence_v2.hex").read_text())
     binding, state = Binding.decode(payload)
     assert state == State.REGISTERING
     assert binding.encode() == payload
@@ -196,8 +196,8 @@ def test_user_protected_security_descriptor():
 
 
 class NativeConsumer:
-    def __init__(self, executable):
-        self.process = subprocess.Popen([executable, "--consumer"], stdin=subprocess.PIPE,
+    def __init__(self, executable, mode="--consumer"):
+        self.process = subprocess.Popen([executable, mode], stdin=subprocess.PIPE,
                                         stdout=subprocess.PIPE, text=True)
         self.lines = queue.Queue()
         self.reader = threading.Thread(target=self._read, daemon=True)

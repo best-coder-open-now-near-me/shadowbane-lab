@@ -14,6 +14,8 @@ from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_re
 
 if TYPE_CHECKING:
     from shadowbane_lab.client_extension.combat_fence_windows import Ticket
+    from shadowbane_lab.client_extension.combat_wire import Command as CombatCommand
+    from shadowbane_lab.client_extension.movement_wire import Grant, Host
 
 
 def _text(value: object, label: str) -> str:
@@ -285,6 +287,7 @@ class AttackListStore:
         """
         from shadowbane_lab.client_extension.combat_fence import Binding, new_request
         from shadowbane_lab.client_extension.combat_fence_windows import Windows
+        from shadowbane_lab.client_extension.combat_wire import identity_digest
         from shadowbane_lab.pve.attack_list_fence import Registry
 
         if type(expected_revision) is not int or expected_revision <= 0:
@@ -304,7 +307,8 @@ class AttackListStore:
                 producer_generation, movement_generation, scene, snapshot.revision, new_request(),
                 registry.store, registry.owner, bytes.fromhex(entry.entry_id), operation,
                 (local_key.object_type, local_key.object_uuid),
-                (target.object_type, target.object_uuid))
+                (target.object_type, target.object_uuid),
+                identity_digest(entry.player_identity.name))
             if not snapshot.fenced:
                 # Old hosts accept only schemas 1..3 and must fail before writing
                 # without this fence. Migration and ticket registration share the
@@ -313,6 +317,48 @@ class AttackListStore:
                 payload = self._encode(replace(snapshot, fenced=True))
                 publish_atomic_record(self.path, payload, temporary_label="attack-list")
             return registry.register(binding)
+
+    def register_combat_admission(
+        self, entry_id: str, *, expected_revision: int, client_pid: int,
+        client_creation: int, host: Host, window: int, grant: Grant,
+        local_key: NativeObjectKey,
+    ) -> tuple[Ticket, CombatCommand]:
+        """Bind saved intent to the complete typed command; retain ticket until cleanup.
+
+        The second locked read in register_admission requires this exact revision.
+        Every identity edit advances that revision, so metadata cannot cross a
+        concurrent saved-list mutation. Native identity/party gates are still required.
+        """
+        from shadowbane_lab.client_extension.combat_fence_windows import Windows
+        from shadowbane_lab.client_extension.combat_wire import (
+            Command,
+            identity_digest,
+            operation_digest,
+        )
+
+        if (host.process_id, host.creation_filetime) != Windows().identity():
+            raise ValueError("combat producer must be this exact host process")
+        snapshot = self.snapshot()
+        entry = next((item for item in snapshot.entries if item.entry_id == entry_id), None)
+        if (snapshot.revision != expected_revision or entry is None
+                or entry.source != "manual" or entry.player_identity is None):
+            raise ValueError("combat admission requires current manual persistent intent")
+        local_name = identity_digest(self.owner.character)
+        server = identity_digest(self.owner.server)
+        target_name = identity_digest(entry.player_identity.name)
+        ticket = self.register_admission(
+            entry_id, expected_revision=expected_revision, client_pid=client_pid,
+            client_creation=client_creation, producer_generation=host.lease_generation,
+            movement_generation=grant.generation, scene=grant.scene,
+            operation=operation_digest(grant), local_key=local_key,
+        )
+        try:
+            command = Command(host, window, grant, ticket.binding, local_name, server, target_name)
+            command.encode()
+            return ticket, command
+        except BaseException:
+            ticket.close()
+            raise
 
     def add(
         self, entry: AttackListEntry, *, expected_revision: int | None = None

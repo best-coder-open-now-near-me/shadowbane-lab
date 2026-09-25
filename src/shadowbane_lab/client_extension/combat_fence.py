@@ -12,11 +12,11 @@ import uuid
 from dataclasses import dataclass
 from enum import IntEnum
 
-MAGIC = b"WBCFNC1\0"
-SCHEMA = 1
+MAGIC = b"WBCFNC2\0"
+SCHEMA = 2
 SIZE = 320
 STATE_OFFSET = 16
-_WIRE = struct.Struct("<8s6I6Q16s32s32s32s32s4I80s")
+_WIRE = struct.Struct("<8s6I6Q16s32s32s32s32s4I32s48s")
 assert _WIRE.size == SIZE
 
 
@@ -45,6 +45,7 @@ class Binding:
     operation: bytes
     local_key: tuple[int, int]
     target_key: tuple[int, int]
+    target_name: bytes
 
     def __post_init__(self) -> None:
         for value in (self.client_pid, self.producer_pid, *self.local_key, *self.target_key):
@@ -55,7 +56,7 @@ class Binding:
             if type(value) is not int or not 0 < value < 2**64:
                 raise ValueError("fence lifetime, generation and revision must be positive uint64")
         for value, size in ((self.request, 16), (self.store, 32), (self.owner, 32),
-                            (self.entry, 32), (self.operation, 32)):
+                            (self.entry, 32), (self.operation, 32), (self.target_name, 32)):
             if not isinstance(value, bytes) or len(value) != size or not any(value):
                 raise ValueError("invalid fence digest or request")
         if self.local_key == self.target_key or self.target_key[1] != 53:
@@ -63,7 +64,7 @@ class Binding:
 
     @property
     def name(self) -> str:
-        return "Local\\WonderBane.CombatFence.v1." + self.request.hex()
+        return "Local\\WonderBane.CombatFence.v2." + self.request.hex()
 
     def encode(self, state: State = State.REGISTERING) -> bytes:
         return _WIRE.pack(
@@ -71,7 +72,7 @@ class Binding:
             self.client_creation, self.producer_creation, self.producer_generation,
             self.movement_generation, self.scene, self.revision, self.request,
             self.store, self.owner, self.entry, self.operation,
-            *self.local_key, *self.target_key, bytes(80),
+            *self.local_key, *self.target_key, self.target_name, bytes(48),
         )
 
     @classmethod
@@ -82,7 +83,7 @@ class Binding:
         if values[:3] != (MAGIC, SCHEMA, SIZE) or values[4] or any(values[-1]):
             raise ValueError("invalid fence header or reserved bytes")
         state = State(values[3])
-        return cls(*values[5:18], tuple(values[18:20]), tuple(values[20:22])), state
+        return cls(*values[5:18], tuple(values[18:20]), tuple(values[20:22]), values[22]), state
 
 
 def new_request() -> bytes:

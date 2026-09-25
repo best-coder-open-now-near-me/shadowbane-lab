@@ -29,10 +29,10 @@ unfenced stores remain schema 3. Registry format is separate and indexes kernel 
 never membership. A rollback to an older host must first retire all combat consumers;
 do not downgrade an enrolled record while any ticket could still enter.
 
-## Shared schema 1
+## Shared schema 2
 
 The mapping is 320 bytes, fixed-width little-endian. Both implementations and the shared
-hex fixture enforce its geometry. Mapping name is `Local\WonderBane.CombatFence.v1.` plus
+hex fixture enforce its geometry. Mapping name is `Local\WonderBane.CombatFence.v2.` plus
 32 lowercase UUID hex digits; mutex name adds `.lock`. Producers create once and reject
 existing objects; consumers/mutators only open. Explicit protected DACL grants the current
 Windows user access and disables inheritance. This coordinates trusted same-user processes;
@@ -40,8 +40,8 @@ it does not defend against that user's malicious code or privileged administrato
 
 | Offset | Data |
 | --- | --- |
-| 0 | Eight-byte magic `WBCFNC1` plus NUL |
-| 8 | uint32 schema=1, size=320 |
+| 0 | Eight-byte magic `WBCFNC2` plus NUL |
+| 8 | uint32 schema=2, size=320 |
 | 16 | uint32 state, reserved zero |
 | 24 | uint32 native client PID, producer PID |
 | 32 | uint64 client creation FILETIME, producer creation FILETIME |
@@ -49,7 +49,8 @@ it does not defend against that user's malicious code or privileged administrato
 | 80 | 16-byte request UUID |
 | 96 | 32-byte store-path digest, owner digest, saved entry digest, operation digest |
 | 224 | Local object key and target object key (two uint32 each) |
-| 240 | 80 reserved zero bytes |
+| 240 | SHA-256 of the complete exact saved target name in UTF-16LE |
+| 272 | 48 reserved zero bytes |
 
 The store digest binds the normalized absolute record path; owner and entry digests use
 existing durable identity definitions. All bytes except state are immutable. The native
@@ -125,7 +126,9 @@ input, native-stop and runtime tests, including exact cleanup after unregister,
 failed-stop retry, lease/UI loss and callback reentrancy. Independent review found
 no additional issue in this ownership slice. Hosted CI earlier found a test-only
 SDDL alias assumption; the test now compares the actual ACE SID with the current
-token using EqualSid, and fresh CI is pending.
+token using EqualSid. Hosted CI is fully green for checkpoint 05386d0 across
+Python 3.11..3.13 and both native profiles; the newer typed-binding checkpoint
+will run the same gates when pushed.
 
 The fixed-size typed command design retains the existing 576-byte payload: Host16,
 window8, Grant216, UUID16, immutable ticket digest32, exact UTF-16 local-name/server/
@@ -133,5 +136,37 @@ target-name digests96, local/target keys16, revision8, store/owner/entry/operati
 digests128, reserved40. All 320 mapped bytes are reconstructible from command plus
 current channel process identity and must match; digest checks add a reference pin,
 never replace current native identity or admission. UTF-16 digests cover complete
-strictly decoded native strings without case folding or truncation. This contract
-is agreed for implementation; the typed command itself is not enabled yet.
+strictly decoded native strings without case folding or truncation. The typed binding and saved-store registration are implemented and validated;
+channel routing and actual native combat remain disabled until the complete transaction is ready.
+
+
+## Typed immutable command binding
+
+`register_combat_admission` now derives command metadata from the current saved
+entry and registers only that exact durable revision. A concurrent edit between
+metadata capture and registration rejects instead of mixing identities. The native
+576-byte command reconstructs all 320 fence bytes with its own process lifetime;
+canonical SHA-256 ignores only the mutable state by encoding REGISTERING. Native
+admission still compares every immutable mapping field under the no-wait mutex.
+
+Fence ABI 2 uses 32 formerly reserved bytes to pin the exact saved target-name
+digest. This is required because the durable entry ID intentionally identifies
+server plus player key. A forged self-consistent command cannot replace the saved
+name. ABI 1 was never activated or merged; v2 uses a distinct kernel name and rejects
+old bindings without a compatibility fallback. Mapping geometry remains 320 bytes.
+
+Native identity checking accepts complete strict UTF-16LE sequences of at most
+64 code units, preserves case/whitespace and combining characters, and rejects NUL,
+unpaired surrogates or overlong strings. It independently rebuilds the existing
+ASCII JSON owner and server/key entry hashes from current native identities, and
+requires both players' full server strings to match. Hashes never authorize a
+borrowed pointer, bypass current party/pet checks, or substitute for the ticket.
+
+The shared C++/Python command fixture and real spawned native consumer verify exact
+lifetime/generation binding, wrong owner/name rejection, and both remove/entry
+orders. All 80 focused host tests pass, including the existing record/list suites;
+both native wire/fence fixtures pass in both VS2022 profiles. Command kinds 34=start,
+35=status and 36=cancel are reserved after vendor kinds 25..33; preserved furnishing
+branches contain no collision. No channel capability, hooks or attacks are enabled.
+The active next item remains the owner-thread selection/attack/cancellation service
+and its factory/outbound-queue receipts, followed by host combat recovery wiring.

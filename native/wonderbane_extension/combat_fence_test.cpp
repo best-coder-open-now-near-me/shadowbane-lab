@@ -1,9 +1,9 @@
-#include "combat_fence.h"
+#include "combat_wire.h"
 #include <fstream>
 #include <iostream>
 #include <string>
 using namespace wonderbane::extension::combat::fence;
-bool Decode(const std::string& text, Binding& b) {
+template<class T> bool Decode(const std::string& text, T& b) {
     if (text.size() != 2 * sizeof(b)) { return false; }
     auto* bytes = reinterpret_cast<unsigned char*>(&b);
     auto digit = [](char c) { return c >= '0' && c <= '9' ? c - '0'
@@ -17,11 +17,18 @@ bool Decode(const std::string& text, Binding& b) {
 }
 int main(int argc, char** argv) {
     if (argc != 2) { return 1; }
-    if (std::string(argv[1]) == "--consumer") {
+    const bool command_mode = std::string(argv[1]) == "--command-consumer";
+    if (command_mode || std::string(argv[1]) == "--consumer") {
         std::cout << GetCurrentProcessId() << ' ' << Creation(GetCurrentProcess()) << std::endl;
         std::string text; Binding b{}; Ticket ticket;
-        if (!std::getline(std::cin, text) || !Decode(text, b)) { return 2; }
-        std::cout << (ticket.Open(b) ? "open" : "rejected") << std::endl;
+        if (!std::getline(std::cin, text)) { return 2; }
+        bool valid = false;
+        if (command_mode) {
+            wonderbane::extension::combat::wire::Command command{};
+            valid = Decode(text, command) && wonderbane::extension::combat::wire::BindingFor(
+                command, GetCurrentProcessId(), Creation(GetCurrentProcess()), b);
+        } else { valid = Decode(text, b); }
+        std::cout << (valid && ticket.Open(b) ? "open" : "rejected") << std::endl;
         while (std::getline(std::cin, text)) {
             if (text == "enter") { std::cout << static_cast<int>(ticket.TryEnter(b)) << std::endl; }
             else if (text == "inspect") {
@@ -43,7 +50,7 @@ int main(int argc, char** argv) {
     if (!Same(b, changed) || Revoked(State::entered) != State::entered_revoked
         || Revoked(State::pending) != State::revoked) { return 6; }
     changed.scene++; if (Same(b, changed)) { return 7; }
-    changed = b; changed.padding[79] = 1; if (Valid(changed)) { return 8; }
+    changed = b; changed.padding[47] = 1; if (Valid(changed)) { return 8; }
     changed = b; changed.target_key[1] = 30; if (Valid(changed)) { return 9; }
     changed = b; changed.state = static_cast<State>(5); if (Valid(changed)) { return 10; }
     changed = b; changed.producer_creation = 0; if (Valid(changed)) { return 11; }

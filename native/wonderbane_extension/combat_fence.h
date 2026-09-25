@@ -9,11 +9,11 @@
 #include <string>
 
 namespace wonderbane::extension::combat::fence {
-constexpr std::uint32_t schema = 1, size = 320;
+constexpr std::uint32_t schema = 2, size = 320;
 enum class State : std::uint32_t { registering, pending, entered, revoked, entered_revoked };
 #pragma pack(push, 1)
 struct Binding {
-    char magic[8]{'W','B','C','F','N','C','1',0};
+    char magic[8]{'W','B','C','F','N','C','2',0};
     std::uint32_t version = schema, bytes = size;
     State state = State::registering;
     std::uint32_t reserved = 0, client_pid = 0, producer_pid = 0;
@@ -21,22 +21,23 @@ struct Binding {
     std::uint64_t movement_generation = 0, scene = 0, revision = 0;
     std::uint8_t request[16]{}, store[32]{}, owner[32]{}, entry[32]{}, operation[32]{};
     std::uint32_t local_key[2]{}, target_key[2]{};
-    std::uint8_t padding[80]{};
+    std::uint8_t target_name[32]{}, padding[48]{};
 };
 #pragma pack(pop)
 static_assert(sizeof(Binding) == size && offsetof(Binding, state) == 16);
 static_assert(offsetof(Binding, request) == 80 && offsetof(Binding, store) == 96);
 static_assert(offsetof(Binding, operation) == 192 && offsetof(Binding, local_key) == 224);
+static_assert(offsetof(Binding, target_name) == 240 && offsetof(Binding, padding) == 272);
 template<std::size_t N> inline bool Any(const std::uint8_t (&value)[N]) noexcept {
     for (const auto byte : value) { if (byte) { return true; } } return false;
 }
 inline bool Valid(const Binding& b) noexcept {
-    constexpr char magic[8]{'W','B','C','F','N','C','1',0};
+    constexpr char magic[8]{'W','B','C','F','N','C','2',0};
     return !std::memcmp(b.magic, magic, 8) && b.version == schema && b.bytes == size
         && b.state <= State::entered_revoked && !b.reserved && !Any(b.padding)
         && b.client_pid && b.producer_pid && b.client_creation && b.producer_creation
         && b.producer_generation && b.movement_generation && b.scene && b.revision
-        && Any(b.request) && Any(b.store) && Any(b.owner) && Any(b.entry) && Any(b.operation)
+        && Any(b.request) && Any(b.store) && Any(b.owner) && Any(b.entry) && Any(b.operation) && Any(b.target_name)
         && b.local_key[0] && b.local_key[1] && b.target_key[0] && b.target_key[1] == 53
         && std::memcmp(b.local_key, b.target_key, sizeof(b.local_key));
 }
@@ -45,7 +46,7 @@ inline bool Same(Binding a, Binding b) noexcept {
     return !std::memcmp(&a, &b, sizeof(a));
 }
 inline std::wstring Name(const Binding& b) {
-    std::wstring result = L"Local\\WonderBane.CombatFence.v1.";
+    std::wstring result = L"Local\\WonderBane.CombatFence.v2.";
     constexpr wchar_t digits[] = L"0123456789abcdef";
     for (auto byte : b.request) { result += digits[byte >> 4]; result += digits[byte & 15]; }
     return result;
