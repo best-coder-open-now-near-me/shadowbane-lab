@@ -149,24 +149,50 @@ def test_missing_mapping_retired_and_capacity_fails_closed(tmp_path):
 
 @WINDOWS
 def test_user_protected_security_descriptor():
-    # Verify actual SDDL, not a mocked security attribute. A different user receives
-    # no ACE; administrators with privilege override are outside this trust model.
+    # Compare binary SIDs: Windows may render the current administrator as LA.
+    # The descriptor must contain exactly one noninherited ACE for this user.
     import ctypes as c
     api = Windows()
-    convert = api.a.ConvertSecurityDescriptorToStringSecurityDescriptorW
-    convert.argtypes = [c.c_void_p, c.c_uint32, c.c_uint32,
-                        c.POINTER(c.c_void_p), c.c_void_p]
-    convert.restype = c.c_int
+    signatures = {
+        "GetSecurityDescriptorDacl": [c.c_void_p, c.POINTER(c.c_int),
+                                      c.POINTER(c.c_void_p), c.POINTER(c.c_int)],
+        "GetSecurityDescriptorControl": [c.c_void_p, c.POINTER(c.c_uint16),
+                                         c.POINTER(c.c_uint32)],
+        "GetAclInformation": [c.c_void_p, c.c_void_p, c.c_uint32, c.c_uint32],
+        "GetAce": [c.c_void_p, c.c_uint32, c.POINTER(c.c_void_p)],
+        "EqualSid": [c.c_void_p, c.c_void_p],
+    }
+    for name, args in signatures.items():
+        function = getattr(api.a, name)
+        function.argtypes, function.restype = args, c.c_int
+    token = c.c_void_p()
     with api.security() as security:
-        output = c.c_void_p()
         try:
-            assert convert(security.descriptor, 1, 4, c.byref(output), None)
-            sddl = c.wstring_at(output)
-            assert sddl.startswith("D:P(A;;GA;;;S-1-5-21-")
-            assert sddl.count("(") == 1
+            assert api.a.OpenProcessToken(api.k.GetCurrentProcess(), 8, c.byref(token))
+            length = c.c_uint32()
+            api.a.GetTokenInformation(token, 1, None, 0, c.byref(length))
+            token_user = c.create_string_buffer(length.value)
+            assert api.a.GetTokenInformation(token, 1, token_user, length, c.byref(length))
+            control, revision = c.c_uint16(), c.c_uint32()
+            assert api.a.GetSecurityDescriptorControl(security.descriptor,
+                                                      c.byref(control), c.byref(revision))
+            assert control.value & 0x1000  # SE_DACL_PROTECTED
+            present, defaulted, acl = c.c_int(), c.c_int(), c.c_void_p()
+            assert api.a.GetSecurityDescriptorDacl(security.descriptor, c.byref(present),
+                                                   c.byref(acl), c.byref(defaulted))
+            assert present.value and acl.value and not defaulted.value
+            information = (c.c_uint32 * 3)()
+            assert api.a.GetAclInformation(acl, information, c.sizeof(information), 2)
+            assert information[0] == 1
+            ace = c.c_void_p()
+            assert api.a.GetAce(acl, 0, c.byref(ace))
+            assert c.string_at(ace, 2) == bytes(2)  # allowed ACE, no inheritance flags
+            assert c.c_uint32.from_address(ace.value + 4).value == 0x10000000  # GENERIC_ALL
+            assert api.a.EqualSid(ace.value + 8, c.c_void_p.from_buffer(token_user).value)
             assert not security.inherit
         finally:
-            api.k.LocalFree(output)
+            if token.value:
+                api.k.CloseHandle(token)
 
 
 class NativeConsumer:
