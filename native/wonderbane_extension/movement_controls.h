@@ -118,6 +118,11 @@ public:
     bool ObserveParentScene(std::uint64_t, bool manual_admitted, std::uint64_t tick_ms) noexcept;
     Result AcquireAutomation(std::uint64_t expected_generation, Token, Grant&) noexcept;
     Result AutomationDestination(const Grant&, GroundPoint) noexcept;
+    // Owner services call this before their first native side effect. It records
+    // exact-Grant stop responsibility without claiming movement or permission to
+    // bypass the service's own lease, scene, party and target admission checks.
+    // Pause/stop/revocation must retire this work through the ordinary actuator.
+    Result BeginAutomationNativeAction(const Grant&) noexcept;
     Result PauseAutomation(const Grant&) noexcept;
     Result Stop(const Grant&, StopReason = StopReason::release) noexcept;
     // Exact-owner safety command from the verified window thread. The runtime
@@ -160,6 +165,7 @@ private:
     bool actuating_ = false;
     bool shutdown_pending_ = false, shutdown_ = false;
     bool moving_ = false;
+    bool native_activity_ = false;
     bool available_ = false;
     bool faulted_ = false;
     bool camera_faulted_ = false;
