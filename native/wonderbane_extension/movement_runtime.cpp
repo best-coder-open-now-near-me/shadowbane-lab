@@ -29,6 +29,10 @@ public:
     decltype(&GetTickCount64) clock = &GetTickCount64;
     bool initialized = false, initializing = false, busy = false, destroyed = false, terminal = false;
     bool lifetime_started = false;
+    bool owner_services_active = false, owner_stop_active = false;
+    NativeOwnerStop owner_activity_stop = nullptr;
+    NativeOwnerRetire owner_activity_retire = nullptr;
+    Grant owner_activity_grant{};
     std::optional<std::uint64_t> settings_requested_scene;
     bool settings_shown = false;
     std::optional<StopReason> interrupted;
@@ -85,8 +89,54 @@ public:
         const bool deferred = self.busy;
         self.Safety(source, StopReason::ui, false); return deferred || self.settings_shown;
     }
-    bool Stop(const Grant& grant, StopReason) noexcept override {
-        return !destroyed && !terminal && native.Execute(grant);
+    bool Stop(const Grant& grant, StopReason reason) noexcept override {
+        if (destroyed || terminal || owner_stop_active) { return false; }
+        owner_stop_active = true;
+        bool stopped = native.Execute(grant);
+        if (stopped && owner_activity_stop) {
+            stopped = owner_activity_grant == grant && owner_activity_stop(scene, grant, reason);
+            if (stopped) {
+                owner_activity_stop = nullptr; owner_activity_retire = nullptr; owner_activity_grant = {};
+            }
+        }
+        owner_stop_active = false;
+        return stopped;
+    }
+    Result BeginOwnerAction(const NativeScene& expected, const Grant& grant, const wire::Host& host) noexcept {
+        if (!OwnerActionCurrent(expected, grant, host)) { return Result::stale; }
+        const auto stop = combat_owner_stop.load(std::memory_order_acquire);
+        const auto retire = combat_owner_retire.load(std::memory_order_acquire);
+        if (!stop || !retire || (owner_activity_stop && (owner_activity_grant != grant
+            || owner_activity_stop != stop || owner_activity_retire != retire))) { return Result::unavailable; }
+        const auto result = controls.BeginAutomationNativeAction(grant);
+        if (result == Result::accepted) {
+            // Capture immutable process-pinned call-through before native work.
+            // Clearing service registration must never erase pending cleanup.
+            owner_activity_stop = stop; owner_activity_retire = retire; owner_activity_grant = grant;
+        }
+        return result;
+    }
+    bool OwnerStopCurrent(const NativeScene& expected, const Grant& grant) const noexcept {
+        return (owner_services_active || owner_stop_active) && busy && initialized
+            && !terminal && !destroyed && GetCurrentThreadId() == thread
+            && expected.epoch == scene.epoch && expected.actor == scene.actor
+            && expected.world == scene.world && expected.window == scene.window
+            && expected.parent == scene.parent && expected.identity == scene.identity
+            && controls.AuthorizesNativeStop(grant) && grant.scene == scene.epoch
+            && NativeMovementLifetimeCurrent(expected);
+    }
+    bool OwnerActionCurrent(const NativeScene& expected, const Grant& grant, const wire::Host& host) noexcept {
+        if (!owner_services_active || owner_stop_active || interrupted || !controls.Ready()
+            || grant != controls.Current() || grant.owner != Owner::automation
+            || !automation_lease || automation_grant != grant
+            || std::memcmp(&automation_lease->host, &host, sizeof(host))
+            || !automation_lease->Current(clock()) || !OwnerStopCurrent(expected, grant)
+            || !input.AutomationInputCurrent()) { return false; }
+        // UI inspection is itself a native callback boundary.
+        return !interrupted && controls.Ready() && grant == controls.Current()
+            && automation_lease && automation_grant == grant
+            && !std::memcmp(&automation_lease->host, &host, sizeof(host))
+            && automation_lease->Current(clock()) && OwnerStopCurrent(expected, grant);
     }
     bool Direction(const Grant& grant, Vector2 direction, bool start) noexcept override {
         return !destroyed && !terminal && !interrupted && native.Steer(grant, direction, tick, start);
@@ -120,7 +170,15 @@ public:
     void Revoked(const Grant& old, const Grant& next, StopReason reason) noexcept override {
         Diagnostic(old, next, static_cast<std::uint32_t>(reason), 2);
     }
-    void SceneRetired(std::uint64_t epoch) noexcept override { native.SceneRetired(epoch); }
+    void SceneRetired(std::uint64_t epoch) noexcept override {
+        native.SceneRetired(epoch);
+        auto retire = combat_owner_retire.load(std::memory_order_acquire);
+        if (owner_activity_stop && owner_activity_grant.scene == epoch) {
+            retire = owner_activity_retire;
+            owner_activity_stop = nullptr; owner_activity_retire = nullptr; owner_activity_grant = {};
+        }
+        if (retire) { retire(epoch); }
+    }
     std::optional<StopReason> Interrupted() const noexcept override {
         if (interrupted) { return interrupted; }
         if (executing_lease && (!executing_lease->Current(clock()) || clock() > executing_deadline)) {
@@ -361,7 +419,9 @@ public:
             | (sampled.capture_valid ? 1024U : 0U) | (sampled.camera_blocked ? 2048U : 0U);
         controls.Tick(sampled);
         Diagnostic(controls.Current(), controls.Current(), UINT32_MAX, 1);
+        owner_services_active = phase;
         RunNativeOwnerServices(receiver, window);
+        owner_services_active = false;
         Commands(phase);
         if (phase) { native.EndUpdate(); }
         busy = false; Drain(); Publish();
@@ -400,6 +460,20 @@ DWORD StartNativeMovementControls(const ProcessIdentity& process) noexcept {
         runtime.Publish();
     }
     return result;
+}
+bool NativeOwnerActionCurrent(const NativeScene& scene, const Grant& grant, const wire::Host& host) noexcept {
+    return runtime.OwnerActionCurrent(scene, grant, host);
+}
+Result BeginNativeOwnerAction(const NativeScene& scene, const Grant& grant, const wire::Host& host) noexcept {
+    return runtime.BeginOwnerAction(scene, grant, host);
+}
+bool NativeOwnerStopCurrent(const NativeScene& scene, const Grant& grant) noexcept {
+    return runtime.OwnerStopCurrent(scene, grant);
+}
+Result PauseNativeOwnerAction(const NativeScene& scene, const Grant& grant) noexcept {
+    if (!runtime.owner_services_active || runtime.owner_stop_active
+        || !runtime.OwnerStopCurrent(scene, grant) || grant != runtime.controls.Current()) { return Result::stale; }
+    return runtime.controls.PauseAutomation(grant);
 }
 bool ReadNativeMovementControls(RuntimeSnapshot& out) noexcept {
     AcquireSRWLockShared(&runtime.publication_lock); out = runtime.published;

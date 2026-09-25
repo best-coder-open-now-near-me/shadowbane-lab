@@ -96,3 +96,42 @@ deferred-action authority blockers; no receive-only intermediate is enabled.
 
 Private build output remains under this worktree's ignored `artifacts/combat-fence`.
 No source draft, private game capture, or executable belongs in the PR.
+
+
+## Owner-service cleanup integration
+
+The existing movement controller now records owner-service native work separately
+from `moving_`. `BeginNativeOwnerAction` is available only in the verified update
+phase, for the exact acquisition host/lease, movement Grant and lifetime, with a
+fresh UI/focus check. That query does not consume device-reset/input sample state.
+The service must record responsibility before its first callback that can cause a
+side effect; receipt success is never the ownership boundary.
+
+Runtime stop composes the existing NativeStop cleanup with the combat service's
+conditional exit callback before publishing any replacement Grant. Admission retains the exact service stop
+and retirement callbacks until cleanup succeeds, even if service registration is
+cleared meanwhile. Both callbacks must exist before admission. An installed
+inactive service must return true without acting. A failed/cooldown-blocked exit
+returns false, retaining the existing pending old-Grant cleanup obligation and
+excluding new writers. Retry may stop only that Grant. Scene retirement notifies
+the service without allowing old work to act against the replacement character.
+Action admission is unavailable inside cleanup callbacks. No combat service is yet
+installed, so this checkpoint changes ownership infrastructure without enabling
+selection or attacks. The adapter still needs exact retained actor/player handling,
+party/pet checks, conditional mode exit and local outbound request receipts.
+
+Both VS2022 native profiles build the DLL and pass all 49 affected controls,
+input, native-stop and runtime tests, including exact cleanup after unregister,
+failed-stop retry, lease/UI loss and callback reentrancy. Independent review found
+no additional issue in this ownership slice. Hosted CI earlier found a test-only
+SDDL alias assumption; the test now compares the actual ACE SID with the current
+token using EqualSid, and fresh CI is pending.
+
+The fixed-size typed command design retains the existing 576-byte payload: Host16,
+window8, Grant216, UUID16, immutable ticket digest32, exact UTF-16 local-name/server/
+target-name digests96, local/target keys16, revision8, store/owner/entry/operation
+digests128, reserved40. All 320 mapped bytes are reconstructible from command plus
+current channel process identity and must match; digest checks add a reference pin,
+never replace current native identity or admission. UTF-16 digests cover complete
+strictly decoded native strings without case folding or truncation. This contract
+is agreed for implementation; the typed command itself is not enabled yet.

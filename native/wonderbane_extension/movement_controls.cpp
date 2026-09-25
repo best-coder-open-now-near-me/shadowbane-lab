@@ -85,8 +85,8 @@ bool Controls::StopActive(StopReason reason) noexcept {
     if (!RetryStop()) { return false; }
     // Native click/follow intent may exist before this controller has submitted
     // a move. Admission must retire it before publishing a replacement owner.
-    if (!moving_ && reason != StopReason::takeover) { return true; }
-    moving_ = false;
+    if (!moving_ && !native_activity_ && reason != StopReason::takeover) { return true; }
+    moving_ = native_activity_ = false;
     { const ActuationGuard guard(actuating_);
       if (actuator_.Stop(grant_, reason)) { return true; } }
     pending_grant_ = grant_;
@@ -184,6 +184,18 @@ Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) no
     }
     return Result::accepted;
 }
+Result Controls::BeginAutomationNativeAction(const Grant& grant) noexcept {
+    if (actuating_ || shutdown_pending_) { return Result::inhibited; }
+    if (grant != grant_ || grant.owner != Owner::automation) { return Result::stale; }
+    if (!ContinueInput()) { return Result::inhibited; }
+    if (!available_ || !foreground_ || text_owned_) { return Result::inhibited; }
+    if (!RetryStop()) { return Result::stop_failed; }
+    // A failed stop callback can itself invalidate this operation. Do not let
+    // returning from that callback restore authority to the original grant.
+    if (!ContinueInput() || grant != grant_) { return Result::inhibited; }
+    native_activity_ = true;
+    return Result::accepted;
+}
 Result Controls::PauseAutomation(const Grant& grant) noexcept {
     if (actuating_ || shutdown_pending_) { return Result::inhibited; }
     if (grant != grant_ || grant.owner != Owner::automation) { return Result::stale; }
@@ -217,7 +229,7 @@ void Controls::ObserveScene(std::uint64_t scene) noexcept {
         const auto old = grant_;
         { const ActuationGuard guard(actuating_); actuator_.SceneRetired(old.scene); }
         // Never invoke an old actor's stop on a replacement actor or reused pointer.
-        moving_ = pending_stop_ = false;
+        moving_ = native_activity_ = pending_stop_ = false;
         (void)Retire(StopReason::scene_changed, Owner::none, {}, scene);
         Inhibit(StopReason::scene_changed);
         has_tick_ = false;
@@ -238,7 +250,7 @@ bool Controls::ObserveParentScene(std::uint64_t scene, bool manual_admitted, std
     { const ActuationGuard guard(actuating_); actuator_.SceneRetired(old.scene); }
     // Old targets cannot stop this epoch. Pending old cleanup forbids continuity;
     // a fresh stop below must independently retire this same actor's native work.
-    moving_ = pending_stop_ = false;
+    moving_ = native_activity_ = pending_stop_ = false;
     const bool retired = Retire(StopReason::scene_changed, preserve ? Owner::manual : Owner::none, {}, scene);
     has_tick_ = false;
     if (!preserve) { Inhibit(StopReason::scene_changed); }

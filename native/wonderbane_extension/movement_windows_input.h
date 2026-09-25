@@ -31,6 +31,8 @@ public:
     bool Bind(HWND) noexcept;
     bool Configure(const Settings&) noexcept;
     bool Snapshot(CapturedInput&) noexcept;
+    // Fresh UI/focus gate without consuming input samples or device-reset state.
+    bool AutomationInputCurrent() noexcept;
     void Retire() noexcept;
     // Cancel a buffered gesture without delivering its old click in a new UI/scene.
     void Suspend() noexcept;

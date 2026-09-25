@@ -2,6 +2,8 @@
 #include <Windows.h>
 #include "event_channel.h"
 #include "movement_controls.h"
+#include "movement_lifetime.h"
+#include "movement_wire.h"
 namespace wonderbane::extension::movement {
 struct RuntimeSnapshot {
     ProcessIdentity process{};
@@ -16,6 +18,13 @@ struct RuntimeSnapshot {
     bool controller_api_available = false;
     bool controller_connected = false;
 };
+// Owner-service phase only. Published status cannot substitute for these gates.
+// Action admission includes fresh UI/focus and the exact acquisition host lease.
+bool NativeOwnerActionCurrent(const NativeScene&, const Grant&, const wire::Host&) noexcept;
+Result BeginNativeOwnerAction(const NativeScene&, const Grant&, const wire::Host&) noexcept;
+// Cleanup may run after lease/focus loss, but never against a replacement Grant.
+bool NativeOwnerStopCurrent(const NativeScene&, const Grant&) noexcept;
+Result PauseNativeOwnerAction(const NativeScene&, const Grant&) noexcept;
 DWORD StartNativeMovementControls(const ProcessIdentity&) noexcept;
 // Read-only, no automation host lease acquisition, safe for the status publisher.
 bool ReadNativeMovementControls(RuntimeSnapshot&) noexcept;

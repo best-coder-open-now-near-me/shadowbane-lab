@@ -17,10 +17,14 @@ struct Actuator final : NativeActuator {
     bool stop_ok = true;
     bool move_ok = true;
     bool camera_ok = true;
+    Controls* reenter_controls = nullptr;
+    Grant reenter_grant{};
+    Result reenter_result = Result::accepted;
     char interrupt_at = 0;
     std::optional<StopReason> interruption;
     std::optional<StopReason> Interrupted() const noexcept override { return interruption; }
     bool Stop(const Grant& g, StopReason) noexcept override {
+        if (reenter_controls) { reenter_result = reenter_controls->BeginAutomationNativeAction(reenter_grant); }
         events.push_back({'s', g, {}, false}); if (interrupt_at == 's') { interruption = StopReason::focus; } return stop_ok;
     }
     bool Direction(const Grant& g, Vector2 v, bool start) noexcept override {
@@ -478,6 +482,64 @@ void DisabledAutomation() {
     Check(f.controls.Current().owner == Owner::manual && f.controls.AutomationDestination(route, {}) == Result::stale
         && f.controls.Stop(route) == Result::stale, "deliberate manual input retires disabled-start route generation");
 }
+void OwnerServiceStopResponsibility() {
+    const auto acquire = [](Fixture& f) {
+        Grant grant{};
+        Check(f.controls.AcquireAutomation(f.controls.Current().generation, Identity("combat"), grant)
+            == Result::accepted, "owner service acquires ordinary automation Grant");
+        return grant;
+    };
+    for (const auto reason : {StopReason::release, StopReason::focus, StopReason::stalled,
+             StopReason::ui, StopReason::binding_failure, StopReason::shutdown}) {
+        Fixture f; const auto grant = acquire(f); const auto before = f.actuator.Count('s');
+        Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted,
+            "exact owner service records native cleanup responsibility");
+        Check(!(f.controls.DiagnosticState() & 8U), "native activity does not claim movement");
+        Check(f.controls.EmergencyStop(grant, reason) == Result::accepted
+            && f.actuator.Count('s') == before + 1, "every revocation cleans native activity without movement");
+        const auto stopped = f.actuator.Count('s');
+        Check(f.controls.EmergencyStop(grant, reason) == Result::stale
+            && f.controls.BeginAutomationNativeAction(grant) == Result::stale
+            && f.actuator.Count('s') == stopped, "retired activity cannot adopt a replacement owner");
+    }
+    { Fixture f; const auto grant = acquire(f);
+      Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted, "record activity before pause");
+      const auto before = f.actuator.Count('s');
+      Check(f.controls.PauseAutomation(grant) == Result::accepted
+          && f.actuator.Count('s') == before + 1 && f.controls.Current() == grant,
+          "pause clears native activity without changing the operation Grant");
+      Check(f.controls.PauseAutomation(grant) == Result::accepted && f.actuator.Count('s') == before + 1,
+          "completed native cleanup does not replay on repeated pause"); }
+    { Fixture f; const auto grant = acquire(f);
+      Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted, "record failing activity");
+      f.actuator.stop_ok = false;
+      Check(f.controls.EmergencyStop(grant, StopReason::focus) == Result::stop_failed
+          && f.controls.AuthorizesNativeStop(grant) && !f.controls.Ready(),
+          "failed native cleanup retains old exact Grant obligation");
+      Grant next{};
+      Check(f.controls.AcquireAutomation(f.controls.Current().generation, Identity("next"), next)
+          != Result::accepted, "failed activity cleanup excludes new writers");
+      f.actuator.stop_ok = true; f.Step();
+      Check(!f.controls.AuthorizesNativeStop(grant), "successful old cleanup retires stop authority"); }
+    { Fixture f; const auto grant = acquire(f);
+      Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted, "record scene-bound activity");
+      const auto before = f.actuator.Count('s'); f.input.scene++;
+      f.Step();
+      Check(f.actuator.Count('s') == before && !f.controls.AuthorizesNativeStop(grant)
+          && f.controls.BeginAutomationNativeAction(grant) == Result::stale,
+          "old activity is retired without touching replacement character"); }
+    { Fixture f; const auto grant = acquire(f);
+      Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted, "record reentrant activity");
+      f.actuator.reenter_controls = &f.controls; f.actuator.reenter_grant = grant;
+      Check(f.controls.PauseAutomation(grant) == Result::accepted
+          && f.actuator.reenter_result == Result::inhibited,
+          "native stop callback cannot reacquire owner-service responsibility"); }
+    { Fixture f; const auto grant = acquire(f);
+      Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted, "record delayed activity");
+      const auto before = f.actuator.Count('s'); f.Step(251);
+      Check(f.actuator.Count('s') == before + 1 && f.controls.Current().owner == Owner::none,
+          "stalled owner update cleans service work with no movement"); }
+}
 void FrameRatesAndSettings() {
     for (const int hz : {20, 30, 60, 144, 240}) {
         Fixture f; f.input.right_stick = {1, 0};
@@ -501,6 +563,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); FrameRatesAndSettings();
+    ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

@@ -7,7 +7,9 @@ is pushed at `f9da2bfe9e2d699230e9473f9512f5dee0e8a790` through
 [draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39)
 to `main`. It delivers registered single-use admission
 tickets through existing attack-list mutations, plus a native consumer and real
-process race tests. It does not activate combat. See the [admission handoff](handoffs/explicit-list-combat-admission.md)
+process race tests. Follow-up ownership work records native service cleanup separately from movement
+and pins exact-Grant cancellation across failed stops and unregister. It does not
+activate combat. See the [admission handoff](handoffs/explicit-list-combat-admission.md)
 for schema, validation and the next owner-thread attack/cancellation transaction.
 The normal checkout remains on main; other active worktrees retain their ownership.
 
