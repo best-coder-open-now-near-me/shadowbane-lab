@@ -56,11 +56,14 @@ def apply_attack_list_command(command, store, selected=None, *, expected_revisio
         result = store.clear(expected_revision=expected_revision)
     else:
         result = store.snapshot()
-    return {
+    receipt = {
         "action": action,
         "revision": result.revision,
         "entries": [entry.as_dict() for entry in result.entries],
     }
+    if result.entered_admissions:
+        receipt["entered_admissions_requiring_cancellation"] = list(result.entered_admissions)
+    return receipt
 
 
 def run_attack_list_command(command, guard, *, root: Path | None = None):

@@ -1,5 +1,14 @@
 # Git branch map
 
+## Explicit-list combat admission - September 24
+
+`codex/explicit-list-combat` starts from freshly fetched `origin/main@a91dfd5` and
+is intended for a draft PR to `main`. It delivers registered single-use admission
+tickets through existing attack-list mutations, plus a native consumer and real
+process race tests. It does not activate combat. See the [admission handoff](handoffs/explicit-list-combat-admission.md)
+for schema, validation and the next owner-thread attack/cancellation transaction.
+The normal checkout remains on main; other active worktrees retain their ownership.
+
 ## Current client update - September 24
 
 Native 1.8.27 / host 0.3.47 from source `d74d3c3` is installed in the VM

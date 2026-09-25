@@ -57,6 +57,13 @@ jobs:
         run: cmake --build build/native-${{ matrix.profile }} --config Release
       - name: Run native tests
         run: ctest --test-dir build/native-${{ matrix.profile }} -C Release -LE stretch-diagnostic --output-on-failure
+      - name: Install host/native admission test dependencies
+        run: python -m pip install -e ".[test]"
+      - name: Verify admission across host and Win32 consumer processes
+        shell: pwsh
+        run: |
+          $env:SHADOWBANE_COMBAT_FENCE_TEST_EXE = (Resolve-Path "build/native-${{ matrix.profile }}/Release/wonderbane_extension_combat_fence_test.exe").Path
+          python -m pytest tests/test_combat_fence.py -q
       - name: Check deferred transparency diagnostic outcomes
         run: python scripts/check_transparency_diagnostics.py --build-dir build/native-${{ matrix.profile }}
       - name: Retain ideal transparency diagnostic results
