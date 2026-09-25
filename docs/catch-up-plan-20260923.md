@@ -6,13 +6,16 @@ Preserve their source, installed runtime and private evidence; do not continue
 carpenter implementation, packaging or live tests without renewed direction.
 
 Freshly fetched `origin/main@a91dfd5` remains the canonical base. Vendor source
-`a1a0793b54287149b36e612267495791278bdd03` is pushed in draft PR #38. It includes
-the discovery provenance fix plus typed owner-thread recipe/Inventory commands,
-durable menu journals and automatic Inventory opening after a finished batch.
-The manager checks menu support before its first Create. The full Win32 build,
-12 affected native tests and 172 affected host tests (85 subtests) passed.
-Not packaged or installed. Saved arbitrary recipe admission and coherent town
-rolling remain unfinished; Gilded Scepter spending restrictions are retained.
+`a3a5d3782a2ce47b949ef099be197894a1521335` is pushed in draft PR #38, with
+native 1.8.31 / host 0.3.51 reserved for the candidate now running package gates.
+The completed source slice loads actual recipes, saves an immutable choice per
+character/building/vendor, prepares its exact random specification, fills one
+available-capacity batch and automatically opens Inventory for Keep. The ordinary
+CREATE control preserves game resource/cost checks. New generalized evidence
+preserves unknown affixes and cannot be downgraded to legacy Scepter journals.
+The full Win32 build, 13 affected native tests and 895 affected host tests
+(449 subtests, 4 skips), Ruff and independent source review passed. No installation
+or live crafting is implied. Full town scheduling remains unfinished.
 
 The VM still has native 1.8.30 / host 0.3.50 from exact source
 `8ba181868fca7ca113f94361b61118ce74a9d4a1`; the user launch entry point remains
@@ -281,9 +284,12 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Stopped at user direction: carpenter implementation and live testing, including
   automatic preview integration. Preserve pushed source and unfinished edits;
   no further package/deployment or user test is scheduled for this lane.
-- Active: finish saved random-recipe selection, automatic preparation and
-  generalized single-capacity crafting as one application slice, then durable
-  town visits. Keep the separate Create/Keep admission and recovery barriers.
+- Active: validate the exact-source 1.8.31 / 0.3.51 vendor package and prepare
+  supervised saved-recipe/one-batch acceptance. Durable town visits follow.
+- Complete saved-recipe slice: `eb7c239`, versioned as `a3a5d37` in PR #38.
+  Recipe preferences, preparation, generalized Create, Inventory and Keep share
+  durable ownership and recovery. Combined validation: 895 host tests, 449
+  subtests and 13 native tests passed; 4 host tests skipped. Not installed.
 - Complete source checkpoint: `codex/vendor-town-workflow@a1a0793`, draft PR #38
   to main. Typed owner-thread menu operations and durable menu recovery now
   integrate with the existing finished-batch Inventory/Keep handoff. The full DLL
@@ -303,7 +309,11 @@ owner and next action. No guessed carpentry recipes or generalized framework.
   read-only reader and inspection CLI. 139 catalog/CLI/vendor-reader tests and
   101 subtests passed; Ruff/diff clean. This observation is not crafting
   authority or a complete server catalog. Not installed or live-accepted.
-- Parallel PvP qualification: native listed-player selection/attack and local
+- Parallel PvP implementation: a separate `codex/explicit-list-combat` worktree
+  connects attack-list mutation revocation to a Windows host/native admission
+  fence. Real process races and crash ordering are being validated; native
+  attack/cancel transactions remain next. No combat or deployment performed.
+  Native listed-player selection/attack and local
   combat exit are mapped. Complete truthful submission receipts and guarded
   cancellation before enabling the explicit saved-list combat runner. Automatic
   response ingestion retains its separate server-session ordering blocker.

@@ -34,28 +34,27 @@ Earlier installed or staged versions below are historical checkpoints.
 
 ## Vendor recipe-list automation - September 24
 
-`codex/vendor-town-workflow@a1a0793b54287149b36e612267495791278bdd03`
+`codex/vendor-town-workflow@a3a5d3782a2ce47b949ef099be197894a1521335`
 targets `main` through [draft PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38).
-It contains discovery scene/root provenance plus typed owner-thread recipe and
-Inventory controls, durable no-replay menu evidence, and automatic Inventory
-opening after a completed batch. Native menu support is checked before spending.
-Existing Gilded Scepter spending admission remains; arbitrary random recipes and
-the complete saved town runner are not enabled.
+The saved-recipe source slice `eb7c239` loads the actual recipe list, saves an
+immutable random choice per character/building/vendor, prepares it before filling
+one available-capacity batch, then opens Inventory for Keep. Native generalized
+Create uses the ordinary control with game resource/cost/name checks. Typed menu
+ownership and durable schema-3 evidence prevent stale/replayed spending. Unknown
+affixes are kept; legacy Scepter restrictions and evidence remain separate.
 
-The full Win32 DLL build, 12 affected native tests and 172 affected host tests
-(85 subtests) passed, with Ruff/diff checks and independent source review. Earlier
-provenance changes passed 241 focused tests (one optional fixture skipped).
-Hosted CI remains tracked on the exact PR head. This source is pushed, outside
-main, and not packaged or installed. The normal checkout remains clean main.
+Validation: full Win32 extension build; 13 affected native tests; 895 affected
+host tests and 449 subtests passed (4 skips); Ruff/diff and independent review.
+Native 1.8.31 / host 0.3.51 exact-source package gates are running. Not installed
+or live-accepted; installed 1.8.30 / 0.3.50 remains unchanged. This candidate starts
+from main and excludes cancelled carpenter preview/recorder drafts. Full town
+visits/scheduling and generalized affix exclusion policy remain unfinished.
 
-The random recipe switch and Inventory close/reopen walkthrough are complete.
-The follow-up Inventory close correction `4608188` passed its DLL build and
-three native menu tests. Catalog checkpoint `a1a0793` adds the bounded actual
-recipe-list reader and CLI; 139 affected tests and 101 subtests passed, with Ruff.
-Saved recipe admission, durable town visits and full resource/affix/disposal
-policy remain next. No live automated command has run.
-See the vendor branch's menu implementation and contract handoffs in PR #38.
-Private captures, credentials and binaries remain outside source delivery.
+Earlier `a1a0793` catalog and `4608188` Inventory close checkpoints are included.
+See PR #38's `docs/handoffs/vendor-saved-recipes-20260924.md` for ownership and
+recovery boundaries. Private captures, credentials and binaries stay local.
+The normal checkout remains clean on main; this feature branch is outside main
+pending review, required checks and integration.
 
 ## PvP continuation - September 24
 
@@ -63,6 +62,9 @@ Main already includes the saved attack-list and identity/diagnostic foundation
 through `542c632`. Native listed-player selection, melee entry and conditional
 local combat exit are now qualified offline. Truthful submission receipts and
 serialized list/party/operation invalidation are the next implementation boundary.
+The isolated `codex/explicit-list-combat` worktree now implements the list-mutation
+fence with real Windows producer/consumer tests. Native combat activation remains
+unimplemented; this unfinished source has not been deployed.
 The [explicit-list combat handoff](handoffs/explicit-list-combat-20260924.md)
 records the entry/exit, receipt and mutation-fence contracts. No native combat
 activation or live fight has been performed. Response-driven
