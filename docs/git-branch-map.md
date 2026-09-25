@@ -34,7 +34,7 @@ Earlier installed or staged versions below are historical checkpoints.
 
 ## Vendor recipe-list automation - September 24
 
-`codex/vendor-town-workflow@a3a5d3782a2ce47b949ef099be197894a1521335`
+`codex/vendor-town-workflow@9f96813a31fcd2073cf32cd23798e77a1b1a8b06`
 targets `main` through [draft PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38).
 The saved-recipe source slice `eb7c239` loads the actual recipe list, saves an
 immutable random choice per character/building/vendor, prepares it before filling
@@ -45,7 +45,12 @@ affixes are kept; legacy Scepter restrictions and evidence remain separate.
 
 Validation: full Win32 extension build; 13 affected native tests; 895 affected
 host tests and 449 subtests passed (4 skips); Ruff/diff and independent review.
-Native 1.8.31 / host 0.3.51 exact-source package gates are running. Not installed
+Native 1.8.31 / host 0.3.51 exact-source package gates passed: 3,647 host tests,
+172 required native tests per profile, exact-client and installed-wheel checks.
+The [package handoff](handoffs/vendor-saved-recipes-package-20260924.md) records
+hashes and skipped/deferred diagnostics. Isolated VM preparation is verified,
+including all 436 installed modules, 9,426 retained files and 17 normal-client CFG
+files. Waiting for game closure to apply; the active runtime is unchanged. Not applied
 or live-accepted; installed 1.8.30 / 0.3.50 remains unchanged. This candidate starts
 from main and excludes cancelled carpenter preview/recorder drafts. Full town
 visits/scheduling and generalized affix exclusion policy remain unfinished.
@@ -62,9 +67,14 @@ Main already includes the saved attack-list and identity/diagnostic foundation
 through `542c632`. Native listed-player selection, melee entry and conditional
 local combat exit are now qualified offline. Truthful submission receipts and
 serialized list/party/operation invalidation are the next implementation boundary.
-The isolated `codex/explicit-list-combat` worktree now implements the list-mutation
-fence with real Windows producer/consumer tests. Native combat activation remains
-unimplemented; this unfinished source has not been deployed.
+The isolated `codex/explicit-list-combat` worktree pushed mutation-fence source
+`f9da2bfe9e2d699230e9473f9512f5dee0e8a790`, with discoverability head
+`1a0b5b41e1693fdab6eab695387f8f3b1acc136f`, in
+[draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39)
+to main. Seventy-two focused tests pass, including actual Windows producer/consumer
+races and crash/close-failure cases; both native profiles pass the fixture. Native
+combat activation and owner cleanup integration remain in progress and are not
+deployed. The branch is outside main and its active worktree must be preserved.
 The [explicit-list combat handoff](handoffs/explicit-list-combat-20260924.md)
 records the entry/exit, receipt and mutation-fence contracts. No native combat
 activation or live fight has been performed. Response-driven

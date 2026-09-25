@@ -6,8 +6,10 @@ Preserve their source, installed runtime and private evidence; do not continue
 carpenter implementation, packaging or live tests without renewed direction.
 
 Freshly fetched `origin/main@a91dfd5` remains the canonical base. Vendor source
-`a3a5d3782a2ce47b949ef099be197894a1521335` is pushed in draft PR #38, with
-native 1.8.31 / host 0.3.51 reserved for the candidate now running package gates.
+`9f96813a31fcd2073cf32cd23798e77a1b1a8b06` is pushed in draft PR #38, with
+native 1.8.31 / host 0.3.51 passing all required exact-source package gates.
+The new host is prepared and verified separately beside the unchanged installed
+runtime; game closure is now required to apply it.
 The completed source slice loads actual recipes, saves an immutable choice per
 character/building/vendor, prepares its exact random specification, fills one
 available-capacity batch and automatically opens Inventory for Keep. The ordinary
@@ -15,7 +17,8 @@ CREATE control preserves game resource/cost checks. New generalized evidence
 preserves unknown affixes and cannot be downgraded to legacy Scepter journals.
 The full Win32 build, 13 affected native tests and 895 affected host tests
 (449 subtests, 4 skips), Ruff and independent source review passed. No installation
-or live crafting is implied. Full town scheduling remains unfinished.
+or live crafting is implied. Full town scheduling remains unfinished. See the
+[versioned package and deployment boundary](handoffs/vendor-saved-recipes-package-20260924.md).
 
 The VM still has native 1.8.30 / host 0.3.50 from exact source
 `8ba181868fca7ca113f94361b61118ce74a9d4a1`; the user launch entry point remains
@@ -284,8 +287,15 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Stopped at user direction: carpenter implementation and live testing, including
   automatic preview integration. Preserve pushed source and unfinished edits;
   no further package/deployment or user test is scheduled for this lane.
-- Active: validate the exact-source 1.8.31 / 0.3.51 vendor package and prepare
-  supervised saved-recipe/one-batch acceptance. Durable town visits follow.
+- Active: apply the prepared 1.8.31 / 0.3.51 vendor package after game closure
+  and supervise saved-recipe/one-batch acceptance. Durable town visits follow.
+- Complete isolated VM preparation: 436 installed modules match the wheel;
+  9,426 retained files and 17 normal-client CFG files are inventoried. Game and
+  crafting records remain unchanged; application is waiting for game closure.
+- Complete package qualification: exact source `9f96813`; 3,647 host tests,
+  172 required native tests per profile, 63 movement IPC tests per profile,
+  exact-client and installed-wheel gates pass. Two known transparency diagnostics
+  remain deferred; see the package handoff for exact hashes and skipped tests.
 - Complete saved-recipe slice: `eb7c239`, versioned as `a3a5d37` in PR #38.
   Recipe preferences, preparation, generalized Create, Inventory and Keep share
   durable ownership and recovery. Combined validation: 895 host tests, 449
@@ -310,9 +320,11 @@ owner and next action. No guessed carpentry recipes or generalized framework.
   101 subtests passed; Ruff/diff clean. This observation is not crafting
   authority or a complete server catalog. Not installed or live-accepted.
 - Parallel PvP implementation: a separate `codex/explicit-list-combat` worktree
-  connects attack-list mutation revocation to a Windows host/native admission
-  fence. Real process races and crash ordering are being validated; native
-  attack/cancel transactions remain next. No combat or deployment performed.
+  has pushed the Windows host/native mutation fence as `f9da2bf`, with handoff
+  `1a0b5b4`, in draft PR #39 to main. Seventy-two focused tests pass, including
+  real Windows races, crash ordering and close-failure retry. Native attack/cancel
+  transactions and owner cleanup integration remain in progress. No combat or
+  deployment performed.
   Native listed-player selection/attack and local
   combat exit are mapped. Complete truthful submission receipts and guarded
   cancellation before enabling the explicit saved-list combat runner. Automatic
