@@ -1,5 +1,133 @@
 # Git branch map
 
+## Current override - September 26
+
+**Client update installation and manager activation are verified.** Both client
+copies are on official **1.3.38.12**, with native **1.8.32** / host **0.3.52**
+in the prepared runtime. Qualified and installed exact package source is
+`e9bf9334043e989cf7438f634de2b488f6ac5569` in [PR #40](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/40).
+Its source branch is `codex/client-update-20260926`; `main` remains the shared
+integration destination. This coordinator checkout does not contain that package's
+code. All three changed official files match their expected hashes in both copies;
+all five shortcuts and non-launching preflight pass. All 9,450 retained files,
+including 17 normal-client CFG files, passed preservation. After activation,
+9,449 are unchanged and only the expected revoked idle permit refreshed. The
+new manager is healthy and unbound; the game remains closed. No live crafting or
+recipe acceptance is implied. See PR #40's current update handoff for evidence.
+
+**[No retained deployment rollback artifacts](https://github.com/best-coder-open-now-near-me/shadowbane-lab/blob/45fb3867fce7b0afdf8d7427396db1c925fe3472/docs/deployment-policy.md).**
+Recover software from committed Git and official client assets. Do not retain
+rollback copies, archives or old fallback runtimes, and do not require rollback
+space. Preserve settings, saved recipes, jobs and historical journals in place.
+Older backup/rollback requirements below and in linked historical handoffs are
+superseded; native rollback tests and transaction recovery retain their meanings.
+No rollback artifact was created for this update. The coordinator removed 35 old
+VM rollback directories and three host preparation-backup directories under the
+user's policy; settings and job records remained preserved.
+
+The user cancelled carpenter work and set guards aside. Neither lane is resumed.
+The active todo is the user's **WonderBane Vendor Test** launch/login, followed by
+manager attachment and live saved-recipe/one-batch acceptance. Full town scheduling
+remains unfinished. The separate PvP source lane is outside this update. Do not
+interpret any earlier "installed", "active" or "next" status as the current state.
+
+## Historical scope - September 24
+
+The user stopped carpenter work and set guard investigation aside. Vendor rolling
+continues alongside the resumed PvP lane. PR #35's cutout fix `6ea434c` and PR #37's passive
+recorder/live findings remain preserved; unfinished automatic-preview work is not
+a release candidate. No carpenter package, deployment or live test should proceed
+without renewed direction. The active vendor runtime below excludes those drafts.
+Follow the [updated catch-up plan](catch-up-plan-20260923.md) and vendor PR #38.
+
+## Historical VM runtime - September 24
+
+Vendor native 1.8.31 / host 0.3.51 from exact source
+`9f96813a31fcd2073cf32cd23798e77a1b1a8b06` is installed after confirmed game
+closure. The new manager is healthy; all five shortcuts and non-launching preflight
+pass. 9,426 retained records/settings and 17 normal-client CFG files passed
+preservation; only the expected revoked idle permit changed during activation.
+Use **WonderBane Vendor Test**. Next: login and saved-recipe/one-batch acceptance.
+The [package handoff](handoffs/vendor-saved-recipes-package-20260924.md) records
+exact hashes, required gates, installation and rollback. No game launch, crafting,
+source merge or full-town acceptance is implied.
+
+## Prior VM runtime - September 24
+
+Corrected furniture preview/recorder native 1.8.30 / host 0.3.50 from exact source
+`8ba181868fca7ca113f94361b61118ce74a9d4a1` was the prior verified VM runtime.
+Its package and rollback were retained at that checkpoint; the September 26
+policy supersedes that retention practice.
+The existing Vendor Test shortcut remains the user launch entry point. Saved
+records/settings, rollback backups, all five shortcuts and the actual new manager
+were verified. Live startup registration and preview panel creation now pass.
+
+The Bench preview still fails source-material qualification: the captured shader
+vtable RVA `0x1149c18` is outside the two currently supported families. No clone
+was attempted. PR #35 owns the material support investigation and the user's
+corrected interaction: automatic preview using native placement/rotation controls,
+without a separate Preview button or duplicate rotation buttons. Visual acceptance
+and normal exit remain unverified.
+
+Ordinary Bench drag independently reproduced the unchanged empty primary scene
+response in 1.8.30, matching 1.8.29; server-handler investigation remains necessary.
+The passive capture ended normally at 20:40:48 UTC and its evidence is preserved.
+See the [deployment handoff](handoffs/furniture-response-diagnostics.md).
+PR #35 contains the combined source; PR #37 carries the recorder and latest
+deployment docs. Both target `main` and remain unmerged by this deployment.
+Earlier installed or staged versions below are historical checkpoints.
+
+## Vendor recipe-list automation - September 24
+
+`codex/vendor-town-workflow@9f96813a31fcd2073cf32cd23798e77a1b1a8b06`
+targets `main` through [draft PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38).
+The saved-recipe source slice `eb7c239` loads the actual recipe list, saves an
+immutable random choice per character/building/vendor, prepares it before filling
+one available-capacity batch, then opens Inventory for Keep. Native generalized
+Create uses the ordinary control with game resource/cost/name checks. Typed menu
+ownership and durable schema-3 evidence prevent stale/replayed spending. Unknown
+affixes are kept; legacy Scepter restrictions and evidence remain separate.
+
+Validation: full Win32 extension build; 13 affected native tests; 895 affected
+host tests and 449 subtests passed (4 skips); Ruff/diff and independent review.
+Native 1.8.31 / host 0.3.51 exact-source package gates passed: 3,647 host tests,
+172 required native tests per profile, exact-client and installed-wheel checks.
+The [package handoff](handoffs/vendor-saved-recipes-package-20260924.md) records
+hashes and skipped/deferred diagnostics. Isolated VM preparation is verified,
+including all 436 installed modules, 9,426 retained files and 17 normal-client CFG
+files. Installation, activation and all shortcut/preflight checks are now verified.
+Gameplay acceptance was pending at that checkpoint. Prior fallback retention
+is superseded by the September 26 policy. This candidate starts
+from main and excludes cancelled carpenter preview/recorder drafts. Full town
+visits/scheduling and generalized affix exclusion policy remain unfinished.
+
+Earlier `a1a0793` catalog and `4608188` Inventory close checkpoints are included.
+See PR #38's `docs/handoffs/vendor-saved-recipes-20260924.md` for ownership and
+recovery boundaries. Private captures, credentials and binaries stay local.
+The normal checkout remains clean on main; this feature branch is outside main
+pending review, required checks and integration.
+
+## PvP continuation - September 24
+
+Main already includes the saved attack-list and identity/diagnostic foundation
+through `542c632`. Native listed-player selection, melee entry and conditional
+local combat exit are now qualified offline. Truthful submission receipts and
+serialized list/party/operation invalidation are the next implementation boundary.
+The isolated `codex/explicit-list-combat` worktree pushed mutation-fence source
+`f9da2bfe9e2d699230e9473f9512f5dee0e8a790`, with discoverability head
+`1a0b5b41e1693fdab6eab695387f8f3b1acc136f`, followed by exact owner cleanup
+`05386d0ed9152c0aff6824258834fb68137d4177`, in
+[draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39)
+to main. Seventy-two focused tests pass, including actual Windows producer/consumer
+races and crash/close-failure cases; both native profiles pass the fixture. Native
+combat activation remains in progress. Owner cleanup passed both DLL profiles
+and 49 native regression tests per profile; none of this combat source is deployed. The branch is outside main and its active worktree must be preserved.
+The [explicit-list combat handoff](handoffs/explicit-list-combat-20260924.md)
+records the entry/exit, receipt and mutation-fence contracts. No native combat
+activation or live fight has been performed. Response-driven
+retaliation separately needs server session-order evidence across buffered input;
+explicit saved-list combat does not depend on that blocked source of authority.
+
 ## Current client update - September 24
 
 Native 1.8.27 / host 0.3.47 from source `d74d3c3` is installed in the VM
@@ -11,6 +139,29 @@ that PR records final-head checks and merge status. See the
 [update review](client-update-20260924.md) for exact package identities and rollback.
 The next live step is the user's launch/login, then Barracks/vendor observations.
 Use freshly fetched `origin/main` after PR #34 merges for further development.
+
+## Furniture response diagnostics - September 24
+
+`codex/furniture-response-diagnostics` targets `main` from `a91dfd5` through
+[draft PR #37](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/37).
+Exact source `c764e22d1bd94fe3a84fd53a31d42d4c959d8a20` passed the complete
+package gates. VM preparation is verified and staged alongside the active host;
+activation after game closure and a supervised placement capture remain pending.
+It owns the passive native Furniture message recorder and host capture path,
+versioned 1.8.28 / 0.3.48; see the
+[diagnostic handoff](handoffs/furniture-response-diagnostics.md) for exact scope,
+validation state and next live step. This is separate from the preview modules in
+[draft PR #35](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/35)
+and discovery documentation in
+[PR #36](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/36).
+Combined preview/recorder native 1.8.29 / host 0.3.49 package source
+`0193dd74662eb368c4961a2ab8d9db6826fb70b4` in PR #35 includes recorder `c764e22`
+and passed its required package gates. Combined VM installation is verified and
+supersedes the never-activated recorder-only candidate; live process/capture and
+preview/placement acceptance remain pending. PR #37 retains the
+recorder source and deployment handoff; both reviews target `main`, and neither
+has been merged by this coordination step.
+Neither source publication nor a message observation establishes placement success.
 
 ## Canonical development base - September 23
 

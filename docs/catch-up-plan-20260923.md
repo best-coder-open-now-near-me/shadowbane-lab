@@ -1,18 +1,109 @@
 # Integration and town-workflow catch-up plan
 
-Execution update: September 23. **`origin/main` is now the canonical base.**
-[PR #25](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/25)
-merged as `555f6bf`, preserving reviewed head `e8062fd` and all contributing
-source history. All 15 hosted checks passed on that head. The
-[inclusion inventory and execution queue](integration-status-20260923.md) record
-the merged source, deferred lanes, package identity and remaining acceptance.
-Guard coverage, vendor recovery and the passive recorder, and strict diagnostic
-CI gates are integrated. The September 24 client update is now installed:
-**client 1.3.38.11, native 1.8.27, host 0.3.47**, source `d74d3c3`. The manager
-is healthy and unbound, all five desktop shortcuts and launch preflight pass,
-and the game is closed for the user's launch/login. See the
-[client update](client-update-20260924.md) for package and preservation evidence.
-Live guard/vendor evidence remains pending; carpenter awaits building readiness.
+## Current override - September 26
+
+**Client update installation and manager activation are verified.** Both client
+copies are on official **1.3.38.12**, with native **1.8.32** / host **0.3.52**
+in the prepared runtime. Qualified and installed exact package source is
+`e9bf9334043e989cf7438f634de2b488f6ac5569` in [PR #40](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/40).
+Its source branch is `codex/client-update-20260926`; `main` remains the shared
+integration destination. This coordinator checkout does not contain that package's
+code. All three changed official files match their expected hashes in both copies;
+all five shortcuts and non-launching preflight pass. All 9,450 retained files,
+including 17 normal-client CFG files, passed preservation. After activation,
+9,449 are unchanged and only the expected revoked idle permit refreshed. The
+new manager is healthy and unbound; the game remains closed. No live crafting or
+recipe acceptance is implied. See PR #40's current update handoff for evidence.
+
+**[No retained deployment rollback artifacts](https://github.com/best-coder-open-now-near-me/shadowbane-lab/blob/45fb3867fce7b0afdf8d7427396db1c925fe3472/docs/deployment-policy.md).**
+Recover software from committed Git and official client assets. Do not retain
+rollback copies, archives or old fallback runtimes, and do not require rollback
+space. Preserve settings, saved recipes, jobs and historical journals in place.
+Older backup/rollback requirements below and in linked historical handoffs are
+superseded; native rollback tests and transaction recovery retain their meanings.
+No rollback artifact was created for this update. The coordinator removed 35 old
+VM rollback directories and three host preparation-backup directories under the
+user's policy; settings and job records remained preserved.
+
+The user cancelled carpenter work and set guards aside. Neither lane is resumed.
+The active todo is the user's **WonderBane Vendor Test** launch/login, followed by
+manager attachment and live saved-recipe/one-batch acceptance. Full town scheduling
+remains unfinished. The separate PvP source lane is outside this update. Do not
+interpret any earlier "installed", "active" or "next" status as the current state.
+
+## Historical execution update - September 24
+
+Execution update: September 24. **PvP resumes alongside random vendor rolling.**
+The user set guard investigation aside and then explicitly stopped carpenter work.
+Preserve their source and diagnostic evidence under the current artifact policy;
+do not continue
+carpenter implementation, packaging or live tests without renewed direction.
+
+Freshly fetched `origin/main@a91dfd5` remains the canonical base. Vendor source
+`9f96813a31fcd2073cf32cd23798e77a1b1a8b06` is pushed in draft PR #38, with
+native 1.8.31 / host 0.3.51 passing all required exact-source package gates.
+After confirmed game closure, the candidate is installed and the new manager is
+healthy. All five shortcuts and launch preflight pass; the game has not been launched.
+The completed source slice loads actual recipes, saves an immutable choice per
+character/building/vendor, prepares its exact random specification, fills one
+available-capacity batch and automatically opens Inventory for Keep. The ordinary
+CREATE control preserves game resource/cost checks. New generalized evidence
+preserves unknown affixes and cannot be downgraded to legacy Scepter journals.
+The full Win32 build, 13 affected native tests and 895 affected host tests
+(449 subtests, 4 skips), Ruff and independent source review passed. No live crafting
+or gameplay acceptance is implied. Full town scheduling remains unfinished. See the
+[versioned package and deployment boundary](handoffs/vendor-saved-recipes-package-20260924.md).
+
+The VM now has native 1.8.31 / host 0.3.51 from exact source `9f96813`;
+the user launch entry point remains WonderBane Vendor Test. All 436 module files
+match the exact wheel. Application preserved 9,426 retained files and 17 normal
+CFG files; activation changed only the expected revoked idle permit. The prior
+1.8.30 / 0.3.50 package and rollback were retained at that checkpoint; the
+September 26 policy supersedes that practice. Cancelled carpenter
+preview/recorder drafts are excluded from this vendor package. Their source,
+material failure and placement evidence remain in the historical
+[deployment handoff](handoffs/furniture-response-diagnostics.md); no carpenter
+work or test is resumed.
+
+PvP restart status: freshly fetched `main@a91dfd5` contains the identity,
+attack-list command and passive native-event work through `542c632`. Saved
+player identity, add/remove/list/clear, command concurrency, party/pet observations,
+attacker-key calibration and stale/retired trace rejection have source evidence.
+These are not completed automatic combat. Full listed-target binding, attributed
+response ingestion, native player selection/attack and PvE-to-PvP recovery remain
+unfinished. Native event records still explicitly publish combat_authority=false.
+
+Explicit saved attack-list combat can progress independently of response-driven
+retaliation. Offline qualification maps ordinary player selection, native attack
+submission and the conditional local combat exit. Dispatcher success only means
+handled; Clear Target does not stop the retained combat target. Next is truthful
+request submission receipts plus list/party/operation invalidation and guarded
+cancellation, preserving native restrictions and reference ownership. See the
+[explicit-list combat handoff](handoffs/explicit-list-combat-20260924.md).
+
+Response-driven retaliation remains blocked on server session ordering across
+buffered input. The receive buffer can retain bytes across a local character
+change; decode-time freshness cannot prove old-character events were fenced. This
+limitation does not block explicit saved-list combat. No fight or new user
+walkthrough is needed for the current source work. Continue from current main,
+not the old native-lifecycle branch. The [PvP plan](pve-pvp-attack-list-plan.md)
+retains historical detail; no new attack or deployment has been performed.
+
+Read-only vendor observation on September 24 verified the open random-roll recipe
+against the exact installed runtime. Three stable samples agree on the selected
+row, activated row and retained Anthame template; Magic is mode 1, table 16.
+The seven production slots were empty. Current automation still explicitly
+requires Gilded Scepter, so this observation does not qualify dagger automation.
+The passive recorder ended normally at 21:16:41 UTC; private captures are retained.
+No crafting, inventory mutation, manager job or deployment was performed.
+
+Offline PvP qualification now maps deferred action construction, queue consumption
+and disposal, including discard and direct-processing paths. It also proves that
+an active socket can retain bytes before a character-generation change and decode
+them afterward. Decode-time freshness alone is therefore insufficient for combat
+authority. Response ingestion requires a qualified ordered server session boundary (or proven
+connection replacement), followed by complete event-to-action identity handling. No user fight
+is needed for this investigation; automatic combat remains unfinished.
 
 Planning date: September 23, 2026. The original planning rationale and milestones
 below remain useful; their starting inventory is historical. Current status and
@@ -226,13 +317,74 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Complete: reviewed client 1.3.38.11 update, native 1.8.27 / host 0.3.47 package,
   both VM client copies, five shortcuts and non-launching preflight. Of 9,441
   retained files, 9,440 are unchanged; only the revoked idle permit refreshed.
-- Active: user launch/login through WonderBane Modded Client, followed by fresh
-  game-lifetime verification. The VM manager is healthy and unbound.
-- Next live observations: one manually opened Irekei Barracks; vendor recipe and
-  Inventory ownership walkthrough after manual readiness. Carpenter needs its
-  active client and building readiness confirmed. No automatic spending starts.
-- Subsequent: production town vendor navigation/scheduling, qualified affix and
-  resource/disposal/recurrence behavior, and guard/Condemn coverage/rank acceptance.
+- Complete: carpenter reproduction, passive request/response recorder, combined
+  preview/recorder 1.8.30 / 0.3.50 deployment and live startup/panel verification.
+  The saved capture isolates the Bench material rejection before cloning and
+  reproduces an unchanged empty primary placement response.
+- Stopped at user direction: carpenter implementation and live testing, including
+  automatic preview integration. Preserve pushed source and unfinished edits;
+  no further package/deployment or user test is scheduled for this lane.
+- Next after the user launches/logs into the verified September 26 update:
+  resolve manager attachment and supervise saved-recipe/one-batch acceptance.
+  Durable town visits follow; the prior 1.8.31 / 0.3.51 instruction is superseded.
+- Complete activation: confirmed game closure, exact idle-manager stop, verified
+  installation/rollback, five shortcuts, launch preflight and healthy new manager.
+  All saved records/settings are preserved; only the expected idle permit was
+  refreshed during activation. No game launch or crafting action was submitted.
+- Complete isolated VM preparation: 436 installed modules match the wheel;
+  9,426 retained files and 17 normal-client CFG files are inventoried. Game and
+  crafting records were preserved through application; preparation is complete.
+- Complete package qualification: exact source `9f96813`; 3,647 host tests,
+  172 required native tests per profile, 63 movement IPC tests per profile,
+  exact-client and installed-wheel gates pass. Two known transparency diagnostics
+  remain deferred; see the package handoff for exact hashes and skipped tests.
+- Complete saved-recipe slice: `eb7c239`, versioned as `a3a5d37` in PR #38.
+  Recipe preferences, preparation, generalized Create, Inventory and Keep share
+  durable ownership and recovery. Combined validation: 895 host tests, 449
+  subtests and 13 native tests passed; 4 host tests skipped. Installed as `9f96813`.
+- Complete source checkpoint: `codex/vendor-town-workflow@a1a0793`, draft PR #38
+  to main. Typed owner-thread menu operations and durable menu recovery now
+  integrate with the existing finished-batch Inventory/Keep handoff. The full DLL
+  build, 12 affected native tests, 172 affected host tests/85 subtests and Ruff
+  passed. Hosted CI is tracked separately; not merged, packaged or installed.
+- Complete live walkthrough: selected/activated/retained Anthame and Balanced
+  Dagger identities agree in Magic/random mode, table 16, quantity 1, single
+  mode. Inventory close/reopen retained the same 65 displayed item identities.
+  Full inventory freshness/completeness and generalized spending remain unproven.
+- Follow-up read-only capture: all three samples at 22:03 UTC identified the
+  owned Inventory list and one unnamed event-50 close control. The assumed named
+  CANCEL is absent. Correction `4608188` is pushed and the full DLL build plus
+  three native menu tests passed. The check sent no game command and did not
+  change the installed runtime.
+- Complete recipe catalog source: `a1a0793` exposes typed template keys, actual
+  labels and separate selected/activated/retained state through a bounded
+  read-only reader and inspection CLI. 139 catalog/CLI/vendor-reader tests and
+  101 subtests passed; Ruff/diff clean. This observation is not crafting
+  authority or a complete server catalog. Not installed or live-accepted.
+- Parallel PvP implementation: a separate `codex/explicit-list-combat` worktree
+  has pushed the Windows host/native mutation fence as `f9da2bf`, with handoff
+  `1a0b5b4`, in draft PR #39 to main. Seventy-two focused tests pass, including
+  real Windows races, crash ordering and close-failure retry. Native attack/cancel
+  transaction integration remains in progress. Owner cleanup checkpoint
+  `05386d0` is pushed, with both DLL profiles and 49 native regressions passing. No combat or
+  deployment performed.
+  Native listed-player selection/attack and local
+  combat exit are mapped. Complete truthful submission receipts and guarded
+  cancellation before enabling the explicit saved-list combat runner. Automatic
+  response ingestion retains its separate server-session ordering blocker.
+- Set aside at user direction: further guard/Barracks investigation and live
+  qualification. The user reports equivalent native functionality; that claim
+  has not been independently inspected. Existing guard/Condemn work and receipts
+  remain preserved. Do not request another Barracks walkthrough without renewed
+  user direction.
+- Retained carpenter finding: original placement needs server handler/response
+  evidence, which is unavailable. The private developer note and raw captures
+  remain saved. This lane is stopped, not awaiting another user request to the dev.
+- Complete live walkthrough: random recipe selection and Inventory close/reopen.
+  The recorder stopped normally at 21:30:36 UTC. Bart is released for normal use;
+  no further user test is currently queued. No Barracks or carpenter test is queued.
+- Subsequent: production town vendor navigation/scheduling and qualified affix,
+  resource/disposal/recurrence behavior. Guard live work is set aside.
 - Deferred: broad refactors, unrelated historical feature lanes, and branch/worktree
   retirement until ownership, dirty files and retained remote history are checked.
 
