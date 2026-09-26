@@ -1,12 +1,20 @@
 # Client update - September 26, 2026
 
+**Current deployment policy:** [No retained rollback artifacts](deployment-policy.md).
+Do not retain deployment copies, archives or old runtimes for rollback, and do not
+reserve disk space for them. Recover from committed Git and official client assets;
+preserve settings and job records in place. Older rollback requirements are superseded.
+
 Official client **1.3.38.12** changes the executable and two data files. The
 candidate is native **1.8.32** / host **0.3.52** on `codex/client-update-20260926`.
 The branch starts from freshly fetched main plus vendor PR #38 through `a87a7af`,
 including the deployed saved-recipe source and the reviewed dashboard selection
 routing fix. It excludes the separate PvP and cancelled carpenter drafts.
 Integration destination: `main`, with vendor inclusion made explicit in review.
-This source checkpoint does not imply package qualification or deployment.
+Exact package source is `e9bf9334043e989cf7438f634de2b488f6ac5569`.
+[Draft PR #40](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/40)
+targets `main`; no merge is implied. Later documentation commits do not change
+the installed/package source identity.
 
 ## Binary and alignment evidence
 
@@ -41,7 +49,9 @@ be preserved. The existing Vendor Test entry point remains the default.
 Read-only VM inspection found the game closed and both copies still on reviewed
 1.3.38.11. Installed native 1.8.31 / host 0.3.51 is exact source `9f96813`.
 Deployment requires a successful exact-source package and fresh baseline checks,
-immutable rollback, complete file verification and healthy manager activation.
+complete file verification, settings/job preservation and healthy manager activation.
+A failed or incomplete update keeps readiness blocked until the intended committed
+version is rebuilt or repaired; retained deployment rollback copies are not used.
 No game launch or crafting action is part of the client update.
 
 ## Included vendor correction and remaining work
@@ -59,6 +69,38 @@ remain unfinished; package validation is not gameplay acceptance. Full town
 scheduling and separate PvP attack/cancel integration also remain unfinished.
 Guards are set aside and carpenter work remains cancelled.
 
-Next: complete compatibility validation, build and qualify the exact-source
-package, update both VM copies and verify launcher/manager behavior, then resume
-vendor attachment and recipe acceptance.
+Next: install the qualified update in both VM copies under the current deployment
+policy and verify launcher/manager behavior, then resume vendor attachment and
+recipe acceptance. Package qualification below does not claim installation.
+
+## Exact-source package qualification
+
+Private package: `artifacts/c32/f3228ad3`. Required qualification passed:
+
+- 3,665 host tests (18 explicit skips), Ruff and installed-wheel entry points.
+- 172 native tests in each of full and diagnostics-only profiles; the three
+  private-client tests skipped by generic CTest ran separately and passed.
+- 63 movement IPC tests in each profile; actual-client selection, movement,
+  sky binding and render checks passed. Vendor menu controller/channel/native
+  tests executed and passed in both profiles.
+- All 60 receipt artifacts, archive contents/SHA and installed-wheel source
+  identity match exact source. All 15 hosted checks passed on `e9bf933`.
+
+Two existing ideal-transparency diagnostic failures remain recorded separately;
+no required gate failed and no improved transparency claim is made.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Acceptance archive | `168bd6c1efe0c9c5dc0aa13525bdd359539bad5a253162d44fd4c52ad1b4c35c` |
+| Full DLL | `2e94313a93c261ad862437f4fd263ef9b33fe7c1e665fdd7cb35ec70310cd114` |
+| Host wheel | `3b393583fab3f5a5f7e4225d521f8fbcac0d2f175ba72d55e53d87260cd7e4f3` |
+| Receipt | `287d598713985ec116df8d4a176ff8744f2e06f093ce67d9b433e723c3287f92` |
+
+The first preparation attempt stopped before writes because the VM had
+759,132,160 bytes free, below a blanket 1 GiB check. No existing runtime was
+changed and no new host/update directory was created by that attempt. Replace
+that blanket threshold with measured payload, host and staging needs for the
+current update. The user explicitly rejected retained rollback artifacts and
+rollback-space gates afterward; apply the linked deployment policy before retrying.
+This preparation failure is historical evidence, not a requirement to preserve
+old deployment copies. Settings and job records remain preserved in place.

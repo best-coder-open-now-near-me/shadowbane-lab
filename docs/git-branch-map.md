@@ -1,5 +1,9 @@
 # Git branch map
 
+**Deployment policy:** [No retained rollback artifacts](deployment-policy.md).
+Recover from committed Git and official client assets; preserve settings and job
+records in place. Historical backup/rollback requirements below are superseded.
+
 ## Active client update - September 26
 
 The current client candidate is `codex/client-update-20260926`, native 1.8.32 /
@@ -13,9 +17,10 @@ The normal project checkout remains on `main`.
 
 See [the update review](client-update-20260926.md) for exact binary identities,
 validation and deployment status. Before this update, installed source is
-`9f96813`, native 1.8.31 / host 0.3.51, on client 1.3.38.11. Package qualification
-and installation are the active next steps. Manager attachment and live recipe
-acceptance remain open; guards are set aside and carpenter is cancelled.
+`9f96813`, native 1.8.31 / host 0.3.51, on client 1.3.38.11. The exact-source
+package is qualified; installation and verification are the active next steps.
+Manager attachment and live recipe acceptance remain open; guards are set aside
+and carpenter is cancelled.
 Historical status below does not override this current state.
 
 ## Current client update - September 24
