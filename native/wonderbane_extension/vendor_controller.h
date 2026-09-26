@@ -13,7 +13,7 @@ class Controller {
     std::map<std::array<std::uint8_t, 16>, Record> records_;
     Record* pending_ = nullptr;
     wire::Snapshot current_{};
-    std::uint64_t revision_ = 0;
+    std::uint64_t revision_ = 0, random_deadline_ = 0;
     bool uncertain_ = false;
     std::array<std::uint8_t, 16> transition_request_{};
     std::uint32_t transition_item_ = 0;
@@ -43,7 +43,7 @@ public:
     }
     // Called only on the owning thread, after fresh native ownership validation.
     // A displayed inventory item proves presence; its absence never proves failure.
-    void Observe(wire::Snapshot snapshot, bool valid, bool kept_in_inventory) noexcept {
+    void Observe(wire::Snapshot snapshot, bool valid, bool kept_in_inventory, std::uint64_t now = 0) noexcept {
         snapshot.revision = current_.revision;
         if (!valid || !wire::Equal(snapshot, current_)) {
             if (revision_ == UINT64_MAX) { uncertain_ = true; current_ = {}; return; }
@@ -52,10 +52,13 @@ public:
         const auto previous = current_;
         current_ = valid ? snapshot : wire::Snapshot{};
         if (!pending_ || uncertain_) { return; }
+        // The ordinary generalized Create may show a native rejection dialog.
+        // Absence of a correlated addition becomes uncertainty, never a retry.
+        if (pending_->verb == wire::Verb::create_random && now > random_deadline_) { uncertain_ = true; return; }
         const auto& before = pending_->command.expected;
         if (!valid || !SameOwner(before, current_) || current_.count < before.count) { uncertain_ = true; return; }
         std::uint32_t new_item = 0;
-        if (pending_->verb == wire::Verb::create) {
+        if (wire::IsCreate(pending_->verb)) {
             std::size_t additions = 0, expected = before.multiple ? 0 : 1;
             if (before.multiple) {
                 for (std::size_t i = 0; i < before.count; ++i) {
@@ -82,11 +85,11 @@ public:
         transition_item_ = new_item; transition_request_ = pending_->command.request; pending_ = nullptr;
     }
     wire::Receipt Execute(wire::Verb verb, const wire::Command& command,
-        bool live, bool ready, Invoker& invoker) noexcept {
+        bool live, bool ready, Invoker& invoker, std::uint64_t now = 0) noexcept {
         using O = wire::Outcome;
         if (!wire::Valid(verb, command)) { return Receipt(command, O::invalid, ready); }
         if (!live) { return Receipt(command, O::stale, false); }
-        if (verb == wire::Verb::inspect) { return Receipt(command, O::observed, ready); }
+        if (wire::IsInspect(verb)) { return Receipt(command, O::observed, ready); }
         const auto previous = records_.find(command.request);
         if (previous != records_.end()) {
             if (previous->second.verb != verb
@@ -103,20 +106,24 @@ public:
         bool eligible = false;
         for (std::size_t i = 0; i < current_.count; ++i) {
             const auto& slot = current_.slots[i];
-            eligible |= verb == wire::Verb::create ? slot.state == 0
+            eligible |= wire::IsCreate(verb) ? slot.state == 0
                 : (slot.state == 2 && slot.item == command.item);
         }
-        if (!eligible || (verb == wire::Verb::create && !wire::RandomScepter(current_))) {
+        if (!eligible || (verb == wire::Verb::create && !wire::RandomScepter(current_))
+            || (verb == wire::Verb::create_random && !wire::RandomSingle(current_))) {
             return Receipt(command, O::invalid, ready);
         }
         // Never evict action receipts and permit an old request to be replayed.
         // Exhaustion disables new actions until a fresh client process starts.
-        if (records_.size() >= 4096) { return Receipt(command, O::exhausted, false); }
+        if (records_.size() >= 4096 || (verb == wire::Verb::create_random && now > UINT64_MAX - 5000)) {
+            return Receipt(command, O::exhausted, false);
+        }
         try {
             auto [entry, inserted] = records_.emplace(command.request,
                 Record{verb, command, Receipt(command, O::uncertain, false)});
             if (!inserted) { return Receipt(command, O::invalid, ready); }
             pending_ = &entry->second;
+            if (verb == wire::Verb::create_random) { random_deadline_ = now + 5000; }
             const auto outcome = invoker.Invoke(verb, current_, command.item);
             if (outcome == O::stale || outcome == O::unavailable) { pending_ = nullptr; }
             else if (outcome != O::submitted) { uncertain_ = true; }

@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tempfile
 import unittest
@@ -184,6 +185,8 @@ class NearbyDiscoveryTests(unittest.TestCase):
         self.assertEqual(1, result["vendors"])
         self.assertEqual('{"job_id":"unchanged-review"}', old.read_text())
         summary = discovery_summary(self.store)
+        self.assertEqual((1, 100), (summary["scene"], summary["root"]))
+        self.assertEqual(STATE.encode().hex(), result["expected"])
         self.assertNotIn("roster", summary)
         self.assertEqual("complete", summary["state"])
         with self.assertRaisesRegex(VendorBatchStopped, "already attempted"):
@@ -246,3 +249,18 @@ class NearbyDiscoveryTests(unittest.TestCase):
         self.session.inspect.assert_called_once()
         self.session.open.assert_not_called()
         self.assertEqual("cancelled", discovery_summary(self.store)["state"])
+
+
+    def test_originating_scene_is_durable_before_city_open(self):
+        def open_window(state, request_key):
+            path = self.store.root / "discovery" / (self.operation.operation_id + ".json")
+            intent = json.loads(path.read_text())
+            self.assertEqual("opening", intent["state"])
+            self.assertEqual((1, 100), (intent["scene"], intent["root"]))
+            self.assertEqual(state.encode().hex(), intent["expected"])
+            self.assertEqual(request_key, intent["request_key"])
+            return receipt(outcome=Outcome.SUBMITTED, flags=0)
+
+        self.session.open.side_effect = open_window
+        self.assertEqual("complete", self.run_scan()["state"])
+        self.session.open.assert_called_once()

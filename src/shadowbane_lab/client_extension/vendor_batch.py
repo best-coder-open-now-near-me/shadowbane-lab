@@ -1,6 +1,7 @@
 """Durable batch filling of available and newly unlocked vendor slots."""
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 import uuid
@@ -11,6 +12,7 @@ from typing import Protocol
 from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
 
 from .action_channel import NativeClientProcessIdentity
+from .vendor_recipe import RandomRecipeSpec, validate_recipe_preparation
 from .vendor_wire import IN_FLIGHT, READY, UNRESOLVED, Outcome, Receipt, Snapshot
 
 
@@ -18,6 +20,8 @@ class VendorBatchSession(Protocol):
     identity: NativeClientProcessIdentity
     def inspect(self) -> Receipt: ...
     def create(self, expected: Snapshot, request_key: str) -> Receipt: ...
+    def inspect_random(self) -> Receipt: ...
+    def create_random(self, expected: Snapshot, request_key: str) -> Receipt: ...
 
 
 class VendorBatchStopped(RuntimeError):
@@ -40,6 +44,8 @@ def fill_available_slots(
     cancelled: Callable[[], bool] = lambda: False,
     before_action: Callable[[], None] = lambda: None,
     expected_owner: Snapshot | None = None,
+    recipe: RandomRecipeSpec | None = None,
+    preparation_raw: bytes | None = None,
     clock: Callable[[], float] = time.monotonic,
     sleeper: Callable[[float], None] = time.sleep,
     acceptance_timeout: float = 15.0,
@@ -54,16 +60,23 @@ def fill_available_slots(
         raise ValueError("an exact vendor ID is required")
     if not 0 < acceptance_timeout <= 60:
         raise ValueError("acceptance timeout must be between zero and 60 seconds")
+    if recipe is not None and type(recipe) is not RandomRecipeSpec:
+        raise ValueError("an immutable random recipe specification is required")
+    if (recipe is None) != (preparation_raw is None):
+        raise ValueError("random recipe and completed preparation evidence are required together")
     journal = Path(journal)
     with exclusive_record_lock(journal.with_suffix(journal.suffix + ".lock")):
         if journal.exists():
             raise VendorBatchStopped("journal exists; inspect it without replaying requests")
-        first = session.inspect()
+        inspect = session.inspect_random if recipe is not None else session.inspect
+        create = session.create_random if recipe is not None else session.create
+        first = inspect()
         initial = first.snapshot
         if (
             first.outcome != Outcome.OBSERVED or not first.flags & READY
             or first.flags & (IN_FLIGHT | UNRESOLVED)
-            or initial.vendor != vendor_id or not initial.random_scepter
+            or initial.vendor != vendor_id
+            or not (recipe.matches(initial) if recipe else initial.random_scepter)
         ):
             raise VendorBatchStopped("the requested vendor's random recipe is not ready")
         if expected_owner is not None and (
@@ -71,9 +84,16 @@ def fill_available_slots(
             or _items(initial) != _items(expected_owner)
         ):
             raise VendorBatchStopped("vendor ownership or production changed before filling")
+        if recipe is not None:
+            validate_recipe_preparation(
+                preparation_raw, recipe, initial, process_id=session.identity.process_id,
+                process_creation_filetime_utc=session.identity.creation_filetime_utc,
+                window=first.window,
+            )
         baseline = _items(initial)
         record = {
-            "schema_version": 2 if initial.multiple else 1, "operation": "fill_available_slots",
+            "schema_version": 3 if recipe else (2 if initial.multiple else 1),
+            "operation": "fill_available_slots",
             "batch_id": str(uuid.uuid4()), "state": "running",
             "vendor_id": vendor_id, "window": first.window,
             "process_id": session.identity.process_id,
@@ -82,6 +102,13 @@ def fill_available_slots(
             "planned_rolls": initial.free_slots, "capacity": len(initial.slots),
             "capacity_history": [len(initial.slots)], "requests": [], "items": [],
         }
+
+        if recipe is not None:
+            record.update(
+                recipe_spec=recipe.as_dict(), recipe_spec_sha256=recipe.canonical_digest,
+                preparation_journal_utf8=preparation_raw.decode("utf-8"),
+                preparation_sha256=hashlib.sha256(preparation_raw).hexdigest(),
+            )
 
         def save() -> None:
             publish_atomic_record(
@@ -96,7 +123,9 @@ def fill_available_slots(
                 or _owner(s) != _owner(initial) or len(s.slots) < record["capacity"]
                 or receipt.flags & UNRESOLVED
                 or (not pending and (
-                    not s.random_scepter or s.multiple != initial.multiple
+                    not (recipe.matches(s) if recipe else s.random_scepter)
+                    or s.multiple != initial.multiple
+                    or (recipe is not None and s.recipe != initial.recipe)
                     or not receipt.flags & READY or receipt.flags & IN_FLIGHT
                 ))
             ):
@@ -116,7 +145,7 @@ def fill_available_slots(
                     record["state"] = "cancelled"
                     save()
                     return record
-                fresh = require_current(session.inspect())
+                fresh = require_current(inspect())
                 expected_items = baseline | set(record["items"])
                 if (
                     _items(fresh) != expected_items
@@ -135,7 +164,7 @@ def fill_available_slots(
                     request["expected_item_count"] = expected_count
                 record["requests"].append(request)
                 save()  # Must reach disk before any path can submit Create.
-                result = session.create(fresh, request_key)
+                result = create(fresh, request_key)
                 if (
                     result.request_key != request_key or result.window != first.window
                     or result.outcome != Outcome.SUBMITTED or result.snapshot != fresh
@@ -162,7 +191,7 @@ def fill_available_slots(
                     if clock() >= deadline:
                         request["state"] = "uncertain"
                         raise VendorBatchStopped("Create timed out; outcome is uncertain")
-                    receipt = session.inspect()
+                    receipt = inspect()
                     observed = require_current(receipt, pending=True)
                     observed_items = _items(observed)
                     new_items = observed_items - expected_items
