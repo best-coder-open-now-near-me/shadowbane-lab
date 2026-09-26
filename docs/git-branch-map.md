@@ -1,6 +1,37 @@
 # Git branch map
 
-## Current scope - September 24
+## Current override - September 26
+
+**Client update installation and manager activation are verified.** Both client
+copies are on official **1.3.38.12**, with native **1.8.32** / host **0.3.52**
+in the prepared runtime. Qualified and installed exact package source is
+`e9bf9334043e989cf7438f634de2b488f6ac5569` in [PR #40](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/40).
+Its source branch is `codex/client-update-20260926`; `main` remains the shared
+integration destination. This coordinator checkout does not contain that package's
+code. All three changed official files match their expected hashes in both copies;
+all five shortcuts and non-launching preflight pass. All 9,450 retained files,
+including 17 normal-client CFG files, passed preservation. After activation,
+9,449 are unchanged and only the expected revoked idle permit refreshed. The
+new manager is healthy and unbound; the game remains closed. No live crafting or
+recipe acceptance is implied. See PR #40's current update handoff for evidence.
+
+**[No retained deployment rollback artifacts](https://github.com/best-coder-open-now-near-me/shadowbane-lab/blob/45fb3867fce7b0afdf8d7427396db1c925fe3472/docs/deployment-policy.md).**
+Recover software from committed Git and official client assets. Do not retain
+rollback copies, archives or old fallback runtimes, and do not require rollback
+space. Preserve settings, saved recipes, jobs and historical journals in place.
+Older backup/rollback requirements below and in linked historical handoffs are
+superseded; native rollback tests and transaction recovery retain their meanings.
+No rollback artifact was created for this update. The coordinator removed 35 old
+VM rollback directories and three host preparation-backup directories under the
+user's policy; settings and job records remained preserved.
+
+The user cancelled carpenter work and set guards aside. Neither lane is resumed.
+The active todo is the user's **WonderBane Vendor Test** launch/login, followed by
+manager attachment and live saved-recipe/one-batch acceptance. Full town scheduling
+remains unfinished. The separate PvP source lane is outside this update. Do not
+interpret any earlier "installed", "active" or "next" status as the current state.
+
+## Historical scope - September 24
 
 The user stopped carpenter work and set guard investigation aside. Vendor rolling
 continues alongside the resumed PvP lane. PR #35's cutout fix `6ea434c` and PR #37's passive
@@ -9,7 +40,7 @@ a release candidate. No carpenter package, deployment or live test should procee
 without renewed direction. The active vendor runtime below excludes those drafts.
 Follow the [updated catch-up plan](catch-up-plan-20260923.md) and vendor PR #38.
 
-## Active VM runtime - September 24
+## Historical VM runtime - September 24
 
 Vendor native 1.8.31 / host 0.3.51 from exact source
 `9f96813a31fcd2073cf32cd23798e77a1b1a8b06` is installed after confirmed game
@@ -25,7 +56,8 @@ source merge or full-town acceptance is implied.
 
 Corrected furniture preview/recorder native 1.8.30 / host 0.3.50 from exact source
 `8ba181868fca7ca113f94361b61118ce74a9d4a1` was the prior verified VM runtime.
-Its package/rollback is preserved; the active vendor package supersedes it.
+Its package and rollback were retained at that checkpoint; the September 26
+policy supersedes that retention practice.
 The existing Vendor Test shortcut remains the user launch entry point. Saved
 records/settings, rollback backups, all five shortcuts and the actual new manager
 were verified. Live startup registration and preview panel creation now pass.
@@ -64,7 +96,8 @@ The [package handoff](handoffs/vendor-saved-recipes-package-20260924.md) records
 hashes and skipped/deferred diagnostics. Isolated VM preparation is verified,
 including all 436 installed modules, 9,426 retained files and 17 normal-client CFG
 files. Installation, activation and all shortcut/preflight checks are now verified.
-Gameplay acceptance remains pending; the previous 1.8.30 / 0.3.50 rollback is retained. This candidate starts
+Gameplay acceptance was pending at that checkpoint. Prior fallback retention
+is superseded by the September 26 policy. This candidate starts
 from main and excludes cancelled carpenter preview/recorder drafts. Full town
 visits/scheduling and generalized affix exclusion policy remain unfinished.
 

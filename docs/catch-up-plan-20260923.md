@@ -1,8 +1,42 @@
 # Integration and town-workflow catch-up plan
 
+## Current override - September 26
+
+**Client update installation and manager activation are verified.** Both client
+copies are on official **1.3.38.12**, with native **1.8.32** / host **0.3.52**
+in the prepared runtime. Qualified and installed exact package source is
+`e9bf9334043e989cf7438f634de2b488f6ac5569` in [PR #40](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/40).
+Its source branch is `codex/client-update-20260926`; `main` remains the shared
+integration destination. This coordinator checkout does not contain that package's
+code. All three changed official files match their expected hashes in both copies;
+all five shortcuts and non-launching preflight pass. All 9,450 retained files,
+including 17 normal-client CFG files, passed preservation. After activation,
+9,449 are unchanged and only the expected revoked idle permit refreshed. The
+new manager is healthy and unbound; the game remains closed. No live crafting or
+recipe acceptance is implied. See PR #40's current update handoff for evidence.
+
+**[No retained deployment rollback artifacts](https://github.com/best-coder-open-now-near-me/shadowbane-lab/blob/45fb3867fce7b0afdf8d7427396db1c925fe3472/docs/deployment-policy.md).**
+Recover software from committed Git and official client assets. Do not retain
+rollback copies, archives or old fallback runtimes, and do not require rollback
+space. Preserve settings, saved recipes, jobs and historical journals in place.
+Older backup/rollback requirements below and in linked historical handoffs are
+superseded; native rollback tests and transaction recovery retain their meanings.
+No rollback artifact was created for this update. The coordinator removed 35 old
+VM rollback directories and three host preparation-backup directories under the
+user's policy; settings and job records remained preserved.
+
+The user cancelled carpenter work and set guards aside. Neither lane is resumed.
+The active todo is the user's **WonderBane Vendor Test** launch/login, followed by
+manager attachment and live saved-recipe/one-batch acceptance. Full town scheduling
+remains unfinished. The separate PvP source lane is outside this update. Do not
+interpret any earlier "installed", "active" or "next" status as the current state.
+
+## Historical execution update - September 24
+
 Execution update: September 24. **PvP resumes alongside random vendor rolling.**
 The user set guard investigation aside and then explicitly stopped carpenter work.
-Preserve their source, installed runtime and private evidence; do not continue
+Preserve their source and diagnostic evidence under the current artifact policy;
+do not continue
 carpenter implementation, packaging or live tests without renewed direction.
 
 Freshly fetched `origin/main@a91dfd5` remains the canonical base. Vendor source
@@ -24,7 +58,8 @@ The VM now has native 1.8.31 / host 0.3.51 from exact source `9f96813`;
 the user launch entry point remains WonderBane Vendor Test. All 436 module files
 match the exact wheel. Application preserved 9,426 retained files and 17 normal
 CFG files; activation changed only the expected revoked idle permit. The prior
-1.8.30 / 0.3.50 package and immutable rollback are retained. Cancelled carpenter
+1.8.30 / 0.3.50 package and rollback were retained at that checkpoint; the
+September 26 policy supersedes that practice. Cancelled carpenter
 preview/recorder drafts are excluded from this vendor package. Their source,
 material failure and placement evidence remain in the historical
 [deployment handoff](handoffs/furniture-response-diagnostics.md); no carpenter
@@ -289,8 +324,9 @@ owner and next action. No guessed carpentry recipes or generalized framework.
 - Stopped at user direction: carpenter implementation and live testing, including
   automatic preview integration. Preserve pushed source and unfinished edits;
   no further package/deployment or user test is scheduled for this lane.
-- Active: after user launch/login, supervise saved-recipe/one-batch acceptance
-  in the installed 1.8.31 / 0.3.51 runtime. Durable town visits follow.
+- Next after the user launches/logs into the verified September 26 update:
+  resolve manager attachment and supervise saved-recipe/one-batch acceptance.
+  Durable town visits follow; the prior 1.8.31 / 0.3.51 instruction is superseded.
 - Complete activation: confirmed game closure, exact idle-manager stop, verified
   installation/rollback, five shortcuts, launch preflight and healthy new manager.
   All saved records/settings are preserved; only the expected idle permit was

@@ -1,5 +1,20 @@
 # Project delivery instructions
 
+## Deployment policy: no retained rollback artifacts
+
+The user's explicit September 26, 2026 policy is mandatory: **do not create or
+retain deployment rollback copies or archives, keep old runtimes for rollback,
+or require rollback disk space before an update.** Recover software by rebuilding
+from the exact committed Git revision and official client assets. Preserve user
+settings, saved jobs and historical journals in place; these are not disposable
+build output. Do not introduce backup/rollback gates that override this policy.
+
+Read [the deployment policy](https://github.com/best-coder-open-now-near-me/shadowbane-lab/blob/45fb3867fce7b0afdf8d7427396db1c925fe3472/docs/deployment-policy.md) before preparing or
+updating a runtime. It supersedes older backup/rollback instructions in handoffs,
+deployment notes and carried-forward context. Native test rollback, transaction
+reconciliation and fail-closed readiness checks still apply; those semantics do
+not authorize retaining deployment fallback artifacts.
+
 ## Commit and push normal work
 
 Commit coherent, validated changes and push them to the configured remote feature
