@@ -16,9 +16,10 @@ candidate. Separate PvP work in PR #39 and cancelled carpenter drafts are exclud
 The normal project checkout remains on `main`.
 
 See [the update review](client-update-20260926.md) for exact binary identities,
-validation and deployment status. Before this update, installed source is
-`9f96813`, native 1.8.31 / host 0.3.51, on client 1.3.38.11. The exact-source
-package is qualified; installation and verification are the active next steps.
+validation and deployment status. Installed source is `e9bf933`, native 1.8.32 /
+host 0.3.52, on client 1.3.38.12. Both client copies, all five shortcuts, settings
+preservation and the healthy manager are verified. No rollback copies were
+created. Next is user login through **WonderBane Vendor Test**.
 Manager attachment and live recipe acceptance remain open; guards are set aside
 and carpenter is cancelled.
 Historical status below does not override this current state.

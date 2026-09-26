@@ -69,9 +69,9 @@ remain unfinished; package validation is not gameplay acceptance. Full town
 scheduling and separate PvP attack/cancel integration also remain unfinished.
 Guards are set aside and carpenter work remains cancelled.
 
-Next: install the qualified update in both VM copies under the current deployment
-policy and verify launcher/manager behavior, then resume vendor attachment and
-recipe acceptance. Package qualification below does not claim installation.
+Next: launch WonderBane Vendor Test and log in, then diagnose manager attachment
+and complete saved-recipe/one-batch acceptance. Client installation is verified
+below; live gameplay acceptance remains open.
 
 ## Exact-source package qualification
 
@@ -98,9 +98,39 @@ no required gate failed and no improved transparency claim is made.
 
 The first preparation attempt stopped before writes because the VM had
 759,132,160 bytes free, below a blanket 1 GiB check. No existing runtime was
-changed and no new host/update directory was created by that attempt. Replace
-that blanket threshold with measured payload, host and staging needs for the
-current update. The user explicitly rejected retained rollback artifacts and
-rollback-space gates afterward; apply the linked deployment policy before retrying.
+changed and no new host/update directory was created by that attempt. The final
+updater checks only current payload/host/atomic-write needs. The user explicitly rejected retained rollback artifacts and
+rollback-space gates afterward; the successful deployment follows that policy.
 This preparation failure is historical evidence, not a requirement to preserve
 old deployment copies. Settings and job records remain preserved in place.
+
+## Verified VM installation
+
+Both VM client copies now contain official 1.3.38.12 data. The normal executable
+matches the official hash; Vendor Test matches the reviewed prepared hash and
+full DLL above. Native 1.8.32 / host 0.3.52 are exact source `e9bf933`.
+All 436 installed module files match the wheel. All five desktop shortcuts and
+non-launching launcher preflight passed; use **WonderBane Vendor Test**.
+
+Application preserved 9,450 historical records/settings files in place, including
+17 normal-client CFG files. Activation left 9,449 unchanged and made only the
+expected revoked/unbound `dispatch.permit` transition. The actual manager uses
+the 0.3.52 interpreter and reports healthy, unbound status with no game running.
+No game launch or crafting command was issued. Healthy unbound status does not
+resolve the previous live attachment failure.
+
+**No deployment rollback copies were created.** Removed 35 inspected obsolete
+VM rollback directories (213 files; 54,855,078 bytes) and three old host-side
+client preparation backup directories (3,730,448,084 bytes). After checking
+interpreter, process, launcher and package-asset ownership, removed all 30
+obsolete `host-0.3.22` through `host-0.3.51` environments (619,542,556 bytes).
+The current 0.3.52 runtime uses the separate system Python installation; no
+active runtime depends on the removed environments. Original user data and
+diagnostic evidence are preserved. Recovery uses committed Git and official
+client assets; historical rollback instructions are superseded by the policy.
+Private verification receipts remain with the September 26 deployment artifacts.
+
+The source branch remains unmerged in draft PR #40, including vendor PR #38
+through `a87a7af`. Normal project checkout remains clean on `main@a91dfd5`.
+Separate PvP PR #39 is not installed. Next active todo: user login, then manager
+attachment and recipe acceptance; no client-update implementation todo remains.
