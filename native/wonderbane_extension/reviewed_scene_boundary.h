@@ -36,7 +36,7 @@ constexpr std::array<std::size_t, 90U> kSceneDisplayRelocations{
     0x935U, 0x944U, 0x94fU,
 };
 
-constexpr std::array<const char*, 12U> kReviewedSceneExecutableHashes{
+constexpr std::array<const char*, 14U> kReviewedSceneExecutableHashes{
     "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc",
     "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8",
     "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff",
@@ -49,6 +49,8 @@ constexpr std::array<const char*, 12U> kReviewedSceneExecutableHashes{
     "761f375e422332cac2512398bb935af38b30267b9b3a7a5cede9f87e98982442",
     "6347b420c6c151995f168f16fd1624408dd8911698d11a4a74b26d211fb49f19",
     "7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f",
+    "3891fcab09dac06d858ac55911046448e75f3519e2f58e1d7c2ccc954aa410b7",
+    "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289",
 };
 
 inline bool IsReviewedSceneExecutable(const char* const sha256) noexcept {

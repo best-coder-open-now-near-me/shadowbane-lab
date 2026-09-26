@@ -1,4 +1,4 @@
-"""Exact vendor layouts reviewed in docs/client-update-20260924.md.
+"""Exact vendor layouts reviewed in docs/client-update-20260926.md.
 
 These identities do not confer a live operation lease or affix qualification.
 Never use the broader native-layout family to admit vendor commands.
@@ -10,4 +10,5 @@ REVIEWED_VENDOR_EXECUTABLES = frozenset({
     "e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891",
     "761f375e422332cac2512398bb935af38b30267b9b3a7a5cede9f87e98982442",
     "7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f",
+    "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289",
 })

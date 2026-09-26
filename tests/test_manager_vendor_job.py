@@ -7,11 +7,63 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+from shadowbane_lab.client_extension.movement_wire import Host
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
+from shadowbane_lab.client_extension.vendor_menu_wire import (
+    Receipt as MenuReceipt,
+)
+from shadowbane_lab.client_extension.vendor_menu_wire import (
+    Snapshot as MenuSnapshot,
+)
 from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, READY, Outcome, Slot
 from shadowbane_lab.manager.vendor_job import VendorJobStore, run_vendor_job
 from tests.test_vendor_batch import MultipleSession, Session, receipt
 
+
+class JobMenus:
+    def __init__(self, parent):
+        self.parent = parent
+        self.identity = parent.identity
+        self.transition = None
+
+    def inspect(self):
+        s = self.parent.state
+        values = dict(scene=s.scene, revision=s.revision, root=s.root, manager=s.manager,
+                      menu=s.menu, hireling=s.hireling, building=s.building, vendor=s.vendor,
+                      recipe=s.recipe, inventory=s.inventory,
+                      front_hud=s.recipe or s.inventory or s.menu)
+        if s.recipe:
+            values.update(item_template=s.item_template, selected_template=s.item_template,
+                          activated_template=s.item_template, prefix=s.prefix, suffix=s.suffix,
+                          mode=s.mode, table=s.table, quantity=s.quantity, multiple=s.multiple,
+                          sentinel=3362971591, recipe_list=701)
+        return MenuReceipt("11111111-2222-4333-8444-555555555555", Host(1, 2, 3),
+                           1000, Outcome.OBSERVED, READY, MenuSnapshot(**values), self.transition)
+
+    def send(self, name, expected, key):
+        directory = self.parent.store.directory(self.parent.store.current()["job_id"])
+        path = directory / "inventory-menu.json"
+        saved = json.loads(path.read_text())
+        assert saved["requests"][-1]["state"] == "prepared"
+        assert saved["requests"][-1]["request_key"] == key
+        assert expected == self.inspect().snapshot
+        self.parent.menu_calls.append(name)
+        if self.parent.menu_failure:
+            raise TimeoutError("menu acknowledgement lost")
+        changes = dict(recipe=0) if name == "close_recipe" else dict(inventory=900)
+        self.parent.state = replace(self.parent.state, **changes)
+        self.transition = key
+        self.parent.after_menu(name)
+        return MenuReceipt(key, Host(1, 2, 3), 1000, Outcome.SUBMITTED, IN_FLIGHT, expected)
+
+    def close_recipe(self, expected, key):
+        return self.send("close_recipe", expected, key)
+
+    def open_inventory(self, expected, key):
+        return self.send("open_inventory", expected, key)
+
+    def close(self):
+        self.parent.menu_closed = True
 
 class JobSession(Session):
     def __init__(self, store):
@@ -21,6 +73,13 @@ class JobSession(Session):
         self.keep_pending = None
         self.renewals = 0
         self.after_create = lambda: None
+        self.menu_calls = []
+        self.menu_failure = False
+        self.menu_closed = False
+        self.after_menu = lambda name: None
+
+    def menu_session(self):
+        return JobMenus(self)
 
     def renew_lease(self):
         self.renewals += 1
@@ -100,6 +159,13 @@ class VendorJobTests(unittest.TestCase):
             cancelled=lambda: self.cancel,
             **kwargs,
         )
+
+    def test_missing_menu_support_rejects_before_any_create(self):
+        with patch.object(self.session, "menu_session", side_effect=RuntimeError("old native")):
+            with self.assertRaisesRegex(RuntimeError, "old native"):
+                self.run_job()
+        self.assertFalse(self.session.calls)
+        self.assertIsNone(self.store.current())
 
     def test_one_batch_completes_and_preserves_unknowns(self):
         result = self.run_job()
@@ -181,23 +247,101 @@ class VendorJobTests(unittest.TestCase):
         self.assertEqual("complete", self.run_job(resume=True)["state"])
         self.assertEqual(2, len(self.session.calls))
 
-    def test_hidden_inventory_waits_without_keep(self):
-        states = []
+    def test_finished_batch_opens_inventory_before_keep(self):
+        def sleep(seconds):
+            self.now += seconds
+            self.session.finish_cooking()
+            if not self.session.menu_calls:
+                self.session.state = replace(self.session.state, inventory=0)
+
+        self.sleep = sleep
+        result = self.run_job()
+        self.assertEqual("complete", result["state"])
+        self.assertEqual(["close_recipe", "open_inventory"], self.session.menu_calls)
+        self.assertTrue(self.session.menu_closed)
+        menu_path = self.store.directory(result["job_id"]) / "inventory-menu.json"
+        saved = json.loads(menu_path.read_text())
+        self.assertEqual("complete", saved["state"])
+        self.assertTrue(all(r["state"] == "observed" for r in saved["requests"]))
+        self.assertEqual(2, len(self.session.keeps))
+
+    def test_lost_menu_ack_stops_before_keep_and_cannot_resume_as_complete(self):
+        self.session.menu_failure = True
 
         def sleep(seconds):
             self.now += seconds
-            current = self.store.current()
-            states.append(current["state"])
             self.session.finish_cooking()
-            if states.count("inventory") == 0:
-                self.session.state = replace(self.session.state, inventory=0)
-            if current["state"] == "inventory":
-                self.assertFalse(self.session.keeps)
-                self.session.state = replace(self.session.state, inventory=900)
+            self.session.state = replace(self.session.state, inventory=0)
 
         self.sleep = sleep
-        self.assertEqual("complete", self.run_job()["state"])
-        self.assertIn("inventory", states)
+        with self.assertRaises(TimeoutError):
+            self.run_job()
+        record = self.store.current()
+        self.assertEqual("review", record["state"])
+        self.assertFalse(self.session.keeps)
+        self.assertTrue(self.session.menu_closed)
+        self.assertEqual(["close_recipe"], self.session.menu_calls)
+        # A visible Inventory and a resumable job label do not repair the lost
+        # menu acknowledgement. Resume validates its durable request chain first.
+        record["state"] = "paused"
+        self.store.save(record)
+        self.session.finish_cooking()
+        with self.assertRaises(ValueError):
+            self.run_job(resume=True)
+        self.assertEqual(["close_recipe"], self.session.menu_calls)
+        self.assertFalse(self.session.keeps)
+
+    def pause_after_inventory_opens(self):
+        def after_menu(name):
+            if name == "open_inventory":
+                self.cancel = True
+
+        def sleep(seconds):
+            self.now += seconds
+            self.session.finish_cooking()
+            if not self.session.menu_calls:
+                self.session.state = replace(self.session.state, inventory=0)
+
+        self.session.after_menu = after_menu
+        self.sleep = sleep
+        result = self.run_job()
+        self.assertEqual("paused", result["state"])
+        self.assertFalse(self.session.keeps)
+        path = self.store.directory(result["job_id"]) / "inventory-menu.json"
+        self.assertEqual("complete", json.loads(path.read_text())["state"])
+        self.cancel = False
+        return path
+
+    def test_completed_menu_closed_on_resume_is_not_replayed(self):
+        self.pause_after_inventory_opens()
+        self.session.state = replace(self.session.state, inventory=0)
+        with self.assertRaisesRegex(VendorBatchStopped, "journal exists"):
+            self.run_job(resume=True)
+        self.assertEqual("review", self.store.current()["state"])
+        self.assertEqual(["close_recipe", "open_inventory"], self.session.menu_calls)
+        self.assertFalse(self.session.keeps)
+        self.assertEqual(2, len(self.session.calls))
+
+    def test_foreign_or_tampered_menu_blocks_keep_on_resume(self):
+        path = self.pause_after_inventory_opens()
+        original = json.loads(path.read_text())
+        for foreign in (True, False):
+            with self.subTest(foreign=foreign):
+                record = self.store.current()
+                record["state"] = "paused"
+                self.store.save(record)
+                modified = copy.deepcopy(original)
+                if foreign:
+                    modified["process_id"] += 1
+                else:
+                    modified["requests"][-1]["state"] = "submitted"
+                path.write_text(json.dumps(modified))
+                with self.assertRaises((ValueError, VendorBatchStopped)):
+                    self.run_job(resume=True)
+                self.assertEqual("review", self.store.current()["state"])
+                self.assertEqual(["close_recipe", "open_inventory"], self.session.menu_calls)
+                self.assertFalse(self.session.keeps)
+                self.assertEqual(2, len(self.session.calls))
 
     def test_owner_change_and_timeout_stop_without_keep(self):
         for behavior in ("owner", "timeout"):

@@ -19,7 +19,9 @@
         "cae5311b5b6134bf25155b16c70b1743c1216c0bd0c88f1240d7e92388211d26",
         "761f375e422332cac2512398bb935af38b30267b9b3a7a5cede9f87e98982442",
         "6347b420c6c151995f168f16fd1624408dd8911698d11a4a74b26d211fb49f19",
-        "7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f"
+        "7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f",
+        "3891fcab09dac06d858ac55911046448e75f3519e2f58e1d7c2ccc954aa410b7",
+        "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289"
       ],
       "validation": {
         "profile_field_comparison": {
@@ -226,6 +228,45 @@
           "relocated_site_count": 0,
           "missing_or_ambiguous_site_count": 0,
           "evidence": "docs/client-update-20260924.md"
+        },
+        "client_alignment_20260926": {
+          "applicable_profile_count": 16,
+          "baseline_executable_sha256": "6347b420c6c151995f168f16fd1624408dd8911698d11a4a74b26d211fb49f19",
+          "calibrated_anchor_count": 50,
+          "calibrated_rva_references_in_changed_range": 0,
+          "candidate_executable_sha256": "3891fcab09dac06d858ac55911046448e75f3519e2f58e1d7c2ccc954aa410b7",
+          "candidate_length": 21143613,
+          "changed_byte_count": 1,
+          "changed_range_count": 1,
+          "changed_rva_end_exclusive": 19775885,
+          "changed_rva_start": 19775884,
+          "changed_sections": [
+            ".data"
+          ],
+          "pe_header_layout_equal": true,
+          "reference_length": 21143613,
+          "review_required": false,
+          "section_layouts_equal": true,
+          "unchanged_sections": [
+            ".text",
+            ".rdata",
+            ".idata",
+            ".rsrc",
+            ".reloc"
+          ],
+          "evidence": "docs/client-update-20260926.md",
+          "patched_executable_sha256": "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289"
+        },
+        "bootstrap_patch_alignment_20260926": {
+          "source_executable_sha256": "3891fcab09dac06d858ac55911046448e75f3519e2f58e1d7c2ccc954aa410b7",
+          "patched_executable_sha256": "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289",
+          "patch_id": "wonderbane-1.3.38.12-3891fcab.bootstrap-v1",
+          "architecture_matches": true,
+          "all_sites_resolved": true,
+          "exact_site_count": 7,
+          "relocated_site_count": 0,
+          "missing_or_ambiguous_site_count": 0,
+          "evidence": "docs/client-update-20260926.md"
         }
       }
     }

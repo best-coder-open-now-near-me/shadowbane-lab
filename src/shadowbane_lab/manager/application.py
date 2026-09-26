@@ -436,6 +436,11 @@ class ManagerDashboardApplication:
                         slot.client_id, None if binding is None else binding.instance_id,
                     )
                 )
+                payload["vendor_recipes"] = (
+                    None if self._vendor_control is None else self._vendor_control.recipe_summary(
+                        slot.client_id, None if binding is None else binding.instance_id,
+                    )
+                )
                 payload["vendor_available"] = self._vendor_control is not None
                 payload["guard_available"] = self._guard_control is not None
                 payload["condemn_available"] = self._condemn_control is not None
@@ -541,7 +546,9 @@ class ManagerDashboardApplication:
     ) -> dict[str, object]:
         """Execute one route-validated action and preserve exact binding ownership."""
 
-        if selection is not None and action != "condemn-start":
+        if selection is not None and action not in {
+            "condemn-start", "vendor-recipe-save", "vendor-start",
+        }:
             raise DashboardError(
                 "invalid-action-fields", "This action does not accept a selection.")
         if action == "start-all":
@@ -602,7 +609,9 @@ class ManagerDashboardApplication:
             "condemn-pause", "condemn-resume", "condemn-stop",
         }:
             raise DashboardError("invalid-action-fields", "This action does not accept a batch.")
-        if selection is not None and action != "condemn-start":
+        if selection is not None and action not in {
+            "condemn-start", "vendor-recipe-save", "vendor-start",
+        }:
             raise DashboardError(
                 "invalid-action-fields", "This action does not accept a selection.")
         if action == "start-all":
@@ -675,10 +684,13 @@ class ManagerDashboardApplication:
             self._guard_control.execute(action, client_id, instance_id, job_id=job_id)
             return
         if action in {"vendor-start", "vendor-pause", "vendor-resume", "vendor-stop",
-                      "vendor-discover"}:
+                      "vendor-discover", "vendor-recipes", "vendor-recipe-save"}:
             if self._vendor_control is None:
                 raise DashboardError("vendor-unavailable", "Vendor jobs are not configured.")
-            self._vendor_control.execute(action, client_id, instance_id, job_id=job_id)
+            self._vendor_control.execute(
+                action, client_id, instance_id, job_id=job_id,
+                **({"selection": selection} if selection is not None else {}),
+            )
             return
         if action in {"pause", "detach", "close"}:
             self._worker_supervisor.revoke(

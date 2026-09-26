@@ -102,6 +102,7 @@ def fixture(tmp_path):
     session = Session(path)
     nearby = {
         "state": "complete",
+        "scene": 1, "root": 100,
         "identity": list(store.identity),
         "game_process_id": 988,
         "game_creation_filetime": 123,
@@ -281,3 +282,119 @@ def test_all_unavailable_is_review_not_success(fixture):
     saved = json.loads(fixture.path.read_text())
     assert saved["state"] == "review" and saved["vendors"] == 0
     assert all(row["state"] == "unavailable" for row in saved["roster"])
+
+
+@pytest.mark.parametrize("field", ["scene", "root"])
+@pytest.mark.parametrize("value", [None, True, 0, -1, "1"])
+def test_missing_or_invalid_candidate_provenance_never_opens(fixture, field, value):
+    f = fixture
+    if value is None:
+        del f.nearby[field]
+    else:
+        f.nearby[field] = value
+    with pytest.raises(VendorBatchStopped, match="scene provenance"):
+        f.run()
+    assert not f.session.calls
+    saved = json.loads(f.path.read_text())
+    assert saved["state"] == "review" and not saved["attempts"]
+    assert saved[field] == value
+    summary = json.loads((f.store.root / "nearby-summary.json").read_text())
+    assert summary[field] == value and summary["state"] == "review"
+    with pytest.raises(VendorBatchStopped, match="already attempted"):
+        f.run()
+    assert not f.session.calls
+
+
+@pytest.mark.parametrize("change", ["scene", "root"])
+def test_candidate_provenance_mismatch_is_durable_before_first_open(fixture, change):
+    f = fixture
+    f.session.state = replace(f.session.state, **{change: getattr(f.session.state, change) + 1})
+    with pytest.raises(VendorBatchStopped, match="different scene"):
+        f.run()
+    assert not f.session.calls
+    saved = json.loads(f.path.read_text())
+    assert saved["state"] == "review" and saved["attempts"] == []
+    assert (saved["scene"], saved["root"]) == (1, 100)
+
+
+@pytest.mark.parametrize("change", [None, "scene", "root"])
+def test_worker_city_to_navigation_handoff_keeps_original_scene(fixture, monkeypatch, change):
+    from functools import partial
+    from unittest.mock import Mock
+
+    from shadowbane_lab.manager import vendor_control
+    from shadowbane_lab.manager.operation import WorkerOperationKind, WorkerOperationState
+    from shadowbane_lab.manager.vendor_discovery import run_discovery
+    from tests.test_city_window import OPENED, STATE, receipt
+
+    f = fixture
+    f.binding.client_id, f.binding.instance_id, f.binding.worker_id = "client", "instance", "worker"
+    f.operation.kind = WorkerOperationKind.VENDOR
+    f.operation.client_id, f.operation.instance_id = "client", "instance"
+    f.operation.worker_id, f.operation.node_id = "worker", "node"
+    f.operation.command = "vendor discover"
+    city = Mock()
+    city.closed = False
+    # Different ordinary city/native navigation managers are expected; only the
+    # shared root and scene identify the same client scene across this handoff.
+    city_state = replace(STATE, manager=800)
+    city_opened = replace(OPENED, manager=800, active_manager=800, building_count=2)
+    city.inspect.side_effect = [receipt(city_state), receipt(city_opened), receipt(city_opened)]
+    city.open.return_value = receipt(outcome=Outcome.SUBMITTED, flags=0)
+
+    def close_city():
+        city.closed = True
+        if change:
+            f.session.state = replace(
+                f.session.state, **{change: getattr(f.session.state, change) + 1},
+            )
+
+    city.close.side_effect = close_city
+    f.session.close = Mock()
+
+    def navigation(binding):
+        assert binding is f.binding and city.closed
+        return f.session
+
+    candidates = dict(f.nearby["roster"], process_id=988, process_creation_filetime_utc=123)
+    for building in candidates["buildings"]:
+        building["vendors"] = []
+    # Use both real production phases through the actual worker; replace only
+    # native observation adapters with deterministic owned-scene fixtures.
+    monkeypatch.setattr(vendor_control, "run_discovery", partial(
+        run_discovery, reader=lambda _: candidates, sleep=lambda _: None,
+    ))
+    monkeypatch.setattr(vendor_control, "run_building_discovery", partial(
+        run_building_discovery, reader=f.reader, sleep=lambda _: None,
+    ))
+    crafting = Mock(side_effect=AssertionError("discovery cannot craft"))
+    executor = vendor_control.VendorWorkerExecutor(
+        f.store.root.parents[3], "node", f.binding, session_factory=crafting,
+        city_session_factory=lambda _: city, navigation_session_factory=navigation,
+    )
+    if change:
+        with pytest.raises(VendorBatchStopped, match="different scene"):
+            executor.execute(f.operation, stop_signal=SimpleNamespace(is_set=lambda: False))
+        assert not f.session.calls
+    else:
+        result = executor.execute(f.operation, stop_signal=SimpleNamespace(is_set=lambda: False))
+        assert result.state == WorkerOperationState.SUCCEEDED and len(f.session.calls) == 4
+    city.close.assert_called_once_with()
+    f.session.close.assert_called_once_with()
+    crafting.assert_not_called()
+    discovery_path = f.store.root / "discovery" / (f.operation.operation_id + ".json")
+    discovery = json.loads(discovery_path.read_text())
+    assert (discovery["scene"], discovery["root"]) == (1, 100)
+    assert discovery["expected"] == city_state.encode().hex()
+    summary = json.loads((f.store.root / "nearby-summary.json").read_text())
+    assert (summary["scene"], summary["root"]) == (1, 100)
+    assert summary["state"] == ("review" if change else "complete")
+
+
+@pytest.mark.parametrize("field,value", [("scene", 2**64), ("root", 2**32)])
+def test_candidate_provenance_requires_native_wire_width(fixture, field, value):
+    fixture.nearby[field] = value
+    with pytest.raises(VendorBatchStopped, match="scene provenance"):
+        fixture.run()
+    assert not fixture.session.calls
+    assert json.loads(fixture.path.read_text())["state"] == "review"
