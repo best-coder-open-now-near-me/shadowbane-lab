@@ -219,7 +219,9 @@ class LiveConfiguredManagerApplication:
         job_id: str | None = None,
         selection: dict | None = None,
     ) -> dict[str, object]:
-        if selection is not None and action != "condemn-start":
+        if selection is not None and action not in {
+            "condemn-start", "vendor-recipe-save", "vendor-start",
+        }:
             raise DashboardError(
                 "invalid-action-fields", "This action does not accept a selection.")
         with self._lock:

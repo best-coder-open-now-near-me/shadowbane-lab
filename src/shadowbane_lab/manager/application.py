@@ -546,7 +546,9 @@ class ManagerDashboardApplication:
     ) -> dict[str, object]:
         """Execute one route-validated action and preserve exact binding ownership."""
 
-        if selection is not None and action != "condemn-start":
+        if selection is not None and action not in {
+            "condemn-start", "vendor-recipe-save", "vendor-start",
+        }:
             raise DashboardError(
                 "invalid-action-fields", "This action does not accept a selection.")
         if action == "start-all":
@@ -607,7 +609,9 @@ class ManagerDashboardApplication:
             "condemn-pause", "condemn-resume", "condemn-stop",
         }:
             raise DashboardError("invalid-action-fields", "This action does not accept a batch.")
-        if selection is not None and action != "condemn-start":
+        if selection is not None and action not in {
+            "condemn-start", "vendor-recipe-save", "vendor-start",
+        }:
             raise DashboardError(
                 "invalid-action-fields", "This action does not accept a selection.")
         if action == "start-all":

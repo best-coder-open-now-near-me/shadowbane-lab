@@ -299,12 +299,23 @@ def control_setup():
         test.doCleanups()
 
 
-def test_manager_queues_pinned_catalog_save_and_start_on_exact_worker(control_setup):
+def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup):
+    import http.client
     import threading
 
+    from shadowbane_lab.manager.dashboard import DashboardError, DashboardServer
+    from shadowbane_lab.manager.live_configuration import LiveConfiguredManagerApplication
     from shadowbane_lab.manager.operation import WorkerOperationReceipt, WorkerOperationState
+    from shadowbane_lab.manager.session import ManagerSessionSnapshot
     from shadowbane_lab.manager.vendor_control import VendorWorkerExecutor
     from shadowbane_lab.manager.worker_runtime import ExactClientWorkerBinding
+    from tests.test_manager_application import (
+        _application,
+        _client,
+        _manifest,
+        _RecordingSession,
+        _slot,
+    )
     from tests.test_manager_operation import CLIENT_ID, INSTANCE_ID, NODE_ID, WORKER_ID
     test = control_setup
     session = Session(test.store)
@@ -319,8 +330,33 @@ def test_manager_queues_pinned_catalog_save_and_start_on_exact_worker(control_se
     binding = ExactClientWorkerBinding(CLIENT_ID, INSTANCE_ID, 988, 1234567, 1000, WORKER_ID)
     worker = VendorWorkerExecutor(test.root, NODE_ID, binding, session_factory=lambda _: session,
                                   recipe_reader=session.reader)
+    lifecycle = _RecordingSession(ManagerSessionSnapshot(
+        node_id=NODE_ID,
+        slots=(_slot(CLIENT_ID, instance_id=INSTANCE_ID), _slot("client-02")),
+    ))
+    application, _ = _application(
+        lifecycle, _client(INSTANCE_ID, 988), vendor_control=test.control,
+    )
+    facade = LiveConfiguredManagerApplication(
+        test.root / "manager.json", _manifest(), lambda manifest: application,
+    )
+    def request(action, selection=None, *, instance_id=INSTANCE_ID):
+        payload = dict(action=action, client_id=CLIENT_ID, instance_id=instance_id)
+        if selection is not None:
+            payload["selection"] = selection
+        connection = http.client.HTTPConnection(server.host, server.port, timeout=3)
+        try:
+            connection.request("POST", "/api/v1/actions", body=json.dumps(payload), headers={
+                "Authorization": "Bearer " + server.authorization_token,
+                "Content-Type": "application/json",
+            })
+            response = connection.getresponse()
+            return response.status, json.loads(response.read())
+        finally:
+            connection.close()
     def execute(action, selection=None):
-        test.control.execute(action, CLIENT_ID, INSTANCE_ID, selection=selection)
+        status, response = request(action, selection)
+        assert status == 200 and response["ok"], response
         entries = test.operations.inspect_slot(CLIENT_ID)
         pending = [entry for entry in entries if entry.receipt is None]
         assert len(pending) == 1
@@ -330,17 +366,35 @@ def test_manager_queues_pinned_catalog_save_and_start_on_exact_worker(control_se
         test.operations.publish_receipt(WorkerOperationReceipt.for_operation(
             op, WorkerOperationState.SUCCEEDED, observed_at=101))
         return op
-    assert execute("vendor-recipes").command == "vendor recipes"
-    recipes = VendorRecipeStore(test.store)
-    catalog_id = recipes.catalog()["catalog_id"]
-    op = execute("vendor-recipe-save", dict(catalog_id=catalog_id, template=25860))
-    assert op.command == f"vendor recipe {catalog_id} 25860"
-    revision = recipes.current()["revision"]
-    op = execute("vendor-start", dict(recipe_revision=revision))
-    assert op.command == "vendor start " + revision
-    assert test.store.current()["state"] == "complete" and len(session.calls) == 2
-    assert session.closed_count == 3
-    assert test.control.recipe_summary(CLIENT_ID, INSTANCE_ID)["saved"]["revision"] == revision
+    with DashboardServer(facade, port=0) as server:
+        # Both HTTP schemas and exact manager bindings remain fail-closed.
+        for action, selection in (
+            ("vendor-recipe-save", {"catalog_id": "a" * 32, "template": True}),
+            ("vendor-start", {"recipe_revision": "b" * 32, "extra": 1}),
+            ("vendor-recipes", {"recipe_revision": "b" * 32}),
+        ):
+            assert request(action, selection)[0] == 400
+        assert not test.operations.inspect_slot(CLIENT_ID)
+        assert execute("vendor-recipes").command == "vendor recipes"
+        recipes = VendorRecipeStore(test.store)
+        catalog_id = recipes.catalog()["catalog_id"]
+        op = execute("vendor-recipe-save", dict(catalog_id=catalog_id, template=25860))
+        assert op.command == f"vendor recipe {catalog_id} 25860"
+        revision = recipes.current()["revision"]
+        op = execute("vendor-start", dict(recipe_revision=revision))
+        assert op.command == "vendor start " + revision
+        assert test.store.current()["state"] == "complete" and len(session.calls) == 2
+        assert session.closed_count == 3
+        assert test.control.recipe_summary(CLIENT_ID, INSTANCE_ID)["saved"]["revision"] == revision
+        completed = test.operations.inspect_slot(CLIENT_ID)
+        status, _ = request("vendor-start", dict(recipe_revision=revision),
+                            instance_id="another-instance")
+        assert status != 200 and test.operations.inspect_slot(CLIENT_ID) == completed
+        for target in (facade, application):
+            with pytest.raises(DashboardError, match="does not accept a selection"):
+                target.execute("start-all", selection=dict(recipe_revision=revision))
+        assert not lifecycle.calls
+
 
 
 def test_stale_saved_revision_and_old_worker_cannot_queue_start(control_setup):
