@@ -15,6 +15,11 @@ from .native_vendor_queue import VendorQueueMemory, _ReadSet
 from .native_vendor_roster import _text
 
 EXACT_EXECUTABLE_SHA256 = "7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f"
+# The .12 image changes only its version digit; see docs/client-update-20260926.md.
+REVIEWED_RECIPE_EXECUTABLES = frozenset({
+    EXACT_EXECUTABLE_SHA256,
+    "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289",
+})
 _PANEL_CLASSES = {0x1169EC0, 0x11657C8}
 # The extra leaf is present in all three September 24 Balanced Dagger samples
 # from the private recipe_controls tab-zero graph (snapshot 1790285225894507000).
@@ -32,7 +37,7 @@ def _identity(memory):
             or type(creation) is not int or not 0 < creation < 2**64
             or type(base) is not int or not 0x10000 <= base < 0x80000000 or base % 4
             or not isinstance(name, str) or name.casefold() != "sb.exe"
-            or digest != EXACT_EXECUTABLE_SHA256 or type(pointer_size) is not int
+            or digest not in REVIEWED_RECIPE_EXECUTABLES or type(pointer_size) is not int
             or pointer_size != 4):
         raise NativeVendorDialogCompatibilityError("unqualified recipe catalog build or lifetime")
     return values

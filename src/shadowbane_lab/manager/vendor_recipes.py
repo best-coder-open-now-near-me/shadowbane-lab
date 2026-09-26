@@ -26,7 +26,7 @@ from shadowbane_lab.client_extension.vendor_recipe import RandomRecipeSpec
 from shadowbane_lab.client_observation.native_character_config import NativeCharacterConfigReader
 from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
 from shadowbane_lab.client_observation.native_vendor_recipe_catalog import (
-    EXACT_EXECUTABLE_SHA256,
+    REVIEWED_RECIPE_EXECUTABLES,
     read_native_vendor_recipe_catalog,
 )
 from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
@@ -96,7 +96,7 @@ def read_context(binding, *, catalog=False):
     try:
         if (
             memory.process_creation_filetime_utc != binding.game_process_started_at_100ns
-            or memory.executable_sha256 != EXACT_EXECUTABLE_SHA256
+            or memory.executable_sha256 not in REVIEWED_RECIPE_EXECUTABLES
         ):
             raise VendorBatchStopped("recipe client lifetime or image changed")
         reader = NativeCharacterConfigReader(memory)

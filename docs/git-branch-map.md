@@ -1,5 +1,23 @@
 # Git branch map
 
+## Active client update - September 26
+
+The current client candidate is `codex/client-update-20260926`, native 1.8.32 /
+host 0.3.52, for official 1.3.38.12. It includes `main@a91dfd5` and vendor
+[PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38)
+through `a87a7af`, including the saved-recipe dashboard routing correction.
+The shared merge destination remains `main`; this candidate is awaiting review
+and is not merged. Use this branch for work that must preserve the current vendor
+candidate. Separate PvP work in PR #39 and cancelled carpenter drafts are excluded.
+The normal project checkout remains on `main`.
+
+See [the update review](client-update-20260926.md) for exact binary identities,
+validation and deployment status. Before this update, installed source is
+`9f96813`, native 1.8.31 / host 0.3.51, on client 1.3.38.11. Package qualification
+and installation are the active next steps. Manager attachment and live recipe
+acceptance remain open; guards are set aside and carpenter is cancelled.
+Historical status below does not override this current state.
+
 ## Current client update - September 24
 
 Native 1.8.27 / host 0.3.47 from source `d74d3c3` is installed in the VM
