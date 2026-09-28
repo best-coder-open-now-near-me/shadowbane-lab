@@ -1,5 +1,21 @@
 # Git branch map
 
+## Active bot work - September 28
+
+Use freshly fetched `origin/main` for independent work. Existing combat admission
+continues in `codex/explicit-list-combat` / PR #39. PvE correctness and listener
+command ownership have separate branches targeting main. The [bot work ledger](bot-work-20260928.md)
+records exact tips, validation, inclusion and the next integration step.
+
+Client update PR #40 includes vendor PR #38 and remains outside main; it excludes
+PR #39. Its September 26 receipt records client 1.3.38.12, native 1.8.32 and host
+0.3.52 at source `e9bf933`. This is recorded deployment evidence, not a fresh live
+session check. Older current/next paragraphs below are historical snapshots.
+
+Deployment policy: do not retain rollback copies, archives or old runtimes.
+Rebuild committed source and use official client assets; preserve settings, saves
+and durable jobs in place. Historical contrary requirements are superseded.
+
 ## Current client update - September 24
 
 Native 1.8.27 / host 0.3.47 from source `d74d3c3` is installed in the VM
