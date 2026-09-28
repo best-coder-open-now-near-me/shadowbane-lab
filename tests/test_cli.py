@@ -529,6 +529,8 @@ class ClientCliTests(unittest.TestCase):
             is_foreground=True,
             is_visible=True,
             process_id=4320,
+            process_started_at_100ns=1000,
+            window_handle=20,
         )
         service_stop = EventEmergencyStop()
         captured: dict[str, object] = {}
@@ -637,6 +639,8 @@ class ClientCliTests(unittest.TestCase):
             is_foreground=True,
             is_visible=True,
             process_id=4320,
+            process_started_at_100ns=1000,
+            window_handle=20,
         )
         service_stop = EventEmergencyStop()
         captured: dict[str, object] = {}
@@ -785,6 +789,8 @@ class ClientCliTests(unittest.TestCase):
             is_foreground=True,
             is_visible=True,
             process_id=4320,
+            process_started_at_100ns=1000,
+            window_handle=20,
         )
         service_stop = EventEmergencyStop()
         search_result = ZoneSearchResult(
@@ -902,6 +908,8 @@ class ClientCliTests(unittest.TestCase):
             is_foreground=True,
             is_visible=True,
             process_id=4320,
+            process_started_at_100ns=1000,
+            window_handle=20,
         )
         service_stop = EventEmergencyStop()
         captured: dict[str, object] = {}

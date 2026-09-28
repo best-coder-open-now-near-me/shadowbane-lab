@@ -268,3 +268,50 @@ class ForegroundWorkerOperationIngressTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_captured_creation_time_rejects_pid_and_window_reuse_before_submission():
+    from unittest.mock import MagicMock
+
+    import pytest
+
+    client = _client()
+    ledger = MagicMock(spec=WorkerOperationLedger)
+    ingress = ForegroundWorkerOperationIngress(
+        _manifest(), _Registry((client,)), _Permits(_permit()), ledger,
+        clock=lambda: 100.0,
+    )
+    expected = dict(
+        expected_process_id=client.process_id,
+        expected_window_handle=client.window_handle,
+        expected_process_started_at_100ns=client.process_started_at_100ns - 1,
+    )
+    with pytest.raises(WorkerOperationIngressError, match="guarded process"):
+        ingress.dispatch(WorkerOperationKind.PVE, "/pve", **expected)
+    with pytest.raises(WorkerOperationIngressError, match="captured process"):
+        ingress.cancel_if_inflight(
+            "physical-client-interaction", require_foreground=False, **expected,
+        )
+    ledger.submit.assert_not_called()
+    ledger.inspect_slot.assert_not_called()
+
+
+def test_captured_creation_time_is_validated_for_dispatch_and_cancellation():
+    from unittest.mock import MagicMock
+
+    import pytest
+
+    ingress = ForegroundWorkerOperationIngress(
+        _manifest(), _Registry((_client(),)), _Permits(_permit()),
+        MagicMock(spec=WorkerOperationLedger),
+        clock=lambda: 100.0,
+    )
+    for invalid in (True, 0, -1, "1000"):
+        with pytest.raises(ValueError, match="expected_process_started_at_100ns"):
+            ingress.dispatch(
+                WorkerOperationKind.PVE, "/pve", expected_process_started_at_100ns=invalid,
+            )
+        with pytest.raises(ValueError, match="expected_process_started_at_100ns"):
+            ingress.cancel_if_inflight(
+                "physical-client-interaction", expected_process_started_at_100ns=invalid,
+            )
