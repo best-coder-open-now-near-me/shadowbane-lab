@@ -938,7 +938,15 @@ def _print_go_listener_event(
         )
     elif event == "attack-list":
         assert result is not None
-        print(f"Attack list ({result['action']}):", flush=True)
+        print(f"Attack list ({result['action']}), saved revision {result['revision']}:", flush=True)
+        pending_cancellations = result.get("entered_admissions_requiring_cancellation", ())
+        if pending_cancellations:
+            print(
+                "  Saved list updated; previously admitted combat requests still require "
+                "native cancellation. Cancellation is not confirmed.", flush=True,
+            )
+            for request_id in pending_cancellations:
+                print(f"  Cancellation required for request {request_id}", flush=True)
         for entry in result["entries"]:
             identity_status = (
                 "identity unresolved" if entry.get("identity_status") != "saved_player"

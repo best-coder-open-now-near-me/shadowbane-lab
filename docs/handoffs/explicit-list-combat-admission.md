@@ -170,3 +170,29 @@ both native wire/fence fixtures pass in both VS2022 profiles. Command kinds 34=s
 branches contain no collision. No channel capability, hooks or attacks are enabled.
 The active next item remains the owner-thread selection/attack/cancellation service
 and its factory/outbound-queue receipts, followed by host combat recovery wiring.
+
+## September 28 command receipt presentation
+
+The normal text listener now displays the saved list revision and every entered
+request that still requires native cancellation. It states that cancellation is
+not confirmed before displaying the remaining entries or an empty list. A successful
+saved-list edit therefore does not conceal an outstanding combat cleanup obligation.
+JSON continues to retain the original structured mutation receipt unchanged. An
+empty cancellation receipt makes no claim that native cancellation completed.
+
+Validation: 78 attack-list, combat-wire and combat-fence tests passed with the
+existing VS2022 full-profile Win32 consumer enabled, with no skipped tests. The
+native entry -> clear mutation -> listener formatter regression checks the actual
+entered-ticket receipt; formatter cases cover add, remove, clear, multiple request
+IDs and unchanged JSON output. Ruff passed for the touched Python files. No native
+source, installed runtime, wire format or saved provenance changed.
+
+Next remains the complete native owner-thread combat transaction. Current
+`command_channel.h` has no combat queue routing, and only runtime tests install
+`combat_owner_service`/`combat_owner_stop`; the production service is absent.
+Implement its start/status/cancel queue and retained stop/retirement callbacks on
+the existing owner service boundary. Before enabling the capability, require fresh
+exact player/party/native legality checks, revalidate after selection callbacks,
+enter the saved-intent fence immediately before attack, correlate the specific
+outbound request, and complete exact-Grant cancellation before PvE recovery. The
+receipt presentation does not supply any of those missing action guarantees.

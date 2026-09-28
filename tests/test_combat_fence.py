@@ -249,7 +249,9 @@ def native():
 
 
 @WINDOWS
-def test_native_entry_once_then_mutation_requires_cancellation(tmp_path, native):
+def test_native_entry_once_then_mutation_requires_cancellation(tmp_path, native, capsys):
+    from shadowbane_lab.cli_commands.client_listener import _print_go_listener_event
+
     store = store_at(tmp_path)
     with register(store, native.identity) as ticket:
         native.open(ticket.binding)
@@ -261,6 +263,10 @@ def test_native_entry_once_then_mutation_requires_cancellation(tmp_path, native)
         assert native.command("enter") == "4"  # no duplicate admission
         result = apply_attack_list_command("/blacklist clear", store)
         assert result["entered_admissions_requiring_cancellation"] == [ticket.binding.request.hex()]
+        _print_go_listener_event("attack-list", as_json=False, result=result)
+        output = capsys.readouterr().out
+        assert "Cancellation is not confirmed" in output
+        assert ticket.binding.request.hex() in output
         assert native.command("inspect") == "5 4"
         assert native.command("enter") == "5"
 
