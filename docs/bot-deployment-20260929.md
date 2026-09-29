@@ -71,6 +71,14 @@ native diagnostic CTests and the production DLL build passed, as did independent
 review. Combined validation and source-stamped packaging follow the final source
 checkpoint; this document does not certify a new qualified deployment.
 
+Standalone PvE now initializes the input backend, journal and navigation observer
+before acquiring its expiring native movement grant, then revalidates the exact
+client and character. Initialization failures acquire no authority. Listed cleanup
+still precedes owner release, with observer/journal closure afterward; injected
+dispatchers remain caller-owned. Focused CLI/lifecycle validation passed 48 tests
+and five subtests with one expected native-fixture skip. This fixes the startup
+ordering without claiming that cold-import starvation caused the first live loss.
+
 ## Qualified package
 
 The exact-source acceptance packager produced local artifact `artifacts/b33/8b432cb3`.

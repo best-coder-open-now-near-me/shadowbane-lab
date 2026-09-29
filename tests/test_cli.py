@@ -2,7 +2,7 @@ import io
 import json
 import tempfile
 import unittest
-from contextlib import nullcontext, redirect_stderr, redirect_stdout
+from contextlib import contextmanager, nullcontext, redirect_stderr, redirect_stdout
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -1307,7 +1307,9 @@ class ClientCliTests(unittest.TestCase):
         self._assert_pve_process_binding(policy="proc-assassin")
 
     def test_pve_uses_injected_movement_without_minimap(self) -> None:
-        self._assert_pve_process_binding(policy="basic", native_movement=True)
+        self._assert_pve_process_binding(
+            policy="basic", native_movement=True, check_preparation=True,
+        )
 
     def test_pve_rejects_replaced_client_before_opening_readers_or_movement(self) -> None:
         self._assert_pve_process_binding(policy="basic", captured_creation=134327529709130521)
@@ -1315,9 +1317,27 @@ class ClientCliTests(unittest.TestCase):
     def test_pve_rejects_missing_process_lifetime_before_starting(self) -> None:
         self._assert_pve_process_binding(policy="basic", captured_creation=0)
 
+    def test_pve_prepares_resources_before_acquiring_movement(self) -> None:
+        self._assert_pve_process_binding(policy="basic", check_preparation=True)
+
+    def test_pve_preparation_failure_never_acquires_movement(self) -> None:
+        for failure in ("backend", "journal", "observer"):
+            with self.subTest(failure=failure):
+                self._assert_pve_process_binding(
+                    policy="basic", check_preparation=True, preparation_failure=failure,
+                )
+
+    def test_pve_revalidates_identity_after_preparation(self) -> None:
+        for failure in ("client_replaced", "character_replaced"):
+            with self.subTest(failure=failure):
+                self._assert_pve_process_binding(
+                    policy="basic", check_preparation=True, preparation_failure=failure,
+                )
+
     def _assert_pve_process_binding(
         self, *, policy: str, native_movement: bool = False,
         captured_creation: int | None = None,
+        check_preparation: bool = False, preparation_failure: str | None = None,
     ) -> None:
         from shadowbane_lab.client_input.character_config import CharacterConfigSession
         from shadowbane_lab.client_observation.native_character_config import (
@@ -1351,6 +1371,8 @@ class ClientCliTests(unittest.TestCase):
         snapshot = replace(snapshot, process_started_at_100ns=134327529709130522)
         if captured_creation is not None:
             snapshot = replace(snapshot, process_started_at_100ns=captured_creation or None)
+        inspector = StaticWindowInspector(snapshot)
+        preparation_events = []
         native_profiles = tuple(
             SimpleNamespace(executable_sha256="ab" * 32, profile_id=f"profile-{index}")
             for index in range(9)
@@ -1426,11 +1448,46 @@ class ClientCliTests(unittest.TestCase):
             evidence_output = Path(directory) / "evidence" / "pve.json"
             navigation_cache = Path(directory) / "cache"
             navigation_cache.mkdir()
+            def prepare_backend():
+                preparation_events.append("backend")
+                if preparation_failure == "backend":
+                    raise RuntimeError("backend preparation failed")
+                return RecordingInputBackend()
+
+            @contextmanager
+            def prepare_journal(*args, **kwargs):
+                from shadowbane_lab.pve.evidence import PvETraceJournal
+
+                preparation_events.append("journal")
+                if preparation_failure == "journal":
+                    raise OSError("journal preparation failed")
+                with PvETraceJournal(*args, **kwargs) as journal:
+                    try:
+                        yield journal
+                    finally:
+                        preparation_events.append("journal_closed")
+
+            @contextmanager
+            def prepare_observer(_reader):
+                preparation_events.append("observer")
+                if preparation_failure == "observer":
+                    raise OSError("observer preparation failed")
+                if preparation_failure == "client_replaced":
+                    inspector.snapshot = replace(
+                        snapshot, process_started_at_100ns=snapshot.process_started_at_100ns + 1,
+                    )
+                elif preparation_failure == "character_replaced":
+                    character_memory.set_identity("replacement", "Wonderbane")
+                try:
+                    yield None
+                finally:
+                    preparation_events.append("observer_closed")
+
             with (
                 patch("shadowbane_lab.cli.load_calibration", return_value=profile),
                 patch(
                     "shadowbane_lab.cli.WindowsForegroundWindowInspector",
-                    return_value=StaticWindowInspector(snapshot),
+                    return_value=inspector,
                 ),
                 patch.multiple(
                     "shadowbane_lab.cli",
@@ -1474,8 +1531,9 @@ class ClientCliTests(unittest.TestCase):
                 ) as open_character,
                 patch(
                     "shadowbane_lab.cli.PyAutoGuiBackend",
-                    return_value=RecordingInputBackend(),
+                    side_effect=prepare_backend,
                 ),
+                patch("shadowbane_lab.cli.PvETraceJournal", side_effect=prepare_journal),
                 patch("shadowbane_lab.cli.PvERunner") as pve_runner,
                 patch(
                     "shadowbane_lab.cli_commands.client_pve.native_party.load_bundled_native_group_profile",
@@ -1497,7 +1555,7 @@ class ClientCliTests(unittest.TestCase):
                 ),
                 patch(
                     "shadowbane_lab.cli_commands.client_pve.optional_session",
-                    return_value=nullcontext(None),
+                    side_effect=prepare_observer,
                 ) as inspector_session,
                 redirect_stdout(output),
             ):
@@ -1508,6 +1566,19 @@ class ClientCliTests(unittest.TestCase):
                     dispatcher=SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock()),
                     is_set=injected_stop.is_set,
                     session=object(), grant=object(),
+                )
+                owned_operation = native_operation.return_value.__enter__.return_value
+
+                def acquire_operation(*_args):
+                    preparation_events.append("acquire")
+                    return owned_operation
+
+                native_operation.return_value.__enter__.side_effect = acquire_operation
+                native_operation.return_value.__exit__.side_effect = (
+                    lambda *_: preparation_events.append("owner_closed")
+                )
+                listed_coordinator.return_value.__exit__.side_effect = (
+                    lambda *_: preparation_events.append("listed_closed")
                 )
                 pve_runner.return_value.run.return_value = completed_run
                 result = _run_pve(
@@ -1531,6 +1602,7 @@ class ClientCliTests(unittest.TestCase):
                     stop_signal=injected_stop,
                     client_process_id=4320,
                     movement_dispatcher=movement_dispatcher,
+                    continuous=check_preparation,
                 )
                 if captured_creation is not None:
                     self.assertEqual(2, result, output.getvalue())
@@ -1541,6 +1613,30 @@ class ClientCliTests(unittest.TestCase):
                     pve_runner.assert_not_called()
                     self.assertTrue(character_memory.closed)
                     return
+                if preparation_failure is not None:
+                    self.assertEqual(2, result, output.getvalue())
+                    native_operation.assert_not_called()
+                    listed_coordinator.assert_not_called()
+                    pve_runner.assert_not_called()
+                    self.assertTrue(character_memory.closed)
+                    if preparation_failure in ("backend", "journal", "observer"):
+                        self.assertIn(
+                            f"{preparation_failure} preparation failed", output.getvalue(),
+                        )
+                    if preparation_failure in ("observer", "client_replaced", "character_replaced"):
+                        self.assertIn("journal_closed", preparation_events)
+                    if preparation_failure in ("client_replaced", "character_replaced"):
+                        self.assertIn("observer_closed", preparation_events)
+                    return
+                if check_preparation:
+                    self.assertEqual(
+                        ["backend", "journal", "observer"]
+                        + ([] if native_movement else ["acquire"])
+                        + ["listed_closed"]
+                        + ([] if native_movement else ["owner_closed"])
+                        + ["observer_closed", "journal_closed"],
+                        preparation_events,
+                    )
                 self.assertEqual(0, result, output.getvalue())
                 inspector_session.assert_called_once_with(
                     open_position.return_value.__enter__.return_value
@@ -1594,8 +1690,11 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(0, result)
         self.assertEqual(1, saved_evidence["trace_schema_version"])
         self.assertEqual(4320, saved_evidence["native_observation"]["process_id"])
-        self.assertEqual(120.0, saved_evidence["farm_limits"]["maximum_encounter_seconds"])
-        self.assertEqual(0.75, saved_evidence["farm_limits"]["recovery_health_fraction"])
+        if check_preparation:
+            self.assertIsNone(saved_evidence["farm_limits"])
+        else:
+            self.assertEqual(120.0, saved_evidence["farm_limits"]["maximum_encounter_seconds"])
+            self.assertEqual(0.75, saved_evidence["farm_limits"]["recovery_health_fraction"])
         open_health.assert_called_once_with(native_profiles[0], process_id=4320)
         open_vitals.assert_called_once_with(native_profiles[1], process_id=4320)
         open_position.assert_called_once_with(native_profiles[2], process_id=4320)
