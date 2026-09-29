@@ -271,3 +271,61 @@ class NativeMovementSession:
             if self._transport is not None:
                 self._transport.close()
                 self._transport = None
+
+    def _combat_transport(self, grant: NativeMovementGrant, *, require_capability: bool = True):
+        if grant.process_identity != self.identity or grant.window != self.window:
+            raise ValueError("combat grant belongs to another client")
+        transport = self._transport
+        if transport is None or self._closed or grant.host != self._host(acquire=False):
+            raise channel.NativeActionChannelUnavailable("combat owner session is closed")
+        # Read/validate the exact process header even during retired-owner cleanup.
+        header = transport.header
+        if require_capability and not header.capability_flags & channel.EXPLICIT_COMBAT_CAPABILITY:
+            raise channel.NativeActionChannelUnavailable("explicit combat is unavailable")
+        return transport
+
+    def require_combat_available(self, grant: NativeMovementGrant) -> None:
+        """Read-only admission before PAUSE; old movement-only services cannot qualify."""
+        with self._session_lock:
+            self._check_grant(grant)
+            if grant in self._stops:
+                raise NativeMovementError(Outcome.INHIBITED)
+            self._combat_transport(grant)
+
+    def combat(self, grant: NativeMovementGrant, verb, command):
+        """Use the existing producer lease and exact Grant; never acquire another owner.
+
+        A timeout is ambiguous. Callers retain this command/ticket and query or cancel
+        it; they must not create another START as a retry.
+        """
+        from .combat_channel import NativeCombatCommand
+        from .combat_wire import Receipt as CombatReceipt
+        from .combat_wire import Verb as CombatVerb
+
+        with self._session_lock:
+            verb = CombatVerb(verb)
+            if (grant.process_identity != self.identity or grant.window != self.window
+                    or command.grant != grant.ownership or command.host != grant.host
+                    or command.window != grant.window
+                    or (command.binding.client_pid, command.binding.client_creation)
+                    != (self.identity.process_id, self.identity.creation_filetime_utc)):
+                raise ValueError("combat command belongs to another owner")
+            if verb is CombatVerb.START:
+                self._check_grant(grant)
+                if grant in self._stops:
+                    raise NativeMovementError(Outcome.INHIBITED)
+            # STATUS/CANCEL remain callable for the immutable old owner after native
+            # revocation. Native correlates its retired transaction, never a replacement.
+            transport = self._combat_transport(grant, require_capability=verb is CombatVerb.START)
+            result = transport.submit(
+                NativeCombatCommand(next(self._ids), verb, command), timeout_ms=self.timeout_ms,
+            )
+            if not result.movement_payload or not any(result.movement_payload):
+                raise channel.NativeActionChannelUnavailable("combat receipt is unavailable")
+            receipt = CombatReceipt.decode(result.movement_payload)
+            receipt.require_command(command)
+            if not result.stage.accepted_submission or result.error_code:
+                raise channel.NativeActionChannelError(
+                    "combat receipt contradicts transport result"
+                )
+            return receipt

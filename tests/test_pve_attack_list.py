@@ -147,6 +147,42 @@ def test_listener_presents_success_instead_of_rejection(capsys):
     assert '"ok": true' in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("action", ["add", "remove", "clear"])
+def test_listener_reports_pending_cancellation_without_claiming_stop(action, capsys):
+    import json
+
+    from shadowbane_lab.cli_commands.client_listener import _print_go_listener_event
+
+    requests = ["a1" * 16, "b2" * 16]
+    result = {"action": action, "revision": 9, "entries": [],
+              "entered_admissions_requiring_cancellation": requests}
+    _print_go_listener_event("attack-list", as_json=False, result=result)
+    output = capsys.readouterr().out
+    assert "saved revision 9" in output
+    assert "Saved list updated" in output
+    assert "still require native cancellation" in output
+    assert "Cancellation is not confirmed" in output
+    assert all(request in output for request in requests)
+    assert output.index("Cancellation is not confirmed") < output.index("Empty")
+
+    _print_go_listener_event("attack-list", as_json=True, result=result)
+    assert json.loads(capsys.readouterr().out) == {
+        "ok": True, "event": "attack-list", "result": result,
+    }
+
+
+def test_listener_without_cancellation_receipt_does_not_claim_cancellation(capsys):
+    from shadowbane_lab.cli_commands.client_listener import _print_go_listener_event
+
+    result = {"action": "clear", "revision": 3, "entries": [],
+              "entered_admissions_requiring_cancellation": []}
+    _print_go_listener_event("attack-list", as_json=False, result=result)
+    output = capsys.readouterr().out
+    assert "saved revision 3" in output
+    assert "Empty" in output
+    assert "cancellation" not in output.lower()
+
+
 def _observed_target():
     from shadowbane_lab.client_observation.native_object import NativeObjectKey
     from shadowbane_lab.pve.attack_list import AttackTargetObservation

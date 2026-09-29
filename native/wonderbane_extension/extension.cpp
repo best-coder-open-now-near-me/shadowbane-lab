@@ -1,6 +1,7 @@
 #include "movement_boundary_trace.h"
 #include "targeted_action_trace.h"
 #include "condemn_responses.h"
+#include "combat_runtime.h"
 #include "movement_runtime.h"
 #include "vendor_runtime.h"
 #include "camera_observation.h"
@@ -31,7 +32,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.8.27";
+constexpr char kExtensionVersion[] = "1.8.33";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -467,6 +468,9 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             // Register only after shared startup succeeds; ordinary disable keeps
             // the owning-update consumer alive for safe re-enable.
             (void)wonderbane::extension::vendor::Start();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            (void)wonderbane::extension::combat::Start(identity);
+#endif
             (void)wonderbane::extension::movement::StartNativeMovementControls(identity);
         }
         if (result != ERROR_SUCCESS) {

@@ -49,10 +49,12 @@ CLIENT_ACTION_CHANNEL_SIZE = CLIENT_ACTION_STATUS_OFFSET + movement_wire.STATUS_
 CLIENT_ACTION_TRANSPORT_CAPABILITY = 1 << 0
 NATIVE_ACTION_DISPATCH_CAPABILITY = 1 << 1
 LEARNED_POWER_DISPATCH_CAPABILITY = 1 << 2
+EXPLICIT_COMBAT_CAPABILITY = 1 << 3
 KNOWN_CLIENT_ACTION_CAPABILITIES = (
     CLIENT_ACTION_TRANSPORT_CAPABILITY
     | NATIVE_ACTION_DISPATCH_CAPABILITY
     | LEARNED_POWER_DISPATCH_CAPABILITY
+    | EXPLICIT_COMBAT_CAPABILITY
 )
 
 _HEADER = struct.Struct("<8s8IQ6q2iq2i8s")
@@ -695,6 +697,7 @@ class WindowsNativeActionCommandTransport:
         timeout_ms: int,
     ) -> NativeActionResult:
         from .city_window_session import NativeCityWindowCommand
+        from .combat_channel import NativeCombatCommand
         from .condemn_session import NativeCondemnCommand
         from .guard_funding_session import NativeGuardFundingCommand
         from .guard_upgrade_session import NativeGuardUpgradeCommand
@@ -702,7 +705,7 @@ class WindowsNativeActionCommandTransport:
         from .vendor_session import NativeVendorCommand
 
         if not isinstance(
-            command, (NativeActionCommand, NativeMovementCommand,
+            command, (NativeActionCommand, NativeMovementCommand, NativeCombatCommand,
                       NativeVendorCommand, NativeCityWindowCommand, NativeVendorNavigationCommand,
                       NativeGuardUpgradeCommand, NativeGuardFundingCommand, NativeCondemnCommand)
         ):

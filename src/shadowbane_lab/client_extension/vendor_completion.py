@@ -20,6 +20,7 @@ from shadowbane_lab.record_store import (
 
 from .action_channel import NativeClientProcessIdentity
 from .vendor_batch import VendorBatchStopped, _items, _owner
+from .vendor_recipe import RandomRecipeSpec, validate_recipe_preparation
 from .vendor_wire import IN_FLIGHT, READY, UNRESOLVED, Outcome, Receipt, Snapshot
 
 
@@ -45,6 +46,8 @@ def _observed_requests(batch: dict, initial: Snapshot, items: list) -> bool:
     if any(not isinstance(r, dict) or r.get("state") != "observed" for r in requests):
         return False
     multiple = batch["schema_version"] == 2
+    recipe = (RandomRecipeSpec.from_dict(batch["recipe_spec"])
+              if batch["schema_version"] == 3 else None)
     if initial.multiple != int(multiple):
         return False
     seen = _items(initial)
@@ -59,7 +62,9 @@ def _observed_requests(batch: dict, initial: Snapshot, items: list) -> bool:
             count = request["expected_item_count"] if multiple else 1
             if (
                 key in keys or not uuid.UUID(key).int
-                or not expected.random_scepter or expected.multiple != initial.multiple
+                or not (recipe.matches(expected) if recipe else expected.random_scepter)
+                or expected.multiple != initial.multiple
+                or (recipe is not None and expected.recipe != initial.recipe)
                 or _owner(expected) != _owner(initial)
                 or not capacity <= len(expected.slots) <= batch["capacity"]
                 or _items(expected) != seen
@@ -87,13 +92,30 @@ def validate_completed_batch(raw: bytes) -> tuple[dict, Snapshot]:
     """
     try:
         batch = json.loads(raw)
+        if batch.get("schema_version") in (1, 2) and any(key in batch for key in (
+            "recipe_spec", "recipe_spec_sha256", "preparation_journal_utf8", "preparation_sha256",
+        )):
+            raise ValueError("generalized recipe evidence cannot become a legacy batch")
         initial = Snapshot.decode(bytes.fromhex(batch["initial_snapshot"]))
         items, capacity = batch["items"], batch["capacity"]
         history = batch["capacity_history"]
+        recipe = None
+        if batch["schema_version"] == 3:
+            recipe = RandomRecipeSpec.from_dict(batch["recipe_spec"])
+            preparation_raw = batch["preparation_journal_utf8"].encode("utf-8")
+            if (batch["recipe_spec_sha256"] != recipe.canonical_digest
+                    or batch["preparation_sha256"] != hashlib.sha256(preparation_raw).hexdigest()):
+                raise ValueError("random recipe preparation digest mismatch")
+            validate_recipe_preparation(
+                preparation_raw, recipe, initial, process_id=batch["process_id"],
+                process_creation_filetime_utc=batch["process_creation_filetime_utc"],
+                window=batch["window"],
+            )
         if (
-            type(batch["schema_version"]) is not int or batch["schema_version"] not in (1, 2)
+            type(batch["schema_version"]) is not int or batch["schema_version"] not in (1, 2, 3)
             or batch["operation"] != "fill_available_slots" or batch["state"] != "complete"
-            or not uuid.UUID(batch["batch_id"]).int or not initial.random_scepter
+            or not uuid.UUID(batch["batch_id"]).int
+            or not (recipe.matches(initial) if recipe else initial.random_scepter)
             or any(type(batch[key]) is not int or not 0 < batch[key] < 2**bits
                    for key, bits in (("process_id", 32), ("process_creation_filetime_utc", 64),
                                      ("window", 32), ("vendor_id", 32)))
@@ -179,6 +201,9 @@ def _decisions(batch: dict, capture: Path | None) -> dict[int, dict]:
     }
     if capture is None:
         return decisions
+    template = (RandomRecipeSpec.from_dict(batch["recipe_spec"]).template
+                if batch["schema_version"] == 3 else 26990)
+    observed_assessments = {}
     for line in _read_record(capture, 8 * 1024 * 1024).splitlines():
         record = json.loads(line)
         if record.get("record_type") != "crafting_message":
@@ -193,7 +218,7 @@ def _decisions(batch: dict, capture: Path | None) -> dict[int, dict]:
             record.get("process_id") != batch["process_id"]
             or record.get("process_creation_filetime_utc") != batch["process_creation_filetime_utc"]
             or message.get("vendor") != {"object_id": batch["vendor_id"], "object_type": 42}
-            or message.get("roll", {}).get("template_id") != 26990
+            or message.get("roll", {}).get("template_id") != template
             or message.get("roll", {}).get("item", {}).get("object_type") != 40
             or record.get("executable_sha256")
             not in REVIEWED_VENDOR_EXECUTABLES
@@ -202,10 +227,14 @@ def _decisions(batch: dict, capture: Path | None) -> dict[int, dict]:
         assessment = assess_native_crafting_roll(record).to_dict()
         if assessment["disposition"] == "wait":
             continue
-        previous = decisions[item]
-        if "prefix" in previous and previous != assessment:
+        previous = observed_assessments.get(item)
+        if previous is not None and previous != assessment:
             raise ValueError("conflicting completion affix evidence")
-        decisions[item] = assessment
+        observed_assessments[item] = assessment
+        # Generalized Create qualification does not extend the historical
+        # recipe/build-specific affix authority. Preserve every new-path item.
+        if batch["schema_version"] != 3:
+            decisions[item] = assessment
     return decisions
 
 

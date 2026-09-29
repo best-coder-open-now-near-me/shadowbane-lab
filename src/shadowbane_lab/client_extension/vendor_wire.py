@@ -20,6 +20,8 @@ class Verb(IntEnum):
     INSPECT = 8
     CREATE = 9
     KEEP = 10
+    CREATE_RANDOM = 32
+    INSPECT_RANDOM = 33
 
 
 class Outcome(IntEnum):
@@ -90,6 +92,14 @@ class Snapshot:
             and self.table == 12 and self.quantity == 1 and self.multiple in (0, 1)
         )
 
+    @property
+    def random_single(self) -> bool:
+        return bool(
+            self.recipe and self.item_template and self.table and self.mode == 1
+            and self.prefix == self.suffix == 3362971591
+            and self.quantity == 1 and self.multiple == 0
+        )
+
     def encode(self) -> bytes:
         if type(self.slots) is not tuple or any(type(s) is not Slot for s in self.slots):
             raise ValueError("slots must be an immutable tuple of Slot values")
@@ -141,11 +151,13 @@ class Command:
         if not uint(self.window, 32, "window"):
             raise ValueError("window is required")
         uint(self.item, 32, "item")
-        if verb == Verb.INSPECT:
+        if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM):
             if not self.expected.empty or self.item:
                 raise ValueError("inspect cannot carry action arguments")
         elif self.expected.empty or (
             verb == Verb.CREATE and (self.item or not self.expected.random_scepter)
+        ) or (
+            verb == Verb.CREATE_RANDOM and (self.item or not self.expected.random_single)
         ) or (verb == Verb.KEEP and not self.item):
             raise ValueError("invalid vendor action arguments")
         return _COMMAND.pack(

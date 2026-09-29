@@ -170,4 +170,52 @@ int main(int argc, char**) {
         s.quantity = 1; assert(w::RandomScepter(s));
         s.multiple = 2; assert(!w::RandomScepter(s));
     }
+    // Additive capability inspection changes neither the payload ABI nor legacy recipe admission.
+    {
+        static_assert(static_cast<unsigned>(w::Verb::create_random)==32 && static_cast<unsigned>(w::Verb::inspect_random)==33);
+        static_assert(sizeof(w::Command)==576 && sizeof(w::Receipt)==384);
+        v::Controller c; Fake f; auto s=Snapshot(); s.item_template=5051080; s.table=16;
+        c.Observe(s,true,false,100); auto cmd=Command(c); assert(w::Valid(w::Verb::create_random,cmd));
+        assert(!w::Valid(w::Verb::create,cmd));
+        auto probe=Command(c,9); probe.expected={};
+        assert(w::Valid(w::Verb::inspect_random,probe));
+        assert(Is(c.Execute(w::Verb::inspect_random,probe,true,true,f,100),w::Outcome::observed) && !f.calls);
+        auto original=c.Execute(w::Verb::create_random,cmd,true,true,f,100);
+        assert(Is(original,w::Outcome::submitted) && c.Busy() && f.calls==1);
+        assert(Is(c.Execute(w::Verb::create_random,cmd,true,true,f,101),w::Outcome::submitted) && f.calls==1);
+        auto keep=Command(c,2); keep.item=333;
+        assert(Is(c.Execute(w::Verb::keep,keep,true,true,f,101),w::Outcome::pending));
+        s.slots[0]={600,333,1}; c.Observe(s,true,false,102);
+        auto observed=c.Execute(w::Verb::inspect_random,probe,true,true,f,102);
+        assert(!c.Busy() && observed.transition_request==cmd.request && observed.transition_item==333 && (observed.flags&w::ready));
+        assert(Is(c.Execute(w::Verb::create_random,cmd,true,true,f,103),w::Outcome::submitted) && f.calls==1);
+        cmd.item=1; assert(!w::Valid(w::Verb::create_random,cmd));
+        cmd.item=0; cmd.expected.multiple=1; assert(!w::Valid(w::Verb::create_random,cmd));
+        cmd.expected.multiple=0; cmd.expected.table=0; assert(!w::Valid(w::Verb::create_random,cmd));
+        cmd.expected.table=16; cmd.expected.item_template=0; assert(!w::Valid(w::Verb::create_random,cmd));
+        cmd.expected.item_template=5051080; cmd.expected.quantity=2; assert(!w::Valid(w::Verb::create_random,cmd));
+        cmd.expected.quantity=1; cmd.expected.mode=0; assert(!w::Valid(w::Verb::create_random,cmd));
+        cmd.expected.mode=1; cmd.expected.prefix=1; assert(!w::Valid(w::Verb::create_random,cmd));
+        cmd.expected.prefix=3362971591U; cmd.reserved[0]=1; assert(!w::Valid(w::Verb::create_random,cmd));
+        probe.reserved[0]=1; assert(!w::Valid(w::Verb::inspect_random,probe));
+    }
+    // Native UI rejection/no addition is bounded uncertainty. Late additions cannot reopen spending.
+    for(bool excess:{false,true}) {
+        v::Controller c; Fake f; auto s=Snapshot(); s.item_template=25860; s.table=19;
+        c.Observe(s,true,false,100); const auto cmd=Command(c);
+        assert(Is(c.Execute(w::Verb::create_random,cmd,true,true,f,100),w::Outcome::submitted));
+        if(excess) { s.slots[0]={600,333,1}; s.slots[1]={700,334,1}; }
+        c.Observe(s,true,false,excess?101:5101);
+        auto probe=Command(c,9); probe.expected={};
+        assert(c.Execute(w::Verb::inspect_random,probe,true,true,f,5102).flags&w::unresolved);
+        s.slots[0]={600,333,1}; s.slots[1]={700,0,0}; c.Observe(s,true,false,5103);
+        assert(c.Busy() && f.calls==1);
+        assert(Is(c.Execute(w::Verb::create_random,cmd,true,true,f,5103),w::Outcome::submitted) && f.calls==1);
+    }
+    {
+        v::Controller c; Fake f; auto s=Snapshot(); s.item_template=5051080; s.table=16;
+        c.Observe(s,true,false,1);
+        assert(Is(c.Execute(w::Verb::create_random,Command(c),true,true,f,UINT64_MAX-4999),w::Outcome::exhausted) && !f.calls);
+    }
+
 }

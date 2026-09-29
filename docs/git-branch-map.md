@@ -1,16 +1,62 @@
 # Git branch map
 
+**Deployment policy:** [No retained rollback artifacts](deployment-policy.md).
+Recover from committed Git and official client assets; preserve settings and job
+records in place. Historical backup/rollback requirements below are superseded.
+
+## Bot integration and manual-list combat — September 28
+
+`main` remains the shared merge destination. The current combined review candidate
+is `codex/bot-integration-20260928`, containing PR #40 at `1565732`, PR #41 at
+`8e87a47`, and PR #42 at `daec3d1`. It also includes PR #39 at
+`a6e8114f98a4702153d775f3b8aef7f3546d2f1c`. The [integration receipt](bot-integration-20260928.md)
+records validation and remaining review/live gates for host 0.3.53 / native 1.8.33. This candidate
+is a review branch, not an installed runtime or an authorization to bypass review.
+
+`codex/explicit-list-combat`, based on `origin/main@a91dfd5`, delivers the complete
+manual-list source transaction at pushed runtime checkpoint `a6e8114` through
+[draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39).
+It combines durable single-use admission, same-session host composition, native
+selection and exact outbound-request receipts, and confirmed old-Grant cleanup
+before resource/camp recovery. Runtime readiness and exact image/identity checks
+gate native activation. The [handoff](handoffs/explicit-list-combat-admission.md)
+records source checkpoints, validation, and the remaining combined/live acceptance.
+Automatic response insertion remains separately blocked on server-session authority.
+PR #39 stays draft; source completion does not claim deployment or live acceptance.
+
+The normal project checkout remains on `main`; active worktrees retain their
+ownership. Use freshly fetched `origin/main` for unrelated work and the named
+integration candidate for this combined review. The client-update and development
+snapshots below are historical and do not override this source map or certify the
+currently running client.
+
 ## Current client update - September 24
 
-Native 1.8.27 / host 0.3.47 from source `d74d3c3` is installed in the VM
-with official client 1.3.38.11. Both client copies, all five desktop shortcuts,
-retained records, and non-launching preflight are verified. Source branch
+Historical September 24 receipt: native 1.8.27 / host 0.3.47 from source `d74d3c3`
+was installed in the VM with official client 1.3.38.11. Both client copies, all five
+desktop shortcuts, retained records and preflight were verified then. Source branch
 `codex/client-update-20260924` starts at `main@0620bcb` and is delivered to `main`
 through [PR #34](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/34);
 that PR records final-head checks and merge status. See the
-[update review](client-update-20260924.md) for exact package identities and rollback.
-The next live step is the user's launch/login, then Barracks/vendor observations.
-Use freshly fetched `origin/main` after PR #34 merges for further development.
+[update review](client-update-20260924.md) for historical package identities.
+PR #34 is merged. The current bot work and later pending client candidate are
+recorded below; historical rollback instructions are superseded.
+
+## Active bot work - September 28
+
+Use freshly fetched `origin/main` for independent work. Existing combat admission
+continues in `codex/explicit-list-combat` / PR #39. PvE correctness and listener
+command ownership have separate branches targeting main. The [bot work ledger](bot-work-20260928.md)
+records exact tips, validation, inclusion and the next integration step.
+
+Client update PR #40 includes vendor PR #38 and remains outside main; it excludes
+PR #39. Its September 26 receipt records client 1.3.38.12, native 1.8.32 and host
+0.3.52 at source `e9bf933`. This is recorded deployment evidence, not a fresh live
+session check. Other dated current/next paragraphs in this file are historical snapshots.
+
+Deployment policy: do not retain rollback copies, archives or old runtimes.
+Rebuild committed source and use official client assets; preserve settings, saves
+and durable jobs in place. Historical contrary requirements are superseded.
 
 ## Canonical development base - September 23
 

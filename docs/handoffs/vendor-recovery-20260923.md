@@ -1,5 +1,40 @@
 # Vendor recovery and remaining town workflow - September 23
 
+## September 24: candidate scene provenance
+
+`codex/vendor-town-workflow` is based on freshly fetched `main@a91dfd5` and targets
+reviewed `main` through a new draft PR. This host-only checkpoint is not included
+in the furnishing-preview package or installed runtime.
+
+Vendor discovery previously checked scene continuity within each phase but dropped
+the originating scene/root between City Command discovery and building navigation.
+A scene change while the worker closed the city transport and opened navigation
+could therefore use old candidates against a new scene. The guard path already
+carried this provenance.
+
+Both modes now persist the city scene/root and expected snapshot before opening
+City Command, carry scene/root into navigation records and summaries, and require
+every navigation observation to match those original candidates. Missing, malformed,
+or stale provenance produces durable review before any building/hireling open.
+Old records are not migrated, rebound or replayed. City and asset navigation use
+different native managers, so manager pointers are checked within their own phase,
+not compared across the handoff.
+
+Validation: 241 focused vendor, city, guard, worker and Condemn-preparation tests
+passed; one optional native city-wire executable comparison skipped because its
+fixture executable was not built. Affected-file Ruff and diff checks passed. New
+regressions first reproduced stale/missing provenance dispatch, then verified no
+opens after a scene/root change during the real worker handoff, durable early review,
+missing guard roster-only provenance, and unchanged-scene success with distinct
+city/navigation managers. No native source, versions, packages or VM state changed.
+
+Next: review and merge this checkpoint, then include it in a future validated host
+package. The ordinary recipe switch and Inventory lifecycle are now observed;
+typed native automation and the complete town capacity run remain to implement.
+See the [current menu contract](vendor-menu-contract-20260924.md).
+
+## Historical September 23 checkpoint
+
 Source lane: `codex/vendor-town-workflow`, based on catch-up checkpoint `179f065`.
 Integration destination: `codex/integrate-current-development` / PR #25, then
 reviewed `main`. This source checkpoint is not installed or live-qualified.
@@ -34,7 +69,18 @@ incorrect queue ownership and item partitions. Positive cases include rank
 growth, multiple-slot recipe closure, unknown preservation and retained exclusions.
 This host-only change does not alter native commands or require native rebuilding.
 
-## Next: acquire recipe and Inventory entry evidence
+## Recipe and Inventory qualification update
+
+The [September 24 menu contract](vendor-menu-contract-20260924.md) records observed
+Anthame-to-Balanced-Dagger selection, nested list/callback ownership and ordinary
+control bindings on native 1.8.30 / host 0.3.50. Inventory open/close/reopen is also
+observed with the same 65 item identities and normalized fields. These menu gates
+are complete; typed native operations, recipe generalization and the durable town
+run remain unimplemented. Inventory completeness is still unverified. No further
+user walkthrough is currently queued. The earlier walkthrough below is historical
+planning context; preserve the remaining production gates.
+
+## Historical next step: acquire recipe and Inventory entry evidence
 
 The current production implementation still requires a manually opened random
 Gilded Scepter recipe and later Inventory. It has no qualified typed recipe
@@ -110,5 +156,6 @@ the real strict memory readers for closed-menu, recipe and Inventory transitions
 separate unavailable channels, unchanged opt-in behavior and exact-lifetime CLI
 binding/handle cleanup. Native rebuilding and live acceptance are not claimed.
 
-Next active todo: the serialized non-spending vendor menu capture. Automatic
-recipe/Inventory commands and the complete multi-vendor capacity run remain open.
+Current next todo: implement and qualify typed recipe/Inventory operations from
+the observed contract, then the complete multi-vendor capacity run. The historical
+manual menu capture requested here is complete; raw evidence remains private.

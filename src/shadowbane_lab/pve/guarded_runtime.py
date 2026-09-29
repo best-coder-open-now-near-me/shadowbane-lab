@@ -523,8 +523,19 @@ class _FailClosedController(_BasePvEController):
     def player_action_observation_active(self) -> bool:
         return self._delegate.player_action_observation_active
 
-    def step(self, observation: PvEObservation):
+    def candidate_camp(self, observation: PvEObservation):
+        return self._delegate.candidate_camp(observation)
+
+    def resume_after_external_combat(self, observation: PvEObservation) -> None:
+        self._delegate.resume_after_external_combat(observation)
+
+    def can_start_external_combat(self, observation: PvEObservation) -> bool:
+        return self._delegate.can_start_external_combat(observation)
+
+    def step(self, observation: PvEObservation, *, external_combat: bool = False):
         try:
+            if external_combat:
+                return self._delegate.step(observation, external_combat=True)
             return self._delegate.step(observation)
         except Exception as exc:
             return self._delegate.stop(
@@ -614,6 +625,7 @@ class PvERunner(_BasePvERunner):
         dispatcher: PvEIntentDispatcher,
         approach_controller: PvEApproachController | None = None,
         movement_dispatcher: TravelDecisionDispatcher | None = None,
+        listed_combat=None,
         stop_signal: StopSignal,
         poll_interval_ms: int = 100,
         maximum_consecutive_observation_failures: int = 3,
@@ -683,6 +695,7 @@ class PvERunner(_BasePvERunner):
             dispatcher=dispatcher,
             approach_controller=guarded_approach,
             movement_dispatcher=movement_dispatcher,
+            listed_combat=listed_combat,
             stop_signal=stop_signal,
             poll_interval_ms=poll_interval_ms,
             maximum_consecutive_observation_failures=(

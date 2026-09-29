@@ -45,6 +45,14 @@ DWORD Start(const ProcessIdentity& identity) noexcept {
 void Stop() noexcept { ++stops; }
 }
 namespace vendor { bool Start() noexcept { return true; } }
+namespace combat {
+int starts = 0;
+bool Start(const ProcessIdentity& identity) noexcept {
+    assert(identity.process_id == GetCurrentProcessId() && identity.creation_filetime_utc);
+    assert(g_heartbeat_path[0] && !fail_heartbeat); ++starts;
+    return false; // Unsupported combat must not prevent ordinary client startup.
+}
+}
 namespace movement {
 int starts = 0;
 DWORD start_result = ERROR_SUCCESS;
@@ -97,6 +105,7 @@ int main() {
     assert(renderer_starts == 1 && telemetry_starts == 0 && renderer_stops == 0);
     assert(movement::starts == 1 && targeted_starts == 1 && targeted_stops == 0);
     assert(condemn::starts == 1 && condemn::stops == 0);
+    assert(combat::starts == 1);
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS && movement::starts == 1);
     assert(DeleteFileW(g_heartbeat_path));
     InterlockedExchange(&g_state, static_cast<LONG>(WonderBaneExtensionState::uninitialized));
@@ -117,6 +126,7 @@ int main() {
     assert(condemn::starts == 3 && condemn::stops == 1);
     assert(renderer_stops == 1 && telemetry_stops == 1 && effects_stops == 1 && trace_stops == 2);
     assert(movement::starts == 2); // Failed shared startup did not register a consumer.
+    assert(combat::starts == 2);
     assert(navigation_stops == 1 && status_stops == 1 && control_stops == 1 && event_stops == 1);
     // Failed initialization cannot start a replacement generation implicitly.
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED && renderer_starts == 3);

@@ -14,6 +14,7 @@ HWND focused = nullptr, bound_window = nullptr;
 std::array<SHORT, 256> physical_keys{};
 POINT pointer{0, 0}; XINPUT_GAMEPAD gamepad{};
 std::uint64_t clock_tick = 0;
+std::uint64_t clock_increment = 16;
 char interrupt_phase = 0;
 std::vector<char> native_order;
 int retired_updates = 0, original_keys = 0;
@@ -21,7 +22,7 @@ DWORD startup_result = ERROR_SUCCESS;
 HWND WINAPI Focus() { return focused; }
 SHORT WINAPI PhysicalKey(int key) { return physical_keys[static_cast<std::size_t>(key)]; }
 BOOL WINAPI Cursor(LPPOINT out) { *out = pointer; return ClientToScreen(bound_window, out); }
-ULONGLONG WINAPI Clock() { clock_tick += 16; return clock_tick; }
+ULONGLONG WINAPI Clock() { clock_tick += clock_increment; return clock_tick; }
 DWORD WINAPI Controller(DWORD, XINPUT_STATE* out) noexcept {
     out->Gamepad = gamepad; return device_connected ? ERROR_SUCCESS : ERROR_DEVICE_NOT_CONNECTED;
 }
@@ -75,6 +76,10 @@ struct WindowsInputTestAccess {
 }
 int main(int argc, char** argv) {
     const std::string mode = argc > 1 ? argv[1] : "keyboard";
+    // This fixture validates many synchronous owner callbacks in a single update.
+    // A clock read is not a separate 16ms frame; keep it below the deliberate
+    // 250ms automation-stall threshold tested by the other fixture modes.
+    if (mode == "owner-service") { clock_increment = 1; }
     Fixture f(mode == "keyboard-cold-start" || mode == "keyboard-reversal" || mode == "manual-update-gap"); auto& rt = wm::runtime;
     if (mode == "startup-hook-failure" || mode == "startup-hook-failure-ipc") {
         FILETIME created{}, exited{}, kernel{}, user{};
@@ -140,7 +145,7 @@ int main(int argc, char** argv) {
         Check(storage->header.result_read_sequence == expected_receipts, "Python consumed correlated native receipts");
         wonderbane::extension::StopClientActionCommandChannel(); rt.input.Retire(); return failures ? 1 : 0;
     }
-    if (mode == "commands") {
+    if (mode == "commands" || mode == "owner-service") {
         auto lease = std::make_shared<wm::CommandLease>();
         lease->process = OpenProcess(SYNCHRONIZE, FALSE, GetCurrentProcessId());
         lease->host = {GetCurrentProcessId(), 9, 42};
@@ -165,6 +170,100 @@ int main(int argc, char** argv) {
         const auto original = rt.controls.Current(); auto acquire = make(wm::wire::Verb::acquire, original, 1);
         run(acquire); const auto owned = rt.controls.Current();
         Check(acquire->receipt.outcome == 0 && owned.owner == wm::Owner::automation, "queued acquire obtains native owner");
+        if (mode == "owner-service") {
+            namespace extension = wonderbane::extension;
+            static wm::NativeScene expected_scene;
+            static wm::Grant expected_grant;
+            static wm::wire::Host expected_host;
+            static wm::Result owner_result;
+            static bool begin_action = false, action_gate = false, stop_gate = false, stop_ok = true;
+            static bool ordinary_combat = true;
+            static unsigned stops = 0, retirements = 0;
+            expected_scene = observed; expected_grant = owned; expected_host = lease->host;
+            Check(wm::BeginNativeOwnerAction(observed, owned, lease->host) == wm::Result::stale,
+                "owner action cannot borrow published status outside update phase");
+            extension::combat_owner_service.store(+[](void*, HWND) noexcept {
+                action_gate = wm::NativeOwnerActionCurrent(expected_scene, expected_grant, expected_host);
+                if (begin_action) {
+                    owner_result = wm::BeginNativeOwnerAction(expected_scene, expected_grant, expected_host);
+                }
+            });
+            extension::combat_owner_stop.store(+[](const wm::NativeScene& scene, const wm::Grant& grant,
+                    wm::StopReason) noexcept {
+                ++stops;
+                stop_gate = wm::NativeOwnerStopCurrent(scene, grant);
+                // Even inside an update, a cleanup callback may never re-enter action admission.
+                Check(wm::BeginNativeOwnerAction(scene, grant, expected_host) == wm::Result::stale,
+                    "cleanup callback cannot reacquire native side effects");
+                if (stop_ok && stop_gate) { ordinary_combat = false; return true; }
+                return false;
+            });
+            extension::combat_owner_retire.store(+[](std::uint64_t) noexcept { ++retirements; });
+            step();
+            Check(!rt.owner_activity_stop && !(rt.controls.DiagnosticState() & 8U),
+                "ordinary PvE combat has no movement or extension action record");
+            auto wrong_grant = owned; ++wrong_grant.generation;
+            auto stale_pause = make(wm::wire::Verb::pause, wrong_grant, 85); run(stale_pause);
+            Check(stale_pause->receipt.outcome != 0 && stops == 0 && ordinary_combat
+                && rt.controls.Current() == owned,
+                "a stale PAUSE cannot clean up a replacement owner's combat");
+            const auto incomplete_retire = extension::combat_owner_retire.exchange(nullptr);
+            auto incomplete_pause = make(wm::wire::Verb::pause, owned, 86); run(incomplete_pause);
+            Check(incomplete_pause->receipt.outcome != 0 && stops == 0 && ordinary_combat
+                && !rt.owner_activity_stop && rt.controls.Current() == owned,
+                "partial cleanup registration cannot acknowledge an idle baseline");
+            extension::combat_owner_retire.store(incomplete_retire);
+            auto baseline = make(wm::wire::Verb::pause, owned, 87); run(baseline);
+            Check(baseline->receipt.outcome == 0 && stops == 1 && stop_gate && !ordinary_combat
+                && rt.controls.Current() == owned && !rt.owner_activity_stop,
+                "idle PAUSE proves native combat cleanup and preserves the exact Grant");
+            // Even without prior BeginOwnerAction, rejected baseline cleanup is
+            // retained through unregistration and retried before another writer.
+            ordinary_combat = true; stop_ok = false;
+            auto rejected_baseline = make(wm::wire::Verb::pause, owned, 88); run(rejected_baseline);
+            Check(rejected_baseline->receipt.outcome != 0 && ordinary_combat
+                && !rt.controls.Ready() && rt.owner_activity_stop && rt.controls.Current() == owned,
+                "failed idle PAUSE retains native cleanup rather than claiming a baseline");
+            const auto baseline_stop = extension::combat_owner_stop.exchange(nullptr);
+            const auto baseline_retire = extension::combat_owner_retire.exchange(nullptr);
+            const auto before_baseline_retry = stops; stop_ok = true; step();
+            Check(stops > before_baseline_retry && !ordinary_combat && rt.controls.Ready()
+                && !rt.owner_activity_stop && rt.controls.Current() == owned,
+                "baseline retry uses pinned cleanup after service unregister without replacing owner");
+            extension::combat_owner_stop.store(baseline_stop);
+            extension::combat_owner_retire.store(baseline_retire);
+            begin_action = true; stop_ok = false;
+            step();
+            Check(action_gate && owner_result == wm::Result::accepted
+                && !(rt.controls.DiagnosticState() & 8U), "owner activity is admitted without movement claim");
+            begin_action = false;
+            ++expected_host.generation; step();
+            Check(!action_gate, "owner service rejects another producer generation");
+            --expected_host.generation;
+            text_blocked = true; step();
+            Check(!action_gate && stops && stop_gate && !rt.controls.Ready()
+                && rt.controls.AuthorizesNativeStop(owned),
+                "UI loss retains failed exact-Grant owner cleanup obligation");
+            const auto prior_stops = stops;
+            const auto registered_stop = extension::combat_owner_stop.exchange(nullptr);
+            const auto registered_retire = extension::combat_owner_retire.exchange(nullptr);
+            text_blocked = false; stop_ok = true; step();
+            Check(stops > prior_stops && !rt.controls.AuthorizesNativeStop(owned)
+                && rt.controls.Ready(), "unregistered service retains pinned cleanup until ordinary retry completes");
+            extension::combat_owner_stop.store(registered_stop);
+            extension::combat_owner_retire.store(registered_retire);
+            auto next = make(wm::wire::Verb::acquire, rt.controls.Current(), 90); run(next);
+            expected_grant = rt.controls.Current(); begin_action = true; step(); begin_action = false;
+            Check(owner_result == wm::Result::accepted, "new operation can acquire only after cleanup");
+            lease_current = false; const auto before_lease_stop = stops; step();
+            Check(!action_gate && stops == before_lease_stop + 1 && rt.controls.Current().owner == wm::Owner::none,
+                "lease loss cancels native service work even without a movement command");
+            const auto before_retire = retirements; ++observed.epoch; step();
+            Check(retirements > before_retire, "scene retirement notifies owner service without adopting new actor");
+            extension::combat_owner_service.store(nullptr); extension::combat_owner_stop.store(nullptr);
+            extension::combat_owner_retire.store(nullptr);
+            rt.input.Retire(); return failures ? 1 : 0;
+        }
         auto retry = make(wm::wire::Verb::acquire, original, 1); run(retry);
         Check(retry->receipt.outcome == 0 && rt.controls.Current() == owned
             && std::memcmp(&retry->receipt, &acquire->receipt, sizeof(retry->receipt)) == 0,

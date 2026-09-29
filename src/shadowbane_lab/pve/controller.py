@@ -70,6 +70,7 @@ class PvEController:
         self._population_desired_target_token: str | None = None
         self._population_cycle_seen: set[str | None] = set()
         self._attack_already_active = False
+        self._external_return_pending = False
 
     @property
     def phase(self) -> PvEPhase:
@@ -129,7 +130,51 @@ class PvEController:
             intents.add(self._config.interrupt_intent)
         return frozenset(intents)
 
-    def step(self, observation: PvEObservation) -> PvEControllerDecision:
+    def candidate_camp(self, observation: PvEObservation) -> PvECampLease | None:
+        """Establish the same original camp before ranking an external interruption."""
+        if self._started_at is None and self._camp is None:
+            self._capture_camp(observation)
+        return self._camp
+
+    def resume_after_external_combat(self, observation: PvEObservation) -> None:
+        """Discard interrupted engagement only after exact native cleanup proof."""
+        if self.terminal:
+            raise RuntimeError("terminal PvE controller cannot resume")
+        self._clear_engagement()
+        self._baseline_target_token = observation.target.target_token
+        self._require_different_target = True
+        self._external_return_pending = self._should_return_to_camp(observation)
+        self._camp_return_retry_at = None
+        self._enter(PvEPhase.RECOVERING, observation.now_ms)
+
+    def can_start_external_combat(self, observation: PvEObservation) -> bool:
+        return (not self.terminal
+                and self._phase not in (PvEPhase.RECOVERING, PvEPhase.POST_KILL)
+                and self._resources_recovered(observation)
+                and not self._should_return_to_camp(observation))
+
+    def _recover_external_combat(self, observation: PvEObservation) -> PvEControllerDecision:
+        now = observation.now_ms
+        if (not self._config.continuous
+                and self._phase_elapsed(now) >= self._config.recovery_timeout_ms):
+            return self.stop("listed_combat_recovery_timeout", now_ms=now)
+        if not self._resources_recovered(observation):
+            return self._emit(now)
+        self._external_return_pending |= self._should_return_to_camp(observation)
+        if self._external_return_pending and self._camp is not None:
+            position = observation.player_position
+            assert position is not None
+            if self._camp.distance_from_anchor(position.lt, position.lg) > self._camp.return_radius:
+                retry = self._camp_return_retry_at
+                return self._emit(now, return_to_camp=retry is None or now >= retry)
+        self._external_return_pending = False
+        self._camp_return_retry_at = None
+        self._enter(PvEPhase.SEEKING, now)
+        return self._emit(now)
+
+    def step(
+        self, observation: PvEObservation, *, external_combat: bool = False,
+    ) -> PvEControllerDecision:
         if not isinstance(observation, PvEObservation):
             raise ValueError("observation must be PvEObservation")
         if self.terminal:
@@ -164,6 +209,11 @@ class PvEController:
         ):
             return self.stop("maximum_session_elapsed", now_ms=now)
 
+        if external_combat:
+            # Keep safety/session accounting and event watermarks current without
+            # crediting listed kills or consuming ordinary PvE input/cooldowns.
+            return self._emit(now)
+
         if self._phase in (PvEPhase.OPENING, PvEPhase.ENGAGED):
             kills = tuple(
                 event for event in events if event.kind is NativeCombatEventKind.TARGET_KILLED
@@ -175,7 +225,13 @@ class PvEController:
                     observation,
                     PvEKillConfirmation.NATIVE_COMBAT_EVENT,
                 )
-            if observation.target.target_present and observation.target.current_health == 0.0:
+            # A selection change can expose an unrelated corpse before the phase's
+            # normal target-change guard runs. Only the engaged token owns this kill.
+            if (
+                observation.target.target_present
+                and observation.target.target_token == self._engaged_target_token
+                and observation.target.current_health == 0.0
+            ):
                 return self._record_kill(
                     observation,
                     PvEKillConfirmation.NATIVE_HEALTH_ZERO,
@@ -206,6 +262,8 @@ class PvEController:
             return self._engage(observation, events)
         if self._phase is PvEPhase.POST_KILL:
             return self._post_kill(observation, events)
+        if self._phase is PvEPhase.RECOVERING:
+            return self._recover_external_combat(observation)
         if self._phase is PvEPhase.CAMP_IDLE:
             return self._camp_idle(observation)
         raise RuntimeError("unreachable PvE phase")
@@ -849,7 +907,7 @@ class PvEController:
             if observation.target.target_present:
                 return self._abandon_stalled_target(observation)
             return self._recover_invalid_engagement(observation)
-        if self._phase is PvEPhase.CAMP_IDLE:
+        if self._phase in (PvEPhase.CAMP_IDLE, PvEPhase.RECOVERING):
             self._camp_return_retry_at = observation.now_ms + self._config.camp_return_retry_ms
             return self._emit(observation.now_ms)
         return self.stop(f"approach_{reason}", now_ms=observation.now_ms)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from shadowbane_lab.client_input.character_config import open_active_character_config
@@ -23,6 +22,7 @@ from shadowbane_lab.pve.attack_list import (
     AttackListStore,
     AttackPlayerIdentity,
     AttackTargetObservation,
+    default_attack_list_root,
 )
 from shadowbane_lab.pve.authority_snapshot import native_party_identity_signature
 
@@ -56,11 +56,14 @@ def apply_attack_list_command(command, store, selected=None, *, expected_revisio
         result = store.clear(expected_revision=expected_revision)
     else:
         result = store.snapshot()
-    return {
+    receipt = {
         "action": action,
         "revision": result.revision,
         "entries": [entry.as_dict() for entry in result.entries],
     }
+    if result.entered_admissions:
+        receipt["entered_admissions_requiring_cancellation"] = list(result.entered_admissions)
+    return receipt
 
 
 def run_attack_list_command(command, guard, *, root: Path | None = None):
@@ -70,10 +73,7 @@ def run_attack_list_command(command, guard, *, root: Path | None = None):
     if not window.process_id or not window.process_started_at_100ns:
         raise ValueError("attack-list command requires an exact client lifetime")
     if root is None:
-        local = os.environ.get("LOCALAPPDATA")
-        if not local:
-            raise ValueError("LOCALAPPDATA is required for attack-list storage")
-        root = Path(local) / "ShadowbaneLab" / "attack-lists"
+        root = default_attack_list_root()
     with open_active_character_config(process_id=window.process_id) as session:
         binding = session.binding
         if binding.process_creation_filetime_utc != window.process_started_at_100ns:

@@ -50,6 +50,18 @@ class NativeMovementOperation:
     def dispatcher(self):
         return self
 
+    @property
+    def session(self):
+        if self._session is None or self._native is None:
+            raise NativeActionChannelError("native movement operation is not acquired")
+        return self._session
+
+    @property
+    def grant(self):
+        if self._native is None:
+            raise NativeActionChannelError("native movement operation is not acquired")
+        return self._native.grant
+
     def _interrupt(self, reason):
         if not self._cancelled.is_set():
             self._reason = reason

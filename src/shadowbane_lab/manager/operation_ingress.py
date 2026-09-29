@@ -86,6 +86,7 @@ class ForegroundWorkerOperationIngress:
         destination: WorkerTravelDestination | None = None,
         expected_process_id: int | None = None,
         expected_window_handle: int | None = None,
+        expected_process_started_at_100ns: int | None = None,
         require_foreground: bool = True,
         operation_id: str | None = None,
         deduplication_id: str | None = None,
@@ -93,6 +94,7 @@ class ForegroundWorkerOperationIngress:
         now, client, permit = self._resolve_target(
             expected_process_id=expected_process_id,
             expected_window_handle=expected_window_handle,
+            expected_process_started_at_100ns=expected_process_started_at_100ns,
             require_foreground=require_foreground,
         )
         return self._submit(
@@ -115,6 +117,7 @@ class ForegroundWorkerOperationIngress:
         *,
         expected_process_id: int | None = None,
         expected_window_handle: int | None = None,
+        expected_process_started_at_100ns: int | None = None,
         require_foreground: bool = True,
         operation_id: str | None = None,
     ) -> WorkerOperationDispatch | None:
@@ -127,6 +130,7 @@ class ForegroundWorkerOperationIngress:
         now, client, permit = self._resolve_target(
             expected_process_id=expected_process_id,
             expected_window_handle=expected_window_handle,
+            expected_process_started_at_100ns=expected_process_started_at_100ns,
             require_foreground=require_foreground,
         )
         target_identity = (
@@ -176,6 +180,7 @@ class ForegroundWorkerOperationIngress:
         *,
         expected_process_id: int | None,
         expected_window_handle: int | None,
+        expected_process_started_at_100ns: int | None,
         require_foreground: bool,
     ) -> tuple[float, ClientInstanceSnapshot, WorkerDispatchPermit]:
         if not isinstance(require_foreground, bool):
@@ -183,6 +188,7 @@ class ForegroundWorkerOperationIngress:
         for value, field_name in (
             (expected_process_id, "expected_process_id"),
             (expected_window_handle, "expected_window_handle"),
+            (expected_process_started_at_100ns, "expected_process_started_at_100ns"),
         ):
             if value is not None and (
                 isinstance(value, bool) or not isinstance(value, int) or value <= 0
@@ -196,6 +202,7 @@ class ForegroundWorkerOperationIngress:
         client = self._resolve_client(
             expected_process_id=expected_process_id,
             expected_window_handle=expected_window_handle,
+            expected_process_started_at_100ns=expected_process_started_at_100ns,
             require_foreground=require_foreground,
         )
         permit = self._exact_permit(client, now=now)
@@ -223,6 +230,7 @@ class ForegroundWorkerOperationIngress:
         *,
         expected_process_id: int | None,
         expected_window_handle: int | None,
+        expected_process_started_at_100ns: int | None,
         require_foreground: bool,
     ) -> ClientInstanceSnapshot:
         snapshot = self._registry.inspect()
@@ -237,6 +245,10 @@ class ForegroundWorkerOperationIngress:
             and (client.is_foreground or not require_foreground)
             and (expected_process_id is None or client.process_id == expected_process_id)
             and (expected_window_handle is None or client.window_handle == expected_window_handle)
+            and (
+                expected_process_started_at_100ns is None
+                or client.process_started_at_100ns == expected_process_started_at_100ns
+            )
         )
         if len(matches) != 1:
             if require_foreground:

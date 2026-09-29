@@ -39,6 +39,7 @@ class ExactWorkerIngress(Protocol):
         *,
         expected_process_id: int | None = None,
         expected_window_handle: int | None = None,
+        expected_process_started_at_100ns: int | None = None,
         require_foreground: bool = True,
         operation_id: str | None = None,
     ) -> object | None: ...
@@ -51,6 +52,7 @@ class ExactWorkerIngress(Protocol):
         destination: WorkerTravelDestination | None = None,
         expected_process_id: int | None = None,
         expected_window_handle: int | None = None,
+        expected_process_started_at_100ns: int | None = None,
         require_foreground: bool = True,
         operation_id: str | None = None,
         deduplication_id: str | None = None,
@@ -252,6 +254,7 @@ class ExactExtensionEventRouter:
         common = {
             "expected_process_id": event.process_id,
             "expected_window_handle": event.window_handle,
+            "expected_process_started_at_100ns": event.process_creation_filetime_utc,
             "require_foreground": False,
         }
         try:

@@ -26,7 +26,6 @@ from shadowbane_lab.client_input import (
     PyAutoGuiBackend,
     StaticBindingPointResolver,
     WaitCommand,
-    WindowGuardError,
     WindowsForegroundWindowInspector,
     WindowsHotkeyEmergencyStop,
     WindowsVisibleWindowInspector,
@@ -75,11 +74,15 @@ from shadowbane_lab.travel import (
     resolve_travel_destination,
     save_learned_navigation_map,
 )
+from shadowbane_lab.travel.listener_ingress import (
+    ListenerClientIdentity,
+    ListenerCommandIngress,
+    ListenerOwnershipStop,
+)
 
 from .client_pve import (
     _run_pve,
 )
-from .client_runtime import _require_window_process_id
 from .client_travel import _catalog_with_live_runegates, _run_travel
 from .common import _error
 
@@ -235,17 +238,16 @@ def _listen_for_go_commands(
     ) as exc:
         return _error(f"chat control failed: {exc}", as_json=as_json)
 
-    cancel_worker_operation = object()
-    cancel_worker_operation_queued = threading.Event()
-    commands: queue.Queue[str | tuple[PhysicalPointerInteraction, float] | object] = queue.Queue()
+    commands = ListenerCommandIngress(guard)
     active_lock = threading.Lock()
     active_operation_stop: EventEmergencyStop | None = None
 
     def cancel_active_operation() -> None:
         if worker_ingress is not None:
-            if not cancel_worker_operation_queued.is_set():
-                cancel_worker_operation_queued.set()
-                commands.put(cancel_worker_operation)
+            try:
+                commands.submit(None)
+            except (OSError, RuntimeError, ValueError):
+                pass
             return
         with active_lock:
             if active_operation_stop is not None:
@@ -266,11 +268,21 @@ def _listen_for_go_commands(
                     "rejected", as_json=as_json, command=command, reason=str(exc),
                 )
             return
-        commands.put(command)
+        try:
+            commands.submit(command)
+        except (OSError, RuntimeError, ValueError) as exc:
+            _print_go_listener_event(
+                "rejected", as_json=as_json, command=command, reason=str(exc),
+            )
 
     def submit_pointer(interaction: PhysicalPointerInteraction) -> None:
         if interaction.button == "right":
-            commands.put((interaction, time.monotonic()))
+            try:
+                commands.submit(interaction)
+            except (OSError, RuntimeError, ValueError) as exc:
+                _print_go_listener_event(
+                    "world_map_click_ignored", as_json=as_json, reason=str(exc),
+                )
 
     extension_dispatch_times: dict[int, float] = {}
     extension_router_diagnostics: dict[str, object] | None = None
@@ -312,7 +324,7 @@ def _listen_for_go_commands(
         kind: WorkerOperationKind,
         command: str,
         *,
-        process_id: int,
+        client: ListenerClientIdentity,
         destination: WorkerTravelDestination | None = None,
         resolved_name: str | None = None,
         candidate_count: int | None = None,
@@ -321,11 +333,14 @@ def _listen_for_go_commands(
         if worker_ingress is None:
             raise RuntimeError("exact-worker ingress is not configured")
         try:
+            client.require_current(guard)
             dispatch = worker_ingress.dispatch(
                 kind,
                 command,
                 destination=destination,
-                expected_process_id=process_id,
+                expected_process_id=client.process_id,
+                expected_window_handle=client.window_handle,
+                expected_process_started_at_100ns=client.process_started_at_100ns,
             )
         except (OSError, RuntimeError, ValueError) as exc:
             _print_go_listener_event(
@@ -392,19 +407,6 @@ def _listen_for_go_commands(
             listener,
             WindowsZoneSearchOverlay() as zone_overlay,
         ):
-            stop_adapter = ClientInputAdapter(
-                DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
-                GuardedInputExecutor(
-                    guard=guard,
-                    backend=PyAutoGuiBackend(),
-                    stop_signal=service_stop,
-                ),
-            )
-            world_map_executor = GuardedInputExecutor(
-                guard=guard,
-                backend=PyAutoGuiBackend(),
-                stop_signal=service_stop,
-            )
             if worker_ingress is not None:
                 assert manager_manifest is not None
                 assert manager_registry is not None
@@ -461,29 +463,34 @@ def _listen_for_go_commands(
                     )
                     next_listener_heartbeat = time.monotonic() + 30.0
                 try:
-                    interaction = commands.get(timeout=0.1)
+                    admitted = commands.get(timeout=0.1)
                 except queue.Empty:
                     continue
 
-                if interaction is cancel_worker_operation:
+                if admitted.command is None:
                     try:
                         assert worker_ingress is not None
-                        target = guard.require_target()
+                        # Internal cancellation issues no client input. Preserve a physical
+                        # takeover of A even if B gains focus before this queue drains.
                         worker_ingress.cancel_if_inflight(
                             "physical-client-interaction",
-                            expected_process_id=_require_window_process_id(target),
+                            expected_process_id=admitted.client.process_id,
+                            expected_window_handle=admitted.client.window_handle,
+                            expected_process_started_at_100ns=(
+                                admitted.client.process_started_at_100ns
+                            ),
+                            require_foreground=False,
                         )
-                    except (OSError, RuntimeError, ValueError, WindowGuardError):
+                    except (OSError, RuntimeError, ValueError):
                         pass
-                    finally:
-                        cancel_worker_operation_queued.clear()
                     continue
 
+                interaction = admitted.command
                 pointer_destination = None
                 pointer_observed_at = None
                 destination_source = None
-                if isinstance(interaction, tuple):
-                    interaction, pointer_observed_at = interaction
+                if isinstance(interaction, PhysicalPointerInteraction):
+                    pointer_observed_at = admitted.observed_at
                     command = (
                         f"world-map right-click ({interaction.screen_x}, {interaction.screen_y})"
                     )
@@ -492,32 +499,45 @@ def _listen_for_go_commands(
                     command = interaction
                     normalized = command.strip().casefold()
                 named_resolution = None
+                try:
+                    admitted.client.require_current(guard)
+                except (OSError, RuntimeError, ValueError) as exc:
+                    _print_go_listener_event(
+                        "rejected", as_json=as_json, command=command, reason=str(exc),
+                    )
+                    continue
+                command_process_id = admitted.client.process_id
+                ownership_stop = ListenerOwnershipStop(admitted.client, guard)
+                command_guard = ForegroundWindowGuard(
+                    client_profile,
+                    WindowsForegroundWindowInspector(),
+                    expected_process_id=admitted.client.process_id,
+                    expected_process_started_at_100ns=admitted.client.process_started_at_100ns,
+                    expected_window_handle=admitted.client.window_handle,
+                )
+                world_map_executor = GuardedInputExecutor(
+                    guard=command_guard,
+                    backend=PyAutoGuiBackend(),
+                    stop_signal=AnyStopSignal(service_stop, ownership_stop),
+                )
                 if normalized == "/stop" and worker_ingress is None:
                     stop_sequence += 1
+                    stop_adapter = ClientInputAdapter(
+                        DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
+                        world_map_executor,
+                    )
                     result = stop_adapter.dispatch_movement_stop(
                         correlation_id=f"travel:chat-stop:{stop_sequence}"
                     )
                     _print_go_stop_result(
-                        accepted=result.accepted,
-                        reason=result.reason,
-                        as_json=as_json,
-                    )
-                    continue
-                try:
-                    command_process_id = _require_window_process_id(guard.require_target())
-                except WindowGuardError as exc:
-                    _print_go_listener_event(
-                        "rejected",
-                        as_json=as_json,
-                        command=command,
-                        reason=str(exc),
+                        accepted=result.accepted, reason=result.reason, as_json=as_json,
                     )
                     continue
                 if normalized == "/stop":
                     dispatch_to_exact_worker(
                         WorkerOperationKind.STOP,
                         command,
-                        process_id=command_process_id,
+                        client=admitted.client,
                     )
                     continue
                 if isinstance(interaction, PhysicalPointerInteraction):
@@ -567,6 +587,10 @@ def _listen_for_go_commands(
                             worker_ingress.cancel_if_inflight(
                                 f"extension-fallback-cancel:{command}",
                                 expected_process_id=command_process_id,
+                                expected_window_handle=admitted.client.window_handle,
+                                expected_process_started_at_100ns=(
+                                    admitted.client.process_started_at_100ns
+                                ),
                             )
                         except (OSError, RuntimeError, ValueError) as exc:
                             _print_go_listener_event(
@@ -619,7 +643,7 @@ def _listen_for_go_commands(
                         dispatch_to_exact_worker(
                             WorkerOperationKind.PVE,
                             command,
-                            process_id=command_process_id,
+                            client=admitted.client,
                         )
                         continue
                     if pve_client_profile_path is None or pve_profile is None:
@@ -665,7 +689,7 @@ def _listen_for_go_commands(
                             as_json=as_json,
                             evidence_output_path=evidence_output,
                             combat_source="state",
-                            stop_signal=AnyStopSignal(service_stop, operation_stop),
+                            stop_signal=AnyStopSignal(service_stop, operation_stop, ownership_stop),
                             client_process_id=command_process_id,
                             continuous=pve_continuous,
                             camp_radius=pve_camp_radius,
@@ -780,7 +804,7 @@ def _listen_for_go_commands(
                     dispatch_to_exact_worker(
                         WorkerOperationKind.TRAVEL,
                         command,
-                        process_id=command_process_id,
+                        client=admitted.client,
                         destination=worker_destination,
                         resolved_name=(
                             None if named_resolution is None else named_resolution.matched_name
@@ -848,7 +872,7 @@ def _listen_for_go_commands(
                         click_interval_ms=click_interval_ms,
                         live=live,
                         as_json=as_json,
-                        stop_signal=AnyStopSignal(service_stop, route_stop),
+                        stop_signal=AnyStopSignal(service_stop, route_stop, ownership_stop),
                         client_process_id=command_process_id,
                         navigation_cache_directory=navigation_cache_directory,
                         navigation_map=shared_navigation_map,
@@ -938,7 +962,15 @@ def _print_go_listener_event(
         )
     elif event == "attack-list":
         assert result is not None
-        print(f"Attack list ({result['action']}):", flush=True)
+        print(f"Attack list ({result['action']}), saved revision {result['revision']}:", flush=True)
+        pending_cancellations = result.get("entered_admissions_requiring_cancellation", ())
+        if pending_cancellations:
+            print(
+                "  Saved list updated; previously admitted combat requests still require "
+                "native cancellation. Cancellation is not confirmed.", flush=True,
+            )
+            for request_id in pending_cancellations:
+                print(f"  Cancellation required for request {request_id}", flush=True)
         for entry in result["entries"]:
             identity_status = (
                 "identity unresolved" if entry.get("identity_status") != "saved_player"

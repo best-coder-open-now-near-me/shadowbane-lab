@@ -1,8 +1,16 @@
 # PvE/PvP attack-list delivery plan
 
-Updated September 12, 2026. Integration destination: codex/native-lifecycle-hardening.
-User priority is PvE/PvP; door work is separate and does not gate this delivery.
-This document records a plan, not an implemented combat capability.
+Current continuation: September 28, 2026. Shared integration destination is `main`
+through `codex/bot-integration-20260928`; see the [exact integration receipt](bot-integration-20260928.md).
+Manual-list combat source, same-owner cancellation/recovery, and listener ownership
+are implemented and combined with current-client/vendor source. The active delivery
+step is combined validation and source review. Live acceptance is pending; automatic
+response insertion needs the authoritative [server session contract](pvp-response-provenance.md).
+
+The agreed behavior and work packages below remain the design contract. Their
+September 12 sequence and appended checkpoints are historical execution evidence;
+the integration receipt supersedes their active/pending labels. Door work remains
+separate and does not gate this delivery.
 
 ## Agreed behavior
 
@@ -12,7 +20,7 @@ membership expresses the user's target intent; it does not prove native attackab
 or authorize bypassing client restrictions. Preserve ordinary PvE and accepted
 navigation/manual movement ownership. No selection/proximity inference of aggression.
 
-## Sequence and completion criteria
+## Historical September 12 sequence and completion criteria
 
 1. COMPLETE — Consolidate current delivery status.
    Reconcile candidate receipts and focused live acceptance into the branch-map entry:
@@ -817,3 +825,15 @@ Detailed static evidence remains private in artifacts/pve-pvp. This checkpoint i
 an implementation note, not a live retry experiment or package receipt. The next
 work remains bounded ownership of receive-to-processing correlation and generation
 validation, followed by durable response ingestion.
+
+
+### September 28 response provenance verification
+
+The retained September 24 source/image investigation was verified against the
+exact prepared image: 38 of 38 reviewed fingerprints match. Receive FIFO, process
+retries, deferred-action lifetime and local PlayerData publication are mapped. The
+remaining response-authority requirement is the server's character-switch fencing
+contract, not another broad live fight. See [the response provenance boundary](pvp-response-provenance.md)
+for exact scope, reproducibility and the required authoritative input. Automatic
+response insertion remains disabled; manual saved-list execution can proceed
+independently through the existing owner-thread transaction.
