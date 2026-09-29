@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass, replace
 from dataclasses import field as dataclass_field
 from pathlib import Path
@@ -16,6 +17,14 @@ if TYPE_CHECKING:
     from shadowbane_lab.client_extension.combat_fence_windows import Ticket
     from shadowbane_lab.client_extension.combat_wire import Command as CombatCommand
     from shadowbane_lab.client_extension.movement_wire import Grant, Host
+
+
+def default_attack_list_root() -> Path:
+    """One user-local location shared by command editing and bot execution."""
+    local = os.environ.get("LOCALAPPDATA")
+    if not local:
+        raise ValueError("LOCALAPPDATA is required for attack-list storage")
+    return Path(local) / "ShadowbaneLab" / "attack-lists"
 
 
 def _text(value: object, label: str) -> str:
