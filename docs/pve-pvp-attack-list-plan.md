@@ -1,8 +1,15 @@
 # PvE/PvP attack-list delivery plan
 
-Updated September 12, 2026. Integration destination: codex/native-lifecycle-hardening.
-User priority is PvE/PvP; door work is separate and does not gate this delivery.
-This document records a plan, not an implemented combat capability.
+Current execution: September 28, 2026. Shared integration destination: `main`.
+Start with [the current bot work ledger](bot-work-20260928.md) for branch ownership,
+implemented behavior, validation and the next task. Continue the existing combat
+admission work in [PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39);
+do not recreate it from main or use the historical lifecycle branch as a new base.
+
+The agreed behavior and work packages below remain the design contract. Their
+September 12 sequence and appended checkpoints are historical execution evidence;
+the current ledger supersedes their active/pending labels. Native combat execution
+and automatic response insertion remain unfinished. Door work does not gate combat.
 
 ## Agreed behavior
 
@@ -12,7 +19,7 @@ membership expresses the user's target intent; it does not prove native attackab
 or authorize bypassing client restrictions. Preserve ordinary PvE and accepted
 navigation/manual movement ownership. No selection/proximity inference of aggression.
 
-## Sequence and completion criteria
+## Historical September 12 sequence and completion criteria
 
 1. COMPLETE — Consolidate current delivery status.
    Reconcile candidate receipts and focused live acceptance into the branch-map entry:

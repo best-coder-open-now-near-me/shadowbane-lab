@@ -175,7 +175,13 @@ class PvEController:
                     observation,
                     PvEKillConfirmation.NATIVE_COMBAT_EVENT,
                 )
-            if observation.target.target_present and observation.target.current_health == 0.0:
+            # A selection change can expose an unrelated corpse before the phase's
+            # normal target-change guard runs. Only the engaged token owns this kill.
+            if (
+                observation.target.target_present
+                and observation.target.target_token == self._engaged_target_token
+                and observation.target.current_health == 0.0
+            ):
                 return self._record_kill(
                     observation,
                     PvEKillConfirmation.NATIVE_HEALTH_ZERO,

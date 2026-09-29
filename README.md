@@ -13,11 +13,12 @@ All 15 hosted checks passed for its exact reviewed head `e8062fd`.
 The [integration inventory](docs/integration-status-20260923.md) records retained
 source, deferred lanes, validation and remaining acceptance.
 
-Host **0.3.46 is installed and its manager is healthy in the test VM**. No game
-is running or bound there, and no gameplay acceptance is claimed. The
-[catch-up plan](docs/catch-up-plan-20260923.md) tracks identification of the active
-client, the remaining guard/Condemn and vendor observations, and carpenter
-building readiness and service discovery.
+Current PvE/PvP source work and separation-of-concerns changes are tracked in the
+[bot work ledger](docs/bot-work-20260928.md). It distinguishes main from the pending
+combat and client-update candidates, and identifies the next integration steps.
+Deployment receipts describe observations at their recorded time; they do not
+certify the current VM session. The September 26 client receipt is on pending
+[PR #40](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/40).
 
 Read the [branch map](docs/git-branch-map.md) before choosing a development base,
 and the [contributor workflow](CONTRIBUTING.md) before starting a new task.

@@ -1,8 +1,8 @@
 # Client convergence ownership boundaries
 
-For current branch tips, validation blockers, deployment state and the integration
-queue, start with [the project recovery ledger](project-recovery-status.md). This
-document defines ownership; its historical checkpoint is not a current release claim.
+For current branch tips and the integration queue, start with [the branch map](git-branch-map.md)
+and [the bot work ledger](bot-work-20260928.md). This document defines ownership;
+its historical checkpoint is not a current release claim.
 
 This is the working merge contract for development after the 2026-09-01 client convergence. It is
 an ownership map, not a new framework or a pair of product branches. Its purpose is to keep one
@@ -11,30 +11,23 @@ of each other's runtime responsibilities.
 
 ## Integration branch policy
 
-`codex/client-convergence-v2` is the only long-lived, advancing product and experiment branch.
-Rendering, non-render, streaming, and diagnostics are ownership lanes within that history, not
-parallel release lines.
+`main` is the shared integration destination. Start independent work from freshly
+fetched `origin/main`; continue a documented feature dependency in its existing
+branch. See [the branch map](git-branch-map.md) and [current bot work](bot-work-20260928.md)
+for inclusion and review status. The former `codex/client-convergence-v2` policy
+from the original September 1 design is superseded; that branch is historical
+source, not today's product base.
 
-Risky or concurrent work may use a short-lived topic branch from the latest convergence tip. A
-topic must remain a small reviewable slice, pass the shared validation matrix, and merge back
-promptly. The topic branch must not become a second integration base or accumulate unrelated work.
+Concurrent work uses focused branches and separate checkouts. Shared runtime,
+channel, package and version files have one owner for each checkpoint. Publish
+validated commits and review them against main without wholesale replacement by
+older feature runtimes. Audit reachability and dirty files before retiring any
+historical branch or checkout.
 
-The former v2 workstream names are frozen recovery aliases at their shared pre-policy tip:
-
-- `codex/non-render-refactor-v2`;
-- `codex/client-streaming-diagnostics-v2`.
-
-Do not advance or delete those aliases. Retire them only after Git confirms that convergence
-contains their complete histories and the containing convergence tip is published.
-
-All runtime variants build from convergence. The compile-time `diagnostics-only` extension
-profile shares source with the full renderer; it does not require a separate product branch.
-The standalone vanilla diagnostics tool is distinct: it does not require installing that
-extension. Source integration does not select or deploy either option to the plain VM.
-
-Do not base new slices directly on `codex/graphics-diagnostics-client`,
-`codex/graphics-banded-lighting`, or the older preserved-feature branch. Those remain evidence and
-recovery refs, not parallel product bases.
+Both full and diagnostics-only native profiles build from the same source.
+Source integration does not deploy either profile. Deployment retains no rollback
+copies or old runtimes; rebuild committed source and obtain official client assets
+when needed, preserving settings, saves and durable jobs in place.
 
 ## Ownership map
 
@@ -49,7 +42,7 @@ recovery refs, not parallel product bases.
 
 The shared seam files are integration-owned. Short-lived renderer or non-render topics may change
 them only when their slice cannot be completed through an existing API, and such changes must be
-isolated in a small commit and merged once into convergence:
+isolated in a small commit and reviewed once against main:
 
 - `native/wonderbane_extension/extension.cpp`
 - `native/wonderbane_extension/extension_api.h`
@@ -79,7 +72,7 @@ The non-render lane implements the ownership checkpoints as follows:
    remains in the verified package transaction, and the bounded graphics startup wait is owned by
    `client_extension/graphics_status_wait.py`. Evidence capture and sealing remain in diagnostics
    and evidence modules. None of these services owns renderer hooks or state.
-5. The preserved simulator line is merged only at product convergence. Canonical affiliation
+5. The preserved simulator line is reviewed against the shared main history. Canonical affiliation
    interchange already owns serialization, with the byte codec retained as a compatibility facade;
    rollout search remains in `rollouts/open_builds.py`, and bracket construction now belongs to
    `rollouts/builds.py`. Scenario-coupled policies remain with their scenario runner. Existing

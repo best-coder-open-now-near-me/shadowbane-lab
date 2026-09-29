@@ -700,6 +700,66 @@ class PvEControllerTests(unittest.TestCase):
             complete.kill_confirmation,
         )
 
+    def test_health_zero_kill_requires_engaged_token_across_combat_modes(self) -> None:
+        for opening in (False, True):
+            for continuous in (False, True):
+                for same_target in (False, True):
+                    with self.subTest(
+                        opening=opening, continuous=continuous, same_target=same_target,
+                    ):
+                        controller = PvEController(PvEControllerConfig(
+                            maximum_kills=1,
+                            continuous=continuous,
+                            camp_radius=100.0 if continuous else None,
+                            opening_intent=PvEIntent.CAST_SHADOW_TOUCH if opening else None,
+                        ))
+                        controller.step(_observation(
+                            0, _absent(), player_position=_player_position(),
+                            target_position=_target_position(None),
+                        ))
+                        engaged = controller.step(_observation(
+                            100, _target("mob"), player_position=_player_position(),
+                            target_position=_target_position("mob"),
+                        ))
+                        self.assertEqual(
+                            PvEPhase.OPENING if opening else PvEPhase.ENGAGED,
+                            engaged.phase,
+                        )
+
+                        decision = controller.step(_observation(
+                            200, _target("mob" if same_target else "unrelated-corpse", current=0),
+                            player_position=_player_position(),
+                            target_position=_target_position(
+                                "mob" if same_target else "unrelated-corpse",
+                            ),
+                        ))
+
+                        if same_target:
+                            self.assertEqual(1, decision.kills)
+                            self.assertEqual(
+                                PvEKillConfirmation.NATIVE_HEALTH_ZERO, decision.kill_confirmation,
+                            )
+                            self.assertEqual(
+                                PvEPhase.POST_KILL if continuous else PvEPhase.COMPLETE,
+                                decision.phase,
+                            )
+                        else:
+                            self.assertEqual(0, decision.kills)
+                            self.assertIsNone(decision.kill_confirmation)
+                            self.assertEqual(
+                                PvEPhase.SEEKING if continuous else PvEPhase.STOPPED,
+                                decision.phase,
+                            )
+                            if continuous:
+                                self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decision.intent)
+                            else:
+                                self.assertIsNone(decision.intent)
+                                self.assertEqual(
+                                    "selected_target_changed_during_opener" if opening else
+                                    "selected_target_changed_during_engagement",
+                                    decision.terminal_reason,
+                                )
+
     def test_dead_acquisition_candidate_is_never_attacked(self) -> None:
         controller = PvEController(
             PvEControllerConfig(acquisition_retry_ms=100, acquisition_timeout_ms=1_000)
@@ -2231,6 +2291,38 @@ class PvERunnerTests(unittest.TestCase):
         self.assertEqual(1, len(attacks))
         self.assertEqual(300, attacks[0].decision.now_ms)
         self.assertEqual("direct", movement_steps[0].as_dict()["approach"]["maneuver"])
+
+    def test_runner_records_unrelated_corpse_as_target_change_not_kill(self) -> None:
+        dispatcher = RecordingPvEDispatcher()
+        clock = AdvancingClock()
+        journal_steps = []
+        result = PvERunner(
+            controller=PvEController(PvEControllerConfig(maximum_kills=1)),
+            health_reader=SequenceHealthSource((
+                _absent(), _target("mob"), _target("unrelated-corpse", current=0),
+            )),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 3),
+            combat_log_reader=EmptyCombatLogSource(),
+            dispatcher=dispatcher,
+            stop_signal=EventEmergencyStop(),
+            trace_sink=lambda step: journal_steps.append(step.as_dict()),
+            poll_interval_ms=100,
+            clock=clock,
+            sleeper=clock.sleep,
+        ).run()
+
+        self.assertEqual(PvEPhase.STOPPED, result.final_phase)
+        self.assertEqual("selected_target_changed_during_engagement", result.terminal_reason)
+        self.assertEqual(0, result.kills)
+        self.assertEqual(
+            [PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ATTACK_SELECTED_TARGET], dispatcher.intents,
+        )
+        self.assertEqual(journal_steps, [step.as_dict() for step in result.trace])
+        terminal = journal_steps[-1]
+        self.assertEqual("unrelated-corpse", result.trace[-1].target_token)
+        self.assertEqual(0, terminal["kills"])
+        self.assertIsNone(terminal["kill_confirmation"])
+        self.assertIsNone(terminal["intent"])
 
     def test_runner_completes_one_native_observation_driven_kill(self) -> None:
         health = SequenceHealthSource(
