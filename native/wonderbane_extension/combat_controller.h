@@ -30,7 +30,11 @@ class Controller final {
             && receipt.binding_digest == expected.binding_digest;
     }
     void Accept(Record& record, const wire::Receipt& receipt) noexcept {
-        if (!Correlated(record.command, receipt)) {
+        const bool terminal = receipt.phase == wire::Phase::retired
+            || (receipt.outcome == wire::Outcome::local_cancelled
+                && (receipt.flags & wire::local_cancelled));
+        if (!Correlated(record.command, receipt)
+            || (!terminal && !(receipt.flags & wire::cleanup_required))) {
             // An entered backend with an invalid reply cannot free its owner.
             record.receipt = wire::Reply(record.command, wire::Outcome::uncertain);
             record.receipt.flags = wire::cleanup_required;

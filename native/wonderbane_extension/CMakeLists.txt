@@ -40,6 +40,8 @@ add_library(
   guard_funding_native.cpp
   city_window_native.cpp
   building_native_target.cpp
+  combat_submission.cpp
+  combat_native.cpp
   vendor_navigation_native.cpp
   movement_settings.cpp
   movement_native_image.cpp
@@ -1358,4 +1360,19 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_combat_controller_test PRIVATE bcrypt)
   add_test(NAME wonderbane_extension_combat_controller COMMAND wonderbane_extension_combat_controller_test "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_command_v1.hex")
   set_tests_properties(wonderbane_extension_combat_controller PROPERTIES TIMEOUT 15)
+
+  add_executable(wonderbane_extension_combat_submission_test combat_submission_test.cpp)
+  target_compile_features(wonderbane_extension_combat_submission_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_submission_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_submission_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  add_test(NAME wonderbane_extension_combat_submission COMMAND wonderbane_extension_combat_submission_test)
+  add_test(NAME wonderbane_extension_combat_submission_install_failure COMMAND wonderbane_extension_combat_submission_test install-failure)
+  set_tests_properties(wonderbane_extension_combat_submission PROPERTIES TIMEOUT 15)
+  add_executable(wonderbane_extension_combat_native_test combat_native_test.cpp combat_native.cpp)
+  target_compile_features(wonderbane_extension_combat_native_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_native_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_native_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_native_test PRIVATE bcrypt user32)
+  add_test(NAME wonderbane_extension_combat_native COMMAND wonderbane_extension_combat_native_test)
+  set_tests_properties(wonderbane_extension_combat_native PROPERTIES TIMEOUT 15)
 endif()

@@ -7,6 +7,7 @@ struct Backend final : Invoker {
     Controller* controller = nullptr;
     unsigned starts = 0, cancels = 0;
     bool retire_inside_start = false, bad_reply = false, allow_cancel = true;
+    bool missing_cleanup = false, unavailable = false;
     wire::Receipt Start(const wire::Command& command) noexcept override {
         ++starts;
         if (retire_inside_start) { controller->Retire(command.grant.scene); }
@@ -14,6 +15,8 @@ struct Backend final : Invoker {
         receipt.flags = wire::cleanup_required | wire::outbound_queued;
         receipt.phase = wire::Phase::engaged;
         if (bad_reply) { receipt.target_key[0] ^= 1; }
+        if (missing_cleanup) { receipt.flags &= ~wire::cleanup_required; }
+        if (unavailable) { receipt = wire::Reply(command, wire::Outcome::unavailable); }
         return receipt;
     }
     wire::Receipt Cancel(const wire::Command& command) noexcept override {
@@ -85,5 +88,17 @@ int main(int argc, char** argv) {
     if (!controller.Busy()) { return 14; }
     controller.Retire(command.grant.scene);
     if (controller.Busy()) { return 15; }
+    backend.bad_reply = false;
+    for (bool unavailable : {false, true}) {
+        other.request[3]++;
+        backend.missing_cleanup = true; backend.unavailable = unavailable;
+        receipt = controller.Execute(V::start, other, true, true, backend);
+        if (!controller.Busy() || receipt.outcome != O::uncertain
+            || !(receipt.flags & wire::cleanup_required)) { return 19; }
+        const auto before = backend.cancels;
+        receipt = controller.Execute(V::cancel, other, true, false, backend);
+        if (controller.Busy() || receipt.outcome != O::local_cancelled
+            || backend.cancels != before + 1) { return 20; }
+    }
     return 0;
 }
