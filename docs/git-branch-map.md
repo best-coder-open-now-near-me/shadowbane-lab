@@ -14,13 +14,17 @@ PR #39 `a6e8114`, PR #40 `1565732` (including vendor PR #38), PR #41 `8e87a47`,
 and PR #42 `daec3d1` histories. PRs #38-43 are merged. They are not outstanding
 source integration dependencies.
 
-`codex/bot-deployment-20260929` continues from this shared main for a dashboard
-HTTP completion correction found during deployment packaging and the current
-handoff. It reuses the completed PvE worktree; the normal project checkout stays
-on main. Source-stamped package validation precedes any runtime replacement.
-Follow [the current deployment handoff](bot-deployment-20260929.md) for installed
-identity, exact package receipts, and remaining live-test input. The September 28
-[integration receipt](bot-integration-20260928.md) remains the earlier source audit.
+The dashboard correction is merged through
+[PR #44](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/44)
+at `5945a00fd160097c5f43e49bbf3386337beabc4f`, after all 15 hosted gates passed.
+The deployed host 0.3.53 / native 1.8.33 package is stamped with reviewed head
+`b5016c491d2b51e0f0ed99b62acaedf134c54c9a`; its history is retained in main.
+`codex/bot-deployment-20260929` now carries the post-deployment receipt targeting
+main. This documentation checkpoint does not change the qualified runtime.
+Follow [the deployment receipt](bot-deployment-20260929.md) for exact hashes,
+installed state, preservation checks, and remaining live-test input. The normal
+checkout stays on main. Active validation worktrees remain available for the
+pending live acceptance; unrelated historical branches are not cleanup targets.
 
 Manual-list combat is implemented. Automatic retaliation is disabled pending an
 authoritative server character-session fence. Active validation artifacts and
