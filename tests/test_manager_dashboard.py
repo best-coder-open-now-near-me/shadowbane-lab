@@ -4,6 +4,7 @@ import http.client
 import io
 import json
 import socket
+import threading
 import time
 import unittest
 from http import HTTPStatus
@@ -407,6 +408,68 @@ class DashboardServerTests(unittest.TestCase):
             headers={**self._authorization, "Content-Type": "application/json"},
         )
         self.assertEqual(HTTPStatus.BAD_REQUEST, status)
+
+    def test_rejected_post_responds_before_body_and_bounds_dripping_close(self) -> None:
+        self._restart_server(max_concurrent_requests=1, body_timeout_seconds=0.2)
+        connection = self._raw_connection()
+        stopped = threading.Event()
+
+        def send_late_body() -> None:
+            while not stopped.wait(0.02):
+                try:
+                    connection.sendall(b"x")
+                except OSError:
+                    return
+
+        sender = threading.Thread(target=send_late_body, daemon=True)
+        try:
+            connection.sendall(
+                b"POST /api/v1/actions HTTP/1.1\r\nHost: localhost\r\n"
+                b"Content-Length: 999999999\r\nConnection: close\r\n\r\n"
+            )
+            # Authentication rejects before receiving or interpreting any body.
+            response = self._read_raw_response(connection)
+            self.assertIn(b"HTTP/1.1 401 Unauthorized", response)
+            self.assertIn(b'"code":"unauthorized"', response)
+            self.assertEqual([], self.service.execute_calls)
+            sender.start()
+            started = time.monotonic()
+            status, _, _ = self._request(
+                "GET", "/api/v1/status", headers=self._authorization,
+            )
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertLess(time.monotonic() - started, 1.0)
+            self.assertEqual([], self.service.execute_calls)
+        finally:
+            stopped.set()
+            connection.close()
+            if sender.ident is not None:
+                sender.join(timeout=1)
+
+    def test_rejected_post_close_byte_limit_releases_worker_without_peer_eof(self) -> None:
+        self._restart_server(max_concurrent_requests=1, body_timeout_seconds=2.0)
+        connection = self._raw_connection()
+        try:
+            connection.sendall(
+                b"POST /api/v1/actions HTTP/1.0\r\nHost: localhost\r\n"
+                b"Content-Length: 999999999\r\n\r\n"
+            )
+            response = self._read_raw_response(connection)
+            self.assertIn(b"401 Unauthorized", response)
+            self.assertIn(b"Connection: close", response)
+            # Keep our write side open beyond the discard budget. The server
+            # must release its sole worker without trusting Content-Length or
+            # waiting for EOF/the longer time limit. These bytes are never input.
+            connection.sendall(b"x" * MAX_ACTION_BODY_BYTES)
+            started = time.monotonic()
+            status, _, _ = self._request(
+                "GET", "/api/v1/status", headers=self._authorization,
+            )
+            self.assertEqual(HTTPStatus.OK, status)
+            self.assertLess(time.monotonic() - started, 1.0)
+            self.assertEqual([], self.service.execute_calls)
+        finally:
+            connection.close()
 
     def test_action_endpoint_rejects_unknown_missing_and_extra_fields(self) -> None:
         invalid_payloads = (

@@ -13,14 +13,15 @@ All 15 hosted checks passed for its exact reviewed head `e8062fd`.
 The [integration inventory](docs/integration-status-20260923.md) records retained
 source, deferred lanes, validation and remaining acceptance.
 
-The current combined bot review is `codex/bot-integration-20260928`, targeting
-`main`. It includes the current-client/vendor source from PR #40, manual-list
-native combat from PR #39, exact PvE attribution from PR #41, and captured-client
-command ownership from PR #42. See the [integration receipt](docs/bot-integration-20260928.md)
-for exact source tips, validation, and open acceptance gates. This is host 0.3.53 /
-native 1.8.33 source; it has not been deployed. Automatic retaliation still needs
-the authoritative server character-session contract. Use the combined branch for
-this review and freshly fetched main for unrelated work.
+The combined bot source is merged into `main` through
+[PR #43](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/43)
+at `d3389d4eff992074f7a63394c735f5b4cfd1d993`, including PRs #38-42. Start new
+work from freshly fetched main. Manual-list combat, exact PvE attribution,
+captured-client command ownership, and client 1.3.38.12 support are included.
+The [integration receipt](docs/bot-integration-20260928.md) records exact source
+and validation. Follow the [September 29 deployment handoff](docs/bot-deployment-20260929.md)
+for the host 0.3.53 / native 1.8.33 update, live-test readiness, and remaining input.
+Automatic retaliation still requires the authoritative server session contract.
 
 Read the [branch map](docs/git-branch-map.md) before choosing a development base,
 and the [contributor workflow](CONTRIBUTING.md) before starting a new task.
