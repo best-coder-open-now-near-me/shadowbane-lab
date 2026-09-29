@@ -12,6 +12,7 @@ from shadowbane_lab.client_extension import movement_wire as movement
 from shadowbane_lab.client_extension.combat_channel import NativeCombatCommand
 from shadowbane_lab.client_extension.combat_wire import Outcome, Phase, Verb
 from shadowbane_lab.client_extension.movement_session import (
+    NativeCombatResult,
     NativeMovementError,
     NativeMovementSession,
 )
@@ -42,6 +43,7 @@ def owner(monkeypatch):
             self.payload = receipt().encode()
             self.stage = channel.NativeActionResultStage.SUBMITTED_TO_CLIENT
             self.error = 0
+            self.detail = ""
             self.closed = False
 
         def submit(self, wire, *, timeout_ms):
@@ -57,7 +59,7 @@ def owner(monkeypatch):
                 ).encode()
             return channel.NativeActionResult(
                 len(self.commands), wire.command_id, len(self.commands),
-                self.stage, self.error, 1, 1, "", payload,
+                self.stage, self.error, 1, 1, self.detail, payload,
             )
 
         def close(self):
@@ -79,7 +81,7 @@ def owner(monkeypatch):
 def test_combat_reuses_acquired_producer_and_original_binding_for_every_verb(owner):
     session, grant, command, transport, opened = owner
     for verb in Verb:
-        assert session.combat(grant, verb, command) == receipt()
+        assert session.combat(grant, verb, command) == NativeCombatResult(receipt())
     assert opened == [transport]
     assert [wire.kind for wire in transport.commands] == list(Verb)
     assert [wire.command_id for wire in transport.commands] == [2, 3, 4]
@@ -165,8 +167,8 @@ def test_start_timeout_does_not_retry_or_reacquire_and_status_keeps_original_com
     transport.payload = replace(receipt(), outcome=Outcome.UNCERTAIN,
                                 phase=Phase.BLOCKED).encode()
     observed = session.combat(grant, Verb.STATUS, command)
-    assert observed.outcome is Outcome.UNCERTAIN
-    assert not observed.cleanup_confirmed
+    assert observed.receipt.outcome is Outcome.UNCERTAIN
+    assert not observed.receipt.cleanup_confirmed
     assert [wire.kind for wire in transport.commands] == [Verb.START, Verb.STATUS]
     assert all(wire.payload is command for wire in transport.commands)
     assert opened == [transport]
@@ -206,6 +208,7 @@ def test_readiness_loss_blocks_new_start_but_preserves_exact_old_cleanup(owner):
                                    "wrong_grant", "wrong_binding", "failed_stage", "error"])
 def test_unconfirmed_or_mismatched_receipt_never_reports_success(owner, invalid):
     session, grant, command, transport, _ = owner
+    transport.detail = "combat_v1:diagnostic_must_not_escape_bad_binding"
     if invalid == "empty":
         transport.payload = b""
     elif invalid == "zero":
@@ -222,6 +225,35 @@ def test_unconfirmed_or_mismatched_receipt_never_reports_success(owner, invalid)
         transport.stage = channel.NativeActionResultStage.FAILED
     else:
         transport.error = 1
-    with pytest.raises((ValueError, channel.NativeActionChannelError)):
+    with pytest.raises((ValueError, channel.NativeActionChannelError)) as failure:
         session.combat(grant, Verb.STATUS, command)
+    assert transport.detail not in str(failure.value)
     assert len(transport.commands) == 1
+
+
+@pytest.mark.parametrize("detail", ["", "native_combat_receipt_v1",
+                                    "combat_v1:dispatch:native_rejected:d1n0q0f0", "x" * 72])
+def test_correlated_result_preserves_opaque_bounded_native_diagnostic(owner, detail):
+    session, grant, command, transport, _ = owner
+    transport.detail = detail
+    result = session.combat(grant, Verb.START, command)
+    assert isinstance(result, NativeCombatResult)
+    assert result.native_detail == (detail or None)
+    # No diagnostic metadata is appended to or encoded in Receipt384.
+    assert result.receipt == receipt()
+    assert result.receipt.encode() == transport.payload
+    assert len(result.receipt.encode()) == 384
+
+
+def test_status_diagnostic_is_not_reused_after_ambiguous_transport(owner):
+    session, grant, command, transport, _ = owner
+    transport.detail = "combat_v1:entry:queued:d1n1q1f1"
+    first = session.combat(grant, Verb.START, command)
+    transport.failure = channel.NativeActionChannelTimeout("ambiguous status")
+    with pytest.raises(channel.NativeActionChannelTimeout):
+        session.combat(grant, Verb.STATUS, command)
+    transport.failure = None
+    transport.detail = ""
+    last = session.combat(grant, Verb.CANCEL, command)
+    assert first.native_detail == "combat_v1:entry:queued:d1n1q1f1"
+    assert last.native_detail is None

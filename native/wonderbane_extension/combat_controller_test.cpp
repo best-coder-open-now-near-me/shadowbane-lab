@@ -8,6 +8,8 @@ struct Backend final : Invoker {
     unsigned starts = 0, cancels = 0;
     bool retire_inside_start = false, bad_reply = false, allow_cancel = true;
     bool missing_cleanup = false, unavailable = false;
+    Diagnostic diagnostic{Stage::dispatch, wire::Outcome::native_rejected, true};
+    Diagnostic Diagnose(const wire::Command&) const noexcept override { return diagnostic; }
     wire::Receipt Start(const wire::Command& command) noexcept override {
         ++starts;
         if (retire_inside_start) { controller->Retire(command.grant.scene); }
@@ -45,9 +47,11 @@ int main(int argc, char** argv) {
     if (receipt.outcome != O::client_outbound_queued || backend.starts != 1 || !controller.Busy()) { return 4; }
     receipt = controller.Execute(V::start, command, true, true, backend);
     if (receipt.outcome != O::client_outbound_queued || backend.starts != 1) { return 5; }
+    if (controller.Diagnose(command).stage != Stage::dispatch) { return 30; }
     auto changed = command; changed.target_key[0] ^= 1;
     if (controller.Execute(V::cancel, changed, true, true, backend).outcome != O::invalid
         || backend.cancels) { return 6; }
+    if (controller.Diagnose(changed).stage != Stage::none) { return 31; }
     auto other = command; other.request[0] ^= 1;
     if (controller.Execute(V::start, other, true, true, backend).outcome != O::pending
         || backend.starts != 1) { return 7; }
@@ -60,6 +64,9 @@ int main(int argc, char** argv) {
     auto forged = never_entered; forged.local_key[0] ^= 1;
     if (controller.Execute(V::start, forged, true, true, backend).outcome != O::invalid
         || backend.starts != 1 || backend.cancels) { return 18; }
+    if (controller.Diagnose(other).stage != Stage::none
+        || controller.Diagnose(never_entered).stage != Stage::no_entry) { return 32; }
+    backend.diagnostic = {Stage::position, O::stale};
     backend.allow_cancel = false;
     receipt = controller.Execute(V::cancel, command, true, false, backend);
     if (receipt.phase != P::cancelling || !controller.Busy() || backend.cancels != 1) { return 8; }
@@ -69,9 +76,13 @@ int main(int argc, char** argv) {
     receipt = controller.Execute(V::start, command, true, true, backend);
     if (receipt.outcome != O::local_cancelled || backend.starts != 1) { return 10; }
 
+    if (controller.Diagnose(command).stage != Stage::dispatch) { return 33; }
     // Retirement inside a native callback must win over its eventual old reply.
     backend.retire_inside_start = true;
+    backend.diagnostic = {Stage::selection_recheck, O::stale};
     receipt = controller.Execute(V::start, other, true, true, backend);
+    if (controller.Diagnose(other).stage != Stage::selection_recheck
+        || controller.Diagnose(command).stage != Stage::dispatch) { return 34; }
     if (receipt.phase != P::retired || controller.Busy()
         || receipt.flags & wire::cleanup_required || !(receipt.flags & wire::outbound_queued)
         || backend.starts != 2) { return 11; }
@@ -101,5 +112,16 @@ int main(int argc, char** argv) {
         if (controller.Busy() || receipt.outcome != O::local_cancelled
             || backend.cancels != before + 1) { return 20; }
     }
+    for (unsigned stage = 0; stage <= static_cast<unsigned>(Stage::no_entry); ++stage) {
+        for (unsigned outcome = 0; outcome <= static_cast<unsigned>(O::native_rejected); ++outcome) {
+            for (int movement = -1; movement <= 5; ++movement) {
+                char detail[73]{};
+                const auto length = FormatDiagnostic({static_cast<Stage>(stage),
+                    static_cast<O>(outcome), true, true, true, true, movement}, detail);
+                if (!length || length > 72 || std::strlen(detail) != length) { return 35; }
+            }
+        }
+    }
+
     return 0;
 }

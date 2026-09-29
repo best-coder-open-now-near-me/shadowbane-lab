@@ -1,5 +1,6 @@
 #pragma once
 #include "combat_party.h"
+#include "combat_diagnostic.h"
 #include "combat_wire.h"
 #include "combat_submission.h"
 
@@ -8,7 +9,7 @@ class NativeTarget final {
 public:
     using Admission = bool (*)(void*) noexcept;
     struct State { std::uint32_t mode = 0, action = 0; bool target = false; };
-    struct Result { wire::Outcome outcome = wire::Outcome::unavailable; bool queued = false; };
+    struct Result { wire::Outcome outcome = wire::Outcome::unavailable; bool queued = false; Diagnostic diagnostic{}; };
     bool Bind(HWND) noexcept;
     bool Available() const noexcept { return base_ && !faulted_; }
     Result Attack(const movement::NativeScene&, const wire::Command&,
@@ -54,6 +55,7 @@ private:
     wire::Command command_{};
     party::Snapshot party_{};
     submission::Receipt submission_receipt_{};
+    Stage stage_ = Stage::none;
     Admission current_ = nullptr, enter_ = nullptr, append_current_ = nullptr;
     void* context_ = nullptr;
     List list_{};

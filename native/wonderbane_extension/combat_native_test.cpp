@@ -87,7 +87,10 @@ Boundary::Boundary() noexcept {}
 void Boundary::Restore() noexcept { scoped = false; ++restored; }
 Scope::Scope(const Context& context) noexcept { scope_context = context; scoped = true; }
 Scope::~Scope() { scoped = false; }
-Receipt Scope::Finish() noexcept { return submitted; }
+Receipt Scope::Finish() noexcept {
+    if (scope_context.receipt) { *scope_context.receipt = submitted; }
+    return submitted;
+}
 }
 namespace wonderbane::extension::combat {
 struct NativeTargetTestAccess {
@@ -163,10 +166,15 @@ int main() {
     auto window = CreateWindowExW(0, L"STATIC", L"combat-native-test", 0, 0, 0, 1, 1,
         HWND_MESSAGE, nullptr, GetModuleHandleW(nullptr), nullptr); assert(window);
     auto command = Command(); auto scene = Reset();
+    c::Diagnostic last_diagnostic{};
     auto run = [&](O expected) {
         c::NativeTarget target; c::NativeTargetTestAccess::Bind(target, window);
         const auto result = target.Attack(scene, command, Admit, Enter, Admit, nullptr);
         assert(result.outcome == expected);
+        last_diagnostic = result.diagnostic;
+        assert(last_diagnostic.outcome == expected);
+        assert(last_diagnostic.dispatched == (dispatches != 0));
+        assert(last_diagnostic.appended == result.queued);
         if (seh_dispatch) { assert(result.queued); }
         if (throw_select || seh_dispatch) {
             assert(!target.Available() && !target.Clear());
@@ -176,12 +184,18 @@ int main() {
         for (const auto& [object, refs] : references) { (void)object; assert(!refs); }
     };
     run(O::client_outbound_queued); assert(selections == 1 && entries == 1 && dispatches == 1);
+    assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.native_entered);
     scene = Reset(); submitted = {}; run(O::native_rejected); assert(dispatches == 1);
+    assert(last_diagnostic.stage == c::Stage::dispatch && !last_diagnostic.native_entered
+        && !last_diagnostic.appended && !last_diagnostic.followup_entered);
     scene = Reset(); objects.clear(); run(O::stale); assert(!selections);
+    assert(last_diagnostic.stage == c::Stage::query_match);
     scene = Reset(); objects.push_back(objects[0]); run(O::stale); assert(!selections);
     scene = Reset(); invalidate_query = true; run(O::stale); assert(!selections);
     scene = Reset(); invalidate_select = true; run(O::stale); assert(selections == 1 && !entries && !dispatches);
+    assert(last_diagnostic.stage == c::Stage::selection_recheck);
     scene = Reset(); entered = false; run(O::stale); assert(entries == 1 && !dispatches);
+    assert(last_diagnostic.stage == c::Stage::fence_enter);
     scene = Reset(); admitted = false; run(O::stale); assert(!selections);
     scene = Reset(); Word(base + 0x4c54, base + 0x4d0c); run(O::stale); assert(!selections); // No terminator capacity.
     scene = Reset(); Word(base + 0x4d0c, 1); run(O::stale); assert(!selections); // Nonzero terminator.
@@ -194,9 +208,12 @@ int main() {
     Word(base + 0x8310, 200); Word(base + 0x8314, 53); Word(base + 0x8374, 0x15);
     run(O::stale); assert(!selections); // Current party protection overrides the saved list.
     scene = Reset(); Word(base + 0x11416b4, 0); run(O::stale); assert(!selections);
+    assert(last_diagnostic.stage == c::Stage::position);
     scene = Reset(); throw_select = true; run(O::unavailable); assert(!dispatches);
+    assert(last_diagnostic.stage == c::Stage::selection && !last_diagnostic.dispatched);
     scene = Reset(); seh_dispatch = true; const auto before_restore = restored;
     run(O::uncertain); assert(!scoped && restored == before_restore + 1);
+    assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.appended);
     scene = Reset(); c::NativeTarget target; c::NativeTargetTestAccess::Bind(target, window);
     c::NativeTarget::State state{};
     assert(target.Cancel(scene, Admit, nullptr, state) && !cancellations);

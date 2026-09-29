@@ -84,12 +84,14 @@ int main(int argc, char** argv) {
     auto receipt = v::wire::Reply(command->command, v::wire::Outcome::uncertain);
     receipt.flags = v::wire::cleanup_required | v::wire::outbound_queued;
     receipt.phase = v::wire::Phase::cancelling;
-    v::Complete(command, receipt);
+    v::Complete(command, receipt, {v::Stage::dispatch, v::wire::Outcome::uncertain, true, true, true});
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
     assert(!runtime.combat_pending && storage.header.command_read_sequence == 2);
     assert(last_result().stage == static_cast<unsigned>(ClientActionResultStage::submitted_to_client));
     assert(last_result().error == ERROR_SUCCESS && last_result().consumer_thread_id == GetCurrentThreadId());
     auto response = returned(); assert(!std::memcmp(&receipt, &response, sizeof(receipt)));
+    assert(std::string(last_result().detail, last_result().detail_length)
+        == "combat_v1:dispatch:uncertain:d1n1q1f0:m-1");
 
     v::test_ready = false;
     publish(v::wire::Verb::cancel);
@@ -130,10 +132,12 @@ int main(int argc, char** argv) {
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
     command = v::Take(); assert(command);
     receipt = v::wire::Reply(command->command, v::wire::Outcome::observed);
-    ++receipt.revision; v::Complete(command, receipt);
+    ++receipt.revision;
+    v::Complete(command, receipt, {v::Stage::dispatch, v::wire::Outcome::native_rejected, true});
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
     assert(last_result().stage == static_cast<unsigned>(ClientActionResultStage::failed));
     assert(movement::wire::Zero(&last_result().movement, sizeof(last_result().movement)));
+    assert(std::string(last_result().detail, last_result().detail_length) == "native_combat_receipt_v1");
 
     publish(v::wire::Verb::status);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);

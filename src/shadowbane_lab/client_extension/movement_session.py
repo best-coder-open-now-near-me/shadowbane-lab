@@ -7,9 +7,13 @@ import itertools
 import sys
 import threading
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from . import action_channel as channel
 from .movement_wire import Command, Grant, Host, Outcome, Receipt, Settings, Snapshot, Verb
+
+if TYPE_CHECKING:
+    from .combat_wire import Receipt as CombatReceipt
 
 # Exact terminal-only wire flags: no binding, readiness, camera or device claim.
 _TERMINAL_ONLY = 8
@@ -28,6 +32,14 @@ class NativeMovementGrant:
     ownership: Grant
     host: Host
     request_key: str
+
+
+@dataclass(frozen=True, slots=True)
+class NativeCombatResult:
+    """Correlated receipt plus opaque diagnostics, never additional action authority."""
+
+    receipt: CombatReceipt
+    native_detail: str | None = None
 
 
 def read_snapshot(identity: channel.NativeClientProcessIdentity, window: int) -> Snapshot:
@@ -292,7 +304,7 @@ class NativeMovementSession:
                 raise NativeMovementError(Outcome.INHIBITED)
             self._combat_transport(grant)
 
-    def combat(self, grant: NativeMovementGrant, verb, command):
+    def combat(self, grant: NativeMovementGrant, verb, command) -> NativeCombatResult:
         """Use the existing producer lease and exact Grant; never acquire another owner.
 
         A timeout is ambiguous. Callers retain this command/ticket and query or cancel
@@ -328,4 +340,7 @@ class NativeMovementSession:
                 raise channel.NativeActionChannelError(
                     "combat receipt contradicts transport result"
                 )
-            return receipt
+            # The channel already bounds/decodes this ASCII field. Expose it only
+            # after immutable receipt correlation and outer-result validation.
+            # Legacy markers and new diagnostic formats remain opaque to callers.
+            return NativeCombatResult(receipt, result.detail or None)

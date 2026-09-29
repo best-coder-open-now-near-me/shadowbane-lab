@@ -24,6 +24,7 @@ public:
     movement::NativeScene scene{};
     movement::Grant grant{};
     wire::Command command{};
+    Diagnostic diagnostic{};
     fence::Binding binding{};
     fence::Ticket ticket;
     std::shared_ptr<movement::CommandLease> lease;
@@ -94,18 +95,24 @@ public:
         stopping = false;
         return stopped;
     }
+    Diagnostic Diagnose(const wire::Command& input) const noexcept override {
+        return !std::memcmp(&input, &command, sizeof(command)) ? diagnostic : Diagnostic{};
+    }
     wire::Receipt Start(const wire::Command& input) noexcept override {
         if (active) { return wire::Reply(input, O::unavailable); }
+        command = input; diagnostic = {Stage::runtime_ready, O::unavailable};
         if (!executing || !Ready()) {
             auto result = wire::Reply(input, O::local_cancelled);
             result.flags = wire::local_cancelled; return result;
         }
-        command = input; queued = entered = retired = false;
+        queued = entered = retired = false;
+        diagnostic = {Stage::binding, O::invalid};
         cancelled.store(false, std::memory_order_release);
         if (!movement::wire::Decode(command.grant, grant)
             || !wire::BindingFor(command, process.process_id, process.creation_filetime_utc, binding)) {
             auto result = wire::Reply(command, O::local_cancelled); result.flags = wire::local_cancelled; return result;
         }
+        diagnostic = {Stage::fence_open, O::unavailable};
         try {
             if (!ticket.Open(binding)) {
                 auto result = wire::Reply(command, O::local_cancelled); result.flags = wire::local_cancelled; return result;
@@ -115,29 +122,46 @@ public:
             result.flags = wire::local_cancelled; return result;
         }
         lease = executing->lease; active = starting = true;
+        diagnostic = {Stage::owner_current, O::stale};
         if (!Current(this)) {
             ticket.Close(); lease.reset(); active = starting = false;
             return Receipt(O::local_cancelled, wire::Phase::idle, false);
         }
-        if (movement::BeginNativeOwnerAction(scene, grant, command.host) != movement::Result::accepted) {
+        diagnostic = {Stage::owner_begin, O::unavailable};
+        const auto begin = movement::BeginNativeOwnerAction(scene, grant, command.host);
+        diagnostic.movement_result = static_cast<int>(begin);
+        if (begin != movement::Result::accepted) {
             ticket.Close(); lease.reset(); active = starting = false;
             return Receipt(O::local_cancelled, wire::Phase::idle, false);
         }
         // Establish native combat/movement cleanup independently of host preflight.
         priming = true;
+        diagnostic = {Stage::baseline_pause, O::unavailable};
         const auto paused = movement::PauseNativeOwnerAction(scene, grant);
+        diagnostic.movement_result = static_cast<int>(paused);
         priming = false;
         NativeTarget::Result result{O::stale};
-        if (paused == movement::Result::accepted && Current(this)
-            && movement::BeginNativeOwnerAction(scene, grant, command.host) == movement::Result::accepted) {
-            result = target.Attack(scene, command, Current, Enter, AppendCurrent, this);
-            queued = result.queued;
+        if (paused == movement::Result::accepted) {
+            diagnostic = {Stage::baseline_current, O::stale};
+            if (Current(this)) {
+                diagnostic = {Stage::owner_repin, O::unavailable};
+                const auto repin = movement::BeginNativeOwnerAction(scene, grant, command.host);
+                diagnostic.movement_result = static_cast<int>(repin);
+                if (repin == movement::Result::accepted) {
+                    result = target.Attack(scene, command, Current, Enter, AppendCurrent, this);
+                    queued = result.queued;
+                    diagnostic = result.diagnostic;
+                }
+            }
         }
         starting = false;
         if (retired) { return Receipt(O::observed, wire::Phase::retired, false); }
         if (result.outcome == O::client_outbound_queued && Current(this)) {
             NativeTarget::State state{};
             if (target.ReadState(scene, state)) { return Receipt(result.outcome, wire::Phase::engaged, true, state); }
+            diagnostic.stage = Stage::active_state; diagnostic.outcome = O::unavailable;
+        } else if (result.outcome == O::client_outbound_queued) {
+            diagnostic.stage = Stage::post_dispatch; diagnostic.outcome = O::stale;
         }
         cancelled.store(true, std::memory_order_release);
         return Cancel(command);
@@ -187,7 +211,8 @@ public:
             const bool live = valid_scene && Ready() && pending->lease
                 && pending->lease->Current(GetTickCount64()) && GetTickCount64() <= pending->deadline;
             if (!active) { scene = fresh; }
-            Complete(pending, controller.Execute(pending->verb, pending->command, valid, live, *this));
+            const auto receipt = controller.Execute(pending->verb, pending->command, valid, live, *this);
+            Complete(pending, receipt, controller.Diagnose(pending->command));
             executing.reset();
         }
         updating = false;

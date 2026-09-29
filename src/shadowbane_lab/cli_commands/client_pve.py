@@ -516,33 +516,9 @@ def _run_pve(
                 reader_process_ids.add(zone_reader.process_id)
             if len(reader_process_ids) != 1:
                 raise ValueError("native PvE readers resolved different client processes")
-            combat_owner = movement_dispatcher
-            if movement_dispatcher is None:
-                native_operation = stack.enter_context(
-                    NativeMovementOperation(guard, active_stop_signal)
-                )
-                combat_owner = native_operation
-                movement_dispatcher = native_operation.dispatcher
-                active_stop_signal = native_operation
-            listed_combat = stack.enter_context(ListedCombatCoordinator(
-                store=attack_list,
-                session=combat_owner.session,
-                grant=combat_owner.grant,
-                require_current=character_session.require_current,
-            ))
-            executor = GuardedInputExecutor(
-                guard=guard,
-                backend=PyAutoGuiBackend(),
-                stop_signal=active_stop_signal,
-                input_precondition=character_session.require_current,
-            )
-            adapter = ClientInputAdapter(
-                DecisionInputCompiler(
-                    client_profile,
-                    StaticBindingPointResolver(),
-                ),
-                executor,
-            )
+            # Cold imports (including PyAutoGUI's DPI initialization) and file
+            # setup must finish before taking an expiring native grant.
+            input_backend = PyAutoGuiBackend()
             journal = (
                 None
                 if journal_path is None
@@ -574,6 +550,37 @@ def _run_pve(
                     "learned blockers; "
                     "costs combine slope, water and uncertain object density",
                 )
+            # Preparation can be slow or change process-wide window behavior.
+            # Revalidate the captured client before acquiring any authority.
+            character_session.require_current()
+            guard.require_target()
+            combat_owner = movement_dispatcher
+            if movement_dispatcher is None:
+                native_operation = stack.enter_context(
+                    NativeMovementOperation(guard, active_stop_signal)
+                )
+                combat_owner = native_operation
+                movement_dispatcher = native_operation.dispatcher
+                active_stop_signal = native_operation
+            listed_combat = stack.enter_context(ListedCombatCoordinator(
+                store=attack_list,
+                session=combat_owner.session,
+                grant=combat_owner.grant,
+                require_current=character_session.require_current,
+            ))
+            executor = GuardedInputExecutor(
+                guard=guard,
+                backend=input_backend,
+                stop_signal=active_stop_signal,
+                input_precondition=character_session.require_current,
+            )
+            adapter = ClientInputAdapter(
+                DecisionInputCompiler(
+                    client_profile,
+                    StaticBindingPointResolver(),
+                ),
+                executor,
+            )
             result = PvERunner(
                 controller=controller,
                 health_reader=health_reader,
