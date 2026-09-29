@@ -87,6 +87,23 @@ def test_combat_reuses_acquired_producer_and_original_binding_for_every_verb(own
     assert all(wire.payload.encode() == command.encode() for wire in transport.commands)
 
 
+def test_combat_preflight_is_readonly_and_requires_current_owner_and_capability(owner):
+    session, grant, _, transport, opened = owner
+    session.require_combat_available(grant)
+    assert not transport.commands and opened == [transport]
+    transport.header = replace(transport.header, capability_flags=1)
+    with pytest.raises(channel.NativeActionChannelUnavailable):
+        session.require_combat_available(grant)
+    assert not transport.commands and opened == [transport]
+    transport.header = replace(transport.header, capability_flags=9)
+    session.stop(grant, str(uuid.uuid4()))
+    transport.commands.clear()
+    with pytest.raises(NativeMovementError) as failure:
+        session.require_combat_available(grant)
+    assert failure.value.outcome is movement.Outcome.STALE
+    assert not transport.commands and opened == [transport]
+
+
 @pytest.mark.parametrize("field", ["pid", "creation", "window", "grant", "host", "binding"])
 def test_mismatched_owner_is_rejected_before_transport_publication(owner, field):
     session, grant, command, transport, opened = owner

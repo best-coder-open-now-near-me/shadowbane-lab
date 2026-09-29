@@ -272,6 +272,24 @@ class NativeMovementSession:
                 self._transport.close()
                 self._transport = None
 
+    def _combat_transport(self, grant: NativeMovementGrant):
+        if grant.process_identity != self.identity or grant.window != self.window:
+            raise ValueError("combat grant belongs to another client")
+        transport = self._transport
+        if transport is None or self._closed or grant.host != self._host(acquire=False):
+            raise channel.NativeActionChannelUnavailable("combat owner session is closed")
+        if not transport.header.capability_flags & channel.EXPLICIT_COMBAT_CAPABILITY:
+            raise channel.NativeActionChannelUnavailable("explicit combat is unavailable")
+        return transport
+
+    def require_combat_available(self, grant: NativeMovementGrant) -> None:
+        """Read-only admission before PAUSE; old movement-only services cannot qualify."""
+        with self._session_lock:
+            self._check_grant(grant)
+            if grant in self._stops:
+                raise NativeMovementError(Outcome.INHIBITED)
+            self._combat_transport(grant)
+
     def combat(self, grant: NativeMovementGrant, verb, command):
         """Use the existing producer lease and exact Grant; never acquire another owner.
 
@@ -294,14 +312,9 @@ class NativeMovementSession:
                 self._check_grant(grant)
                 if grant in self._stops:
                     raise NativeMovementError(Outcome.INHIBITED)
-            transport = self._transport
-            if transport is None or self._closed or grant.host != self._host(acquire=False):
-                raise channel.NativeActionChannelUnavailable("combat owner session is closed")
             # STATUS/CANCEL remain callable for the immutable old owner after native
             # revocation. Native correlates its retired transaction, never a replacement.
-            header = transport.header
-            if not header.capability_flags & channel.EXPLICIT_COMBAT_CAPABILITY:
-                raise channel.NativeActionChannelUnavailable("explicit combat is unavailable")
+            transport = self._combat_transport(grant)
             result = transport.submit(
                 NativeCombatCommand(next(self._ids), verb, command), timeout_ms=self.timeout_ms,
             )

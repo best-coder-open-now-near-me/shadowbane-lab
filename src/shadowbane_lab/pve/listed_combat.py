@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from uuid import uuid4
 
 from shadowbane_lab.client_extension.combat_wire import Outcome, Phase, Receipt, Verb
 from shadowbane_lab.client_extension.movement_session import (
@@ -11,6 +12,10 @@ from shadowbane_lab.client_extension.movement_session import (
 from shadowbane_lab.pve.attack_list import AttackListStore
 from shadowbane_lab.pve.listed_target import ListedTarget, listed_targets
 from shadowbane_lab.pve.model import PvECampLease, PvEObservation
+
+
+class ListedCombatInterruptionError(RuntimeError):
+    """The old PvE action or admission boundary could not be established safely."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,13 +119,24 @@ class ListedCombatCoordinator:
             local_key = observation.population.local_player_object_key
             if local_key is None:
                 raise ValueError("listed combat requires exact local player key")
-            self._ticket, self._command = self.store.register_combat_admission(
-                candidate.entry.entry_id, expected_revision=candidate.revision,
-                client_pid=self.grant.process_identity.process_id,
-                client_creation=self.grant.process_identity.creation_filetime_utc,
-                host=self.grant.host, window=self.grant.window, grant=self.grant.ownership,
-                local_key=local_key,
-            )
+            try:
+                self.session.require_combat_available(self.grant)
+                # Even a START that expires without entering must not leave the
+                # interrupted PvE action running while the host later recovers.
+                # pause() proves NativeStop under this exact unchanged Grant.
+                self.session.pause(self.grant, str(uuid4()))
+                self._ticket, self._command = self.store.register_combat_admission(
+                    candidate.entry.entry_id, expected_revision=candidate.revision,
+                    client_pid=self.grant.process_identity.process_id,
+                    client_creation=self.grant.process_identity.creation_filetime_utc,
+                    host=self.grant.host, window=self.grant.window, grant=self.grant.ownership,
+                    local_key=local_key,
+                )
+            except Exception as exc:
+                self._candidate = None
+                raise ListedCombatInterruptionError(
+                    f"listed interruption failed:{type(exc).__name__}"
+                ) from exc
             self._started_at = observation.now_ms
             self._quarantined.add((candidate.revision, candidate.entry.entry_id))
             return self._submit(Verb.START)

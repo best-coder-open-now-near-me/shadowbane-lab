@@ -29,7 +29,10 @@ from shadowbane_lab.pve.approach import (
     PvEApproachUpdate,
 )
 from shadowbane_lab.pve.controller import PvEController
-from shadowbane_lab.pve.listed_combat import ListedCombatCoordinator
+from shadowbane_lab.pve.listed_combat import (
+    ListedCombatCoordinator,
+    ListedCombatInterruptionError,
+)
 from shadowbane_lab.pve.model import (
     PvEIntent,
     PvEObservation,
@@ -411,6 +414,7 @@ class PvERunner:
                     consecutive_observation_failures
                     < self._maximum_consecutive_observation_failures
                     and not (self._listed_combat is not None and self._listed_combat.active)
+                    and not isinstance(exc, ListedCombatInterruptionError)
                 ):
                     self._sleeper(self._poll_interval_seconds)
                     continue

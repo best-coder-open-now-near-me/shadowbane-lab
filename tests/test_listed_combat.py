@@ -11,6 +11,7 @@ from test_combat_wire import fixture
 
 from shadowbane_lab.client_extension.action_channel import (
     NativeActionChannelTimeout,
+    NativeActionChannelUnavailable,
     NativeClientProcessIdentity,
 )
 from shadowbane_lab.client_extension.combat_wire import LOCAL_CANCELLED, Outcome, Phase, Verb
@@ -102,7 +103,19 @@ def encounter(tmp_path, monkeypatch):
         return replace(value, revision=command.binding.revision,
                        binding_digest=hashlib.sha256(command.binding.encode()).digest())
 
-    state = SimpleNamespace(failure=None, reply=for_command(receipt()))
+    state = SimpleNamespace(failure=None, pause_failure=None, unavailable=False,
+                            reply=for_command(receipt()))
+
+    def require_combat_available(owner):
+        assert owner is grant
+        if state.unavailable:
+            raise NativeActionChannelUnavailable("combat capability absent")
+
+    def pause(owner, request):
+        assert owner is grant and request
+        events.append("pause")
+        if state.pause_failure:
+            raise state.pause_failure
 
     def combat(owner, verb, payload):
         assert owner is grant and payload is command
@@ -119,7 +132,9 @@ def encounter(tmp_path, monkeypatch):
             raise RuntimeError("character changed")
 
     coordinator = ListedCombatCoordinator(
-        store=store, session=SimpleNamespace(combat=combat), grant=grant,
+        store=store, session=SimpleNamespace(combat=combat, pause=pause,
+                                             require_combat_available=require_combat_available),
+        grant=grant,
         require_current=require_current,
     )
     cancelled = for_command(replace(receipt(), outcome=Outcome.LOCAL_CANCELLED,
@@ -196,7 +211,7 @@ def test_uncertain_start_revokes_then_cancels_same_command_without_retry(encount
     assert encounter.coordinator.prepare(frame(100), None)
     update = encounter.coordinator.advance(frame(100))
     assert update.recovered and not encounter.coordinator.active
-    assert encounter.events == ["register", "start", "revoke", "cancel", "close"]
+    assert encounter.events == ["pause", "register", "start", "revoke", "cancel", "close"]
     assert len(encounter.tickets) == 1
     assert not encounter.coordinator.prepare(frame(200), None)
 
@@ -366,6 +381,27 @@ def test_public_runner_unwind_cancels_before_outer_session_can_close(encounter):
         runner.run()
     assert encounter.calls == [Verb.START, Verb.CANCEL]
     assert not encounter.coordinator.active and encounter.events[-1] == "close"
+
+
+@pytest.mark.parametrize("failure", [NativeActionChannelTimeout("pause unknown"),
+                                     RuntimeError("owner revoked")])
+def test_unconfirmed_pause_terminates_without_admission_retry_or_ordinary_input(encounter, failure):
+    encounter.state.pause_failure = failure
+    runner, state = run_public(encounter)
+    result = runner.run()
+    assert "ListedCombatInterruptionError" in result.terminal_reason
+    assert encounter.events == ["pause"]
+    assert not state.dispatched and not encounter.calls and not encounter.tickets
+    assert state.now == 0
+
+
+def test_missing_combat_capability_terminates_before_pause_or_registration(encounter):
+    encounter.state.unavailable = True
+    runner, state = run_public(encounter)
+    result = runner.run()
+    assert "ListedCombatInterruptionError" in result.terminal_reason
+    assert not encounter.events and not encounter.calls and not encounter.tickets
+    assert not state.dispatched and state.now == 0
 
 
 @pytest.mark.parametrize("depleted", ["current_health", "current_mana", "current_stamina"])
