@@ -817,3 +817,15 @@ Detailed static evidence remains private in artifacts/pve-pvp. This checkpoint i
 an implementation note, not a live retry experiment or package receipt. The next
 work remains bounded ownership of receive-to-processing correlation and generation
 validation, followed by durable response ingestion.
+
+
+### September 28 response provenance verification
+
+The retained September 24 source/image investigation was verified against the
+exact prepared image: 38 of 38 reviewed fingerprints match. Receive FIFO, process
+retries, deferred-action lifetime and local PlayerData publication are mapped. The
+remaining response-authority requirement is the server's character-switch fencing
+contract, not another broad live fight. See [the response provenance boundary](pvp-response-provenance.md)
+for exact scope, reproducibility and the required authoritative input. Automatic
+response insertion remains disabled; manual saved-list execution can proceed
+independently through the existing owner-thread transaction.
