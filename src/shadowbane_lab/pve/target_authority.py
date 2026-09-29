@@ -202,7 +202,9 @@ class PvEController(_BasePvEController):
             else self._target_authority_history[-1]
         )
 
-    def step(self, observation: PvEObservation) -> PvEControllerDecision:
+    def step(
+        self, observation: PvEObservation, *, external_combat: bool = False,
+    ) -> PvEControllerDecision:
         if not isinstance(observation, PvEObservation):
             raise ValueError("observation must be PvEObservation")
         self._active_step_target_rejections.clear()
@@ -225,7 +227,7 @@ class PvEController(_BasePvEController):
             self._target_authority_history.append(authority)
         self._active_target_authority = authority
         try:
-            return super().step(observation)
+            return super().step(observation, external_combat=external_combat)
         finally:
             self._active_target_authority = None
             self._active_step_target_rejections.clear()

@@ -22,6 +22,7 @@ from shadowbane_lab.travel.model import TravelDecision, TravelDestination
 
 if TYPE_CHECKING:
     from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
+    from shadowbane_lab.pve.listed_combat import ListedCombatUpdate
 
 
 def _positive_integer(value: int, field_name: str) -> None:
@@ -47,6 +48,7 @@ class PvEPhase(StrEnum):
     OPENING = "opening"
     ENGAGED = "engaged"
     POST_KILL = "post_kill"
+    RECOVERING = "recovering"
     CAMP_IDLE = "camp_idle"
     COMPLETE = "complete"
     STOPPED = "stopped"
@@ -502,8 +504,8 @@ class PvEControllerDecision:
             raise ValueError("return_to_camp must be boolean")
         if self.return_to_camp and self.camp is None:
             raise ValueError("return_to_camp requires a camp lease")
-        if self.return_to_camp and self.phase is not PvEPhase.CAMP_IDLE:
-            raise ValueError("return_to_camp is valid only while camp-idle")
+        if self.return_to_camp and self.phase not in (PvEPhase.CAMP_IDLE, PvEPhase.RECOVERING):
+            raise ValueError("return_to_camp is valid only while camp-idle or recovering")
         if self.kill_confirmation is not None and not isinstance(
             self.kill_confirmation, PvEKillConfirmation
         ):
@@ -567,6 +569,7 @@ class PvERunTraceStep:
     population_selected_target_token: str | None = None
     population_player_action_target_token: str | None = None
     population_scan_generation: int | None = None
+    listed_combat: ListedCombatUpdate | None = None
 
     def __post_init__(self) -> None:
         if self.movement_arrival_confirmed is not None:
@@ -645,6 +648,7 @@ class PvERunTraceStep:
 
     def as_dict(self) -> dict[str, object]:
         return {
+            "listed_combat": None if self.listed_combat is None else self.listed_combat.as_dict(),
             "decision_id": self.decision.decision_id,
             "at_ms": self.decision.now_ms,
             "phase": self.decision.phase.value,

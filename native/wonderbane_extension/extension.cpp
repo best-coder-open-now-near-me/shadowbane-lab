@@ -1,6 +1,7 @@
 #include "movement_boundary_trace.h"
 #include "targeted_action_trace.h"
 #include "condemn_responses.h"
+#include "combat_runtime.h"
 #include "movement_runtime.h"
 #include "vendor_runtime.h"
 #include "camera_observation.h"
@@ -467,6 +468,9 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             // Register only after shared startup succeeds; ordinary disable keeps
             // the owning-update consumer alive for safe re-enable.
             (void)wonderbane::extension::vendor::Start();
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+            (void)wonderbane::extension::combat::Start(identity);
+#endif
             (void)wonderbane::extension::movement::StartNativeMovementControls(identity);
         }
         if (result != ERROR_SUCCESS) {

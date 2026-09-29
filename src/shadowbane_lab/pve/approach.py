@@ -163,8 +163,8 @@ class PvEApproachController:
         if not isinstance(return_to_camp, bool):
             raise ValueError("return_to_camp must be boolean")
         if return_to_camp:
-            if phase is not PvEPhase.CAMP_IDLE or camp is None:
-                raise ValueError("camp return requires camp-idle phase and a camp lease")
+            if phase not in (PvEPhase.CAMP_IDLE, PvEPhase.RECOVERING) or camp is None:
+                raise ValueError("camp return requires camp-idle/recovery and a camp lease")
             return self._return_to_camp(observation, camp)
         if phase not in (PvEPhase.OPENING, PvEPhase.ENGAGED):
             return self.cancel("combat_phase_changed")

@@ -270,6 +270,11 @@ LRESULT WindowsInput::Message(UINT message, WPARAM wp, LPARAM lp) {
     }
     return DefSubclassProc(window_, message, wp, lp);
 }
+bool WindowsInput::AutomationInputCurrent() noexcept {
+    POINT point{}; NativeUiState ui{};
+    return Current() && ExactFocus() && Cursor(point) && Query(point, ui)
+        && !ui.global_owned && !ui.keyboard_owned && Current() && ExactFocus();
+}
 bool WindowsInput::Snapshot(CapturedInput& out) noexcept {
     out = {}; auto& input = out.input; input.tick_ms = GetTickCount64();
     if (!Current()) { return false; }
