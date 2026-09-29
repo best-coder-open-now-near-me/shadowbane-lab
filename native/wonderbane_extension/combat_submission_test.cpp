@@ -6,6 +6,9 @@
 namespace cs = wonderbane::extension::combat::submission;
 namespace {
 int failures = 0;
+const char* image_digest = "";
+std::uintptr_t verified_image = 0;
+unsigned verification_calls = 0;
 unsigned factories = 0, appends = 0, followups = 0, releases = 0, full_checks = 0, queue_checks = 0;
 bool current = true, queue_current = true, under_queue_lock = false;
 bool empty_factory = false, corrupt_ticket = false, throw_factory = false, throw_append = false, throw_followup = false;
@@ -65,8 +68,10 @@ bool GuardedSeh(const cs::Context& context, FactoryCallForSeh factory, AppendCal
 }
 }
 namespace wonderbane::extension {
-bool GraphicsExecutableSha256Matches(const char*) noexcept { return false; }
-namespace movement { bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { return false; } }
+bool GraphicsExecutableSha256Matches(const char* digest) noexcept { return std::strcmp(digest, image_digest) == 0; }
+namespace movement { bool VerifyNativeMovementImage(std::uintptr_t& image) noexcept {
+    ++verification_calls; image = verified_image; return verified_image != 0;
+} }
 DWORD ReplaceImportAddressSlot(std::uint32_t* slot, std::uint32_t expected, std::uint32_t value) noexcept {
     const auto prior = InterlockedCompareExchange(reinterpret_cast<LONG*>(slot),
         static_cast<LONG>(value), static_cast<LONG>(expected));
@@ -84,6 +89,25 @@ int main(int argc, char** argv) {
     const auto put = [base](std::uintptr_t at, std::uintptr_t value) {
         *reinterpret_cast<std::uintptr_t*>(base + at) = value;
     };
+    if (argc > 1 && std::strcmp(argv[1], "image-admission") == 0) {
+        if (argc != 4) { return 2; }
+        image_digest = argv[2]; verified_image = base;
+        const bool allowed = std::strcmp(argv[3], "allow") == 0;
+        put(cs::factory_slot, base + 0xf9f7);
+        put(cs::followup_slot, base + 0x14fba);
+        put(cs::append_slot, base + 0x1e556);
+        SetLastError(42);
+        Check(cs::Start(base) == allowed, "exact image admission");
+        Check(GetLastError() == 42, "startup preserves caller LastError");
+        Check(cs::Ready() == allowed, "only admitted image publishes readiness");
+        Check(verification_calls == (allowed ? 1U : 0U), "unknown digest rejected before loaded-image verification");
+        if (!allowed) {
+            Check(cs::Pointer(base + cs::factory_slot, base + 0xf9f7)
+                && cs::Pointer(base + cs::followup_slot, base + 0x14fba)
+                && cs::Pointer(base + cs::append_slot, base + 0x1e556), "denied image never installs hooks");
+        }
+        return failures;
+    }
     put(cs::factory_slot, reinterpret_cast<std::uintptr_t>(&Factory));
     put(cs::followup_slot, reinterpret_cast<std::uintptr_t>(&Followup));
     put(cs::append_slot, reinterpret_cast<std::uintptr_t>(&Append));

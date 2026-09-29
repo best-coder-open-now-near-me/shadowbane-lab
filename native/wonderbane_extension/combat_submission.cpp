@@ -262,7 +262,8 @@ bool Start(std::uintptr_t image_base) noexcept {
     const DWORD error = GetLastError();
     std::uintptr_t verified{};
     const bool ok = image_base
-        && GraphicsExecutableSha256Matches("7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f")
+        && (GraphicsExecutableSha256Matches("7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f")
+            || GraphicsExecutableSha256Matches("2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289"))
         && movement::VerifyNativeMovementImage(verified) && verified == image_base
         && StartBound(image_base, reinterpret_cast<Factory>(image_base + 0xf9f7),
             reinterpret_cast<Followup>(image_base + 0x14fba), reinterpret_cast<Append>(image_base + 0x1e556));
