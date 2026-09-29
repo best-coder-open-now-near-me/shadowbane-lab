@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from collections import deque
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_input import ClientInputAdapter, StopSignal
@@ -28,6 +29,7 @@ from shadowbane_lab.pve.approach import (
     PvEApproachUpdate,
 )
 from shadowbane_lab.pve.controller import PvEController
+from shadowbane_lab.pve.listed_combat import ListedCombatCoordinator
 from shadowbane_lab.pve.model import (
     PvEIntent,
     PvEObservation,
@@ -146,6 +148,7 @@ class PvERunner:
         dispatcher: PvEIntentDispatcher,
         approach_controller: PvEApproachController | None = None,
         movement_dispatcher: TravelDecisionDispatcher | None = None,
+        listed_combat: ListedCombatCoordinator | None = None,
         stop_signal: StopSignal,
         poll_interval_ms: int = 100,
         maximum_consecutive_observation_failures: int = 3,
@@ -249,6 +252,7 @@ class PvERunner:
         self._dispatcher = dispatcher
         self._approach_controller = approach_controller
         self._movement_dispatcher = movement_dispatcher
+        self._listed_combat = listed_combat
         self._stop_signal = stop_signal
         self._poll_interval_seconds = poll_interval_ms / 1000.0
         self._maximum_consecutive_observation_failures = maximum_consecutive_observation_failures
@@ -259,6 +263,17 @@ class PvERunner:
         self._parser = NativeCombatEventParser()
 
     def run(self) -> PvERunResult:
+        try:
+            return self._run()
+        finally:
+            # Includes KeyboardInterrupt and unexpected trace/sleeper failures.
+            # Session/lease teardown belongs to the caller and happens afterward.
+            if self._listed_combat is not None and self._listed_combat.active:
+                self._listed_combat.finish("pve_run_unwound")
+                if self._listed_combat.active:
+                    raise RuntimeError("listed combat cleanup remains unconfirmed")
+
+    def _run(self) -> PvERunResult:
         trace: list[PvERunTraceStep] | deque[PvERunTraceStep]
         if self._maximum_retained_trace_steps is None:
             trace = []
@@ -351,6 +366,33 @@ class PvERunner:
                     population=population,
                 )
                 last_observation = observation
+                listed = self._listed_combat
+                camp = (None if listed is None
+                        else self._controller.candidate_camp(observation))
+                if (listed is not None
+                        and (listed.active
+                             or self._controller.can_start_external_combat(observation))
+                        and listed.prepare(observation, camp)):
+                    decision = self._controller.step(observation, external_combat=True)
+                    if decision.terminal:
+                        terminal = decision
+                        record(self._trace(terminal, observation=observation))
+                        break
+                    if self._approach_controller is not None:
+                        self._approach_controller.cancel("listed_combat_interrupt")
+                    arrival_pending = arrival_approach = None
+                    update = listed.advance(observation)
+                    record(replace(self._trace(decision, observation=observation),
+                                   listed_combat=update))
+                    consecutive_observation_failures = 0
+                    if update.terminal_reason is not None:
+                        terminal = self._controller.stop(update.terminal_reason, now_ms=now_ms)
+                        record(self._trace(terminal, observation=observation))
+                        break
+                    if update.recovered:
+                        self._controller.resume_after_external_combat(observation)
+                    self._sleeper(self._poll_interval_seconds)
+                    continue
                 decision = self._controller.step(observation)
                 approach = (
                     None
@@ -368,6 +410,7 @@ class PvERunner:
                 if (
                     consecutive_observation_failures
                     < self._maximum_consecutive_observation_failures
+                    and not (self._listed_combat is not None and self._listed_combat.active)
                 ):
                     self._sleeper(self._poll_interval_seconds)
                     continue
@@ -581,6 +624,13 @@ class PvERunner:
         assert terminal.terminal_reason is not None
         final_phase = terminal.phase
         terminal_reason = terminal.terminal_reason
+        if self._listed_combat is not None and self._listed_combat.active:
+            update = self._listed_combat.finish(terminal_reason)
+            record(replace(self._trace(terminal, observation=last_observation),
+                           listed_combat=update))
+            if update.terminal_reason is not None:
+                final_phase = PvEPhase.STOPPED
+                terminal_reason = update.terminal_reason
         if self._approach_controller is not None:
             cleanup = self._approach_controller.cancel("pve_run_terminal")
             cleanup_decision = cleanup.decision
