@@ -8,12 +8,13 @@ records in place. Historical backup/rollback requirements below are superseded.
 
 `main` remains the shared merge destination. The current combined review candidate
 is `codex/bot-integration-20260928`, containing PR #40 at `1565732`, PR #41 at
-`8e87a47`, and PR #42 at `daec3d1`. Root integration work will include the final
-PR #39 source tip and validate the combined candidate before merge. This candidate
+`8e87a47`, and PR #42 at `daec3d1`. It also includes PR #39 at
+`a6e8114f98a4702153d775f3b8aef7f3546d2f1c`. The [integration receipt](bot-integration-20260928.md)
+records validation and remaining review/live gates for host 0.3.53 / native 1.8.33. This candidate
 is a review branch, not an installed runtime or an authorization to bypass review.
 
 `codex/explicit-list-combat`, based on `origin/main@a91dfd5`, delivers the complete
-manual-list source transaction at pushed runtime checkpoint `87d0251` through
+manual-list source transaction at pushed runtime checkpoint `a6e8114` through
 [draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39).
 It combines durable single-use admission, same-session host composition, native
 selection and exact outbound-request receipts, and confirmed old-Grant cleanup

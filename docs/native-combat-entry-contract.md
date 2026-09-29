@@ -5,6 +5,12 @@ gameplay or deployment receipt. The reviewed client image has SHA-256
 `7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f`.
 All addresses below are RVAs; preferred-VA disassembly operands use base `0x400000`.
 Build identity must be independently admitted by the native image verifier.
+The combined September 28 candidate also admits prepared client 1.3.38.12 at
+`2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289`.
+The [complete-file comparison receipt](../evidence/pvp/combat-client12-qualification-20260928.json)
+proves that only one embedded version byte differs; callback bodies and class
+tables are unchanged. The loaded-image verifier remains mandatory. Original
+unprepared images and unknown hashes do not receive combat capability.
 
 ## Ownership and native entry
 

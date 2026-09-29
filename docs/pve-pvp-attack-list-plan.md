@@ -1,15 +1,16 @@
 # PvE/PvP attack-list delivery plan
 
-Current execution: September 28, 2026. Shared integration destination: `main`.
-Start with [the current bot work ledger](bot-work-20260928.md) for branch ownership,
-implemented behavior, validation and the next task. Continue the existing combat
-admission work in [PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39);
-do not recreate it from main or use the historical lifecycle branch as a new base.
+Current continuation: September 28, 2026. Shared integration destination is `main`
+through `codex/bot-integration-20260928`; see the [exact integration receipt](bot-integration-20260928.md).
+Manual-list combat source, same-owner cancellation/recovery, and listener ownership
+are implemented and combined with current-client/vendor source. The active delivery
+step is combined validation and source review. Live acceptance is pending; automatic
+response insertion needs the authoritative [server session contract](pvp-response-provenance.md).
 
 The agreed behavior and work packages below remain the design contract. Their
 September 12 sequence and appended checkpoints are historical execution evidence;
-the current ledger supersedes their active/pending labels. Native combat execution
-and automatic response insertion remain unfinished. Door work does not gate combat.
+the integration receipt supersedes their active/pending labels. Door work remains
+separate and does not gate this delivery.
 
 ## Agreed behavior
 
