@@ -46,6 +46,7 @@ class ListedCombatUpdate:
     receipt: Receipt | None = None
     recovered: bool = False
     terminal_reason: str | None = None
+    native_detail: str | None = None
 
     def as_dict(self) -> dict[str, object]:
         receipt = self.receipt
@@ -58,6 +59,8 @@ class ListedCombatUpdate:
             "mode": None if receipt is None else receipt.mode,
             "action_state": None if receipt is None else receipt.action_state,
             "combat_target_present": None if receipt is None else receipt.combat_target_present,
+            # Diagnostic text is retained verbatim; it never supplies state proof.
+            "native_detail": self.native_detail,
             "cleanup_confirmed": receipt is not None and receipt.cleanup_confirmed,
             "recovered": self.recovered, "terminal_reason": self.terminal_reason,
         }
@@ -194,6 +197,7 @@ class ListedCombatCoordinator:
         return ListedCombatUpdate(
             update.reason, update.request, update.receipt,
             terminal_reason="listed_combat_cleanup_unconfirmed",
+            native_detail=update.native_detail,
         )
 
     def __enter__(self):
@@ -204,19 +208,21 @@ class ListedCombatCoordinator:
         if self.active:
             raise RuntimeError("listed combat cleanup remains unconfirmed")
 
-    def _unconfirmed(self, reason: str) -> ListedCombatUpdate:
+    def _unconfirmed(self, reason: str, *, native_detail: str | None = None) -> ListedCombatUpdate:
         assert self._command is not None
         return ListedCombatUpdate(
             reason, self._command.binding.request.hex(),
             terminal_reason=("listed_combat_cleanup_unconfirmed"
                              if self._cleanup_attempts >= 3 else None),
+            native_detail=native_detail,
         )
 
     def _submit(self, verb: Verb) -> ListedCombatUpdate:
         assert self._command is not None and self._ticket is not None
         request = self._command.binding.request.hex()
         try:
-            receipt = self.session.combat(self.grant, verb, self._command)
+            result = self.session.combat(self.grant, verb, self._command)
+            receipt = result.receipt
         except Exception as exc:
             # Transport/decoding failures cannot prove whether START entered.
             # Never manufacture a second START or drop the original admission.
@@ -227,7 +233,7 @@ class ListedCombatCoordinator:
                 self._ticket.close(timeout_ms=750)
             except Exception as exc:
                 self._cancel_reason = f"listed_ticket_release_failure:{type(exc).__name__}"
-                return self._unconfirmed(self._cancel_reason)
+                return self._unconfirmed(self._cancel_reason, native_detail=result.native_detail)
             retired = receipt.phase is Phase.RETIRED
             self._ticket = self._command = self._candidate = None
             self._cancel_reason = self._started_at = None
@@ -236,6 +242,7 @@ class ListedCombatCoordinator:
                 "listed_scene_retired" if retired else "listed_local_cleanup_confirmed",
                 request, receipt, recovered=not retired,
                 terminal_reason="listed_combat_scene_retired" if retired else None,
+                native_detail=result.native_detail,
             )
         if (receipt.outcome not in (Outcome.CLIENT_OUTBOUND_QUEUED, Outcome.OBSERVED)
                 or receipt.phase is not Phase.ENGAGED):
@@ -244,4 +251,5 @@ class ListedCombatCoordinator:
             self._cancel_reason or "listed_combat_engaged", request, receipt,
             terminal_reason=("listed_combat_cleanup_unconfirmed"
                              if self._cleanup_attempts >= 3 else None),
+            native_detail=result.native_detail,
         )
