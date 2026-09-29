@@ -1301,7 +1301,16 @@ class ClientCliTests(unittest.TestCase):
     def test_pve_uses_injected_movement_without_minimap(self) -> None:
         self._assert_pve_process_binding(policy="basic", native_movement=True)
 
-    def _assert_pve_process_binding(self, *, policy: str, native_movement: bool = False) -> None:
+    def test_pve_rejects_replaced_client_before_opening_readers_or_movement(self) -> None:
+        self._assert_pve_process_binding(policy="basic", captured_creation=134327529709130521)
+
+    def test_pve_rejects_missing_process_lifetime_before_starting(self) -> None:
+        self._assert_pve_process_binding(policy="basic", captured_creation=0)
+
+    def _assert_pve_process_binding(
+        self, *, policy: str, native_movement: bool = False,
+        captured_creation: int | None = None,
+    ) -> None:
         from shadowbane_lab.client_input.character_config import CharacterConfigSession
         from shadowbane_lab.client_observation.native_character_config import (
             NativeCharacterConfigReader,
@@ -1310,7 +1319,8 @@ class ClientCliTests(unittest.TestCase):
         from tests.test_arcane_hotbar import _CAPTURED_HOTBAR
 
         movement_dispatcher = (
-            SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock())
+            SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock(),
+                            session=object(), grant=object())
             if native_movement
             else None
         )
@@ -1331,6 +1341,8 @@ class ClientCliTests(unittest.TestCase):
             process_id=4320,
         )
         snapshot = replace(snapshot, process_started_at_100ns=134327529709130522)
+        if captured_creation is not None:
+            snapshot = replace(snapshot, process_started_at_100ns=captured_creation or None)
         native_profiles = tuple(
             SimpleNamespace(executable_sha256="ab" * 32, profile_id=f"profile-{index}")
             for index in range(9)
@@ -1469,6 +1481,13 @@ class ClientCliTests(unittest.TestCase):
                     "shadowbane_lab.cli_commands.client_pve.NativeMovementOperation",
                 ) as native_operation,
                 patch(
+                    "shadowbane_lab.cli_commands.client_pve.ListedCombatCoordinator",
+                ) as listed_coordinator,
+                patch(
+                    "shadowbane_lab.cli_commands.client_pve.default_attack_list_root",
+                    return_value=Path(directory) / "attack-lists",
+                ),
+                patch(
                     "shadowbane_lab.cli_commands.client_pve.optional_session",
                     return_value=nullcontext(None),
                 ) as inspector_session,
@@ -1480,6 +1499,7 @@ class ClientCliTests(unittest.TestCase):
                 native_operation.return_value.__enter__.return_value = SimpleNamespace(
                     dispatcher=SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock()),
                     is_set=injected_stop.is_set,
+                    session=object(), grant=object(),
                 )
                 pve_runner.return_value.run.return_value = completed_run
                 result = _run_pve(
@@ -1504,34 +1524,49 @@ class ClientCliTests(unittest.TestCase):
                     client_process_id=4320,
                     movement_dispatcher=movement_dispatcher,
                 )
+                if captured_creation is not None:
+                    self.assertEqual(2, result, output.getvalue())
+                    self.assertIn("client lifetime changed", output.getvalue())
+                    open_health.assert_not_called()
+                    native_operation.assert_not_called()
+                    listed_coordinator.assert_not_called()
+                    pve_runner.assert_not_called()
+                    self.assertTrue(character_memory.closed)
+                    return
                 self.assertEqual(0, result, output.getvalue())
                 inspector_session.assert_called_once_with(
                     open_position.return_value.__enter__.return_value
                 )
                 saved_evidence = json.loads(evidence_output.read_text(encoding="utf-8"))
 
-                if policy == "proc-assassin":
-                    open_character.assert_called_once_with(process_id=4320, explicit_path=None)
-                    self.assertEqual(
-                        "testercle", saved_evidence["character_config"]["character_name"]
-                    )
-                    self.assertEqual(
-                        character_memory.process_creation_filetime_utc,
-                        saved_evidence["character_config"]["process_creation_filetime_utc"],
-                    )
-                    self.assertTrue(character_memory.closed)
-                    dispatcher = pve_runner.call_args.kwargs["dispatcher"]
-                    executor = dispatcher._adapter._executor
-                    self.assertEqual(
-                        character_session.require_current, executor._input_precondition
-                    )
-                    self.assertEqual(
-                        character_memory.process_creation_filetime_utc,
-                        executor._guard._expected_process_started_at_100ns,
-                    )
-                else:
-                    open_character.assert_not_called()
-                    self.assertIsNone(saved_evidence["character_config"])
+                open_character.assert_called_once_with(process_id=4320, explicit_path=None)
+                self.assertEqual(
+                    "testercle", saved_evidence["character_config"]["character_name"]
+                )
+                self.assertEqual(
+                    character_memory.process_creation_filetime_utc,
+                    saved_evidence["character_config"]["process_creation_filetime_utc"],
+                )
+                self.assertTrue(character_memory.closed)
+                dispatcher = pve_runner.call_args.kwargs["dispatcher"]
+                executor = dispatcher._adapter._executor
+                self.assertEqual(character_session.require_current, executor._input_precondition)
+                self.assertEqual(
+                    character_memory.process_creation_filetime_utc,
+                    executor._guard._expected_process_started_at_100ns,
+                )
+                owner = (movement_dispatcher if native_movement else
+                         native_operation.return_value.__enter__.return_value)
+                listed_args = listed_coordinator.call_args.kwargs
+                self.assertIs(listed_args["session"], owner.session)
+                self.assertIs(listed_args["grant"], owner.grant)
+                self.assertEqual(listed_args["require_current"], character_session.require_current)
+                self.assertEqual(listed_args["store"].owner.character, "testercle")
+                self.assertEqual(listed_args["store"].owner.server,
+                                 character_session.binding.identity.server_name)
+                self.assertIs(pve_runner.call_args.kwargs["listed_combat"],
+                              listed_coordinator.return_value.__enter__.return_value)
+                listed_coordinator.return_value.__exit__.assert_called_once()
 
         if native_movement:
             self.assertIs(pve_runner.call_args.kwargs["movement_dispatcher"], movement_dispatcher)

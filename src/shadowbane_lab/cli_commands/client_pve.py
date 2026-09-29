@@ -94,6 +94,12 @@ from shadowbane_lab.pve import (
     save_pve_combat_calibration,
     save_pve_trace_evidence,
 )
+from shadowbane_lab.pve.attack_list import (
+    AttackListOwner,
+    AttackListStore,
+    default_attack_list_root,
+)
+from shadowbane_lab.pve.listed_combat import ListedCombatCoordinator
 from shadowbane_lab.travel import (
     SparseNavigationMap,
     TravelDecisionDispatcher,
@@ -336,35 +342,41 @@ def _run_pve(
             expected_process_id=process_id,
         )
         if client_process_id is not None:
-            _wait_for_guarded_client(guard, wait_seconds=wait_for_client_seconds)
+            selected_window = _wait_for_guarded_client(guard, wait_seconds=wait_for_client_seconds)
         with ExitStack() as stack:
-            character_session = None
-            character_config_payload = None
-            if policy == "proc-assassin":
-                character_session = stack.enter_context(
-                    open_active_character_config(
-                        process_id=process_id,
-                        explicit_path=hotbar_config_path,
-                    )
+            character_session = stack.enter_context(
+                open_active_character_config(
+                    process_id=process_id,
+                    explicit_path=hotbar_config_path,
                 )
-                hotbar_config_path = character_session.binding.config_path
+            )
+            binding = character_session.binding
+            if (binding.process_id != process_id
+                    or not selected_window.process_started_at_100ns
+                    or binding.process_creation_filetime_utc
+                    != selected_window.process_started_at_100ns):
+                raise ValueError("client lifetime changed before PvE initialization")
+            hotbar_config_path = binding.config_path
+            if policy == "proc-assassin":
                 _verify_hotbar_power_mapping(
                     client_profile.actions,
                     hotbar_config_path,
                     action_key=PvEIntent.CAST_SHADOW_TOUCH.value,
                     power_name=ArcaneClientPower.SHADOW_TOUCH,
                 )
-                character_session.require_current()
-                character_config_payload = character_session.binding.as_dict()
-                guard = ForegroundWindowGuard(
-                    client_profile,
-                    inspector,
-                    expected_process_id=process_id,
-                    expected_process_started_at_100ns=(
-                        character_session.binding.process_creation_filetime_utc
-                    ),
-                )
-                guard.require_target()
+            character_session.require_current()
+            character_config_payload = binding.as_dict()
+            guard = ForegroundWindowGuard(
+                client_profile,
+                inspector,
+                expected_process_id=process_id,
+                expected_process_started_at_100ns=binding.process_creation_filetime_utc,
+            )
+            guard.require_target()
+            attack_list = AttackListStore(
+                default_attack_list_root(),
+                AttackListOwner(binding.identity.server_name, binding.identity.character_name),
+            )
             health_reader = stack.enter_context(
                 open_windows_native_target_health_reader(
                     health_profile,
@@ -504,19 +516,25 @@ def _run_pve(
                 reader_process_ids.add(zone_reader.process_id)
             if len(reader_process_ids) != 1:
                 raise ValueError("native PvE readers resolved different client processes")
+            combat_owner = movement_dispatcher
             if movement_dispatcher is None:
                 native_operation = stack.enter_context(
                     NativeMovementOperation(guard, active_stop_signal)
                 )
+                combat_owner = native_operation
                 movement_dispatcher = native_operation.dispatcher
                 active_stop_signal = native_operation
+            listed_combat = stack.enter_context(ListedCombatCoordinator(
+                store=attack_list,
+                session=combat_owner.session,
+                grant=combat_owner.grant,
+                require_current=character_session.require_current,
+            ))
             executor = GuardedInputExecutor(
                 guard=guard,
                 backend=PyAutoGuiBackend(),
                 stop_signal=active_stop_signal,
-                input_precondition=(
-                    None if character_session is None else character_session.require_current
-                ),
+                input_precondition=character_session.require_current,
             )
             adapter = ClientInputAdapter(
                 DecisionInputCompiler(
@@ -575,6 +593,7 @@ def _run_pve(
                     planner=WeightedAStarPlanner(observer=navigation_observer),
                 ),
                 movement_dispatcher=movement_dispatcher,
+                listed_combat=listed_combat,
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
                 maximum_retained_trace_steps=(retained_trace_steps if continuous else None),
