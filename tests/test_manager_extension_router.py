@@ -1,6 +1,8 @@
 import unittest
 from dataclasses import replace
 
+import pytest
+
 from shadowbane_lab.client_extension import (
     ExtensionPointerButton,
     ExtensionWorldMapDestinationEvent,
@@ -147,6 +149,8 @@ class ExtensionEventRouterTests(unittest.TestCase):
         travel = ingress.calls[1][2]
         self.assertEqual(PROCESS_ID, travel["expected_process_id"])
         self.assertEqual(WINDOW_HANDLE, travel["expected_window_handle"])
+        for _, _, options in ingress.calls:
+            self.assertEqual(PROCESS_CREATION, options["expected_process_started_at_100ns"])
         self.assertFalse(travel["require_foreground"])
         self.assertEqual(106_662.0, travel["destination"].lt)
         self.assertEqual(52_432.0, travel["destination"].lg)
@@ -213,3 +217,76 @@ class ExtensionEventRouterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+@pytest.mark.parametrize("switch_at", [2, 3])
+def test_process_replacement_cannot_redirect_extension_cancellation_or_travel(tmp_path, switch_at):
+    from shadowbane_lab.manager.operation import WorkerOperationLedger, new_worker_operation
+    from shadowbane_lab.manager.operation_ingress import ForegroundWorkerOperationIngress
+    from shadowbane_lab.manager.registry import derive_client_instance_id
+    from shadowbane_lab.manager.worker import WorkerDispatchPermit, WorkerHealthState
+
+    # Registry read 1 captures the event owner, 2 resolves cancellation and
+    # 3 resolves travel. Replace between either pair of ownership checks.
+    manifest = _manifest()
+    original = _client()
+    replacement = replace(
+        original,
+        process_started_at_100ns=PROCESS_CREATION + 1,
+        instance_id=derive_client_instance_id(
+            NODE_ID, PROCESS_ID, PROCESS_CREATION + 1, WINDOW_HANDLE,
+        ),
+    )
+    ledger = WorkerOperationLedger(manifest, tmp_path / str(switch_at))
+
+    class ReplacingRegistry(Registry):
+        reads = 0
+
+        def inspect(self):
+            self.reads += 1
+            if self.reads == switch_at:
+                self.client = replacement
+                # New B legitimately owns an active job and a fresh permit.
+                # A's old click must neither cancel it nor start travel on B.
+                ledger.submit(new_worker_operation(
+                    permits.inspect_permit("client-01"), WorkerOperationKind.PVE,
+                    "/pve", now=NOW,
+                ))
+            return super().inspect()
+
+    registry = ReplacingRegistry(original)
+
+    class Permits:
+        def inspect_permit(self, client_id):
+            return WorkerDispatchPermit(
+                node_id=NODE_ID, client_id=client_id,
+                instance_id=registry.client.instance_id,
+                worker_id="worker-0123456789abcdef0123456789abcdef",
+                process_id=9001, process_started_at_100ns=1000, heartbeat_sequence=1,
+                health_state=WorkerHealthState.HEALTHY, allowed=True,
+                issued_at=NOW - 1, expires_at=NOW + 1, reason="healthy worker",
+            )
+
+    permits = Permits()
+    ingress = ForegroundWorkerOperationIngress(
+        manifest, registry, permits, ledger, clock=lambda: NOW,
+        acknowledgement_timeout_seconds=0.001,
+    )
+    consumer = Consumer(_event())
+    router = ExactExtensionEventRouter(
+        manifest, registry, ingress, consumer_factory=lambda *_: consumer,
+        clock=lambda: NOW,
+    )
+
+    result = router.poll_once()
+
+    assert registry.reads == switch_at
+    assert result.dispatched_events == 0
+    assert result.pending_events == 1
+    assert consumer.acknowledged == []
+    retained = ledger.inspect_slot("client-01")
+    assert len(retained) == 1
+    assert retained[0].operation.kind is WorkerOperationKind.PVE
+    assert retained[0].operation.instance_id == replacement.instance_id
+    assert retained[0].receipt is None
