@@ -4,8 +4,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import uuid4
 
-from shadowbane_lab.client_extension.combat_wire import Outcome, Phase, Receipt, Verb
+from shadowbane_lab.client_extension.combat_wire import (
+    OUTBOUND_QUEUED,
+    Outcome,
+    Phase,
+    Receipt,
+    Verb,
+)
 from shadowbane_lab.client_extension.movement_session import (
+    NativeMovementError,
     NativeMovementGrant,
     NativeMovementSession,
 )
@@ -16,6 +23,20 @@ from shadowbane_lab.pve.model import PvECampLease, PvEObservation
 
 class ListedCombatInterruptionError(RuntimeError):
     """The old PvE action or admission boundary could not be established safely."""
+
+    def __init__(self, stage: str, cause: Exception) -> None:
+        self.stage = stage
+        self.cause_type = type(cause).__name__
+        self.cause_detail = " ".join(str(cause).split())[:160]
+        self.movement_outcome = cause.outcome if isinstance(cause, NativeMovementError) else None
+        self.movement_receipt = cause.receipt if isinstance(cause, NativeMovementError) else None
+        detail = f"listed interruption failed:{stage}:{self.cause_type}"
+        if self.movement_outcome is not None:
+            detail += f":outcome={self.movement_outcome.name.lower()}"
+            detail += f":receipt={'present' if self.movement_receipt is not None else 'absent'}"
+        if self.cause_detail:
+            detail += f":{self.cause_detail}"
+        super().__init__(detail)
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +53,11 @@ class ListedCombatUpdate:
             "reason": self.reason, "request": self.request,
             "outcome": None if receipt is None else receipt.outcome.name.lower(),
             "phase": None if receipt is None else receipt.phase.name.lower(),
+            "flags": None if receipt is None else receipt.flags,
+            "outbound_queued": None if receipt is None else bool(receipt.flags & OUTBOUND_QUEUED),
+            "mode": None if receipt is None else receipt.mode,
+            "action_state": None if receipt is None else receipt.action_state,
+            "combat_target_present": None if receipt is None else receipt.combat_target_present,
             "cleanup_confirmed": receipt is not None and receipt.cleanup_confirmed,
             "recovered": self.recovered, "terminal_reason": self.terminal_reason,
         }
@@ -119,12 +145,15 @@ class ListedCombatCoordinator:
             local_key = observation.population.local_player_object_key
             if local_key is None:
                 raise ValueError("listed combat requires exact local player key")
+            stage = "combat_availability"
             try:
                 self.session.require_combat_available(self.grant)
                 # Even a START that expires without entering must not leave the
                 # interrupted PvE action running while the host later recovers.
                 # pause() proves NativeStop under this exact unchanged Grant.
+                stage = "pause"
                 self.session.pause(self.grant, str(uuid4()))
+                stage = "admission_registration"
                 self._ticket, self._command = self.store.register_combat_admission(
                     candidate.entry.entry_id, expected_revision=candidate.revision,
                     client_pid=self.grant.process_identity.process_id,
@@ -134,9 +163,7 @@ class ListedCombatCoordinator:
                 )
             except Exception as exc:
                 self._candidate = None
-                raise ListedCombatInterruptionError(
-                    f"listed interruption failed:{type(exc).__name__}"
-                ) from exc
+                raise ListedCombatInterruptionError(stage, exc) from exc
             self._started_at = observation.now_ms
             self._quarantined.add((candidate.revision, candidate.entry.entry_id))
             return self._submit(Verb.START)

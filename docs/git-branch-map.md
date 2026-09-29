@@ -19,10 +19,12 @@ The dashboard correction is merged through
 at `5945a00fd160097c5f43e49bbf3386337beabc4f`, after all 15 hosted gates passed.
 The deployed host 0.3.53 / native 1.8.33 package is stamped with reviewed head
 `b5016c491d2b51e0f0ed99b62acaedf134c54c9a`; its history is retained in main.
-`codex/bot-deployment-20260929` now carries the post-deployment receipt targeting
-main. This documentation checkpoint does not change the qualified runtime.
+`codex/bot-deployment-20260929` now carries the post-deployment receipt and
+host combat diagnostics in [draft PR #45](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/45),
+targeting main. This draft remains outside main and requires hosted validation
+and merge authorization. The qualified installed runtime is unchanged.
 Follow [the deployment receipt](bot-deployment-20260929.md) for exact hashes,
-installed state, preservation checks, and remaining live-test input. The normal
+installed state, preservation checks, and remaining live-test investigation. The normal
 checkout stays on main. Active validation worktrees remain available for the
 pending live acceptance; unrelated historical branches are not cleanup targets.
 

@@ -9,12 +9,40 @@ merged it into main as `5945a00fd160097c5f43e49bbf3386337beabc4f` after all
 15 hosted checks passed and the user approved the merge. The normal checkout
 was fast-forwarded cleanly to main. PR #43 previously integrated all bot lanes.
 
-The game was opened for user login. Its captured process lifetime and loaded
-DLL hash match the deployment. A passive inspection observed no local character,
-no consistent movement scene, and no manual-list readiness yet. The manager is
-healthy and unbound. Login and character/target selection remain user input;
-no combat commands were sent. Automatic retaliation remains disabled until the
-authoritative server character-session contract is supplied.
+The game is logged in as Umbra on Wonderbane. The user confirmed selected native
+player `day` is the agreed Day Owl target and that first names are unique per
+server. Both characters use ranged attacks. Captured process lifetime and loaded
+DLL hash match the deployment; the manager remains healthy and unbound.
+Automatic retaliation remains disabled until the authoritative server
+character-session contract is supplied.
+
+Two bounded manual-list attempts did not establish attack acceptance. Passive,
+read-only native result-ring inspection recovered the original receipts:
+
+- Attempt `b988013b56bb4bcaaaf9446f03e4010f`: acquisition succeeded at movement
+  generation 3; pause was rejected STALE at generation 4 about 4.1 seconds later.
+  No combat START receipt was recorded.
+- Attempt `01dc7d5480a545b497510307142b3965`: acquisition and pause succeeded at
+  generation 7. START request `c493c42a36ab427da429a42cffc46da5` returned
+  LOCAL_CANCELLED, flags 4, IDLE, mode/action 1, no combat target and confirmed
+  local cleanup. OUTBOUND_QUEUED was false. A strictly later PvE SEEKING step was
+  observed, but this does not prove an attack or manual-removal cancellation.
+
+Only the test-owned list entry was removed after each attempt; the originally
+empty list ended empty at revision 4. Target health was unchanged. The measured
+separation of about 79 world units is not evidence of a range failure. Identity,
+string and position layout reads matched the reviewed native predicates. The
+attack handler has no pre-factory distance or equipped-weapon branch; its native
+message class name alone does not establish melee-only behavior.
+
+Live acceptance remains open. Current source diagnostics preserve outbound
+history, native mode/action/target observations, and the failed interruption stage
+with its movement outcome. These changes are not installed. The native START
+path still discards the original rejection when returning successful cleanup;
+ongoing investigation must distinguish that cause without weakening admission.
+The host diagnostic checkpoint passed 3,808 Python tests and 766 subtests, with
+34 skips; focused Ruff and independent review also passed. It is published through
+draft PR #45, targeting main, and is not a new qualified deployment.
 
 ## Qualified package
 
@@ -87,7 +115,7 @@ published to Git. Active validation worktrees remain available for live testing.
 2. COMPLETE: qualify and deploy the exact source-stamped package and client dependencies.
 3. COMPLETE: verify preserved files, shortcuts, manager startup and loaded game DLL.
 4. COMPLETE: verify and retire obsolete runtime files while preserving diagnostic records.
-5. ACTIVE: obtain login/character/target input for bounded manual-list attack/cancel/recovery acceptance.
+5. ACTIVE: diagnose rejected ranged START and stale pause, then complete bounded manual-list attack/cancel/recovery acceptance.
 6. PENDING: obtain server source or the session-fencing contract before implementing automatic retaliation.
 
 No live-combat acceptance success is claimed by this deployment receipt.
