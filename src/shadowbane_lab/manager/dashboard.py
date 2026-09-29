@@ -11,6 +11,7 @@ import re
 import secrets
 import socket
 import threading
+import time
 from dataclasses import dataclass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -315,7 +316,34 @@ class _DashboardRequestHandler(BaseHTTPRequestHandler):
 
     def setup(self) -> None:
         super().setup()
+        self._response_written = False
         self.connection.settimeout(self._context.header_timeout_seconds)
+
+    def finish(self) -> None:
+        try:
+            if not self._response_written:
+                return
+            self.wfile.flush()
+            # A rejected POST can still be arriving. Closing with unread socket
+            # bytes resets the connection on Windows and can discard our 401.
+            # Publish response EOF first, then discard a bounded amount without
+            # interpreting another request or waiting indefinitely for the peer.
+            self.connection.shutdown(socket.SHUT_WR)
+            deadline = time.monotonic() + self._context.body_timeout_seconds
+            remaining = MAX_ACTION_BODY_BYTES
+            while remaining:
+                timeout = deadline - time.monotonic()
+                if timeout <= 0:
+                    break
+                self.connection.settimeout(timeout)
+                received = self.connection.recv(min(remaining, 4096))
+                if not received:
+                    break
+                remaining -= len(received)
+        except (TimeoutError, ConnectionError, OSError):
+            pass
+        finally:
+            super().finish()
 
     def handle_one_request(self) -> None:
         """Parse one request under a strict total header deadline."""
@@ -676,6 +704,7 @@ class _DashboardRequestHandler(BaseHTTPRequestHandler):
                 self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
+        self._response_written = True
         self.close_connection = True
 
 
