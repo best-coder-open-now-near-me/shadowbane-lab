@@ -11,6 +11,14 @@ inline std::atomic<NativeOwnerService> vendor_owner_service{nullptr};
 inline std::atomic<NativeOwnerService> combat_owner_service{nullptr};
 using NativeOwnerStop = bool (*)(const movement::NativeScene&, const movement::Grant&, movement::StopReason) noexcept;
 using NativeOwnerRetire = void (*)(std::uint64_t) noexcept;
+using NativeOwnerReady = bool (*)() noexcept;
+// Readiness is absent in transport-only processes such as the probe. A service
+// publishes a process-pinned callback; callers never own or load that runtime.
+inline std::atomic<NativeOwnerReady> combat_owner_ready{nullptr};
+inline bool NativeCombatReady() noexcept {
+    const auto ready = combat_owner_ready.load(std::memory_order_acquire);
+    return ready && ready();
+}
 // A stop callback completes before a replacement Grant is published. False keeps
 // the old exact-Grant cleanup obligation and excludes every replacement writer.
 inline std::atomic<NativeOwnerStop> combat_owner_stop{nullptr};
