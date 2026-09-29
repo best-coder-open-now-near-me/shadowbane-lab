@@ -196,3 +196,24 @@ exact player/party/native legality checks, revalidate after selection callbacks,
 enter the saved-intent fence immediately before attack, correlate the specific
 outbound request, and complete exact-Grant cancellation before PvE recovery. The
 receipt presentation does not supply any of those missing action guarantees.
+
+## September 28 transaction work
+
+The shared-session host protocol is published at `4d9f007`: typed 384-byte receipts
+correlate the complete immutable request, and START/STATUS/CANCEL use the existing
+movement session and producer lease. Focused validation passed 51 tests with seven
+existing native-consumer skips. The capability remains unavailable until the
+production native service is installed and fully qualified.
+
+Native party protection is published at `297ff12`. Two bounded complete roster
+captures must agree on scene, roots, links, entries, exact keys, and roles. Unknown,
+unreadable, partial, duplicate, or changed rosters reject admission. The local
+actor and every roster member remain protected. The Win32 native test passes,
+including unreadable memory and replacement during capture. `de17010` centralizes
+the same attack-list storage root for command editing and bot execution; all 51
+existing attack-list tests pass.
+
+The [native entry contract](../native-combat-entry-contract.md) records the
+completed offline callback qualification and its limits. Native factory/append
+correlation, owner-service integration, and host recovery remain in progress;
+these checkpoints do not claim completed gameplay activation or live acceptance.
