@@ -4,38 +4,30 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active client update - September 26
+## Bot integration and manual-list combat — September 28
 
-The current client candidate is `codex/client-update-20260926`, native 1.8.32 /
-host 0.3.52, for official 1.3.38.12. It includes `main@a91dfd5` and vendor
-[PR #38](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/38)
-through `a87a7af`, including the saved-recipe dashboard routing correction.
-The shared merge destination remains `main`; this candidate is awaiting review
-and is not merged. Use this branch for work that must preserve the current vendor
-candidate. Separate PvP work in PR #39 and cancelled carpenter drafts are excluded.
-The normal project checkout remains on `main`.
+`main` remains the shared merge destination. The current combined review candidate
+is `codex/bot-integration-20260928`, containing PR #40 at `1565732`, PR #41 at
+`8e87a47`, and PR #42 at `daec3d1`. Root integration work will include the final
+PR #39 source tip and validate the combined candidate before merge. This candidate
+is a review branch, not an installed runtime or an authorization to bypass review.
 
-See [the update review](client-update-20260926.md) for exact binary identities,
-validation and deployment status. Installed source is `e9bf933`, native 1.8.32 /
-host 0.3.52, on client 1.3.38.12. Both client copies, all five shortcuts, settings
-preservation and the healthy manager are verified. No rollback copies were
-created. Next is user login through **WonderBane Vendor Test**.
-Manager attachment and live recipe acceptance remain open; guards are set aside
-and carpenter is cancelled.
-Historical status below does not override this current state.
+`codex/explicit-list-combat`, based on `origin/main@a91dfd5`, delivers the complete
+manual-list source transaction at pushed runtime checkpoint `87d0251` through
+[draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39).
+It combines durable single-use admission, same-session host composition, native
+selection and exact outbound-request receipts, and confirmed old-Grant cleanup
+before resource/camp recovery. Runtime readiness and exact image/identity checks
+gate native activation. The [handoff](handoffs/explicit-list-combat-admission.md)
+records source checkpoints, validation, and the remaining combined/live acceptance.
+Automatic response insertion remains separately blocked on server-session authority.
+PR #39 stays draft; source completion does not claim deployment or live acceptance.
 
-## Explicit-list combat admission - September 24
-
-`codex/explicit-list-combat` starts from freshly fetched `origin/main@a91dfd5` and
-is pushed at `f9da2bfe9e2d699230e9473f9512f5dee0e8a790` through
-[draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39)
-to `main`. It delivers registered single-use admission
-tickets through existing attack-list mutations, plus a native consumer and real
-process race tests. Follow-up ownership work records native service cleanup separately from movement
-and pins exact-Grant cancellation across failed stops and unregister. It does not
-activate combat. See the [admission handoff](handoffs/explicit-list-combat-admission.md)
-for schema, validation and the next owner-thread attack/cancellation transaction.
-The normal checkout remains on main; other active worktrees retain their ownership.
+The normal project checkout remains on `main`; active worktrees retain their
+ownership. Use freshly fetched `origin/main` for unrelated work and the named
+integration candidate for this combined review. The client-update and development
+snapshots below are historical and do not override this source map or certify the
+currently running client.
 
 ## Current client update - September 24
 
@@ -94,7 +86,7 @@ Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
 
-## Current delivery status â€” September 12
+## Current delivery status — September 12
 
 Active priority: [PvE/PvP attack-list delivery](pve-pvp-attack-list-plan.md).
 Blacklist means attack list, populated by commands or attributed responses.
@@ -229,7 +221,7 @@ the diagnostic package does not claim visual or live Condemn acceptance.
 See the September 22 handoff for scope and recovery limits.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
-## Guard-upgrade detour â€” September 17
+## Guard-upgrade detour — September 17
 
 `codex/guard-upgrades` starts at vendor checkpoint `61e6fd8` in its own worktree.
 The user wants guards upgraded toward maximum rank as available gold permits.
@@ -350,7 +342,7 @@ destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.
 
-## Vendor overlay â€” September 14
+## Vendor overlay — September 14
 
 September 15: the correct full native 1.8.8 / host 0.3.17 is installed and its
 action mapping is verified. A live scan confirmed the selected-vacancy fix and
@@ -645,7 +637,7 @@ Blacklist means the attack list, populated manually or through attributed respon
 The plan retains applicable review follow-ups without making broad cleanup or unfinished
 visual/door features prerequisites. Identity changes through 8552552 are integrated; attack-list storage and chat editing are integrated. Durable player identity and command completion are active; response attribution and combat transitions remain pending.
 
-## Official client refresh â€” September 19
+## Official client refresh — September 19
 
 The guard lane now reviews official client 1.3.38.9 with native 1.8.21 / host
 0.3.31. [Exact client review and deployment todo](client-update-20260919.md).
@@ -661,7 +653,7 @@ and continue rank checks; outer coverage and maximum-rank completion remain open
 Keep the current carried-gold guard journals, including unresolved requests.
 This work remains outside the shared integration branch and main.
 
-## Guard travel controls â€” September 19
+## Guard travel controls — September 19
 
 The active `codex/guard-upgrades` worktree now owns the
 [dashboard Travel / Continue here feature](handoffs/guard-travel.md).
@@ -675,11 +667,11 @@ are verified. Fresh discovery retains 174 guards; Travel has live-paused safely
 after an active cycle with no spending or pending request. Next: user repositioning
 and Continue here to verify saved progress and new-area merging.
 Integration remains
-`codex/guard-upgrades` â†’ `codex/vendor-rolling` â†’
-`codex/native-lifecycle-hardening` â†’ reviewed `main`.
+`codex/guard-upgrades` → `codex/vendor-rolling` →
+`codex/native-lifecycle-hardening` → reviewed `main`.
 
 
-### Guard Travel host continuation â€” September 19
+### Guard Travel host continuation — September 19
 
 The active guard lane now contains host 0.3.33's same-character area continuation
 fix. Historical scenes stay immutable; only guards in fresh owned rosters gain

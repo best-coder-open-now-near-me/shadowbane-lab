@@ -172,8 +172,9 @@ public:
             && movement::NativeMovementLifetimeCurrent(fresh);
         if (active && !retired) {
             NativeTarget::State state{};
-            const bool done = target.ReadState(scene, state) && state.mode == 1 && state.action == 1 && !state.target;
-            if (!Current(this) || !target.Current() || !target.CombatTargetCurrent() || done) {
+            const bool observed_state = target.ReadState(scene, state);
+            const bool done = observed_state && state.mode == 1 && state.action == 1 && !state.target;
+            if (!observed_state || !Current(this) || !target.Current() || !target.CombatTargetCurrent() || done) {
                 (void)controller.Update(Cancel(command));
             }
         }

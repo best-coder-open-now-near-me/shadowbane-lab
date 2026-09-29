@@ -7,7 +7,7 @@ namespace m = wonderbane::extension::movement;
 namespace {
 m::NativeScene observed{0x10000, 0x20000, 0x30000, 0x40000, {91, 53}, 7};
 m::Grant owner{9, 7, m::Owner::automation};
-bool live = true, lease_live = true, stop_ok = true, native_activity = false;
+bool live = true, lease_live = true, stop_ok = true, native_activity = false, state_readable = true;
 bool retired_in_attack = false, revoke_in_attack = false;
 unsigned attacks = 0, stops = 0, clears = 0;
 c::fence::Binding* shared_binding = nullptr;
@@ -102,7 +102,9 @@ bool NativeTarget::Cancel(const m::NativeScene&, Admission current, void* contex
     ++stops; if (!current(context) || !stop_ok) { return false; }
     state = {1, 1, false}; return true;
 }
-bool NativeTarget::ReadState(const m::NativeScene&, State& state) const noexcept { state = {2, 4, true}; return live; }
+bool NativeTarget::ReadState(const m::NativeScene&, State& state) const noexcept {
+    state = {2, 4, true}; return live && state_readable;
+}
 bool NativeTarget::Clear() noexcept { ++clears; return true; }
 }
 int main() {
@@ -179,5 +181,15 @@ int main() {
         assert(Execute(V::start, command).outcome == O::stale && attacks == before);
         c::runtime.ready.store(true);
         assert(Execute(V::cancel, command).outcome == O::local_cancelled);
+    }
+    {
+        const auto command = Command(8, binding); Mapping mapping(binding);
+        assert(Execute(V::start, command).outcome == O::client_outbound_queued);
+        state_readable = false; stop_ok = false;
+        auto receipt = Execute(V::status, command);
+        assert(receipt.outcome == O::pending && c::runtime.active && native_activity);
+        state_readable = stop_ok = true;
+        receipt = Execute(V::status, command);
+        assert(receipt.outcome == O::local_cancelled && !c::runtime.active);
     }
 }

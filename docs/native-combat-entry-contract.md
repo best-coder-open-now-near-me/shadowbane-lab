@@ -16,6 +16,26 @@ its input reference, so it receives a separate owned reference. Revalidate the
 scene, full player identity, saved-intent fence, and complete party roster after
 selection and immediately before attack admission.
 
+Supported callers serialize complete workflows for each exact client. The managed
+worker starts its next operation only after the current operation thread exits
+and its terminal receipt is published (`ExactClientWorkerRuntime.serve` in
+`src/shadowbane_lab/manager/worker_runtime.py`). A cancellation that cannot join
+the operation exits the worker; it does not admit a successor. Standalone vendor,
+guard, funding, and navigation sessions each open their own native action
+transport. Its `_claim_host_lease` in
+`src/shadowbane_lab/client_extension/action_channel.py` rejects any live producer
+lease, including another session in the same host process. Listed combat instead
+uses its existing movement session and exact Grant.
+
+The read-only source review also checked `RunNativeOwnerServices` in
+`native/wonderbane_extension/native_owner_services.h` and both native runtimes.
+Their callbacks run sequentially on the owner update, but callback ordering does
+not provide mutual exclusion across outstanding vendor and combat transactions.
+A low-level caller sharing one producer lease must finish or confirm cancellation
+of one workflow before starting the other. Concurrent vendor/combat workflows on
+one lease are outside the supported caller contract; transport command completion
+alone does not establish workflow completion.
+
 Ordinary action 1551 dispatches through `0x7ca9c0` to `0x7d3c10`. It preserves
 native legality checks, including mode and peace-zone restrictions. The dispatch
 return value does not prove attack submission. Mode changes can invoke synchronous
