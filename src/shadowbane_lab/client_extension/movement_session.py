@@ -272,13 +272,15 @@ class NativeMovementSession:
                 self._transport.close()
                 self._transport = None
 
-    def _combat_transport(self, grant: NativeMovementGrant):
+    def _combat_transport(self, grant: NativeMovementGrant, *, require_capability: bool = True):
         if grant.process_identity != self.identity or grant.window != self.window:
             raise ValueError("combat grant belongs to another client")
         transport = self._transport
         if transport is None or self._closed or grant.host != self._host(acquire=False):
             raise channel.NativeActionChannelUnavailable("combat owner session is closed")
-        if not transport.header.capability_flags & channel.EXPLICIT_COMBAT_CAPABILITY:
+        # Read/validate the exact process header even during retired-owner cleanup.
+        header = transport.header
+        if require_capability and not header.capability_flags & channel.EXPLICIT_COMBAT_CAPABILITY:
             raise channel.NativeActionChannelUnavailable("explicit combat is unavailable")
         return transport
 
@@ -314,7 +316,7 @@ class NativeMovementSession:
                     raise NativeMovementError(Outcome.INHIBITED)
             # STATUS/CANCEL remain callable for the immutable old owner after native
             # revocation. Native correlates its retired transaction, never a replacement.
-            transport = self._combat_transport(grant)
+            transport = self._combat_transport(grant, require_capability=verb is CombatVerb.START)
             result = transport.submit(
                 NativeCombatCommand(next(self._ids), verb, command), timeout_ms=self.timeout_ms,
             )

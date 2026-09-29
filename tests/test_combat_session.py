@@ -172,12 +172,10 @@ def test_start_timeout_does_not_retry_or_reacquire_and_status_keeps_original_com
     assert opened == [transport]
 
 
-@pytest.mark.parametrize("state", ["missing_capability", "closed", "changed_lease"])
+@pytest.mark.parametrize("state", ["closed", "changed_lease"])
 def test_unavailable_session_never_opens_or_publishes_another_owner(owner, state):
     session, grant, command, transport, opened = owner
-    if state == "missing_capability":
-        transport.header = replace(transport.header, capability_flags=1)
-    elif state == "closed":
+    if state == "closed":
         session.close()
     else:
         transport.host_lease_generation += 1
@@ -185,6 +183,22 @@ def test_unavailable_session_never_opens_or_publishes_another_owner(owner, state
         with pytest.raises(channel.NativeActionChannelError):
             session.combat(grant, verb, command)
     assert not transport.commands
+    assert opened == [transport]
+
+
+def test_readiness_loss_blocks_new_start_but_preserves_exact_old_cleanup(owner):
+    session, grant, command, transport, opened = owner
+    session.combat(grant, Verb.START, command)
+    transport.header = replace(transport.header, capability_flags=1)
+    transport.commands.clear()
+    with pytest.raises(channel.NativeActionChannelUnavailable):
+        session.require_combat_available(grant)
+    with pytest.raises(channel.NativeActionChannelUnavailable):
+        session.combat(grant, Verb.START, command)
+    for verb in (Verb.STATUS, Verb.CANCEL):
+        session.combat(grant, verb, command)
+    assert [wire.kind for wire in transport.commands] == [Verb.STATUS, Verb.CANCEL]
+    assert all(wire.payload is command for wire in transport.commands)
     assert opened == [transport]
 
 
