@@ -1,10 +1,19 @@
-# Explicit-list combat admission checkpoint
+# Explicit-list combat source delivery
 
 Branch: `codex/explicit-list-combat`, based on freshly fetched `origin/main@a91dfd5`.
-Source checkpoint: `f9da2bfe9e2d699230e9473f9512f5dee0e8a790`, pushed.
-Integration destination: `main` through [draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39). Hosted CI is pending. This checkpoint changes saved-list
-mutation admission and adds its native consumer; it does not enable native attacks,
-install a package, change the running VM, or supply response-event authority.
+Manual-runtime source checkpoint: `87d0251`, pushed.
+The completed manual-list source transaction and validation are recorded in the
+latest September 28 status below. Integration destination is `main` through
+[draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39),
+first combined and reviewed on `codex/bot-integration-20260928` with PRs #40, #41,
+and #42. Source now includes native attacks gated by verified image, service
+readiness, current ownership, and saved intent. This is source delivery, not an
+installation or live gameplay acceptance receipt; the running VM is unchanged.
+Automatic response insertion still lacks authoritative response-event provenance.
+
+Earlier checkpoint sections below preserve their original validation and pending
+work at that time. Their disabled-service and next-work statements are historical;
+the latest status supersedes them.
 
 ## Delivered boundary
 
@@ -74,7 +83,7 @@ retirement. Missing mappings can be pruned because no consumer creates/recreates
 name. Names are never recycled. The index is limited to 128 live registrations per store;
 exhaustion fails closed and requires consumers to retire rather than evicting live tickets.
 
-## Validation and next work
+## Initial admission checkpoint validation and next work — historical
 
 Current validation: 72 host tests passed, including the existing attack-list suite and
 19 fence tests plus the shared record-store suite. Tests use actual named mappings, a compiled Win32 native consumer, and
@@ -99,7 +108,7 @@ Private build output remains under this worktree's ignored `artifacts/combat-fen
 No source draft, private game capture, or executable belongs in the PR.
 
 
-## Owner-service cleanup integration
+## Owner-service cleanup integration — historical checkpoint
 
 The existing movement controller now records owner-service native work separately
 from `moving_`. `BeginNativeOwnerAction` is available only in the verified update
@@ -140,7 +149,7 @@ strictly decoded native strings without case folding or truncation. The typed bi
 channel routing and actual native combat remain disabled until the complete transaction is ready.
 
 
-## Typed immutable command binding
+## Typed immutable command binding — historical checkpoint
 
 `register_combat_admission` now derives command metadata from the current saved
 entry and registers only that exact durable revision. A concurrent edit between
@@ -171,7 +180,7 @@ branches contain no collision. No channel capability, hooks or attacks are enabl
 The active next item remains the owner-thread selection/attack/cancellation service
 and its factory/outbound-queue receipts, followed by host combat recovery wiring.
 
-## September 28 command receipt presentation
+## September 28 command receipt presentation — historical checkpoint
 
 The normal text listener now displays the saved list revision and every entered
 request that still requires native cancellation. It states that cancellation is
@@ -197,7 +206,7 @@ enter the saved-intent fence immediately before attack, correlate the specific
 outbound request, and complete exact-Grant cancellation before PvE recovery. The
 receipt presentation does not supply any of those missing action guarantees.
 
-## September 28 transaction work
+## September 28 transaction work — early checkpoints
 
 The shared-session host protocol is published at `4d9f007`: typed 384-byte receipts
 correlate the complete immutable request, and START/STATUS/CANCEL use the existing
@@ -217,3 +226,47 @@ The [native entry contract](../native-combat-entry-contract.md) records the
 completed offline callback qualification and its limits. Native factory/append
 correlation, owner-service integration, and host recovery remain in progress;
 these checkpoints do not claim completed gameplay activation or live acceptance.
+
+## September 28 latest transaction status
+
+Manual-list host composition is complete: the canonical PvE runner uses its
+existing movement session, producer lease, and exact Grant. A candidate comes from
+coherent loaded-player and party observations plus durable manual intent; native
+entry independently verifies the full saved name/server and exact key. Host
+preflight requires combat readiness, pauses existing PvE under that Grant, then
+registers the immutable ticket and sends one START. Uncertainty retains that
+ticket and routes STATUS/CANCEL; a readiness drop blocks new START while preserving
+cleanup for the existing exact owner. A never-entered cancellation tombstone
+prevents a delayed START from attacking.
+
+The production native service routes START/STATUS/CANCEL on the existing owner
+update. It retains actor and target references, rechecks party and selection,
+admits the single-use fence at D0, and correlates that exact request with outbound
+queue insertion. The receipt proves local queue ownership only. Cancellation uses
+the native stop path and verifies mode 1, action state 1, and no combat target
+before releasing the old owner's obligation. Actual scene retirement ends the
+run. Confirmed local cancellation enters a distinct recovery state; health, mana,
+stamina, and camp return must recover on fresh observations before another listed
+START or ordinary PvE acquisition. No fake kill or name-only retaliation is added.
+
+Host checkpoints include `3d98f07` (resolver/coordinator/recovery), `913b3b8`
+(readiness and exact-Grant baseline pause), and `9ef272a` (cleanup after readiness
+loss). Native target qualification is `c7ff3a8`; typed queue routing is `9469bd8`;
+the complete production owner-service/runtime integration is `87d0251`.
+The [native entry contract](../native-combat-entry-contract.md) records the
+supported callback and caller-ownership boundaries. Private client images,
+disassembly, captures, and build outputs remain outside the source commits.
+
+Validation before the final native integration passed 3,480 Python tests with
+33 skips and 756 subtests; Ruff passed. The latest host readiness/cleanup slice
+passed 59 focused tests with three existing native-consumer skips. At `87d0251`,
+both full and diagnostics-only native profiles build successfully. Each required
+CTest run passed 179 checks and skipped three private-image fixtures; explicit
+private-path runs then passed those three fixtures in both profiles, exercising
+all 182 required checks per profile. Two optional renderer-transparency stretch
+diagnostics still fail their known expectations; they are separate from the
+required combat gates. Full combined candidate validation and supervised
+package/gameplay acceptance remain next.
+Keep PR #39 draft until those review and acceptance steps are resolved. Automatic
+response insertion remains blocked on the separate
+[server-session fence](../pvp-response-provenance.md).

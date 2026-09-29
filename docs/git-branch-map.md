@@ -1,17 +1,29 @@
 # Git branch map
 
-## Explicit-list combat admission - September 24
+## Bot integration and manual-list combat — September 28
 
-`codex/explicit-list-combat` starts from freshly fetched `origin/main@a91dfd5` and
-is pushed at `f9da2bfe9e2d699230e9473f9512f5dee0e8a790` through
-[draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39)
-to `main`. It delivers registered single-use admission
-tickets through existing attack-list mutations, plus a native consumer and real
-process race tests. Follow-up ownership work records native service cleanup separately from movement
-and pins exact-Grant cancellation across failed stops and unregister. It does not
-activate combat. See the [admission handoff](handoffs/explicit-list-combat-admission.md)
-for schema, validation and the next owner-thread attack/cancellation transaction.
-The normal checkout remains on main; other active worktrees retain their ownership.
+`main` remains the shared merge destination. The current combined review candidate
+is `codex/bot-integration-20260928`, containing PR #40 at `1565732`, PR #41 at
+`8e87a47`, and PR #42 at `daec3d1`. Root integration work will include the final
+PR #39 source tip and validate the combined candidate before merge. This candidate
+is a review branch, not an installed runtime or an authorization to bypass review.
+
+`codex/explicit-list-combat`, based on `origin/main@a91dfd5`, delivers the complete
+manual-list source transaction at pushed runtime checkpoint `87d0251` through
+[draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39).
+It combines durable single-use admission, same-session host composition, native
+selection and exact outbound-request receipts, and confirmed old-Grant cleanup
+before resource/camp recovery. Runtime readiness and exact image/identity checks
+gate native activation. The [handoff](handoffs/explicit-list-combat-admission.md)
+records source checkpoints, validation, and the remaining combined/live acceptance.
+Automatic response insertion remains separately blocked on server-session authority.
+PR #39 stays draft; source completion does not claim deployment or live acceptance.
+
+The normal project checkout remains on `main`; active worktrees retain their
+ownership. Use freshly fetched `origin/main` for unrelated work and the named
+integration candidate for this combined review. The client-update and development
+snapshots below are historical and do not override this source map or certify the
+currently running client.
 
 ## Current client update - September 24
 
