@@ -1,5 +1,19 @@
 # Bot integration candidate - September 28, 2026
 
+## Integration completed
+
+[PR #43](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/43)
+merged the approved head `127bf94476db0ec73199381a9057e6c8a263b799` into main as
+`d3389d4eff992074f7a63394c735f5b4cfd1d993` after all 15 hosted checks passed.
+All four exact lane tips below are ancestors of main; PRs #38-42 are also marked
+merged. The normal checkout was fast-forwarded cleanly to main. This completes
+the source publication, hosted validation, and approved integration todos.
+
+The rest of this document is the pre-merge qualification receipt, not current
+branch status. Continue with [the September 29 deployment handoff](bot-deployment-20260929.md).
+The installed runtime was not changed by the source merge.
+
+
 ## Source and ownership
 
 `codex/bot-integration-20260928` is the isolated combined review branch targeting

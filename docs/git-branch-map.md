@@ -4,31 +4,31 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Bot integration and manual-list combat — September 28
+## Current shared source and deployment - September 29
 
-`main` remains the shared merge destination. The current combined review candidate
-is `codex/bot-integration-20260928`, containing PR #40 at `1565732`, PR #41 at
-`8e87a47`, and PR #42 at `daec3d1`. It also includes PR #39 at
-`a6e8114f98a4702153d775f3b8aef7f3546d2f1c`. The [integration receipt](bot-integration-20260928.md)
-records validation and remaining review/live gates for host 0.3.53 / native 1.8.33. This candidate
-is a review branch, not an installed runtime or an authorization to bypass review.
+Start new development from freshly fetched `origin/main`. The approved bot
+integration [PR #43](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/43)
+merged at `d3389d4eff992074f7a63394c735f5b4cfd1d993` after all 15 hosted checks
+passed on `127bf94476db0ec73199381a9057e6c8a263b799`. It preserves the exact
+PR #39 `a6e8114`, PR #40 `1565732` (including vendor PR #38), PR #41 `8e87a47`,
+and PR #42 `daec3d1` histories. PRs #38-43 are merged. They are not outstanding
+source integration dependencies.
 
-`codex/explicit-list-combat`, based on `origin/main@a91dfd5`, delivers the complete
-manual-list source transaction at pushed runtime checkpoint `a6e8114` through
-[draft PR #39](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/39).
-It combines durable single-use admission, same-session host composition, native
-selection and exact outbound-request receipts, and confirmed old-Grant cleanup
-before resource/camp recovery. Runtime readiness and exact image/identity checks
-gate native activation. The [handoff](handoffs/explicit-list-combat-admission.md)
-records source checkpoints, validation, and the remaining combined/live acceptance.
-Automatic response insertion remains separately blocked on server-session authority.
-PR #39 stays draft; source completion does not claim deployment or live acceptance.
+`codex/bot-deployment-20260929` continues from this shared main for a dashboard
+HTTP completion correction found during deployment packaging and the current
+handoff. It reuses the completed PvE worktree; the normal project checkout stays
+on main. Source-stamped package validation precedes any runtime replacement.
+Follow [the current deployment handoff](bot-deployment-20260929.md) for installed
+identity, exact package receipts, and remaining live-test input. The September 28
+[integration receipt](bot-integration-20260928.md) remains the earlier source audit.
 
-The normal project checkout remains on `main`; active worktrees retain their
-ownership. Use freshly fetched `origin/main` for unrelated work and the named
-integration candidate for this combined review. The client-update and development
-snapshots below are historical and do not override this source map or certify the
-currently running client.
+Manual-list combat is implemented. Automatic retaliation is disabled pending an
+authoritative server character-session fence. Active validation artifacts and
+worktrees remain available; historical unrelated renderer/town branches and
+cancelled carpenter drafts have not been silently integrated or deleted.
+
+Everything below is a dated historical snapshot. Earlier pending/draft/active
+statements do not override the merged source and current handoff above.
 
 ## Current client update - September 24
 
