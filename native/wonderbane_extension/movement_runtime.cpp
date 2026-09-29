@@ -104,6 +104,9 @@ public:
     }
     Result BeginOwnerAction(const NativeScene& expected, const Grant& grant, const wire::Host& host) noexcept {
         if (!OwnerActionCurrent(expected, grant, host)) { return Result::stale; }
+        return PinOwnerAction(grant);
+    }
+    Result PinOwnerAction(const Grant& grant) noexcept {
         const auto stop = combat_owner_stop.load(std::memory_order_acquire);
         const auto retire = combat_owner_retire.load(std::memory_order_acquire);
         if (!stop || !retire || (owner_activity_stop && (owner_activity_grant != grant
@@ -115,6 +118,19 @@ public:
             owner_activity_stop = stop; owner_activity_retire = retire; owner_activity_grant = grant;
         }
         return result;
+    }
+    Result PauseAutomation(const Grant& grant) noexcept {
+        // Ordinary PvE input can establish combat without a destination or a
+        // previous extension action. Pin the registered cleanup service before
+        // pausing so StopActive cannot acknowledge an idle movement controller
+        // while leaving that native combat running. A failed stop keeps this
+        // exact callback/Grant pinned even if registration subsequently changes.
+        if (!owner_activity_stop && (combat_owner_stop.load(std::memory_order_acquire)
+                || combat_owner_retire.load(std::memory_order_acquire))) {
+            const auto result = PinOwnerAction(grant);
+            if (result != Result::accepted) { return result; }
+        }
+        return controls.PauseAutomation(grant);
     }
     bool OwnerStopCurrent(const NativeScene& expected, const Grant& grant) const noexcept {
         return (owner_services_active || owner_stop_active) && busy && initialized
@@ -243,7 +259,7 @@ public:
             if (command->verb == wire::Verb::stop || command->verb == wire::Verb::pause) {
                 if (automation_lease == command->lease || (automation_lease
                     && std::memcmp(&automation_lease->host, &payload.host, sizeof(payload.host)) == 0)) {
-                    result = command->verb == wire::Verb::pause ? controls.PauseAutomation(expected) : controls.Stop(expected);
+                    result = command->verb == wire::Verb::pause ? PauseAutomation(expected) : controls.Stop(expected);
                 }
             } else if (command->verb == wire::Verb::configure) {
                 Settings next{};
