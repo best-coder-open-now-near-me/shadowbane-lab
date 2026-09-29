@@ -30,6 +30,7 @@ _CLIENT_ACTIONS_WITHOUT_INSTANCE = frozenset({"start"})
 _CLIENT_ACTIONS_WITH_INSTANCE = frozenset({
     "attach", "tile", "pause", "resume", "detach", "close",
     "vendor-start", "vendor-pause", "vendor-resume", "vendor-stop", "vendor-discover",
+    "vendor-recipes", "vendor-recipe-save",
     "guard-start", "guard-pause", "guard-resume", "guard-stop",
     "guard-travel", "guard-continue", "guard-discover",
     "condemn-prepare", "condemn-start", "condemn-pause", "condemn-resume", "condemn-stop",
@@ -230,7 +231,8 @@ def _validate_action_payload(
                   "guard-travel", "guard-continue",
                   "condemn-pause", "condemn-resume", "condemn-stop"}:
         expected_fields.add("job_id")
-    if action == "condemn-start":
+    if (action in {"condemn-start", "vendor-recipe-save"}
+            or action == "vendor-start" and "selection" in payload):
         expected_fields.add("selection")
     actual_fields = set(payload)
     if actual_fields != expected_fields:
@@ -283,6 +285,17 @@ def _validate_action_payload(
         if not valid:
             _request_error(HTTPStatus.BAD_REQUEST, "invalid-selection",
                            "Choose observed crests and buildings.")
+    if action == "vendor-recipe-save" or action == "vendor-start" and "selection" in payload:
+        field = "catalog_id" if action == "vendor-recipe-save" else "recipe_revision"
+        expected = {"catalog_id", "template"} if action == "vendor-recipe-save" else {field}
+        valid = (isinstance(selection, dict) and set(selection) == expected
+                 and isinstance(selection.get(field), str)
+                 and re.fullmatch(r"[0-9a-f]{32}", selection[field]) is not None)
+        if valid and action == "vendor-recipe-save":
+            valid = type(selection["template"]) is int and 0 < selection["template"] < 2**32
+        if not valid:
+            _request_error(HTTPStatus.BAD_REQUEST, "invalid-selection",
+                           "Choose a recipe from the current vendor list.")
     return action, client_id, instance_id, job_id, selection
 
 

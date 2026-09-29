@@ -715,6 +715,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _client_inspection_commands.observe_native_nearby_vendors(
             arguments.process_id, as_json=arguments.json,
         )
+    if (arguments.command == "client"
+            and arguments.client_command == "observe-native-vendor-recipes"):
+        return _client_inspection_commands.observe_native_vendor_recipes(
+            arguments.process_id, as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "observe-native-vendor-roster":
         return _client_inspection_commands.observe_native_vendor_roster(
             arguments.process_id, as_json=arguments.json, window=arguments.window,

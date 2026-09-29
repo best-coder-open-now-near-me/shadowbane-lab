@@ -5,7 +5,7 @@
 #include <cstring>
 
 namespace wonderbane::extension::vendor::wire {
-enum class Verb : std::uint32_t { inspect = 8, create = 9, keep = 10 };
+enum class Verb : std::uint32_t { inspect = 8, create = 9, keep = 10, create_random = 32, inspect_random = 33 };
 enum class Outcome : std::uint32_t { observed = 0, submitted = 1, stale = 2,
     unavailable = 3, invalid = 4, pending = 5, uncertain = 6, exhausted = 7 };
 constexpr std::uint32_t magic = 0x57425631, ready = 1, in_flight = 2, unresolved = 4;
@@ -60,15 +60,22 @@ inline bool RandomScepter(const Snapshot& s) noexcept {
     return s.recipe && s.item_template == 26990 && s.prefix == 3362971591U
         && s.suffix == s.prefix && s.mode == 1 && s.table == 12 && s.quantity == 1 && s.multiple <= 1;
 }
+inline bool RandomSingle(const Snapshot& s) noexcept {
+    return s.recipe && s.item_template && s.table && s.mode == 1 && s.prefix == 3362971591U
+        && s.suffix == s.prefix && s.quantity == 1 && s.multiple == 0;
+}
+inline bool IsCreate(Verb verb) noexcept { return verb == Verb::create || verb == Verb::create_random; }
+inline bool IsInspect(Verb verb) noexcept { return verb == Verb::inspect || verb == Verb::inspect_random; }
 inline bool Valid(Verb verb, const Command& c) noexcept {
     if (!movement::wire::Valid(c.host) || !c.window || c.window > UINT32_MAX
         || movement::wire::Zero(c.request.data(), c.request.size())
         || !movement::wire::Zero(c.reserved, sizeof(c.reserved))) { return false; }
-    if (verb == Verb::inspect) {
+    if (IsInspect(verb)) {
         return !c.item && movement::wire::Zero(&c.expected, sizeof(c.expected));
     }
     return ValidSnapshot(c.expected)
         && ((verb == Verb::create && !c.item && RandomScepter(c.expected))
+            || (verb == Verb::create_random && !c.item && RandomSingle(c.expected))
             || (verb == Verb::keep && c.item));
 }
 }

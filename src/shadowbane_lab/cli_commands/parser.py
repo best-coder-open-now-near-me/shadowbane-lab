@@ -783,6 +783,12 @@ def _parser() -> argparse.ArgumentParser:
     observe_nearby_roster.add_argument("--process-id", required=True, type=int)
     observe_nearby_roster.add_argument("--json", action="store_true")
 
+    observe_vendor_recipes = client_commands.add_parser(
+        "observe-native-vendor-recipes", help="read recipes in the current vendor recipe list"
+    )
+    observe_vendor_recipes.add_argument("--process-id", required=True, type=int)
+    observe_vendor_recipes.add_argument("--json", action="store_true")
+
     observe_vendor_roster = client_commands.add_parser(
         "observe-native-vendor-roster", help="read the active building and its visible hirelings"
     )

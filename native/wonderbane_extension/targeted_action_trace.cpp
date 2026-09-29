@@ -166,7 +166,8 @@ DWORD StartTargetedActionTrace(const ProcessIdentity& identity) noexcept {
         && !GraphicsExecutableSha256Matches("b646ae32ebc44be45a7a65da3c764e1cd67f63f45fca91262b75f21fd11002f3")
         && !GraphicsExecutableSha256Matches("e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891")
         && !GraphicsExecutableSha256Matches("761f375e422332cac2512398bb935af38b30267b9b3a7a5cede9f87e98982442")
-        && !GraphicsExecutableSha256Matches("7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f"))
+        && !GraphicsExecutableSha256Matches("7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f")
+        && !GraphicsExecutableSha256Matches("2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289"))
         || !movement::VerifyNativeMovementImage(base)) { return ERROR_NOT_SUPPORTED; }
     return StartBound(identity, base, reinterpret_cast<std::uint32_t*>(base + slot_rva),
         reinterpret_cast<Deserialize>(base + target_rva));

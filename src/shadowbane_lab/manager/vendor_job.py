@@ -7,6 +7,7 @@ review; a restart never replays a Create or Keep journal.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -27,6 +28,12 @@ from shadowbane_lab.client_extension.vendor_completion import (
     validate_completed_batch,
     validate_completed_keep,
 )
+from shadowbane_lab.client_extension.vendor_menu import (
+    open_inventory,
+    prepare_recipe,
+    validate_completed_menu,
+)
+from shadowbane_lab.client_extension.vendor_recipe import RandomRecipeSpec
 from shadowbane_lab.client_extension.vendor_wire import (
     IN_FLIGHT,
     READY,
@@ -90,10 +97,10 @@ class VendorJobStore:
     def read(self, job_id: str) -> dict:
         record = json.loads(_read_record(self.directory(job_id) / "job.json"))
         if (
-            record.get("schema_version") != 1
+            record.get("schema_version") not in (1, 2)
             or record.get("job_id") != job_id
             or tuple(record.get("identity", ())) != self.identity
-            or record.get("phase") not in {"filling", "waiting", "keeping"}
+            or record.get("phase") not in {"preparing", "filling", "waiting", "keeping"}
             or record.get("state")
             not in {
                 "running",
@@ -105,29 +112,52 @@ class VendorJobStore:
             }
         ):
             raise ValueError("invalid vendor job record")
+        if record["schema_version"] == 2:
+            spec = RandomRecipeSpec.from_dict(record["recipe_spec"])
+            if (record.get("recipe_sha256") != spec.canonical_digest
+                    or not _JOB.fullmatch(record.get("recipe_revision", ""))):
+                raise ValueError("saved recipe job specification changed")
         return record
 
     def save(self, record: dict) -> None:
         _write(self.directory(record["job_id"]) / "job.json", record)
 
-    def begin(self, session, window: int, now: float) -> dict:
+    def begin(self, session, window: int, now: float, *, selection=None) -> dict:
         previous = self.current()
         if previous and previous["state"] not in {"complete", "stopped"}:
             raise VendorBatchStopped("resume or review the existing vendor job first")
-        first = session.inspect()
+        spec = RandomRecipeSpec.from_dict(selection["recipe_spec"]) if selection else None
+        first = session.inspect_random() if spec else session.inspect()
         if (
             first.outcome != Outcome.OBSERVED
             or first.window != window
             or first.flags & (IN_FLIGHT | UNRESOLVED)
-            or not first.snapshot.random_scepter
+            or (not spec and not first.snapshot.random_scepter)
+            or (spec and (first.snapshot.building != selection["building"]["object_id"]
+                          or first.snapshot.vendor != selection["vendor"]["object_id"]
+                          or _owner(first.snapshot) != _owner(Snapshot.decode(
+                              bytes.fromhex(selection["admission_snapshot"])))))
         ):
-            raise VendorBatchStopped("open the selected vendor's random Gilded Scepter recipe")
+            raise VendorBatchStopped("the saved vendor or random recipe is not ready")
+        # Verify menu support on this exact native runtime before spending. A
+        # newer host must not create a batch and only then discover old commands.
+        menus = session.menu_session()
+        try:
+            supported = menus.inspect()
+            if (
+                supported.outcome != Outcome.OBSERVED or supported.window != window
+                or supported.flags & (IN_FLIGHT | UNRESOLVED)
+                or supported.snapshot.owner != _owner(first.snapshot)
+            ):
+                raise VendorBatchStopped("vendor menu support is not ready on this client")
+        finally:
+            menus.close()
         record = {
-            "schema_version": 1,
+            "schema_version": 2 if spec else 1,
             "job_id": uuid.uuid4().hex,
             "identity": self.identity,
             "state": "running",
-            "phase": "filling",
+            "phase": "preparing" if spec else "filling",
             "process_id": session.identity.process_id,
             "process_creation_filetime_utc": session.identity.creation_filetime_utc,
             "window": window,
@@ -141,6 +171,10 @@ class VendorJobStore:
             "deadline_at": now + MAX_JOB_SECONDS,
             "detail": "Filling available production slots.",
         }
+        if spec:
+            record.update(recipe_spec=spec.as_dict(), recipe_sha256=spec.canonical_digest,
+                          recipe_revision=selection["revision"], recipe_owner=selection["owner"],
+                          recipe_label=selection["display_name"])
         self.save(record)
         _write(self.directory(record["job_id"]) / "control.json", {"mode": "run"})
         _write(self.root / "current.json", {"job_id": record["job_id"]})
@@ -191,6 +225,7 @@ def run_vendor_job(
     window: int,
     *,
     resume: bool = False,
+    selection=None,
     cancelled=lambda: False,
     clock=time.time,
     sleeper=time.sleep,
@@ -205,7 +240,8 @@ def run_vendor_job(
         CondemnProgressStore(store.root).assert_idle()
         if cancelled():
             raise VendorBatchStopped("worker dispatch is paused")
-        record = store.current() if resume else store.begin(session, window, clock())
+        record = (store.current() if resume
+                  else store.begin(session, window, clock(), selection=selection))
         if record is None or record["state"] in TERMINAL:
             raise VendorBatchStopped("no resumable vendor job")
         if (
@@ -217,6 +253,11 @@ def run_vendor_job(
         directory = store.directory(record["job_id"])
         initial = Snapshot.decode(bytes.fromhex(record["initial_snapshot"]))
         create_path, keep_path = directory / "create.json", directory / "keep.json"
+        menu_path = directory / "inventory-menu.json"
+        preparation_path = directory / "recipe-preparation.json"
+        spec = (RandomRecipeSpec.from_dict(record["recipe_spec"])
+                if record["schema_version"] == 2 else None)
+        preparation_raw = None
 
         def update(state: str, detail: str):
             if record["state"] != state or record["detail"] != detail:
@@ -288,6 +329,19 @@ def run_vendor_job(
                     self.pending_request = key
                 return result
 
+            def inspect_random(self):
+                # begin() proved native feature support before any job mutation.
+                return self.inspect()
+
+            def create_random(self, expected, key):
+                before_action()
+                if stopped():
+                    raise VendorBatchStopped("dispatch revoked before random Create")
+                result = session.create_random(expected, key)
+                if result.outcome == Outcome.SUBMITTED and result.flags & IN_FLIGHT:
+                    self.pending_request = key
+                return result
+
             def keep(self, expected, item, key):
                 before_action()
                 if stopped():
@@ -300,6 +354,37 @@ def run_vendor_job(
         guarded = GuardedSession()
 
         try:
+            if spec:
+                support = session.inspect_random()
+                if (support.outcome != Outcome.OBSERVED or support.window != window
+                        or support.flags & (IN_FLIGHT | UNRESOLVED)
+                        or _owner(support.snapshot) != _owner(initial)):
+                    raise VendorBatchStopped("generalized crafting support or ownership changed")
+            if spec and preparation_path.exists():
+                preparation_raw = _read_record(preparation_path, 256 * 1024)
+                preparation, _, prepared = validate_completed_menu(preparation_raw)
+                if (preparation["operation"] != "prepare_recipe"
+                        or any(preparation[key] != record[key] for key in (
+                            "process_id", "process_creation_filetime_utc", "window"))
+                        or prepared.owner != _owner(initial)
+                        or not spec.matches(prepared)):
+                    raise VendorBatchStopped("saved recipe preparation does not belong to this job")
+            elif spec and record["phase"] != "preparing":
+                raise VendorBatchStopped("saved recipe preparation evidence is missing")
+            # An acknowledgement lost across restart remains unresolved even if
+            # a window now happens to be visible. Never replay that journal.
+            if menu_path.exists():
+                menu_record, menu_initial, _ = validate_completed_menu(
+                    _read_record(menu_path, 256 * 1024)
+                )
+                if (
+                    menu_record["operation"] != "open_inventory"
+                    or any(menu_record[key] != record[key] for key in (
+                        "process_id", "process_creation_filetime_utc", "window",
+                    ))
+                    or menu_initial.owner != _owner(initial)
+                ):
+                    raise VendorBatchStopped("menu evidence belongs to another vendor or client")
             # Read each bounded journal once. A completed label cannot replace
             # the exact Create -> inventory chain after a job-save interruption.
             batch_raw = _read_record(create_path) if create_path.exists() else None
@@ -317,6 +402,11 @@ def run_vendor_job(
                     ))
                     or _owner(batch_initial) != _owner(initial)
                     or _items(batch_initial) != _items(initial)
+                    or (spec and (batch.get("schema_version") != 3
+                                  or batch.get("recipe_spec") != spec.as_dict()
+                                  or batch.get("preparation_sha256") != hashlib.sha256(
+                                      preparation_raw).hexdigest()))
+                    or (not spec and batch.get("schema_version") == 3)
                 ):
                     raise VendorBatchStopped("action evidence belongs to another vendor or client")
             if keep_path.exists():
@@ -343,6 +433,34 @@ def run_vendor_job(
                     "Stopped before the next crafting action.",
                 )
                 return record
+            if spec and batch is None and preparation_raw is None:
+                fresh = before_action()
+                if fresh is None:
+                    update("paused", "Stopped before recipe preparation.")
+                    return record
+                if _items(fresh.snapshot) != _items(initial):
+                    raise VendorBatchStopped("production changed before recipe preparation")
+                if not fresh.snapshot.free_slots:
+                    record["capacity"] = len(fresh.snapshot.slots)
+                    update("complete", "No free production slots. No new items were created.")
+                    return record
+            if spec and preparation_raw is None:
+                menus = session.menu_session()
+                try:
+                    observed = menus.inspect()
+                    if observed.snapshot.owner != _owner(initial):
+                        raise VendorBatchStopped("vendor changed before recipe preparation")
+                    prepare_recipe(menus, preparation_path, observed.snapshot, spec.template,
+                                   table=spec.table, before_action=before_action, cancelled=stopped)
+                    preparation_raw = _read_record(preparation_path, 256 * 1024)
+                finally:
+                    menus.close()
+            if spec and record["phase"] == "preparing":
+                fresh = guarded.inspect_random().snapshot
+                if not spec.matches(fresh) or _items(fresh) != _items(initial):
+                    raise VendorBatchStopped("recipe or production changed during preparation")
+                record["phase"] = "filling"
+                store.save(record)
             if batch is None:
                 if record["phase"] != "filling":
                     raise VendorBatchStopped("missing Create evidence; review this job")
@@ -353,6 +471,7 @@ def run_vendor_job(
                     cancelled=stopped,
                     before_action=before_action,
                     expected_owner=initial,
+                    **({"recipe": spec, "preparation_raw": preparation_raw} if spec else {}),
                 )
                 if batch["state"] != "complete":
                     raise VendorBatchStopped("interrupted Create batch requires review")
@@ -386,9 +505,21 @@ def run_vendor_job(
                 if any(slot.state != 2 for slot in s.slots if slot.item in batch["items"]):
                     update("cooking", "Items are cooking. Waiting for the batch to finish.")
                 elif not s.inventory:
-                    update(
-                        "inventory", "Open this vendor's Inventory to finalize the finished items."
-                    )
+                    update("inventory", "Opening this vendor's Inventory for the finished batch.")
+                    menus = session.menu_session()
+                    try:
+                        menu_owner = menus.inspect()
+                        if (
+                            menu_owner.window != window
+                            or menu_owner.snapshot.owner != _owner(initial)
+                        ):
+                            raise VendorBatchStopped("vendor changed before Inventory opening")
+                        open_inventory(
+                            menus, menu_path, menu_owner.snapshot,
+                            before_action=before_action, cancelled=stopped,
+                        )
+                    finally:
+                        menus.close()
                 else:
                     break
                 sleeper(0.5)

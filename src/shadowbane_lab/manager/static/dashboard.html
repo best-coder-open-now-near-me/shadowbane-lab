@@ -207,6 +207,9 @@
           if (action === "close" && !window.confirm(`Request a graceful close for ${slot.client_id}?`)) return;
           const body = { action, client_id: slot.client_id };
           body.instance_id = currentInstanceId;
+          if (action === "vendor-start" && slot.vendor_recipes?.saved) {
+            body.selection = {recipe_revision: slot.vendor_recipes.saved.revision};
+          }
           if (["vendor-pause", "vendor-resume", "vendor-stop"].includes(action)) {
             body.job_id = slot.vendor?.job_id;
           }
@@ -224,6 +227,7 @@
         return button;
       };
 
+      const recipeChoices = new Map();
       const coverageOpen = new Map();
 
       const chooseCondemn = (slot, instanceId) => {
@@ -434,7 +438,9 @@
           detail.className = "detail";
           detail.textContent = vendor
             ? text(vendor.detail)
-            : "Select a random Gilded Scepter recipe, start the batch, then return to the game when ready.";
+            : slot.vendor_recipes?.saved
+              ? `Saved random recipe: ${slot.vendor_recipes.saved.display_name}. Return to the game after Start.`
+              : "Open a vendor, load its recipes, and return to the game. Then choose and save a random recipe.";
           const progress = document.createElement("p");
           progress.className = "detail";
           progress.textContent = vendor
@@ -454,7 +460,8 @@
           const review = vendor?.state === "review";
           const choices = [
             ["Find buildings and vendors", "vendor-discover", (finished || review) && slot.dispatch_enabled],
-            ["Roll available slots", "vendor-start", finished && slot.dispatch_enabled],
+            ["Load recipe list", "vendor-recipes", finished && slot.dispatch_enabled],
+            ["Roll available slots", "vendor-start", finished && slot.dispatch_enabled && Boolean(slot.vendor_recipes?.saved)],
             ["Pause rolling", "vendor-pause", !finished && !review && vendor.control === "run"],
             ["Resume rolling", "vendor-resume", !finished && !review && slot.dispatch_enabled],
             ["Stop rolling", "vendor-stop", !finished && !review && vendor.control !== "stop"],
@@ -464,7 +471,39 @@
             button.disabled = !enabled || !boundInstance();
             buttons.append(button);
           }
-          vendorPanel.append(title, detail, progress, buttons);
+          vendorPanel.append(title, detail, progress);
+          const catalog = slot.vendor_recipes?.catalog;
+          if (catalog?.recipes?.length) {
+            const label = document.createElement("label");
+            label.textContent = "Random recipe ";
+            const select = document.createElement("select");
+            select.setAttribute("aria-label", "Random recipe");
+            const key = `${slot.client_id}:${boundInstance()}:${catalog.catalog_id}`;
+            for (const row of catalog.recipes) {
+              const option = document.createElement("option");
+              option.value = String(row.template.object_id);
+              option.textContent = row.display_name || "Unnamed recipe";
+              select.append(option);
+            }
+            const savedTemplate = slot.vendor_recipes?.saved?.recipe_spec?.template?.object_id;
+            const chosen = recipeChoices.get(key) || savedTemplate;
+            if (chosen && catalog.recipes.some(row => row.template.object_id === Number(chosen))) {
+              select.value = String(chosen);
+            }
+            select.addEventListener("change", () => recipeChoices.set(key, select.value));
+            const save = document.createElement("button");
+            save.type = "button";
+            save.textContent = "Save random recipe";
+            save.disabled = !finished || !slot.dispatch_enabled || !boundInstance();
+            save.addEventListener("click", async () => {
+              await execute({action: "vendor-recipe-save", client_id: slot.client_id,
+                instance_id: boundInstance(), selection: {catalog_id: catalog.catalog_id,
+                  template: Number(select.value)}});
+            });
+            label.append(select);
+            vendorPanel.append(label, save);
+          }
+          vendorPanel.append(buttons);
           if (slot.nearby_discovery) {
             const nearby = document.createElement("p");
             nearby.className = "detail";
