@@ -89,8 +89,8 @@ public:
         if (Creation(producer_) != expected.producer_creation) { Close(); return false; }
         return true;
     }
-    Result TryEnter(const Binding& current) noexcept {
-        if (!Valid(current) || !Same(current, expected_)) { return Result::invalid; }
+    Result TryEnter(const Binding& current_binding) noexcept {
+        if (!Valid(current_binding) || !Same(current_binding, expected_)) { return Result::invalid; }
         return Transition(true, nullptr);
     }
     Result Inspect(State& state) noexcept { return Transition(false, &state); }

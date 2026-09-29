@@ -73,7 +73,8 @@ int main(int argc, char** argv) {
     backend.retire_inside_start = true;
     receipt = controller.Execute(V::start, other, true, true, backend);
     if (receipt.phase != P::retired || controller.Busy()
-        || receipt.flags & wire::cleanup_required || backend.starts != 2) { return 11; }
+        || receipt.flags & wire::cleanup_required || !(receipt.flags & wire::outbound_queued)
+        || backend.starts != 2) { return 11; }
     auto late = wire::Reply(other, O::client_outbound_queued);
     late.flags = wire::cleanup_required | wire::outbound_queued; late.phase = P::engaged;
     if (controller.Update(late) || controller.Busy()) { return 12; }

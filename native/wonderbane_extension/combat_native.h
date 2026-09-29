@@ -15,6 +15,7 @@ public:
                   Admission current, Admission enter, Admission append_current, void*) noexcept;
     bool Cancel(const movement::NativeScene&, Admission stop_current, void*, State&) noexcept;
     bool ReadState(const movement::NativeScene&, State&) const noexcept;
+    bool CombatTargetCurrent() const noexcept;
     // Release only references owned by this transaction. A fault quarantines them.
     bool Clear() noexcept;
     bool Current() noexcept;

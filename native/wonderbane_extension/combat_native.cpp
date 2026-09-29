@@ -245,6 +245,11 @@ bool NativeTarget::ReadState(const movement::NativeScene& scene, State& out) con
         || !Read(state + 0x20, next.action) || !Read(scene.actor + 0xaf8, target)) { return false; }
     next.target = target != 0; out = next; return true;
 }
+bool NativeTarget::CombatTargetCurrent() const noexcept {
+    std::uintptr_t target = 0;
+    return Available() && target_ && RawCurrent(true)
+        && Read(scene_.actor + 0xaf8, target) && target == reinterpret_cast<std::uintptr_t>(target_);
+}
 bool NativeTarget::CancelImpl(const movement::NativeScene& scene, Admission current, void* context, State& out) {
     if (!current || !current(context) || !movement::NativeMovementLifetimeCurrent(scene)
         || !ReadState(scene, out)) { return false; }

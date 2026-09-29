@@ -209,6 +209,9 @@ int main() {
     assert(!target.Cancel(scene, Admit, nullptr, state) && cancellations == 2);
     scene = Reset(); c::NativeTarget cleanup; c::NativeTargetTestAccess::Bind(cleanup, window);
     assert(cleanup.Attack(scene, command, Admit, Enter, Admit, nullptr).queued);
+    assert(!cleanup.CombatTargetCurrent());
+    Word(scene.actor + 0xaf8, base + 0x4000); assert(cleanup.CombatTargetCurrent());
+    Word(scene.actor + 0xaf8, base + 0x6000); assert(!cleanup.CombatTargetCurrent());
     throw_release = true;
     assert(!cleanup.Clear() && !cleanup.Available() && !cleanup.Clear());
     c::NativeTargetTestAccess::DisposeQuarantine(cleanup);

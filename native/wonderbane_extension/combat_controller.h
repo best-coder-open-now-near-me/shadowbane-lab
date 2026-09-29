@@ -46,6 +46,13 @@ class Controller final {
         if (receipt.flags & wire::cleanup_required) { active_ = &record; }
         else if (active_ == &record) { active_ = nullptr; }
     }
+    static void PreserveEvidence(Record& record, const wire::Receipt& receipt) noexcept {
+        // A reentrant cleanup/retirement wins state publication, but a later
+        // correlated native return may still establish earlier outbound history.
+        if (Correlated(record.command, receipt)) {
+            record.receipt.flags |= receipt.flags & wire::outbound_queued;
+        }
+    }
 public:
     bool Busy() const noexcept { return active_ || calling_; }
     const wire::Command* Active() const noexcept { return active_ ? &active_->command : nullptr; }
@@ -69,6 +76,7 @@ public:
             const auto result = invoker.Cancel(record.command);
             calling_ = false;
             if (record.update == before && record.receipt.phase != wire::Phase::retired) { Accept(record, result); }
+            PreserveEvidence(record, result);
             return record.receipt;
         }
         if (verb == wire::Verb::status) { return wire::Reply(command, O::unavailable); }
@@ -101,6 +109,7 @@ public:
             const auto result = invoker.Start(record.command);
             calling_ = false;
             if (record.update == before && record.receipt.phase != wire::Phase::retired) { Accept(record, result); }
+            PreserveEvidence(record, result);
             return record.receipt;
         } catch (...) { return wire::Reply(command, O::exhausted); }
     }

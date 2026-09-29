@@ -42,6 +42,7 @@ add_library(
   building_native_target.cpp
   combat_submission.cpp
   combat_native.cpp
+  combat_runtime.cpp
   vendor_navigation_native.cpp
   movement_settings.cpp
   movement_native_image.cpp
@@ -824,6 +825,7 @@ if(BUILD_TESTING)
   )
 
   add_executable(wonderbane_extension_probe event_channel.cpp probe.cpp movement_controls.cpp)
+  target_link_libraries(wonderbane_extension_probe PRIVATE bcrypt)
   if(WONDERBANE_EXTENSION_PROFILE STREQUAL "diagnostics-only")
     target_compile_definitions(
       wonderbane_extension_probe
@@ -1375,4 +1377,21 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_combat_native_test PRIVATE bcrypt user32)
   add_test(NAME wonderbane_extension_combat_native COMMAND wonderbane_extension_combat_native_test)
   set_tests_properties(wonderbane_extension_combat_native PROPERTIES TIMEOUT 15)
+  add_executable(wonderbane_extension_combat_runtime_test combat_runtime_test.cpp)
+  target_compile_features(wonderbane_extension_combat_runtime_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_runtime_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_runtime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_runtime_test PRIVATE bcrypt user32)
+  add_test(NAME wonderbane_extension_combat_runtime COMMAND wonderbane_extension_combat_runtime_test)
+  set_tests_properties(wonderbane_extension_combat_runtime PROPERTIES TIMEOUT 15)
+  add_executable(wonderbane_extension_combat_channel_test combat_channel_test.cpp movement_controls.cpp)
+  target_compile_features(wonderbane_extension_combat_channel_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_channel_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_channel_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_combat_channel COMMAND wonderbane_extension_combat_channel_test "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_command_v1.hex")
+  set_tests_properties(wonderbane_extension_combat_channel PROPERTIES TIMEOUT 15)
+  foreach(kind city_window movement guard_upgrade guard_funding condemn event vendor_navigation vendor)
+    target_link_libraries(wonderbane_extension_${kind}_channel_test PRIVATE bcrypt)
+  endforeach()
 endif()
