@@ -8,7 +8,8 @@ namespace {
 m::NativeScene observed{0x10000, 0x20000, 0x30000, 0x40000, {91, 53}, 7};
 m::Grant owner{9, 7, m::Owner::automation};
 bool live = true, lease_live = true, stop_ok = true, native_activity = false, state_readable = true;
-bool retired_in_attack = false, revoke_in_attack = false;
+bool retired_in_attack = false, revoke_in_attack = false, rejected_attack = false;
+c::Diagnostic last_diagnostic{};
 unsigned attacks = 0, stops = 0, clears = 0;
 c::fence::Binding* shared_binding = nullptr;
 std::vector<int> sequence;
@@ -57,6 +58,7 @@ c::wire::Receipt Execute(c::wire::Verb verb, const c::wire::Command& command) {
     assert(c::Queue(pending));
     c::runtime.Tick(reinterpret_cast<void*>(observed.window), reinterpret_cast<HWND>(command.window));
     assert(pending->state.load() == 2); auto result = pending->receipt;
+    last_diagnostic = pending->diagnostic;
     assert(c::wire::Valid(result)); c::Release(pending); return result;
 }
 }
@@ -96,7 +98,10 @@ NativeTarget::Result NativeTarget::Attack(const m::NativeScene& scene, const wir
     assert(current(context) && enter(context) && append(context));
     if (revoke_in_attack) { shared_binding->state = fence::State::entered_revoked; }
     if (retired_in_attack) { combat_owner_retire.load()(scene.epoch); live = false; }
-    return {wire::Outcome::client_outbound_queued, true};
+    if (rejected_attack) { return {wire::Outcome::native_rejected, false,
+        {Stage::dispatch, wire::Outcome::native_rejected, true}}; }
+    return {wire::Outcome::client_outbound_queued, true,
+        {Stage::dispatch, wire::Outcome::client_outbound_queued, true, true, true, true}};
 }
 bool NativeTarget::Cancel(const m::NativeScene&, Admission current, void* context, State& state) noexcept {
     ++stops; if (!current(context) || !stop_ok) { return false; }
@@ -127,6 +132,7 @@ int main() {
         stop_ok = true; receipt = Execute(V::cancel, command);
         assert(receipt.outcome == O::local_cancelled && !c::runtime.active && !native_activity);
         assert(receipt.flags & c::wire::outbound_queued);
+        assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.appended);
         receipt = Execute(V::start, command); assert(receipt.outcome == O::local_cancelled && attacks == 1);
     }
     {
@@ -141,6 +147,7 @@ int main() {
         auto receipt = Execute(V::start, command);
         assert(receipt.phase == c::wire::Phase::retired && !(receipt.flags & c::wire::cleanup_required)
             && (receipt.flags & c::wire::outbound_queued));
+        assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.appended);
         live = true; retired_in_attack = false;
         c::runtime.Tick(reinterpret_cast<void*>(observed.window), reinterpret_cast<HWND>(0x50000));
         assert(!c::runtime.active);
@@ -157,10 +164,14 @@ int main() {
         const auto before = attacks; stop_ok = false;
         auto receipt = Execute(V::start, command);
         assert(receipt.outcome == O::pending && attacks == before && native_activity);
+        assert(last_diagnostic.stage == c::Stage::baseline_pause && !last_diagnostic.dispatched
+            && last_diagnostic.movement_result == static_cast<int>(m::Result::stop_failed));
         assert(mapping.view->state == c::fence::State::pending); // Baseline failure cannot enter attack.
         stop_ok = true;
         receipt = Execute(V::cancel, command);
         assert(receipt.outcome == O::local_cancelled && !native_activity);
+        assert(last_diagnostic.stage == c::Stage::baseline_pause && !last_diagnostic.dispatched
+            && last_diagnostic.movement_result == static_cast<int>(m::Result::stop_failed));
     }
     {
         const auto command = Command(6, binding); Mapping mapping(binding);
@@ -192,4 +203,29 @@ int main() {
         receipt = Execute(V::status, command);
         assert(receipt.outcome == O::local_cancelled && !c::runtime.active);
     }
+    {
+        const auto command = Command(9, binding); Mapping mapping(binding);
+        rejected_attack = true;
+        auto receipt = Execute(V::start, command);
+        assert(receipt.outcome == O::local_cancelled && receipt.flags == c::wire::local_cancelled);
+        assert(receipt.mode == 1 && receipt.action_state == 1 && !receipt.combat_target_present);
+        assert(last_diagnostic.stage == c::Stage::dispatch
+            && last_diagnostic.outcome == O::native_rejected && last_diagnostic.dispatched
+            && !last_diagnostic.native_entered && !last_diagnostic.appended);
+        receipt = Execute(V::status, command);
+        assert(last_diagnostic.outcome == O::native_rejected && receipt.outcome == O::local_cancelled);
+        receipt = Execute(V::cancel, command);
+        assert(last_diagnostic.outcome == O::native_rejected && receipt.flags == c::wire::local_cancelled);
+        auto forged = command; ++forged.revision;
+        receipt = Execute(V::status, forged);
+        assert(receipt.outcome == O::invalid && last_diagnostic.stage == c::Stage::none);
+        rejected_attack = false;
+    }
+    {
+        const auto command = Command(10, binding); Mapping mapping(binding);
+        assert(Execute(V::start, command).outcome == O::client_outbound_queued);
+        assert(last_diagnostic.outcome == O::client_outbound_queued && last_diagnostic.native_entered);
+        assert(Execute(V::cancel, command).outcome == O::local_cancelled);
+    }
+
 }

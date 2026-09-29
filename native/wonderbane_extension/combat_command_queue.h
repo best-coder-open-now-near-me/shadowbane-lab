@@ -1,5 +1,6 @@
 #pragma once
 #include "combat_wire.h"
+#include "combat_diagnostic.h"
 #include "movement_command_queue.h"
 namespace wonderbane::extension::combat {
 struct QueuedCommand {
@@ -11,6 +12,7 @@ struct QueuedCommand {
     std::shared_ptr<movement::CommandLease> lease;
     std::atomic<unsigned> state{0};
     wire::Receipt receipt{};
+    Diagnostic diagnostic{};
     DWORD execution_thread = 0;
 };
 inline SRWLOCK queue_lock = SRWLOCK_INIT;
@@ -32,7 +34,9 @@ inline void Release(const std::shared_ptr<QueuedCommand>& command) noexcept {
     if (queued == command) { queued.reset(); }
     ReleaseSRWLockExclusive(&queue_lock);
 }
-inline void Complete(const std::shared_ptr<QueuedCommand>& command, const wire::Receipt& receipt) noexcept {
+inline void Complete(const std::shared_ptr<QueuedCommand>& command, const wire::Receipt& receipt,
+                     const Diagnostic& diagnostic = {}) noexcept {
+    command->diagnostic = diagnostic;
     command->receipt = receipt; command->execution_thread = GetCurrentThreadId();
     command->state.store(2, std::memory_order_release);
 }

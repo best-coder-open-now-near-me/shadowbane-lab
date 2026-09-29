@@ -1,5 +1,6 @@
 #pragma once
 #include "combat_wire.h"
+#include "combat_diagnostic.h"
 #include <map>
 
 namespace wonderbane::extension::combat {
@@ -10,10 +11,11 @@ public:
     virtual ~Invoker() = default;
     virtual wire::Receipt Start(const wire::Command&) noexcept = 0;
     virtual wire::Receipt Cancel(const wire::Command&) noexcept = 0;
+    virtual Diagnostic Diagnose(const wire::Command&) const noexcept { return {}; }
 };
 
 class Controller final {
-    struct Record { wire::Command command; wire::Receipt receipt; std::uint64_t update = 0; };
+    struct Record { wire::Command command; wire::Receipt receipt; std::uint64_t update = 0; Diagnostic diagnostic{}; };
     std::map<std::array<std::uint8_t, 16>, Record> records_;
     Record* active_ = nullptr;
     bool calling_ = false;
@@ -54,6 +56,11 @@ class Controller final {
         }
     }
 public:
+    Diagnostic Diagnose(const wire::Command& command) const noexcept {
+        const auto found = records_.find(command.request);
+        return found != records_.end() && !std::memcmp(&found->second.command, &command, sizeof(command))
+            ? found->second.diagnostic : Diagnostic{};
+    }
     bool Busy() const noexcept { return active_ || calling_; }
     const wire::Command* Active() const noexcept { return active_ ? &active_->command : nullptr; }
 
@@ -89,7 +96,7 @@ public:
             try {
                 auto receipt = wire::Reply(command, O::local_cancelled);
                 receipt.flags = wire::local_cancelled;
-                const auto [entry, inserted] = records_.emplace(command.request, Record{command, receipt});
+                const auto [entry, inserted] = records_.emplace(command.request, Record{command, receipt, 0, {Stage::no_entry, O::local_cancelled}});
                 return inserted ? entry->second.receipt : wire::Reply(command, O::invalid);
             } catch (...) { return wire::Reply(command, O::exhausted); }
         }
@@ -107,6 +114,9 @@ public:
             active_ = &record; calling_ = true;
             const auto before = record.update;
             const auto result = invoker.Start(record.command);
+            // Capture the original attempt even when reentrant cleanup won receipt publication.
+            // Cancellation/retirement never overwrite this per-identity diagnostic.
+            if (Correlated(record.command, result)) { record.diagnostic = invoker.Diagnose(record.command); }
             calling_ = false;
             if (record.update == before && record.receipt.phase != wire::Phase::retired) { Accept(record, result); }
             PreserveEvidence(record, result);

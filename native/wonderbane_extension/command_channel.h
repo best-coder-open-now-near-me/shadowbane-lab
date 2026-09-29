@@ -585,13 +585,14 @@ inline DWORD FinishCombatPending(Runtime& runtime, ULONGLONG now) noexcept {
     movement::wire::Receipt wire_bytes{};
     static_assert(sizeof(wire_bytes) == sizeof(pending->receipt));
     if (correlated) { std::memcpy(&wire_bytes, &pending->receipt, sizeof(wire_bytes)); }
-    constexpr char detail[] = "native_combat_receipt_v1";
+    char detail[73]{};
+    const auto detail_length = combat::FormatDiagnostic(correlated ? pending->diagnostic : combat::Diagnostic{}, detail);
     // SUBMITTED here means a correlated typed service reply, including pending,
     // uncertain, stale, and rejected outcomes. Only the wire outcome/flags prove
     // actual native outbound admission or completed local cancellation.
     if (!TryPublishResult(*runtime.storage, runtime.result_signal, static_cast<LONG64>(pending->sequence), pending->id,
         correlated ? ClientActionResultStage::submitted_to_client : ClientActionResultStage::failed,
-        correlated ? ERROR_SUCCESS : ERROR_INVALID_DATA, detail, sizeof(detail) - 1, now,
+        correlated ? ERROR_SUCCESS : ERROR_INVALID_DATA, detail, detail_length, now,
         correlated ? &wire_bytes : nullptr, pending->execution_thread)) { return ERROR_NOT_ENOUGH_QUOTA; }
     InterlockedExchange64(&runtime.storage->header.command_read_sequence, static_cast<LONG64>(pending->sequence));
     combat::Release(pending); runtime.combat_pending.reset(); return ERROR_SUCCESS;

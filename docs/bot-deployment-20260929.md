@@ -35,14 +35,41 @@ string and position layout reads matched the reviewed native predicates. The
 attack handler has no pre-factory distance or equipped-weapon branch; its native
 message class name alone does not establish melee-only behavior.
 
-Live acceptance remains open. Current source diagnostics preserve outbound
+The user then reported several successful manual ranged hits from these positions.
+Three additional decoded targeted-action records carried the exact Umbra/Day
+keys in the same scene. These records support correlation with the manual test;
+the raw fields are not calibrated as authoritative damage or retaliation events.
+A later passive sample observed idle mode/action 1 with no combat target.
+
+Read-only samples also passed the reviewed attack handler's target-mask,
+local-state and peace-protection predicates. The exact prepared 1.3.38.12 image
+was compared with the reviewed 1.3.38.11 image: only the version byte changed,
+and all 13 inspected dispatcher, mask, state, peace, mode and factory ranges
+matched. The dispatcher ABI and its forced combat-mode call are unchanged.
+These observations do not prove which branch the earlier START reached.
+
+Live acceptance remains open. Draft PR #45 targets main with candidate host
+0.3.54 / native 1.8.34; it is not installed. Host diagnostics preserve outbound
 history, native mode/action/target observations, and the failed interruption stage
-with its movement outcome. These changes are not installed. The native START
-path still discards the original rejection when returning successful cleanup;
-ongoing investigation must distinguish that cause without weakening admission.
-The host diagnostic checkpoint passed 3,808 Python tests and 766 subtests, with
-34 skips; focused Ruff and independent review also passed. It is published through
-draft PR #45, targeting main, and is not a new qualified deployment.
+with its movement outcome. The native path now retains the original execution
+stage and observed submission bits per immutable request through cleanup,
+retirement and replay, using the existing result-detail field. Receipt384,
+admission, cancellation and cleanup decisions are unchanged.
+
+The host logs opaque `native_detail` only after receipt correlation. Native text
+has the form `combat_v1:<stage>:<outcome>:dDnNqQfF:mM`: D is dispatcher entry,
+N is native factory entry, Q is observed queue append, F is followup entry.
+M is the native movement Result enum, or -1 when not observed. The original
+receipt remains authoritative for local queue history and cleanup; diagnostic
+text never grants action authority or proves server acceptance/damage. The legacy
+`native_combat_receipt_v1` marker remains valid when there is no attempt detail.
+
+The first host diagnostic checkpoint passed 3,808 Python tests and 766 subtests,
+with 34 skips. The correlated diagnostic envelope passed 104 focused tests with
+three native-environment skips, including durable journal coverage. Four focused
+native diagnostic CTests and the production DLL build passed, as did independent
+review. Combined validation and source-stamped packaging follow the final source
+checkpoint; this document does not certify a new qualified deployment.
 
 ## Qualified package
 

@@ -147,20 +147,28 @@ bool NativeTarget::Clear() noexcept {
     return result;
 }
 NativeTarget::Result NativeTarget::Run() {
-    if (!party::Capture(base_, scene_, party_)
-        || party::Protected(party_, {command_.target_key[0], command_.target_key[1]})
-        || !Current()) { return {O::stale}; }
+    stage_ = Stage::party_snapshot;
+    if (!party::Capture(base_, scene_, party_)) { return {O::stale}; }
+    stage_ = Stage::party_protection;
+    if (party::Protected(party_, {command_.target_key[0], command_.target_key[1]})) { return {O::stale}; }
+    stage_ = Stage::initial_current;
+    if (!Current()) { return {O::stale}; }
     actor_ = reinterpret_cast<void*>(scene_.actor);
+    stage_ = Stage::actor_retain;
     if (!Retain(actor_)) { actor_ = nullptr; return {O::unavailable}; }
     movement::GroundPoint origin{};
+    stage_ = Stage::position;
     if (!Current() || !Position(origin)) { return {O::stale}; }
     unsigned char allocator = 0;
+    stage_ = Stage::query_construct;
     calls_.construct(&list_, &allocator);
     const movement::GroundPoint minimum{(std::max)(0.0f, origin.x - 1024), -2000,
         (std::max)(-200000.0f, origin.z - 1024)};
     const movement::GroundPoint maximum{(std::min)(200000.0f, origin.x + 1024), 20000,
         (std::min)(0.0f, origin.z + 1024)};
+    stage_ = Stage::query_current;
     if (!Current()) { return {O::stale}; }
+    stage_ = Stage::query;
     calls_.query(reinterpret_cast<void*>(scene_.world), &minimum, &maximum, &list_);
     if (!list_.sentinel) { faulted_ = true; return {O::unavailable}; }
     auto* previous = list_.sentinel;
@@ -181,13 +189,25 @@ NativeTarget::Result NativeTarget::Run() {
     }
     if (list_.sentinel->previous != previous) { faulted_ = true; return {O::unavailable}; }
     ClearQuery();
-    if (matches != 1 || faulted_ || !Current() || !Identity()) { return {O::stale}; }
+    stage_ = Stage::query_match;
+    if (matches != 1 || faulted_) { return {O::stale}; }
+    stage_ = Stage::target_identity;
+    if (!Current() || !Identity()) { return {O::stale}; }
     selection_argument_ = target_;
+    stage_ = Stage::selection_retain;
     if (!Retain(selection_argument_)) { selection_argument_ = nullptr; return {O::unavailable}; }
+    stage_ = Stage::selection_current;
     if (!Current()) { return {O::stale}; }
+    stage_ = Stage::selection;
     auto* argument = selection_argument_; selection_argument_ = nullptr;
     calls_.select(argument); selected_ = true;
-    if (!Current() || !enter_ || !enter_(context_) || !Current()) { return {O::stale}; }
+    stage_ = Stage::selection_recheck;
+    if (!Current()) { return {O::stale}; }
+    stage_ = Stage::fence_enter;
+    if (!enter_ || !enter_(context_)) { return {O::stale}; }
+    stage_ = Stage::entry_recheck;
+    if (!Current()) { return {O::stale}; }
+    stage_ = Stage::writer;
     std::uintptr_t writer = 0, container = 0;
     if (!Read(base_ + 0x16ab88c, writer) || !Read(writer + 0x44, container)) { return {O::unavailable}; }
     submission::Context context{};
@@ -199,10 +219,11 @@ NativeTarget::Result NativeTarget::Run() {
     context.receipt = &submission_receipt_;
     submission::Scope scope(context);
     const std::array<std::uint32_t, 9> action{0x60f};
+    stage_ = Stage::dispatch;
     dispatched_ = true;
     (void)calls_.dispatch(action.data(), reinterpret_cast<void*>(scene_.window));
     const auto receipt = scope.Finish();
-    if (!Current()) { return {O::uncertain, receipt.append_observed}; }
+    if (!Current()) { stage_ = Stage::post_dispatch; return {O::uncertain, receipt.append_observed}; }
     if (receipt.result == submission::Result::queued) { return {O::client_outbound_queued, true}; }
     if (receipt.result == submission::Result::no_submission && !receipt.native_entered) {
         return {O::native_rejected};
@@ -229,12 +250,17 @@ NativeTarget::Result NativeTarget::Guarded() noexcept {
 NativeTarget::Result NativeTarget::Attack(const movement::NativeScene& scene, const wire::Command& command,
     Admission current, Admission enter, Admission append_current, void* context) noexcept {
     if (!Available() || !Owner() || running_ || list_.sentinel || actor_ || target_
-        || !current || !enter || !append_current || !submission::Ready()) { return {O::unavailable}; }
+        || !current || !enter || !append_current || !submission::Ready()) {
+        return {O::unavailable, false, {Stage::target_admission, O::unavailable}};
+    }
     scene_ = scene; command_ = command; current_ = current; enter_ = enter;
     append_current_ = append_current; context_ = context;
     submission_receipt_ = {};
     selected_ = dispatched_ = false; running_ = true;
-    const auto result = Guarded(); running_ = false;
+    stage_ = Stage::target_admission;
+    auto result = Guarded(); running_ = false;
+    result.diagnostic = {stage_, result.outcome, dispatched_, submission_receipt_.native_entered,
+        submission_receipt_.append_observed, submission_receipt_.followup_entered};
     return result;
 }
 bool NativeTarget::ReadState(const movement::NativeScene& scene, State& out) const noexcept {
