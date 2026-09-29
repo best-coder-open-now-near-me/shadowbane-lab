@@ -6,6 +6,13 @@
 namespace wonderbane::extension::combat::wire {
 using Digest = std::array<std::uint8_t, 32>;
 enum class Verb : std::uint32_t { start = 34, status = 35, cancel = 36 };
+enum class Outcome : std::uint32_t {
+    observed, client_outbound_queued, stale, unavailable, invalid, pending,
+    uncertain, exhausted, local_cancelled, native_rejected
+};
+enum class Phase : std::uint32_t { idle, engaged, cancelling, retired, blocked };
+enum Flag : std::uint32_t { cleanup_required = 1, outbound_queued = 2, local_cancelled = 4 };
+constexpr std::uint32_t receipt_signature = 0x57424331;
 #pragma pack(push, 1)
 struct Command {
     movement::wire::Host host{};
@@ -18,9 +25,56 @@ struct Command {
     Digest store{}, owner{}, entry{}, operation{};
     std::uint8_t reserved[40]{};
 };
+// Every structured reply echoes the immutable command, including rejection.
+// Queued means local native outbound queue admission, never server acceptance.
+struct Receipt {
+    std::array<std::uint8_t, 16> request{};
+    movement::wire::Host host{};
+    std::uint64_t window = 0;
+    Outcome outcome = Outcome::unavailable;
+    std::uint32_t flags = 0;
+    movement::wire::Grant grant{};
+    std::uint64_t revision = 0;
+    std::uint32_t local_key[2]{}, target_key[2]{};
+    std::uint32_t signature = receipt_signature;
+    Phase phase = Phase::idle;
+    std::uint32_t mode = 0, action_state = 0, combat_target_present = 0;
+    Digest binding_digest{};
+    std::uint8_t reserved[44]{};
+};
 #pragma pack(pop)
 static_assert(sizeof(Command) == 576 && offsetof(Command, request) == 240);
 static_assert(offsetof(Command, local_key) == 384 && offsetof(Command, store) == 408);
+static_assert(sizeof(Receipt) == 384 && offsetof(Receipt, grant) == 48);
+static_assert(offsetof(Receipt, revision) == 264 && offsetof(Receipt, signature) == 288);
+static_assert(offsetof(Receipt, binding_digest) == 308 && offsetof(Receipt, reserved) == 340);
+
+inline Receipt Reply(const Command& command, Outcome outcome) noexcept {
+    Receipt result{};
+    result.request = command.request; result.host = command.host; result.window = command.window;
+    result.outcome = outcome; result.grant = command.grant; result.revision = command.revision;
+    std::memcpy(result.local_key, command.local_key, sizeof(result.local_key));
+    std::memcpy(result.target_key, command.target_key, sizeof(result.target_key));
+    result.binding_digest = command.binding_digest;
+    return result;
+}
+inline bool Valid(const Receipt& receipt) noexcept {
+    movement::Grant grant{};
+    return receipt.signature == receipt_signature && receipt.outcome <= Outcome::native_rejected
+        && receipt.phase <= Phase::blocked && !(receipt.flags & ~7U)
+        && receipt.combat_target_present <= 1 && movement::wire::Valid(receipt.host)
+        && receipt.window && receipt.window <= UINT32_MAX
+        && movement::wire::Decode(receipt.grant, grant)
+        && !movement::wire::Zero(receipt.request.data(), receipt.request.size())
+        && !movement::wire::Zero(receipt.binding_digest.data(), receipt.binding_digest.size())
+        && movement::wire::Zero(receipt.reserved, sizeof(receipt.reserved))
+        && (receipt.outcome != Outcome::client_outbound_queued
+            || ((receipt.flags & outbound_queued) && receipt.phase == Phase::engaged))
+        && (receipt.outcome != Outcome::local_cancelled
+            || ((receipt.flags & local_cancelled) && !(receipt.flags & cleanup_required)
+                && receipt.phase == Phase::idle))
+        && (receipt.phase != Phase::retired || !(receipt.flags & cleanup_required));
+}
 
 inline bool Hash(const void* bytes, ULONG size, Digest& out) noexcept {
     BCRYPT_ALG_HANDLE algorithm = nullptr; BCRYPT_HASH_HANDLE hash = nullptr;

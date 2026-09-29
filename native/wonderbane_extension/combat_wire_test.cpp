@@ -41,5 +41,29 @@ int main(int argc, char** argv) {
         || wire::IdentityDigest(many, 0, digest) || wire::IdentityDigest(nullptr, 1, digest)) { return 9; }
     auto changed = c; changed.grant.owner = 2;
     if (wire::BindingFor(changed, 1234, creation, b)) { return 10; }
+    auto receipt = wire::Reply(c, wire::Outcome::unavailable);
+    if (!wire::Valid(receipt) || receipt.request != c.request
+        || std::memcmp(&receipt.host, &c.host, sizeof(c.host))
+        || std::memcmp(&receipt.grant, &c.grant, sizeof(c.grant))
+        || receipt.window != c.window || receipt.revision != c.revision
+        || std::memcmp(receipt.local_key, c.local_key, sizeof(c.local_key))
+        || std::memcmp(receipt.target_key, c.target_key, sizeof(c.target_key))
+        || receipt.binding_digest != c.binding_digest) { return 14; }
+    receipt.outcome = wire::Outcome::client_outbound_queued;
+    if (wire::Valid(receipt)) { return 15; }
+    receipt.flags = wire::outbound_queued; receipt.phase = wire::Phase::engaged;
+    if (!wire::Valid(receipt)) { return 16; }
+    receipt.outcome = wire::Outcome::local_cancelled;
+    if (wire::Valid(receipt)) { return 17; }
+    receipt.phase = wire::Phase::idle; receipt.flags |= wire::local_cancelled;
+    if (!wire::Valid(receipt)) { return 18; }
+    receipt.flags |= wire::cleanup_required;
+    if (wire::Valid(receipt)) { return 19; }
+    receipt.outcome = wire::Outcome::observed; receipt.phase = wire::Phase::retired;
+    if (wire::Valid(receipt)) { return 20; }
+    receipt.flags &= ~wire::cleanup_required;
+    if (!wire::Valid(receipt)) { return 21; }
+    receipt.reserved[43] = 1;
+    if (wire::Valid(receipt)) { return 22; }
     return 0;
 }
