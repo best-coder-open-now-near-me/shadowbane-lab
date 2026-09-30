@@ -1,12 +1,12 @@
 # Native object-target actions
 
-Source architecture as of September 30, 2026, on
-`codex/combat-target-query-20260930` in draft
-[PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46).
-The candidate is not merged or installed. Focused source tests and independent
-reviews are complete for the components described below; final integrated checks,
-exact-image package qualification and supervised gameplay acceptance remain open.
-The installed baseline is host 0.3.54 / native 1.8.34 from PR #45.
+Source architecture as of September 30, 2026, merged through
+[PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46)
+at `7f250c6166b66459a6fba4de527743e5f7363c90`. Qualified source
+`6f101f61a7a2f093b0360baef2b628bead057220` is installed as host 0.3.55 /
+native 1.8.35. Both-profile package qualification, hosted checks, installation
+and loaded-DLL verification passed. Supervised gameplay acceptance remains
+pending login; see the [deployment receipt](bot-deployment-20260930.md).
 
 ## Ownership and composition
 

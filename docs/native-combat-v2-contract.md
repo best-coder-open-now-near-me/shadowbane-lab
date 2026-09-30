@@ -1,11 +1,15 @@
 # Native combat command v2 and engagement fence v3
 
-Source contract for the coordinated implementation in draft PR #46, September 30,
-2026. The v2 native service and shared host coordinator implement this
-selection-independent path. Final native/package checks and live acceptance
-remain pending; it is not merged or deployed behavior. The host and native
-extension must ship together. Legacy verbs 34-36
-are rejected after the upgrade. There is no keyboard/hotbar fallback.
+Source contract for the coordinated implementation merged through
+[PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46)
+on September 30, 2026. Qualified source
+`6f101f61a7a2f093b0360baef2b628bead057220` is installed as host 0.3.55 /
+native 1.8.35; the shared main merge is
+`7f250c6166b66459a6fba4de527743e5f7363c90`. Native/package qualification and
+installation checks passed; supervised gameplay acceptance remains pending
+login. See the [deployment receipt](bot-deployment-20260930.md). The host and
+native extension ship together. Legacy verbs 34-36 are rejected after the
+upgrade. There is no keyboard/hotbar fallback.
 
 ## Ownership and identities
 
