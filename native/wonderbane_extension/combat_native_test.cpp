@@ -246,7 +246,7 @@ int main() {
     Word(base + 0xc018, 2); Word(base + 0xc020, 4); Word(scene.actor + 0xaf8, base + 0x4000);
     Word(base + 0x16a2da4, 0); // Deselection invalidates admission, not the entered attack.
     cancel_rejected = true;
-    assert(!active.Current() && !active.CombatTargetCurrent());
+    assert(!active.Current() && active.Current(false) && active.CombatTargetCurrent());
     assert(!active.Cancel(scene, Admit, nullptr, state) && cancellations == 1);
     assert(state.mode == 2 && state.action == 4 && state.target);
     Word(base + 0x16a2da4, base + 0x6000); // Selecting another object is not cleanup either.

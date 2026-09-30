@@ -19,7 +19,7 @@ public:
     bool CombatTargetCurrent() const noexcept;
     // Release only references owned by this transaction. A fault quarantines them.
     bool Clear() noexcept;
-    bool Current() noexcept;
+    bool Current(bool require_selection = true) noexcept;
 private:
     struct Calls {
         void** (__thiscall* lookup)(void*, void**, const std::uint32_t*) = nullptr;

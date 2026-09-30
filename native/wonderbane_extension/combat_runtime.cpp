@@ -198,7 +198,7 @@ public:
             NativeTarget::State state{};
             const bool observed_state = target.ReadState(scene, state);
             const bool done = observed_state && state.mode == 1 && state.action == 1 && !state.target;
-            if (!observed_state || !Current(this) || !target.Current() || !target.CombatTargetCurrent() || done) {
+            if (!observed_state || !Current(this) || !target.Current(false) || !target.CombatTargetCurrent() || done) {
                 (void)controller.Update(Cancel(command));
             }
         }

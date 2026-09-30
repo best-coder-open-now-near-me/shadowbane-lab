@@ -394,6 +394,10 @@ class NativeCharacterPopulationReader:
         player_action_target = struct.unpack_from(
             "<I", player_block, self._profile.action_target_pointer_offset
         )[0]
+        if player_action_target:
+            self._require_pointer(
+                player_action_target, self._profile.pointer_size, "local player action target"
+            )
         player_object_key = self._read_object_key(player_block, "local player")
         characters: list[NativeCharacterObservation] = []
         rejected = 0
@@ -430,6 +434,12 @@ class NativeCharacterPopulationReader:
         ):
             raise NativeCharacterPopulationReadError(
                 "local player identity changed during population read"
+            )
+        if struct.unpack_from(
+            "<I", player_verification, self._profile.action_target_pointer_offset
+        )[0] != player_action_target:
+            raise NativeCharacterPopulationReadError(
+                "local player action target changed during population read"
             )
         characters.sort(key=lambda character: character.token)
         return NativeCharacterPopulationObservation(
@@ -520,6 +530,10 @@ class NativeCharacterPopulationReader:
         verified_block = self._read_object_block(address, "ArcCharacter candidate verification")
         if self._read_object_key(verified_block, "candidate verification") != object_key:
             raise NativeCharacterPopulationReadError("candidate identity changed during read")
+        if struct.unpack_from("<I", verified_block, profile.action_target_pointer_offset)[0] != (
+            action_target
+        ):
+            raise NativeCharacterPopulationReadError("candidate action target changed during read")
         if struct.unpack_from("<II", verified_block, profile.sparse_data_offset) != (
             buckets, table_bits
         ):

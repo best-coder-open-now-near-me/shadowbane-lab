@@ -9,6 +9,7 @@ m::NativeScene observed{0x10000, 0x20000, 0x30000, 0x40000, {91, 53}, 7};
 m::Grant owner{9, 7, m::Owner::automation};
 bool live = true, lease_live = true, stop_ok = true, native_activity = false, state_readable = true;
 bool retired_in_attack = false, revoke_in_attack = false, rejected_attack = false;
+bool selection_current = true, combat_target_current = true;
 c::Diagnostic last_diagnostic{};
 unsigned attacks = 0, stops = 0, clears = 0;
 c::fence::Binding* shared_binding = nullptr;
@@ -89,8 +90,10 @@ bool Ready() noexcept { return true; }
 }
 namespace wonderbane::extension::combat {
 bool NativeTarget::Bind(HWND) noexcept { base_ = 0x400000; return true; }
-bool NativeTarget::Current() noexcept { return live; }
-bool NativeTarget::CombatTargetCurrent() const noexcept { return live; }
+bool NativeTarget::Current(bool require_selection) noexcept {
+    return live && (!require_selection || selection_current);
+}
+bool NativeTarget::CombatTargetCurrent() const noexcept { return live && combat_target_current; }
 // The target fixture separately exercises actual native pointers, ownership and ABI.
 NativeTarget::Result NativeTarget::Attack(const m::NativeScene& scene, const wire::Command&,
     Admission current, Admission enter, Admission append, void* context) noexcept {
@@ -225,7 +228,15 @@ int main() {
         const auto command = Command(10, binding); Mapping mapping(binding);
         assert(Execute(V::start, command).outcome == O::client_outbound_queued);
         assert(last_diagnostic.outcome == O::client_outbound_queued && last_diagnostic.native_entered);
-        assert(Execute(V::cancel, command).outcome == O::local_cancelled);
+        const auto before = stops;
+        selection_current = false;
+        auto receipt = Execute(V::status, command);
+        assert(c::runtime.active && native_activity && stops == before);
+        assert(receipt.flags & c::wire::outbound_queued);
+        combat_target_current = false;
+        receipt = Execute(V::status, command);
+        assert(receipt.outcome == O::local_cancelled && !c::runtime.active && stops > before);
+        selection_current = combat_target_current = true;
     }
 
 }

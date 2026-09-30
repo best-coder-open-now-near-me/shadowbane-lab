@@ -204,7 +204,11 @@ class NativeTargetActionObservation:
 
 @dataclass(frozen=True, slots=True)
 class NativePlayerActionObservation:
-    """One coherent local-player motion/action snapshot."""
+    """One coherent local-player motion/action snapshot.
+
+    The action target is the observed AF8 combat pointer, independently of UI
+    selection. It does not identify every spell target or prove action cleanup.
+    """
 
     phase: NativeTargetActionPhase
     targeting_selected: bool
@@ -213,12 +217,25 @@ class NativePlayerActionObservation:
     impact_frame: int | None
     action_sequence: int
     motion_sequence: int
+    selected_target_token: str | None
+    action_target_token: str | None
 
     def __post_init__(self) -> None:
         if not isinstance(self.phase, NativeTargetActionPhase):
             raise ValueError("player action phase must be NativeTargetActionPhase")
         if not isinstance(self.targeting_selected, bool):
             raise ValueError("targeting_selected must be boolean")
+        for token, label in (
+            (self.selected_target_token, "selected_target_token"),
+            (self.action_target_token, "action_target_token"),
+        ):
+            if token is not None and (not isinstance(token, str) or not token.strip()):
+                raise ValueError(f"{label} must be non-empty when present")
+        if self.targeting_selected != (
+            self.selected_target_token is not None
+            and self.action_target_token == self.selected_target_token
+        ):
+            raise ValueError("targeting_selected must agree with the observed target tokens")
         if isinstance(self.motion_id, bool) or not isinstance(self.motion_id, int):
             raise ValueError("player action requires an integer motion ID")
         if not isinstance(self.action_pending, bool):
@@ -473,6 +490,8 @@ class NativeTargetActionReader:
         selected: int,
     ) -> _RawTargetActionSnapshot:
         profile = self._profile
+        if selected:
+            self._require_object_pointer(selected, profile.pointer_size, "selected target")
         self._require_object_pointer(
             player,
             profile.target_of_target_pointer_offset + profile.pointer_size,
@@ -611,6 +630,12 @@ class NativeTargetActionReader:
             ),
             action_sequence=self._player_action_sequence,
             motion_sequence=self._player_motion_sequence,
+            selected_target_token=(
+                self._target_token(snapshot.player) if snapshot.player else None
+            ),
+            action_target_token=(
+                self._target_token(snapshot.target_of_target) if snapshot.target_of_target else None
+            ),
         )
 
     def _read_pointer(self, address: int, label: str) -> int:

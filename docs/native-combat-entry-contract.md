@@ -93,12 +93,15 @@ reference. Saved-intent admission, outbound correlation and cancellation remain
 under the same immutable request and movement Grant.
 
 Selection is an admission input, not proof of whom an existing attack or cast is
-hitting. A selection change currently requests cancellation as interference with
-the owned workflow; it never proves that cancellation completed. Cleanup requires
-fresh mode 1, action state 1 and a null native combat target. An ongoing attack or
-cast after deselection must retain the cleanup obligation until those conditions
-are observed. This contract does not add spell casting or infer a cast target from
-selection.
+hitting. Selection remains mandatory through attack admission and its immediate
+post-dispatch check. Once admitted, an ongoing owned attack follows the retained
+object and the actor's actual combat-target pointer independently of UI selection.
+The exact object identity, scene, ownership and party checks remain mandatory.
+A selection change neither changes the owned target nor proves cancellation.
+Cleanup requires fresh mode 1, action state 1 and a null native combat target.
+An ongoing attack or cast after deselection retains that cleanup obligation until
+those conditions are observed. This contract does not add spell casting or infer
+a universal cast target from the combat-target pointer or UI selection.
 
 The developer-only `wonderbane_extension_combat_registry_probe` executes the real
 reviewed resolver and reference helpers against synthetic registry buckets and

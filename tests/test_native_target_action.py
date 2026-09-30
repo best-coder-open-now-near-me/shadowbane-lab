@@ -1,6 +1,7 @@
 import json
 import struct
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -211,6 +212,7 @@ class NativeTargetActionReaderTests(unittest.TestCase):
         process = FakeProcessMemory(profile)
         reader = NativeTargetActionReader(profile, process)
 
+        target_token = reader.observe().target_token
         idle = reader.observe_player()
         process.player_pending = True
         queued = reader.observe_player()
@@ -227,6 +229,8 @@ class NativeTargetActionReaderTests(unittest.TestCase):
                 impact_frame=None,
                 action_sequence=0,
                 motion_sequence=0,
+                selected_target_token=target_token,
+                action_target_token=target_token,
             ),
             idle,
         )
@@ -235,6 +239,62 @@ class NativeTargetActionReaderTests(unittest.TestCase):
         self.assertEqual(1, queued.action_sequence)
         self.assertEqual(NativeTargetActionPhase.WINDUP, windup.phase)
         self.assertEqual(1, windup.action_sequence)
+
+    def test_player_action_keeps_its_target_after_deselection_and_retarget(self) -> None:
+        profile = _profile()
+        process = FakeProcessMemory(profile)
+        reader = NativeTargetActionReader(profile, process)
+        target_token = reader.observe().target_token
+        process.player_pending = True
+        process.selected = 0
+        deselected = reader.observe_player()
+        self.assertTrue(deselected.action_active)
+        self.assertFalse(deselected.targeting_selected)
+        self.assertIsNone(deselected.selected_target_token)
+        self.assertEqual(target_token, deselected.action_target_token)
+
+        process.selected = 0x12700000
+        retargeted = reader.observe_player()
+        self.assertTrue(retargeted.action_active)
+        self.assertFalse(retargeted.targeting_selected)
+        self.assertIsNotNone(retargeted.selected_target_token)
+        self.assertNotEqual(target_token, retargeted.selected_target_token)
+        self.assertEqual(target_token, retargeted.action_target_token)
+        self.assertEqual(deselected.action_sequence, retargeted.action_sequence)
+
+        process.player_action_target = 0
+        cast_without_target = reader.observe_player()
+        self.assertTrue(cast_without_target.action_active)
+        self.assertIsNone(cast_without_target.action_target_token)
+        self.assertFalse(cast_without_target.targeting_selected)
+
+    def test_player_action_target_must_be_stable_across_both_reads(self) -> None:
+        profile = _profile()
+        process = FakeProcessMemory(profile)
+        original = process.read
+        reads = 0
+
+        def unstable(address: int, size: int) -> bytes:
+            nonlocal reads
+            if address == process.player + profile.target_of_target_pointer_offset:
+                reads += 1
+                process.player_action_target = process.target if reads % 2 else 0x12700000
+            return original(address, size)
+
+        with patch.object(process, "read", side_effect=unstable):
+            with self.assertRaisesRegex(NativeTargetActionReadError, "stable-read"):
+                NativeTargetActionReader(profile, process).observe_player()
+        self.assertEqual(6, reads)
+
+    def test_player_action_tokens_cannot_claim_a_different_selected_target(self) -> None:
+        profile = _profile()
+        action = NativeTargetActionReader(profile, FakeProcessMemory(profile)).observe_player()
+        with self.assertRaisesRegex(ValueError, "agree"):
+            replace(action, action_target_token="another-target")
+        with self.assertRaisesRegex(ValueError, "agree"):
+            replace(action, selected_target_token=None)
+        with self.assertRaisesRegex(ValueError, "non-empty"):
+            replace(action, selected_target_token=" ")
 
     def test_unknown_targeted_player_motion_still_advances_observed_sequence(self) -> None:
         profile = _profile()

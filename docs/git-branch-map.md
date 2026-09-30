@@ -34,11 +34,18 @@ was removed, leaving the original empty list at revision 6. This does not prove
 an attack or cancellation caused by manual removal.
 
 `codex/bot-deployment-20260929` at `ab5e043` is retained in main. The bot-runtime
-worktree is now on `codex/combat-target-query-20260930`, based on main, for the
-focused query-match investigation and documentation follow-up. That follow-up
-is unfinished and is not part of the installed package. Other active validation
-worktrees remain available. Next: diagnose the rejected query match, then complete
-bounded attack/cancel/recovery acceptance.
+worktree is now on `codex/combat-target-query-20260930`, based on main, published
+through draft [PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46).
+Checkpoint `8cd2bd2` replaces the spatial query with the reviewed native exact-key
+registry resolver and adds original/prepared-client ABI qualification. The next
+checkpoint separates UI selection from the ongoing retained combat target and
+exports coherent selected/action tokens; object lifetime remains token plus key.
+Host object tracking, native cleanup before engagement transitions, and removal
+of HUD/log-message control authority are in progress in the same candidate.
+These changes are not installed or merged. Next: finish that coherent source
+slice, review and qualify the exact committed package, obtain PR #46 merge
+approval, then complete bounded attack/cancel/recovery acceptance. Other active
+validation worktrees remain available.
 Automatic retaliation remains disabled pending an authoritative server
 character-session fence. Historical unrelated renderer/town branches and
 cancelled carpenter drafts have not been silently integrated or deleted.

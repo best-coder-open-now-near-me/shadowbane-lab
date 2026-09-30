@@ -73,13 +73,13 @@ bool NativeTarget::Identity() const noexcept {
         && wire::IdentitiesMatch(command_, local_name.View(), local_server.View(),
                                  target_name.View(), target_server.View());
 }
-bool NativeTarget::Current() noexcept {
+bool NativeTarget::Current(bool require_selection) noexcept {
     if (!Available() || !Owner() || !current_ || !current_(context_)
-        || !movement::NativeMovementLifetimeCurrent(scene_) || !RawCurrent(selected_)) { return false; }
+        || !movement::NativeMovementLifetimeCurrent(scene_) || !RawCurrent(require_selection && selected_)) { return false; }
     party::Snapshot fresh{};
     return party::Capture(base_, scene_, fresh) && party::Equal(party_, fresh)
         && !party::Protected(fresh, {command_.target_key[0], command_.target_key[1]})
-        && (!target_ || Identity()) && RawCurrent(selected_)
+        && (!target_ || Identity()) && RawCurrent(require_selection && selected_)
         && current_(context_) && movement::NativeMovementLifetimeCurrent(scene_);
 }
 bool NativeTarget::Gate(void* context) noexcept { return static_cast<NativeTarget*>(context)->Current(); }
@@ -234,7 +234,7 @@ bool NativeTarget::ReadState(const movement::NativeScene& scene, State& out) con
 }
 bool NativeTarget::CombatTargetCurrent() const noexcept {
     std::uintptr_t target = 0;
-    return Available() && target_ && RawCurrent(true)
+    return Available() && target_ && RawCurrent(false)
         && Read(scene_.actor + 0xaf8, target) && target == reinterpret_cast<std::uintptr_t>(target_);
 }
 bool NativeTarget::CancelImpl(const movement::NativeScene& scene, Admission current, void* context, State& out) {
