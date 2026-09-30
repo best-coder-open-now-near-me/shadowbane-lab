@@ -297,7 +297,8 @@ def main() -> int:
                 raise RuntimeError(f"{profile}: Condemn test entered runtime")
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
-        for developer_source in ("movement_tree_probe.cpp", "targeted_action_trace_test.cpp"):
+        for developer_source in ("movement_tree_probe.cpp", "combat_registry_probe.cpp",
+                                 "targeted_action_trace_test.cpp"):
             if included_sources.count(developer_source) != 0:
                 raise RuntimeError(
                     f"{profile}: developer-only source entered runtime: {developer_source}"
@@ -445,6 +446,16 @@ def main() -> int:
         validate_movement_ipc_results(ipc_results, profile)
         if arguments.reviewed_client:
             run(
+                f"{profile}-combat-registry-build",
+                [cmake, "--build", build, "--config", "Release", "--target",
+                 "wonderbane_extension_combat_registry_probe"],
+            )
+            run(
+                f"{profile}-combat-registry-binding",
+                [build / "Release/wonderbane_extension_combat_registry_probe.exe",
+                 arguments.reviewed_client.resolve()],
+            )
+            run(
                 f"{profile}-selected-binding",
                 [
                     build / "Release/wonderbane_extension_selected_cue_binding_test.exe",
@@ -482,6 +493,10 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
                 f"{profile}-movement-prepared-binding",
                 [build / "Release/wonderbane_extension_movement_image_test.exe",
                  arguments.reviewed_client.resolve(), prepared_client],
+            )
+            run(
+                f"{profile}-combat-registry-prepared-binding",
+                [build / "Release/wonderbane_extension_combat_registry_probe.exe", prepared_client],
             )
             for test in ("sky_binding", "sky_render"):
                 run(
@@ -812,6 +827,7 @@ else:
         "live_acceptance": "pending; no deployment performed",
         "selected_cue_binding_verified": bool(arguments.reviewed_client),
         "movement_prepared_binding_verified": bool(arguments.reviewed_client),
+        "combat_registry_binding_verified": bool(arguments.reviewed_client),
         "source_identity": metadata,
         "steps": steps,
         "files": [

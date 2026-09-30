@@ -56,6 +56,59 @@ slot at `0x114cea4`. Passing the sender is insufficient: its unavailable-control
 path drops the message. A receipt means only that this particular request entered
 the client's outbound queue; it proves neither server acceptance nor damage.
 
+## Exact-key target acquisition - September 30
+
+Combat reacquires its immutable player key through the ordinary ArcWorld registry
+resolver at RVA `0x1fcc80`, also used by ArcTargetedActionMessage. Its thiscall
+receiver is the captured world; the two arguments are an output-reference slot
+and the complete two-word key. It returns the same slot containing one retained
+ArcObject reference, or null when the key is absent. The native registry is
+`world+0x94`; its hash and equality compare both key words at `object+0x18`.
+The [exact-image evidence](../evidence/pvp/combat-registry-contract-20260930.json)
+records fingerprints and the supported ownership boundary.
+
+The former building/door spatial query used `world+0x164` and a coarse 1024-unit
+X/Z acquisition box. Spatial leaf membership and multiplicity are not the
+character registry contract. The replacement intentionally removes that coarse
+acquisition dependency; it does not introduce a melee-distance rule. Fresh host
+camp admission and the ordinary client's attack-legality checks remain in force.
+The recorded 1.8.34 `query_match:stale` result does not distinguish missing or
+multiple matches from query cleanup failure. A later passive registry census
+stopped before reading the registry because the active character was unavailable;
+it does not establish live registry membership or successful combat.
+
+Lookup executes only on the existing verified owner-update thread. The inspected
+lookup-to-retain closure consists of concrete hash, key, iterator and atomic
+reference helpers, with no gameplay callback, message pump or allocation before
+retention. This uses the ordinary native owner-world serialization contract.
+The scene watch detects invalidation; it is not a registry lock. Arbitrary
+concurrent registry writers and foreign modified clients are not qualified.
+
+The output goes directly into the transaction's persistent owned slot before
+native entry, so exceptions or an unexpected return ABI quarantine uncertain
+ownership. After lookup, the existing checks still require the exact ArcCharacter
+class, distinct player key, full first name/server, current scene and unchanged
+complete party roster before selection. Selection receives a separate retained
+reference. Saved-intent admission, outbound correlation and cancellation remain
+under the same immutable request and movement Grant.
+
+Selection is an admission input, not proof of whom an existing attack or cast is
+hitting. A selection change currently requests cancellation as interference with
+the owned workflow; it never proves that cancellation completed. Cleanup requires
+fresh mode 1, action state 1 and a null native combat target. An ongoing attack or
+cast after deselection must retain the cleanup obligation until those conditions
+are observed. This contract does not add spell casting or infer a cast target from
+selection.
+
+The developer-only `wonderbane_extension_combat_registry_probe` executes the real
+reviewed resolver and reference helpers against synthetic registry buckets and
+objects. It verifies exact keys, collisions, misses, tombstones, the output-slot
+ABI, returned ownership and finalization after registry removal. It neither opens
+nor modifies a live client. Exact-client packaging builds and runs it for both
+native profiles against original and package-prepared images; failures stop
+qualification. NativeTarget regressions separately exercise transaction checks,
+callback invalidation, cleanup and uncertain-reference quarantine.
+
 ## Synchronous callback qualification
 
 The mode/action notifier `0x4520c0` invokes subscribers synchronously. D0 later

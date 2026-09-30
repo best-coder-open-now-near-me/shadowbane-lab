@@ -21,14 +21,10 @@ public:
     bool Clear() noexcept;
     bool Current() noexcept;
 private:
-    struct Node { Node* next; Node* previous; void* object; };
-    struct List { Node* sentinel = nullptr; };
     struct Calls {
-        List* (__thiscall* construct)(List*, const unsigned char*) = nullptr;
-        void (__thiscall* query)(void*, const movement::GroundPoint*, const movement::GroundPoint*, List*) = nullptr;
+        void** (__thiscall* lookup)(void*, void**, const std::uint32_t*) = nullptr;
         void (__thiscall* retain)(void*, void**) = nullptr;
         void (__thiscall* release)(void**, void*) = nullptr;
-        void (__cdecl* pool_return)(void*, std::uint32_t) = nullptr;
         void (__cdecl* select)(void*) = nullptr;
         bool (__cdecl* dispatch)(const void*, void*) = nullptr;
     } calls_{};
@@ -37,7 +33,6 @@ private:
     bool Identity() const noexcept;
     bool Position(movement::GroundPoint&) const noexcept;
     bool Retain(void*&);
-    void ClearQuery();
     void ClearImpl();
     bool ClearCxx() noexcept;
     Result Run();
@@ -58,7 +53,6 @@ private:
     Stage stage_ = Stage::none;
     Admission current_ = nullptr, enter_ = nullptr, append_current_ = nullptr;
     void* context_ = nullptr;
-    List list_{};
     void* actor_ = nullptr;
     void* target_ = nullptr;
     void* selection_argument_ = nullptr;

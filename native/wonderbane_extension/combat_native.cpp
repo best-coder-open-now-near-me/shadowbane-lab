@@ -1,6 +1,5 @@
 #include "combat_native.h"
 #include "movement_native_image.h"
-#include <algorithm>
 #include <cmath>
 
 namespace wonderbane::extension::combat {
@@ -42,11 +41,9 @@ bool NativeTarget::Bind(HWND window) noexcept {
     if (base_ || faulted_) { return false; }
     window_ = window; thread_ = GetCurrentThreadId();
     if (!Owner() || !movement::VerifyNativeMovementImage(base_)) { base_ = 0; return false; }
-    calls_.construct = reinterpret_cast<decltype(calls_.construct)>(base_ + 0x2140b0);
-    calls_.query = reinterpret_cast<decltype(calls_.query)>(base_ + 0x20e970);
+    calls_.lookup = reinterpret_cast<decltype(calls_.lookup)>(base_ + 0x1fcc80);
     calls_.retain = reinterpret_cast<decltype(calls_.retain)>(base_ + 0x131190);
     calls_.release = reinterpret_cast<decltype(calls_.release)>(base_ + 0x89bd0);
-    calls_.pool_return = reinterpret_cast<decltype(calls_.pool_return)>(base_ + 0x40270);
     calls_.select = reinterpret_cast<decltype(calls_.select)>(base_ + 0x498730);
     calls_.dispatch = reinterpret_cast<decltype(calls_.dispatch)>(base_ + 0x7ca9c0);
     return true;
@@ -111,22 +108,7 @@ bool NativeTarget::Retain(void*& value) {
     calls_.retain(reinterpret_cast<void*>(static_cast<std::uintptr_t>(adjusted)), &value);
     return true;
 }
-void NativeTarget::ClearQuery() {
-    if (!list_.sentinel) { return; }
-    auto* previous = list_.sentinel;
-    auto* node = list_.sentinel->next;
-    std::size_t count = 0;
-    while (node != list_.sentinel) {
-        if (++count > 8192 || node->previous != previous) { faulted_ = true; return; }
-        auto* next = node->next;
-        previous = node;
-        calls_.release(&node->object, nullptr);
-        calls_.pool_return(node, sizeof(Node)); node = next;
-    }
-    calls_.pool_return(list_.sentinel, sizeof(Node)); list_.sentinel = nullptr;
-}
 void NativeTarget::ClearImpl() {
-    ClearQuery();
     if (faulted_) { return; }
     if (selection_argument_) { calls_.release(&selection_argument_, nullptr); }
     if (target_) { calls_.release(&target_, nullptr); }
@@ -159,38 +141,17 @@ NativeTarget::Result NativeTarget::Run() {
     movement::GroundPoint origin{};
     stage_ = Stage::position;
     if (!Current() || !Position(origin)) { return {O::stale}; }
-    unsigned char allocator = 0;
-    stage_ = Stage::query_construct;
-    calls_.construct(&list_, &allocator);
-    const movement::GroundPoint minimum{(std::max)(0.0f, origin.x - 1024), -2000,
-        (std::max)(-200000.0f, origin.z - 1024)};
-    const movement::GroundPoint maximum{(std::min)(200000.0f, origin.x + 1024), 20000,
-        (std::min)(0.0f, origin.z + 1024)};
-    stage_ = Stage::query_current;
+    stage_ = Stage::registry_lookup;
     if (!Current()) { return {O::stale}; }
-    stage_ = Stage::query;
-    calls_.query(reinterpret_cast<void*>(scene_.world), &minimum, &maximum, &list_);
-    if (!list_.sentinel) { faulted_ = true; return {O::unavailable}; }
-    auto* previous = list_.sentinel;
-    std::size_t count = 0, matches = 0;
-    for (auto* node = list_.sentinel->next; node != list_.sentinel; node = node->next) {
-        if (++count > 8192 || node->previous != previous) { faulted_ = true; return {O::unavailable}; }
-        std::uintptr_t table = 0;
-        const auto object = reinterpret_cast<std::uintptr_t>(node->object);
-        if (!Read(object, table)) { faulted_ = true; return {O::unavailable}; }
-        if (table == base_ + 0x114165c) {
-            std::array<std::uint32_t, 2> key{};
-            if (!Read(object + 0x18, key)) { faulted_ = true; return {O::unavailable}; }
-            if (!std::memcmp(key.data(), command_.target_key, sizeof(command_.target_key))) {
-                if (++matches == 1) { target_ = node->object; node->object = nullptr; }
-            }
-        }
-        previous = node;
-    }
-    if (list_.sentinel->previous != previous) { faulted_ = true; return {O::unavailable}; }
-    ClearQuery();
-    stage_ = Stage::query_match;
-    if (matches != 1 || faulted_) { return {O::stale}; }
+    // Ordinary ArcWorld exact-key lookup, also used by ArcTargetedActionMessage.
+    // 1fcc80 -> 1fb160 -> 2150c0 compares both object+18 key words and returns
+    // one owned ArcObject reference. It relies on native owner-world serialization;
+    // no gameplay callback/pump occurs between the bucket read and atomic retain.
+    // Store directly in the persistent owned slot so an exception quarantines it.
+    auto** returned = calls_.lookup(reinterpret_cast<void*>(scene_.world), &target_, command_.target_key);
+    stage_ = Stage::lookup_result;
+    if (returned != &target_) { faulted_ = true; return {O::unavailable}; }
+    if (!target_) { return {O::stale}; }
     stage_ = Stage::target_identity;
     if (!Current() || !Identity()) { return {O::stale}; }
     selection_argument_ = target_;
@@ -249,7 +210,7 @@ NativeTarget::Result NativeTarget::Guarded() noexcept {
 }
 NativeTarget::Result NativeTarget::Attack(const movement::NativeScene& scene, const wire::Command& command,
     Admission current, Admission enter, Admission append_current, void* context) noexcept {
-    if (!Available() || !Owner() || running_ || list_.sentinel || actor_ || target_
+    if (!Available() || !Owner() || running_ || actor_ || target_
         || !current || !enter || !append_current || !submission::Ready()) {
         return {O::unavailable, false, {Stage::target_admission, O::unavailable}};
     }

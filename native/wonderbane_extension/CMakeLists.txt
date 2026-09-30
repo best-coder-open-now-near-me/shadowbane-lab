@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.34 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.35 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -1432,4 +1432,16 @@ if(BUILD_TESTING)
   foreach(kind city_window movement guard_upgrade guard_funding condemn event vendor_navigation vendor vendor_menu)
     target_link_libraries(wonderbane_extension_${kind}_channel_test PRIVATE bcrypt)
   endforeach()
+endif()
+
+# Offline native resolver conformance; explicit private executable argument only.
+# Not linked into the DLL, distributed package, or the public CTest suite.
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_registry_probe EXCLUDE_FROM_ALL combat_registry_probe.cpp)
+  target_compile_features(wonderbane_extension_combat_registry_probe PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_registry_probe PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_registry_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_registry_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_combat_registry_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
 endif()
