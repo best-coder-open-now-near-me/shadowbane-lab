@@ -1513,3 +1513,26 @@ if(BUILD_TESTING)
     "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_receipt_v2.hex")
   set_tests_properties(wonderbane_extension_combat_v2_wire PROPERTIES TIMEOUT 15)
 endif()
+
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_v2_controller_test combat_v2_controller_test.cpp)
+  target_compile_features(wonderbane_extension_combat_v2_controller_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_v2_controller_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_v2_controller_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_v2_controller_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_combat_v2_controller COMMAND wonderbane_extension_combat_v2_controller_test)
+  set_tests_properties(wonderbane_extension_combat_v2_controller PROPERTIES TIMEOUT 15)
+endif()
+
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_v3_fence_test combat_v3_fence_test.cpp)
+  target_compile_features(wonderbane_extension_combat_v3_fence_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_v3_fence_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_v3_fence_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_v3_fence_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_combat_v3_fence COMMAND wonderbane_extension_combat_v3_fence_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_fence_v3.hex")
+  set_tests_properties(wonderbane_extension_combat_v3_fence PROPERTIES TIMEOUT 15)
+endif()
