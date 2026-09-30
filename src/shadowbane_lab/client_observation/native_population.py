@@ -516,6 +516,40 @@ class NativeCharacterPopulationReader:
             raise NativeCharacterPopulationReadError("local actor identity changed during read")
         return self._token(player), key, self._token(action) if action else None
 
+    def resolve_combat_addresses(
+        self, *, local_key: NativeObjectKey, target_token: str, target_key: NativeObjectKey,
+    ) -> tuple[int, int]:
+        """Return fresh comparison hints for the exact canonical actor/target.
+
+        Tokens stay opaque. Only addresses already owned by this reader's scan
+        may resolve; the native receiver independently resolves and retains the
+        keys, then compares these hints without dereferencing them.
+        """
+        if (not isinstance(local_key, NativeObjectKey)
+                or not isinstance(target_key, NativeObjectKey)
+                or not isinstance(target_token, str) or not target_token
+                or local_key.is_null or target_key.is_null or local_key == target_key):
+            raise ValueError("combat address resolution requires distinct exact object identities")
+        actor_before = self.observe_actor_identity()
+        actor_address = self._read_pointer(self._player_slot, "local player")
+        if (actor_before[1] != local_key or local_key.object_uuid != 53
+                or self._token(actor_address) != actor_before[0]):
+            raise NativeCharacterPopulationReadError("combat actor identity is no longer current")
+        matches = [address for address in self._candidate_addresses
+                   if self._token(address) == target_token]
+        if len(matches) != 1 or matches[0] == actor_address:
+            raise NativeCharacterPopulationReadError("combat target is not a canonical candidate")
+        target_address = matches[0]
+        for _ in range(2):
+            target = self._read_character(target_address)
+            if target.object_key != target_key or target.token != target_token:
+                raise NativeCharacterPopulationReadError("combat target identity changed")
+        actor_after = self.observe_actor_identity()
+        if (actor_after[:2] != actor_before[:2]
+                or self._read_pointer(self._player_slot, "local player") != actor_address):
+            raise NativeCharacterPopulationReadError("combat actor changed during resolution")
+        return actor_address, target_address
+
     def observe_character_detail(
         self, token: str, object_key: NativeObjectKey, reader: NativeTargetActionReader,
     ) -> NativeCharacterDetailObservation | None:

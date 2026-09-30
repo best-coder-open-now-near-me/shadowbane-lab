@@ -1500,3 +1500,16 @@ if(BUILD_TESTING)
   add_test(NAME wonderbane_extension_combat_target_policy COMMAND wonderbane_extension_combat_target_policy_test)
   set_tests_properties(wonderbane_extension_combat_target_policy PROPERTIES TIMEOUT 15)
 endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_v2_wire_test combat_v2_wire_test.cpp)
+  target_compile_features(wonderbane_extension_combat_v2_wire_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_v2_wire_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_v2_wire_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_v2_wire_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_combat_v2_wire COMMAND wonderbane_extension_combat_v2_wire_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_command_v2.hex"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_fence_v3.hex"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_receipt_v2.hex")
+  set_tests_properties(wonderbane_extension_combat_v2_wire PROPERTIES TIMEOUT 15)
+endif()
