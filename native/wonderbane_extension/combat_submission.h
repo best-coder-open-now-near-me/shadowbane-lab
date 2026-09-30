@@ -25,6 +25,22 @@ struct Receipt {
     bool append_observed = false;
     bool followup_entered = false;
 };
+// One process-pinned power observer shares the existing outbound queue hook.
+// claim/complete run under the native queue lock: bounded reads only, no locks,
+// allocation, or native calls. An allow claim publishes uncertain entry history
+// before returning. Its owner outlives the original append and any nested calls.
+enum class AppendDecision { unrelated, allow, deny };
+enum class AppendResult { denied, queued, fault };
+struct AppendClaim {
+    AppendDecision decision = AppendDecision::unrelated;
+    void* owner = nullptr;
+};
+struct PowerAppendObserver {
+    AppendClaim (*claim)(void* container, void* message, std::uintptr_t caller_rva) noexcept = nullptr;
+    // The transferred message may be destroyed; complete receives only the owner.
+    void (*complete)(void* owner, AppendResult) noexcept = nullptr;
+};
+bool RegisterPowerAppendObserver(const PowerAppendObserver&) noexcept;
 namespace detail { struct Observer; }
 class Scope final {
 public:

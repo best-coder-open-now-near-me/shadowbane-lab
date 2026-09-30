@@ -30,6 +30,8 @@ SRWLOCK installation_lock = SRWLOCK_INIT;
 bool attempted = false;
 volatile LONG installed = 0;
 thread_local Scope* active = nullptr;
+PowerAppendObserver power_observer{};
+volatile LONG power_registered = 0;
 
 bool Copy(void* destination, std::uintptr_t source, std::size_t size) noexcept {
     __try { std::memcpy(destination, reinterpret_cast<const void*>(source), size); return true; }
@@ -177,6 +179,26 @@ struct Observer {
         // Match the originating frame even while another scope is nested above
         // it. Exact returned-ticket provenance, not keys/class, owns this append.
         while (s && (!s->ticket_ || message != reinterpret_cast<void*>(s->ticket_))) { s = s->previous_; }
+        const bool power_ready = InterlockedCompareExchange(&power_registered, 0, 0) != 0;
+        const auto power = power_ready
+            ? power_observer.claim(container, message, caller >= base ? caller - base : 0)
+            : AppendClaim{};
+        if (power.decision != AppendDecision::unrelated) {
+            // A ticket cannot belong to two operations. Fail both scopes closed.
+            const bool allowed = !s && power.owner && power.decision == AppendDecision::allow
+                && Ready() && caller == base + append_return;
+            if (s) { Block(*s, Result::uncertain); }
+            if (!allowed) {
+                if (power.owner) { power_observer.complete(power.owner, AppendResult::denied); }
+                SetLastError(error); Consume(message); return;
+            }
+            SetLastError(error);
+            try { original_append(container, message); }
+            catch (...) { power_observer.complete(power.owner, AppendResult::fault); throw; }
+            const DWORD native_error = GetLastError();
+            power_observer.complete(power.owner, AppendResult::queued);
+            SetLastError(native_error); return;
+        }
         if (!s) {
             SetLastError(error); original_append(container, message); return;
         }
@@ -281,6 +303,20 @@ Receipt Scope::Finish() noexcept {
 }
 Boundary::Boundary() noexcept : previous_(active) {}
 void Boundary::Restore() noexcept { active = previous_; }
+bool RegisterPowerAppendObserver(const PowerAppendObserver& observer) noexcept {
+    const DWORD error = GetLastError();
+    if (!observer.claim || !observer.complete) { SetLastError(error); return false; }
+    AcquireSRWLockExclusive(&installation_lock);
+    bool ok = Ready();
+    if (ok && InterlockedCompareExchange(&power_registered, 0, 0)) {
+        ok = power_observer.claim == observer.claim && power_observer.complete == observer.complete;
+    } else if (ok) {
+        power_observer = observer;
+        InterlockedExchange(&power_registered, 1);
+    }
+    ReleaseSRWLockExclusive(&installation_lock);
+    SetLastError(error); return ok;
+}
 bool Ready() noexcept { return InterlockedCompareExchange(&installed, 0, 0) != 0 && SlotsCurrent(); }
 bool Start(std::uintptr_t image_base) noexcept {
     const DWORD error = GetLastError();
