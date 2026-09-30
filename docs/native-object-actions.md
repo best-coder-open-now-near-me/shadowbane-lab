@@ -1,131 +1,150 @@
-# Native object-target actions: architecture audit, 2026-09-30
+# Native object-target actions
 
-Source architecture and qualification plan; power activation and shared action authority remain under review.
-User direction: object-targeted melee and powers by native power identity; no hotbar,
-hotkey, or selected-target adapter as the delivered production path. Current host
-tracking/cleanup work can be checkpointed, but final packaging is held pending this
-contract. No live client invocation occurred in this audit.
+Source architecture as of September 30, 2026, on
+`codex/combat-target-query-20260930` in draft
+[PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46).
+The candidate is not merged or installed. Focused source tests and independent
+reviews are complete for the components described below; final integrated checks,
+exact-image package qualification and supervised gameplay acceptance remain open.
+The installed baseline is host 0.3.54 / native 1.8.34 from PR #45.
 
-## Current source checkpoint
+## Ownership and composition
 
-The explicit melee adapter now preserves the reviewed ordinary native attack
-checks and call order while accepting a retained target object directly. It does
-not read or write UI selection. NativeTarget and the submission observer use the
-explicit route with exact actor/target keys and request-pointer queue correlation.
-The native runtime pins cleanup once and enters the action without its former
-unconditional startup pause/repin cycle. Explicit cancellation retains the same
-owner and must still complete its cleanup.
+The native character session binds the actual client process lifetime, login
+identity and local object key independently of saved character CFG files. Hotbar
+layout, hotkeys and config-file hashes do not authorize combat. Canonical native
+population observations provide target keys, opaque pointer tokens, health,
+position and structural eligibility. UI selection is optional diagnostic state;
+HUD and combat-log messages do not drive target acquisition, actions or kill credit.
+AF8 is an observed combat pointer, not a universal spell-target field.
 
-A private-image probe compares the real ordinary1551 control flow with the adapter
-across 2,048 guard combinations for both original and prepared client 1.3.38.12.
-Helper boundaries are identically instrumented to compare ABI, order, output
-ownership and admission outcomes; this does not execute real game/network effects
-or establish live acceptance. Packaging runs this probe on both executable forms.
+One `NativeCombatCoordinator` owns the session's exact movement Grant, engagement
+fence, action correlation and cleanup obligation. Ordinary NPC policy and the
+`ListedCombatCoordinator` saved-player policy use that same owner. Manual players
+require current saved intent and transactional list revocation; NPCs require
+native NPC identity and eligibility. Neither policy fabricates authority records
+for the other. The [v2 command/v3 fence contract](native-combat-v2-contract.md)
+defines their distinct immutable evidence.
 
-Power requests now have a shared outbound-queue observer registration with exact
-scope ownership, distinct from melee factory tickets. The native power entry and
-its callsite interception are being qualified; they are not activated. NPC policy,
-the versioned common action contract and host semantic dispatcher remain next.
-The installed bot is unchanged; no direct-object gameplay acceptance is claimed.
+The controller ranks loaded native objects and proposes BIND, ATTACK or CAST
+against an exact key and token. CAST carries a numeric power identity. The runtime
+passes that immutable proposal to the shared coordinator, then returns a typed
+acknowledgement to the controller. BOUND acknowledges retained engagement;
+QUEUED requires positively observed native outbound admission. Cooldowns, opener
+progress, interrupt counts and retry accounting advance on the applicable
+acknowledgement, never on proposal emission or a truthy transport response.
 
-## Proven reusable boundaries
+An uncertain submission remains the same pending action and is queried by its
+original bytes. It blocks conflicting proposals until resolved or stopped.
+DEFERRED proves no action entry and permits a new proposal on a fresh eligible
+frame; a deferred opener stays scheduled. Historical queued evidence accompanying
+a closed or retired engagement cannot reopen it or count as current authority.
+Trace records retain full correlated native evidence separately from legacy
+read-only intent descriptors.
 
-- The existing owner-update service, process-pinned callback registry, immutable
-  movement Grant, producer lease, scene/lifetime watch, retirement, and explicit
-  stop pipeline already provide the execution/ownership boundary. Reuse them; do
-  not acquire another owner for each spell, run gameplay on transport workers, or
-  toggle idle at startup or between ordinary actions.
-- ArcWorld 1fcc80 resolves both words of an object key into a retained reference on
-  the native owner thread. Keep persistent actor/target owned slots and explicit
-  SEH boundary restoration; retain independently across native callbacks.
-- Host population supplies object key plus pointer token, health, position, and
-  structural kind/roles. The controller now separates engaged object from UI
-  selection. UI selection and AF8 are observations, not universal spell targeting.
-- Existing listed-combat wire carries exact actor/target keys and owner/request
-  identity. Selection is not part of its immutable binding digest. The current
-  former implementation selected because manual action1551 obtained its argument
-  from the selected global. The qualified explicit adapter now replaces those reads
-  while preserving that handler's native legality and ownership sequence.
+`NativeMovementSession` owns monotonic engagement and request ordinal allocation
+across coordinator instances. Requests continue increasing across engagements;
+old-owner cleanup can still allocate its control correlation after a newer
+engagement has been allocated. No unbounded UUID or per-engagement allocator
+registry is needed.
 
-## Original interfaces and required generalization
+## Native service
 
-- NativeTarget.Identity requires both actor and target UUID class53 (players),
-  complete names/server, and manual-list owner/entry proof. The 576-byte wire
-  command and binding validation encode this player-list authority. NPCs must not
-  be represented by fake manual-player entries, and action parameters must not be
-  slipped into reserved bytes without an explicit versioned contract.
-- Current runtime accepts one START until its engagement is cancelled. A spell is
-  not another independent long-lived melee engagement, and its completion must
-  not force melee cancellation or wait for a projectile to land.
-- Submission observers recognize D0 only at return7d3e0b and CC only7d3e67, both
-  from handler1551. The new explicit Scope route supplies separate call-through
-  provenance and correlated queue receipts. Merely removing the selection check
-  or recognizing every D0 on a TLS stack would weaken provenance.
-- Binding() and AppendGate currently require the selected global. Replace that
-  clause only for a separately qualified explicit-object entry, preserving exact
-  actor/target keys, actual arguments, request class/payload, writer/container,
-  ownership/retirement and the immutable native entry ticket.
+`combat_v2_runtime` executes on the existing native owner-update callback, under
+the producer lease, exact Grant and scene lifetime watch. Transport workers only
+queue immutable commands. The service retains actor and target references across
+multiple actions. ArcWorld's qualified exact-key registry lookup resolves both key
+words to an owned object reference on that owner thread; fresh address hints are
+checked against the resolved objects and never confer authority by themselves.
 
-## Durable composition to implement after native entry qualification
+The character and target checks, current party membership, protected-role/owner
+policy and engagement fence are refreshed before action admission. Repeated
+actions can use an entered fence only for the same retained engagement. Revocation
+blocks later admissions; it cannot recall an action that already reached the
+native queue. Append checks remain bounded scalar/atomic predicates under the
+native queue lock.
 
-1. One owner-bound native action service receives typed semantic requests under
-   the existing operation Grant. A request has immutable request ID, action kind
-   (melee or a qualified native power identity), actor identity and target binding.
-   Power rank/learned-state operands must follow the discovered native API; no
-   hotbar index, key mapping, guessed power layout, or name matching.
-2. Separate target authorization from action execution. Saved manual player intent
-   uses the current exact list/fence proof. Ordinary PvE uses exact native NPC
-   identity and current native eligibility/party/protected-role checks. Both feed
-   the same owned target acquisition and action invocation machinery. Neither
-   scope can be converted into the other by a caller flag alone.
-3. Treat engagement ownership and each action submission as different lifetimes.
-   The engagement retains the tracked object and cleanup obligation. Each admitted
-   action has a bounded immutable request/receipt record, native legality result,
-   and at-most-once submission. Repeated powers reuse the same Grant; they do not
-   PAUSE, reacquire, or cancel the engagement merely to submit another action.
-4. Invoke only a qualified ordinary native entry that takes the target object/key
-   explicitly and preserves learned ability, resources, cooldown, range/LOS,
-   peace-zone and native action-state checks applicable to that entry. Do not
-   synthesize outbound packets or treat a raw factory call as equivalent to the
-   complete native admission path without proving its preceding checks.
-5. Observe the exact produced request reaching the real native outbound queue.
-   Correlate its actual pointer and verified type/payload (including power identity
-   where applicable), not just an actor or target match. Preserve native owned
-   argument consumption and bounded no-lock append predicates. Unknown partial
-   execution is uncertain; known queued history survives later faults.
-6. Use native local mode/action/pending state for ability scheduling. Action-state1
-   plus no pending action is a local completion observation, not proof of server
-   acceptance, damage, projectile impact, or cast-target identity. Ongoing known
-   combat may be adopted without modifying selection or issuing another attack.
-   An unknown active target stays uncertain; do not invent one from UI selection.
-7. Cleanup is explicit: abandonment, intentional replacement, owner stop, rejected
-   lifetime, or task termination. Same-owner local stop confirmation preserves the
-   existing stronger mode1/action1/nullcombat-target contract. Revocation prevents
-   new admissions but cannot recall an already queued attack or spell.
+Object-action capability `0x10` is advertised only when the complete v2 native
+service and its submission observers are ready. Legacy combat verbs 34-36 are
+rejected; capability `0x08` cannot authorize this path. Status, cancellation and
+stop remain reachable after action readiness drops, subject to their exact old
+owner and command correlation. There is no selected-input or keyboard fallback.
 
-## Required validation before replacing the keyboard path
+## Explicit melee and power entry
 
-- Native entry audit establishes exact melee and power call ABIs, complete checked
-  preconditions and normal callers, output ownership, send/followup order, and
-  synchronous reentrancy closure. Power identity and request layout remain open.
-- Real reviewed-image conformance fixtures execute the qualified primitives where
-  feasible, as the registry probe does. Mock-only ABI assertions are insufficient.
-- Adversarial tests change selection while explicit target remains bound (no effect),
-  reuse a pointer under another key (reject), revoke between admission and append,
-  lose actor/scene, invalidate party/role, throw before/after append, and cancel a
-  request before delayed delivery. A previous request cannot be replayed under a
-  new power or target.
-- Power tests separate local cast completion from delayed projectile effects;
-  switching observation selection or beginning another eligible action does not
-  manufacture a stop receipt or kill credit. Busy/unknown native state must not
-  fall through to a hotkey fallback.
-- Exact-image packaging/qualification and supervised live evidence follow the
-  source tests. UI selection should remain unchanged by object-target execution.
+The melee adapter takes the retained target object directly and preserves the
+reviewed ordinary native attack guards and call order. It does not read or write
+UI selection. Its submission scope binds the actual factory output, owned request
+and transferred queue reference; sender and followup observation are correlated
+to that invocation. It does not synthesize packets or invoke a raw factory as a
+substitute for the complete legality path.
 
-## Present conclusion
+The power adapter takes a numeric power ID and retained target object. It resolves
+the current learned rank and manager-owned definition inside the owner callback,
+checks supported object-target category/delivery semantics, and invokes the
+ordinary native power entry. No host-supplied power pointer, rank, hotbar slot or
+key mapping substitutes for those checks. Shadow Touch uses numeric ID 428918601;
+its object-target definition was separately inspected read-only in the current
+official client data. Definitions are not cached as retained ArcObjects.
 
-Ownership and object lookup can be reused; the existing submission scope and
-manual-list wire cannot be reused unchanged for arbitrary native powers/NPCs.
-Melee control-flow equivalence is qualified; real helper effects and live acceptance
-remain separate. Native power submission is still undergoing qualification. Keep the existing host checkpoint
-accurate and do not label the selected keyboard backend production-complete.
+Power send and followup interception uses reviewed instruction sites and an
+explicit invocation bridge. Native frame provenance prevents a nested unrelated
+invocation, even one with matching power and target, from borrowing an outer
+scope. A shared append router prevents competing melee/power hooks from chaining
+ownership accidentally. Exact produced-message identity, class and payload are
+verified before attributing queue admission. Unrelated native calls retain their
+ordinary behavior.
+
+Native entry may change local state before queueing. Missing positive queue
+evidence is not success. Persistent receipt sinks preserve known entry and queued
+history across later C++ or SEH faults; explicit boundary restoration unlinks scope
+state before returning from a fault. Faulted owned references are quarantined,
+and the service becomes unavailable rather than retrying uncertain native effects.
+
+## Scheduling and cleanup
+
+An already active eligible AF8 NPC can be adopted with BIND and no new attack or
+startup pause. An unknown busy cast remains observed without guessing its target
+from selection. Native action-state 1 with no pending action is a local scheduling
+observation; it does not prove damage, server acceptance or projectile arrival.
+Fresh eligible casts and attacks reuse the engagement without an idle toggle or
+reacquiring ownership. Native busy state arising after entry does not retroactively
+invalidate that action. AF8 becoming null during a cast does not prove cleanup.
+
+Intentional retarget, target invalidation, owner stop and task termination retain
+the old target and cleanup obligation until the exact native stop is confirmed or
+the scene actually retires. Local stop confirmation requires mode 1, action 1,
+no pending action and no combat target. Lost UI selection alone does not interrupt
+an engagement. After confirmed abandonment, ordinary policy takes a fresh frame
+through resource and camp recovery before proposing another target.
+
+Native action and engagement ledgers retain bounded history and monotonic floors.
+Records stay pinned through synchronous Bind, Submit and Stop callbacks, including
+reentrant cancellation/retirement and cache pressure. UNKNOWN cannot erase an
+already owned cleanup obligation; it becomes BLOCKED. Closure can coexist with
+historical queued evidence, and neither history eviction nor a new control ID
+allows an old engagement to reopen.
+
+## Qualification and remaining delivery
+
+The registry probe exercises actual reviewed-image key lookup and reference
+ownership. The explicit melee probe compares ordinary native control flow across
+2,048 guard combinations. The power probe checks the actual callsite/frame ABI,
+queue correlation and owned-code normalization. Original and prepared client
+1.3.38.12 forms have focused probe evidence; their instrumented helper boundaries
+do not establish live server acceptance or gameplay effects.
+
+Focused native fixtures cover replay, revocation, busy casts, selection
+independence, faults, reentrant stop/retirement and bounded history. Host tests
+cover typed acknowledgement accounting, exact pending-action polling, shared
+listed/NPC ownership, public-runner cleanup and fresh-frame recovery. These checks
+do not replace final whole-candidate validation.
+
+The integrated host suite passed 4,041 tests with 33 explicit skips and 801
+subtests; repository Ruff passed. Next delivery steps are both native profiles and
+required private-image package gates at the final source head, exact-head CI/review and
+PR #46 merge authorization. Installation and bounded attack/cast/cancel/PvE
+recovery acceptance follow a qualified package. Automatic retaliation remains
+blocked on the separate authoritative server-character-session contract. Private
+client binaries and diagnostic captures remain outside source delivery; no
+retained deployment rollback artifacts are created.

@@ -45,16 +45,31 @@ exports coherent selected/action tokens; object lifetime remains token plus key.
 Host checkpoint `2d175cc` replaces HUD/log-message control with exact object
 tracking, adopts existing native actions without a startup stop, distinguishes
 local action completion from projectile effects, and correlates required cleanup.
-The user requires direct native actions without selected-target hotkeys/hotbar
-mapping; the [native object-action plan](native-object-actions.md) records the
-remaining entry-ABI, legality and submission work. The explicit-object melee
-adapter now passes ordinary native control-flow equivalence on both executable
-forms; submission checkpoints `e444e8b` and `c5ba765` separate selection and power
-queue ownership. The native startup pause is removed while explicit cleanup
-remains required. Power and NPC action integration is still in progress. These changes are not installed
-or merged. Next: qualify that native action path before final packaging, obtain
-PR #46 merge approval, then complete bounded attack/cancel/recovery acceptance. Other active
-validation worktrees remain available.
+The [native object-action architecture](native-object-actions.md) now describes
+explicit object melee and numeric-power casting, independent of UI selection,
+hotbar/CFG files and HUD/log control. Checkpoints `15f6425` and `83b5b2e` qualify
+power entry and native NPC policy; `a0cf022` freezes v2 commands/v3 engagements,
+`a4eab63` supplies host tickets and native character identity, and `7d195cb` adds
+the bounded native ledger with reentrant callback pinning and conservative cleanup.
+
+The shared host coordinator is pushed at `e32b7a2`; native runtime activation and
+required cross-process package gates are pushed at `a53d4a2`. Ordinary NPC and
+saved manual-player policy share one exact owner, retained engagement and cleanup
+boundary. Typed positive acknowledgements drive action accounting; session-owned
+ordinals preserve immutable replay and old-owner cleanup. Capability `0x10`
+authorizes the complete service; legacy combat verbs and capability `0x08` cannot
+activate the new path. Existing eligible native action adoption performs no
+blanket startup stop. Selection loss and projectile timing do not manufacture
+cleanup or kill credit.
+
+PR #46 remains draft, unmerged and uninstalled. Focused component tests and
+independent reviews passed. The full host run passed 4,041 tests with 33 explicit
+skips and 801 subtests; repository Ruff passed. The full native profile passed 195 required tests with three private-image skips.
+The restored real host/native authorization suite passed 83 tests with no skips;
+179 package-gate tests also passed. Both-profile final-source package qualification
+and exact-head hosted CI remain pending. Next: finish those checks, obtain PR #46 merge authorization, then install the
+qualified package and complete bounded attack/cast/cancel/recovery acceptance.
+Other active validation worktrees remain available.
 Automatic retaliation remains disabled pending an authoritative server
 character-session fence. Historical unrelated renderer/town branches and
 cancelled carpenter drafts have not been silently integrated or deleted.

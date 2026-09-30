@@ -1,8 +1,10 @@
 # Native combat command v2 and engagement fence v3
 
-Contract frozen for coordinated implementation, September 30, 2026. This is the replacement
-contract for the selection-independent native action path; it is not deployed
-behavior. The host and native extension must ship together. Legacy verbs 34-36
+Source contract for the coordinated implementation in draft PR #46, September 30,
+2026. The v2 native service and shared host coordinator implement this
+selection-independent path. Final native/package checks and live acceptance
+remain pending; it is not merged or deployed behavior. The host and native
+extension must ship together. Legacy verbs 34-36
 are rejected after the upgrade. There is no keyboard/hotbar fallback.
 
 ## Ownership and identities
@@ -12,8 +14,12 @@ per client. An engagement is an immutable actor/target/authority binding with an
 independent, positive 128-bit EngagementId. An action has a separate positive
 128-bit RequestId, scoped to that engagement. Both encode as exactly 16 big-endian
 bytes and increase monotonically within their exact producer Host and Grant
-namespace. They are ordinals, not random UUIDs. Repeated actions reuse the engagement, fence and retained
-native target reference; they do not pause, cancel or reacquire the owner.
+namespace. They are ordinals, not random UUIDs. The host's session-owned allocator
+is stricter: request IDs increase across engagements and coordinator instances,
+including later cleanup controls for an older allocated engagement. It retains
+only counters, not an unbounded registry. Repeated actions reuse the engagement,
+fence and retained native target reference; they do not pause, cancel or reacquire
+the owner.
 
 An existing valid AF8 NPC may be adopted through BIND without stance change,
 attack or cast. AF8 is the observed combat pointer, not a universal spell target.
@@ -227,8 +233,13 @@ older/equal ordinal without its record returns HISTORY_EXPIRED and never execute
 That means this handling performs no entry; it is not evidence that the original
 action never entered. Entry is UNKNOWN and no outbound claim is fabricated.
 
-Keep bounded recent terminal histories (256 action receipts per active engagement
-and 256 closed engagement receipts), plus pinned active/in-flight records. Floors
+Keep bounded recent histories: 256 action receipts belonging to the active
+engagement and 256 other action receipts, plus 256 engagement records with
+reserved active/latest-closure slots. Records currently used by Execute are
+pinned through Bind, Submit and Stop callbacks and cannot be pruned by reentrant
+calls. This transient pinning may exceed cache limits during a callback; later
+pruning restores the bound. An UNKNOWN state update for an already owned or
+ever-bound engagement becomes BLOCKED and retains cleanup responsibility. Floors
 are never evicted inside a live namespace. Unknown STOP raises the absent
 engagement floor and tombstones the requested engagement, but does not stop a
 different active engagement. That exact active engagement remains usable even if
@@ -254,33 +265,45 @@ namespace. Actual scene retirement remains distinct from losing receipt history.
 Stop/cleanup remains available under action-history pressure. No 4096-request
 lifetime limit or unbounded global UUID set is introduced for continuous runs.
 
-## Host migration
+## Host implementation
 
-- combat_fence.py and the Windows ticket backend become v3 engagement tickets.
-  Registration and revocation remain one authority boundary. Add NPC registration
-  through that shared boundary; it does not use a pretend AttackListStore.
-- combat_wire.py becomes the v2 encoder/decoder and explicit action versus
-  engagement receipt model. combat_channel.py uses verbs 37-42. Receipt correlation
+- `combat_fence_v3.py` and the Windows ticket backend supply v3 engagement tickets.
+  Registration and revocation remain one authority boundary. NPC registration
+  uses that shared boundary; it does not use a pretend AttackListStore.
+- `combat_wire_v2.py` supplies the strict action/engagement receipt model;
+  `combat_channel.py` uses verbs 37-42. Receipt correlation
   includes verb, engagement, action and numeric power before returning detail.
 - NativeMovementSession retains the same producer lease and Grant. Admission
   readiness applies only to BIND/SUBMIT; old-owner status/cancel/stop remain routed
   after readiness loss. No timeout retry creates a new UUID or Grant.
-- One host engagement coordinator owns the fence and cleanup obligation for both
+- `NativeCombatCoordinator` owns the fence and cleanup obligation for both
   ordinary NPC and manually listed player combat. Listed candidate ranking and
   durable list intent remain policy inputs, not a separate native owner.
 - Startup AF8 adoption uses BIND without a redundant attack. New target acquisition
   ranks canonical loaded objects and binds their exact keys; selection cycling is
   removed. Policy emits typed Attack(actor,target) / Cast(actor,power,target).
-- Controller cooldown/action-start accounting follows accepted native results,
+- Controller proposals are immutable BIND/ATTACK/CAST values with target token/key,
+  proposal ID and numeric power ID. Typed BOUND/QUEUED acknowledgements account
+  for retained ownership and positively observed outbound admission separately.
+  Controller cooldown/action-start accounting follows those acknowledgements,
   not merely emitted intent. Uncertain action submission blocks new conflicting
   actions until exact status/cancellation resolves ownership.
 - Intentional retarget, invalidation and explicit stop revoke the engagement,
   confirm exact cleanup, and only then acquire another target from a fresh frame.
   Same-engagement attack/cast actions do not repeat that cleanup sequence.
-- ClientPvEIntentDispatcher, selected-input guard, GUI selection, hotbar/F-key
-  validation and config-file hash are removed from native action authorization.
-  Exact process lifetime, login identity, scene, native power ownership and
-  movement operation remain. The existing config parser can stay for diagnostics.
+- The native character session binds process lifetime, login identity and local
+  object key independently of saved CFG files. GUI selection, hotbar/F-key
+  validation and config-file hashes are absent from native action authorization.
+  Legacy intent adapters are not a production fallback. Native power ownership,
+  scene and the movement operation remain mandatory; config parsing may serve
+  separate diagnostics.
+- Capability `0x10` requires the complete v2 owner service and melee/power
+  observers. Legacy verbs 34-36 are rejected, and `0x08` cannot authorize object
+  actions. Readiness loss blocks BIND/SUBMIT while preserving exact-owner cleanup.
+- Full trace records retain the correlated native update and tri-state entry,
+  including polling frames without a new policy intent. Historical QUEUED with
+  CLOSED/RETIRED maps to rejection of current action authority, while preserving
+  the historical evidence. DEFERRED openers remain scheduled for a fresh idle frame.
 
 ## Required negative and lifecycle coverage
 
