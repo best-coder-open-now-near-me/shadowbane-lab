@@ -2,23 +2,25 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from uuid import uuid4
 
-from shadowbane_lab.client_extension.combat_wire import (
+from shadowbane_lab.client_extension.combat_wire_v2 import (
     OUTBOUND_QUEUED,
-    Outcome,
     Phase,
     Receipt,
-    Verb,
 )
 from shadowbane_lab.client_extension.movement_session import (
     NativeMovementError,
-    NativeMovementGrant,
-    NativeMovementSession,
 )
 from shadowbane_lab.pve.attack_list import AttackListStore
 from shadowbane_lab.pve.listed_target import ListedTarget, listed_targets
-from shadowbane_lab.pve.model import PvECampLease, PvEObservation
+from shadowbane_lab.pve.model import (
+    PvECampLease,
+    PvECombatDisposition,
+    PvECombatKind,
+    PvECombatProposal,
+    PvEObservation,
+)
+from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
 
 
 class ListedCombatInterruptionError(RuntimeError):
@@ -67,38 +69,30 @@ class ListedCombatUpdate:
 
 
 class ListedCombatCoordinator:
-    """Keep the immutable admission alive through uncertain entry and cancellation.
+    """Saved-list ranking layered over the same NPC/native engagement owner."""
 
-    prepare() only ranks intent. advance() is called after controller safety checks.
-    A rejected candidate is quarantined for its saved revision until observed
-    absent/dead, preventing a hot retry loop without deleting durable intent.
-    """
-
-    def __init__(
-        self, *, store: AttackListStore, session: NativeMovementSession,
-        grant: NativeMovementGrant, require_current: Callable[[], object],
-        engagement_timeout_ms: int = 30_000,
-    ) -> None:
+    def __init__(self, *, store: AttackListStore, combat: NativeCombatCoordinator,
+                 require_current: Callable[[], object], engagement_timeout_ms=30_000):
         if not callable(require_current):
-            raise ValueError("listed combat requires current character validation")
+            raise ValueError("listed combat requires current native character validation")
         if type(engagement_timeout_ms) is not int or engagement_timeout_ms <= 0:
             raise ValueError("engagement_timeout_ms must be positive")
-        self.store, self.session, self.grant = store, session, grant
-        self.require_current = require_current
+        self.store, self.combat, self.require_current = store, combat, require_current
         self.engagement_timeout_ms = engagement_timeout_ms
         self._candidate: ListedTarget | None = None
-        self._ticket = None
-        self._command = None
+        self._proposal = None
         self._started_at = None
         self._cancel_reason = None
+        self._active = False
         self._cleanup_attempts = 0
         self._quarantined: set[tuple[int, str]] = set()
+        self._sequence = 0
 
     @property
-    def active(self) -> bool:
-        return self._ticket is not None
+    def active(self):
+        return self._active
 
-    def prepare(self, observation: PvEObservation, camp: PvECampLease | None) -> bool:
+    def prepare(self, observation: PvEObservation, camp: PvECampLease | None):
         try:
             self.require_current()
             saved = self.store.snapshot()
@@ -116,140 +110,98 @@ class ListedCombatCoordinator:
         present_ids = {entry.entry_id for entry in saved.entries
                        if entry.player_identity is not None
                        and entry.player_identity.object_key in alive_keys}
-        self._quarantined.intersection_update(
-            (saved.revision, entry_id) for entry_id in present_ids
-        )
+        self._quarantined.intersection_update((saved.revision, key) for key in present_ids)
         if self.active:
-            assert self._candidate is not None
-            assert self._command is not None
-            local = None if population is None else population.local_player_object_key
-            if (local is None or (local.object_type, local.object_uuid)
-                    != self._command.binding.local_key):
+            if population is None or population.local_player_object_key != self.combat.actor_key:
                 self._cancel_reason = "listed_local_identity_changed"
-            if not any(candidate.entry == self._candidate.entry
-                       and candidate.revision == self._candidate.revision
-                       for candidate in candidates):
+            if not any(item.entry == self._candidate.entry
+                       and item.revision == self._candidate.revision for item in candidates):
                 self._cancel_reason = "listed_target_no_longer_eligible"
             if (self._started_at is not None
                     and observation.now_ms - self._started_at >= self.engagement_timeout_ms):
                 self._cancel_reason = "listed_engagement_timeout"
             return True
-        self._candidate = next((candidate for candidate in candidates
-                                if (candidate.revision, candidate.entry.entry_id)
+        self._candidate = next((item for item in candidates
+                                if (item.revision, item.entry.entry_id)
                                 not in self._quarantined), None)
         return self._candidate is not None
 
-    def advance(self, observation: PvEObservation) -> ListedCombatUpdate:
-        if not self.active:
-            candidate = self._candidate
-            if candidate is None or observation.population is None:
-                raise RuntimeError("listed combat advance requires prepared intent")
-            self.require_current()
-            local_key = observation.population.local_player_object_key
-            if local_key is None:
-                raise ValueError("listed combat requires exact local player key")
-            stage = "combat_availability"
-            try:
-                self.session.require_combat_available(self.grant)
-                # Even a START that expires without entering must not leave the
-                # interrupted PvE action running while the host later recovers.
-                # pause() proves NativeStop under this exact unchanged Grant.
-                stage = "pause"
-                self.session.pause(self.grant, str(uuid4()))
-                stage = "admission_registration"
-                self._ticket, self._command = self.store.register_combat_admission(
-                    candidate.entry.entry_id, expected_revision=candidate.revision,
-                    client_pid=self.grant.process_identity.process_id,
-                    client_creation=self.grant.process_identity.creation_filetime_utc,
-                    host=self.grant.host, window=self.grant.window, grant=self.grant.ownership,
-                    local_key=local_key,
-                )
-            except Exception as exc:
-                self._candidate = None
-                raise ListedCombatInterruptionError(stage, exc) from exc
-            self._started_at = observation.now_ms
-            self._quarantined.add((candidate.revision, candidate.entry.entry_id))
-            return self._submit(Verb.START)
+    def advance(self, observation: PvEObservation):
+        if self._candidate is None:
+            raise RuntimeError("listed combat requires prepared saved intent")
+        self._active = True
         if self._cancel_reason:
             return self.cancel(self._cancel_reason)
-        return self._submit(Verb.STATUS)
+        if self._proposal is None:
+            # An intentional policy retarget cleans the old NPC engagement once.
+            # Ordinary repeated actions never pass through this transition.
+            if self.combat.active:
+                confirmed, receipt, detail = self.combat.stop("listed_target_interrupt")
+                if not confirmed:
+                    self._cleanup_attempts += 1
+                    return self._update("listed_previous_cleanup_pending", receipt, detail)
+            candidate = self._candidate
+            self._sequence += 1
+            self._proposal = PvECombatProposal(
+                self._sequence, candidate.character.token, candidate.character.object_key,
+                PvECombatKind.ATTACK,
+            )
+            self._started_at = observation.now_ms
+            self._quarantined.add((candidate.revision, candidate.entry.entry_id))
+            self._cleanup_attempts = 0
+            try:
+                update = self.combat.advance(self._proposal, observation, listed=candidate)
+            except Exception as exc:
+                self._cancel_reason = "listed_admission_failed"
+                raise ListedCombatInterruptionError("native_admission", exc) from exc
+        elif self.combat.pending is not None:
+            update = self.combat.advance(self._proposal, observation, listed=self._candidate)
+        else:
+            receipt, detail = self.combat.observe()
+            if receipt is None:
+                self._cancel_reason = "listed_status_unconfirmed"
+            elif receipt.phase is not Phase.BOUND:
+                self._cancel_reason = "listed_engagement_closed"
+            return self._update(self._cancel_reason or "listed_combat_engaged", receipt, detail)
+        if update.acknowledgement.disposition in (
+            PvECombatDisposition.REJECTED, PvECombatDisposition.DEFERRED,
+        ):
+            self._cancel_reason = "listed_native_rejected"
+        return self._update(self._cancel_reason or "listed_combat_engaged",
+                            update.receipt, update.detail)
 
-    def cancel(self, reason: str = "listed_combat_cancelled") -> ListedCombatUpdate:
+    def _update(self, reason, receipt=None, detail=None):
+        return ListedCombatUpdate(
+            reason, None if receipt is None else receipt.engagement.encode().hex(), receipt,
+            terminal_reason=("listed_combat_cleanup_unconfirmed"
+                             if self._cleanup_attempts >= 3 else None),
+            native_detail=detail,
+        )
+
+    def cancel(self, reason="listed_combat_cancelled"):
         if not self.active:
             self._candidate = None
             return ListedCombatUpdate(reason, None)
         self._cancel_reason = reason
         self._cleanup_attempts += 1
-        try:
-            # Revocation precedes native cleanup; no subsequent entry can race it.
-            self._ticket.revoke(timeout_ms=750)
-        except Exception as exc:
-            return self._unconfirmed(f"listed_revoke_failure:{type(exc).__name__}")
-        return self._submit(Verb.CANCEL)
+        confirmed, receipt, detail = self.combat.stop(reason)
+        if not confirmed:
+            return self._update(reason, receipt, detail)
+        retired = receipt is not None and receipt.phase is Phase.RETIRED
+        self._active = False
+        self._candidate = self._proposal = self._started_at = self._cancel_reason = None
+        self._cleanup_attempts = 0
+        return ListedCombatUpdate(
+            "listed_scene_retired" if retired else "listed_local_cleanup_confirmed",
+            None if receipt is None else receipt.engagement.encode().hex(), receipt,
+            recovered=not retired,
+            terminal_reason="listed_combat_scene_retired" if retired else None,
+            native_detail=detail,
+        )
 
-    def finish(self, reason: str) -> ListedCombatUpdate:
-        """Bounded terminal cleanup; failed confirmation retains the ticket handles."""
-        update = ListedCombatUpdate(reason, None)
+    def finish(self, reason):
         for _ in range(3):
             update = self.cancel(reason)
             if not self.active:
                 return update
-        return ListedCombatUpdate(
-            update.reason, update.request, update.receipt,
-            terminal_reason="listed_combat_cleanup_unconfirmed",
-            native_detail=update.native_detail,
-        )
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *_):
-        self.finish("listed_scope_closed")
-        if self.active:
-            raise RuntimeError("listed combat cleanup remains unconfirmed")
-
-    def _unconfirmed(self, reason: str, *, native_detail: str | None = None) -> ListedCombatUpdate:
-        assert self._command is not None
-        return ListedCombatUpdate(
-            reason, self._command.binding.request.hex(),
-            terminal_reason=("listed_combat_cleanup_unconfirmed"
-                             if self._cleanup_attempts >= 3 else None),
-            native_detail=native_detail,
-        )
-
-    def _submit(self, verb: Verb) -> ListedCombatUpdate:
-        assert self._command is not None and self._ticket is not None
-        request = self._command.binding.request.hex()
-        try:
-            result = self.session.combat(self.grant, verb, self._command)
-            receipt = result.receipt
-        except Exception as exc:
-            # Transport/decoding failures cannot prove whether START entered.
-            # Never manufacture a second START or drop the original admission.
-            self._cancel_reason = f"listed_combat_unconfirmed:{type(exc).__name__}"
-            return self._unconfirmed(self._cancel_reason)
-        if receipt.cleanup_confirmed:
-            try:
-                self._ticket.close(timeout_ms=750)
-            except Exception as exc:
-                self._cancel_reason = f"listed_ticket_release_failure:{type(exc).__name__}"
-                return self._unconfirmed(self._cancel_reason, native_detail=result.native_detail)
-            retired = receipt.phase is Phase.RETIRED
-            self._ticket = self._command = self._candidate = None
-            self._cancel_reason = self._started_at = None
-            self._cleanup_attempts = 0
-            return ListedCombatUpdate(
-                "listed_scene_retired" if retired else "listed_local_cleanup_confirmed",
-                request, receipt, recovered=not retired,
-                terminal_reason="listed_combat_scene_retired" if retired else None,
-                native_detail=result.native_detail,
-            )
-        if (receipt.outcome not in (Outcome.CLIENT_OUTBOUND_QUEUED, Outcome.OBSERVED)
-                or receipt.phase is not Phase.ENGAGED):
-            self._cancel_reason = f"listed_native_{receipt.outcome.name.lower()}"
-        return ListedCombatUpdate(
-            self._cancel_reason or "listed_combat_engaged", request, receipt,
-            terminal_reason=("listed_combat_cleanup_unconfirmed"
-                             if self._cleanup_attempts >= 3 else None),
-            native_detail=result.native_detail,
-        )
+        return update

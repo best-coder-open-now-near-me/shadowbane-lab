@@ -10,6 +10,7 @@ from test_pve_controller import (
     SequenceHealthSource,
     SequencePlayerVitalsSource,
     _absent,
+    _accepted_step,
     _character,
     _event,
     _observation,
@@ -38,7 +39,7 @@ def request(sequence=0):
 def engage(**config):
     controller = PvEController(PvEControllerConfig(**config))
     controller.step(_observation(0, _absent()))
-    decision = controller.step(_observation(100, _target("mob")))
+    decision = _accepted_step(controller, _observation(100, _target("mob")))
     assert decision.intent is not None
     return controller
 
@@ -128,12 +129,14 @@ def test_selection_diagnostic_does_not_invalidate_actual_action_frame():
     assert updated.population == frame.population
 
 
-def test_opener_followup_never_targets_new_selection():
+def test_native_opener_followup_retains_owned_object_after_selection_changes():
     controller = engage(opening_intent=PvEIntent.CAST_SHADOW_TOUCH, opening_followup_delay_ms=100)
     frame = _observation(200, _target("other"),
         population=_population("other", _character("mob", lt=103), _character("other", lt=104)))
     decision = controller.step(frame)
-    assert decision.phase is PvEPhase.ENGAGED and decision.intent is None
+    assert decision.phase is PvEPhase.ENGAGED
+    assert decision.combat_proposal.target_token == "mob"
+    assert decision.combat_proposal.target_key == _character("mob", lt=103).object_key
     assert decision.tracked_target.token == "mob"
 
 
@@ -222,7 +225,7 @@ def test_runner_cleanup_failure_never_retries_or_rearms(behavior):
     assert result.terminal_reason == "combat_cleanup_unconfirmed"
     assert len(calls) == (0 if behavior == "missing" else 1)
     assert controller.pending_cleanup is not None
-    assert dispatcher.intents == [PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ATTACK_SELECTED_TARGET]
+    assert dispatcher.intents == [PvEIntent.ATTACK_SELECTED_TARGET]
     assert any(step.combat_cleanup is not None and not step.combat_cleanup.confirmed
                for step in result.trace)
 
@@ -283,7 +286,7 @@ def test_unknown_target_action_waits_for_actual_completion_not_animation_or_impa
     assert after.phase is PvEPhase.SEEKING and after.intent is None
     acquire = controller.step(_observation(200, _absent()))
     attack = controller.step(_observation(300, _target("new")))
-    assert acquire.intent is PvEIntent.ACQUIRE_NEXT_MOB
+    assert acquire.intent is None and acquire.combat_proposal is None
     assert attack.intent is PvEIntent.ATTACK_SELECTED_TARGET
     old_projectile = controller.step(_observation(400, _target("new"),
         _event(NativeCombatEventKind.TARGET_KILLED)))

@@ -364,7 +364,7 @@ class ClientCliTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertIn("--live", payload["error"])
 
-    def test_chat_listener_defers_hotbar_verification_until_pve_command(self) -> None:
+    def test_chat_listener_does_not_require_character_hotbar_for_native_pve(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
         service_stop = EventEmergencyStop()
@@ -409,7 +409,6 @@ class ClientCliTests(unittest.TestCase):
                 StopImmediatelyListener,
             ),
             patch("shadowbane_lab.cli.WindowsZoneSearchOverlay", InertZoneOverlay),
-            patch("shadowbane_lab.cli._verify_hotbar_power_mapping") as verify_hotbar,
         ):
             result = _listen_for_go_commands(
                 destination_state_path=Path(directory) / "travel.json",
@@ -437,7 +436,6 @@ class ClientCliTests(unittest.TestCase):
             )
 
         self.assertEqual(0, result)
-        verify_hotbar.assert_not_called()
 
     def test_chat_listener_reports_an_input_hook_that_dies_after_startup(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
@@ -573,7 +571,6 @@ class ClientCliTests(unittest.TestCase):
                 "shadowbane_lab.cli.WindowsGoChatCommandListener",
                 OneCommandListener,
             ),
-            patch("shadowbane_lab.cli._verify_hotbar_power_mapping") as verify_hotbar,
             patch("shadowbane_lab.cli._run_pve", side_effect=run_pve),
             patch(
                 "shadowbane_lab.cli.PyAutoGuiBackend",
@@ -620,7 +617,6 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(1_500, captured["retained_trace_steps"])
         self.assertEqual(Path(directory) / "cache", captured["navigation_cache_directory"])
         self.assertTrue(captured["stop_signal"].is_set())
-        verify_hotbar.assert_not_called()
         self.assertIsNone(captured["hotbar_config_path"])
         evidence_path = captured["evidence_output_path"]
         self.assertIsInstance(evidence_path, Path)
@@ -1324,7 +1320,7 @@ class ClientCliTests(unittest.TestCase):
         self._assert_pve_process_binding(policy="basic", check_preparation=True)
 
     def test_pve_preparation_failure_never_acquires_movement(self) -> None:
-        for failure in ("backend", "journal", "observer"):
+        for failure in ("journal", "observer"):
             with self.subTest(failure=failure):
                 self._assert_pve_process_binding(
                     policy="basic", check_preparation=True, preparation_failure=failure,
@@ -1342,12 +1338,16 @@ class ClientCliTests(unittest.TestCase):
         captured_creation: int | None = None,
         check_preparation: bool = False, preparation_failure: str | None = None,
     ) -> None:
-        from shadowbane_lab.client_input.character_config import CharacterConfigSession
+        import struct
+
         from shadowbane_lab.client_observation.native_character_config import (
+            REVIEWED_CHARACTER_CONFIG_LAYOUTS,
             NativeCharacterConfigReader,
         )
-        from tests.test_active_character_config import CharacterMemory, write_profile
-        from tests.test_arcane_hotbar import _CAPTURED_HOTBAR
+        from shadowbane_lab.client_observation.native_character_session import (
+            NativeCharacterSession,
+        )
+        from tests.test_active_character_config import CharacterMemory
 
         movement_dispatcher = (
             SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock(),
@@ -1357,7 +1357,7 @@ class ClientCliTests(unittest.TestCase):
             else None
         )
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
-        profile = replace(load_calibration(template), live_input_enabled=True)
+        profile = replace(load_calibration(template), live_input_enabled=True, actions=())
         snapshot = WindowSnapshot(
             executable_name=profile.target.executable_names[0],
             title="Shadowbane",
@@ -1445,19 +1445,16 @@ class ClientCliTests(unittest.TestCase):
         load_terrain = MagicMock(return_value=terrain_navigation)
         with tempfile.TemporaryDirectory() as directory:
             character_memory = CharacterMemory(Path(directory))
-            write_profile(character_memory, content=_CAPTURED_HOTBAR.encode())
-            character_session = CharacterConfigSession(
+            character_memory.executable_sha256 = (
+                REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1].executable_sha256
+            )
+            character_memory.put(character_memory.player + 0x18, struct.pack("<II", 1001, 53))
+            character_session = NativeCharacterSession(
                 NativeCharacterConfigReader(character_memory)
             )
             evidence_output = Path(directory) / "evidence" / "pve.json"
             navigation_cache = Path(directory) / "cache"
             navigation_cache.mkdir()
-            def prepare_backend():
-                preparation_events.append("backend")
-                if preparation_failure == "backend":
-                    raise RuntimeError("backend preparation failed")
-                return RecordingInputBackend()
-
             @contextmanager
             def prepare_journal(*args, **kwargs):
                 from shadowbane_lab.pve.evidence import PvETraceJournal
@@ -1530,17 +1527,13 @@ class ClientCliTests(unittest.TestCase):
                 ),
                 patch("shadowbane_lab.cli.WindowsHotkeyEmergencyStop") as emergency_stop,
                 patch(
-                    "shadowbane_lab.cli.open_active_character_config",
+                    "shadowbane_lab.cli_commands.client_pve.open_native_character_session",
                     return_value=character_session,
                 ) as open_character,
-                patch(
-                    "shadowbane_lab.cli.PyAutoGuiBackend",
-                    side_effect=prepare_backend,
-                ),
+                patch("shadowbane_lab.cli.PyAutoGuiBackend") as gui_backend,
                 patch("shadowbane_lab.cli.PvETraceJournal", side_effect=prepare_journal),
                 patch("shadowbane_lab.cli.PvERunner") as pve_runner,
-                patch("shadowbane_lab.cli_commands.client_pve.NativePvECombatCleanup") as cleanup,
-                patch("shadowbane_lab.cli_commands.client_pve.NativePvEInputGuard") as input_guard,
+                patch("shadowbane_lab.cli_commands.client_pve.NativeCombatCoordinator") as combat,
                 patch(
                     "shadowbane_lab.cli_commands.client_pve.native_party.load_bundled_native_group_profile",
                     return_value=group_profile,
@@ -1583,12 +1576,11 @@ class ClientCliTests(unittest.TestCase):
                 native_operation.return_value.__exit__.side_effect = (
                     lambda *_: preparation_events.append("owner_closed")
                 )
-                listed_coordinator.return_value.__exit__.side_effect = (
-                    lambda *_: preparation_events.append("listed_closed")
+                combat.return_value.__exit__.side_effect = (
+                    lambda *_: preparation_events.append("combat_closed")
                 )
                 def run_pve_fixture():
-                    dispatcher = pve_runner.call_args.kwargs["dispatcher"]
-                    dispatcher._adapter._executor._input_precondition()
+                    character_session.require_current()
                     return completed_run
 
                 pve_runner.return_value.run.side_effect = run_pve_fixture
@@ -1630,7 +1622,7 @@ class ClientCliTests(unittest.TestCase):
                     listed_coordinator.assert_not_called()
                     pve_runner.assert_not_called()
                     self.assertTrue(character_memory.closed)
-                    if preparation_failure in ("backend", "journal", "observer"):
+                    if preparation_failure in ("journal", "observer"):
                         self.assertIn(
                             f"{preparation_failure} preparation failed", output.getvalue(),
                         )
@@ -1641,9 +1633,9 @@ class ClientCliTests(unittest.TestCase):
                     return
                 if check_preparation:
                     self.assertEqual(
-                        ["backend", "journal", "observer"]
+                        ["journal", "observer"]
                         + ([] if native_movement else ["acquire"])
-                        + ["listed_closed"]
+                        + ["combat_closed"]
                         + ([] if native_movement else ["owner_closed"])
                         + ["observer_closed", "journal_closed"],
                         preparation_events,
@@ -1654,41 +1646,35 @@ class ClientCliTests(unittest.TestCase):
                 )
                 saved_evidence = json.loads(evidence_output.read_text(encoding="utf-8"))
 
-                open_character.assert_called_once_with(process_id=4320, explicit_path=None)
+                open_character.assert_called_once_with(process_id=4320)
                 self.assertEqual(
-                    "testercle", saved_evidence["character_config"]["character_name"]
+                    "testercle", saved_evidence["native_character"]["character_name"]
                 )
                 self.assertEqual(
                     character_memory.process_creation_filetime_utc,
-                    saved_evidence["character_config"]["process_creation_filetime_utc"],
+                    saved_evidence["native_character"]["process_creation_filetime_utc"],
                 )
                 self.assertTrue(character_memory.closed)
-                dispatcher = pve_runner.call_args.kwargs["dispatcher"]
-                executor = dispatcher._adapter._executor
                 with self.assertRaisesRegex(RuntimeError, "revoked"):
-                    executor._input_precondition()
-                input_guard.return_value.require_current.assert_called_once_with()
-                input_guard.assert_called_once()
-                self.assertIs(input_guard.call_args.args[0], readers[7])
-                self.assertEqual(
-                    character_memory.process_creation_filetime_utc,
-                    executor._guard._expected_process_started_at_100ns,
-                )
+                    character_session.require_current()
+                gui_backend.assert_not_called()
                 owner = (movement_dispatcher if native_movement else
                          native_operation.return_value.__enter__.return_value)
-                listed_args = listed_coordinator.call_args.kwargs
-                self.assertIs(listed_args["session"], owner.session)
-                self.assertIs(listed_args["grant"], owner.grant)
-                cleanup.assert_called_once_with(owner.session, owner.grant)
-                self.assertIs(pve_runner.call_args.kwargs["combat_cleanup"], cleanup.return_value)
+                combat.assert_called_once_with(
+                    session=owner.session, grant=owner.grant, population=readers[7],
+                    character_session=character_session, store=combat.call_args.kwargs["store"],
+                )
+                shared_combat = combat.return_value.__enter__.return_value
+                self.assertIs(pve_runner.call_args.kwargs["dispatcher"], shared_combat)
+                self.assertIs(pve_runner.call_args.kwargs["combat_cleanup"], shared_combat)
+                self.assertIs(listed_coordinator.call_args.kwargs["combat"], shared_combat)
+                self.assertIs(listed_coordinator.call_args.kwargs["store"],
+                              combat.call_args.kwargs["store"])
                 self.assertNotIn("combat_log_reader", pve_runner.call_args.kwargs)
-                self.assertEqual(listed_args["require_current"], character_session.require_current)
-                self.assertEqual(listed_args["store"].owner.character, "testercle")
-                self.assertEqual(listed_args["store"].owner.server,
-                                 character_session.binding.identity.server_name)
+                self.assertEqual(combat.call_args.kwargs["store"].owner.character, "testercle")
                 self.assertIs(pve_runner.call_args.kwargs["listed_combat"],
-                              listed_coordinator.return_value.__enter__.return_value)
-                listed_coordinator.return_value.__exit__.assert_called_once()
+                              listed_coordinator.return_value)
+                combat.return_value.__exit__.assert_called_once()
 
         if native_movement:
             self.assertIs(pve_runner.call_args.kwargs["movement_dispatcher"], movement_dispatcher)
@@ -1697,9 +1683,6 @@ class ClientCliTests(unittest.TestCase):
             owned = native_operation.return_value.__enter__.return_value
             self.assertIs(pve_runner.call_args.kwargs["movement_dispatcher"], owned.dispatcher)
             self.assertIs(pve_runner.call_args.kwargs["stop_signal"], owned)
-            self.assertIs(
-                pve_runner.call_args.kwargs["dispatcher"]._adapter._executor._stop_signal, owned
-            )
             native_operation.return_value.__exit__.assert_called_once()
         open_group.assert_called_once_with(group_profile, process_id=4320)
         self.assertIs(pve_runner.call_args.kwargs["group_reader"], group_reader)
@@ -1783,38 +1766,10 @@ class ClientCliTests(unittest.TestCase):
         )
         emergency_stop.assert_not_called()
 
-    def test_proc_assassin_policy_fails_before_input_without_shadow_touch_mapping(self) -> None:
-        template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
-        profile_data = json.loads(template.read_text(encoding="utf-8"))
-        profile_data["live_input_enabled"] = True
-        profile_data["actions"] = [
-            item
-            for item in profile_data["actions"]
-            if item["action_key"] != PvEIntent.CAST_SHADOW_TOUCH.value
-        ]
-        output = io.StringIO()
-        with tempfile.TemporaryDirectory() as directory:
-            profile = Path(directory) / "pve.local.json"
-            profile.write_text(json.dumps(profile_data), encoding="utf-8")
-            with redirect_stdout(output):
-                result = main(
-                    (
-                        "client",
-                        "run-pve",
-                        "--client-profile",
-                        str(profile),
-                        "--policy",
-                        "proc-assassin",
-                        "--live",
-                        "--json",
-                    )
-                )
+    def test_proc_assassin_native_policy_requires_no_hotbar_or_input_mapping(self) -> None:
+        self._assert_pve_process_binding(policy="proc-assassin")
 
-        payload = json.loads(output.getvalue())
-        self.assertEqual(2, result)
-        self.assertIn(PvEIntent.CAST_SHADOW_TOUCH.value, payload["error"])
-
-    def test_proc_assassin_policy_requires_verified_current_hotbar(self) -> None:
+    def test_native_policy_rejects_retired_hotbar_option(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
         profile_data = json.loads(template.read_text(encoding="utf-8"))
         profile_data["live_input_enabled"] = True
@@ -1859,8 +1814,7 @@ class ClientCliTests(unittest.TestCase):
 
         payload = json.loads(output.getvalue())
         self.assertEqual(2, result)
-        self.assertIn("maps ASS-013", payload["error"])
-        self.assertIn("f3", payload["error"])
+        self.assertIn("does not use --hotbar-config", payload["error"])
 
 
 if __name__ == "__main__":

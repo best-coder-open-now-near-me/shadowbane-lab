@@ -53,6 +53,10 @@ from shadowbane_lab.pve.guarded_runtime import (
 )
 from shadowbane_lab.pve.model import (
     PvECampLease,
+    PvECombatAcknowledgement,
+    PvECombatDisposition,
+    PvECombatKind,
+    PvECombatProposal,
     PvEControllerConfig,
     PvEControllerDecision,
     PvEIntent,
@@ -81,6 +85,10 @@ from shadowbane_lab.pve.target_authority import (
 )
 
 __all__ = [
+    "PvECombatAcknowledgement",
+    "PvECombatDisposition",
+    "PvECombatKind",
+    "PvECombatProposal",
     "ClientPvEIntentDispatcher",
     "NativeExtensionPvEIntentDispatcher",
     "NativePartyAuthoritySnapshotReadError",

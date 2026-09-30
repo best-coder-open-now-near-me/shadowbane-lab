@@ -25,7 +25,7 @@ class NearbyMobRolloutTests(unittest.TestCase):
         terminal = result.controller_trace[-1]
         self.assertEqual(PvEKillConfirmation.NATIVE_HEALTH_ZERO, terminal.kill_confirmation)
         self.assertIsNotNone(terminal.cleanup_request)
-        self.assertEqual("simulation:selected-mob:1", terminal.cleanup_request.target_token)
+        self.assertEqual("simulation:mob:1", terminal.cleanup_request.target_token)
         self.assertEqual(0.0, result.target_final_health)
         self.assertEqual(config.player_current_health, result.player_final_health)
         self.assertEqual(744.0, result.experience_observed)
@@ -34,7 +34,7 @@ class NearbyMobRolloutTests(unittest.TestCase):
         self.assertTrue(all(item in (4.0, 5.0) for item in result.attack_rolls))
         intents = tuple(item.intent for item in result.controller_trace if item.intent is not None)
         self.assertEqual(
-            (PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ATTACK_SELECTED_TARGET),
+            (PvEIntent.ATTACK_SELECTED_TARGET,),
             intents,
         )
 
@@ -83,6 +83,10 @@ class NearbyMobRolloutTests(unittest.TestCase):
         self.assertEqual("wonderbane.frost-walker.2026-08-25", payload["profile_id"])
         self.assertEqual("kill_limit_reached", payload["terminal_reason"])
         self.assertEqual(1, payload["kills"])
+        proposal = payload["controller_trace"][0]["combat_proposal"]
+        self.assertEqual("attack", proposal["kind"])
+        self.assertEqual("simulation:mob:1", proposal["target_token"])
+        self.assertEqual([1, 37], proposal["target_key"])
 
     def test_config_type_is_required(self) -> None:
         with self.assertRaisesRegex(ValueError, "NearbyMobSimulationConfig"):

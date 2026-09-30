@@ -325,7 +325,6 @@ _DOMAIN_EXPORTS = {
     _client_pve_commands: (
         "_run_pve",
         "_calibrate_pve",
-        "_verify_hotbar_power_mapping",
     ),
     _client_runtime_commands: (
         "_PVE_TARGET_ACTIONS",
@@ -461,7 +460,6 @@ _new_chat_pve_evidence_path = _domain_facade(
 _print_go_listener_event = _domain_facade(_client_listener_commands, "_print_go_listener_event")
 _print_go_stop_result = _domain_facade(_client_listener_commands, "_print_go_stop_result")
 _print_zone_search_results = _domain_facade(_client_listener_commands, "_print_zone_search_results")
-_verify_hotbar_power_mapping = _domain_facade(_client_pve_commands, "_verify_hotbar_power_mapping")
 _wait_for_guarded_client = _domain_facade(_client_runtime_commands, "_wait_for_guarded_client")
 _require_window_process_id = _domain_facade(_client_runtime_commands, "_require_window_process_id")
 _PVE_TARGET_ACTIONS = _client_runtime_commands._PVE_TARGET_ACTIONS

@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
+from shadowbane_lab.client_extension.combat_wire_v2 import Phase as NativeCombatPhase
 from shadowbane_lab.client_input import ClientInputAdapter, StopSignal
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationObservation,
@@ -34,19 +35,24 @@ from shadowbane_lab.pve.listed_combat import (
 )
 from shadowbane_lab.pve.model import (
     PvECombatCleanupResult,
+    PvECombatDisposition,
+    PvECombatProposal,
     PvEIntent,
     PvEObservation,
     PvEPhase,
     PvERunResult,
     PvERunTraceStep,
 )
+from shadowbane_lab.pve.native_combat import NativeCombatUpdate
 from shadowbane_lab.travel.arrival import ArrivalTracker
 from shadowbane_lab.travel.runtime import TravelDecisionDispatcher
 
 
 @runtime_checkable
 class PvEIntentDispatcher(Protocol):
-    def dispatch(self, intent: PvEIntent, *, sequence: int) -> DispatchResult: ...
+    def advance(
+        self, proposal: PvECombatProposal, observation: PvEObservation,
+    ) -> NativeCombatUpdate: ...
 
 
 @runtime_checkable
@@ -422,6 +428,29 @@ class PvERunner:
                         self._approach_controller.cancel("combat_cleanup_confirmed")
                     self._sleeper(self._poll_interval_seconds)
                     continue
+                proposal = self._controller.pending_combat_proposal
+                if proposal is not None:
+                    update = self._dispatcher.advance(proposal, observation)
+                    if not isinstance(update, NativeCombatUpdate):
+                        raise RuntimeError("native combat returned an untyped action result")
+                    self._controller.acknowledge_combat(
+                        proposal, update.acknowledgement, now_ms=now_ms,
+                    )
+                    accepted = update.acknowledgement.disposition in (
+                        PvECombatDisposition.BOUND, PvECombatDisposition.QUEUED,
+                    )
+                    record(replace(self._trace(decision, observation=observation),
+                        input_accepted=accepted,
+                        input_reason=None if accepted else update.acknowledgement.disposition.value,
+                        native_combat=update))
+                    consecutive_observation_failures = 0
+                    if (update.receipt is not None
+                            and update.receipt.phase is NativeCombatPhase.RETIRED):
+                        terminal = self._controller.stop("native_scene_retired", now_ms=now_ms)
+                        record(self._trace(terminal, observation=observation))
+                        break
+                    self._sleeper(self._poll_interval_seconds)
+                    continue
                 approach = (
                     None
                     if self._approach_controller is None or decision.native_action_pending
@@ -604,42 +633,6 @@ class PvERunner:
                     break
                 self._sleeper(self._poll_interval_seconds)
                 continue
-            if decision.intent is not None:
-                try:
-                    result = self._dispatcher.dispatch(
-                        decision.intent,
-                        sequence=decision.decision_id,
-                    )
-                except Exception as exc:
-                    reason = f"input_failure:{type(exc).__name__}"
-                    record(
-                        self._trace(
-                            decision,
-                            observation=observation,
-                            input_accepted=False,
-                            input_reason=reason,
-                        )
-                    )
-                    terminal = self._controller.stop(reason, now_ms=now_ms)
-                    record(self._trace(terminal, observation=observation))
-                    break
-                accepted = result.accepted
-                reason = result.reason
-                if not result.accepted:
-                    record(
-                        self._trace(
-                            decision,
-                            observation=observation,
-                            input_accepted=False,
-                            input_reason=reason,
-                        )
-                    )
-                    stop_reason = (
-                        "emergency_stop" if self._stop_signal.is_set() else "guarded_input_rejected"
-                    )
-                    terminal = self._controller.stop(stop_reason, now_ms=now_ms)
-                    record(self._trace(terminal, observation=observation))
-                    break
             record(
                 self._trace(
                     decision,

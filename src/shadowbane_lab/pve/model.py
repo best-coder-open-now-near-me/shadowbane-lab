@@ -25,6 +25,7 @@ from shadowbane_lab.travel.model import TravelDecision, TravelDestination
 if TYPE_CHECKING:
     from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
     from shadowbane_lab.pve.listed_combat import ListedCombatUpdate
+    from shadowbane_lab.pve.native_combat import NativeCombatUpdate
 
 
 def _positive_integer(value: int, field_name: str) -> None:
@@ -42,6 +43,84 @@ class PvEIntent(StrEnum):
     ACQUIRE_PREVIOUS_MOB = "client.pve.target_previous_mobile"
     CAST_SHADOW_TOUCH = "shadowbane.assassin.shadow_touch"
     ATTACK_SELECTED_TARGET = "shadowbane.basic_attack"
+
+
+class PvECombatKind(StrEnum):
+    BIND = "bind"
+    ATTACK = "attack"
+    CAST = "cast"
+
+
+class PvECombatDisposition(StrEnum):
+    BOUND = "bound"
+    QUEUED = "queued"
+    DEFERRED = "deferred"
+    REJECTED = "rejected"
+    UNCERTAIN = "uncertain"
+
+
+@dataclass(frozen=True, slots=True)
+class PvECombatProposal:
+    """Immutable policy request; the coordinator owns native IDs and authority."""
+
+    proposal_id: int
+    target_token: str
+    target_key: NativeObjectKey
+    kind: PvECombatKind
+    power_id: int = 0
+    adopted_existing_action: bool = False
+    interrupt_sequence: int | None = None
+
+    def __post_init__(self) -> None:
+        _non_negative_integer(self.proposal_id, "proposal_id")
+        if not isinstance(self.target_token, str) or not self.target_token.strip():
+            raise ValueError("combat proposal requires an opaque target token")
+        if not isinstance(self.target_key, NativeObjectKey) or self.target_key.is_null:
+            raise ValueError("combat proposal requires an exact native object key")
+        if not isinstance(self.kind, PvECombatKind):
+            raise ValueError("combat proposal requires a semantic kind")
+        if type(self.power_id) is not int or not 0 <= self.power_id < 2**32:
+            raise ValueError("power_id must be uint32")
+        if (self.kind is PvECombatKind.CAST) != (self.power_id != 0):
+            raise ValueError("only CAST requires a numeric power ID")
+        if type(self.adopted_existing_action) is not bool:
+            raise ValueError("adopted_existing_action must be boolean")
+        if self.adopted_existing_action and self.kind is not PvECombatKind.BIND:
+            raise ValueError("existing action adoption requires BIND")
+        if self.interrupt_sequence is not None:
+            _non_negative_integer(self.interrupt_sequence, "interrupt_sequence")
+            if self.kind is not PvECombatKind.CAST:
+                raise ValueError("interrupt metadata requires CAST")
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "proposal_id": self.proposal_id, "target_token": self.target_token,
+            "target_key": [self.target_key.object_type, self.target_key.object_uuid],
+            "kind": self.kind.value, "power_id": self.power_id,
+            "adopted_existing_action": self.adopted_existing_action,
+            "interrupt_sequence": self.interrupt_sequence,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PvECombatAcknowledgement:
+    """Policy projection of an already correlated native receipt, never text."""
+
+    disposition: PvECombatDisposition
+    native_entered: bool | None
+    cleanup_required: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.disposition, PvECombatDisposition):
+            raise ValueError("combat acknowledgment requires a typed disposition")
+        if self.native_entered is not None and type(self.native_entered) is not bool:
+            raise ValueError("native entry must remain tri-state")
+        if type(self.cleanup_required) is not bool:
+            raise ValueError("cleanup_required must be boolean")
+        if self.disposition is PvECombatDisposition.QUEUED and self.native_entered is not True:
+            raise ValueError("queued action must positively prove native entry")
+        if self.disposition is PvECombatDisposition.DEFERRED and self.native_entered is True:
+            raise ValueError("deferred acknowledgment cannot claim entry")
 
 
 class PvEPhase(StrEnum):
@@ -260,7 +339,6 @@ class PvEControllerConfig:
     automatic_attack_expected: bool = False
     automatic_target_requires_active_action: bool = False
     require_target_identity: bool = False
-    use_native_population: bool = False
     melee_approach_radius: float = 20.0
     minimum_approach_progress: float = 8.0
     continuous: bool = False
@@ -357,7 +435,6 @@ class PvEControllerConfig:
                 "automatic_target_requires_active_action",
             ),
             (self.require_target_identity, "require_target_identity"),
-            (self.use_native_population, "use_native_population"),
             (self.continuous, "continuous"),
         ):
             if not isinstance(value, bool):
@@ -609,11 +686,22 @@ class PvEControllerDecision:
     cleanup_request: PvECombatCleanupRequest | None = None
     tracked_target: PvETrackedTarget | None = None
     native_action_pending: bool = False
+    combat_proposal: PvECombatProposal | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.decision_id, "decision_id")
         _non_negative_integer(self.now_ms, "now_ms")
         _non_negative_integer(self.kills, "kills")
+        proposal = self.combat_proposal
+        if proposal is not None:
+            if not isinstance(proposal, PvECombatProposal):
+                raise ValueError("combat_proposal must be typed")
+            if proposal.proposal_id != self.decision_id:
+                raise ValueError("combat proposal must belong to this decision")
+            if self.cleanup_request is not None or self.terminal_reason is not None:
+                raise ValueError("cleanup/terminal decisions cannot submit combat")
+            if self.native_action_pending and proposal.kind is not PvECombatKind.BIND:
+                raise ValueError("busy native action cannot submit a conflicting action")
         if not isinstance(self.phase, PvEPhase):
             raise ValueError("phase must be PvEPhase")
         if self.intent is not None and not isinstance(self.intent, PvEIntent):
@@ -706,6 +794,7 @@ class PvERunTraceStep:
     population_selected_target_token: str | None = None
     population_player_action_target_token: str | None = None
     population_scan_generation: int | None = None
+    native_combat: NativeCombatUpdate | None = None
     listed_combat: ListedCombatUpdate | None = None
     combat_cleanup: PvECombatCleanupResult | None = None
 
@@ -721,8 +810,14 @@ class PvERunTraceStep:
             raise ValueError("target_present must be a boolean")
         if self.input_accepted is not None and not isinstance(self.input_accepted, bool):
             raise ValueError("input_accepted must be a boolean when present")
-        if self.decision.intent is None and self.input_accepted is not None:
-            raise ValueError("input outcome requires a dispatched intent")
+        if self.native_combat is not None:
+            from shadowbane_lab.pve.native_combat import NativeCombatUpdate
+
+            if not isinstance(self.native_combat, NativeCombatUpdate):
+                raise ValueError("native combat trace requires a typed correlated update")
+        if (self.decision.intent is None and self.decision.combat_proposal is None
+                and self.native_combat is None and self.input_accepted is not None):
+            raise ValueError("input outcome requires an intent, proposal or native combat update")
         if self.input_reason is not None and self.input_accepted is not False:
             raise ValueError("input_reason is valid only for rejected input")
         if self.approach_status is not None and (
@@ -786,6 +881,7 @@ class PvERunTraceStep:
 
     def as_dict(self) -> dict[str, object]:
         return {
+            "native_combat": None if self.native_combat is None else self.native_combat.as_dict(),
             "listed_combat": None if self.listed_combat is None else self.listed_combat.as_dict(),
             "decision_id": self.decision.decision_id,
             "at_ms": self.decision.now_ms,
@@ -801,6 +897,8 @@ class PvERunTraceStep:
                                       else self.tracked_target_action.as_dict()),
             "tracked_target": (None if self.decision.tracked_target is None
                                else self.decision.tracked_target.as_dict()),
+            "combat_proposal": (None if self.decision.combat_proposal is None
+                                else self.decision.combat_proposal.as_dict()),
             "combat_cleanup": (None if self.combat_cleanup is None
                                else self.combat_cleanup.as_dict()),
             "native_action_pending": self.decision.native_action_pending,

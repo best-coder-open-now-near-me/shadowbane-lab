@@ -1,41 +1,31 @@
-"""Manual-list selection and transaction ownership across production boundaries."""
+"""Saved-list policy uses the same native engagement owner as ordinary NPC combat."""
 
-import hashlib
-import json
 from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
 from test_combat_fence import LOCAL, OWNER, TARGET, entry, store_at
-from test_combat_receipt import receipt
-from test_combat_wire import fixture
+from test_combat_wire_v2 import command as fixture
 
+from shadowbane_lab.client_extension import combat_fence_windows as fences
 from shadowbane_lab.client_extension.action_channel import (
     NativeActionChannelTimeout,
     NativeActionChannelUnavailable,
     NativeClientProcessIdentity,
 )
-from shadowbane_lab.client_extension.combat_wire import (
-    LOCAL_CANCELLED,
+from shadowbane_lab.client_extension.combat_fence_v3 import Authority, Ordinals
+from shadowbane_lab.client_extension.combat_wire_v2 import (
+    CLEANUP_REQUIRED,
     OUTBOUND_QUEUED,
+    Action,
+    ClosureProof,
+    EntryState,
     Outcome,
     Phase,
+    Receipt,
     Verb,
 )
-from shadowbane_lab.client_extension.movement_session import (
-    NativeCombatResult,
-    NativeMovementError,
-    NativeMovementGrant,
-)
-from shadowbane_lab.client_extension.movement_wire import (
-    Outcome as MovementOutcome,
-)
-from shadowbane_lab.client_extension.movement_wire import (
-    Receipt as MovementReceipt,
-)
-from shadowbane_lab.client_extension.movement_wire import (
-    Settings,
-)
+from shadowbane_lab.client_extension.movement_session import NativeCombatResult, NativeMovementGrant
 from shadowbane_lab.client_input import EventEmergencyStop
 from shadowbane_lab.client_observation import (
     NativePlayerActionObservation,
@@ -49,17 +39,15 @@ from shadowbane_lab.client_observation.native_group import (
     NativeGroupMemberObservation,
     NativeGroupObservation,
 )
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.client_observation.native_population import (
     NativeCharacterKind,
     NativeCharacterObservation,
     NativeCharacterPopulationObservation,
 )
-from shadowbane_lab.navigation_inspector.session import pve_trace_sink
-from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.pve import PvEController, PvEControllerConfig, PvERunner
 from shadowbane_lab.pve.authority import PvETargetCharacterKind
 from shadowbane_lab.pve.authority_snapshot import build_native_party_authority_snapshot
-from shadowbane_lab.pve.evidence import PvETraceJournal
 from shadowbane_lab.pve.listed_combat import (
     ListedCombatCoordinator,
     ListedCombatInterruptionError,
@@ -67,36 +55,80 @@ from shadowbane_lab.pve.listed_combat import (
 )
 from shadowbane_lab.pve.listed_target import listed_targets
 from shadowbane_lab.pve.model import PvECampLease, PvEObservation, PvEPhase
+from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
 
 
 def frame(now=0, *, dead=False, absent=False, party=False, lt=5, local=LOCAL):
     character = NativeCharacterObservation(
-        "opaque-player-token", 0 if dead else 100, 100, lt, 0, 0,
-        False, False, False, False, False, object_key=TARGET,
+        "opaque-player-token",
+        0 if dead else 100,
+        100,
+        lt,
+        0,
+        0,
+        False,
+        False,
+        False,
+        False,
+        False,
+        object_key=TARGET,
         character_kind=NativeCharacterKind.PLAYER,
     )
     population = NativeCharacterPopulationObservation(
-        () if absent else (character,), None, None, 1, 0, local,
+        () if absent else (character,),
+        None,
+        None,
+        1,
+        0,
+        local,
     )
-    members = () if not party else tuple(
-        NativeGroupMemberObservation(
-            "untrusted name", "", key.object_type, key.object_uuid,
-            100, 100, 100, 0, 0, 0, 0, False,
-        ) for key in (local, TARGET)
+    members = (
+        ()
+        if not party
+        else tuple(
+            NativeGroupMemberObservation(
+                "untrusted name",
+                "",
+                key.object_type,
+                key.object_uuid,
+                100,
+                100,
+                100,
+                0,
+                0,
+                0,
+                0,
+                False,
+            )
+            for key in (local, TARGET)
+        )
     )
     authority = build_native_party_authority_snapshot(
-        population, NativeGroupObservation(False, False, members),
-        revision=1, party_group_id="party",
+        population,
+        NativeGroupObservation(False, False, members),
+        revision=1,
+        party_group_id="party",
     )
     return PvEObservation(
-        now, NativeTargetHealthObservation(False),
+        now,
+        NativeTargetHealthObservation(False),
         NativePlayerVitalsObservation(100, 100, 100, 100, 100, 100),
         player_position=NativePlayerPositionObservation(0, 0, 0),
         target_position=NativeTargetPositionObservation(False),
-        population=population, authority_snapshot=authority,
+        population=population,
+        authority_snapshot=authority,
         player_action=NativePlayerActionObservation(
-            NativeTargetActionPhase.IDLE, False, 0, False, None, 0, 0, None, None,
-            mode=1, action_state=1,
+            NativeTargetActionPhase.IDLE,
+            False,
+            0,
+            False,
+            None,
+            0,
+            0,
+            None,
+            None,
+            mode=1,
+            action_state=1,
         ),
     )
 
@@ -104,13 +136,27 @@ def frame(now=0, *, dead=False, absent=False, party=False, lt=5, local=LOCAL):
 @pytest.fixture
 def encounter(tmp_path, monkeypatch):
     store = store_at(tmp_path)
-    command = fixture()
-    command = replace(command, binding=replace(command.binding, revision=1))
+    template = fixture(action=Action.ATTACK)
     grant = NativeMovementGrant(
-        NativeClientProcessIdentity(command.binding.client_pid, command.binding.client_creation),
-        command.window, command.grant, command.host, "acquisition",
+        NativeClientProcessIdentity(template.binding.client_pid, template.binding.client_creation),
+        template.window,
+        template.grant,
+        template.host,
+        "acquisition",
     )
-    events, calls, tickets = [], [], []
+    events, calls, commands, tickets = [], [], [], []
+    state = SimpleNamespace(
+        failure=None,
+        register_failure=None,
+        stop_pending=False,
+        response=None,
+        native_detail=None,
+        unavailable=False,
+        mode=2,
+        action_state=1,
+        close_on_status=False,
+    )
+    current = SimpleNamespace(failure=False)
 
     class Ticket:
         def revoke(self, **kwargs):
@@ -120,60 +166,149 @@ def encounter(tmp_path, monkeypatch):
             events.append("close")
 
     def register(entry_id, **kwargs):
+        if state.register_failure:
+            raise state.register_failure
         assert entry_id == entry().entry_id
         assert kwargs["expected_revision"] == store.snapshot().revision
-        assert kwargs["grant"] is grant.ownership
-        assert kwargs["local_key"] == LOCAL
+        assert kwargs["grant"] is grant.ownership and kwargs["local_key"] == LOCAL
         ticket = Ticket()
         tickets.append(ticket)
         events.append("register")
-        return ticket, command
+        binding = replace(
+            template.binding, revision=store.snapshot().revision, engagement=kwargs["engagement"]
+        )
+        return ticket, binding
 
-    monkeypatch.setattr(store, "register_combat_admission", register)
+    monkeypatch.setattr(store, "register_combat_engagement", register)
 
-    def for_command(value):
-        return replace(value, revision=command.binding.revision,
-                       binding_digest=hashlib.sha256(command.binding.encode()).digest())
+    def register_npc(**kwargs):
+        ticket = Ticket()
+        tickets.append(ticket)
+        events.append("register_npc")
+        binding = replace(
+            fixture(Authority.NPC).binding,
+            engagement=kwargs["engagement"],
+            target_key=(kwargs["target_key"].object_type, kwargs["target_key"].object_uuid),
+            owner=kwargs["owner_digest"],
+        )
+        return ticket, binding
 
-    state = SimpleNamespace(failure=None, pause_failure=None, unavailable=False, native_detail=None,
-                            reply=for_command(receipt()))
-
-    def require_combat_available(owner):
-        assert owner is grant
-        if state.unavailable:
-            raise NativeActionChannelUnavailable("combat capability absent")
-
-    def pause(owner, request):
-        assert owner is grant and request
-        events.append("pause")
-        if state.pause_failure:
-            raise state.pause_failure
-
-    def combat(owner, verb, payload):
-        assert owner is grant and payload is command
-        calls.append(verb)
-        events.append(verb.name.lower())
-        if state.failure:
-            raise state.failure
-        return NativeCombatResult(state.reply, state.native_detail)
-
-    current = SimpleNamespace(failure=False)
+    monkeypatch.setattr(fences, "create_npc_engagement", register_npc)
 
     def require_current():
         if current.failure:
             raise RuntimeError("character changed")
 
-    coordinator = ListedCombatCoordinator(
-        store=store, session=SimpleNamespace(combat=combat, pause=pause,
-                                             require_combat_available=require_combat_available),
-        grant=grant,
-        require_current=require_current,
+    def require_available(owner):
+        assert owner is grant
+        if state.unavailable:
+            raise NativeActionChannelUnavailable("object combat capability absent")
+
+    def reply(command, verb):
+        mode = state.response
+        if (
+            state.close_on_status
+            and verb is Verb.ENGAGEMENT_STATUS
+            and command.binding.authority is Authority.MANUAL_PLAYER
+        ):
+            mode = "closed"
+        control = command.action is Action.NONE
+        phase, closure = Phase.BOUND, ClosureProof.NONE
+        outcome = Outcome.OBSERVED if control else Outcome.CLIENT_OUTBOUND_QUEUED
+        entered = EntryState.UNKNOWN if control else EntryState.ENTERED
+        flags = CLEANUP_REQUIRED | (0 if control else OUTBOUND_QUEUED)
+        if mode == "blocked" or (verb is Verb.STOP_ENGAGEMENT and state.stop_pending):
+            phase, outcome = Phase.BLOCKED, Outcome.UNAVAILABLE
+            entered, flags = EntryState.UNKNOWN, CLEANUP_REQUIRED
+        elif mode in ("closed", "retired") or verb is Verb.STOP_ENGAGEMENT:
+            phase = Phase.RETIRED if mode == "retired" else Phase.CLOSED
+            closure = (
+                ClosureProof.SCENE_RETIRED if mode == "retired" else ClosureProof.NATIVE_STOPPED
+            )
+            flags = 0 if control else OUTBOUND_QUEUED
+            outcome = Outcome.ENGAGEMENT_CLOSED if control else Outcome.CLIENT_OUTBOUND_QUEUED
+        binding = command.binding
+        result = Receipt(
+            command.request,
+            command.host,
+            command.window,
+            outcome,
+            flags,
+            command.grant,
+            binding.revision,
+            binding.local_key,
+            binding.target_key,
+            phase,
+            state.mode,
+            state.action_state,
+            phase is Phase.BOUND,
+            binding.digest,
+            binding.authority,
+            command.action,
+            command.power_id,
+            binding.engagement,
+            entered,
+            verb,
+            closure,
+        )
+        result.encode()
+        return result
+
+    def combat(owner, verb, command):
+        assert owner is grant
+        calls.append(verb)
+        commands.append(command)
+        events.append(verb.name.lower())
+        if state.failure:
+            raise state.failure
+        return NativeCombatResult(reply(command, verb), state.native_detail)
+
+    def pause(*args):
+        raise AssertionError("listed admission must not pause an otherwise idle actor")
+
+    ordinals = Ordinals()
+    session = SimpleNamespace(
+        combat=combat,
+        pause=pause,
+        require_combat_available=require_available,
+        combat_ordinals=lambda owner: ordinals,
     )
-    cancelled = for_command(replace(receipt(), outcome=Outcome.LOCAL_CANCELLED,
-                                    flags=LOCAL_CANCELLED, phase=Phase.IDLE))
-    return SimpleNamespace(store=store, coordinator=coordinator, state=state,
-                           current=current, calls=calls, events=events, tickets=tickets,
-                           cancelled=cancelled, command=command)
+    character_session = SimpleNamespace(
+        require_current=require_current,
+        binding=SimpleNamespace(
+            object_key=LOCAL,
+            identity=SimpleNamespace(character_name=OWNER.character, server_name=OWNER.server),
+        ),
+    )
+    population = SimpleNamespace(
+        resolve_combat_addresses=lambda **kwargs: (
+            template.binding.actor_address_hint,
+            template.binding.target_address_hint,
+        )
+    )
+    shared = NativeCombatCoordinator(
+        session=session,
+        grant=grant,
+        population=population,
+        character_session=character_session,
+        store=store,
+    )
+    coordinator = ListedCombatCoordinator(
+        store=store, combat=shared, require_current=require_current
+    )
+    return SimpleNamespace(
+        store=store,
+        coordinator=coordinator,
+        combat=shared,
+        session=session,
+        state=state,
+        current=current,
+        calls=calls,
+        commands=commands,
+        events=events,
+        tickets=tickets,
+        command=template,
+    )
 
 
 def start(encounter):
@@ -183,9 +318,22 @@ def start(encounter):
     return update
 
 
-@pytest.mark.parametrize("case", ["response", "other_server", "dead", "absent", "party",
-                                  "unknown_party", "outside_camp", "wrong_kind", "missing_key",
-                                  "contradictory_kind", "nonattackable"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "response",
+        "other_server",
+        "dead",
+        "absent",
+        "party",
+        "unknown_party",
+        "outside_camp",
+        "wrong_kind",
+        "missing_key",
+        "contradictory_kind",
+        "nonattackable",
+    ],
+)
 def test_resolver_rejects_unqualified_intent_or_current_identity(encounter, case):
     saved, observation, camp = encounter.store.snapshot(), frame(), None
     if case in ("response", "other_server"):
@@ -199,24 +347,42 @@ def test_resolver_rejects_unqualified_intent_or_current_identity(encounter, case
     elif case in ("dead", "absent", "party"):
         observation = frame(**{case: True})
     elif case == "unknown_party":
-        observation = replace(observation, authority_snapshot=replace(
-            observation.authority_snapshot, party_complete=False,
-        ))
+        observation = replace(
+            observation,
+            authority_snapshot=replace(
+                observation.authority_snapshot,
+                party_complete=False,
+            ),
+        )
     elif case == "outside_camp":
         camp = PvECampLease(0, 0, 4, 1)
     elif case in ("contradictory_kind", "nonattackable"):
         authority = observation.authority_snapshot
-        changed = replace(authority.characters[0], **(
-            {"character_kind": PvETargetCharacterKind.NPC}
-            if case == "contradictory_kind" else {"attackable": False}
-        ))
-        observation = replace(observation, authority_snapshot=replace(
-            authority, characters=(changed,),
-        ))
+        changed = replace(
+            authority.characters[0],
+            **(
+                {"character_kind": PvETargetCharacterKind.NPC}
+                if case == "contradictory_kind"
+                else {"attackable": False}
+            ),
+        )
+        observation = replace(
+            observation,
+            authority_snapshot=replace(
+                authority,
+                characters=(changed,),
+            ),
+        )
     else:
         character = observation.population.characters[0]
-        character = replace(character, **({"character_kind": NativeCharacterKind.NPC}
-                                          if case == "wrong_kind" else {"object_key": None}))
+        character = replace(
+            character,
+            **(
+                {"character_kind": NativeCharacterKind.NPC}
+                if case == "wrong_kind"
+                else {"object_key": None}
+            ),
+        )
         population = replace(observation.population, characters=(character,))
         # Missing exact keys cannot form the coherent authority frame at all.
         if case == "missing_key":
@@ -227,30 +393,39 @@ def test_resolver_rejects_unqualified_intent_or_current_identity(encounter, case
 
 
 def test_exact_key_candidate_does_not_interpret_opaque_token_or_use_observed_name(encounter):
-    candidate, = listed_targets(encounter.store.snapshot(), OWNER, frame(), None)
+    (candidate,) = listed_targets(encounter.store.snapshot(), OWNER, frame(), None)
     assert candidate.character.object_key == TARGET
     assert candidate.character.token == "opaque-player-token"
     assert candidate.entry.player_identity.name == "Enemy"
 
 
-def test_uncertain_start_revokes_then_cancels_same_command_without_retry(encounter):
-    encounter.state.failure = NativeActionChannelTimeout("unknown entry")
+def test_initial_listed_action_is_one_explicit_submit_without_pause(encounter):
     update = start(encounter)
-    assert not update.recovered
-    assert encounter.calls == [Verb.START]
+    assert encounter.calls == [Verb.SUBMIT]
+    assert encounter.events == ["register", "submit"]
+    assert update.receipt.flags & OUTBOUND_QUEUED
+    assert encounter.commands[0].binding.target_key == (TARGET.object_type, TARGET.object_uuid)
+
+
+def test_unknown_submission_polls_exact_action_without_resubmission(encounter):
+    encounter.state.failure = NativeActionChannelTimeout("unknown native entry")
+    assert not start(encounter).recovered
+    original = encounter.commands[0]
     encounter.state.failure = None
-    encounter.state.reply = encounter.cancelled
     assert encounter.coordinator.prepare(frame(100), None)
     update = encounter.coordinator.advance(frame(100))
-    assert update.recovered and not encounter.coordinator.active
-    assert encounter.events == ["pause", "register", "start", "revoke", "cancel", "close"]
-    assert len(encounter.tickets) == 1
-    assert not encounter.coordinator.prepare(frame(200), None)
+    assert update.receipt.flags & OUTBOUND_QUEUED
+    assert encounter.calls == [Verb.SUBMIT, Verb.ACTION_STATUS]
+    assert encounter.commands[1] is original and len(encounter.tickets) == 1
+    assert encounter.coordinator.finish("operator stop").recovered
+    assert encounter.calls[-1] is Verb.STOP_ENGAGEMENT
+    assert encounter.events[-3:] == ["revoke", "stop_engagement", "close"]
 
 
-@pytest.mark.parametrize("invalidation", ["list_edit", "party", "dead", "absent",
-                                          "camp", "identity", "timeout"])
-def test_active_invalidation_keeps_ticket_until_native_cleanup(encounter, invalidation):
+@pytest.mark.parametrize(
+    "invalidation", ["list_edit", "party", "dead", "absent", "camp", "identity", "local", "timeout"]
+)
+def test_invalidation_revokes_shared_ticket_before_cleanup(encounter, invalidation):
     start(encounter)
     observation, camp = frame(100), None
     if invalidation == "list_edit":
@@ -259,203 +434,142 @@ def test_active_invalidation_keeps_ticket_until_native_cleanup(encounter, invali
         observation = frame(100, **{invalidation: True})
     elif invalidation == "camp":
         camp = PvECampLease(0, 0, 4, 1)
+    elif invalidation == "local":
+        observation = frame(100, local=NativeObjectKey(91, 99))
     elif invalidation == "identity":
         encounter.current.failure = True
     else:
         observation = frame(30_000)
-    encounter.state.reply = replace(encounter.state.reply, outcome=Outcome.PENDING,
-                                    phase=Phase.CANCELLING)
+    encounter.state.stop_pending = True
     assert encounter.coordinator.prepare(observation, camp)
     update = encounter.coordinator.advance(observation)
     assert not update.recovered and encounter.coordinator.active
     assert "close" not in encounter.events
-    assert encounter.calls == [Verb.START, Verb.CANCEL]
-    encounter.state.reply = encounter.cancelled
-    update = encounter.coordinator.finish("run stopped")
-    assert update.recovered and not encounter.coordinator.active
+    assert encounter.events[-2:] == ["revoke", "stop_engagement"]
+    encounter.state.stop_pending = False
+    assert encounter.coordinator.finish("stop").recovered
+    assert not encounter.combat.active and not encounter.coordinator.active
 
 
-def test_unknown_native_status_cannot_resume_or_release_ticket(encounter):
+def test_unknown_status_cannot_release_shared_ticket(encounter):
     start(encounter)
-    encounter.state.reply = replace(encounter.state.reply, outcome=Outcome.UNAVAILABLE,
-                                    phase=Phase.BLOCKED)
-    encounter.coordinator.prepare(frame(100), None)
+    encounter.state.response = "blocked"
     assert not encounter.coordinator.advance(frame(100)).recovered
     update = encounter.coordinator.finish("stop")
     assert update.terminal_reason == "listed_combat_cleanup_unconfirmed"
-    assert encounter.coordinator.active and "close" not in encounter.events
-    assert encounter.calls == [Verb.START, Verb.STATUS, Verb.CANCEL, Verb.CANCEL, Verb.CANCEL]
+    assert encounter.coordinator.active and encounter.combat.active
+    assert "close" not in encounter.events
 
 
-def test_scene_retirement_releases_old_ticket_but_never_resumes_same_run(encounter):
+def test_actual_scene_retirement_terminates_instead_of_resuming(encounter):
     start(encounter)
-    encounter.state.reply = replace(encounter.state.reply, outcome=Outcome.STALE,
-                                    flags=0, phase=Phase.RETIRED)
-    encounter.coordinator.prepare(frame(100), None)
-    update = encounter.coordinator.advance(frame(100))
+    encounter.state.response = "retired"
+    encounter.coordinator.advance(frame(100))
+    update = encounter.coordinator.advance(frame(200))
     assert update.terminal_reason == "listed_combat_scene_retired"
-    assert not update.recovered and not encounter.coordinator.active
+    assert not update.recovered and not encounter.combat.active
 
 
-def test_inactive_failed_prepare_discards_previous_provisional_candidate(encounter):
+def test_prepare_failure_discards_unadmitted_candidate(encounter):
     assert encounter.coordinator.prepare(frame(), None)
     encounter.current.failure = True
     with pytest.raises(RuntimeError, match="character changed"):
         encounter.coordinator.prepare(frame(100), None)
     encounter.current.failure = False
-    with pytest.raises(RuntimeError, match="prepared intent"):
+    with pytest.raises(RuntimeError, match="prepared"):
         encounter.coordinator.advance(frame(100))
-    assert not encounter.calls and not encounter.tickets
+    assert not encounter.commands and not encounter.tickets
 
 
-def run_public(
-    encounter, *, safety_stop=False, recover=False, interrupt=False, depleted=None, trace_sink=None,
-):
-    stop = EventEmergencyStop()
-    state = SimpleNamespace(now=0.0, dispatched=[])
-    original = encounter.coordinator.session.combat
-
-    def combat(grant, verb, command):
-        if verb is Verb.CANCEL or (recover and verb is Verb.STATUS):
-            encounter.state.reply = encounter.cancelled
-        return original(grant, verb, command)
-
-    encounter.coordinator.session.combat = combat
-
-    def observed():
-        observation = frame(round(state.now * 1000))
-        if safety_stop and state.now >= 0.1:
-            observation = replace(observation, player=replace(observation.player, current_health=1))
-        if depleted is not None and 0.1 <= state.now < 0.4:
-            observation = replace(observation, player=replace(observation.player, **{depleted: 60}))
-        return observation
-
-    class Reader:
-        process_id = encounter.command.binding.client_pid
-
-        def __init__(self, field):
-            self.field = field
-
-        def observe(self):
-            return getattr(observed(), self.field)
-
-        def observe_player(self):
-            return self.observe()
-
-    class GroupReader:
-        process_id = encounter.command.binding.client_pid
-
-        def observe(self):
-            return NativeGroupObservation(False, False, ())
-
-    class Dispatcher:
-        def dispatch(self, intent, *, sequence):
-            # Recovery is allowed only after the immutable transaction is closed.
-            assert not encounter.coordinator.active
-            assert "close" in encounter.events
-            state.dispatched.append(intent)
-            stop.trip()
-            return DispatchResult("test", str(sequence), True)
-
-    def sleep(seconds):
-        state.now += seconds
-        if interrupt:
-            raise KeyboardInterrupt()
-        if state.now >= 0.3 and not recover:
-            stop.trip()
-        assert state.now < 1, "runner did not terminate"
-
-    runner = PvERunner(
-        controller=PvEController(PvEControllerConfig(
-            minimum_recovery_health_fraction=0.9, minimum_recovery_mana_fraction=0.9,
-            minimum_recovery_stamina_fraction=0.9,
-        )),
-        health_reader=Reader("target"), player_vitals_reader=Reader("player"),
-        player_action_reader=Reader("player_action"),
-        player_position_reader=Reader("player_position"),
-        target_position_reader=Reader("target_position"), population_reader=Reader("population"),
-        group_reader=GroupReader(), party_group_id="party",
-        dispatcher=Dispatcher(), stop_signal=stop, listed_combat=encounter.coordinator,
-        clock=lambda: state.now, sleeper=sleep,
-        trace_sink=trace_sink,
-    )
-    return runner, state
+def test_admission_failure_preserves_bounded_error_and_requires_shared_cleanup(encounter):
+    encounter.state.register_failure = ValueError("race\n" + "x" * 300)
+    assert encounter.coordinator.prepare(frame(), None)
+    with pytest.raises(ListedCombatInterruptionError) as caught:
+        encounter.coordinator.advance(frame())
+    assert caught.value.stage == "native_admission"
+    assert caught.value.cause_type == "ValueError"
+    assert "\n" not in str(caught.value) and len(caught.value.cause_detail) == 160
+    assert not encounter.commands and not encounter.tickets
+    assert encounter.coordinator.finish("admission failure").recovered
 
 
-@pytest.mark.parametrize("safety_stop", [False, True])
-def test_public_runner_stop_holds_ordinary_input_and_confirms_cleanup_in_trace(
-    encounter, safety_stop,
-):
-    runner, state = run_public(encounter, safety_stop=safety_stop)
-    result = runner.run()
-    assert result.terminal_reason == (
-        "player_health_safety_threshold" if safety_stop else "emergency_stop"
-    )
-    assert result.kills == 0 and not state.dispatched
-    assert encounter.calls[0] is Verb.START and encounter.calls[-1] is Verb.CANCEL
-    assert not encounter.coordinator.active
-    assert result.trace[-1].as_dict()["listed_combat"]["cleanup_confirmed"]
+@pytest.mark.parametrize("detail", [None, "combat_v2:rejected", "combat_v2:cleanup_confirmed"])
+def test_diagnostic_text_cannot_override_correlated_state(encounter, detail):
+    encounter.state.native_detail = detail
+    update = start(encounter)
+    assert update.native_detail == detail and not update.recovered
+    assert update.receipt.phase is Phase.BOUND
+    encounter.state.response = "blocked"
+    stopped = encounter.coordinator.finish("stop")
+    assert stopped.terminal_reason == "listed_combat_cleanup_unconfirmed"
+    assert not stopped.recovered and encounter.coordinator.active
 
 
-def test_public_runner_recovers_on_fresh_frame_after_confirmed_local_cancellation(encounter):
-    runner, state = run_public(encounter, recover=True)
-    result = runner.run()
-    assert result.terminal_reason == "emergency_stop" and result.kills == 0
-    assert len(state.dispatched) == 1
-    assert encounter.calls == [Verb.START, Verb.STATUS]
-    listed = [step for step in result.trace if step.listed_combat is not None]
-    assert listed[-1].listed_combat.recovered
-    assert listed[-1].decision.now_ms < next(
-        step.decision.now_ms for step in result.trace if step.input_accepted
-    )
+def test_transport_failure_does_not_replay_old_diagnostic(encounter):
+    encounter.state.native_detail = "native queue admitted"
+    start(encounter)
+    encounter.state.failure = NativeActionChannelTimeout("ambiguous status")
+    update = encounter.coordinator.advance(frame(100))
+    assert update.receipt is None
+    assert update.native_detail != "native queue admitted"
+    assert not update.recovered and encounter.coordinator.active
 
 
-def test_public_runner_unwind_cancels_before_outer_session_can_close(encounter):
-    runner, _ = run_public(encounter, interrupt=True)
-    with pytest.raises(KeyboardInterrupt):
-        runner.run()
-    assert encounter.calls == [Verb.START, Verb.CANCEL]
-    assert not encounter.coordinator.active and encounter.events[-1] == "close"
+def test_ticket_release_failure_preserves_native_closure_but_not_local_recovery(encounter):
+    start(encounter)
+
+    def failed_close(**kwargs):
+        raise OSError("ticket close unavailable")
+
+    encounter.tickets[0].close = failed_close
+    update = encounter.coordinator.finish("stop")
+    assert update.receipt.cleanup_confirmed
+    assert not update.recovered and encounter.coordinator.active
+    assert update.terminal_reason == "listed_combat_cleanup_unconfirmed"
 
 
-@pytest.mark.parametrize("failure", [NativeActionChannelTimeout("pause unknown"),
-                                     RuntimeError("owner revoked")])
-def test_unconfirmed_pause_terminates_without_admission_retry_or_ordinary_input(encounter, failure):
-    encounter.state.pause_failure = failure
-    runner, state = run_public(encounter)
-    result = runner.run()
-    assert "ListedCombatInterruptionError" in result.terminal_reason
-    assert encounter.events == ["pause"]
-    assert not state.dispatched and not encounter.calls and not encounter.tickets
-    assert state.now == 0
-
-
-def test_missing_combat_capability_terminates_before_pause_or_registration(encounter):
+def test_unavailable_capability_fails_before_authority_registration(encounter):
     encounter.state.unavailable = True
-    runner, state = run_public(encounter)
-    result = runner.run()
-    assert "ListedCombatInterruptionError" in result.terminal_reason
-    assert not encounter.events and not encounter.calls and not encounter.tickets
-    assert not state.dispatched and state.now == 0
+    with pytest.raises(NativeActionChannelUnavailable):
+        NativeCombatCoordinator(
+            session=encounter.session,
+            grant=encounter.combat.grant,
+            population=encounter.combat.population,
+            character_session=encounter.combat.character_session,
+            store=encounter.store,
+        )
+    assert not encounter.tickets and not encounter.commands
 
 
-@pytest.mark.parametrize("depleted", ["current_health", "current_mana", "current_stamina"])
-def test_public_runner_waits_for_resource_recovery_after_confirmed_cleanup(encounter, depleted):
-    runner, state = run_public(encounter, recover=True, depleted=depleted)
-    result = runner.run()
-    assert result.kills == 0 and len(state.dispatched) == 1
-    assert encounter.calls == [Verb.START, Verb.STATUS]
-    waiting = [step for step in result.trace if step.decision.phase is PvEPhase.RECOVERING]
-    assert waiting and all(step.decision.intent is None for step in waiting)
-    assert next(step.decision.now_ms for step in result.trace if step.input_accepted) >= 500
+def test_rejected_revision_is_quarantined_until_absence_or_new_saved_revision(encounter):
+    start(encounter)
+    encounter.coordinator.finish("done")
+    assert not encounter.coordinator.prepare(frame(100), None)
+    assert not encounter.coordinator.prepare(frame(200, absent=True), None)
+    assert encounter.coordinator.prepare(frame(300), None)
+
+
+def test_unknown_trace_fields_remain_unknown():
+    update = ListedCombatUpdate("unknown", None).as_dict()
+    assert all(
+        update[name] is None
+        for name in ("flags", "outbound_queued", "mode", "action_state", "combat_target_present")
+    )
+    assert not update["cleanup_confirmed"]
 
 
 def test_external_recovery_gates_list_admission_through_resources_and_complete_camp_return():
-    controller = PvEController(PvEControllerConfig(
-        continuous=True, camp_radius=100, camp_return_radius=10, camp_return_trigger_radius=20,
-        minimum_recovery_health_fraction=0.9, minimum_recovery_mana_fraction=0.9,
-        minimum_recovery_stamina_fraction=0.9,
-    ))
+    controller = PvEController(
+        PvEControllerConfig(
+            continuous=True,
+            camp_radius=100,
+            camp_return_radius=10,
+            camp_return_trigger_radius=20,
+            minimum_recovery_health_fraction=0.9,
+            minimum_recovery_mana_fraction=0.9,
+            minimum_recovery_stamina_fraction=0.9,
+        )
+    )
     controller.step(frame(), external_combat=True)
     displaced = replace(frame(100), player_position=NativePlayerPositionObservation(40, 0, 0))
     controller.resume_after_external_combat(displaced)
@@ -476,150 +590,162 @@ def test_external_recovery_gates_list_admission_through_resources_and_complete_c
     assert controller.kills == 0
 
 
-@pytest.mark.parametrize("queued", [False, True])
-def test_public_trace_preserves_outbound_history_after_immediate_start_cleanup(
-    encounter, queued, tmp_path,
-):
-    encounter.state.native_detail = "combat_v1:entry:local_cancelled:d1n1q1f0"
-    encounter.state.reply = replace(
-        encounter.cancelled, flags=LOCAL_CANCELLED | (OUTBOUND_QUEUED if queued else 0),
-        mode=1, action_state=1, combat_target_present=False,
+def public_runner(encounter, *, observation=frame, after_sleep=None, config=None, journal=None):
+    """Exercise public coherent-reader composition and the real native owner."""
+    clock = SimpleNamespace(now=0.0)
+    stop = EventEmergencyStop()
+    controller = PvEController(config or PvEControllerConfig(continuous=True, camp_radius=100))
+
+    def current():
+        return observation(round(clock.now * 1000))
+
+    def source(field):
+        return SimpleNamespace(process_id=1234, observe=lambda: getattr(current(), field))
+
+    def sleep(seconds):
+        clock.now += seconds
+        if after_sleep is not None:
+            after_sleep(round(clock.now * 1000), stop)
+        if clock.now >= 1.0:
+            stop.trip()
+
+    runner = PvERunner(
+        controller=controller,
+        health_reader=source("target"),
+        player_vitals_reader=source("player"),
+        player_position_reader=source("player_position"),
+        target_position_reader=source("target_position"),
+        population_reader=source("population"),
+        group_reader=SimpleNamespace(
+            process_id=1234, observe=lambda: NativeGroupObservation(False, False, ())
+        ),
+        party_group_id="party",
+        player_action_reader=SimpleNamespace(
+            process_id=1234, observe_player=lambda: current().player_action
+        ),
+        dispatcher=encounter.combat,
+        combat_cleanup=encounter.combat,
+        listed_combat=encounter.coordinator,
+        stop_signal=stop,
+        clock=lambda: clock.now,
+        sleeper=sleep,
+        poll_interval_ms=100,
+        trace_sink=None if journal is None else journal.append,
     )
-    # A locally cancelled START may still have appended an outbound request.
-    # Its final outcome alone cannot answer that question.
-    encounter.state.reply.encode()
-    journal_path = tmp_path / "combat.jsonl"
-    with PvETraceJournal(journal_path, {}, sync_interval_steps=1) as journal:
-        runner, _ = run_public(encounter, recover=True, trace_sink=pve_trace_sink(journal, None))
-        result = runner.run()
-    update, = [step.as_dict()["listed_combat"] for step in result.trace
-               if step.listed_combat is not None]
-    assert encounter.calls == [Verb.START]
-    assert update["outcome"] == "local_cancelled"
-    assert update["flags"] == encounter.state.reply.flags
-    assert update["outbound_queued"] is queued
-    assert update["mode"] == 1 and update["action_state"] == 1
-    assert update["combat_target_present"] is False
-    assert update["cleanup_confirmed"] and update["recovered"]
-    assert update["native_detail"] == encounter.state.native_detail
-    journal_updates = [row["step"]["listed_combat"]
-                       for row in map(json.loads, journal_path.read_text().splitlines())
-                       if row["record_type"] == "pve_trace_step"
-                       and row["step"]["listed_combat"] is not None]
-    assert journal_updates == [update]
+    return runner, controller
 
 
-def test_trace_keeps_unknown_native_state_distinct_from_unqueued_idle_state():
-    update = ListedCombatUpdate("transport_unknown", "request").as_dict()
-    for field in ("flags", "outbound_queued", "mode", "action_state", "combat_target_present",
-                  "native_detail"):
-        assert update[field] is None
-    assert not update["cleanup_confirmed"]
+@pytest.mark.parametrize("cause", ["operator", "low_health"])
+def test_public_runner_terminal_cleanup_uses_shared_owner(encounter, cause):
+    def observe(now):
+        result = frame(now)
+        if cause == "low_health" and now >= 100:
+            result = replace(result, player=replace(result.player, current_health=1))
+        return result
 
+    def sleep(now, stop):
+        if cause == "operator" and now >= 100:
+            stop.trip()
 
-def test_engaged_trace_reports_observed_native_state(encounter):
-    encounter.state.reply = replace(encounter.state.reply, mode=2, action_state=7)
-    update = start(encounter).as_dict()
-    assert update["outbound_queued"] is True
-    assert update["flags"] == encounter.state.reply.flags
-    assert update["mode"] == 2 and update["action_state"] == 7
-    assert update["combat_target_present"] is True
-    assert not update["cleanup_confirmed"]
-
-
-@pytest.mark.parametrize("stage", ["combat_availability", "pause", "admission_registration"])
-@pytest.mark.parametrize("with_receipt", [False, True])
-def test_interruption_preserves_native_movement_rejection_and_failed_boundary(
-    encounter, monkeypatch, stage, with_receipt,
-):
-    command = encounter.command
-    native_receipt = MovementReceipt(
-        command.grant, "11111111-1111-4111-8111-111111111111", command.host,
-        command.window, 1, Settings(), MovementOutcome.STOP_FAILED, 3,
-    ) if with_receipt else None
-    failure = NativeMovementError(MovementOutcome.STOP_FAILED, native_receipt)
-
-    def reject(*args, **kwargs):
-        raise failure
-
-    target, method = {
-        "combat_availability": (encounter.coordinator.session, "require_combat_available"),
-        "pause": (encounter.coordinator.session, "pause"),
-        "admission_registration": (encounter.store, "register_combat_admission"),
-    }[stage]
-    monkeypatch.setattr(target, method, reject)
-    assert encounter.coordinator.prepare(frame(), None)
-    with pytest.raises(ListedCombatInterruptionError) as caught:
-        encounter.coordinator.advance(frame())
-    error = caught.value
-    assert error.__cause__ is failure
-    assert error.stage == stage
-    assert error.cause_type == "NativeMovementError"
-    assert error.cause_detail == "native movement stop_failed"
-    assert error.movement_outcome is MovementOutcome.STOP_FAILED
-    assert error.movement_receipt is native_receipt
-    assert f"{stage}:NativeMovementError:outcome=stop_failed" in str(error)
-    assert f"receipt={'present' if with_receipt else 'absent'}" in str(error)
-    assert not encounter.calls and not encounter.tickets and not encounter.coordinator.active
-
-
-def test_public_runner_failure_trace_retains_pause_outcome(encounter):
-    encounter.state.pause_failure = NativeMovementError(MovementOutcome.INHIBITED)
-    runner, state = run_public(encounter)
+    runner, _ = public_runner(encounter, observation=observe, after_sleep=sleep)
     result = runner.run()
-    assert "pause:NativeMovementError:outcome=inhibited:receipt=absent" in result.terminal_reason
-    assert not state.dispatched and not encounter.calls and not encounter.tickets
-    assert result.trace[-1].decision.terminal_reason == result.terminal_reason
+    assert result.final_phase is PvEPhase.STOPPED
+    assert result.kills == 0
+    assert encounter.calls == [Verb.SUBMIT, Verb.STOP_ENGAGEMENT]
+    assert encounter.events[-3:] == ["revoke", "stop_engagement", "close"]
+    assert not encounter.combat.active and not encounter.coordinator.active
+    assert result.trace[-1].listed_combat.recovered
+    assert result.trace[-1].listed_combat.receipt.cleanup_confirmed
 
 
-def test_interruption_preserves_bounded_single_line_non_native_cause():
-    error = ListedCombatInterruptionError(
-        "admission_registration", ValueError("race\n" + "x" * 300),
+def test_public_runner_keyboard_interrupt_cleans_before_outer_session_exit(encounter):
+    def interrupt(now, stop):
+        raise KeyboardInterrupt
+
+    runner, _ = public_runner(encounter, after_sleep=interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        try:
+            runner.run()
+        finally:
+            encounter.events.append("outer_session_exit")
+    assert encounter.events[-4:] == ["revoke", "stop_engagement", "close", "outer_session_exit"]
+    assert not encounter.combat.active and not encounter.coordinator.active
+
+
+@pytest.mark.parametrize("resource", ["health", "mana", "stamina"])
+def test_public_recovery_waits_for_fresh_resources_before_native_npc_action(encounter, resource):
+    encounter.state.close_on_status = True
+    npc_key = NativeObjectKey(92, 37)
+
+    def observe(now):
+        result = frame(now)
+        if now >= 200:
+            npc = replace(
+                result.population.characters[0],
+                token="opaque-npc-token",
+                object_key=npc_key,
+                character_kind=NativeCharacterKind.NPC,
+            )
+            result = replace(
+                result,
+                population=replace(result.population, characters=(npc,)),
+                authority_snapshot=None,
+            )
+            if now < 500:
+                result = replace(
+                    result, player=replace(result.player, **{f"current_{resource}": 70})
+                )
+        return result
+
+    journal = []
+    runner, controller = public_runner(
+        encounter,
+        observation=observe,
+        journal=journal,
+        config=PvEControllerConfig(
+            continuous=True,
+            camp_radius=100,
+            minimum_recovery_health_fraction=0.9,
+            minimum_recovery_mana_fraction=0.9,
+            minimum_recovery_stamina_fraction=0.9,
+        ),
     )
-    assert error.cause_type == "ValueError"
-    assert error.cause_detail == "race " + "x" * 155
-    assert "\n" not in str(error)
-    assert error.movement_outcome is None and error.movement_receipt is None
+    result = runner.run()
+    submits = [
+        c for c, v in zip(encounter.commands, encounter.calls, strict=True) if v is Verb.SUBMIT
+    ]
+    assert len(submits) == 2, result.terminal_reason
+    assert submits[0].binding.authority is Authority.MANUAL_PLAYER
+    assert submits[1].binding.authority is Authority.NPC
+    assert submits[0].binding.engagement < submits[1].binding.engagement
+    assert encounter.events.index("close") < encounter.events.index("register_npc")
+    ordinary = [step for step in journal if step.native_combat is not None]
+    assert ordinary and ordinary[0].decision.now_ms >= 600
+    assert ordinary[0].native_combat.receipt.flags & OUTBOUND_QUEUED
+    assert not any(step.native_combat for step in journal if step.decision.now_ms < 500)
+    assert controller.kills == result.kills == 0
+    assert not encounter.combat.active
 
 
-@pytest.mark.parametrize("detail", [None, "native_combat_receipt_v1",
-                                    "combat_v1:selection:native_rejected:d0n0q0f0"])
-def test_native_diagnostic_never_overrides_receipt_or_cleanup_obligation(encounter, detail):
-    encounter.state.native_detail = detail
-    update = start(encounter)
-    assert update.as_dict()["native_detail"] == detail
-    # Even text saying rejection does not override a correlated engaged receipt.
-    assert update.reason == "listed_combat_engaged" and not update.recovered
-    encounter.state.reply = replace(encounter.state.reply, outcome=Outcome.UNAVAILABLE,
-                                    phase=Phase.BLOCKED)
-    encounter.state.native_detail = "combat_v1:cancel:local_cancelled:d1n1q1f0"
-    update = encounter.coordinator.finish("stop")
-    assert update.as_dict()["native_detail"] == encounter.state.native_detail
-    assert update.terminal_reason == "listed_combat_cleanup_unconfirmed"
-    assert not update.recovered and encounter.coordinator.active
-    assert "close" not in encounter.events
+def test_public_journal_preserves_queued_history_and_confirmed_closure(encounter):
+    encounter.state.response = "closed"
+    journal = []
+    runner, _ = public_runner(encounter, journal=journal)
+    runner.run()
+    first = next(step.listed_combat for step in journal if step.listed_combat is not None)
+    assert first.receipt.phase is Phase.CLOSED
+    assert first.receipt.flags & OUTBOUND_QUEUED
+    assert first.as_dict()["outbound_queued"] is True
+    assert any(step.listed_combat and step.listed_combat.recovered for step in journal)
+    assert encounter.calls == [Verb.SUBMIT]
+    assert not encounter.combat.active
 
 
-def test_transport_failure_does_not_replay_prior_native_diagnostic(encounter):
-    encounter.state.native_detail = "combat_v1:entry:queued:d1n1q1f1"
-    assert start(encounter).native_detail == encounter.state.native_detail
-    encounter.state.failure = NativeActionChannelTimeout("ambiguous status")
-    update = encounter.coordinator.advance(frame(100))
-    assert update.native_detail is None and update.receipt is None
-    assert not update.recovered and encounter.coordinator.active
-
-
-def test_native_detail_survives_ticket_release_failure_without_claiming_recovery(encounter):
-    start(encounter)
-    encounter.state.reply = encounter.cancelled
-    encounter.state.native_detail = "combat_v1:cancel:local_cancelled:d0n0q0f0"
-
-    def failed_close(**kwargs):
-        raise OSError("ticket release unavailable")
-
-    encounter.tickets[0].close = failed_close
-    update = encounter.coordinator.finish("stop")
-    assert update.native_detail == encounter.state.native_detail
-    assert not update.recovered and not update.as_dict()["cleanup_confirmed"]
-    assert update.terminal_reason == "listed_combat_cleanup_unconfirmed"
-    assert encounter.coordinator.active
+def test_public_admission_failure_is_terminal_without_ordinary_native_action(encounter):
+    encounter.state.register_failure = ValueError("saved authority changed")
+    runner, _ = public_runner(encounter)
+    result = runner.run()
+    assert result.final_phase is PvEPhase.STOPPED
+    assert "ListedCombatInterruptionError" in result.terminal_reason
+    assert not encounter.commands
+    assert not encounter.combat.active and not encounter.coordinator.active

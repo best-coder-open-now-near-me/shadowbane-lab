@@ -557,6 +557,13 @@ class _FailClosedController(_BasePvEController):
     def acknowledge_cleanup(self, result):
         return self._delegate.acknowledge_cleanup(result)
 
+    @property
+    def pending_combat_proposal(self):
+        return self._delegate.pending_combat_proposal
+
+    def acknowledge_combat(self, proposal, result, *, now_ms: int) -> None:
+        self._delegate.acknowledge_combat(proposal, result, now_ms=now_ms)
+
     def candidate_camp(self, observation: PvEObservation):
         return self._delegate.candidate_camp(observation)
 

@@ -1,22 +1,21 @@
-import json
 import unittest
 from dataclasses import replace
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
-from shadowbane_lab.client_input import (
-    ClientInputAdapter,
-    DecisionInputCompiler,
-    EventEmergencyStop,
-    ForegroundWindowGuard,
-    GuardedInputExecutor,
-    HotkeyInvocation,
-    KeyPressInvocation,
-    RecordingInputBackend,
-    StaticBindingPointResolver,
-    StaticWindowInspector,
-    WindowBounds,
-    WindowSnapshot,
-    load_calibration_text,
+from test_combat_wire_v2 import command as wire_command
+from test_native_combat_coordinator import answer
+
+from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
+from shadowbane_lab.client_extension.combat_fence_v3 import Authority, Ordinals
+from shadowbane_lab.client_extension.combat_wire_v2 import (
+    Action,
+    ClosureProof,
+    Outcome,
+    Phase,
+    Verb,
 )
+from shadowbane_lab.client_extension.movement_session import NativeMovementGrant
 from shadowbane_lab.client_observation import (
     NativeCharacterKind,
     NativeCharacterObservation,
@@ -24,74 +23,22 @@ from shadowbane_lab.client_observation import (
     NativeCombatEvent,
     NativeCombatEventKind,
     NativePlayerActionObservation,
+    NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetActionPhase,
     NativeTargetHealthObservation,
+    NativeTargetPositionObservation,
 )
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.pve import (
-    ClientPvEIntentDispatcher,
     PvEController,
     PvEControllerConfig,
     PvEIntent,
     PvEObservation,
 )
-from shadowbane_lab.pve.model import PvECombatCleanupResult
-
-
-def _profile():
-    return load_calibration_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "profile_id": "smart-pve-dry-run",
-                "live_input_enabled": False,
-                "target": {
-                    "executable_names": ["sb.exe"],
-                    "title_pattern": "^Shadowbane$",
-                    "reference_width": 1920,
-                    "reference_height": 955,
-                    "dpi_scale": 1.0,
-                    "size_tolerance_px": 0,
-                    "dpi_tolerance": 0.01,
-                },
-                "actions": [
-                    {
-                        "action_key": PvEIntent.ACQUIRE_NEXT_MOB.value,
-                        "activation": {"type": "key", "key": ";"},
-                        "target_order": "none",
-                        "post_activation_delay_ms": 0,
-                    },
-                    {
-                        "action_key": PvEIntent.CAST_SHADOW_TOUCH.value,
-                        "activation": {"type": "key", "key": "2"},
-                        "target_order": "none",
-                        "post_activation_delay_ms": 0,
-                    },
-                    {
-                        "action_key": PvEIntent.ATTACK_SELECTED_TARGET.value,
-                        "activation": {"type": "hotkey", "keys": ["ctrl", "a"]},
-                        "target_order": "none",
-                        "post_activation_delay_ms": 0,
-                    },
-                ],
-                "movement": {
-                    "action_key": "shadowbane.move",
-                    "center": {"x": 0.5, "y": 0.5},
-                    "horizontal_radius": 0.25,
-                    "vertical_radius": 0.2,
-                    "button": "left",
-                },
-                "camera": {
-                    "anchor": {"x": 0.5, "y": 0.5},
-                    "maximum_horizontal_delta": 0.2,
-                    "maximum_vertical_delta": 0.15,
-                    "duration_ms": 1000,
-                    "button": "left",
-                },
-            }
-        )
-    )
+from shadowbane_lab.pve.attack_list import AttackListOwner
+from shadowbane_lab.pve.model import PvECombatKind
+from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
 
 
 def _target(token: str, health: float = 180.0) -> NativeTargetHealthObservation:
@@ -128,6 +75,9 @@ def _observation(
     selected = target.target_token
     return PvEObservation(
         now_ms, target, _player(), events,
+        player_position=NativePlayerPositionObservation(100, 200, 10),
+        target_position=(NativeTargetPositionObservation(True, 100, 200, 10, selected)
+                         if selected else NativeTargetPositionObservation(False)),
         player_action=NativePlayerActionObservation(
             phase=NativeTargetActionPhase.WINDUP if action_target else NativeTargetActionPhase.IDLE,
             targeting_selected=selected is not None and selected == action_target,
@@ -145,7 +95,7 @@ def _observation(
 
 
 class SmartPvEClientReplayTests(unittest.TestCase):
-    def test_automatic_engagement_requires_native_action_on_the_exact_selected_object(self) -> None:
+    def test_action_adoption_uses_native_object_not_selection(self) -> None:
         controller = PvEController(PvEControllerConfig(
             accept_automatic_targets=True, automatic_target_requires_active_action=True,
         ))
@@ -157,7 +107,10 @@ class SmartPvEClientReplayTests(unittest.TestCase):
             NativeCombatEventKind.TARGET_KILLED,
             NativeCombatEventKind.PLAYER_KILLED,
         )))
-        ignored = controller.step(_observation(0, _target("mob-1"), *poison))
+        busy_unknown = _observation(0, _target("mob-1"), *poison)
+        busy_unknown = replace(busy_unknown, player_action=replace(
+            busy_unknown.player_action, action_state=4))
+        ignored = controller.step(busy_unknown)
         self.assertIsNone(ignored.tracked_target)
         self.assertIsNone(ignored.intent)
         self.assertFalse(ignored.terminal)
@@ -168,31 +121,48 @@ class SmartPvEClientReplayTests(unittest.TestCase):
             busy.player_action, phase=NativeTargetActionPhase.QUEUED, action_pending=True,
         ))
         self.assertIsNone(controller.step(busy).tracked_target)
-        confirmed = controller.step(_observation(300, _target("mob-1"), action_target="mob-1"))
+        confirmed = controller.step(_observation(300, _target("mob-2"),
+            characters=(_character("mob-1"), _character("mob-2")), action_target="mob-1"))
         self.assertEqual("mob-1", confirmed.tracked_target.token)
-        self.assertIsNone(confirmed.intent)  # Native autoattack already runs; no duplicated input.
+        self.assertIsNone(confirmed.intent)
+        self.assertIs(confirmed.combat_proposal.kind, PvECombatKind.BIND)
+        self.assertTrue(confirmed.combat_proposal.adopted_existing_action)
 
-    def test_replays_native_object_kill_cleanup_next_opener_and_stall_through_guard(self) -> None:
-        profile = _profile()
-        snapshot = WindowSnapshot(
-            executable_name="sb.exe",
-            title="Shadowbane",
-            client_bounds=WindowBounds(0, 0, 1920, 955),
-            dpi_scale=1.0,
-            is_foreground=True,
-            is_visible=True,
-        )
-        backend = RecordingInputBackend()
-        adapter = ClientInputAdapter(
-            DecisionInputCompiler(profile, StaticBindingPointResolver()),
-            GuardedInputExecutor(
-                guard=ForegroundWindowGuard(profile, StaticWindowInspector(snapshot)),
-                backend=backend,
-                stop_signal=EventEmergencyStop(),
-                minimum_input_interval_ms=0,
-            ),
-        )
-        dispatcher = ClientPvEIntentDispatcher(adapter)
+    def test_replays_native_kill_cleanup_next_opener_and_stall_through_coordinator(self) -> None:
+        command = wire_command(Authority.NPC)
+        session = Mock()
+        session.combat_ordinals.return_value = Ordinals()
+        grant = NativeMovementGrant(NativeClientProcessIdentity(
+            command.binding.client_pid, command.binding.client_creation),
+            command.window, command.grant, command.host, "replay")
+        population = Mock()
+        population.resolve_combat_addresses.side_effect = lambda **kw: (
+            0x12300000, 0x12400000 + kw["target_key"].object_type * 256)
+        identity = Mock()
+        identity.binding = SimpleNamespace(object_key=NativeObjectKey(1, 53),
+            identity=SimpleNamespace(character_name="Local", server_name="Server"))
+        commands = []
+
+        def respond(owned, verb, submitted):
+            self.assertIs(owned, grant)
+            submitted.require_verb(verb)
+            submitted.encode()
+            commands.append((verb, submitted))
+            receipt = answer(submitted, verb, **({
+                "outcome": Outcome.ENGAGEMENT_CLOSED, "phase": Phase.CLOSED,
+                "closure": ClosureProof.NATIVE_STOPPED, "queued": False,
+            } if verb is Verb.STOP_ENGAGEMENT else {}))
+            return SimpleNamespace(receipt=receipt, native_detail="replay:correlated")
+
+        session.combat.side_effect = respond
+        coordinator = NativeCombatCoordinator(session=session, grant=grant, population=population,
+            character_session=identity,
+            store=SimpleNamespace(owner=AttackListOwner("Server", "Local")))
+        # Only the OS ticket is replaced. The real coordinator builds complete
+        # bindings/commands and verifies correlated receipts and cleanup proof.
+        ticket_factory = patch("shadowbane_lab.client_extension.combat_fence_windows.Ticket")
+        tickets = ticket_factory.start()
+        self.addCleanup(ticket_factory.stop)
         controller = PvEController(
             PvEControllerConfig(
                 maximum_kills=2,
@@ -243,31 +213,29 @@ class SmartPvEClientReplayTests(unittest.TestCase):
             decision = controller.step(observation)
             decisions.append(decision)
             if decision.cleanup_request is not None:
-                self.assertIsNone(decision.intent)
-                controller.acknowledge_cleanup(PvECombatCleanupResult(
-                    decision.cleanup_request, True,
-                    request_key="00000000-0000-0000-0000-000000000001",
-                ))
-            if decision.intent is not None:
-                result = dispatcher.dispatch(
-                    decision.intent,
-                    sequence=decision.decision_id,
-                )
-                self.assertTrue(result.accepted)
+                self.assertIsNone(decision.combat_proposal)
+                cleanup = coordinator.cleanup(decision.cleanup_request)
+                self.assertTrue(cleanup.confirmed)
+                controller.acknowledge_cleanup(cleanup)
+            if decision.combat_proposal is not None:
+                update = coordinator.advance(decision.combat_proposal, observation)
+                controller.acknowledge_combat(decision.combat_proposal,
+                    update.acknowledgement, now_ms=observation.now_ms)
+                self.assertTrue(update.receipt.flags & 2)
 
-        self.assertEqual(
-            (
-                KeyPressInvocation(";"),
-                KeyPressInvocation("2"),
-                HotkeyInvocation(("ctrl", "a")),
-                KeyPressInvocation(";"),
-                KeyPressInvocation("2"),
-                HotkeyInvocation(("ctrl", "a")),
-                HotkeyInvocation(("ctrl", "a")),
-            ),
-            backend.invocations,
-        )
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decisions[0].intent)
+        submitted = [command for verb, command in commands if verb is Verb.SUBMIT]
+        self.assertEqual([Action.CAST, Action.ATTACK, Action.CAST, Action.ATTACK],
+                         [command.action for command in submitted])
+        self.assertEqual(submitted[0].binding, submitted[1].binding)
+        self.assertEqual(submitted[2].binding, submitted[3].binding)
+        self.assertNotEqual(submitted[0].binding.engagement, submitted[2].binding.engagement)
+        self.assertEqual([101, 101, 102, 102],
+                         [command.binding.target_key[0] for command in submitted])
+        self.assertEqual(2, tickets.call_count)
+        self.assertEqual([Verb.SUBMIT, Verb.SUBMIT, Verb.STOP_ENGAGEMENT,
+                          Verb.SUBMIT, Verb.SUBMIT, Verb.STOP_ENGAGEMENT], [v for v, _ in commands])
+        session.pause.assert_not_called()
+        self.assertIsNone(decisions[0].combat_proposal)
         self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, decisions[1].intent)
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, decisions[2].intent)
         self.assertIsNone(decisions[3].intent)
@@ -278,10 +246,11 @@ class SmartPvEClientReplayTests(unittest.TestCase):
         self.assertEqual("native_health_zero", decisions[5].kill_confirmation.value)
         self.assertEqual("mob-1", decisions[6].cleanup_request.target_token)
         self.assertIsNone(decisions[7].intent)
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decisions[8].intent)
+        self.assertIsNone(decisions[8].combat_proposal)
         self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, decisions[9].intent)
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, decisions[10].intent)
-        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, decisions[11].intent)
+        self.assertIsNone(decisions[11].combat_proposal)
+        self.assertEqual("mob-2", decisions[11].cleanup_request.target_token)
 
 
 

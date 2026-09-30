@@ -918,7 +918,7 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument(
         "--hotbar-config",
         type=Path,
-        help="optional override; otherwise resolve the logged-in character's CFG automatically",
+        help="removed for native PvE; actions use learned power IDs without hotbar mappings",
     )
     run_pve.add_argument("--native-health-profile", type=Path)
     run_pve.add_argument("--native-message-hud-profile", type=Path,

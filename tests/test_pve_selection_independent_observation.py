@@ -17,16 +17,15 @@ from shadowbane_lab.pve.guarded_runtime import (
     NativePvEObservationSource,
     PvEObservationCoherenceError,
 )
-from shadowbane_lab.pve.model import PvETrackedTarget
+from shadowbane_lab.pve.model import PvECombatKind, PvETrackedTarget
 from tests.test_native_character_population import FakeScanningProcess
 from tests.test_native_character_population import _profile as population_profile
 from tests.test_native_target_action import _profile as action_profile
-from tests.test_pve_controller import ConfirmedCleanup
+from tests.test_pve_controller import ConfirmedCleanup, RecordingPvEDispatcher
 from tests.test_pve_observation_boundary import (
     AdvancingClock,
     ConstantHealthSource,
     ConstantVitalsSource,
-    RecordingPvEDispatcher,
     _absent,
     _player,
     _target,
@@ -321,5 +320,8 @@ class SelectionIndependentObservationTests(unittest.TestCase):
         self.assertEqual(detail_step.decision.tracked_target.token,
                          detail_step.tracked_target_action.token)
         self.assertEqual([2001, 37], detail_step.as_dict()["tracked_target_action"]["object_key"])
-        self.assertEqual([], dispatcher.intents)
+        self.assertEqual(1, len(dispatcher.proposals))
+        self.assertIs(dispatcher.proposals[0].kind, PvECombatKind.BIND)
+        self.assertEqual(NativeObjectKey(2001, 37), dispatcher.proposals[0].target_key)
+        self.assertTrue(dispatcher.proposals[0].adopted_existing_action)
         self.assertEqual(1, process.find_calls)

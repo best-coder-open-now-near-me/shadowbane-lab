@@ -291,6 +291,12 @@ def test_guarded_controller_rechecks_bound_authority_after_deselection(tracked_c
     )
     controller.step(observation(0))
     admitted = controller.step(replace(obs, now_ms=500))
+    if not tracked_capability:
+        # Selection-only custom evaluators cannot admit a native object engagement.
+        assert admitted.phase is PvEPhase.SEEKING
+        assert admitted.combat_proposal is None
+        assert not controller.target_authority_history[-1].accepted
+        return
     assert admitted.phase is PvEPhase.ENGAGED
     result = controller.step(observation(600))
     assert result.target_authority.target_token == "bound"
@@ -303,7 +309,7 @@ def test_guarded_controller_rechecks_bound_authority_after_deselection(tracked_c
     "kind", [NativeCharacterKind.PLAYER, NativeCharacterKind.PET, NativeCharacterKind.UNKNOWN]
 )
 def test_ordinary_population_ranking_never_selects_non_npc(kind):
-    controller = PvEController(PvEControllerConfig(use_native_population=True))
+    controller = PvEController(PvEControllerConfig())
     decision = controller.step(observation(characters=(character(character_kind=kind),)))
     assert decision.intent is None
     assert decision.acquisition_target_token is None
@@ -312,7 +318,7 @@ def test_ordinary_population_ranking_never_selects_non_npc(kind):
 
 def test_strict_startup_adopts_actual_combat_object_independent_of_ui_selection():
     controller = PvEController(
-        PvEControllerConfig(use_native_population=True),
+        PvEControllerConfig(),
         target_authority_evaluator=StaticPvETargetAuthorityEvaluator((evidence(),)),
         require_verified_target_authority=True,
     )
@@ -346,7 +352,7 @@ def test_strict_startup_adopts_actual_combat_object_independent_of_ui_selection(
 def test_failed_adoption_cannot_lend_its_authority_to_a_selected_target():
     controller = PvEController(
         PvEControllerConfig(
-            use_native_population=True, continuous=True, camp_radius=50, camp_return_radius=12
+            continuous=True, camp_radius=50, camp_return_radius=12
         ),
         target_authority_evaluator=StaticPvETargetAuthorityEvaluator((evidence(),)),
         require_verified_target_authority=True,

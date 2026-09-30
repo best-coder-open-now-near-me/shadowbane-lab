@@ -10,16 +10,17 @@ from shadowbane_lab.client_observation import (
     NativeCharacterObservation,
     NativeCharacterPopulationObservation,
     NativePlayerActionObservation,
+    NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetActionPhase,
     NativeTargetHealthObservation,
+    NativeTargetPositionObservation,
 )
 from shadowbane_lab.client_observation.native_group import (
     NativeGroupMemberObservation,
     NativeGroupObservation,
 )
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
-from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.pve import (
     NativePvEObservationSource,
     PvEController,
@@ -33,6 +34,12 @@ from shadowbane_lab.pve.authority_snapshot import (
     NativePartyAuthoritySnapshotReadError,
     build_native_party_authority_snapshot,
 )
+from shadowbane_lab.pve.model import (
+    PvECombatAcknowledgement,
+    PvECombatCleanupResult,
+    PvECombatDisposition,
+)
+from shadowbane_lab.pve.native_combat import NativeCombatUpdate
 
 
 class _SequenceSource:
@@ -274,24 +281,35 @@ class LivePvEAuthoritySnapshotTests(unittest.TestCase):
         self.assertEqual(self.local_key, frame.authority_snapshot.local_player_object_key)
         self.assertEqual(1, frame.authority_snapshot.revision)
 
-    def test_runner_preserves_same_frame_party_authority_in_trace(self) -> None:
+    def test_runner_traces_bound_npc_authority_independent_of_selected_party_member(self) -> None:
         stop = EventEmergencyStop()
         controller = PvEController(PvEControllerConfig())
         class Dispatcher:
-            def dispatch(self, intent, *, sequence):
-                return DispatchResult(
-                    adapter_name="test", correlation_id=str(sequence), accepted=True,
-                )
+            def advance(self, proposal, observation):
+                return NativeCombatUpdate(PvECombatAcknowledgement(
+                    PvECombatDisposition.QUEUED, True, True,
+                ))
+
+            def cleanup(self, request):
+                return PvECombatCleanupResult(request, True, "native-stop-confirmed")
 
         runner = PvERunner(
             controller=controller, **self._frame_inputs(), dispatcher=Dispatcher(),
+            combat_cleanup=Dispatcher(),
+            player_position_reader=SimpleNamespace(
+                observe=lambda: NativePlayerPositionObservation(10, 20, 2)),
+            target_position_reader=SimpleNamespace(observe=lambda:
+                NativeTargetPositionObservation(True, 10, 20, 2, self.player.token)),
             stop_signal=stop, trace_sink=lambda step: stop.trip(),
             sleeper=lambda seconds: None,
         )
         result = runner.run()
         authority = result.trace[0].as_dict()["target_authority"]
         self.assertEqual(1, authority["source_revision"])
-        self.assertIn("party_member", authority["exclusions"])
+        self.assertEqual(self.npc.token, authority["target_token"])
+        self.assertFalse(authority["same_party"])
+        self.assertNotIn("party_member", authority["exclusions"])
+        self.assertEqual(self.npc.object_key, result.trace[0].decision.combat_proposal.target_key)
         self.assertIn("relation_unavailable", authority["exclusions"])
         self.assertFalse(controller.require_verified_target_authority)
 

@@ -15,19 +15,24 @@ from shadowbane_lab.client_observation import (
 )
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.client_observation.native_population import NativeCharacterKind
-from shadowbane_lab.protocol import DispatchResult, Relation
+from shadowbane_lab.protocol import Relation
 from shadowbane_lab.pve import (
     PvEAuthorityRunTraceStep,
     PvEController,
     PvEControllerConfig,
-    PvEIntent,
     PvEPhase,
     PvERunner,
     PvETargetAuthorityEvidence,
     PvETargetCharacterKind,
     StaticPvETargetAuthorityEvaluator,
 )
-from shadowbane_lab.pve.model import PvECombatCleanupResult
+from shadowbane_lab.pve.model import (
+    PvECombatAcknowledgement,
+    PvECombatCleanupResult,
+    PvECombatDisposition,
+    PvECombatKind,
+)
+from shadowbane_lab.pve.native_combat import NativeCombatUpdate
 from shadowbane_lab.pve.runtime import PvERunner as CanonicalPvERunner
 
 
@@ -198,15 +203,13 @@ class ConfirmingCleanup:
 
 class RecordingDispatcher:
     def __init__(self) -> None:
-        self.intents: list[PvEIntent] = []
+        self.proposals = []
 
-    def dispatch(self, intent: PvEIntent, *, sequence: int) -> DispatchResult:
-        self.intents.append(intent)
-        return DispatchResult(
-            adapter_name="authority-trace-test",
-            correlation_id=f"authority-trace:{sequence}",
-            accepted=True,
-        )
+    def advance(self, proposal, observation):
+        self.proposals.append(proposal)
+        return NativeCombatUpdate(PvECombatAcknowledgement(
+            PvECombatDisposition.QUEUED, True, True,
+        ))
 
 
 class AdvancingClock:
@@ -243,6 +246,9 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
                 (_absent_target(), _target("mob"), _target("mob", 0.0))
             ),
             player_vitals_reader=ConstantVitalsSource(),
+            player_position_reader=SequencePlayerPositionSource((_player_position(),) * 3),
+            target_position_reader=SequenceTargetPositionSource(tuple(
+                _target_position(token) for token in (None, "mob", "mob"))),
             player_action_reader=SequencePlayerActionSource((None, "mob", "mob")),
             target_identity_reader=SequenceIdentitySource(
                 (_absent_identity(), _identity("mob"), _identity("mob"))
@@ -270,8 +276,8 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
         self.assertEqual(PvEPhase.COMPLETE, result.final_phase)
         self.assertEqual(1, result.kills)
         self.assertEqual(
-            [PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ATTACK_SELECTED_TARGET],
-            dispatcher.intents,
+            [PvECombatKind.ATTACK],
+            [proposal.kind for proposal in dispatcher.proposals],
         )
         attack_step = result.trace[1]
         self.assertIsInstance(attack_step, PvEAuthorityRunTraceStep)
@@ -291,6 +297,7 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
             player_action_target_token=None,
             scan_generation=9,
             rejected_candidates=0,
+            local_player_object_key=NativeObjectKey(10, 42),
         )
         empty_population = NativeCharacterPopulationObservation(
             characters=(),
@@ -298,11 +305,11 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
             player_action_target_token=None,
             scan_generation=9,
             rejected_candidates=0,
+            local_player_object_key=NativeObjectKey(10, 42),
         )
         controller = PvEController(
             PvEControllerConfig(
                 require_target_identity=True,
-                use_native_population=True,
                 acquisition_retry_ms=100,
                 stale_selection_cycle_delay_ms=100,
                 target_sample_interval_ms=100,
@@ -343,7 +350,7 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
 
         self.assertEqual(PvEPhase.STOPPED, result.final_phase)
         self.assertEqual("mob_acquisition_timeout", result.terminal_reason)
-        self.assertEqual([], dispatcher.intents)
+        self.assertEqual([], dispatcher.proposals)
         rejection_step = result.trace[0]
         self.assertIsInstance(rejection_step, PvEAuthorityRunTraceStep)
         payload = rejection_step.as_dict()

@@ -341,10 +341,11 @@ def test_pve_ambiguous_or_unavailable_identity_never_opens_input_backend():
             return_value=StaticWindowInspector(snapshot),
         ),
         patch(
-            "shadowbane_lab.cli.open_active_character_config",
+            "shadowbane_lab.cli_commands.client_pve.open_native_character_session",
             side_effect=ActiveCharacterError("active character changed"),
         ) as resolve,
         patch("shadowbane_lab.cli.PyAutoGuiBackend") as backend,
+        patch("shadowbane_lab.cli_commands.client_pve.NativeMovementOperation") as movement,
         patch("shadowbane_lab.cli.PvERunner") as runner,
         redirect_stdout(output),
     ):
@@ -364,8 +365,9 @@ def test_pve_ambiguous_or_unavailable_identity_never_opens_input_backend():
         )
     assert result == 2
     assert "active character changed" in json.loads(output.getvalue())["error"]
-    resolve.assert_called_once_with(process_id=4320, explicit_path=None)
+    resolve.assert_called_once_with(process_id=4320)
     backend.assert_not_called()
+    movement.assert_not_called()
     runner.assert_not_called()
 
 

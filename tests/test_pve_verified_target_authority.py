@@ -273,7 +273,7 @@ class PvETargetAuthorityTests(unittest.TestCase):
         acquire = controller.step(_observation(0, None))
         attack = controller.step(_observation(100, "mob"))
 
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, acquire.intent)
+        self.assertIsNone(acquire.combat_proposal)
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, attack.intent)
         self.assertEqual(PvEPhase.ENGAGED, attack.phase)
         assert controller.latest_target_authority is not None
@@ -315,7 +315,6 @@ class PvETargetAuthorityTests(unittest.TestCase):
         controller = PvEController(
             PvEControllerConfig(
                 require_target_identity=True,
-                use_native_population=True,
                 acquisition_retry_ms=100,
                 target_sample_interval_ms=100,
                 acquisition_timeout_ms=1_000,

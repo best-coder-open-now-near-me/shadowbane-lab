@@ -17,7 +17,6 @@ from shadowbane_lab.pve import (
     NativePvEObservationSource,
     PvEController,
     PvEControllerConfig,
-    PvEIntent,
     PvEPhase,
     PvERunner,
 )
@@ -136,15 +135,11 @@ class MismatchedTargetIdentitySource:
 
 class RecordingPvEDispatcher:
     def __init__(self) -> None:
-        self.intents: list[PvEIntent] = []
+        self.intents = []
 
-    def dispatch(self, intent: PvEIntent, *, sequence: int) -> DispatchResult:
-        self.intents.append(intent)
-        return DispatchResult(
-            adapter_name="test",
-            correlation_id=f"test:{sequence}",
-            accepted=True,
-        )
+    def advance(self, proposal, observation):
+        self.intents.append(proposal)
+        raise AssertionError("guard failure must precede native action submission")
 
 
 class RecordingMovementDispatcher:
@@ -368,7 +363,8 @@ class GuardedPvERunnerTests(unittest.TestCase):
         self.assertEqual([], dispatcher.intents)
         self.assertEqual(0, movement.dispatched)
         self.assertEqual(0, movement.stopped)
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, result.trace[0].decision.intent)
+        self.assertIsNone(result.trace[0].decision.combat_proposal)
+        self.assertIsNone(result.trace[0].decision.intent)
         self.assertIsNone(result.trace[0].input_accepted)
 
 
