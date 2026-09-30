@@ -16,6 +16,10 @@ The normal checkout is clean on main at that merge. The merged local and remote
 tip is retained in `origin/main`.
 The bot-runtime worktree is on `codex/object-combat-deployment-20260930`, based
 on that main merge, for the deployment receipt and subsequent acceptance work.
+Its receipt updates are pushed through draft
+[PR #47](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/47)
+and remain outside main. Next integration step: complete the acceptance handoff,
+review the documentation update and merge it through the normal approval process.
 
 Vendor Test now has source-stamped host 0.3.55 / native 1.8.35 from that exact
 PR head. Package `artifacts/b35/3ca9481d` is acceptance eligible: 52 recorded
