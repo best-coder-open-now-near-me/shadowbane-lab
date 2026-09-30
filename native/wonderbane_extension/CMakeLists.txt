@@ -44,6 +44,7 @@ add_library(
   combat_submission.cpp
   combat_native.cpp
   combat_melee_entry.cpp
+  combat_target_policy.cpp
   combat_runtime.cpp
   vendor_navigation_native.cpp
   movement_settings.cpp
@@ -1461,4 +1462,14 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_combat_melee_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   add_test(NAME wonderbane_extension_combat_melee_entry COMMAND wonderbane_extension_combat_melee_entry_test)
   set_tests_properties(wonderbane_extension_combat_melee_entry PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_target_policy_test combat_target_policy_test.cpp combat_target_policy.cpp)
+  target_compile_features(wonderbane_extension_combat_target_policy_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_target_policy_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_target_policy_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_target_policy_test PRIVATE user32)
+  add_test(NAME wonderbane_extension_combat_target_policy COMMAND wonderbane_extension_combat_target_policy_test)
+  set_tests_properties(wonderbane_extension_combat_target_policy PROPERTIES TIMEOUT 15)
 endif()
