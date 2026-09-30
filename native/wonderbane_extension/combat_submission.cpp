@@ -30,6 +30,8 @@ SRWLOCK installation_lock = SRWLOCK_INIT;
 bool attempted = false;
 volatile LONG installed = 0;
 thread_local Scope* active = nullptr;
+PowerAppendObserver power_observer{};
+volatile LONG power_registered = 0;
 
 bool Copy(void* destination, std::uintptr_t source, std::size_t size) noexcept {
     __try { std::memcpy(destination, reinterpret_cast<const void*>(source), size); return true; }
@@ -45,7 +47,8 @@ bool Key(std::uintptr_t at, const std::array<std::uint32_t, 2>& expected) noexce
 }
 bool Binding(const Context& c) noexcept {
     return Pointer(base + 0x16a2d98, c.actor)
-        && Pointer(base + 0x16a2da4, c.target)
+        && (c.route == Route::explicit_object
+            || (c.route == Route::manual_selection && Pointer(base + 0x16a2da4, c.target)))
         && Pointer(c.actor, base + actor_table)
         && Key(c.actor + 0x18, c.local_key) && Key(c.target + 0x18, c.target_key)
         && Pointer(base + 0x16ab88c, c.writer)
@@ -89,7 +92,17 @@ struct Observer {
             SetLastError(error);
             return original_factory(actor, output, target, key, send);
         }
-        const bool allowed = !s->blocked_ && !s->factory_seen_ && Ready()
+        return FactoryCall(s, actor, output, target, key, send, Route::manual_selection);
+    }
+    static void* FactoryCall(Scope* s, void* actor, void** output, void* target,
+        const void* key, bool send, Route route) {
+        const DWORD error = GetLastError();
+        std::uintptr_t prior_output{};
+        const bool empty_output = route != Route::explicit_object || (output
+            && Copy(&prior_output, reinterpret_cast<std::uintptr_t>(output), sizeof(prior_output))
+            && !prior_output);
+        const bool allowed = active == s && s->active_ && s->context_.route == route && output
+            && empty_output && !s->blocked_ && !s->factory_seen_ && Ready()
             && actor == reinterpret_cast<void*>(s->context_.actor)
             && target == reinterpret_cast<void*>(s->context_.target) && send
             && Key(reinterpret_cast<std::uintptr_t>(key), s->context_.target_key)
@@ -98,7 +111,8 @@ struct Observer {
         if (!allowed) {
             Block(*s, s->receipt_.native_entered ? Result::uncertain : Result::denied);
             SetLastError(error);
-            *output = nullptr; // Qualified native factory's empty owned out-reference ABI.
+            // A failed explicit retry must not erase an already-owned reference.
+            if (output && empty_output) { *output = nullptr; }
             return output;
         }
         s->receipt_.native_entered = true;
@@ -131,7 +145,12 @@ struct Observer {
         if (!s || caller != base + followup_return) {
             SetLastError(error); original_followup(actor); return;
         }
-        const bool allowed = !s->blocked_ && s->factory_seen_ && !s->followup_seen_ && Ready()
+        FollowupCall(s, actor, Route::manual_selection);
+    }
+    static void FollowupCall(Scope* s, void* actor, Route route) {
+        const DWORD error = GetLastError();
+        const bool allowed = active == s && s->active_ && s->context_.route == route
+            && !s->blocked_ && s->factory_seen_ && !s->followup_seen_ && Ready()
             && actor == reinterpret_cast<void*>(s->context_.actor) && Binding(s->context_)
             && s->context_.current(s->context_.context);
         s->followup_seen_ = true;
@@ -160,6 +179,26 @@ struct Observer {
         // Match the originating frame even while another scope is nested above
         // it. Exact returned-ticket provenance, not keys/class, owns this append.
         while (s && (!s->ticket_ || message != reinterpret_cast<void*>(s->ticket_))) { s = s->previous_; }
+        const bool power_ready = InterlockedCompareExchange(&power_registered, 0, 0) != 0;
+        const auto power = power_ready
+            ? power_observer.claim(container, message, caller >= base ? caller - base : 0)
+            : AppendClaim{};
+        if (power.decision != AppendDecision::unrelated) {
+            // A ticket cannot belong to two operations. Fail both scopes closed.
+            const bool allowed = !s && power.owner && power.decision == AppendDecision::allow
+                && Ready() && caller == base + append_return;
+            if (s) { Block(*s, Result::uncertain); }
+            if (!allowed) {
+                if (power.owner) { power_observer.complete(power.owner, AppendResult::denied); }
+                SetLastError(error); Consume(message); return;
+            }
+            SetLastError(error);
+            try { original_append(container, message); }
+            catch (...) { power_observer.complete(power.owner, AppendResult::fault); throw; }
+            const DWORD native_error = GetLastError();
+            power_observer.complete(power.owner, AppendResult::queued);
+            SetLastError(native_error); return;
+        }
         if (!s) {
             SetLastError(error); original_append(container, message); return;
         }
@@ -230,13 +269,20 @@ Scope::Scope(const Context& context) noexcept : context_(context), previous_(act
     const DWORD error = GetLastError();
     active = this; active_ = true;
     if (!Ready() || !context.actor || !context.target || !context.writer || !context.container
-        || !context.current || !context.append_current) {
+        || !context.current || !context.append_current
+        || (context.route != Route::manual_selection && context.route != Route::explicit_object)) {
         receipt_.result = Result::denied; blocked_ = true;
     }
     detail::Observer::Publish(*this);
     SetLastError(error);
 }
 Scope::~Scope() { (void)Finish(); }
+void* Scope::Factory(void* actor, void** output, void* target, const void* key, bool send) {
+    return detail::Observer::FactoryCall(this, actor, output, target, key, send, Route::explicit_object);
+}
+void Scope::Followup(void* actor) {
+    detail::Observer::FollowupCall(this, actor, Route::explicit_object);
+}
 Receipt Scope::Finish() noexcept {
     if (active_) {
         if (active == this) { active = previous_; }
@@ -257,6 +303,20 @@ Receipt Scope::Finish() noexcept {
 }
 Boundary::Boundary() noexcept : previous_(active) {}
 void Boundary::Restore() noexcept { active = previous_; }
+bool RegisterPowerAppendObserver(const PowerAppendObserver& observer) noexcept {
+    const DWORD error = GetLastError();
+    if (!observer.claim || !observer.complete) { SetLastError(error); return false; }
+    AcquireSRWLockExclusive(&installation_lock);
+    bool ok = Ready();
+    if (ok && InterlockedCompareExchange(&power_registered, 0, 0)) {
+        ok = power_observer.claim == observer.claim && power_observer.complete == observer.complete;
+    } else if (ok) {
+        power_observer = observer;
+        InterlockedExchange(&power_registered, 1);
+    }
+    ReleaseSRWLockExclusive(&installation_lock);
+    SetLastError(error); return ok;
+}
 bool Ready() noexcept { return InterlockedCompareExchange(&installed, 0, 0) != 0 && SlotsCurrent(); }
 bool Start(std::uintptr_t image_base) noexcept {
     const DWORD error = GetLastError();

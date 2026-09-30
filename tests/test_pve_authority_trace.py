@@ -1,29 +1,38 @@
 import unittest
+from dataclasses import replace
 
 from shadowbane_lab.client_input import EventEmergencyStop
 from shadowbane_lab.client_observation import (
     NativeCharacterObservation,
     NativeCharacterPopulationObservation,
-    NativeCombatLogEntry,
+    NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
-from shadowbane_lab.protocol import DispatchResult, Relation
+from shadowbane_lab.client_observation.native_population import NativeCharacterKind
+from shadowbane_lab.protocol import Relation
 from shadowbane_lab.pve import (
     PvEAuthorityRunTraceStep,
     PvEController,
     PvEControllerConfig,
-    PvEIntent,
     PvEPhase,
     PvERunner,
     PvETargetAuthorityEvidence,
     PvETargetCharacterKind,
     StaticPvETargetAuthorityEvaluator,
 )
+from shadowbane_lab.pve.model import (
+    PvECombatAcknowledgement,
+    PvECombatCleanupResult,
+    PvECombatDisposition,
+    PvECombatKind,
+)
+from shadowbane_lab.pve.native_combat import NativeCombatUpdate
 from shadowbane_lab.pve.runtime import PvERunner as CanonicalPvERunner
 
 
@@ -90,6 +99,8 @@ def _target_position(token: str | None) -> NativeTargetPositionObservation:
 def _character(token: str) -> NativeCharacterObservation:
     return NativeCharacterObservation(
         token=token,
+        object_key=NativeObjectKey(20, 7001),
+        character_kind=NativeCharacterKind.NPC,
         current_health=10.0,
         maximum_health=10.0,
         lt=105.0,
@@ -169,27 +180,36 @@ class SequencePopulationSource:
         return self.values.pop(0)
 
 
+class SequencePlayerActionSource:
+    def __init__(self, tokens):
+        self.tokens = iter(tokens)
+
+    def observe_player(self):
+        return NativePlayerActionObservation(
+            NativeTargetActionPhase.IDLE, False, 0, False, None, 0, 0,
+            next(self.tokens), None, mode=1, action_state=1,
+        )
+
+
 class ConstantVitalsSource:
     def observe(self) -> NativePlayerVitalsObservation:
         return _player()
 
 
-class EmptyCombatLogSource:
-    def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]:
-        return ()
+class ConfirmingCleanup:
+    def cleanup(self, request):
+        return PvECombatCleanupResult(request, True, "fixture-pause-ack")
 
 
 class RecordingDispatcher:
     def __init__(self) -> None:
-        self.intents: list[PvEIntent] = []
+        self.proposals = []
 
-    def dispatch(self, intent: PvEIntent, *, sequence: int) -> DispatchResult:
-        self.intents.append(intent)
-        return DispatchResult(
-            adapter_name="authority-trace-test",
-            correlation_id=f"authority-trace:{sequence}",
-            accepted=True,
-        )
+    def advance(self, proposal, observation):
+        self.proposals.append(proposal)
+        return NativeCombatUpdate(PvECombatAcknowledgement(
+            PvECombatDisposition.QUEUED, True, True,
+        ))
 
 
 class AdvancingClock:
@@ -226,10 +246,23 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
                 (_absent_target(), _target("mob"), _target("mob", 0.0))
             ),
             player_vitals_reader=ConstantVitalsSource(),
+            player_position_reader=SequencePlayerPositionSource((_player_position(),) * 3),
+            target_position_reader=SequenceTargetPositionSource(tuple(
+                _target_position(token) for token in (None, "mob", "mob"))),
+            player_action_reader=SequencePlayerActionSource((None, "mob", "mob")),
             target_identity_reader=SequenceIdentitySource(
                 (_absent_identity(), _identity("mob"), _identity("mob"))
             ),
-            combat_log_reader=EmptyCombatLogSource(),
+            population_reader=SequencePopulationSource(tuple(
+                NativeCharacterPopulationObservation(
+                    characters=() if value is None else (value,),
+                    selected_target_token=None if value is None else value.token,
+                    player_action_target_token=None, scan_generation=1, rejected_candidates=0,
+                    local_player_object_key=NativeObjectKey(10, 42),
+                )
+                for value in (None, _character("mob"), replace(_character("mob"), current_health=0))
+            )),
+            combat_cleanup=ConfirmingCleanup(),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
@@ -243,8 +276,8 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
         self.assertEqual(PvEPhase.COMPLETE, result.final_phase)
         self.assertEqual(1, result.kills)
         self.assertEqual(
-            [PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ATTACK_SELECTED_TARGET],
-            dispatcher.intents,
+            [PvECombatKind.ATTACK],
+            [proposal.kind for proposal in dispatcher.proposals],
         )
         attack_step = result.trace[1]
         self.assertIsInstance(attack_step, PvEAuthorityRunTraceStep)
@@ -264,6 +297,7 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
             player_action_target_token=None,
             scan_generation=9,
             rejected_candidates=0,
+            local_player_object_key=NativeObjectKey(10, 42),
         )
         empty_population = NativeCharacterPopulationObservation(
             characters=(),
@@ -271,11 +305,11 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
             player_action_target_token=None,
             scan_generation=9,
             rejected_candidates=0,
+            local_player_object_key=NativeObjectKey(10, 42),
         )
         controller = PvEController(
             PvEControllerConfig(
                 require_target_identity=True,
-                use_native_population=True,
                 acquisition_retry_ms=100,
                 stale_selection_cycle_delay_ms=100,
                 target_sample_interval_ms=100,
@@ -292,6 +326,7 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
             controller=controller,
             health_reader=SequenceHealthSource((_target("mob"), _absent_target())),
             player_vitals_reader=ConstantVitalsSource(),
+            player_action_reader=SequencePlayerActionSource(("mob", None)),
             player_position_reader=SequencePlayerPositionSource(
                 (_player_position(), _player_position())
             ),
@@ -304,7 +339,6 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
             population_reader=SequencePopulationSource(
                 (selected_population, empty_population)
             ),
-            combat_log_reader=EmptyCombatLogSource(),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
@@ -316,7 +350,7 @@ class PvETargetAuthorityTraceTests(unittest.TestCase):
 
         self.assertEqual(PvEPhase.STOPPED, result.final_phase)
         self.assertEqual("mob_acquisition_timeout", result.terminal_reason)
-        self.assertEqual([], dispatcher.intents)
+        self.assertEqual([], dispatcher.proposals)
         rejection_step = result.trace[0]
         self.assertIsInstance(rejection_step, PvEAuthorityRunTraceStep)
         payload = rejection_step.as_dict()

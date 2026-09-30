@@ -14,8 +14,8 @@ from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
 
 if TYPE_CHECKING:
+    from shadowbane_lab.client_extension.combat_fence_v3 import Binding, EngagementId
     from shadowbane_lab.client_extension.combat_fence_windows import Ticket
-    from shadowbane_lab.client_extension.combat_wire import Command as CombatCommand
     from shadowbane_lab.client_extension.movement_wire import Grant, Host
 
 
@@ -245,7 +245,7 @@ class AttackListStore:
             raise ValueError("invalid attack-list record")
         if (
             type(raw["schema"]) is not int
-            or raw["schema"] not in (1, 2, 3, 4)
+            or raw["schema"] not in (1, 2, 3, 4, 5)
             or raw["owner"] != [self.owner.server, self.owner.character]
         ):
             raise ValueError("attack-list schema or owner mismatch")
@@ -278,96 +278,59 @@ class AttackListStore:
         if len({entry.entry_id for entry in entries}) != len(entries):
             raise ValueError("duplicate attack-list identity")
         return AttackListSnapshot(revision, tuple(sorted(entries, key=lambda e: e.entry_id)),
-                                  fenced=raw["schema"] == 4)
+                                  fenced=raw["schema"] == 5)
 
     def snapshot(self) -> AttackListSnapshot:
         with exclusive_record_lock(self.path.with_suffix(".lock")):
             return self._read()
 
-    def register_admission(
+    def register_combat_engagement(
         self, entry_id: str, *, expected_revision: int, client_pid: int,
-        client_creation: int, producer_generation: int, movement_generation: int,
-        scene: int, operation: bytes, local_key: NativeObjectKey,
-    ) -> Ticket:
-        """Register one single-use intent, not native combat permission.
+        client_creation: int, host: Host, grant: Grant, local_key: NativeObjectKey,
+        engagement: EngagementId, actor_address_hint: int, target_address_hint: int,
+    ) -> tuple[Ticket, Binding]:
+        """Bind one immutable manual-player engagement under the saved-list lock.
 
-        The native owner must freshly validate its lease, Grant, scene, party and
-        target before entry. Retain the returned ticket through cancellation.
+        Registration never supplies native permission. List revision, identity,
+        record migration and ticket publication are one locked transaction.
         """
-        from shadowbane_lab.client_extension.combat_fence import Binding, new_request
+        from shadowbane_lab.client_extension.combat_fence_v3 import Authority, Binding
         from shadowbane_lab.client_extension.combat_fence_windows import Windows
-        from shadowbane_lab.client_extension.combat_wire import identity_digest
+        from shadowbane_lab.client_extension.combat_wire_v2 import identity_digest, operation_digest
         from shadowbane_lab.pve.attack_list_fence import Registry
 
         if type(expected_revision) is not int or expected_revision <= 0:
-            raise ValueError("admission requires a positive saved revision")
+            raise ValueError("engagement requires a positive saved revision")
         if not isinstance(local_key, NativeObjectKey):
-            raise ValueError("admission requires an exact local key")
+            raise ValueError("engagement requires an exact local key")
+        if (host.process_id, host.creation_filetime) != Windows().identity():
+            raise ValueError("combat producer must be this exact host process")
+        host.encode()
+        operation = operation_digest(grant)
         with exclusive_record_lock(self.path.with_suffix(".lock")):
             snapshot = self._read()
             entry = next((item for item in snapshot.entries if item.entry_id == entry_id), None)
             if (snapshot.revision != expected_revision or entry is None
                     or entry.source != "manual" or entry.player_identity is None):
-                raise ValueError("admission requires current manual persistent player intent")
+                raise ValueError("engagement requires current manual persistent player intent")
             registry = Registry(self.path, self.owner.storage_key)
-            producer_pid, producer_creation = Windows().identity()
             target = entry.player_identity.object_key
-            binding = Binding(client_pid, producer_pid, client_creation, producer_creation,
-                producer_generation, movement_generation, scene, snapshot.revision, new_request(),
+            binding = Binding(
+                client_pid, host.process_id, client_creation, host.creation_filetime,
+                host.lease_generation, grant.generation, grant.scene, snapshot.revision, engagement,
                 registry.store, registry.owner, bytes.fromhex(entry.entry_id), operation,
                 (local_key.object_type, local_key.object_uuid),
                 (target.object_type, target.object_uuid),
-                identity_digest(entry.player_identity.name))
+                identity_digest(entry.player_identity.name), Authority.MANUAL_PLAYER,
+                actor_address_hint, target_address_hint,
+            )
             if not snapshot.fenced:
-                # Old hosts accept only schemas 1..3 and must fail before writing
-                # without this fence. Migration and ticket registration share the
-                # same interprocess lock; intent/revision do not change here.
+                # Old hosts accept schemas through4 and cannot revoke v3 fences.
+                # Migrate under the same record lock before publishing a ticket.
                 registry.revoke()
-                payload = self._encode(replace(snapshot, fenced=True))
-                publish_atomic_record(self.path, payload, temporary_label="attack-list")
-            return registry.register(binding)
-
-    def register_combat_admission(
-        self, entry_id: str, *, expected_revision: int, client_pid: int,
-        client_creation: int, host: Host, window: int, grant: Grant,
-        local_key: NativeObjectKey,
-    ) -> tuple[Ticket, CombatCommand]:
-        """Bind saved intent to the complete typed command; retain ticket until cleanup.
-
-        The second locked read in register_admission requires this exact revision.
-        Every identity edit advances that revision, so metadata cannot cross a
-        concurrent saved-list mutation. Native identity/party gates are still required.
-        """
-        from shadowbane_lab.client_extension.combat_fence_windows import Windows
-        from shadowbane_lab.client_extension.combat_wire import (
-            Command,
-            identity_digest,
-            operation_digest,
-        )
-
-        if (host.process_id, host.creation_filetime) != Windows().identity():
-            raise ValueError("combat producer must be this exact host process")
-        snapshot = self.snapshot()
-        entry = next((item for item in snapshot.entries if item.entry_id == entry_id), None)
-        if (snapshot.revision != expected_revision or entry is None
-                or entry.source != "manual" or entry.player_identity is None):
-            raise ValueError("combat admission requires current manual persistent intent")
-        local_name = identity_digest(self.owner.character)
-        server = identity_digest(self.owner.server)
-        target_name = identity_digest(entry.player_identity.name)
-        ticket = self.register_admission(
-            entry_id, expected_revision=expected_revision, client_pid=client_pid,
-            client_creation=client_creation, producer_generation=host.lease_generation,
-            movement_generation=grant.generation, scene=grant.scene,
-            operation=operation_digest(grant), local_key=local_key,
-        )
-        try:
-            command = Command(host, window, grant, ticket.binding, local_name, server, target_name)
-            command.encode()
-            return ticket, command
-        except BaseException:
-            ticket.close()
-            raise
+                publish_atomic_record(self.path, self._encode(replace(snapshot, fenced=True)),
+                                      temporary_label="attack-list")
+            return registry.register(binding), binding
 
     def add(
         self, entry: AttackListEntry, *, expected_revision: int | None = None
@@ -424,7 +387,7 @@ class AttackListStore:
             ordered = tuple(sorted(entries.values(), key=lambda e: e.entry_id))
             if ordered == previous.entries:
                 return previous
-            result = AttackListSnapshot(previous.revision + 1, ordered, fenced=previous.fenced)
+            result = AttackListSnapshot(previous.revision + 1, ordered, fenced=True)
             payload = self._encode(result)
             from shadowbane_lab.pve.attack_list_fence import Registry
 
@@ -435,7 +398,7 @@ class AttackListStore:
 
     def _encode(self, snapshot: AttackListSnapshot) -> bytes:
         payload = json.dumps(
-            {"schema": 4 if snapshot.fenced else 3,
+            {"schema": 5 if snapshot.fenced else 3,
              "owner": [self.owner.server, self.owner.character],
              "revision": snapshot.revision,
              "entries": [item.as_dict() for item in snapshot.entries]},

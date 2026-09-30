@@ -13,7 +13,25 @@ unsigned factories = 0, appends = 0, followups = 0, releases = 0, full_checks = 
 bool current = true, queue_current = true, under_queue_lock = false;
 bool empty_factory = false, corrupt_ticket = false, throw_factory = false, throw_append = false, throw_followup = false;
 bool raise_factory_seh = false, raise_append_seh = false, raise_followup_seh = false;
+void Check(bool, const char*);
 unsigned fail_install_at = 0, installs = 0;
+void* power_ticket = nullptr;
+void* power_owner = nullptr;
+cs::AppendDecision power_decision = cs::AppendDecision::allow;
+cs::AppendResult power_result = cs::AppendResult::fault;
+unsigned power_claims = 0, power_completions = 0;
+cs::AppendClaim PowerClaim(void*, void* value, std::uintptr_t caller) noexcept {
+    ++power_claims;
+    Check(caller == cs::append_return, "power callback receives exact native caller RVA");
+    SetLastError(997);
+    return value == power_ticket ? cs::AppendClaim{power_decision, power_owner} : cs::AppendClaim{};
+}
+void PowerComplete(void* owner, cs::AppendResult result) noexcept {
+    Check(owner == power_owner, "power completion uses captured owner");
+    ++power_completions; power_result = result; SetLastError(996);
+}
+void OtherPowerComplete(void*, cs::AppendResult) noexcept {}
+
 std::array<std::uint32_t, 0x80 / 4> message{};
 void Check(bool ok, const char* label) { if (!ok) { ++failures; std::cerr << label << '\n'; } }
 bool Current(void*) noexcept {
@@ -328,6 +346,145 @@ int main(int argc, char** argv) {
         "persistent sink preserves queued evidence through C++ unwind");
     context.receipt = nullptr;
     Check(full_checks > 0 && queue_checks > 0, "both distinct admission barriers exercised");
+    auto explicit_context = context; explicit_context.route = cs::Route::explicit_object;
+    const auto make_explicit = [&](cs::Scope& scope) {
+        SetLastError(42);
+        return scope.Factory(actor.data(), &ticket, target.data(), context.target_key.data(), true);
+    };
+    reset();
+    {
+        put(0x16a2da4, 0);
+        cs::Scope scope(explicit_context); make_explicit(scope);
+        Check(GetLastError() == 43, "explicit factory preserves native LastError");
+        put(0x16a2da4, context.actor); // UI selection can change throughout this route.
+        queue(); SetLastError(42); scope.Followup(actor.data());
+        const auto r = scope.Finish();
+        Check(r.result == cs::Result::queued && r.append_observed && r.followup_entered,
+            "explicit object route queues exact ticket without modifying UI selection");
+        Check(cs::Pointer(base + 0x16a2da4, context.actor), "explicit route leaves selection untouched");
+        put(0x16a2da4, context.target);
+    }
+    reset();
+    {
+        cs::Scope scope(context); const auto before = factories;
+        make_explicit(scope);
+        Check(factories == before && scope.Finish().result == cs::Result::denied,
+            "legacy scope cannot invoke explicit-object factory");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); const auto before = factories;
+        make(); // Real legacy handler return site under a different route.
+        Check(factories == before && scope.Finish().result == cs::Result::denied,
+            "legacy native call cannot borrow an explicit-object admission");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); make_explicit(scope); queue_current = false;
+        const auto before = appends, consumed = releases; queue();
+        SetLastError(42); scope.Followup(actor.data());
+        const auto r = scope.Finish();
+        Check(appends == before && releases == consumed + 1 && !r.followup_entered,
+            "explicit append revocation consumes incoming ref and blocks followup");
+        Check(r.result == cs::Result::uncertain && r.native_entered && !r.append_observed,
+            "explicit rejected append retains entered history");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); make_explicit(scope); queue(); throw_followup = true;
+        bool caught = false;
+        try { SetLastError(42); scope.Followup(actor.data()); } catch (const std::runtime_error&) { caught = true; }
+        const auto r = scope.Finish();
+        Check(caught && r.append_observed && r.result == cs::Result::uncertain,
+            "explicit native followup fault preserves queue evidence");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); scope.Finish(); const auto before = factories;
+        make_explicit(scope);
+        Check(factories == before && scope.Finish().result == cs::Result::denied,
+            "finished explicit scope cannot enter factory");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); make_explicit(scope);
+        void* owned = ticket; const auto before = factories;
+        make_explicit(scope);
+        Check(ticket == owned && factories == before && scope.Finish().result == cs::Result::uncertain,
+            "explicit retry cannot erase or reuse an already-owned factory reference");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); ++target[0x18 / 4]; const auto before = factories;
+        make_explicit(scope);
+        Check(factories == before && scope.Finish().result == cs::Result::denied,
+            "explicit route still rejects same pointer with changed native object key");
+        --target[0x18 / 4];
+    }
+    reset();
+    {
+        cs::Scope outer(explicit_context); cs::Scope inner(explicit_context);
+        const auto before = factories; make_explicit(outer);
+        Check(factories == before && outer.Finish().result == cs::Result::denied,
+            "non-current explicit scope cannot enter its original factory");
+    }
+    reset();
+    {
+        auto invalid = explicit_context; invalid.route = static_cast<cs::Route>(77);
+        cs::Scope scope(invalid); const auto before = factories; make_explicit(scope);
+        Check(factories == before && scope.Finish().result == cs::Result::denied,
+            "unknown route cannot bypass selected or explicit admission");
+    }
+    reset();
+    cs::PowerAppendObserver power_callbacks{&PowerClaim, &PowerComplete};
+    SetLastError(42);
+    Check(!cs::RegisterPowerAppendObserver({}), "incomplete power callback registration rejected");
+    Check(cs::RegisterPowerAppendObserver(power_callbacks) && GetLastError() == 42,
+        "complete power observer registers without altering LastError");
+    Check(cs::RegisterPowerAppendObserver(power_callbacks), "same power registration is idempotent");
+    Check(!cs::RegisterPowerAppendObserver({&PowerClaim, &OtherPowerComplete}),
+        "registered power callbacks cannot be replaced");
+    int retained_power_owner{};
+    power_owner = &retained_power_owner; power_ticket = message.data(); ticket = power_ticket;
+    {
+        const auto before = appends, completed = power_completions;
+        queue();
+        Check(appends == before + 1 && power_completions == completed + 1
+            && power_result == cs::AppendResult::queued && GetLastError() == 45,
+            "exact power claim routes through one native append and preserves LastError");
+    }
+    {
+        power_decision = cs::AppendDecision::deny;
+        const auto before = appends, consumed = releases;
+        queue();
+        Check(appends == before && releases == consumed + 1
+            && power_result == cs::AppendResult::denied,
+            "denied power append consumes one incoming reference");
+        power_decision = cs::AppendDecision::allow;
+    }
+    {
+        throw_append = true; bool caught = false;
+        try { queue(); } catch (const std::runtime_error&) { caught = true; }
+        Check(caught && power_result == cs::AppendResult::fault,
+            "power append exception reports to captured owner and propagates");
+        throw_append = false;
+    }
+    {
+        cs::Scope scope(explicit_context); ticket = nullptr; make_explicit(scope);
+        const auto before = appends, consumed = releases;
+        queue(); const auto r = scope.Finish();
+        Check(appends == before && releases == consumed + 1
+            && power_result == cs::AppendResult::denied && r.result == cs::Result::uncertain
+            && !r.append_observed, "overlapping power and melee ownership denies both");
+    }
+    {
+        power_ticket = nullptr; reset(); cs::Scope scope(explicit_context); make_explicit(scope);
+        const auto before = appends, completed = power_completions; queue();
+        Check(appends == before + 1 && power_completions == completed
+            && scope.Finish().result == cs::Result::queued,
+            "unrelated power observer leaves scoped melee ownership unchanged");
+    }
+    Check(power_claims >= 5, "power routing exercised at shared append boundary");
     // Hooks are process-lifetime objects. The synthetic image is intentionally
     // left mapped until this test process exits, matching production no-unload.
     return failures;

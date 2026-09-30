@@ -53,6 +53,10 @@ from shadowbane_lab.pve.guarded_runtime import (
 )
 from shadowbane_lab.pve.model import (
     PvECampLease,
+    PvECombatAcknowledgement,
+    PvECombatDisposition,
+    PvECombatKind,
+    PvECombatProposal,
     PvEControllerConfig,
     PvEControllerDecision,
     PvEIntent,
@@ -65,8 +69,6 @@ from shadowbane_lab.pve.model import (
 from shadowbane_lab.pve.native_actuator import NativeExtensionPvEIntentDispatcher
 from shadowbane_lab.pve.runtime import (
     ClientPvEIntentDispatcher,
-    CombatLogSource,
-    EmptyCombatLogSource,
     PlayerPositionSource,
     PlayerVitalsSource,
     PvEIntentDispatcher,
@@ -83,9 +85,11 @@ from shadowbane_lab.pve.target_authority import (
 )
 
 __all__ = [
+    "PvECombatAcknowledgement",
+    "PvECombatDisposition",
+    "PvECombatKind",
+    "PvECombatProposal",
     "ClientPvEIntentDispatcher",
-    "CombatLogSource",
-    "EmptyCombatLogSource",
     "NativeExtensionPvEIntentDispatcher",
     "NativePartyAuthoritySnapshotReadError",
     "NativePartyAuthoritySnapshotReader",

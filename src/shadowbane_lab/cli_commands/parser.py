@@ -910,18 +910,19 @@ def _parser() -> argparse.ArgumentParser:
         "--combat-source",
         choices=("state", "hud", "log"),
         help=(
-            "combat evidence source; state uses exact health/action observations, HUD is "
-            "the default unless --combat-log is supplied for legacy file logging"
+            "native object state is the default and only control source; "
+            "legacy hud/log values are rejected with migration guidance"
         ),
     )
-    run_pve.add_argument("--combat-log", type=Path)
+    run_pve.add_argument("--combat-log", type=Path, help="removed for PvE control")
     run_pve.add_argument(
         "--hotbar-config",
         type=Path,
-        help="optional override; otherwise resolve the logged-in character's CFG automatically",
+        help="removed for native PvE; actions use learned power IDs without hotbar mappings",
     )
     run_pve.add_argument("--native-health-profile", type=Path)
-    run_pve.add_argument("--native-message-hud-profile", type=Path)
+    run_pve.add_argument("--native-message-hud-profile", type=Path,
+                        help="removed for PvE control")
     run_pve.add_argument("--native-vitals-profile", type=Path)
     run_pve.add_argument("--native-position-profile", type=Path)
     run_pve.add_argument("--native-target-position-profile", type=Path)

@@ -71,6 +71,7 @@ class FakeScanningProcess:
         self.closed = False
         self.find_calls = 0
         self.identity_changes: dict[int, tuple[int, int]] = {}
+        self.action_target_changes: dict[int, int] = {}
         self.block_reads: dict[int, int] = {}
         self.player = 0x10000
         self.crab = 0x20000
@@ -153,14 +154,17 @@ class FakeScanningProcess:
 
     def read_block(self, address: int, size: int) -> bytes:
         self.block_reads[address] = self.block_reads.get(address, 0) + 1
-        if self.block_reads[address] == 2 and address in self.identity_changes:
+        if self.block_reads[address] == 2:
             block = bytearray(self._read(address, size))
-            struct.pack_into(
-                "<II",
-                block,
-                self.profile.object_type_offset,
-                *self.identity_changes[address],
-            )
+            if address in self.identity_changes:
+                struct.pack_into(
+                    "<II", block, self.profile.object_type_offset, *self.identity_changes[address]
+                )
+            if address in self.action_target_changes:
+                struct.pack_into(
+                    "<I", block, self.profile.action_target_pointer_offset,
+                    self.action_target_changes[address],
+                )
             return bytes(block)
         return self._read(address, size)
 
@@ -351,6 +355,47 @@ class NativeCharacterPopulationTests(unittest.TestCase):
         observation = reader.observe()
         self.assertEqual(2, process.find_calls)
         self.assertEqual(2, observation.scan_generation)
+
+    def test_local_action_target_must_stay_stable_through_population_scan(self) -> None:
+        for changed_target in (0, 0x22000):
+            with self.subTest(changed_target=changed_target):
+                process = FakeScanningProcess(_profile())
+                process.action_target_changes[process.player] = changed_target
+                reader = NativeCharacterPopulationReader(process.profile, process)
+                with self.assertRaisesRegex(
+                    NativeCharacterPopulationReadError, "local player action target changed"
+                ):
+                    reader.observe()
+
+    def test_candidate_action_target_change_rejects_only_that_candidate(self) -> None:
+        process = FakeScanningProcess(_profile())
+        process.action_target_changes[process.crab] = process.player
+        observation = NativeCharacterPopulationReader(process.profile, process).observe()
+        self.assertEqual(1, len(observation.characters))
+        self.assertEqual(NativeObjectKey(2002, 37), observation.characters[0].object_key)
+        self.assertEqual(2, observation.rejected_candidates)
+
+    def test_local_action_target_rejects_unaligned_or_out_of_range_pointer(self) -> None:
+        for pointer in (4, 0x20001, 0x7FFF0000, 0xFFFFFFFF):
+            with self.subTest(pointer=pointer):
+                process = FakeScanningProcess(_profile())
+                block = bytearray(process.memory[process.player])
+                struct.pack_into("<I", block, process.profile.action_target_pointer_offset, pointer)
+                process.memory[process.player] = bytes(block)
+                reader = NativeCharacterPopulationReader(process.profile, process)
+                with self.assertRaisesRegex(
+                    NativeCharacterPopulationReadError, "local player action target.*range"
+                ):
+                    reader.observe()
+
+    def test_null_local_action_target_is_observed_without_inference_from_selection(self) -> None:
+        process = FakeScanningProcess(_profile())
+        block = bytearray(process.memory[process.player])
+        struct.pack_into("<I", block, process.profile.action_target_pointer_offset, 0)
+        process.memory[process.player] = bytes(block)
+        observation = NativeCharacterPopulationReader(process.profile, process).observe()
+        self.assertIsNone(observation.player_action_target_token)
+        self.assertIsNotNone(observation.selected_target_token)
 
     def test_rejects_same_address_when_uuid_changes_during_read(self) -> None:
         profile = _profile()

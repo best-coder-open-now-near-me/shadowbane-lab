@@ -6,19 +6,30 @@ from dataclasses import dataclass
 from math import isfinite
 
 from shadowbane_lab.client_observation import (
-    NativeCombatEvent,
-    NativeCombatEventKind,
+    NativeCharacterKind,
+    NativeCharacterObservation,
+    NativeCharacterPopulationObservation,
+    NativePlayerActionObservation,
+    NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionPhase,
     NativeTargetHealthObservation,
+    NativeTargetPositionObservation,
 )
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.protocol import EntityKind, Event, EventKind, Relation, TargetKind, Vector2
 from shadowbane_lab.pve import (
     PvEController,
     PvEControllerConfig,
     PvEControllerDecision,
-    PvEIntent,
     PvEObservation,
     PvEPhase,
+)
+from shadowbane_lab.pve.model import (
+    PvECombatAcknowledgement,
+    PvECombatCleanupResult,
+    PvECombatDisposition,
+    PvECombatKind,
 )
 from shadowbane_lab.sim import (
     ActionCatalog,
@@ -201,6 +212,8 @@ class NearbyMobSimulationResult:
                     "phase": item.phase.value,
                     "kills": item.kills,
                     "intent": item.intent.value if item.intent is not None else None,
+                    "combat_proposal": (None if item.combat_proposal is None else
+                                        item.combat_proposal.as_dict()),
                     "terminal_reason": item.terminal_reason,
                 }
                 for item in self.controller_trace
@@ -284,10 +297,7 @@ def run_nearby_mob_simulation(
             maximum_session_ms=(config.max_ticks + 1) * _TICK_DURATION_MS,
         )
     )
-    selected = False
     auto_attack = False
-    combat_sequence = 0
-    pending_combat: tuple[NativeCombatEvent, ...] = ()
     controller_trace: list[PvEControllerDecision] = []
     simulation_events: list[Event] = []
     attack_rolls: list[float] = []
@@ -297,27 +307,55 @@ def run_nearby_mob_simulation(
 
     for step_number in range(config.max_ticks):
         mob = environment.entity(_MOB_ID)
-        target = _target_observation(mob, selected)
+        target = NativeTargetHealthObservation(target_present=False)
         player = environment.entity(_PLAYER_ID)
         decision = controller.step(
             PvEObservation(
                 now_ms=environment.now_ms,
                 target=target,
                 player=_player_observation(player, config),
-                combat_events=pending_combat,
+                population=_population_observation(mob, auto_attack),
+                player_position=NativePlayerPositionObservation(
+                    player.position.x, player.position.y, 0.0),
+                target_position=NativeTargetPositionObservation(target_present=False),
+                player_action=NativePlayerActionObservation(
+                    phase=NativeTargetActionPhase.IDLE, motion_id=0, action_pending=False,
+                    impact_frame=None, action_sequence=0, motion_sequence=0,
+                    mode=2 if auto_attack else 1, action_state=1,
+                    selected_target_token=target.target_token,
+                    action_target_token="simulation:mob:1" if auto_attack else None,
+                    targeting_selected=auto_attack and target.target_present,
+                ),
             )
         )
         controller_trace.append(decision)
-        pending_combat = ()
+        if decision.cleanup_request is not None:
+            # The simulator owns its action loop, so stopping that loop is the
+            # simulation cleanup boundary. This is not a native-client receipt.
+            auto_attack = False
+            controller.acknowledge_cleanup(PvECombatCleanupResult(
+                request=decision.cleanup_request,
+                confirmed=True,
+                request_key=f"simulation-cleanup:{decision.cleanup_request.sequence}",
+            ))
         if decision.terminal:
             break
-        if decision.intent is PvEIntent.ACQUIRE_NEXT_MOB:
-            selected = mob.alive
-        elif decision.intent is PvEIntent.ATTACK_SELECTED_TARGET:
+        proposal = decision.combat_proposal
+        if proposal is not None:
+            if (proposal.kind is not PvECombatKind.ATTACK
+                    or proposal.target_token != "simulation:mob:1"
+                    or proposal.target_key != NativeObjectKey(1, 37)
+                    or not mob.alive):
+                raise ValueError("simulation received an unsupported native object proposal")
+            # The simulator owns this exact entity's repeated action loop. ACK
+            # its admission without manufacturing a native-client wire receipt.
             auto_attack = True
+            controller.acknowledge_combat(proposal, PvECombatAcknowledgement(
+                PvECombatDisposition.QUEUED, True, True,
+            ), now_ms=environment.now_ms)
 
         sim_decisions = ()
-        if auto_attack and selected and mob.alive:
+        if auto_attack and mob.alive:
             exchange = environment.exchange(_PLAYER_ID)
             matches = tuple(
                 item
@@ -337,16 +375,11 @@ def run_nearby_mob_simulation(
         )
         simulation_events.extend(batch.events)
         rejected_actions += sum(event.kind == EventKind.ACTION_REJECTED for event in batch.events)
-        pending_combat, combat_sequence, new_experience = _combat_observations(
-            batch.events,
-            config,
-            combat_sequence,
-            attack_rolls,
-            effective_damage,
+        new_experience = _collect_combat_metrics(
+            batch.events, config, attack_rolls, effective_damage,
         )
         experience_observed += new_experience
         if not environment.entity(_MOB_ID).alive:
-            selected = False
             auto_attack = False
     else:
         controller_trace.append(controller.stop("simulation_tick_limit", now_ms=environment.now_ms))
@@ -375,17 +408,6 @@ def run_nearby_mob_simulation(
     )
 
 
-def _target_observation(mob: EntityState, selected: bool) -> NativeTargetHealthObservation:
-    if not selected or not mob.alive:
-        return NativeTargetHealthObservation(target_present=False)
-    return NativeTargetHealthObservation(
-        target_present=True,
-        current_health=mob.scalars["health"],
-        maximum_health=mob.maximums["health"],
-        target_token="simulation:selected-mob:1",
-    )
-
-
 def _player_observation(
     player: EntityState, config: NearbyMobSimulationConfig
 ) -> NativePlayerVitalsObservation:
@@ -399,14 +421,32 @@ def _player_observation(
     )
 
 
-def _combat_observations(
+def _population_observation(
+    mob: EntityState, auto_attack: bool,
+) -> NativeCharacterPopulationObservation:
+    # A dead object stays observable long enough to confirm its exact lifetime.
+    token = "simulation:mob:1"
+    return NativeCharacterPopulationObservation(
+        characters=(NativeCharacterObservation(
+            token=token, object_key=NativeObjectKey(1, 37),
+            character_kind=NativeCharacterKind.NPC,
+            current_health=mob.scalars["health"], maximum_health=mob.maximums["health"],
+            lt=1.0, lg=0.0, altitude=0.0,
+            merchant=False, shopkeeper=False, banker=False, trainer=False, minion=False,
+        ),),
+        selected_target_token=None,
+        player_action_target_token=token if auto_attack else None,
+        scan_generation=1, rejected_candidates=0, local_player_object_key=NativeObjectKey(1, 53),
+    )
+
+
+def _collect_combat_metrics(
     events: tuple[Event, ...],
     config: NearbyMobSimulationConfig,
-    sequence: int,
     attack_rolls: list[float],
     effective_damage: list[float],
-) -> tuple[tuple[NativeCombatEvent, ...], int, float]:
-    observations: list[NativeCombatEvent] = []
+) -> float:
+    """Collect simulator results without manufacturing client text events."""
     experience = 0.0
     for event in events:
         if (
@@ -415,44 +455,8 @@ def _combat_observations(
             and event.target_entity_id == _MOB_ID
         ):
             scalars = {item.name: item.value for item in event.scalars}
-            requested = scalars["requested"]
-            effective = scalars["effective"]
-            attack_rolls.append(requested)
-            effective_damage.append(effective)
-            observations.append(
-                NativeCombatEvent(
-                    sequence=sequence,
-                    timestamp=f"{event.sim_time_ms}ms",
-                    kind=NativeCombatEventKind.PLAYER_HIT_TARGET,
-                    message=(f"You hit {config.mob_name} for {effective:g} points of damage!"),
-                    target_name=config.mob_name,
-                    amount=effective,
-                )
-            )
-            sequence += 1
+            attack_rolls.append(scalars["requested"])
+            effective_damage.append(scalars["effective"])
         elif event.kind == EventKind.ENTITY_DIED and event.target_entity_id == _MOB_ID:
-            observations.append(
-                NativeCombatEvent(
-                    sequence=sequence,
-                    timestamp=f"{event.sim_time_ms}ms",
-                    kind=NativeCombatEventKind.TARGET_KILLED,
-                    message=f"[Combat] Info: You have killed {config.mob_name}!",
-                    target_name=config.mob_name,
-                )
-            )
-            sequence += 1
-            observations.append(
-                NativeCombatEvent(
-                    sequence=sequence,
-                    timestamp=f"{event.sim_time_ms}ms",
-                    kind=NativeCombatEventKind.EXPERIENCE_GAINED,
-                    message=(
-                        "[Combat] Info: You have received "
-                        f"{config.experience_reward:g} Experience Points!"
-                    ),
-                    amount=config.experience_reward,
-                )
-            )
-            sequence += 1
             experience += config.experience_reward
-    return tuple(observations), sequence, experience
+    return experience

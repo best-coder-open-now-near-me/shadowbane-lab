@@ -4,33 +4,74 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Current shared source and deployment - September 29
+## Current shared source and deployment - September 30
 
-Start new development from freshly fetched `origin/main`. The approved bot
-integration [PR #43](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/43)
-merged at `d3389d4eff992074f7a63394c735f5b4cfd1d993` after all 15 hosted checks
-passed on `127bf94476db0ec73199381a9057e6c8a263b799`. It preserves the exact
-PR #39 `a6e8114`, PR #40 `1565732` (including vendor PR #38), PR #41 `8e87a47`,
-and PR #42 `daec3d1` histories. PRs #38-43 are merged. They are not outstanding
-source integration dependencies.
-
-The dashboard correction is merged through
+Start new development from freshly fetched `origin/main`. PRs #38-45 are merged;
+the bot integration, current client support, dashboard correction, combat
+diagnostics and standalone PvE startup ordering are included in shared history.
+[PR #43](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/43)
+merged at `d3389d4eff992074f7a63394c735f5b4cfd1d993`, followed by
 [PR #44](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/44)
-at `5945a00fd160097c5f43e49bbf3386337beabc4f`, after all 15 hosted gates passed.
-The deployed host 0.3.53 / native 1.8.33 package is stamped with reviewed head
-`b5016c491d2b51e0f0ed99b62acaedf134c54c9a`; its history is retained in main.
-`codex/bot-deployment-20260929` now carries the post-deployment receipt and
-host combat diagnostics in [draft PR #45](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/45),
-targeting main. This draft remains outside main and requires hosted validation
-and merge authorization. The qualified installed runtime is unchanged.
-Follow [the deployment receipt](bot-deployment-20260929.md) for exact hashes,
-installed state, preservation checks, and remaining live-test investigation. The normal
-checkout stays on main. Active validation worktrees remain available for the
-pending live acceptance; unrelated historical branches are not cleanup targets.
+at `5945a00fd160097c5f43e49bbf3386337beabc4f`.
+[PR #45](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/45)
+merged at `79b374da0a446cce913238543ee737cc01ad3e78` after all 15 hosted checks
+passed on `ab5e043a84808eea776b2e463e7d6e3d2cf63116` and merge authorization.
+The normal checkout is clean on main at that merge.
 
-Manual-list combat is implemented. Automatic retaliation is disabled pending an
-authoritative server character-session fence. Active validation artifacts and
-worktrees remain available; historical unrelated renderer/town branches and
+Vendor Test now has source-stamped host 0.3.54 / native 1.8.34 from the exact
+PR #45 head, qualified by `artifacts/b34/1be8a982`. Client 1.3.38.12 and its
+prepared executable are unchanged. The [September 30 official data patch](client-update-20260930.md)
+updated Config.wpak and CObjects.cache in both client installations, verified
+9,557 preserved files and passed launch preflight without starting the game. The update verified preservation, five
+shortcuts, launch preflight, manager startup and the loaded DLL. Obsolete host
+0.3.53 and its two superseded guest payload binaries were verified and removed;
+no rollback copies were retained. Follow [the deployment receipt](bot-deployment-20260929.md)
+for exact artifact identities and evidence.
+
+Live manual-list combat acceptance remains open. The fresh bounded attempt
+`85193158420e4802af16fffdde28f706` was rejected at `query_match` as stale, before
+native dispatcher/factory/queue/followup entry. It recorded no queued attack,
+confirmed cleanup and a strictly later PvE SEEKING step. The test-owned entry
+was removed, leaving the original empty list at revision 6. This does not prove
+an attack or cancellation caused by manual removal.
+
+`codex/bot-deployment-20260929` at `ab5e043` is retained in main. The bot-runtime
+worktree is now on `codex/combat-target-query-20260930`, based on main, published
+through draft [PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46).
+Checkpoint `8cd2bd2` replaces the spatial query with the reviewed native exact-key
+registry resolver and adds original/prepared-client ABI qualification. Checkpoint `a34df57`
+separates UI selection from the ongoing retained combat target and
+exports coherent selected/action tokens; object lifetime remains token plus key.
+Host checkpoint `2d175cc` replaces HUD/log-message control with exact object
+tracking, adopts existing native actions without a startup stop, distinguishes
+local action completion from projectile effects, and correlates required cleanup.
+The [native object-action architecture](native-object-actions.md) now describes
+explicit object melee and numeric-power casting, independent of UI selection,
+hotbar/CFG files and HUD/log control. Checkpoints `15f6425` and `83b5b2e` qualify
+power entry and native NPC policy; `a0cf022` freezes v2 commands/v3 engagements,
+`a4eab63` supplies host tickets and native character identity, and `7d195cb` adds
+the bounded native ledger with reentrant callback pinning and conservative cleanup.
+
+The shared host coordinator is pushed at `e32b7a2`; native runtime activation and
+required cross-process package gates are pushed at `a53d4a2`. Ordinary NPC and
+saved manual-player policy share one exact owner, retained engagement and cleanup
+boundary. Typed positive acknowledgements drive action accounting; session-owned
+ordinals preserve immutable replay and old-owner cleanup. Capability `0x10`
+authorizes the complete service; legacy combat verbs and capability `0x08` cannot
+activate the new path. Existing eligible native action adoption performs no
+blanket startup stop. Selection loss and projectile timing do not manufacture
+cleanup or kill credit.
+
+PR #46 remains draft, unmerged and uninstalled. Focused component tests and
+independent reviews passed. The full host run passed 4,041 tests with 33 explicit
+skips and 801 subtests; repository Ruff passed. The full native profile passed 195 required tests with three private-image skips.
+The restored real host/native authorization suite passed 83 tests with no skips;
+179 package-gate tests also passed. Both-profile final-source package qualification
+and exact-head hosted CI remain pending. Next: finish those checks, obtain PR #46 merge authorization, then install the
+qualified package and complete bounded attack/cast/cancel/recovery acceptance.
+Other active validation worktrees remain available.
+Automatic retaliation remains disabled pending an authoritative server
+character-session fence. Historical unrelated renderer/town branches and
 cancelled carpenter drafts have not been silently integrated or deleted.
 
 Everything below is a dated historical snapshot. Earlier pending/draft/active

@@ -2,20 +2,21 @@ import unittest
 
 from shadowbane_lab.client_input import EventEmergencyStop
 from shadowbane_lab.client_observation import (
-    NativeCombatLogEntry,
+    NativeCharacterPopulationObservation,
+    NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.pve import (
     NativePvEObservationSource,
     PvEController,
     PvEControllerConfig,
-    PvEIntent,
-    PvEObservationCoherenceError,
     PvEPhase,
     PvERunner,
 )
@@ -84,6 +85,30 @@ class ConstantVitalsSource:
         return self.value
 
 
+class ConstantPlayerActionSource:
+    def __init__(self, selected: str | None = None) -> None:
+        self.selected = selected
+
+    def observe_player(self) -> NativePlayerActionObservation:
+        return NativePlayerActionObservation(
+            NativeTargetActionPhase.IDLE, False, 21, False, None, 0, 0,
+            selected_target_token=self.selected, action_target_token=None,
+            mode=1, action_state=1,
+        )
+
+
+class ConstantPopulationSource:
+    def __init__(self, selected: str | None = None) -> None:
+        self.selected = selected
+
+    def observe(self) -> NativeCharacterPopulationObservation:
+        return NativeCharacterPopulationObservation(
+            characters=(), selected_target_token=self.selected, player_action_target_token=None,
+            scan_generation=1, rejected_candidates=0,
+            local_player_object_key=NativeObjectKey(1, 53),
+        )
+
+
 class ConstantPlayerPositionSource:
     def observe(self) -> NativePlayerPositionObservation:
         return NativePlayerPositionObservation(100.0, 200.0, 10.0)
@@ -108,26 +133,13 @@ class MismatchedTargetIdentitySource:
         )
 
 
-class CountingCombatLogSource:
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]:
-        self.calls += 1
-        return ()
-
-
 class RecordingPvEDispatcher:
     def __init__(self) -> None:
-        self.intents: list[PvEIntent] = []
+        self.intents = []
 
-    def dispatch(self, intent: PvEIntent, *, sequence: int) -> DispatchResult:
-        self.intents.append(intent)
-        return DispatchResult(
-            adapter_name="test",
-            correlation_id=f"test:{sequence}",
-            accepted=True,
-        )
+    def advance(self, proposal, observation):
+        self.intents.append(proposal)
+        raise AssertionError("guard failure must precede native action submission")
 
 
 class RecordingMovementDispatcher:
@@ -179,58 +191,44 @@ class ExplodingApproach(PvEApproachController):
 
 
 class NativePvEObservationSourceTests(unittest.TestCase):
-    def test_process_backed_selection_change_rejects_frame_before_consuming_events(self) -> None:
+    def test_process_backed_selection_change_withholds_only_selection(self) -> None:
         health = ProcessSequenceHealthSource((_target("first"), _target("second")))
-        combat = CountingCombatLogSource()
         source = NativePvEObservationSource(
             health_reader=health,
             player_vitals_reader=ConstantVitalsSource(_player(), process_id=4321),
-            combat_log_reader=combat,
         )
 
-        with self.assertRaisesRegex(
-            PvEObservationCoherenceError,
-            "selected target changed",
-        ):
-            source.observe(
-                now_ms=0,
-                target_action_active=False,
-                player_action_active=False,
-            )
+        observation = source.observe(
+            now_ms=0, target_action_active=False, player_action_active=False,
+        )
+        self.assertFalse(observation.selection_observed)
+        self.assertFalse(observation.target.target_present)
+        self.assertEqual(_player(), observation.player)
 
         self.assertTrue(source.selection_boundary_enabled)
         self.assertEqual(2, health.calls)
-        self.assertEqual(0, combat.calls)
 
-    def test_cross_channel_target_mismatch_rejects_before_consuming_events(self) -> None:
+    def test_cross_channel_target_mismatch_withholds_only_selection(self) -> None:
         health = ProcessSequenceHealthSource((_target("mob"), _target("mob")))
-        combat = CountingCombatLogSource()
         source = NativePvEObservationSource(
             health_reader=health,
             player_vitals_reader=ConstantVitalsSource(_player(), process_id=4321),
             target_identity_reader=MismatchedTargetIdentitySource(),
-            combat_log_reader=combat,
         )
 
-        with self.assertRaisesRegex(
-            PvEObservationCoherenceError,
-            "target health and identity resolved different targets",
-        ):
-            source.observe(
-                now_ms=0,
-                target_action_active=False,
-                player_action_active=False,
-            )
+        observation = source.observe(
+            now_ms=0, target_action_active=False, player_action_active=False,
+        )
+        self.assertFalse(observation.selection_observed)
+        self.assertFalse(observation.target.target_present)
+        self.assertEqual(_player(), observation.player)
 
-        self.assertEqual(0, combat.calls)
 
     def test_process_backed_frame_uses_latest_health_for_stable_selection(self) -> None:
         health = ProcessSequenceHealthSource((_target("mob", 10.0), _target("mob", 7.0)))
-        combat = CountingCombatLogSource()
         source = NativePvEObservationSource(
             health_reader=health,
             player_vitals_reader=ConstantVitalsSource(_player(), process_id=4321),
-            combat_log_reader=combat,
         )
 
         observation = source.observe(
@@ -241,14 +239,12 @@ class NativePvEObservationSourceTests(unittest.TestCase):
 
         self.assertEqual("mob", observation.target.target_token)
         self.assertEqual(7.0, observation.target.current_health)
-        self.assertEqual(1, combat.calls)
 
     def test_tape_source_remains_single_read_and_is_treated_as_atomic(self) -> None:
         health = ConstantHealthSource(_absent())
         source = NativePvEObservationSource(
             health_reader=health,
             player_vitals_reader=ConstantVitalsSource(_player()),
-            combat_log_reader=CountingCombatLogSource(),
         )
 
         observation = source.observe(
@@ -266,7 +262,6 @@ class NativePvEObservationSourceTests(unittest.TestCase):
             NativePvEObservationSource(
                 health_reader=ProcessSequenceHealthSource((_absent(),)),
                 player_vitals_reader=ConstantVitalsSource(_player(), process_id=9876),
-                combat_log_reader=CountingCombatLogSource(),
             )
 
 
@@ -274,7 +269,14 @@ class GuardedPvERunnerTests(unittest.TestCase):
     def test_public_runner_reuses_canonical_dispatch_loop(self) -> None:
         self.assertIs(CanonicalPvERunner.run, PvERunner.run)
 
-    def test_coherence_failures_retry_then_stop_without_input(self) -> None:
+    def test_actor_identity_failures_retry_then_stop_without_input(self) -> None:
+        class ChangingActorPopulation(ConstantPopulationSource):
+            reads = 0
+
+            def observe_actor_identity(self):
+                self.reads += 1
+                return ("actor", NativeObjectKey(self.reads, 53), None)
+
         health = ProcessSequenceHealthSource(
             (
                 _target("first"),
@@ -289,7 +291,8 @@ class GuardedPvERunnerTests(unittest.TestCase):
             controller=PvEController(PvEControllerConfig()),
             health_reader=health,
             player_vitals_reader=ConstantVitalsSource(_player(), process_id=4321),
-            combat_log_reader=CountingCombatLogSource(),
+            population_reader=ChangingActorPopulation("first"),
+            player_action_reader=ConstantPlayerActionSource("first"),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
@@ -316,7 +319,8 @@ class GuardedPvERunnerTests(unittest.TestCase):
             controller=controller,
             health_reader=ConstantHealthSource(_absent()),
             player_vitals_reader=ConstantVitalsSource(_player()),
-            combat_log_reader=CountingCombatLogSource(),
+            population_reader=ConstantPopulationSource(),
+            player_action_reader=ConstantPlayerActionSource(),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             maximum_consecutive_observation_failures=3,
@@ -342,7 +346,8 @@ class GuardedPvERunnerTests(unittest.TestCase):
             player_vitals_reader=ConstantVitalsSource(_player()),
             player_position_reader=ConstantPlayerPositionSource(),
             target_position_reader=ConstantAbsentTargetPositionSource(),
-            combat_log_reader=CountingCombatLogSource(),
+            population_reader=ConstantPopulationSource(),
+            player_action_reader=ConstantPlayerActionSource(),
             dispatcher=dispatcher,
             approach_controller=ExplodingApproach(),
             movement_dispatcher=movement,
@@ -358,7 +363,8 @@ class GuardedPvERunnerTests(unittest.TestCase):
         self.assertEqual([], dispatcher.intents)
         self.assertEqual(0, movement.dispatched)
         self.assertEqual(0, movement.stopped)
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, result.trace[0].decision.intent)
+        self.assertIsNone(result.trace[0].decision.combat_proposal)
+        self.assertIsNone(result.trace[0].decision.intent)
         self.assertIsNone(result.trace[0].input_accepted)
 
 

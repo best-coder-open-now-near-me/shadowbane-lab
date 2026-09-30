@@ -323,17 +323,17 @@ ambiguous owners, torn reads, unrelated replacement, and build drift fail closed
 
 The verified `MessageHUD2` stream contains both native Combat and Powers channel markers. It
 provides exact damage, miss, kill, experience, cast, and effect text without requiring the HUD's
-per-session file-logging switch. Bounded PvE uses this source by default when `--combat-log` is
-omitted:
+per-session file-logging switch. These messages are diagnostic observations, not
+combat-control authority. Live PvE follows native objects and their state:
 
 ```powershell
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client run-pve `
     --client-profile .\configs\wonderbane-pve.local.json `
-    --combat-source hud `
+    --combat-source state `
     --live
 ```
 
-Shadowbane's built-in text-HUD logger remains a supported offline and compatibility source. Open
+Shadowbane's built-in text-HUD logger remains an offline diagnostic source. Open
 the properties control on the combat message HUD, choose `Log`, enable `Log Messages`, and provide
 a filename. The client appends `.txt` and writes the stream under its `Logs` directory, for
 example:
@@ -357,7 +357,7 @@ Read a snapshot without focusing or capturing the client:
     --json
 ```
 
-Use `--combat-source log --combat-log <path>` to select it for a live PvE run.
+HUD and file-log sources are not supported as live PvE control inputs.
 `NativeCombatLogReader` also supports incremental attachment at the beginning or current end of
 the file. It retains incomplete writes until the native blank-record separator arrives, preserves
 continuation lines, detects truncation or replacement, and emits a monotonic typed sequence for

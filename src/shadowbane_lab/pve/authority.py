@@ -7,8 +7,9 @@ from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
+from shadowbane_lab.client_observation.native_population import NativeCharacterKind
 from shadowbane_lab.protocol import Relation
-from shadowbane_lab.pve.model import PvEObservation
+from shadowbane_lab.pve.model import PvEObservation, PvETrackedTarget
 
 
 class PvETargetCharacterKind(StrEnum):
@@ -158,10 +159,7 @@ class PvETargetAuthorityDecision:
             _identifier(source, "evidence source")
         if not isinstance(self.exclusions, tuple):
             raise ValueError("exclusions must be a tuple")
-        if any(
-            not isinstance(value, PvETargetAuthorityExclusion)
-            for value in self.exclusions
-        ):
+        if any(not isinstance(value, PvETargetAuthorityExclusion) for value in self.exclusions):
             raise ValueError("exclusions must contain PvETargetAuthorityExclusion values")
         if len(self.exclusions) != len(set(self.exclusions)):
             raise ValueError("authority exclusions must not contain duplicates")
@@ -261,10 +259,23 @@ class StaticPvETargetAuthorityEvaluator:
         )
         return evaluate_pve_target_authority(observation, evidence)
 
+    def evaluate_tracked(
+        self,
+        observation: PvEObservation,
+        tracked_target: PvETrackedTarget,
+    ) -> PvETargetAuthorityDecision:
+        evidence = next(
+            (value for value in self.evidence if value.target_token == tracked_target.token),
+            None,
+        )
+        return evaluate_pve_target_authority(observation, evidence, tracked_target=tracked_target)
+
 
 def evaluate_pve_target_authority(
     observation: PvEObservation,
     evidence: PvETargetAuthorityEvidence | None,
+    *,
+    tracked_target: PvETrackedTarget | None = None,
 ) -> PvETargetAuthorityDecision:
     """Require positive proof instead of treating missing relation facts as hostile."""
 
@@ -273,11 +284,30 @@ def evaluate_pve_target_authority(
     if evidence is not None and not isinstance(evidence, PvETargetAuthorityEvidence):
         raise ValueError("evidence must be PvETargetAuthorityEvidence when present")
 
-    target = observation.target
-    if not target.target_present:
+    if tracked_target is not None and not isinstance(tracked_target, PvETrackedTarget):
+        raise ValueError("tracked_target must be PvETrackedTarget when present")
+    character = None if tracked_target is None else tracked_target.character
+    target_present = (
+        observation.target.target_present
+        if tracked_target is None
+        else (
+            character is not None
+            and observation.population is not None
+            and character in observation.population.characters
+        )
+    )
+    target_token = (
+        observation.target.target_token if tracked_target is None else tracked_target.token
+    )
+    current_health = (
+        observation.target.current_health
+        if tracked_target is None
+        else (None if character is None else character.current_health)
+    )
+    if not target_present:
         return PvETargetAuthorityDecision(
             observed_at_ms=observation.now_ms,
-            target_token=None,
+            target_token=target_token,
             evidence_target_token=None if evidence is None else evidence.target_token,
             source_revision=None if evidence is None else evidence.source_revision,
             target_object_key=None if evidence is None else evidence.target_object_key,
@@ -285,9 +315,7 @@ def evaluate_pve_target_authority(
                 None if evidence is None else evidence.local_player_object_key
             ),
             character_kind=(
-                PvETargetCharacterKind.UNKNOWN
-                if evidence is None
-                else evidence.character_kind
+                PvETargetCharacterKind.UNKNOWN if evidence is None else evidence.character_kind
             ),
             relation=None if evidence is None else evidence.relation,
             same_party=None if evidence is None else evidence.same_party,
@@ -297,31 +325,38 @@ def evaluate_pve_target_authority(
             exclusions=(PvETargetAuthorityExclusion.TARGET_NOT_PRESENT,),
         )
 
-    assert target.target_token is not None
+    assert target_token is not None
     exclusions: list[PvETargetAuthorityExclusion] = []
-    if target.current_health is None or target.current_health <= 0.0:
+    if current_health is None or current_health <= 0.0:
         exclusions.append(PvETargetAuthorityExclusion.TARGET_NOT_ALIVE)
 
-    identity = observation.target_identity
-    if identity is None or not identity.classification_available:
-        exclusions.append(
-            PvETargetAuthorityExclusion.IDENTITY_CLASSIFICATION_UNAVAILABLE
-        )
-    else:
-        if identity.target_token != target.target_token:
-            exclusions.append(PvETargetAuthorityExclusion.TARGET_TOKEN_MISMATCH)
-        if not identity.arc_character:
-            exclusions.append(PvETargetAuthorityExclusion.TARGET_NOT_ARC_CHARACTER)
-        if identity.protected_role:
+    if tracked_target is not None:
+        assert character is not None
+        if character.protected_roles:
             exclusions.append(PvETargetAuthorityExclusion.PROTECTED_SERVICE_ROLE)
+        if character.character_kind is NativeCharacterKind.UNKNOWN:
+            exclusions.append(PvETargetAuthorityExclusion.CHARACTER_KIND_UNAVAILABLE)
+        elif character.character_kind is not NativeCharacterKind.NPC:
+            exclusions.append(PvETargetAuthorityExclusion.CHARACTER_KIND_NOT_NPC)
+        if evidence is not None and evidence.target_object_key != tracked_target.object_key:
+            exclusions.append(PvETargetAuthorityExclusion.TARGET_OBJECT_IDENTITY_UNAVAILABLE)
+    else:
+        identity = observation.target_identity
+        if identity is None or not identity.classification_available:
+            exclusions.append(PvETargetAuthorityExclusion.IDENTITY_CLASSIFICATION_UNAVAILABLE)
+        else:
+            if identity.target_token != target_token:
+                exclusions.append(PvETargetAuthorityExclusion.TARGET_TOKEN_MISMATCH)
+            if not identity.arc_character:
+                exclusions.append(PvETargetAuthorityExclusion.TARGET_NOT_ARC_CHARACTER)
+            if identity.protected_role:
+                exclusions.append(PvETargetAuthorityExclusion.PROTECTED_SERVICE_ROLE)
 
     if evidence is None:
-        exclusions.append(
-            PvETargetAuthorityExclusion.AUTHORITY_EVIDENCE_UNAVAILABLE
-        )
+        exclusions.append(PvETargetAuthorityExclusion.AUTHORITY_EVIDENCE_UNAVAILABLE)
         return PvETargetAuthorityDecision(
             observed_at_ms=observation.now_ms,
-            target_token=target.target_token,
+            target_token=target_token,
             evidence_target_token=None,
             source_revision=None,
             target_object_key=None,
@@ -336,19 +371,13 @@ def evaluate_pve_target_authority(
         )
 
     if not evidence.evidence_sources:
-        exclusions.append(
-            PvETargetAuthorityExclusion.EVIDENCE_PROVENANCE_UNAVAILABLE
-        )
-    if evidence.target_token != target.target_token:
+        exclusions.append(PvETargetAuthorityExclusion.EVIDENCE_PROVENANCE_UNAVAILABLE)
+    if evidence.target_token != target_token:
         exclusions.append(PvETargetAuthorityExclusion.TARGET_TOKEN_MISMATCH)
     if evidence.target_object_key is None:
-        exclusions.append(
-            PvETargetAuthorityExclusion.TARGET_OBJECT_IDENTITY_UNAVAILABLE
-        )
+        exclusions.append(PvETargetAuthorityExclusion.TARGET_OBJECT_IDENTITY_UNAVAILABLE)
     if evidence.local_player_object_key is None:
-        exclusions.append(
-            PvETargetAuthorityExclusion.LOCAL_PLAYER_OBJECT_IDENTITY_UNAVAILABLE
-        )
+        exclusions.append(PvETargetAuthorityExclusion.LOCAL_PLAYER_OBJECT_IDENTITY_UNAVAILABLE)
     if (
         evidence.target_object_key is not None
         and evidence.local_player_object_key is not None
@@ -368,9 +397,7 @@ def evaluate_pve_target_authority(
     elif evidence.same_party:
         exclusions.append(PvETargetAuthorityExclusion.PARTY_MEMBER)
     if evidence.friendly_owned is None:
-        exclusions.append(
-            PvETargetAuthorityExclusion.OWNERSHIP_STATUS_UNAVAILABLE
-        )
+        exclusions.append(PvETargetAuthorityExclusion.OWNERSHIP_STATUS_UNAVAILABLE)
     elif evidence.friendly_owned:
         exclusions.append(PvETargetAuthorityExclusion.FRIENDLY_OWNED)
     if evidence.attackable is None:
@@ -380,7 +407,7 @@ def evaluate_pve_target_authority(
 
     return PvETargetAuthorityDecision(
         observed_at_ms=observation.now_ms,
-        target_token=target.target_token,
+        target_token=target_token,
         evidence_target_token=evidence.target_token,
         source_revision=evidence.source_revision,
         target_object_key=evidence.target_object_key,

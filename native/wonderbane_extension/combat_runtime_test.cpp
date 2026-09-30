@@ -9,6 +9,7 @@ m::NativeScene observed{0x10000, 0x20000, 0x30000, 0x40000, {91, 53}, 7};
 m::Grant owner{9, 7, m::Owner::automation};
 bool live = true, lease_live = true, stop_ok = true, native_activity = false, state_readable = true;
 bool retired_in_attack = false, revoke_in_attack = false, rejected_attack = false;
+bool selection_current = true, combat_target_current = true;
 c::Diagnostic last_diagnostic{};
 unsigned attacks = 0, stops = 0, clears = 0;
 c::fence::Binding* shared_binding = nullptr;
@@ -90,7 +91,7 @@ bool Ready() noexcept { return true; }
 namespace wonderbane::extension::combat {
 bool NativeTarget::Bind(HWND) noexcept { base_ = 0x400000; return true; }
 bool NativeTarget::Current() noexcept { return live; }
-bool NativeTarget::CombatTargetCurrent() const noexcept { return live; }
+bool NativeTarget::CombatTargetCurrent() const noexcept { return live && combat_target_current; }
 // The target fixture separately exercises actual native pointers, ownership and ABI.
 NativeTarget::Result NativeTarget::Attack(const m::NativeScene& scene, const wire::Command&,
     Admission current, Admission enter, Admission append, void* context) noexcept {
@@ -122,8 +123,8 @@ int main() {
     {
         const auto command = Command(1, binding); Mapping mapping(binding);
         auto receipt = Execute(V::start, command);
-        assert(receipt.outcome == O::client_outbound_queued && attacks == 1 && stops == 1);
-        assert((sequence == std::vector<int>{1, 2, 1, 3}));
+        assert(receipt.outcome == O::client_outbound_queued && attacks == 1 && stops == 0);
+        assert((sequence == std::vector<int>{1, 3}));
         assert(mapping.view->state == c::fence::State::entered);
         receipt = Execute(V::start, command); assert(attacks == 1 && receipt.flags & c::wire::outbound_queued);
         mapping.view->state = c::fence::State::entered_revoked;
@@ -161,17 +162,20 @@ int main() {
     }
     {
         const auto command = Command(5, binding); Mapping mapping(binding);
-        const auto before = attacks; stop_ok = false;
+        const auto before = attacks, stopped = stops; stop_ok = false;
         auto receipt = Execute(V::start, command);
-        assert(receipt.outcome == O::pending && attacks == before && native_activity);
-        assert(last_diagnostic.stage == c::Stage::baseline_pause && !last_diagnostic.dispatched
-            && last_diagnostic.movement_result == static_cast<int>(m::Result::stop_failed));
-        assert(mapping.view->state == c::fence::State::pending); // Baseline failure cannot enter attack.
+        assert(receipt.outcome == O::client_outbound_queued && attacks == before + 1
+            && stops == stopped && native_activity);
+        assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.appended);
+        assert(mapping.view->state == c::fence::State::entered);
+        // Stop failure cannot create a startup pause, but an explicit cancel
+        // retains the exact owner and cleanup obligation until it succeeds.
+        receipt = Execute(V::cancel, command);
+        assert(receipt.outcome == O::pending && c::runtime.active && native_activity);
         stop_ok = true;
         receipt = Execute(V::cancel, command);
         assert(receipt.outcome == O::local_cancelled && !native_activity);
-        assert(last_diagnostic.stage == c::Stage::baseline_pause && !last_diagnostic.dispatched
-            && last_diagnostic.movement_result == static_cast<int>(m::Result::stop_failed));
+        assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.appended);
     }
     {
         const auto command = Command(6, binding); Mapping mapping(binding);
@@ -225,7 +229,15 @@ int main() {
         const auto command = Command(10, binding); Mapping mapping(binding);
         assert(Execute(V::start, command).outcome == O::client_outbound_queued);
         assert(last_diagnostic.outcome == O::client_outbound_queued && last_diagnostic.native_entered);
-        assert(Execute(V::cancel, command).outcome == O::local_cancelled);
+        const auto before = stops;
+        selection_current = false;
+        auto receipt = Execute(V::status, command);
+        assert(c::runtime.active && native_activity && stops == before);
+        assert(receipt.flags & c::wire::outbound_queued);
+        combat_target_current = false;
+        receipt = Execute(V::status, command);
+        assert(receipt.outcome == O::local_cancelled && !c::runtime.active && stops > before);
+        selection_current = combat_target_current = true;
     }
 
 }

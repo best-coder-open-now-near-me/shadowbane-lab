@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "profile_id": "wonderbane-ef43784b-native-target-action",
   "executable_name": "sb.exe",
   "executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
@@ -13,6 +13,9 @@
   "impact_frame_offset": 2472,
   "action_pending_offset": 2492,
   "target_of_target_pointer_offset": 2808,
+  "actor_state_pointer_offset": 2768,
+  "state_mode_offset": 24,
+  "state_action_offset": 32,
   "idle_motion_ids": [21],
   "observed_attack_motion_ids": [106, 107, 108],
   "no_impact_frame_sentinel": -1,

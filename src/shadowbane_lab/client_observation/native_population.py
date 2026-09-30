@@ -24,6 +24,11 @@ from shadowbane_lab.client_observation.native_message_hud import (
     ScanningReadOnlyProcessMemory,
 )
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
+from shadowbane_lab.client_observation.native_target_action import (
+    NativeTargetActionObservation,
+    NativeTargetActionReader,
+    NativeTargetActionReadError,
+)
 
 NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION = 3
 _BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-character-population.json"
@@ -272,8 +277,13 @@ class NativeCharacterPopulationObservation:
     scan_generation: int
     rejected_candidates: int
     local_player_object_key: NativeObjectKey | None = None
+    selection_observed: bool = True
 
     def __post_init__(self) -> None:
+        if not isinstance(self.selection_observed, bool):
+            raise ValueError("selection_observed must be boolean")
+        if not self.selection_observed and self.selected_target_token is not None:
+            raise ValueError("unavailable selection cannot contain a token")
         tokens = tuple(character.token for character in self.characters)
         if len(tokens) != len(set(tokens)):
             raise ValueError("character population tokens must be unique")
@@ -304,6 +314,23 @@ class NativeCharacterPopulationObservation:
         ):
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{field_name} must be non-negative")
+
+
+@dataclass(frozen=True, slots=True)
+class NativeCharacterDetailObservation:
+    """Fresh population-owned character state with optional native action detail."""
+
+    character: NativeCharacterObservation
+    action: NativeTargetActionObservation | None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.character, NativeCharacterObservation):
+            raise ValueError("character detail requires a native character")
+        if self.action is not None and (
+            not isinstance(self.action, NativeTargetActionObservation)
+            or not self.action.target_present or self.action.target_token != self.character.token
+        ):
+            raise ValueError("character action detail resolved a different object")
 
 
 class NativeCharacterPopulationReader:
@@ -385,7 +412,14 @@ class NativeCharacterPopulationReader:
         if self._last_scan_at is None or now - self._last_scan_at >= self._rescan_interval_seconds:
             self._scan_candidates(now)
         player = self._read_pointer(self._player_slot, "local player")
-        selected = self._read_pointer(self._selected_slot, "selected target")
+        try:
+            selected = self._read_pointer(self._selected_slot, "selected target")
+            selection_observed = (
+                selected == 0 or self._profile.minimum_user_address <= selected
+                <= self._profile.maximum_user_address - self._profile.pointer_size
+            )
+        except NativeCharacterPopulationReadError:
+            selected, selection_observed = 0, False
         player_block = self._read_object_block(player, "local player")
         if struct.unpack_from("<I", player_block)[0] != self._character_vtable:
             raise NativeCharacterPopulationReadError(
@@ -394,6 +428,10 @@ class NativeCharacterPopulationReader:
         player_action_target = struct.unpack_from(
             "<I", player_block, self._profile.action_target_pointer_offset
         )[0]
+        if player_action_target:
+            self._require_pointer(
+                player_action_target, self._profile.pointer_size, "local player action target"
+            )
         player_object_key = self._read_object_key(player_block, "local player")
         characters: list[NativeCharacterObservation] = []
         rejected = 0
@@ -417,8 +455,12 @@ class NativeCharacterPopulationReader:
             )
         if self._read_pointer(self._player_slot, "local player") != player:
             raise NativeCharacterPopulationReadError("local player changed during population read")
-        if self._read_pointer(self._selected_slot, "selected target") != selected:
-            raise NativeCharacterPopulationReadError("selection changed during population read")
+        try:
+            selection_observed &= (
+                self._read_pointer(self._selected_slot, "selected target") == selected
+            )
+        except NativeCharacterPopulationReadError:
+            selection_observed = False
         player_verification = self._read_object_block(player, "local player verification")
         if struct.unpack_from("<I", player_verification)[0] != self._character_vtable:
             raise NativeCharacterPopulationReadError(
@@ -431,10 +473,19 @@ class NativeCharacterPopulationReader:
             raise NativeCharacterPopulationReadError(
                 "local player identity changed during population read"
             )
+        if struct.unpack_from(
+            "<I", player_verification, self._profile.action_target_pointer_offset
+        )[0] != player_action_target:
+            raise NativeCharacterPopulationReadError(
+                "local player action target changed during population read"
+            )
         characters.sort(key=lambda character: character.token)
         return NativeCharacterPopulationObservation(
             characters=tuple(characters),
-            selected_target_token=self._token(selected) if selected else None,
+            selected_target_token=(
+                self._token(selected) if selected and selection_observed else None
+            ),
+            selection_observed=selection_observed,
             player_action_target_token=(
                 self._token(player_action_target) if player_action_target else None
             ),
@@ -442,6 +493,98 @@ class NativeCharacterPopulationReader:
             rejected_candidates=rejected,
             local_player_object_key=player_object_key,
         )
+
+    def observe_actor_identity(self) -> tuple[str, NativeObjectKey, str | None]:
+        """Read the local actor binding and AF8 through the canonical population layout.
+
+        This identity boundary deliberately never reads UI selection.
+        """
+        if self._closed:
+            raise NativeCharacterPopulationReadError("native population reader is closed")
+        player = self._read_pointer(self._player_slot, "local player")
+        first = self._read_object_block(player, "local actor identity")
+        second = self._read_object_block(player, "local actor identity verification")
+        key = self._read_object_key(first, "local actor")
+        action = struct.unpack_from("<I", first, self._profile.action_target_pointer_offset)[0]
+        if action:
+            self._require_pointer(action, self._profile.pointer_size, "local action target")
+        if (struct.unpack_from("<I", first)[0] != self._character_vtable
+                or struct.unpack_from("<I", second)[0] != self._character_vtable
+                or self._read_object_key(second, "local actor verification") != key
+                or struct.unpack_from("<I", second, self._profile.action_target_pointer_offset)[0]
+                != action or self._read_pointer(self._player_slot, "local player") != player):
+            raise NativeCharacterPopulationReadError("local actor identity changed during read")
+        return self._token(player), key, self._token(action) if action else None
+
+    def resolve_combat_addresses(
+        self, *, local_key: NativeObjectKey, target_token: str, target_key: NativeObjectKey,
+    ) -> tuple[int, int]:
+        """Return fresh comparison hints for the exact canonical actor/target.
+
+        Tokens stay opaque. Only addresses already owned by this reader's scan
+        may resolve; the native receiver independently resolves and retains the
+        keys, then compares these hints without dereferencing them.
+        """
+        if (not isinstance(local_key, NativeObjectKey)
+                or not isinstance(target_key, NativeObjectKey)
+                or not isinstance(target_token, str) or not target_token
+                or local_key.is_null or target_key.is_null or local_key == target_key):
+            raise ValueError("combat address resolution requires distinct exact object identities")
+        actor_before = self.observe_actor_identity()
+        actor_address = self._read_pointer(self._player_slot, "local player")
+        if (actor_before[1] != local_key or local_key.object_uuid != 53
+                or self._token(actor_address) != actor_before[0]):
+            raise NativeCharacterPopulationReadError("combat actor identity is no longer current")
+        matches = [address for address in self._candidate_addresses
+                   if self._token(address) == target_token]
+        if len(matches) != 1 or matches[0] == actor_address:
+            raise NativeCharacterPopulationReadError("combat target is not a canonical candidate")
+        target_address = matches[0]
+        for _ in range(2):
+            target = self._read_character(target_address)
+            if target.object_key != target_key or target.token != target_token:
+                raise NativeCharacterPopulationReadError("combat target identity changed")
+        actor_after = self.observe_actor_identity()
+        if (actor_after[:2] != actor_before[:2]
+                or self._read_pointer(self._player_slot, "local player") != actor_address):
+            raise NativeCharacterPopulationReadError("combat actor changed during resolution")
+        return actor_address, target_address
+
+    def observe_character_detail(
+        self, token: str, object_key: NativeObjectKey, reader: NativeTargetActionReader,
+    ) -> NativeCharacterDetailObservation | None:
+        """Refresh an exact known object, without decoding tokens or scanning again.
+
+        Addresses remain owned here. The action reader receives an address only
+        inside a key-checked read transaction; replacement or disappearance yields
+        unavailable detail, never a selected-target fallback.
+        """
+        if not isinstance(reader, NativeTargetActionReader) or reader.process_id != self.process_id:
+            raise ValueError("bound action reader must use the population process")
+        if not isinstance(token, str) or not token or not isinstance(object_key, NativeObjectKey):
+            raise ValueError("bound action requires an exact token and object key")
+        actor_before = self.observe_actor_identity()
+        address = next((a for a in self._candidate_addresses if self._token(a) == token), None)
+        if address is None:
+            return None
+        try:
+            before = self._read_character(address)
+            if before.object_key != object_key:
+                return None
+            try:
+                action = reader.observe_character(address)
+            except NativeTargetActionReadError:
+                action = None
+            after = self._read_character(address)
+            if after.object_key != object_key:
+                return None
+            if action is not None and action.target_token != token:
+                raise ValueError("bound action reader returned a different object")
+        except NativeCharacterPopulationReadError:
+            return None
+        if self.observe_actor_identity() != actor_before:
+            raise NativeCharacterPopulationReadError("local actor changed during bound action read")
+        return NativeCharacterDetailObservation(after, action)
 
     def close(self) -> None:
         if not self._closed:
@@ -520,6 +663,10 @@ class NativeCharacterPopulationReader:
         verified_block = self._read_object_block(address, "ArcCharacter candidate verification")
         if self._read_object_key(verified_block, "candidate verification") != object_key:
             raise NativeCharacterPopulationReadError("candidate identity changed during read")
+        if struct.unpack_from("<I", verified_block, profile.action_target_pointer_offset)[0] != (
+            action_target
+        ):
+            raise NativeCharacterPopulationReadError("candidate action target changed during read")
         if struct.unpack_from("<II", verified_block, profile.sparse_data_offset) != (
             buckets, table_bits
         ):

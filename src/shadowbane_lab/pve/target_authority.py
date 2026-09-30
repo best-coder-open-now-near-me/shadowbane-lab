@@ -9,6 +9,7 @@ from enum import StrEnum
 from shadowbane_lab.pve.authority import (
     PvETargetAuthorityDecision,
     PvETargetAuthorityEvaluator,
+    evaluate_pve_target_authority,
 )
 from shadowbane_lab.pve.controller import PvEController as _BasePvEController
 from shadowbane_lab.pve.model import (
@@ -18,6 +19,7 @@ from shadowbane_lab.pve.model import (
     PvEKillConfirmation,
     PvEObservation,
     PvEPhase,
+    PvETrackedTarget,
 )
 
 
@@ -65,8 +67,7 @@ class PvETargetRejection:
         if len(self.authority_exclusions) != len(set(self.authority_exclusions)):
             raise ValueError("authority_exclusions must not contain duplicates")
         if any(
-            not isinstance(value, str) or not value.strip()
-            for value in self.authority_exclusions
+            not isinstance(value, str) or not value.strip() for value in self.authority_exclusions
         ):
             raise ValueError("authority_exclusions must contain non-empty strings")
 
@@ -98,10 +99,7 @@ class PvETargetAuthorityControllerDecision(PvEControllerDecision):
                 raise ValueError("target authority time must match controller decision time")
         if not isinstance(self.target_rejections, tuple):
             raise ValueError("target_rejections must be a tuple")
-        if any(
-            not isinstance(value, PvETargetRejection)
-            for value in self.target_rejections
-        ):
+        if any(not isinstance(value, PvETargetRejection) for value in self.target_rejections):
             raise ValueError("target_rejections must contain PvETargetRejection values")
         if any(value.at_ms != self.now_ms for value in self.target_rejections):
             raise ValueError("target rejection time must match controller decision time")
@@ -117,8 +115,7 @@ class PvETargetAuthorityControllerDecision(PvEControllerDecision):
         if not isinstance(decision, PvEControllerDecision):
             raise ValueError("decision must be PvEControllerDecision")
         values = {
-            field.name: getattr(decision, field.name)
-            for field in fields(PvEControllerDecision)
+            field.name: getattr(decision, field.name) for field in fields(PvEControllerDecision)
         }
         return cls(
             **values,
@@ -150,9 +147,7 @@ class PvEController(_BasePvEController):
                 "target_authority_evaluator must implement PvETargetAuthorityEvaluator"
             )
         if require_verified_target_authority and target_authority_evaluator is None:
-            raise ValueError(
-                "verified target authority requires a target_authority_evaluator"
-            )
+            raise ValueError("verified target authority requires a target_authority_evaluator")
         super().__init__(config)
         self._population_candidate_selected_at: int | None = None
         self._target_rejections: deque[PvETargetRejection] = deque(
@@ -196,36 +191,21 @@ class PvEController(_BasePvEController):
 
     @property
     def latest_target_authority(self) -> PvETargetAuthorityDecision | None:
-        return (
-            None
-            if not self._target_authority_history
-            else self._target_authority_history[-1]
-        )
+        return None if not self._target_authority_history else self._target_authority_history[-1]
 
     def step(
-        self, observation: PvEObservation, *, external_combat: bool = False,
+        self,
+        observation: PvEObservation,
+        *,
+        external_combat: bool = False,
     ) -> PvEControllerDecision:
         if not isinstance(observation, PvEObservation):
             raise ValueError("observation must be PvEObservation")
         self._active_step_target_rejections.clear()
-        authority = None
-        evaluator = self._target_authority_evaluator
-        if evaluator is None and observation.authority_snapshot is not None:
-            from shadowbane_lab.pve.authority_snapshot import SnapshotPvETargetAuthorityEvaluator
-
-            evaluator = SnapshotPvETargetAuthorityEvaluator(observation.authority_snapshot)
-        if evaluator is not None:
-            authority = evaluator.evaluate(observation)
-            if not isinstance(authority, PvETargetAuthorityDecision):
-                raise ValueError(
-                    "target authority evaluator must return PvETargetAuthorityDecision"
-                )
-            if authority.observed_at_ms != observation.now_ms:
-                raise ValueError("target authority decision time does not match observation")
-            if authority.target_token != observation.target.target_token:
-                raise ValueError("target authority decision token does not match observation")
-            self._target_authority_history.append(authority)
-        self._active_target_authority = authority
+        tracked = self.tracked_target(observation) or self.observed_action_target(observation)
+        self._active_target_authority = (
+            None if tracked is None else self._evaluate_tracked_authority(observation, tracked)
+        )
         try:
             return super().step(observation, external_combat=external_combat)
         finally:
@@ -236,130 +216,56 @@ class PvEController(_BasePvEController):
         super()._enter(phase, now_ms)
         self._population_candidate_selected_at = None
 
-    def _seek_population(self, observation: PvEObservation) -> PvEControllerDecision:
-        """Rank population candidates while bounding validation of the selected token."""
+    def _evaluate_tracked_authority(
+        self, observation: PvEObservation, tracked: PvETrackedTarget,
+    ) -> PvETargetAuthorityDecision | None:
+        evaluator = self._target_authority_evaluator
+        if evaluator is None and observation.authority_snapshot is not None:
+            from shadowbane_lab.pve.authority_snapshot import SnapshotPvETargetAuthorityEvaluator
 
-        now = observation.now_ms
-        population = observation.population
-        player_position = observation.player_position
-        if population is None or player_position is None:
-            return self.stop("native_population_unavailable", now_ms=now)
+            evaluator = SnapshotPvETargetAuthorityEvaluator(observation.authority_snapshot)
+        if evaluator is None:
+            return None
+        evaluate_tracked = getattr(evaluator, "evaluate_tracked", None)
+        authority = (
+            evaluate_tracked(observation, tracked) if callable(evaluate_tracked)
+            else evaluate_pve_target_authority(observation, None, tracked_target=tracked)
+        )
+        if not isinstance(authority, PvETargetAuthorityDecision):
+            raise ValueError("target authority evaluator must return PvETargetAuthorityDecision")
+        if (authority.observed_at_ms != observation.now_ms
+                or authority.target_token != tracked.token):
+            raise ValueError("target authority decision does not match tracked observation")
+        if authority.accepted and authority.target_object_key != tracked.object_key:
+            raise ValueError("tracked target authority decision object key does not match")
+        self._target_authority_history.append(authority)
+        return authority
 
-        while True:
-            self._expire_failed_targets(now)
-            ranked = sorted(
-                (
-                    (
-                        ((character.lt - player_position.lt) ** 2)
-                        + ((character.lg - player_position.lg) ** 2),
-                        character.token,
-                    )
-                    for character in population.characters
-                    if character.attack_eligible
-                    and character.token not in self._failed_target_tokens
-                    and (
-                        self._camp is None
-                        or self._camp.contains(character.lt, character.lg)
-                    )
-                ),
-                key=lambda item: (item[0], item[1]),
-            )
-            candidate_tokens = {token for _, token in ranked}
-            if self._population_desired_target_token not in candidate_tokens:
-                self._population_desired_target_token = ranked[0][1] if ranked else None
-                self._population_cycle_seen.clear()
-                self._population_candidate_selected_at = None
-
-            desired = self._population_desired_target_token
-            if desired is None:
-                if self._config.continuous:
-                    return self._begin_camp_idle(observation)
-                if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
-                    return self.stop("mob_acquisition_timeout", now_ms=now)
-                return self._emit(now)
-
-            selected = population.selected_target_token
-            if selected == desired:
-                if self._population_candidate_selected_at is None:
-                    self._population_candidate_selected_at = now
-                immediate_rejection = self._selected_candidate_rejection_reason(
-                    observation,
-                    desired,
-                )
-                if immediate_rejection is not None:
-                    self._quarantine_population_candidate(
-                        observation,
-                        desired,
-                        immediate_rejection,
-                    )
-                    continue
-                if self._target_attack_eligible(observation):
-                    self._require_different_target = False
-                    return self._begin_engagement(observation)
-                selected_at = self._population_candidate_selected_at
-                assert selected_at is not None
-                if now - selected_at >= self.candidate_validation_timeout_ms:
-                    timeout_reason = (
-                        PvETargetRejectionReason.TARGET_SNAPSHOT_UNAVAILABLE
-                        if not observation.target.target_present
-                        else PvETargetRejectionReason.TARGET_IDENTITY_UNAVAILABLE
-                    )
-                    self._quarantine_population_candidate(
-                        observation,
-                        desired,
-                        timeout_reason,
-                    )
-                    continue
-                return self._emit(now)
-
-            self._population_candidate_selected_at = None
-            if selected in self._population_cycle_seen:
-                self._quarantine_population_candidate(
-                    observation,
-                    desired,
-                    PvETargetRejectionReason.TARGET_CYCLE_WRAPPED,
-                )
-                continue
-            self._population_cycle_seen.add(selected)
-            if self._target_sample_ready(now):
-                return self._emit(now, PvEIntent.ACQUIRE_NEXT_MOB)
-            return self._emit(now)
-
-    def _selected_candidate_rejection_reason(
+    def _tracked_target_attack_eligible(
         self,
         observation: PvEObservation,
-        desired: str,
-    ) -> PvETargetRejectionReason | None:
-        target = observation.target
-        if not target.target_present:
-            return None
-        if target.target_token != desired:
-            return PvETargetRejectionReason.TARGET_SNAPSHOT_UNAVAILABLE
-        if target.current_health == 0.0:
-            return PvETargetRejectionReason.TARGET_DEAD
-        if self._target_inside_camp(observation) is False:
-            return PvETargetRejectionReason.TARGET_OUTSIDE_CAMP
-        identity = observation.target_identity
-        if identity is not None:
-            if not identity.classification_available:
-                return PvETargetRejectionReason.TARGET_IDENTITY_UNAVAILABLE
-            if not identity.attack_eligible:
-                return PvETargetRejectionReason.TARGET_NOT_ATTACK_ELIGIBLE
-        if self._require_verified_target_authority:
-            authority = self._active_target_authority
-            if authority is None:
-                return PvETargetRejectionReason.TARGET_AUTHORITY_UNAVAILABLE
-            if not authority.accepted:
-                return PvETargetRejectionReason.TARGET_AUTHORITY_REJECTED
-        return None
-
-    def _target_attack_eligible(self, observation: PvEObservation) -> bool:
-        if not super()._target_attack_eligible(observation):
+        tracked: PvETrackedTarget,
+    ) -> bool:
+        if not super()._tracked_target_attack_eligible(observation, tracked):
             return False
+        authority = self._active_target_authority
+        if authority is None or authority.target_token != tracked.token:
+            authority = self._evaluate_tracked_authority(observation, tracked)
+            self._active_target_authority = authority
         if not self._require_verified_target_authority:
             return True
-        authority = self._active_target_authority
-        return authority is not None and authority.accepted
+        accepted = bool(
+            authority is not None and authority.accepted
+            and authority.target_token == tracked.token
+            and authority.target_object_key == tracked.object_key
+        )
+        if not accepted and self._engaged_target_token is None:
+            self._quarantine_population_candidate(
+                observation, tracked.token,
+                PvETargetRejectionReason.TARGET_AUTHORITY_UNAVAILABLE if authority is None
+                else PvETargetRejectionReason.TARGET_AUTHORITY_REJECTED,
+            )
+        return accepted
 
     def _quarantine_population_candidate(
         self,
@@ -370,9 +276,7 @@ class PvEController(_BasePvEController):
         population = observation.population
         assert population is not None
         selected_at = self._population_candidate_selected_at
-        validation_wait_ms = (
-            0 if selected_at is None else max(0, observation.now_ms - selected_at)
-        )
+        validation_wait_ms = 0 if selected_at is None else max(0, observation.now_ms - selected_at)
         authority = self._active_target_authority
         authority_exclusions = (
             ()

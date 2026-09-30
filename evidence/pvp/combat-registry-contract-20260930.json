@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "status": "offline_native_contract_qualified_live_acceptance_pending",
+  "prepared_executable_sha256": "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289",
+  "registry_pointer_rva": "0x1389028",
+  "registry_offset": "0x94",
+  "spatial_index_offset": "0x164",
+  "lookup_abi": "thiscall(world, output_reference, exact_two_word_key); returns output_reference; ret 8",
+  "output_ownership": "one retained reference or null; caller releases with native reference helper",
+  "thread_contract": "existing verified owner-update thread and ordinary native world-owner serialization; no arbitrary concurrent-writer claim",
+  "lookup_to_retain_closure": "concrete key/hash/iterator/atomic reference helpers; no gameplay callback, pump or allocation before retain",
+  "fingerprints": [
+    {
+      "name": "lookup_wrapper",
+      "rva": "0x1fcc80",
+      "end_exclusive": "0x1fcca2",
+      "sha256": "719a8796d77f5e8d013c3af193dcea5b0d76302c03e33060aedd9570e2092026"
+    },
+    {
+      "name": "owned_lookup",
+      "rva": "0x1fb160",
+      "end_exclusive": "0x1fb2fe",
+      "sha256": "3fe566e855bc6eee4b34387ca9ba12df2a3cb1526a45b2343fc8c5cd1e420dff"
+    },
+    {
+      "name": "key_hash",
+      "rva": "0x112210",
+      "end_exclusive": "0x11221f",
+      "sha256": "92a2075484f1ac67979b0c3b1b5ca9d6e04bbd282b6f14dbdc2b8beb0efb067c"
+    },
+    {
+      "name": "key_equality",
+      "rva": "0x111b20",
+      "end_exclusive": "0x111b47",
+      "sha256": "d8c4f7891409a5e471df51ef3305713218ccade9c7263f9c383c53218295386a"
+    },
+    {
+      "name": "object_key",
+      "rva": "0x1125d0",
+      "end_exclusive": "0x1125f3",
+      "sha256": "98d6dbc6aab36ce528ae6f4d4334b51b427a12518a121738990ef259ee10a0f3"
+    },
+    {
+      "name": "retain",
+      "rva": "0x131190",
+      "end_exclusive": "0x13119d",
+      "sha256": "0d3ed09b1b254a1431ad870bad1528cc3fcde07a728f6cf621d6529201f91de5"
+    },
+    {
+      "name": "spatial_query",
+      "rva": "0x20e970",
+      "end_exclusive": "0x20eb3f",
+      "sha256": "3b4a6e24edbdd2f0d69a7556825388bf3726b1bf5b40d4c00704ad64169b969d"
+    }
+  ],
+  "probe": "native/wonderbane_extension/combat_registry_probe.cpp",
+  "live_registry_census": "not completed; active character unavailable before traversal",
+  "private_client_bytes_committed": false
+}

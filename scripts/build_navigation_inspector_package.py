@@ -73,6 +73,46 @@ REQUIRED_TARGETED_ACTION_TESTS = frozenset({
 })
 
 
+REQUIRED_COMBAT_TESTS = frozenset({
+    "wonderbane_extension_combat_submission",
+    "wonderbane_extension_combat_submission_install_failure",
+    "wonderbane_extension_combat_melee_entry",
+    "wonderbane_extension_combat_power_entry",
+    "wonderbane_extension_combat_power_partial_install",
+    "wonderbane_extension_combat_target_policy",
+    "wonderbane_extension_combat_v2_wire",
+    "wonderbane_extension_combat_v2_controller",
+    "wonderbane_extension_combat_v3_fence",
+    "wonderbane_extension_combat_v2_native",
+    "wonderbane_extension_combat_v2_runtime",
+    "wonderbane_extension_combat_channel",
+})
+
+REQUIRED_COMBAT_IPC_TESTS = frozenset({
+    "test_native_entry_once_then_mutation_requires_cancellation",
+    "test_native_revocation_wins_and_immutable_binding_rejected",
+    "test_abandoned_mutex_revokes_native_admission",
+    "test_crash_before_or_after_arm_cannot_authorize[None]",
+    "test_crash_before_or_after_arm_cannot_authorize[registered]",
+    "test_mutation_waits_for_registration_then_revokes",
+    "test_real_process_entry_mutation_race_has_one_winner",
+    "test_mutator_crash_after_revocation_preserves_old_list_without_old_authority",
+    "test_failed_close_retains_handles_for_revocation_retry",
+    *(f"test_real_process_command_registration_and_revocation[{case}]"
+      for case in ("enter_remove", "remove_enter", "wrong_binding", "wrong_name")),
+})
+
+
+def validate_combat_ipc_results(path: Path, profile: str) -> None:
+    cases = ET.parse(path).getroot().findall(".//testcase")
+    names = [case.get("name") for case in cases]
+    if any(names.count(name) != 1 for name in REQUIRED_COMBAT_IPC_TESTS) or any(
+        case.find("skipped") is not None or case.find("failure") is not None
+        or case.find("error") is not None for case in cases
+    ):
+        raise RuntimeError(f"{profile}: required native combat IPC did not execute and pass")
+
+
 def validate_native_results(path: Path, required: set[str], *, diagnostic: bool,
                             exit_code: int) -> list[dict[str, str]]:
     """Retain known diagnostic failures without granting acceptance or hiding skips."""
@@ -167,6 +207,7 @@ def main() -> int:
     environment.pop("WONDERBANE_MOVEMENT_RUNTIME_TEST", None)
     environment.pop("WONDERBANE_MOVEMENT_BOUNDARY_TEST", None)
     environment.pop("WONDERBANE_TEST_GDI_GL", None)
+    environment.pop("SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE", None)
     environment["PYTHONUTF8"] = "1"
     steps = []
     diagnostic_failures = []
@@ -297,7 +338,20 @@ def main() -> int:
                 raise RuntimeError(f"{profile}: Condemn test entered runtime")
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
-        for developer_source in ("movement_tree_probe.cpp", "targeted_action_trace_test.cpp"):
+        for combat_source in ("combat_submission.cpp", "combat_v2_native.cpp",
+                              "combat_v2_runtime.cpp", "combat_melee_entry.cpp",
+                              "combat_power_entry.cpp", "combat_power_observer.cpp",
+                              "combat_target_policy.cpp"):
+            if included_sources.count(combat_source) != 1:
+                raise RuntimeError(f"{profile}: combat source must have one owner: {combat_source}")
+        for developer_source in ("combat_native.cpp", "combat_runtime.cpp",
+                                 "combat_v2_wire_test.cpp", "combat_v2_controller_test.cpp",
+                                 "combat_v3_fence_test.cpp", "combat_v2_native_test.cpp",
+                                 "combat_v2_runtime_test.cpp", "movement_tree_probe.cpp",
+                                 "combat_registry_probe.cpp",
+                                 "combat_melee_entry_test.cpp", "combat_power_entry_test.cpp",
+                                 "combat_power_probe.cpp", "combat_power_image_test_stub.cpp",
+                                 "targeted_action_trace_test.cpp"):
             if included_sources.count(developer_source) != 0:
                 raise RuntimeError(
                     f"{profile}: developer-only source entered runtime: {developer_source}"
@@ -400,6 +454,7 @@ def main() -> int:
             "wonderbane_extension_movement_channel",
             "wonderbane_extension_movement_runtime_commands",
         }
+        required_native_tests.update(REQUIRED_COMBAT_TESTS)
         required_native_tests.update(REQUIRED_CONDEMN_TESTS)
         required_native_tests.update(REQUIRED_TARGETED_ACTION_TESTS)
         required_native_tests.update(REQUIRED_VENDOR_TESTS)
@@ -443,7 +498,43 @@ def main() -> int:
             environment.pop("WONDERBANE_MOVEMENT_RUNTIME_TEST", None)
             environment.pop("WONDERBANE_MOVEMENT_BOUNDARY_TEST", None)
         validate_movement_ipc_results(ipc_results, profile)
+        combat_results = logs / f"{profile}-combat-ipc.xml"
+        environment["SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE"] = str(
+            build / "Release/wonderbane_extension_combat_v3_fence_test.exe"
+        )
+        try:
+            run(
+                f"{profile}-combat-ipc",
+                [sys.executable, "-m", "pytest", "tests/test_combat_fence.py",
+                 "tests/test_combat_wire.py", "tests/test_combat_wire_v2.py",
+                 "-q", f"--junitxml={combat_results}"],
+            )
+        finally:
+            environment.pop("SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE", None)
+        validate_combat_ipc_results(combat_results, profile)
         if arguments.reviewed_client:
+            run(
+                f"{profile}-combat-registry-build",
+                [cmake, "--build", build, "--config", "Release", "--target",
+                 "wonderbane_extension_combat_registry_probe",
+                 "wonderbane_extension_combat_melee_probe",
+                 "wonderbane_extension_combat_power_probe"],
+            )
+            run(
+                f"{profile}-combat-registry-binding",
+                [build / "Release/wonderbane_extension_combat_registry_probe.exe",
+                 arguments.reviewed_client.resolve()],
+            )
+            run(
+                f"{profile}-combat-melee-binding",
+                [build / "Release/wonderbane_extension_combat_melee_probe.exe",
+                 arguments.reviewed_client.resolve()],
+            )
+            run(
+                f"{profile}-combat-power-binding",
+                [build / "Release/wonderbane_extension_combat_power_probe.exe",
+                 arguments.reviewed_client.resolve()],
+            )
             run(
                 f"{profile}-selected-binding",
                 [
@@ -482,6 +573,18 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
                 f"{profile}-movement-prepared-binding",
                 [build / "Release/wonderbane_extension_movement_image_test.exe",
                  arguments.reviewed_client.resolve(), prepared_client],
+            )
+            run(
+                f"{profile}-combat-registry-prepared-binding",
+                [build / "Release/wonderbane_extension_combat_registry_probe.exe", prepared_client],
+            )
+            run(
+                f"{profile}-combat-melee-prepared-binding",
+                [build / "Release/wonderbane_extension_combat_melee_probe.exe", prepared_client],
+            )
+            run(
+                f"{profile}-combat-power-prepared-binding",
+                [build / "Release/wonderbane_extension_combat_power_probe.exe", prepared_client],
             )
             for test in ("sky_binding", "sky_render"):
                 run(
@@ -812,6 +915,10 @@ else:
         "live_acceptance": "pending; no deployment performed",
         "selected_cue_binding_verified": bool(arguments.reviewed_client),
         "movement_prepared_binding_verified": bool(arguments.reviewed_client),
+        "combat_v2_host_native_interop_verified": True,
+        "combat_registry_binding_verified": bool(arguments.reviewed_client),
+        "combat_melee_control_flow_verified": bool(arguments.reviewed_client),
+        "combat_power_entry_verified": bool(arguments.reviewed_client),
         "source_identity": metadata,
         "steps": steps,
         "files": [

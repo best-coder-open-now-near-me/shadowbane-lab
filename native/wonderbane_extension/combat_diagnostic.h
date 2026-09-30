@@ -8,8 +8,8 @@ namespace wonderbane::extension::combat {
 enum class Stage : unsigned {
     none, runtime_ready, binding, fence_open, owner_current, owner_begin, baseline_pause,
     baseline_current, owner_repin, target_admission, party_snapshot, party_protection,
-    initial_current, actor_retain, position, query_construct, query_current, query,
-    query_match, target_identity, selection_retain, selection_current, selection,
+    initial_current, actor_retain, position, registry_lookup, lookup_result, target_identity,
+    selection_retain, selection_current, selection,
     selection_recheck, fence_enter, entry_recheck, writer, dispatch, post_dispatch,
     active_state, no_entry
 };
@@ -28,8 +28,8 @@ inline const char* StageName(Stage stage) noexcept {
         WB_COMBAT_STAGE(baseline_pause) WB_COMBAT_STAGE(baseline_current) WB_COMBAT_STAGE(owner_repin)
         WB_COMBAT_STAGE(target_admission) WB_COMBAT_STAGE(party_snapshot) WB_COMBAT_STAGE(party_protection)
         WB_COMBAT_STAGE(initial_current) WB_COMBAT_STAGE(actor_retain) WB_COMBAT_STAGE(position)
-        WB_COMBAT_STAGE(query_construct) WB_COMBAT_STAGE(query_current) WB_COMBAT_STAGE(query)
-        WB_COMBAT_STAGE(query_match) WB_COMBAT_STAGE(target_identity) WB_COMBAT_STAGE(selection_retain)
+        WB_COMBAT_STAGE(registry_lookup) WB_COMBAT_STAGE(lookup_result) WB_COMBAT_STAGE(target_identity)
+        WB_COMBAT_STAGE(selection_retain)
         WB_COMBAT_STAGE(selection_current) WB_COMBAT_STAGE(selection) WB_COMBAT_STAGE(selection_recheck)
         WB_COMBAT_STAGE(fence_enter) WB_COMBAT_STAGE(entry_recheck) WB_COMBAT_STAGE(writer)
         WB_COMBAT_STAGE(dispatch) WB_COMBAT_STAGE(post_dispatch) WB_COMBAT_STAGE(active_state)

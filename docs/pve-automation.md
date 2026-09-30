@@ -170,10 +170,23 @@ stalled-target bounds still terminate or retarget.
 
 A single torn native observation is not treated as a trustworthy state change. The runner
 withholds all input while retrying up to three consecutive polls and resets that count only
-after a complete target, target-identity, player-vitals, player-position, target-position, and
-combat-log observation succeeds. During engagement, health, identity, position, and action must resolve the same
-opaque target token. A third
-failure stops the run and records the concrete reader error in the terminal reason.
+after a complete native-state observation succeeds. Selection describes the target
+of a new input; it does not establish the target of an ongoing action. Engagement
+binds both an opaque process-bound token and native object key, and follows that
+exact object's health, position and eligibility in fresh population frames even
+after deselection. A reused pointer with a new key cannot inherit the engagement
+or a kill. Starting observation or changing UI selection does not require stopping
+an existing action, and projectile flight is not an idle-baseline requirement.
+The bot preserves unknown cast-target state instead of inferring it from selection. A third observation failure stops the run and records the reader error.
+
+HUD/log messages do not drive targeting, hit/progress, kill, player-death, or
+recovery decisions. Native health zero confirms the tracked object's death;
+health changes alone do not attribute a hit to the player. The observed combat
+pointer can attribute a native combat action to the tracked object, but does not
+identify every spell target. New attacks and powers require that the same object
+is still selected. Missing or ineligible objects, stalls, retargeting and stops
+retain the old engagement through explicit native cleanup. Recovery and target
+acquisition wait for the same owner's correlated cancellation acknowledgment.
 
 ## Prepare a VM-local profile
 
@@ -213,9 +226,9 @@ powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\start-wonderbane-go-
 
 With Shadowbane focused, submit `/pve` in game chat. The launcher configures that command for
 continuous operation inside a 120-unit radius around the starting LT/LG and the verified current
-Shadow Touch hotbar mapping. It uses the native-state combat source, so exact selected-target
-health confirms kills, target identity excludes protected characters, and target action state
-drives interrupts. Submit `/stop`, open chat,
+Shadow Touch hotbar mapping. It uses native object state: the engaged object's
+health confirms death, fresh identity and authority exclude protected characters,
+and coherently selected target action state drives interrupts. Submit `/stop`, open chat,
 click a mouse button, or press
 `Ctrl+Shift+F12` to cancel it. `/stop` keeps the background listener alive for another `/pve`;
 the emergency hotkey shuts down the listener itself. Each `/pve` run writes a unique final
@@ -227,7 +240,7 @@ with `-BoundedPve` when intentionally validating the older finite kill/session l
 ## Run one bounded encounter
 
 Before touching the client, run the trace-backed semantic bridge. It drives the production
-`PvEController` through the same typed target-health, player-vitals, and combat-event boundary
+`PvEController` through the same typed object-health and player-vitals boundary
 used by the VM:
 
 ```powershell
@@ -253,7 +266,7 @@ wait period:
 $env:PYTHONPATH = "src"
 .\.venv\Scripts\python.exe -m shadowbane_lab.cli client run-pve `
   --client-profile .\configs\wonderbane-pve.local.json `
-  --combat-source hud `
+  --combat-source state `
   --hotbar-config $hotbar.FullName `
   --navigation-cache-directory 'C:\path\to\Wonderbane\cache' `
   --policy proc-assassin `
@@ -270,7 +283,7 @@ $env:PYTHONPATH = "src"
   --json
 ```
 
-The VM wrapper validates the live-locked profile, native message-HUD build, unique character
+The VM wrapper validates the live-locked profile, native object-reader build, unique character
 hotbar, and single visible Shadowbane window; refuses to overwrite evidence; and runs the same one-kill
 proc-Assassin command with a timestamped artifact. Focus Shadowbane during its guarded
 15-second wait:
@@ -310,7 +323,7 @@ trace: player health/mana/stamina and LT/LG/altitude, target native role flags, 
 health/position, planar
 and three-dimensional target range, target and local-player native action
 phase/motion/impact/action-sequence/motion-sequence state,
-typed native combat events, controller phase, and guarded
+the retained object binding, cleanup request/acknowledgment, controller phase, and guarded
 input outcome. This is the evidence boundary used to calibrate later simulator profiles. A
 successful first trial ends with `kill_limit_reached`. Move the pointer to a PyAutoGUI
 fail-safe corner or press `Ctrl+Shift+F12` to stop immediately.

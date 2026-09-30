@@ -3,13 +3,16 @@ import unittest
 from shadowbane_lab.client_observation import (
     NativeCharacterObservation,
     NativeCharacterPopulationObservation,
+    NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
+from shadowbane_lab.client_observation.native_population import NativeCharacterKind
 from shadowbane_lab.protocol import Relation
 from shadowbane_lab.pve import (
     PvEController,
@@ -24,6 +27,7 @@ from shadowbane_lab.pve import (
     StaticPvETargetAuthorityEvaluator,
     evaluate_pve_target_authority,
 )
+from shadowbane_lab.pve.model import PvETrackedTarget
 
 
 def _player() -> NativePlayerVitalsObservation:
@@ -71,6 +75,8 @@ def _identity(
 def _character(token: str) -> NativeCharacterObservation:
     return NativeCharacterObservation(
         token=token,
+        object_key=NativeObjectKey(10, 7001),
+        character_kind=NativeCharacterKind.NPC,
         current_health=10.0,
         maximum_health=10.0,
         lt=105.0,
@@ -91,6 +97,15 @@ def _observation(
     identity: NativeTargetIdentityObservation | None = None,
     population: NativeCharacterPopulationObservation | None = None,
 ) -> PvEObservation:
+    if population is None:
+        population = NativeCharacterPopulationObservation(
+            characters=() if token is None else (_character(token),),
+            selected_target_token=token,
+            player_action_target_token=None,
+            scan_generation=9,
+            rejected_candidates=0,
+            local_player_object_key=NativeObjectKey(10, 42),
+        )
     player_position = None
     target_position = None
     if population is not None:
@@ -109,6 +124,11 @@ def _observation(
     return PvEObservation(
         now_ms=now_ms,
         target=_target(token),
+        player_action=NativePlayerActionObservation(
+            NativeTargetActionPhase.IDLE, False, 21, False, None, 0, 0,
+            selected_target_token=token, action_target_token=None,
+            mode=1, action_state=1,
+        ),
         player=_player(),
         target_identity=_identity(token) if identity is None else identity,
         player_position=player_position,
@@ -161,6 +181,19 @@ class TimedAuthorityEvaluator:
                 ),
             )
         return evaluate_pve_target_authority(observation, evidence)
+
+    def evaluate_tracked(
+        self, observation: PvEObservation, tracked: PvETrackedTarget,
+    ):
+        return evaluate_pve_target_authority(
+            observation,
+            _evidence(
+                tracked.token,
+                target_object_key=tracked.object_key,
+                relation=Relation.ENEMY if observation.now_ms < 200 else Relation.NEUTRAL,
+            ),
+            tracked_target=tracked,
+        )
 
 
 class PvETargetAuthorityTests(unittest.TestCase):
@@ -240,7 +273,7 @@ class PvETargetAuthorityTests(unittest.TestCase):
         acquire = controller.step(_observation(0, None))
         attack = controller.step(_observation(100, "mob"))
 
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, acquire.intent)
+        self.assertIsNone(acquire.combat_proposal)
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, attack.intent)
         self.assertEqual(PvEPhase.ENGAGED, attack.phase)
         assert controller.latest_target_authority is not None
@@ -282,7 +315,6 @@ class PvETargetAuthorityTests(unittest.TestCase):
         controller = PvEController(
             PvEControllerConfig(
                 require_target_identity=True,
-                use_native_population=True,
                 acquisition_retry_ms=100,
                 target_sample_interval_ms=100,
                 acquisition_timeout_ms=1_000,
@@ -304,7 +336,7 @@ class PvETargetAuthorityTests(unittest.TestCase):
         )
         self.assertIn("relation_not_enemy", rejection.authority_exclusions)
 
-    def test_engaged_target_losing_authority_stops_before_more_input(self) -> None:
+    def test_engaged_target_losing_authority_requires_cleanup_before_more_input(self) -> None:
         controller = PvEController(
             PvEControllerConfig(
                 require_target_identity=True,
@@ -320,12 +352,20 @@ class PvETargetAuthorityTests(unittest.TestCase):
 
         stopped = controller.step(_observation(200, "mob"))
 
-        self.assertEqual(PvEPhase.STOPPED, stopped.phase)
-        self.assertEqual(
-            "engaged_target_became_attack_ineligible",
-            stopped.terminal_reason,
-        )
+        self.assertEqual(PvEPhase.DISENGAGING, stopped.phase)
+        self.assertFalse(stopped.terminal)
         self.assertIsNone(stopped.intent)
+        assert stopped.cleanup_request is not None
+        self.assertEqual(
+            "engaged_object_unavailable_or_ineligible", stopped.cleanup_request.reason,
+        )
+        self.assertEqual("mob", stopped.cleanup_request.target_token)
+        self.assertEqual(NativeObjectKey(10, 7001), stopped.cleanup_request.object_key)
+        assert controller.latest_target_authority is not None
+        self.assertIn(
+            PvETargetAuthorityExclusion.RELATION_NOT_ENEMY,
+            controller.latest_target_authority.exclusions,
+        )
 
     def test_authority_evaluator_is_opt_in_for_existing_profiles(self) -> None:
         controller = PvEController(

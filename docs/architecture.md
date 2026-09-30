@@ -77,10 +77,15 @@ Every adapter reports results through the same event vocabulary. Correlation ide
 link observations, decisions, input traces, emulator requests, and resulting events.
 
 Client observation is split into acquisition, decoding, and presentation. Build-guarded native
-readers emit exact typed state and combat events; calibrated pixels remain an independent
-cross-check. A click-through overlay and a bounded PvE controller are consumers of the same
-semantic stream. This keeps screen geometry and rendered text out of policy code and lets
-differential recording consume identical observations without depending on the overlay.
+readers emit typed object state. PvE binds an engaged object by its process-bound
+pointer token and native object key, then reads its health, position and role from
+fresh population observations independently of UI selection. Native action state
+is a separate channel; its combat-target pointer is not a universal spell target.
+Parsed HUD/log messages remain diagnostic data and do not authorize targeting,
+progress, kills, player death, or recovery. A click-through overlay can present
+those messages without making the controller depend on text or the overlay.
+Engagement transitions retain an explicit cleanup obligation until the same native
+owner acknowledges cancellation, before recovery or new target acquisition.
 
 ## Trust boundaries
 

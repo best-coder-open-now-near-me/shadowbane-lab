@@ -62,8 +62,11 @@ jobs:
       - name: Verify admission across host and Win32 consumer processes
         shell: pwsh
         run: |
-          $env:SHADOWBANE_COMBAT_FENCE_TEST_EXE = (Resolve-Path "build/native-${{ matrix.profile }}/Release/wonderbane_extension_combat_fence_test.exe").Path
-          python -m pytest tests/test_combat_fence.py tests/test_combat_wire.py -q
+          $ErrorActionPreference = "Stop"
+          $env:SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE = (Resolve-Path "build/native-${{ matrix.profile }}/Release/wonderbane_extension_combat_v3_fence_test.exe").Path
+          python -m pytest tests/test_combat_fence.py tests/test_combat_wire.py tests/test_combat_wire_v2.py -q --junitxml=combat-ipc.xml
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -c "from pathlib import Path; from scripts.build_navigation_inspector_package import validate_combat_ipc_results; validate_combat_ipc_results(Path('combat-ipc.xml'), '${{ matrix.profile }}')"
       - name: Check deferred transparency diagnostic outcomes
         run: python scripts/check_transparency_diagnostics.py --build-dir build/native-${{ matrix.profile }}
       - name: Retain ideal transparency diagnostic results

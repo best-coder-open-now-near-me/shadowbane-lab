@@ -3,6 +3,7 @@
 #include <cstdint>
 namespace wonderbane::extension::combat::submission {
 struct Receipt;
+enum class Route { manual_selection, explicit_object };
 struct Context {
     std::uintptr_t actor{}, target{}, writer{}, container{};
     std::array<std::uint32_t, 2> local_key{}, target_key{};
@@ -15,6 +16,7 @@ struct Context {
     // It must outlive Scope AND the enclosing SEH boundary; never use a Run-local
     // receipt. Bounded copies preserve known append history through native faults.
     Receipt* receipt = nullptr;
+    Route route = Route::manual_selection;
 };
 enum class Result { no_submission, queued, uncertain, denied };
 struct Receipt {
@@ -23,6 +25,22 @@ struct Receipt {
     bool append_observed = false;
     bool followup_entered = false;
 };
+// One process-pinned power observer shares the existing outbound queue hook.
+// claim/complete run under the native queue lock: bounded reads only, no locks,
+// allocation, or native calls. An allow claim publishes uncertain entry history
+// before returning. Its owner outlives the original append and any nested calls.
+enum class AppendDecision { unrelated, allow, deny };
+enum class AppendResult { denied, queued, fault };
+struct AppendClaim {
+    AppendDecision decision = AppendDecision::unrelated;
+    void* owner = nullptr;
+};
+struct PowerAppendObserver {
+    AppendClaim (*claim)(void* container, void* message, std::uintptr_t caller_rva) noexcept = nullptr;
+    // The transferred message may be destroyed; complete receives only the owner.
+    void (*complete)(void* owner, AppendResult) noexcept = nullptr;
+};
+bool RegisterPowerAppendObserver(const PowerAppendObserver&) noexcept;
 namespace detail { struct Observer; }
 class Scope final {
 public:
@@ -31,6 +49,10 @@ public:
     Scope(const Scope&) = delete;
     Scope& operator=(const Scope&) = delete;
     Receipt Finish() noexcept;
+    // Internal explicit-object entry; native call-throughs and receipt ownership
+    // stay inside this scope. Legacy handler callbacks cannot borrow this route.
+    void* Factory(void* actor, void** output, void* target, const void* key, bool send);
+    void Followup(void* actor);
 private:
     friend struct detail::Observer;
     Context context_{};

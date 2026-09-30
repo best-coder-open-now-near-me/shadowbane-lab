@@ -1,14 +1,24 @@
 import unittest
+from dataclasses import replace
 
 from shadowbane_lab.client_observation import (
+    NativePlayerActionObservation,
+    NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
+    NativeTargetPositionObservation,
 )
 from shadowbane_lab.client_observation.native_object import (
     NativeEntityBinding,
     NativeEntityIdentityMap,
     NativeObjectKey,
+)
+from shadowbane_lab.client_observation.native_population import (
+    NativeCharacterKind,
+    NativeCharacterObservation,
+    NativeCharacterPopulationObservation,
 )
 from shadowbane_lab.pve import (
     PvEAuthorityCharacterRecord,
@@ -71,6 +81,10 @@ def _observation(now_ms: int, token: str | None) -> PvEObservation:
             maximum_stamina=100.0,
         ),
         target_identity=identity,
+        player_action=NativePlayerActionObservation(
+            NativeTargetActionPhase.IDLE, False, 0, False, None, 0, 0, token, None,
+            mode=1, action_state=1,
+        ),
     )
 
 
@@ -149,9 +163,7 @@ class SnapshotPvETargetAuthorityTests(unittest.TestCase):
             GroupMembership("player", party),
             GroupMembership("mob", party),
         )
-        evaluator = SnapshotPvETargetAuthorityEvaluator(
-            _snapshot(affiliations=affiliations)
-        )
+        evaluator = SnapshotPvETargetAuthorityEvaluator(_snapshot(affiliations=affiliations))
 
         decision = evaluator.evaluate(_observation(100, "mob-token"))
 
@@ -160,9 +172,7 @@ class SnapshotPvETargetAuthorityTests(unittest.TestCase):
         self.assertEqual("enemy", decision.relation.value)
 
     def test_incomplete_party_snapshot_never_defaults_to_not_grouped(self) -> None:
-        evaluator = SnapshotPvETargetAuthorityEvaluator(
-            _snapshot(party_complete=False)
-        )
+        evaluator = SnapshotPvETargetAuthorityEvaluator(_snapshot(party_complete=False))
 
         decision = evaluator.evaluate(_observation(100, "mob-token"))
 
@@ -198,9 +208,7 @@ class SnapshotPvETargetAuthorityTests(unittest.TestCase):
             revision=11,
             ownership_edges=(OwnershipEdge("player", "mob"),),
         )
-        evaluator = SnapshotPvETargetAuthorityEvaluator(
-            _snapshot(affiliations=affiliations)
-        )
+        evaluator = SnapshotPvETargetAuthorityEvaluator(_snapshot(affiliations=affiliations))
 
         decision = evaluator.evaluate(_observation(100, "mob-token"))
 
@@ -232,14 +240,39 @@ class SnapshotPvETargetAuthorityTests(unittest.TestCase):
                 target_sample_interval_ms=100,
                 acquisition_timeout_ms=1_000,
             ),
-            target_authority_evaluator=SnapshotPvETargetAuthorityEvaluator(
-                _snapshot()
-            ),
+            target_authority_evaluator=SnapshotPvETargetAuthorityEvaluator(_snapshot()),
             require_verified_target_authority=True,
         )
-        controller.step(_observation(0, None))
 
-        attack = controller.step(_observation(100, "mob-token"))
+        selected = _observation(100, "mob-token")
+        population = NativeCharacterPopulationObservation(
+            characters=(
+                NativeCharacterObservation(
+                    token="mob-token",
+                    object_key=_MOB_KEY,
+                    character_kind=NativeCharacterKind.NPC,
+                    current_health=10,
+                    maximum_health=10,
+                    lt=100,
+                    lg=200,
+                    altitude=10,
+                    merchant=False,
+                    shopkeeper=False,
+                    banker=False,
+                    trainer=False,
+                    minion=False,
+                ),
+            ),
+            selected_target_token="mob-token",
+            player_action_target_token=None,
+            scan_generation=1,
+            rejected_candidates=0,
+            local_player_object_key=_PLAYER_KEY,
+        )
+        attack = controller.step(replace(selected, population=population,
+            player_position=NativePlayerPositionObservation(100, 200, 10),
+            target_position=NativeTargetPositionObservation(True, 100, 200, 10, "mob-token")))
+        self.assertEqual(_MOB_KEY, attack.combat_proposal.target_key)
 
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, attack.intent)
         assert controller.latest_target_authority is not None

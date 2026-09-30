@@ -10,10 +10,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from . import action_channel as channel
+from .combat_fence_v3 import Ordinals
 from .movement_wire import Command, Grant, Host, Outcome, Receipt, Settings, Snapshot, Verb
 
 if TYPE_CHECKING:
-    from .combat_wire import Receipt as CombatReceipt
+    from .combat_wire_v2 import Receipt as CombatReceipt
 
 # Exact terminal-only wire flags: no binding, readiness, camera or device claim.
 _TERMINAL_ONLY = 8
@@ -107,6 +108,7 @@ class NativeMovementSession:
         self.identity, self.window, self.timeout_ms = identity, window, timeout_ms
         self._transport: channel.WindowsNativeActionCommandTransport | None = None
         self._ids = itertools.count(1)
+        self._combat_ordinals = Ordinals()
         self._acquisitions: dict[str, Command] = {}
         self._revoked: set[NativeMovementGrant] = set()
         self._stops: dict[NativeMovementGrant, str] = {}
@@ -292,12 +294,23 @@ class NativeMovementSession:
             raise channel.NativeActionChannelUnavailable("combat owner session is closed")
         # Read/validate the exact process header even during retired-owner cleanup.
         header = transport.header
-        if require_capability and not header.capability_flags & channel.EXPLICIT_COMBAT_CAPABILITY:
+        if require_capability and not header.capability_flags & channel.OBJECT_COMBAT_CAPABILITY:
             raise channel.NativeActionChannelUnavailable("explicit combat is unavailable")
         return transport
 
+    def combat_ordinals(self, grant: NativeMovementGrant) -> Ordinals:
+        """Retain monotonic IDs across coordinators sharing this producer lifetime.
+
+        Monotonicity across Grants is stronger than the required per-Grant rule
+        and needs one bounded allocator rather than a growing namespace registry.
+        """
+        with self._session_lock:
+            self._check_grant(grant)
+            self._combat_transport(grant)
+            return self._combat_ordinals
+
     def require_combat_available(self, grant: NativeMovementGrant) -> None:
-        """Read-only admission before PAUSE; old movement-only services cannot qualify."""
+        """Read-only admission for object actions; legacy services cannot qualify."""
         with self._session_lock:
             self._check_grant(grant)
             if grant in self._stops:
@@ -308,11 +321,11 @@ class NativeMovementSession:
         """Use the existing producer lease and exact Grant; never acquire another owner.
 
         A timeout is ambiguous. Callers retain this command/ticket and query or cancel
-        it; they must not create another START as a retry.
+        it; they must not allocate another action as a transport retry.
         """
         from .combat_channel import NativeCombatCommand
-        from .combat_wire import Receipt as CombatReceipt
-        from .combat_wire import Verb as CombatVerb
+        from .combat_wire_v2 import Receipt as CombatReceipt
+        from .combat_wire_v2 import Verb as CombatVerb
 
         with self._session_lock:
             verb = CombatVerb(verb)
@@ -322,20 +335,22 @@ class NativeMovementSession:
                     or (command.binding.client_pid, command.binding.client_creation)
                     != (self.identity.process_id, self.identity.creation_filetime_utc)):
                 raise ValueError("combat command belongs to another owner")
-            if verb is CombatVerb.START:
+            command.require_verb(verb)
+            admission = verb in (CombatVerb.BIND_ENGAGEMENT, CombatVerb.SUBMIT)
+            if admission:
                 self._check_grant(grant)
                 if grant in self._stops:
                     raise NativeMovementError(Outcome.INHIBITED)
             # STATUS/CANCEL remain callable for the immutable old owner after native
             # revocation. Native correlates its retired transaction, never a replacement.
-            transport = self._combat_transport(grant, require_capability=verb is CombatVerb.START)
+            transport = self._combat_transport(grant, require_capability=admission)
             result = transport.submit(
                 NativeCombatCommand(next(self._ids), verb, command), timeout_ms=self.timeout_ms,
             )
             if not result.movement_payload or not any(result.movement_payload):
                 raise channel.NativeActionChannelUnavailable("combat receipt is unavailable")
             receipt = CombatReceipt.decode(result.movement_payload)
-            receipt.require_command(command)
+            receipt.require_command(command, verb)
             if not result.stage.accepted_submission or result.error_code:
                 raise channel.NativeActionChannelError(
                     "combat receipt contradicts transport result"

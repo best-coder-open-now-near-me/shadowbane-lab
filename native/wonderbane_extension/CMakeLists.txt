@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.34 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.35 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -42,8 +42,12 @@ add_library(
   city_window_native.cpp
   building_native_target.cpp
   combat_submission.cpp
-  combat_native.cpp
-  combat_runtime.cpp
+  combat_v2_native.cpp
+  combat_melee_entry.cpp
+  combat_target_policy.cpp
+  combat_power_entry.cpp
+  combat_power_observer.cpp
+  combat_v2_runtime.cpp
   vendor_navigation_native.cpp
   movement_settings.cpp
   movement_native_image.cpp
@@ -1427,9 +1431,126 @@ if(BUILD_TESTING)
   target_compile_definitions(wonderbane_extension_combat_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_combat_channel_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_combat_channel_test PRIVATE bcrypt)
-  add_test(NAME wonderbane_extension_combat_channel COMMAND wonderbane_extension_combat_channel_test "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_command_v1.hex")
+  add_test(NAME wonderbane_extension_combat_channel COMMAND wonderbane_extension_combat_channel_test "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_command_v2.hex")
   set_tests_properties(wonderbane_extension_combat_channel PROPERTIES TIMEOUT 15)
   foreach(kind city_window movement guard_upgrade guard_funding condemn event vendor_navigation vendor vendor_menu)
     target_link_libraries(wonderbane_extension_${kind}_channel_test PRIVATE bcrypt)
   endforeach()
+endif()
+
+# Offline native resolver conformance; explicit private executable argument only.
+# Not linked into the DLL, distributed package, or the public CTest suite.
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_registry_probe EXCLUDE_FROM_ALL combat_registry_probe.cpp)
+  target_compile_features(wonderbane_extension_combat_registry_probe PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_registry_probe PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_registry_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_registry_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_combat_registry_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+endif()
+
+# Compare the explicit-object adapter to the reviewed ordinary attack control flow.
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_melee_entry_test combat_melee_entry_test.cpp combat_melee_entry.cpp)
+  add_executable(wonderbane_extension_combat_melee_probe EXCLUDE_FROM_ALL combat_melee_entry_test.cpp combat_melee_entry.cpp)
+  foreach(target wonderbane_extension_combat_melee_entry_test wonderbane_extension_combat_melee_probe)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    target_compile_definitions(${target} PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+    target_compile_options(${target} PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+    target_link_libraries(${target} PRIVATE bcrypt)
+  endforeach()
+  target_compile_definitions(wonderbane_extension_combat_melee_probe PRIVATE MELEE_NATIVE_PROBE)
+  set_property(TARGET wonderbane_extension_combat_melee_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_combat_melee_entry COMMAND wonderbane_extension_combat_melee_entry_test)
+  set_tests_properties(wonderbane_extension_combat_melee_entry PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_power_entry_test combat_power_entry_test.cpp)
+  target_compile_features(wonderbane_extension_combat_power_entry_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_power_entry_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_power_entry_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  add_test(NAME wonderbane_extension_combat_power_entry COMMAND wonderbane_extension_combat_power_entry_test)
+  add_test(NAME wonderbane_extension_combat_power_partial_install COMMAND wonderbane_extension_combat_power_entry_test partial-install)
+  set_tests_properties(wonderbane_extension_combat_power_entry wonderbane_extension_combat_power_partial_install PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  foreach(target wonderbane_extension_movement_native_stop_test wonderbane_extension_movement_runtime_test wonderbane_extension_movement_settings_runtime_test wonderbane_extension_movement_image_test)
+    target_sources(${target} PRIVATE combat_power_image_test_stub.cpp)
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_power_probe EXCLUDE_FROM_ALL combat_power_probe.cpp)
+  target_compile_features(wonderbane_extension_combat_power_probe PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_power_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_power_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_power_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_combat_power_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_target_policy_test combat_target_policy_test.cpp combat_target_policy.cpp)
+  target_compile_features(wonderbane_extension_combat_target_policy_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_target_policy_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_target_policy_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_target_policy_test PRIVATE user32)
+  add_test(NAME wonderbane_extension_combat_target_policy COMMAND wonderbane_extension_combat_target_policy_test)
+  set_tests_properties(wonderbane_extension_combat_target_policy PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_v2_wire_test combat_v2_wire_test.cpp)
+  target_compile_features(wonderbane_extension_combat_v2_wire_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_v2_wire_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_v2_wire_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_v2_wire_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_combat_v2_wire COMMAND wonderbane_extension_combat_v2_wire_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_command_v2.hex"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_fence_v3.hex"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_receipt_v2.hex")
+  set_tests_properties(wonderbane_extension_combat_v2_wire PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_v2_controller_test combat_v2_controller_test.cpp)
+  target_compile_features(wonderbane_extension_combat_v2_controller_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_v2_controller_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_v2_controller_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_v2_controller_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_combat_v2_controller COMMAND wonderbane_extension_combat_v2_controller_test)
+  set_tests_properties(wonderbane_extension_combat_v2_controller PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_v3_fence_test combat_v3_fence_test.cpp)
+  target_compile_features(wonderbane_extension_combat_v3_fence_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_v3_fence_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_v3_fence_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_v3_fence_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_combat_v3_fence COMMAND wonderbane_extension_combat_v3_fence_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_fence_v3.hex")
+  set_tests_properties(wonderbane_extension_combat_v3_fence PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_v2_native_test combat_v2_native_test.cpp combat_v2_native.cpp combat_target_policy.cpp)
+  target_compile_features(wonderbane_extension_combat_v2_native_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_v2_native_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_v2_native_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_v2_native_test PRIVATE bcrypt user32)
+  add_test(NAME wonderbane_extension_combat_v2_native COMMAND wonderbane_extension_combat_v2_native_test)
+  set_tests_properties(wonderbane_extension_combat_v2_native PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_v2_runtime_test combat_v2_runtime_test.cpp)
+  target_compile_features(wonderbane_extension_combat_v2_runtime_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_v2_runtime_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_v2_runtime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_v2_runtime_test PRIVATE bcrypt user32)
+  add_test(NAME wonderbane_extension_combat_v2_runtime COMMAND wonderbane_extension_combat_v2_runtime_test)
+  set_tests_properties(wonderbane_extension_combat_v2_runtime PROPERTIES TIMEOUT 15)
 endif()

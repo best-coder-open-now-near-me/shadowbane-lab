@@ -1,21 +1,25 @@
 import unittest
+from dataclasses import replace
 
 from shadowbane_lab.client_observation import (
     NativeCharacterObservation,
     NativeCharacterPopulationObservation,
+    NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
+from shadowbane_lab.client_observation.native_population import NativeCharacterKind
 from shadowbane_lab.pve import (
     PvEController,
     PvEControllerConfig,
     PvEIntent,
     PvEObservation,
     PvEPhase,
-    PvETargetRejectionReason,
 )
 
 
@@ -78,6 +82,8 @@ def _identity(
 def _character(token: str, *, lt: float) -> NativeCharacterObservation:
     return NativeCharacterObservation(
         token=token,
+        object_key=NativeObjectKey(20, {"mob": 1, "first": 2, "second": 3}[token]),
+        character_kind=NativeCharacterKind.NPC,
         current_health=10.0,
         maximum_health=10.0,
         lt=lt,
@@ -104,6 +110,11 @@ def _observation(
     return PvEObservation(
         now_ms=now_ms,
         target=_target(target_token, health=target_health),
+        player_action=NativePlayerActionObservation(
+            NativeTargetActionPhase.IDLE, False, 21, False, None, 0, 0,
+            selected_target_token=selected, action_target_token=None,
+            mode=1, action_state=1,
+        ),
         player=_player(),
         player_position=_player_position(),
         target_position=_target_position(target_token),
@@ -126,7 +137,6 @@ class PvETargetAuthorityTests(unittest.TestCase):
     def _controller(self, *, continuous: bool = False) -> PvEController:
         return PvEController(
             PvEControllerConfig(
-                use_native_population=True,
                 require_target_identity=True,
                 acquisition_retry_ms=100,
                 acquisition_timeout_ms=1_000,
@@ -136,220 +146,57 @@ class PvETargetAuthorityTests(unittest.TestCase):
             )
         )
 
-    def test_selected_candidate_without_target_snapshot_is_quarantined_after_bound(self) -> None:
+    def test_unselected_current_object_requires_no_selected_snapshot(self):
         controller = self._controller()
-        mob = _character("mob", lt=105.0)
+        decision = controller.step(_observation(0, selected=None, target_token=None,
+            characters=(_character("mob", lt=105),)))
+        self.assertEqual("mob", decision.combat_proposal.target_token)
+        self.assertEqual(PvEPhase.ENGAGED, decision.phase)
 
-        waiting = controller.step(
-            _observation(
-                0,
-                selected="mob",
-                target_token=None,
-                characters=(mob,),
-            )
-        )
-        still_waiting = controller.step(
-            _observation(
-                299,
-                selected="mob",
-                target_token=None,
-                characters=(mob,),
-            )
-        )
-        rejected = controller.step(
-            _observation(
-                300,
-                selected="mob",
-                target_token=None,
-                characters=(mob,),
-            )
-        )
-        stopped = controller.step(
-            _observation(
-                1_000,
-                selected="mob",
-                target_token=None,
-                characters=(mob,),
-            )
-        )
+    def test_dead_population_object_is_skipped_for_next_ranked_candidate(self):
+        first = replace(_character("first", lt=101), current_health=0)
+        second = _character("second", lt=110)
+        decision = self._controller().step(_observation(0, selected=None, target_token=None,
+            characters=(first, second)))
+        self.assertEqual(second.object_key, decision.combat_proposal.target_key)
 
-        self.assertEqual(300, controller.candidate_validation_timeout_ms)
-        self.assertIsNone(waiting.intent)
-        self.assertIsNone(still_waiting.intent)
-        self.assertIsNone(rejected.intent)
-        self.assertEqual(PvEPhase.SEEKING, rejected.phase)
-        self.assertEqual(PvEPhase.STOPPED, stopped.phase)
-        self.assertEqual("mob_acquisition_timeout", stopped.terminal_reason)
-        self.assertEqual(1, len(controller.target_rejections))
-        rejection = controller.target_rejections[0]
-        self.assertEqual("mob", rejection.target_token)
-        self.assertEqual(
-            PvETargetRejectionReason.TARGET_SNAPSHOT_UNAVAILABLE,
-            rejection.reason,
-        )
-        self.assertEqual(300, rejection.validation_wait_ms)
+    def test_current_protected_role_overrides_unprotected_selected_identity(self):
+        first = replace(_character("first", lt=101), trainer=True)
+        second = _character("second", lt=110)
+        decision = self._controller().step(_observation(0, selected="first", target_token="first",
+            characters=(first, second)))
+        self.assertEqual(second.object_key, decision.combat_proposal.target_key)
 
-    def test_dead_selected_candidate_is_rejected_and_next_candidate_is_requested(self) -> None:
-        controller = self._controller()
-        first = _character("first", lt=105.0)
-        second = _character("second", lt=110.0)
+    def test_unavailable_selected_identity_does_not_discard_current_object(self):
+        decision = self._controller().step(_observation(0, selected="mob", target_token="mob",
+            identity_available=False, characters=(_character("mob", lt=105),)))
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, decision.intent)
+        self.assertEqual("mob", decision.combat_proposal.target_token)
 
-        decision = controller.step(
-            _observation(
-                0,
-                selected="first",
-                target_token="first",
-                target_health=0.0,
-                characters=(first, second),
-            )
-        )
+    def test_missing_population_key_cannot_create_native_authority(self):
+        mob = replace(_character("mob", lt=105), object_key=None)
+        decision = self._controller().step(_observation(0, selected="mob", target_token="mob",
+            characters=(mob,)))
+        self.assertIsNone(decision.combat_proposal)
+        self.assertEqual(PvEPhase.SEEKING, decision.phase)
 
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decision.intent)
-        self.assertEqual("second", decision.acquisition_target_token)
-        self.assertEqual(
-            PvETargetRejectionReason.TARGET_DEAD,
-            controller.target_rejections[-1].reason,
-        )
-
-    def test_selected_candidate_with_protected_identity_is_rejected_immediately(self) -> None:
-        controller = self._controller()
-        first = _character("first", lt=105.0)
-        second = _character("second", lt=110.0)
-
-        decision = controller.step(
-            _observation(
-                0,
-                selected="first",
-                target_token="first",
-                trainer=True,
-                characters=(first, second),
-            )
-        )
-
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decision.intent)
-        self.assertEqual("second", decision.acquisition_target_token)
-        self.assertEqual(
-            PvETargetRejectionReason.TARGET_NOT_ATTACK_ELIGIBLE,
-            controller.target_rejections[-1].reason,
-        )
-
-    def test_unavailable_identity_is_quarantined_without_attack_input(self) -> None:
-        controller = self._controller()
-        first = _character("first", lt=105.0)
-        second = _character("second", lt=110.0)
-
-        decision = controller.step(
-            _observation(
-                0,
-                selected="first",
-                target_token="first",
-                identity_available=False,
-                characters=(first, second),
-            )
-        )
-
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decision.intent)
-        self.assertEqual("second", decision.acquisition_target_token)
-        self.assertNotEqual(PvEIntent.ATTACK_SELECTED_TARGET, decision.intent)
-        self.assertEqual(
-            PvETargetRejectionReason.TARGET_IDENTITY_UNAVAILABLE,
-            controller.target_rejections[-1].reason,
-        )
-
-    def test_transient_missing_snapshot_recovers_before_validation_deadline(self) -> None:
-        controller = self._controller()
-        mob = _character("mob", lt=105.0)
-
-        waiting = controller.step(
-            _observation(
-                0,
-                selected="mob",
-                target_token=None,
-                characters=(mob,),
-            )
-        )
-        engaged = controller.step(
-            _observation(
-                200,
-                selected="mob",
-                target_token="mob",
-                characters=(mob,),
-            )
-        )
-
-        self.assertIsNone(waiting.intent)
-        self.assertEqual(PvEPhase.ENGAGED, engaged.phase)
-        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, engaged.intent)
-        self.assertEqual((), controller.target_rejections)
-
-    def test_continuous_missing_snapshot_enters_camp_idle_after_quarantine(self) -> None:
-        controller = self._controller(continuous=True)
-        mob = _character("mob", lt=105.0)
-
-        controller.step(
-            _observation(
-                0,
-                selected="mob",
-                target_token=None,
-                characters=(mob,),
-            )
-        )
-        decision = controller.step(
-            _observation(
-                300,
-                selected="mob",
-                target_token=None,
-                characters=(mob,),
-            )
-        )
-
+    def test_continuous_empty_population_enters_camp_idle_without_input(self):
+        decision = self._controller(continuous=True).step(_observation(
+            0, selected=None, target_token=None, characters=()))
         self.assertEqual(PvEPhase.CAMP_IDLE, decision.phase)
-        self.assertFalse(decision.terminal)
-        self.assertEqual(
-            PvETargetRejectionReason.TARGET_SNAPSHOT_UNAVAILABLE,
-            controller.target_rejections[-1].reason,
-        )
+        self.assertIsNone(decision.combat_proposal)
+        self.assertIsNone(decision.intent)
 
-    def test_wrapped_target_cycle_records_reason_and_advances_candidate(self) -> None:
+    def test_selected_cycle_cannot_replace_unacknowledged_object_proposal(self):
+        first, second = _character("first", lt=101), _character("second", lt=110)
         controller = self._controller()
-        first = _character("first", lt=105.0)
-        second = _character("second", lt=110.0)
-        characters = (first, second)
-
-        controller.step(
-            _observation(
-                0,
-                selected=None,
-                target_token=None,
-                characters=characters,
-            )
-        )
-        controller.step(
-            _observation(
-                100,
-                selected="second",
-                target_token="second",
-                characters=characters,
-            )
-        )
-        decision = controller.step(
-            _observation(
-                200,
-                selected=None,
-                target_token=None,
-                characters=characters,
-            )
-        )
-
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decision.intent)
-        self.assertEqual("second", decision.acquisition_target_token)
-        rejection = controller.target_rejections[-1]
-        self.assertEqual("first", rejection.target_token)
-        self.assertEqual(
-            PvETargetRejectionReason.TARGET_CYCLE_WRAPPED,
-            rejection.reason,
-        )
-        self.assertEqual("target_cycle_wrapped", rejection.as_dict()["reason"])
+        original = controller.step(_observation(0, selected="second", target_token="second",
+            characters=(first, second))).combat_proposal
+        next_frame = controller.step(_observation(100, selected=None, target_token=None,
+            characters=(first, second)))
+        self.assertIsNone(next_frame.combat_proposal)
+        self.assertEqual(original, controller.pending_combat_proposal)
+        self.assertEqual(first.object_key, original.target_key)
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ from math import hypot, isfinite
 from typing import TYPE_CHECKING
 
 from shadowbane_lab.client_observation import (
+    NativeCharacterObservation,
     NativeCharacterPopulationObservation,
     NativeCombatEvent,
     NativePlayerActionObservation,
@@ -18,11 +19,13 @@ from shadowbane_lab.client_observation import (
     NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.travel.model import TravelDecision, TravelDestination
 
 if TYPE_CHECKING:
     from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
     from shadowbane_lab.pve.listed_combat import ListedCombatUpdate
+    from shadowbane_lab.pve.native_combat import NativeCombatUpdate
 
 
 def _positive_integer(value: int, field_name: str) -> None:
@@ -42,11 +45,91 @@ class PvEIntent(StrEnum):
     ATTACK_SELECTED_TARGET = "shadowbane.basic_attack"
 
 
+class PvECombatKind(StrEnum):
+    BIND = "bind"
+    ATTACK = "attack"
+    CAST = "cast"
+
+
+class PvECombatDisposition(StrEnum):
+    BOUND = "bound"
+    QUEUED = "queued"
+    DEFERRED = "deferred"
+    REJECTED = "rejected"
+    UNCERTAIN = "uncertain"
+
+
+@dataclass(frozen=True, slots=True)
+class PvECombatProposal:
+    """Immutable policy request; the coordinator owns native IDs and authority."""
+
+    proposal_id: int
+    target_token: str
+    target_key: NativeObjectKey
+    kind: PvECombatKind
+    power_id: int = 0
+    adopted_existing_action: bool = False
+    interrupt_sequence: int | None = None
+
+    def __post_init__(self) -> None:
+        _non_negative_integer(self.proposal_id, "proposal_id")
+        if not isinstance(self.target_token, str) or not self.target_token.strip():
+            raise ValueError("combat proposal requires an opaque target token")
+        if not isinstance(self.target_key, NativeObjectKey) or self.target_key.is_null:
+            raise ValueError("combat proposal requires an exact native object key")
+        if not isinstance(self.kind, PvECombatKind):
+            raise ValueError("combat proposal requires a semantic kind")
+        if type(self.power_id) is not int or not 0 <= self.power_id < 2**32:
+            raise ValueError("power_id must be uint32")
+        if (self.kind is PvECombatKind.CAST) != (self.power_id != 0):
+            raise ValueError("only CAST requires a numeric power ID")
+        if type(self.adopted_existing_action) is not bool:
+            raise ValueError("adopted_existing_action must be boolean")
+        if self.adopted_existing_action and self.kind is not PvECombatKind.BIND:
+            raise ValueError("existing action adoption requires BIND")
+        if self.interrupt_sequence is not None:
+            _non_negative_integer(self.interrupt_sequence, "interrupt_sequence")
+            if self.kind is not PvECombatKind.CAST:
+                raise ValueError("interrupt metadata requires CAST")
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "proposal_id": self.proposal_id, "target_token": self.target_token,
+            "target_key": [self.target_key.object_type, self.target_key.object_uuid],
+            "kind": self.kind.value, "power_id": self.power_id,
+            "adopted_existing_action": self.adopted_existing_action,
+            "interrupt_sequence": self.interrupt_sequence,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PvECombatAcknowledgement:
+    """Policy projection of an already correlated native receipt, never text."""
+
+    disposition: PvECombatDisposition
+    native_entered: bool | None
+    cleanup_required: bool
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.disposition, PvECombatDisposition):
+            raise ValueError("combat acknowledgment requires a typed disposition")
+        if self.native_entered is not None and type(self.native_entered) is not bool:
+            raise ValueError("native entry must remain tri-state")
+        if type(self.cleanup_required) is not bool:
+            raise ValueError("cleanup_required must be boolean")
+        if self.disposition is PvECombatDisposition.QUEUED and self.native_entered is not True:
+            raise ValueError("queued action must positively prove native entry")
+        if self.disposition is PvECombatDisposition.DEFERRED and self.native_entered is True:
+            raise ValueError("deferred acknowledgment cannot claim entry")
+
+
 class PvEPhase(StrEnum):
     INITIALIZING = "initializing"
+    OBSERVING_ACTION = "observing_action"
     SEEKING = "seeking"
     OPENING = "opening"
     ENGAGED = "engaged"
+    DISENGAGING = "disengaging"
     POST_KILL = "post_kill"
     RECOVERING = "recovering"
     CAMP_IDLE = "camp_idle"
@@ -57,6 +140,112 @@ class PvEPhase(StrEnum):
 class PvEKillConfirmation(StrEnum):
     NATIVE_COMBAT_EVENT = "native_combat_event"
     NATIVE_HEALTH_ZERO = "native_health_zero"
+
+
+@dataclass(frozen=True, slots=True)
+class PvETrackedTarget:
+    """A retained object binding; selection is a separate input channel."""
+
+    token: str
+    object_key: NativeObjectKey
+    character: NativeCharacterObservation | None
+
+    def __post_init__(self) -> None:
+        if (not self.token or not isinstance(self.object_key, NativeObjectKey)
+                or self.object_key.is_null):
+            raise ValueError("tracked target requires an exact token and object key")
+        if self.character is not None and (
+            self.character.token != self.token or self.character.object_key != self.object_key
+        ):
+            raise ValueError("tracked character must match both retained identity fields")
+
+    @property
+    def available(self) -> bool:
+        return self.character is not None
+
+    def planar_distance(self, observation: PvEObservation) -> float | None:
+        player = observation.player_position
+        if self.character is None or player is None:
+            return None
+        return hypot(self.character.lt - player.lt, self.character.lg - player.lg)
+
+    def as_dict(self) -> dict[str, object]:
+        character = self.character
+        return {
+            "token": self.token,
+            "object_key": [self.object_key.object_type, self.object_key.object_uuid],
+            "available": self.available,
+            "current_health": None if character is None else character.current_health,
+            "maximum_health": None if character is None else character.maximum_health,
+            "lt": None if character is None else character.lt,
+            "lg": None if character is None else character.lg,
+            "altitude": None if character is None else character.altitude,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PvETrackedTargetAction:
+    """Action detail attributed to an exact retained native object identity."""
+
+    token: str
+    object_key: NativeObjectKey
+    action: NativeTargetActionObservation
+
+    def __post_init__(self) -> None:
+        if (not self.token or not isinstance(self.object_key, NativeObjectKey)
+                or self.object_key.is_null
+                or not isinstance(self.action, NativeTargetActionObservation)
+                or not self.action.target_present or self.action.target_token != self.token):
+            raise ValueError("tracked action requires matching native object identity")
+
+    def as_dict(self) -> dict[str, object]:
+        return {"token": self.token,
+                "object_key": [self.object_key.object_type, self.object_key.object_uuid],
+                "phase": self.action.phase.value, "action_sequence": self.action.action_sequence,
+                "motion_id": self.action.motion_id, "action_pending": self.action.action_pending,
+                "targeting_player": self.action.targeting_player,
+                "impact_frame": self.action.impact_frame}
+
+
+@dataclass(frozen=True, slots=True)
+class PvECombatCleanupRequest:
+    sequence: int
+    target_token: str
+    object_key: NativeObjectKey
+    reason: str
+
+    def __post_init__(self) -> None:
+        _non_negative_integer(self.sequence, "cleanup sequence")
+        if not self.target_token or not self.reason:
+            raise ValueError("cleanup requires retained target and reason")
+        if not isinstance(self.object_key, NativeObjectKey) or self.object_key.is_null:
+            raise ValueError("cleanup requires retained object key")
+
+    def as_dict(self) -> dict[str, object]:
+        return {"sequence": self.sequence, "target_token": self.target_token,
+                "object_key": [self.object_key.object_type, self.object_key.object_uuid],
+                "reason": self.reason}
+
+
+@dataclass(frozen=True, slots=True)
+class PvECombatCleanupResult:
+    request: PvECombatCleanupRequest
+    confirmed: bool
+    request_key: str | None = None
+    error: str | None = None
+
+    def __post_init__(self) -> None:
+        if (not isinstance(self.request, PvECombatCleanupRequest)
+                or type(self.confirmed) is not bool):
+            raise ValueError("invalid cleanup result")
+        if self.confirmed and (not self.request_key or self.error is not None):
+            raise ValueError("confirmed cleanup requires correlated native acknowledgment")
+        if not self.confirmed and not self.error:
+            raise ValueError("unconfirmed cleanup requires a diagnostic")
+
+    def as_dict(self) -> dict[str, object]:
+        return {**self.request.as_dict(), "confirmed": self.confirmed,
+                "request_key": self.request_key, "error": self.error}
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,9 +337,8 @@ class PvEControllerConfig:
     interrupt_cooldown_ms: int = 0
     maximum_interrupts_per_target: int = 0
     automatic_attack_expected: bool = False
-    automatic_target_requires_combat_event: bool = False
+    automatic_target_requires_active_action: bool = False
     require_target_identity: bool = False
-    use_native_population: bool = False
     melee_approach_radius: float = 20.0
     minimum_approach_progress: float = 8.0
     continuous: bool = False
@@ -243,11 +431,10 @@ class PvEControllerConfig:
             (self.accept_automatic_targets, "accept_automatic_targets"),
             (self.automatic_attack_expected, "automatic_attack_expected"),
             (
-                self.automatic_target_requires_combat_event,
-                "automatic_target_requires_combat_event",
+                self.automatic_target_requires_active_action,
+                "automatic_target_requires_active_action",
             ),
             (self.require_target_identity, "require_target_identity"),
-            (self.use_native_population, "use_native_population"),
             (self.continuous, "continuous"),
         ):
             if not isinstance(value, bool):
@@ -350,6 +537,8 @@ class PvEObservation:
     player_position: NativePlayerPositionObservation | None = None
     target_position: NativeTargetPositionObservation | None = None
     target_action: NativeTargetActionObservation | None = None
+    tracked_target_action: PvETrackedTargetAction | None = None
+    selection_observed: bool = True
     player_action: NativePlayerActionObservation | None = None
     target_identity: NativeTargetIdentityObservation | None = None
     population: NativeCharacterPopulationObservation | None = None
@@ -357,6 +546,16 @@ class PvEObservation:
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.now_ms, "now_ms")
+        if not isinstance(self.selection_observed, bool):
+            raise ValueError("selection_observed must be boolean")
+        if not self.selection_observed and self.target.target_present:
+            raise ValueError("unavailable selection cannot contain selected health")
+        if self.tracked_target_action is not None:
+            bound = self.tracked_target_action
+            if (not isinstance(bound, PvETrackedTargetAction) or self.population is None
+                    or not any(c.token == bound.token and c.object_key == bound.object_key
+                               for c in self.population.characters)):
+                raise ValueError("tracked action and population resolved different identities")
         if self.authority_snapshot is not None:
             from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
 
@@ -395,6 +594,10 @@ class PvEObservation:
             NativePlayerActionObservation,
         ):
             raise ValueError("player_action must be NativePlayerActionObservation")
+        if self.player_action is not None:
+            if (self.population is not None and self.player_action.action_target_token
+                    != self.population.player_action_target_token):
+                raise ValueError("population and player action resolved different action targets")
         if self.target_identity is not None:
             if not isinstance(self.target_identity, NativeTargetIdentityObservation):
                 raise ValueError("target_identity must be NativeTargetIdentityObservation")
@@ -480,11 +683,25 @@ class PvEControllerDecision:
     terminal_reason: str | None = None
     kill_confirmation: PvEKillConfirmation | None = None
     acquisition_target_token: str | None = None
+    cleanup_request: PvECombatCleanupRequest | None = None
+    tracked_target: PvETrackedTarget | None = None
+    native_action_pending: bool = False
+    combat_proposal: PvECombatProposal | None = None
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.decision_id, "decision_id")
         _non_negative_integer(self.now_ms, "now_ms")
         _non_negative_integer(self.kills, "kills")
+        proposal = self.combat_proposal
+        if proposal is not None:
+            if not isinstance(proposal, PvECombatProposal):
+                raise ValueError("combat_proposal must be typed")
+            if proposal.proposal_id != self.decision_id:
+                raise ValueError("combat proposal must belong to this decision")
+            if self.cleanup_request is not None or self.terminal_reason is not None:
+                raise ValueError("cleanup/terminal decisions cannot submit combat")
+            if self.native_action_pending and proposal.kind is not PvECombatKind.BIND:
+                raise ValueError("busy native action cannot submit a conflicting action")
         if not isinstance(self.phase, PvEPhase):
             raise ValueError("phase must be PvEPhase")
         if self.intent is not None and not isinstance(self.intent, PvEIntent):
@@ -518,6 +735,12 @@ class PvEControllerDecision:
             raise ValueError("acquisition_target_token must be non-empty when present")
         if self.acquisition_target_token is not None and self.phase is not PvEPhase.SEEKING:
             raise ValueError("acquisition_target_token is valid only while seeking")
+        if self.native_action_pending and (self.intent is not None or self.reposition_requested):
+            raise ValueError("uncompleted native action cannot dispatch conflicting input")
+        if self.cleanup_request is not None and (
+            self.intent is not None or self.reposition_requested or self.return_to_camp
+        ):
+            raise ValueError("pending cleanup cannot dispatch input or movement")
         terminal = self.phase in (PvEPhase.COMPLETE, PvEPhase.STOPPED)
         if terminal != (self.terminal_reason is not None):
             raise ValueError("terminal phases require exactly one terminal reason")
@@ -549,6 +772,8 @@ class PvERunTraceStep:
     player_position: NativePlayerPositionObservation | None = None
     target_position: NativeTargetPositionObservation | None = None
     target_action: NativeTargetActionObservation | None = None
+    tracked_target_action: PvETrackedTargetAction | None = None
+    selection_observed: bool = True
     player_action: NativePlayerActionObservation | None = None
     target_identity: NativeTargetIdentityObservation | None = None
     target_planar_distance: float | None = None
@@ -569,7 +794,9 @@ class PvERunTraceStep:
     population_selected_target_token: str | None = None
     population_player_action_target_token: str | None = None
     population_scan_generation: int | None = None
+    native_combat: NativeCombatUpdate | None = None
     listed_combat: ListedCombatUpdate | None = None
+    combat_cleanup: PvECombatCleanupResult | None = None
 
     def __post_init__(self) -> None:
         if self.movement_arrival_confirmed is not None:
@@ -583,8 +810,14 @@ class PvERunTraceStep:
             raise ValueError("target_present must be a boolean")
         if self.input_accepted is not None and not isinstance(self.input_accepted, bool):
             raise ValueError("input_accepted must be a boolean when present")
-        if self.decision.intent is None and self.input_accepted is not None:
-            raise ValueError("input outcome requires a dispatched intent")
+        if self.native_combat is not None:
+            from shadowbane_lab.pve.native_combat import NativeCombatUpdate
+
+            if not isinstance(self.native_combat, NativeCombatUpdate):
+                raise ValueError("native combat trace requires a typed correlated update")
+        if (self.decision.intent is None and self.decision.combat_proposal is None
+                and self.native_combat is None and self.input_accepted is not None):
+            raise ValueError("input outcome requires an intent, proposal or native combat update")
         if self.input_reason is not None and self.input_accepted is not False:
             raise ValueError("input_reason is valid only for rejected input")
         if self.approach_status is not None and (
@@ -648,6 +881,7 @@ class PvERunTraceStep:
 
     def as_dict(self) -> dict[str, object]:
         return {
+            "native_combat": None if self.native_combat is None else self.native_combat.as_dict(),
             "listed_combat": None if self.listed_combat is None else self.listed_combat.as_dict(),
             "decision_id": self.decision.decision_id,
             "at_ms": self.decision.now_ms,
@@ -658,6 +892,18 @@ class PvERunTraceStep:
                 if self.decision.kill_confirmation is None
                 else self.decision.kill_confirmation.value
             ),
+            "selection_observed": self.selection_observed,
+            "tracked_target_action": (None if self.tracked_target_action is None
+                                      else self.tracked_target_action.as_dict()),
+            "tracked_target": (None if self.decision.tracked_target is None
+                               else self.decision.tracked_target.as_dict()),
+            "combat_proposal": (None if self.decision.combat_proposal is None
+                                else self.decision.combat_proposal.as_dict()),
+            "combat_cleanup": (None if self.combat_cleanup is None
+                               else self.combat_cleanup.as_dict()),
+            "native_action_pending": self.decision.native_action_pending,
+            "cleanup_request": (None if self.decision.cleanup_request is None
+                                else self.decision.cleanup_request.as_dict()),
             "intent": None if self.decision.intent is None else self.decision.intent.value,
             "acquisition_target_token": self.decision.acquisition_target_token,
             "reposition_requested": self.decision.reposition_requested,
@@ -739,12 +985,18 @@ class PvERunTraceStep:
                     else {
                         "phase": self.player_action.phase.value,
                         "targeting_selected": self.player_action.targeting_selected,
+                        "selection_observed": self.player_action.selection_observed,
+                        "selected_target_token": self.player_action.selected_target_token,
+                        "action_target_token": self.player_action.action_target_token,
                         "motion_id": self.player_action.motion_id,
                         "action_pending": self.player_action.action_pending,
                         "impact_frame": self.player_action.impact_frame,
                         "action_sequence": self.player_action.action_sequence,
                         "motion_sequence": self.player_action.motion_sequence,
                         "action_active": self.player_action.action_active,
+                        "mode": self.player_action.mode,
+                        "action_state": self.player_action.action_state,
+                        "native_action_idle": self.player_action.native_action_idle,
                     }
                 ),
             },

@@ -1,6 +1,7 @@
 """Production store/mapping races; optional Win32 native consumer interop."""
 from __future__ import annotations
 
+import itertools
 import json
 import multiprocessing
 import os
@@ -13,8 +14,9 @@ from unittest.mock import patch
 
 import pytest
 
-from shadowbane_lab.client_extension.combat_fence import Binding, State
+from shadowbane_lab.client_extension.combat_fence_v3 import Binding, EngagementId, State
 from shadowbane_lab.client_extension.combat_fence_windows import FenceError, Ticket, Windows
+from shadowbane_lab.client_extension.movement_wire import Grant, Host, Owner
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.pve.attack_list import (
     AttackListEntry,
@@ -29,6 +31,7 @@ from shadowbane_lab.pve.attack_list_fence import Registry
 OWNER = AttackListOwner("test-server", "test-character")
 LOCAL = NativeObjectKey(91, 53)
 TARGET = NativeObjectKey(92, 53)
+_ENGAGEMENTS = itertools.count(1)
 WINDOWS = pytest.mark.skipif(os.name != "nt", reason="Windows kernel admission objects")
 
 
@@ -47,15 +50,19 @@ def store_at(root):
 def register(store, client=None, **changes):
     if client is None:
         client = Windows().identity()
+    producer, creation = Windows().identity()
     args = dict(expected_revision=store.snapshot().revision, client_pid=client[0],
-                client_creation=client[1], producer_generation=7, movement_generation=8,
-                scene=9, operation=b"o" * 32, local_key=LOCAL)
+                client_creation=client[1], host=Host(producer, 7, creation),
+                grant=Grant(8, 9, Owner.AUTOMATION, "test", "fence-test"), local_key=LOCAL,
+                engagement=EngagementId(next(_ENGAGEMENTS)), actor_address_hint=0x12300000,
+                target_address_hint=0x12400000)
     args.update(changes)
-    return store.register_admission(entry().entry_id, **args)
+    ticket, _ = store.register_combat_engagement(entry().entry_id, **args)
+    return ticket
 
 
 def test_shared_fixture_roundtrip():
-    payload = bytes.fromhex((Path(__file__).parent / "fixtures/combat_fence_v2.hex").read_text())
+    payload = bytes.fromhex((Path(__file__).parent / "fixtures/combat_fence_v3.hex").read_text())
     binding, state = Binding.decode(payload)
     assert state == State.REGISTERING
     assert binding.encode() == payload
@@ -101,7 +108,7 @@ def test_publish_failure_revokes_without_changing_saved_intent(tmp_path):
         with pytest.raises(FenceError):
             ticket.arm()
         with register(store) as replacement:
-            assert replacement.binding.request != ticket.binding.request
+            assert replacement.binding.engagement != ticket.binding.engagement
             assert replacement.state() == State.PENDING
 
 
@@ -237,9 +244,9 @@ class NativeConsumer:
 
 @pytest.fixture
 def native():
-    path = os.environ.get("SHADOWBANE_COMBAT_FENCE_TEST_EXE")
+    path = os.environ.get("SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE")
     if not path:
-        pytest.skip("set SHADOWBANE_COMBAT_FENCE_TEST_EXE to built Win32 native fence test")
+        pytest.skip("set SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE to built Win32 native fence test")
     assert Path(path).is_file()
     result = NativeConsumer(path)
     try:
@@ -260,13 +267,14 @@ def test_native_entry_once_then_mutation_requires_cancellation(tmp_path, native,
         with ticket.locked():
             assert native.command("enter") == "1"  # zero-wait busy
         assert native.command("enter") == "0"
-        assert native.command("enter") == "4"  # no duplicate admission
+        assert native.command("enter") == "4"  # cannot pretend this is first admission
+        assert native.command("reuse") == "0"  # retained engagement reauthorizes each action
         result = apply_attack_list_command("/blacklist clear", store)
-        assert result["entered_admissions_requiring_cancellation"] == [ticket.binding.request.hex()]
+        assert result["entered_admissions_requiring_cancellation"] == [ticket.binding.digest.hex()]
         _print_go_listener_event("attack-list", as_json=False, result=result)
         output = capsys.readouterr().out
         assert "Cancellation is not confirmed" in output
-        assert ticket.binding.request.hex() in output
+        assert ticket.binding.digest.hex() in output
         assert native.command("inspect") == "5 4"
         assert native.command("enter") == "5"
 
@@ -275,8 +283,10 @@ def test_native_entry_once_then_mutation_requires_cancellation(tmp_path, native,
 def test_native_revocation_wins_and_immutable_binding_rejected(tmp_path, native):
     store = store_at(tmp_path)
     with register(store, native.identity) as ticket:
-        native.open(replace(ticket.binding, owner=b"z" * 32))
-        assert native.command("enter") == "3"
+        with pytest.raises(FileNotFoundError):
+            Ticket(replace(ticket.binding, owner=b"z" * 32))
+        native.open(ticket.binding)
+        assert native.command("wrong-generation") == "3"
         assert ticket.state() == State.PENDING
         store.clear()
         assert ticket.state() == State.REVOKED
@@ -413,7 +423,7 @@ def test_real_process_entry_mutation_race_has_one_winner(tmp_path, native):
             revision, cancellations = result.get(timeout=15)
             assert revision == 2
             if entered == "0":
-                assert cancellations == (ticket.binding.request.hex(),)
+                assert cancellations == (ticket.binding.digest.hex(),)
                 assert ticket.state() == State.ENTERED_REVOKED
             else:
                 assert entered in {"1", "5"}
@@ -505,22 +515,27 @@ def test_failed_close_retains_handles_for_revocation_retry(tmp_path, native):
 @WINDOWS
 def test_first_admission_migrates_record_to_exclude_unfenced_legacy_writers(tmp_path):
     store = store_at(tmp_path)
-    assert json.loads(store.path.read_bytes())["schema"] == 3
+    raw = json.loads(store.path.read_bytes())
+    raw["schema"] = 4
+    store.path.write_text(json.dumps(raw), encoding="utf-8")
     before = store.snapshot()
     with register(store):
         raw = json.loads(store.path.read_bytes())
-        # The prior production reader explicitly accepts only (1, 2, 3).
-        assert raw["schema"] == 4 and raw["schema"] not in (1, 2, 3)
+        # The previous production editor accepts schemas through4.
+        assert raw["schema"] == 5 and raw["schema"] not in (1, 2, 3, 4)
         assert store.snapshot() == before
         assert store.snapshot().fenced
     store.clear()
-    assert json.loads(store.path.read_bytes())["schema"] == 4
+    assert json.loads(store.path.read_bytes())["schema"] == 5
     assert AttackListStore(tmp_path, OWNER).snapshot().fenced
 
 
 @WINDOWS
 def test_migration_failure_never_registers_or_arms(tmp_path):
     store = store_at(tmp_path)
+    raw = json.loads(store.path.read_bytes())
+    raw["schema"] = 3
+    store.path.write_text(json.dumps(raw), encoding="utf-8")
     with patch("shadowbane_lab.pve.attack_list.publish_atomic_record", side_effect=OSError):
         with pytest.raises(OSError):
             register(store)

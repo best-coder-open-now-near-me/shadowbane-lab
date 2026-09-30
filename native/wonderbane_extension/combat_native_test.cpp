@@ -3,7 +3,6 @@
 #include <cassert>
 #include <map>
 #include <stdexcept>
-#include <vector>
 namespace c = wonderbane::extension::combat;
 namespace m = wonderbane::extension::movement;
 namespace s = c::submission;
@@ -11,18 +10,19 @@ using O = c::wire::Outcome;
 namespace {
 std::uintptr_t base = 0;
 bool live = true, admitted = true, entered = true, ready = true;
-bool invalidate_select = false, invalidate_query = false, invalidate_release = false;
-bool throw_select = false, throw_release = false, cancel_rejected = false, seh_dispatch = false;
+bool invalidate_entry = false, invalidate_lookup = false, invalidate_release = false;
+bool throw_attack = false, throw_release = false, cancel_rejected = false, seh_dispatch = false;
+bool throw_lookup = false, seh_lookup = false, wrong_lookup_result = false, replace_world = false, change_party = false;
 bool scoped = false;
 unsigned restored = 0;
-unsigned selections = 0, dispatches = 0, cancellations = 0, entries = 0, allocations = 0;
+unsigned dispatches = 0, cancellations = 0, entries = 0, lookups = 0;
 std::map<void*, unsigned> references;
-std::vector<void*> objects;
+void* registered_object = nullptr;
 s::Receipt submitted{s::Result::queued, true, true, true};
 s::Context scope_context{};
 void Word(std::uintptr_t at, std::uint32_t value) { std::memcpy(reinterpret_cast<void*>(at), &value, 4); }
 bool Admit(void*) noexcept { return admitted; }
-bool Enter(void*) noexcept { ++entries; return entered; }
+bool Enter(void*) noexcept { ++entries; if (invalidate_entry) { admitted = false; } return entered; }
 void Text(std::uintptr_t field, std::uintptr_t storage, const wchar_t* value) {
     const auto bytes = (wcslen(value) + 1) * 2;
     std::memcpy(reinterpret_cast<void*>(storage), value, bytes);
@@ -44,18 +44,19 @@ c::wire::Command Command() {
     return command;
 }
 m::NativeScene Reset() {
-    assert(!allocations);
-    references.clear(); objects = {reinterpret_cast<void*>(base + 0x4000)};
+    references.clear(); registered_object = reinterpret_cast<void*>(base + 0x4000);
     live = admitted = entered = ready = true;
-    invalidate_select = invalidate_query = invalidate_release = false;
-    throw_select = throw_release = cancel_rejected = seh_dispatch = false;
-    selections = dispatches = cancellations = entries = 0;
+    invalidate_entry = invalidate_lookup = invalidate_release = false;
+    throw_attack = throw_release = cancel_rejected = seh_dispatch = false;
+    throw_lookup = seh_lookup = wrong_lookup_result = replace_world = change_party = false;
+    dispatches = cancellations = entries = lookups = 0;
     submitted = {s::Result::queued, true, true, true};
     m::NativeScene scene{}; scene.epoch = 1; scene.window = base + 0x1000;
     scene.actor = base + 0x2000; scene.world = base + 0x6000; scene.parent = base + 0x7000;
     scene.identity = {100, 53};
     Word(base + 0x16a2d98, scene.actor); Word(base + 0x16a7bfc, scene.window);
     Word(base + 0x1389028, scene.world); Word(base + 0x16a2da4, 0);
+    Word(scene.world + 0x164, 0); // A registered player need not have a spatial-query root.
     Word(base + 0x16ab88c, base + 0xa000); Word(base + 0xa044, base + 0xa100);
     Word(scene.window + 0x98, base + 0x8000); Word(base + 0x809c, base + 0x8100);
     Word(base + 0x8100, base + 0x8100); Word(base + 0x8104, base + 0x8100);
@@ -92,21 +93,49 @@ Receipt Scope::Finish() noexcept {
     return submitted;
 }
 }
+namespace wonderbane::extension::combat::melee {
+void Release(void*& value) {
+    if (value) { assert(references[value]); --references[value]; value = nullptr; }
+}
+bool Invoke(std::uintptr_t image, void* actor, void* target, submission::Scope&,
+    void*& request, void*& transfer, Admission current, void* context) {
+    assert(image == base && actor == reinterpret_cast<void*>(base + 0x2000));
+    assert(target == reinterpret_cast<void*>(base + 0x4000) && !request && !transfer);
+    assert(scope_context.route == s::Route::explicit_object);
+    ++dispatches;
+    if (throw_attack || seh_dispatch) {
+        request = reinterpret_cast<void*>(base + 0xe000); ++references[request];
+        if (throw_attack) { transfer = request; ++references[transfer]; }
+    }
+    if (throw_attack) { throw std::runtime_error("explicit attack after retained request"); }
+    if (seh_dispatch) {
+        assert(scope_context.receipt); *scope_context.receipt = submitted;
+        RaiseException(0xe0004342, 0, 0, nullptr);
+    }
+    assert(current(context) && scope_context.append_current(scope_context.context));
+    return true;
+}
+}
 namespace wonderbane::extension::combat {
 struct NativeTargetTestAccess {
-    using Node = NativeTarget::Node; using List = NativeTarget::List;
-    static List* __fastcall Construct(List* list, void*, const unsigned char*) {
-        list->sentinel = new Node{}; ++allocations;
-        list->sentinel->next = list->sentinel->previous = list->sentinel; return list;
-    }
-    static void __fastcall Query(void*, void*, const m::GroundPoint* minimum,
-        const m::GroundPoint* maximum, List* list) {
-        assert(minimum->x == 976 && maximum->x == 3024);
-        for (auto* object : objects) {
-            auto* node = new Node{list->sentinel, list->sentinel->previous, object}; ++allocations;
-            list->sentinel->previous->next = node; list->sentinel->previous = node; ++references[object];
+    static void** __fastcall Lookup(void* world, void*, void** output, const std::uint32_t* key) {
+        ++lookups;
+        assert(world == reinterpret_cast<void*>(base + 0x6000));
+        assert(!*reinterpret_cast<const std::uint32_t*>(base + 0x6164));
+        assert(key[0] == 200 && key[1] == 53 && !*output);
+        *output = registered_object;
+        if (*output) { ++references[*output]; } // Resolver transfers one already retained reference.
+        if (invalidate_lookup) { live = false; }
+        if (replace_world) { Word(base + 0x1389028, base + 0x6100); }
+        if (change_party) {
+            Word(base + 0x8100, base + 0x8200); Word(base + 0x8104, base + 0x8200);
+            Word(base + 0x8200, base + 0x8100); Word(base + 0x8204, base + 0x8100);
+            Word(base + 0x8208, base + 0x8300);
+            Word(base + 0x8310, 200); Word(base + 0x8314, 53); Word(base + 0x8374, 0x15);
         }
-        if (invalidate_query) { live = false; }
+        if (throw_lookup) { throw std::runtime_error("lookup after owned output"); }
+        if (seh_lookup) { RaiseException(0xe0004343, 0, 0, nullptr); }
+        return wrong_lookup_result ? nullptr : output;
     }
     static void __fastcall Retain(void* adjusted, void*, void** slot) {
         assert(reinterpret_cast<std::uintptr_t>(adjusted) == reinterpret_cast<std::uintptr_t>(*slot) + 0x88);
@@ -117,15 +146,6 @@ struct NativeTargetTestAccess {
         if (invalidate_release) { admitted = false; }
         if (throw_release) { throw std::runtime_error("release"); }
     }
-    static void __cdecl Pool(void* value, std::uint32_t size) {
-        assert(size == sizeof(Node)); delete static_cast<Node*>(value); --allocations;
-    }
-    static void __cdecl Select(void* value) {
-        ++selections; assert(references[value] == 2); --references[value];
-        Word(base + 0x16a2da4, reinterpret_cast<std::uintptr_t>(value));
-        if (invalidate_select) { admitted = false; }
-        if (throw_select) { throw std::runtime_error("select"); }
-    }
     static bool __cdecl Dispatch(const void* tuple, void* root) {
         assert(root == reinterpret_cast<void*>(base + 0x1000));
         const auto* words = static_cast<const std::uint32_t*>(tuple);
@@ -133,28 +153,20 @@ struct NativeTargetTestAccess {
         if (words[0] == 0x616) {
             ++cancellations;
             if (!cancel_rejected) { Word(base + 0xc018, 1); Word(base + 0xc020, 1); Word(base + 0x2af8, 0); }
-        } else {
-            assert(words[0] == 0x60f); ++dispatches;
-            if (seh_dispatch) {
-                assert(scope_context.receipt); *scope_context.receipt = submitted;
-                RaiseException(0xe0004342, 0, 0, nullptr);
-            }
-            assert(scope_context.current(scope_context.context));
-            assert(scope_context.append_current(scope_context.context));
-        }
+        } else { assert(false); }
         return true; // Dispatcher acceptance alone does not establish submission.
     }
     static void Bind(NativeTarget& target, HWND window) {
         target.base_ = base; target.window_ = window; target.thread_ = GetCurrentThreadId();
-        target.calls_.construct = reinterpret_cast<decltype(target.calls_.construct)>(&Construct);
-        target.calls_.query = reinterpret_cast<decltype(target.calls_.query)>(&Query);
+        target.calls_.lookup = reinterpret_cast<decltype(target.calls_.lookup)>(&Lookup);
         target.calls_.retain = reinterpret_cast<decltype(target.calls_.retain)>(&Retain);
         target.calls_.release = reinterpret_cast<decltype(target.calls_.release)>(&Release);
-        target.calls_.pool_return = &Pool; target.calls_.select = &Select; target.calls_.dispatch = &Dispatch;
+        target.calls_.attack = &melee::Invoke; target.calls_.dispatch = &Dispatch;
     }
     static void DisposeQuarantine(NativeTarget& target) {
         // Only fixture disposal, after proving production cannot retry faulted references.
         throw_release = false;
+        melee::Release(target.transfer_); melee::Release(target.request_);
         if (target.actor_) { Release(&target.actor_, nullptr, nullptr); }
         if (target.target_) { Release(&target.target_, nullptr, nullptr); }
     }
@@ -169,48 +181,68 @@ int main() {
     c::Diagnostic last_diagnostic{};
     auto run = [&](O expected) {
         c::NativeTarget target; c::NativeTargetTestAccess::Bind(target, window);
+        const auto selection_before = *reinterpret_cast<std::uint32_t*>(base + 0x16a2da4);
         const auto result = target.Attack(scene, command, Admit, Enter, Admit, nullptr);
+        assert(*reinterpret_cast<std::uint32_t*>(base + 0x16a2da4) == selection_before);
         assert(result.outcome == expected);
         last_diagnostic = result.diagnostic;
         assert(last_diagnostic.outcome == expected);
         assert(last_diagnostic.dispatched == (dispatches != 0));
         assert(last_diagnostic.appended == result.queued);
         if (seh_dispatch) { assert(result.queued); }
-        if (throw_select || seh_dispatch) {
+        if (throw_attack || seh_dispatch || throw_lookup || seh_lookup || wrong_lookup_result) {
+            const auto quarantined_references = references;
+            if (throw_attack || seh_dispatch) {
+                assert(references[reinterpret_cast<void*>(base + 0xe000)] == (throw_attack ? 2U : 1U));
+            }
             assert(!target.Available() && !target.Clear());
+            assert(references == quarantined_references);
+            const auto calls_before = lookups;
+            assert(target.Attack(scene, command, Admit, Enter, Admit, nullptr).outcome == O::unavailable);
+            assert(lookups == calls_before);
             c::NativeTargetTestAccess::DisposeQuarantine(target);
         } else { assert(target.Clear()); }
-        assert(!allocations);
         for (const auto& [object, refs] : references) { (void)object; assert(!refs); }
     };
-    run(O::client_outbound_queued); assert(selections == 1 && entries == 1 && dispatches == 1);
+    run(O::client_outbound_queued); assert(lookups == 1 && entries == 1 && dispatches == 1);
     assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.native_entered);
     scene = Reset(); submitted = {}; run(O::native_rejected); assert(dispatches == 1);
     assert(last_diagnostic.stage == c::Stage::dispatch && !last_diagnostic.native_entered
         && !last_diagnostic.appended && !last_diagnostic.followup_entered);
-    scene = Reset(); objects.clear(); run(O::stale); assert(!selections);
-    assert(last_diagnostic.stage == c::Stage::query_match);
-    scene = Reset(); objects.push_back(objects[0]); run(O::stale); assert(!selections);
-    scene = Reset(); invalidate_query = true; run(O::stale); assert(!selections);
-    scene = Reset(); invalidate_select = true; run(O::stale); assert(selections == 1 && !entries && !dispatches);
-    assert(last_diagnostic.stage == c::Stage::selection_recheck);
+    scene = Reset(); registered_object = nullptr; run(O::stale); assert(lookups == 1);
+    assert(last_diagnostic.stage == c::Stage::lookup_result);
+    scene = Reset(); Word(base + 0x4018, 201); run(O::stale); assert(!dispatches);
+    assert(last_diagnostic.stage == c::Stage::target_identity);
+    scene = Reset(); Word(base + 0x4000, base + 0x114381c); run(O::stale); assert(!dispatches);
+    scene = Reset(); registered_object = reinterpret_cast<void*>(scene.actor); run(O::stale); assert(!dispatches);
+    scene = Reset(); replace_world = true; run(O::stale); assert(!dispatches);
+    scene = Reset(); change_party = true; run(O::stale); assert(!dispatches);
+    scene = Reset(); wrong_lookup_result = true; run(O::unavailable); assert(!dispatches);
+    assert(last_diagnostic.stage == c::Stage::lookup_result);
+    scene = Reset(); throw_lookup = true; run(O::unavailable); assert(!dispatches);
+    assert(last_diagnostic.stage == c::Stage::registry_lookup);
+    scene = Reset(); seh_lookup = true; run(O::unavailable); assert(!dispatches);
+    assert(last_diagnostic.stage == c::Stage::registry_lookup);
+    scene = Reset(); invalidate_lookup = true; run(O::stale); assert(!dispatches);
+    scene = Reset(); invalidate_entry = true; run(O::stale); assert(entries == 1 && !dispatches);
+    assert(last_diagnostic.stage == c::Stage::entry_recheck);
     scene = Reset(); entered = false; run(O::stale); assert(entries == 1 && !dispatches);
     assert(last_diagnostic.stage == c::Stage::fence_enter);
-    scene = Reset(); admitted = false; run(O::stale); assert(!selections);
-    scene = Reset(); Word(base + 0x4c54, base + 0x4d0c); run(O::stale); assert(!selections); // No terminator capacity.
-    scene = Reset(); Word(base + 0x4d0c, 1); run(O::stale); assert(!selections); // Nonzero terminator.
-    scene = Reset(); Word(base + 0x401c, 54); run(O::stale); assert(!selections);
-    scene = Reset(); Word(base + 0x4d00, 'X'); run(O::stale); assert(!selections); // Full name, not key alone.
-    scene = Reset(); Word(base + 0x4d80, 'X'); run(O::stale); assert(!selections); // Exact server identity.
+    scene = Reset(); admitted = false; run(O::stale); assert(!dispatches);
+    scene = Reset(); Word(base + 0x4c54, base + 0x4d0c); run(O::stale); assert(!dispatches); // No terminator capacity.
+    scene = Reset(); Word(base + 0x4d0c, 1); run(O::stale); assert(!dispatches); // Nonzero terminator.
+    scene = Reset(); Word(base + 0x401c, 54); run(O::stale); assert(!dispatches);
+    scene = Reset(); Word(base + 0x4d00, 'X'); run(O::stale); assert(!dispatches); // Full name, not key alone.
+    scene = Reset(); Word(base + 0x4d80, 'X'); run(O::stale); assert(!dispatches); // Exact server identity.
     scene = Reset();
     Word(base + 0x8100, base + 0x8200); Word(base + 0x8104, base + 0x8200);
     Word(base + 0x8200, base + 0x8100); Word(base + 0x8204, base + 0x8100); Word(base + 0x8208, base + 0x8300);
     Word(base + 0x8310, 200); Word(base + 0x8314, 53); Word(base + 0x8374, 0x15);
-    run(O::stale); assert(!selections); // Current party protection overrides the saved list.
-    scene = Reset(); Word(base + 0x11416b4, 0); run(O::stale); assert(!selections);
+    run(O::stale); assert(!dispatches); // Current party protection overrides the saved list.
+    scene = Reset(); Word(base + 0x11416b4, 0); run(O::stale); assert(!dispatches);
     assert(last_diagnostic.stage == c::Stage::position);
-    scene = Reset(); throw_select = true; run(O::unavailable); assert(!dispatches);
-    assert(last_diagnostic.stage == c::Stage::selection && !last_diagnostic.dispatched);
+    scene = Reset(); throw_attack = true; run(O::uncertain); assert(dispatches == 1);
+    assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.dispatched);
     scene = Reset(); seh_dispatch = true; const auto before_restore = restored;
     run(O::uncertain); assert(!scoped && restored == before_restore + 1);
     assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.appended);
@@ -224,6 +256,23 @@ int main() {
     assert(target.Cancel(scene, Admit, nullptr, state) && cancellations == 2);
     admitted = false; Word(base + 0xc018, 2);
     assert(!target.Cancel(scene, Admit, nullptr, state) && cancellations == 2);
+    scene = Reset(); c::NativeTarget active; c::NativeTargetTestAccess::Bind(active, window);
+    assert(active.Attack(scene, command, Admit, Enter, Admit, nullptr).queued);
+    Word(base + 0xc018, 2); Word(base + 0xc020, 4); Word(scene.actor + 0xaf8, base + 0x4000);
+    Word(base + 0x16a2da4, 0); // UI selection is independent of both admission and the entered attack.
+    cancel_rejected = true;
+    assert(active.Current() && active.CombatTargetCurrent());
+    assert(!active.Cancel(scene, Admit, nullptr, state) && cancellations == 1);
+    assert(state.mode == 2 && state.action == 4 && state.target);
+    Word(base + 0x16a2da4, base + 0x6000); // Selecting another object is not cleanup either.
+    assert(!active.Cancel(scene, Admit, nullptr, state) && cancellations == 2);
+    Word(base + 0xc018, 1); Word(scene.actor + 0xaf8, 0); // A long cast may still be active.
+    assert(!active.Cancel(scene, Admit, nullptr, state) && cancellations == 2);
+    assert(state.mode == 1 && state.action == 4 && !state.target);
+    Word(base + 0xc020, 1);
+    assert(active.Cancel(scene, Admit, nullptr, state) && cancellations == 2);
+    assert(active.Clear());
+    for (const auto& [object, refs] : references) { (void)object; assert(!refs); }
     scene = Reset(); c::NativeTarget cleanup; c::NativeTargetTestAccess::Bind(cleanup, window);
     assert(cleanup.Attack(scene, command, Admit, Enter, Admit, nullptr).queued);
     assert(!cleanup.CombatTargetCurrent());

@@ -12,7 +12,43 @@ proves that only one embedded version byte differs; callback bodies and class
 tables are unchanged. The loaded-image verifier remains mandatory. Original
 unprepared images and unknown hashes do not receive combat capability.
 
-## Ownership and native entry
+## Current object entry qualification - September 30
+
+The production replacement uses retained actor and target objects without GUI
+selection or hotkey mappings. The earlier selected-action analysis below is
+historical evidence, not an admission requirement for this replacement. The
+shared engagement service is being integrated; these adapters are not yet
+activated as the production host path or deployed.
+
+The melee adapter preserves the reviewed action 1551 legality and ownership
+sequence while replacing its selected-object reads with the retained target.
+The exact-image probe compares 2,048 control-flow combinations against the
+original handler with instrumented helper calls. It qualifies argument order,
+branch behavior and reference transfer, not live server acceptance.
+
+The power adapter invokes ordinary native entry at RVA `0x9bbf0` with the
+verified numeric learned-power ID, learned rank, retained actor and target, and
+zero optional key. It resolves the manager-owned definition at each call and
+rejects unsupported self/location delivery before entry. Ordinary client target,
+line-of-sight, resource and cooldown checks remain in the native path. Neither
+the definition nor a temporary learned-rank record is retained as an ArcObject.
+
+Process-pinned observers at the exact native send and follow-up callsites bind
+outbound evidence to the invocation's actual stack frames and owned message.
+An unrelated native cast passes through without borrowing that invocation's
+receipt. The shared outbound observer records the exact queue admission;
+rejection prevents the correlated local follow-up. Persistent receipts preserve
+entry and queue history through C++ and structured exceptions. This is local
+client evidence, not proof of server acceptance, damage or projectile impact.
+
+Focused native tests cover admission, unrelated invocation frames, unavailable
+queue, partial observer installation and fault handling. Package qualification
+executes the power and melee probes against both original and package-prepared
+reviewed images in both build profiles. Private binaries and captures stay out
+of source delivery. The coordinated command/fence replacement and final package
+qualification remain open; see the active bot work ledger.
+
+## Historical ownership and native entry
 
 The existing native owner-update service owns selection, attack, observation, and
 cancellation under the captured movement Grant. The generic transport-worker
@@ -55,6 +91,62 @@ scope must correlate that exact returned message with the actual outbound append
 slot at `0x114cea4`. Passing the sender is insufficient: its unavailable-controller
 path drops the message. A receipt means only that this particular request entered
 the client's outbound queue; it proves neither server acceptance nor damage.
+
+## Exact-key target acquisition - September 30
+
+Combat reacquires its immutable player key through the ordinary ArcWorld registry
+resolver at RVA `0x1fcc80`, also used by ArcTargetedActionMessage. Its thiscall
+receiver is the captured world; the two arguments are an output-reference slot
+and the complete two-word key. It returns the same slot containing one retained
+ArcObject reference, or null when the key is absent. The native registry is
+`world+0x94`; its hash and equality compare both key words at `object+0x18`.
+The [exact-image evidence](../evidence/pvp/combat-registry-contract-20260930.json)
+records fingerprints and the supported ownership boundary.
+
+The former building/door spatial query used `world+0x164` and a coarse 1024-unit
+X/Z acquisition box. Spatial leaf membership and multiplicity are not the
+character registry contract. The replacement intentionally removes that coarse
+acquisition dependency; it does not introduce a melee-distance rule. Fresh host
+camp admission and the ordinary client's attack-legality checks remain in force.
+The recorded 1.8.34 `query_match:stale` result does not distinguish missing or
+multiple matches from query cleanup failure. A later passive registry census
+stopped before reading the registry because the active character was unavailable;
+it does not establish live registry membership or successful combat.
+
+Lookup executes only on the existing verified owner-update thread. The inspected
+lookup-to-retain closure consists of concrete hash, key, iterator and atomic
+reference helpers, with no gameplay callback, message pump or allocation before
+retention. This uses the ordinary native owner-world serialization contract.
+The scene watch detects invalidation; it is not a registry lock. Arbitrary
+concurrent registry writers and foreign modified clients are not qualified.
+
+The output goes directly into the transaction's persistent owned slot before
+native entry, so exceptions or an unexpected return ABI quarantine uncertain
+ownership. After lookup, the existing checks still require the exact ArcCharacter
+class, distinct player key, full first name/server, current scene and unchanged
+complete party roster before selection. Selection receives a separate retained
+reference. Saved-intent admission, outbound correlation and cancellation remain
+under the same immutable request and movement Grant.
+
+Selection is an admission input, not proof of whom an existing attack or cast is
+hitting. Selection remains mandatory through attack admission and its immediate
+post-dispatch check. Once admitted, an ongoing owned attack follows the retained
+object and the actor's actual combat-target pointer independently of UI selection.
+The exact object identity, scene, ownership and party checks remain mandatory.
+A selection change neither changes the owned target nor proves cancellation.
+Cleanup requires fresh mode 1, action state 1 and a null native combat target.
+An ongoing attack or cast after deselection retains that cleanup obligation until
+those conditions are observed. This contract does not add spell casting or infer
+a universal cast target from the combat-target pointer or UI selection.
+
+The developer-only `wonderbane_extension_combat_registry_probe` executes the real
+reviewed resolver and reference helpers against synthetic registry buckets and
+objects. It verifies exact keys, collisions, misses, tombstones, the output-slot
+ABI, returned ownership and finalization after registry removal. It neither opens
+nor modifies a live client. Exact-client packaging builds and runs it for both
+native profiles against original and package-prepared images; failures stop
+qualification. NativeTarget regressions separately exercise transaction checks,
+callback invalidation, cleanup and uncertain-reference quarantine.
 
 ## Synchronous callback qualification
 

@@ -167,3 +167,48 @@ def test_condemn_queue_and_owner_runtime_are_required_package_gates():
     assert {"wonderbane_extension_condemn_channel", "wonderbane_extension_condemn_runtime"} <= (
         builder.REQUIRED_CONDEMN_TESTS
     )
+
+
+@pytest.mark.parametrize("diagnostic", [False, True])
+@pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "duplicate"])
+def test_object_combat_native_gates_cannot_be_omitted(tmp_path, diagnostic, outcome):
+    required = set(builder.REQUIRED_COMBAT_TESTS)
+    suite = ET.Element("testsuite")
+    for name in sorted(required):
+        ET.SubElement(suite, "testcase", name=name, status="run")
+    if outcome == "missing":
+        suite.remove(suite[0])
+    elif outcome in ("skipped", "failure"):
+        ET.SubElement(suite[0], outcome)
+    elif outcome == "duplicate":
+        ET.SubElement(suite, "testcase", name=suite[0].get("name"), status="run")
+    path = tmp_path / "combat.xml"
+    ET.ElementTree(suite).write(path)
+    if outcome == "pass":
+        assert builder.validate_native_results(
+            path, required, diagnostic=diagnostic, exit_code=0
+        ) == []
+    else:
+        with pytest.raises(RuntimeError):
+            builder.validate_native_results(path, required, diagnostic=diagnostic,
+                                            exit_code=8 if outcome == "failure" else 0)
+
+
+@pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "error", "duplicate"])
+def test_combat_ipc_requires_real_execution(tmp_path, outcome):
+    suite = ET.Element("testsuite")
+    for name in sorted(builder.REQUIRED_COMBAT_IPC_TESTS):
+        ET.SubElement(suite, "testcase", name=name)
+    if outcome == "missing":
+        suite.remove(suite[0])
+    elif outcome in ("skipped", "failure", "error"):
+        ET.SubElement(suite[0], outcome)
+    elif outcome == "duplicate":
+        ET.SubElement(suite, "testcase", name=suite[0].get("name"))
+    path = tmp_path / "combat-ipc.xml"
+    ET.ElementTree(suite).write(path)
+    if outcome == "pass":
+        builder.validate_combat_ipc_results(path, "full")
+    else:
+        with pytest.raises(RuntimeError, match="combat IPC"):
+            builder.validate_combat_ipc_results(path, "diagnostics-only")

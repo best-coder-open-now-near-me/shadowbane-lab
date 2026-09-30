@@ -1,16 +1,20 @@
 # PvE/PvP attack-list delivery plan
 
-Current continuation: September 28, 2026. Shared integration destination is `main`
-through `codex/bot-integration-20260928`; see the [exact integration receipt](bot-integration-20260928.md).
-Manual-list combat source, same-owner cancellation/recovery, and listener ownership
-are implemented and combined with current-client/vendor source. The active delivery
-step is combined validation and source review. Live acceptance is pending; automatic
-response insertion needs the authoritative [server session contract](pvp-response-provenance.md).
+Current continuation: September 30, 2026. Main contains approved PRs #43-45.
+Active object-action integration is `codex/combat-target-query-20260930`, draft
+PR #46 to main. See the [current work ledger](bot-work-20260928.md) and
+[shared native contract](native-combat-v2-contract.md).
 
-The agreed behavior and work packages below remain the design contract. Their
-September 12 sequence and appended checkpoints are historical execution evidence;
-the integration receipt supersedes their active/pending labels. Door work remains
-separate and does not gate this delivery.
+The active step replaces hotkey and selected-input combat with native actor,
+target and learned-power actions. One engagement owner covers NPC and manual-list
+combat; repeated actions retain that owner, and exact receipts control action
+accounting and cleanup. Native object observations drive policy. Package validation,
+merge approval and controlled live acceptance remain ahead. Automatic response
+insertion still needs the [server session contract](pvp-response-provenance.md).
+
+The dated sequences below are historical checkpoints. The current contract and
+work ledger supersede their integration branches and selected-input requirements.
+Door work remains separate and does not gate this delivery.
 
 ## Agreed behavior
 

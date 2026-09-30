@@ -10,8 +10,8 @@ import json
 import os
 from pathlib import Path
 
-from shadowbane_lab.client_extension.combat_fence import Binding, State
-from shadowbane_lab.client_extension.combat_fence_windows import FenceError, Ticket
+from shadowbane_lab.client_extension.combat_fence_v3 import Binding, State
+from shadowbane_lab.client_extension.combat_fence_windows import FenceError, Ticket, Windows
 from shadowbane_lab.record_store import publish_atomic_record, read_record_bytes
 
 CAPACITY = 128
@@ -33,7 +33,7 @@ class Registry:
             raise FenceError("admission registry exceeds supported size")
         raw = json.loads(payload)
         if (not isinstance(raw, dict) or set(raw) != {"schema", "store", "tickets"}
-                or type(raw["schema"]) is not int or raw["schema"] != 1
+                or type(raw["schema"]) is not int or raw["schema"] not in (1, 2)
                 or raw["store"] != self.store.hex() or not isinstance(raw["tickets"], list)
                 or len(raw["tickets"]) > CAPACITY):
             raise FenceError("invalid admission registry")
@@ -41,17 +41,32 @@ class Registry:
         for item in raw["tickets"]:
             if not isinstance(item, str) or len(item) != 640:
                 raise FenceError("invalid registered ticket")
+            if raw["schema"] == 1:
+                # Decode only for retirement checks. Never reopen/admit legacy
+                # authority through the v3 ticket implementation.
+                from shadowbane_lab.client_extension.combat_fence import Binding as LegacyBinding
+                from shadowbane_lab.client_extension.combat_fence import State as LegacyState
+
+                legacy, state = LegacyBinding.decode(bytes.fromhex(item))
+                if (state != LegacyState.REGISTERING or legacy.owner != self.owner
+                        or legacy.store != self.store):
+                    raise FenceError("legacy admission owner mismatch")
+                api = Windows()
+                if (api.mapping_exists(legacy.name)
+                        and api.alive(legacy.client_pid, legacy.client_creation)):
+                    raise FenceError("live v2 combat authority must retire before v3 migration")
+                continue
             binding, state = Binding.decode(bytes.fromhex(item))
             if (state != State.REGISTERING or binding.owner != self.owner
                     or binding.store != self.store):
                 raise FenceError("registered admission owner mismatch")
             result.append(binding)
-        if len({b.request for b in result}) != len(result):
+        if len({b.digest for b in result}) != len(result):
             raise FenceError("duplicate admission registration")
         return result
 
     def _write(self, bindings: list[Binding]) -> None:
-        payload = json.dumps({"schema": 1, "store": self.store.hex(),
+        payload = json.dumps({"schema": 2, "store": self.store.hex(),
                               "tickets": [b.encode().hex() for b in bindings]},
                              sort_keys=True).encode()
         publish_atomic_record(self.path, payload, temporary_label="attack-admissions")
@@ -64,7 +79,7 @@ class Registry:
             try:
                 ticket = Ticket(existing)
             except FileNotFoundError:
-                # Consumers only Open existing objects; no producer reuses UUIDs.
+                # Consumers only Open existing objects; binding identity is immutable.
                 continue
             try:
                 ticket.state()  # corrupted/inaccessible live objects fail closed
@@ -96,7 +111,7 @@ class Registry:
                 continue
             try:
                 if ticket.revoke() == State.ENTERED_REVOKED:
-                    entered.append(binding.request.hex())
+                    entered.append(binding.digest.hex())
             finally:
                 ticket.close(revoke=False)
         return tuple(entered)

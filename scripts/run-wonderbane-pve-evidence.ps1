@@ -54,7 +54,7 @@ if ($HotbarConfig) {
 }
 & $PythonPath -u -m shadowbane_lab.cli client run-pve `
     --client-profile $ClientProfile `
-    --combat-source "hud" `
+    --combat-source "state" `
     @hotbarArguments `
     --navigation-cache-directory $NavigationCacheDirectory `
     --policy "proc-assassin" `

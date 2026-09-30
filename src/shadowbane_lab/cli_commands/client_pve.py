@@ -9,31 +9,18 @@ from pathlib import Path
 
 from shadowbane_lab.client_extension.movement_operation import NativeMovementOperation
 from shadowbane_lab.client_input import (
-    ActionInputMapping,
-    ArcaneClientPower,
-    ArcaneHotbarLoadError,
     CalibrationLoadError,
-    ClientInputAdapter,
-    DecisionInputCompiler,
     ForegroundWindowGuard,
-    GuardedInputExecutor,
-    PyAutoGuiBackend,
-    StaticBindingPointResolver,
     StopSignal,
     WindowGuardError,
     WindowsForegroundWindowInspector,
     WindowsHotkeyEmergencyStop,
-    load_arcane_hotbar,
     load_calibration,
 )
-from shadowbane_lab.client_input.character_config import open_active_character_config
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationError,
     NativeCharacterPopulationProfileLoadError,
-    NativeCombatLogReader,
     NativeHealthProfileLoadError,
-    NativeMessageHudError,
-    NativeMessageHudProfileLoadError,
     NativePlayerPositionError,
     NativePlayerVitalsError,
     NativePositionProfileLoadError,
@@ -47,7 +34,6 @@ from shadowbane_lab.client_observation import (
     NativeVitalsProfileLoadError,
     load_bundled_native_character_population_profile,
     load_bundled_native_health_profile,
-    load_bundled_native_message_hud_profile,
     load_bundled_native_position_profile,
     load_bundled_native_target_action_profile,
     load_bundled_native_target_identity_profile,
@@ -56,7 +42,6 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_zone_profile,
     load_native_character_population_profile,
     load_native_health_profile,
-    load_native_message_hud_profile,
     load_native_position_profile,
     load_native_target_action_profile,
     load_native_target_identity_profile,
@@ -64,7 +49,6 @@ from shadowbane_lab.client_observation import (
     load_native_vitals_profile,
     open_windows_native_character_population_reader,
     open_windows_native_current_zone_reader,
-    open_windows_native_message_hud_reader,
     open_windows_native_player_position_reader,
     open_windows_native_player_vitals_reader,
     open_windows_native_target_action_reader,
@@ -73,6 +57,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_position_reader,
 )
 from shadowbane_lab.client_observation import native_group as native_party
+from shadowbane_lab.client_observation.native_character_session import open_native_character_session
 from shadowbane_lab.navigation_inspector.session import (
     ObservedPositionSource,
     optional_session,
@@ -80,8 +65,6 @@ from shadowbane_lab.navigation_inspector.session import (
 )
 from shadowbane_lab.pve import (
     PVE_TRACE_SCHEMA_VERSION,
-    ClientPvEIntentDispatcher,
-    EmptyCombatLogSource,
     PvEApproachController,
     PvECombatCalibrationError,
     PvEController,
@@ -100,6 +83,7 @@ from shadowbane_lab.pve.attack_list import (
     default_attack_list_root,
 )
 from shadowbane_lab.pve.listed_combat import ListedCombatCoordinator
+from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
 from shadowbane_lab.travel import (
     SparseNavigationMap,
     TravelDecisionDispatcher,
@@ -198,14 +182,17 @@ def _run_pve(
         return _error("poll-ms must be in [50, 1000]", as_json=as_json)
     if policy not in ("basic", "proc-assassin"):
         return _error("policy must be basic or proc-assassin", as_json=as_json)
-    resolved_combat_source = combat_source or ("log" if combat_log_path is not None else "hud")
-    if resolved_combat_source not in ("state", "hud", "log"):
-        return _error("combat-source must be state, hud, or log", as_json=as_json)
-    if resolved_combat_source == "log":
-        if combat_log_path is None:
-            return _error("combat-source log requires --combat-log", as_json=as_json)
-        if not combat_log_path.is_file():
-            return _error(f"combat log does not exist: {combat_log_path}", as_json=as_json)
+    if hotbar_config_path is not None:
+        return _error(
+            "native PvE does not use --hotbar-config; remove this option", as_json=as_json
+        )
+    resolved_combat_source = combat_source or "state"
+    if (resolved_combat_source != "state" or combat_log_path is not None
+            or native_message_hud_profile_path is not None):
+        return _error(
+            "PvE uses native object state; HUD/log combat sources and their profile/path flags "
+            "have been removed. Use --combat-source state or omit it.", as_json=as_json,
+        )
     journal_path = (
         evidence_output_path.with_name(f"{evidence_output_path.stem}.events.jsonl")
         if continuous and evidence_output_path is not None
@@ -236,9 +223,8 @@ def _run_pve(
                 interrupt_cooldown_ms=2_000 if policy == "proc-assassin" else 0,
                 maximum_interrupts_per_target=1 if policy == "proc-assassin" else 0,
                 automatic_attack_expected=policy == "proc-assassin",
-                automatic_target_requires_combat_event=policy == "proc-assassin",
+                automatic_target_requires_active_action=policy == "proc-assassin",
                 require_target_identity=True,
-                use_native_population=True,
                 maximum_stalled_retargets=4 if policy == "proc-assassin" else 0,
                 nearest_target_sample_count=1,
                 target_sample_interval_ms=350,
@@ -246,32 +232,11 @@ def _run_pve(
                 camp_radius=camp_radius if continuous else None,
             )
         )
-        mapped_actions = {mapping.action_key for mapping in client_profile.actions}
-        required_actions = {intent.value for intent in controller.required_intents}
-        missing_actions = required_actions - mapped_actions
-        if missing_actions:
-            raise ValueError(
-                f"client profile is missing PvE mappings: {', '.join(sorted(missing_actions))}"
-            )
-        if policy == "proc-assassin" and hotbar_config_path is not None:
-            _verify_hotbar_power_mapping(
-                client_profile.actions,
-                hotbar_config_path,
-                action_key=PvEIntent.CAST_SHADOW_TOUCH.value,
-                power_name=ArcaneClientPower.SHADOW_TOUCH,
-            )
         health_profile = (
             load_native_health_profile(native_health_profile_path)
             if native_health_profile_path is not None
             else load_bundled_native_health_profile()
         )
-        message_hud_profile = None
-        if resolved_combat_source == "hud":
-            message_hud_profile = (
-                load_native_message_hud_profile(native_message_hud_profile_path)
-                if native_message_hud_profile_path is not None
-                else load_bundled_native_message_hud_profile()
-            )
         vitals_profile = (
             load_native_vitals_profile(native_vitals_profile_path)
             if native_vitals_profile_path is not None
@@ -320,8 +285,6 @@ def _run_pve(
             character_population_profile.executable_sha256,
             group_profile.executable_sha256,
         }
-        if message_hud_profile is not None:
-            native_profile_hashes.add(message_hud_profile.executable_sha256)
         if zone_profile is not None:
             native_profile_hashes.add(zone_profile.executable_sha256)
         if len(native_profile_hashes) != 1:
@@ -345,10 +308,7 @@ def _run_pve(
             selected_window = _wait_for_guarded_client(guard, wait_seconds=wait_for_client_seconds)
         with ExitStack() as stack:
             character_session = stack.enter_context(
-                open_active_character_config(
-                    process_id=process_id,
-                    explicit_path=hotbar_config_path,
-                )
+                open_native_character_session(process_id=process_id)
             )
             binding = character_session.binding
             if (binding.process_id != process_id
@@ -356,16 +316,8 @@ def _run_pve(
                     or binding.process_creation_filetime_utc
                     != selected_window.process_started_at_100ns):
                 raise ValueError("client lifetime changed before PvE initialization")
-            hotbar_config_path = binding.config_path
-            if policy == "proc-assassin":
-                _verify_hotbar_power_mapping(
-                    client_profile.actions,
-                    hotbar_config_path,
-                    action_key=PvEIntent.CAST_SHADOW_TOUCH.value,
-                    power_name=ArcaneClientPower.SHADOW_TOUCH,
-                )
             character_session.require_current()
-            character_config_payload = binding.as_dict()
+            native_character_payload = binding.as_dict()
             guard = ForegroundWindowGuard(
                 client_profile,
                 inspector,
@@ -483,20 +435,6 @@ def _run_pve(
                         "water_sample_threshold": terrain_seed.water_sample_threshold,
                         "weighted_cells": len(terrain_seed.costs),
                     }
-            if resolved_combat_source == "state":
-                combat_reader = EmptyCombatLogSource()
-            elif message_hud_profile is None:
-                assert combat_log_path is not None
-                combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
-            else:
-                combat_reader = stack.enter_context(
-                    open_windows_native_message_hud_reader(
-                        message_hud_profile,
-                        process_id=process_id,
-                        start_at_end=True,
-                    )
-                )
-                combat_reader.attach()
             active_stop_signal = stop_signal
             if active_stop_signal is None:
                 active_stop_signal = stack.enter_context(WindowsHotkeyEmergencyStop())
@@ -510,15 +448,10 @@ def _run_pve(
                 population_reader.process_id,
                 group_reader.process_id,
             }
-            if message_hud_profile is not None:
-                reader_process_ids.add(combat_reader.process_id)
             if zone_reader is not None:
                 reader_process_ids.add(zone_reader.process_id)
             if len(reader_process_ids) != 1:
                 raise ValueError("native PvE readers resolved different client processes")
-            # Cold imports (including PyAutoGUI's DPI initialization) and file
-            # setup must finish before taking an expiring native grant.
-            input_backend = PyAutoGuiBackend()
             journal = (
                 None
                 if journal_path is None
@@ -533,7 +466,7 @@ def _run_pve(
                             "camp_radius": camp_radius,
                             "poll_ms": poll_ms,
                             "terrain_navigation": terrain_navigation_payload,
-                            "character_config": character_config_payload,
+                            "native_character": native_character_payload,
                         },
                     )
                 )
@@ -562,24 +495,14 @@ def _run_pve(
                 combat_owner = native_operation
                 movement_dispatcher = native_operation.dispatcher
                 active_stop_signal = native_operation
-            listed_combat = stack.enter_context(ListedCombatCoordinator(
+            combat = stack.enter_context(NativeCombatCoordinator(
+                session=combat_owner.session, grant=combat_owner.grant,
+                population=population_reader, character_session=character_session,
                 store=attack_list,
-                session=combat_owner.session,
-                grant=combat_owner.grant,
-                require_current=character_session.require_current,
             ))
-            executor = GuardedInputExecutor(
-                guard=guard,
-                backend=input_backend,
-                stop_signal=active_stop_signal,
-                input_precondition=character_session.require_current,
-            )
-            adapter = ClientInputAdapter(
-                DecisionInputCompiler(
-                    client_profile,
-                    StaticBindingPointResolver(),
-                ),
-                executor,
+            listed_combat = ListedCombatCoordinator(
+                store=attack_list, combat=combat,
+                require_current=character_session.require_current,
             )
             result = PvERunner(
                 controller=controller,
@@ -593,14 +516,14 @@ def _run_pve(
                 population_reader=population_reader,
                 group_reader=group_reader,
                 party_group_id=f"client:{process_id}:party",
-                combat_log_reader=combat_reader,
-                dispatcher=ClientPvEIntentDispatcher(adapter),
+                dispatcher=combat,
                 approach_controller=PvEApproachController(
                     navigation_map=active_navigation_map,
                     planner=WeightedAStarPlanner(observer=navigation_observer),
                 ),
                 movement_dispatcher=movement_dispatcher,
                 listed_combat=listed_combat,
+                combat_cleanup=combat,
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
                 maximum_retained_trace_steps=(retained_trace_steps if continuous else None),
@@ -617,13 +540,10 @@ def _run_pve(
                 )
     except (
         CalibrationLoadError,
-        ArcaneHotbarLoadError,
         NativeHealthProfileLoadError,
         NativeCharacterPopulationError,
         NativeCharacterPopulationProfileLoadError,
-        NativeMessageHudError,
-        NativeMessageHudProfileLoadError,
-        NativePlayerVitalsError,
+                NativePlayerVitalsError,
         NativePlayerPositionError,
         NativePositionProfileLoadError,
         NativeTargetHealthError,
@@ -719,12 +639,9 @@ def _run_pve(
             "target_action_profile_id": target_action_profile.profile_id,
             "target_identity_profile_id": target_identity_profile.profile_id,
             "combat_source": resolved_combat_source,
-            "message_hud_profile_id": (
-                None if message_hud_profile is None else message_hud_profile.profile_id
-            ),
         },
         "terrain_navigation": terrain_navigation_payload,
-        "character_config": character_config_payload,
+        "native_character": native_character_payload,
         "trace": [step.as_dict() for step in result.trace],
     }
     if evidence_output_path is not None:
@@ -769,27 +686,3 @@ def _calibrate_pve(
         )
         print(f"Calibration: {output_path}")
     return 0
-
-
-def _verify_hotbar_power_mapping(
-    mappings: Sequence[ActionInputMapping],
-    hotbar_config_path: Path | None,
-    *,
-    action_key: str,
-    power_name: ArcaneClientPower,
-) -> None:
-    if hotbar_config_path is None:
-        raise ValueError("proc-assassin policy requires --hotbar-config")
-    hotbar = load_arcane_hotbar(hotbar_config_path)
-    slots = hotbar.current_slots_for_power(power_name)
-    if len(slots) != 1:
-        raise ValueError(
-            f"active hotbar must contain exactly one {power_name} slot; found {len(slots)}"
-        )
-    mapping = next(item for item in mappings if item.action_key == action_key)
-    expected = slots[0].activation
-    if mapping.activation != expected:
-        raise ValueError(
-            f"client profile maps {action_key} to {mapping.activation}, "
-            f"but active hotbar maps {power_name} to {expected}"
-        )

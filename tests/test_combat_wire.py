@@ -4,14 +4,16 @@ import json
 import os
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from test_combat_fence import LOCAL, NativeConsumer, entry, store_at
 
-from shadowbane_lab.client_extension.combat_fence import Binding, State
+from shadowbane_lab.client_extension.combat_fence import Binding
+from shadowbane_lab.client_extension.combat_fence_v3 import EngagementId, RequestId, State
 from shadowbane_lab.client_extension.combat_fence_windows import Windows
 from shadowbane_lab.client_extension.combat_wire import Command, identity_digest, operation_digest
+from shadowbane_lab.client_extension.combat_wire_v2 import Action
+from shadowbane_lab.client_extension.combat_wire_v2 import Command as CommandV2
 from shadowbane_lab.client_extension.movement_wire import Grant, Host, Owner
 
 
@@ -62,6 +64,14 @@ def test_complete_utf16_identity_without_lossy_normalization():
             replace(c, **change).encode()
 
 
+def register_command(store, entry_id, *, window=123, **kwargs):
+    ticket, binding = store.register_combat_engagement(entry_id, **kwargs)
+    command = CommandV2(kwargs["host"], window, kwargs["grant"], binding,
+                        RequestId(1), Action.ATTACK, 0,
+                        identity_digest(store.owner.character), identity_digest(store.owner.server))
+    return ticket, command
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Windows kernel admissions")
 def test_production_registration_builds_canonical_command(tmp_path):
     store = store_at(tmp_path)
@@ -69,26 +79,29 @@ def test_production_registration_builds_canonical_command(tmp_path):
     host = Host(pid, 7, creation)
     grant = Grant(8, 9, Owner.AUTOMATION, "worker", "operation")
     args = dict(expected_revision=1, client_pid=pid, client_creation=creation,
-                host=host, window=123, grant=grant, local_key=LOCAL)
-    ticket, command = store.register_combat_admission(entry().entry_id, **args)
+                host=host, grant=grant, local_key=LOCAL, engagement=EngagementId(1),
+                actor_address_hint=0x12300000, target_address_hint=0x12400000)
+    ticket, command = register_command(store, entry().entry_id, **args)
     try:
         assert ticket.state() == State.PENDING
         assert command.binding == ticket.binding
-        assert command.target_name == identity_digest("Enemy")
-        assert Command.decode(command.encode(), client_pid=pid, client_creation=creation) == command
+        assert command.binding.target_name == identity_digest("Enemy")
+        assert CommandV2.decode(
+            command.encode(), client_pid=pid, client_creation=creation,
+        ) == command
         store.clear(expected_revision=1)
         assert ticket.state() == State.REVOKED
     finally:
         ticket.close()
     with pytest.raises(ValueError):
-        store.register_combat_admission(entry().entry_id, **args)
+        register_command(store, entry().entry_id, **args)
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows native command consumer")
 @pytest.mark.parametrize("schedule",
                          ["enter_remove", "remove_enter", "wrong_binding", "wrong_name"])
 def test_real_process_command_registration_and_revocation(tmp_path, schedule):
-    path = os.environ.get("SHADOWBANE_COMBAT_FENCE_TEST_EXE")
+    path = os.environ.get("SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE")
     if not path:
         pytest.skip("compiled Win32 native command consumer not configured")
     native = NativeConsumer(path, "--command-consumer")
@@ -97,10 +110,12 @@ def test_real_process_command_registration_and_revocation(tmp_path, schedule):
         store = store_at(tmp_path)
         producer, creation = Windows().identity()
         client, client_creation = native.identity
-        ticket, command = store.register_combat_admission(
-            entry().entry_id, expected_revision=1, client_pid=client,
+        ticket, command = register_command(
+            store, entry().entry_id, expected_revision=1, client_pid=client,
             client_creation=client_creation, host=Host(producer, 7, creation), window=123,
             grant=Grant(8, 9, Owner.AUTOMATION, "worker", "operation"), local_key=LOCAL,
+            engagement=EngagementId(1), actor_address_hint=0x12300000,
+            target_address_hint=0x12400000,
         )
         if schedule == "wrong_binding":
             # A self-consistent full command/digest cannot substitute another
@@ -108,12 +123,15 @@ def test_real_process_command_registration_and_revocation(tmp_path, schedule):
             command = replace(command, binding=replace(command.binding, owner=b"x" * 32))
         elif schedule == "wrong_name":
             digest = identity_digest("Renamed")
-            command = replace(command, binding=replace(command.binding, target_name=digest),
-                              target_name=digest)
+            command = replace(command, binding=replace(command.binding, target_name=digest))
+        if schedule in ("wrong_binding", "wrong_name"):
+            assert native.command(command.encode().hex()) != "open"
+            assert ticket.state() == State.PENDING
+            return
         assert native.command(command.encode().hex()) == "open"
         if schedule == "enter_remove":
             assert native.command("enter") == "0"
-            assert store.clear().entered_admissions == (ticket.binding.request.hex(),)
+            assert store.clear().entered_admissions == (ticket.binding.digest.hex(),)
             assert native.command("inspect") == "5 4"
         elif schedule == "remove_enter":
             assert store.clear().entered_admissions == ()
@@ -131,16 +149,13 @@ def test_real_process_command_registration_and_revocation(tmp_path, schedule):
 def test_saved_metadata_cannot_cross_a_concurrent_list_revision(tmp_path):
     store = store_at(tmp_path)
     pid, creation = Windows().identity()
-    register = store.register_admission
-    def mutate_before_registration(*args, **kwargs):
-        store.clear(expected_revision=1)
-        return register(*args, **kwargs)
-    with patch.object(store, "register_admission", side_effect=mutate_before_registration):
-        with pytest.raises(ValueError, match="current manual"):
-            store.register_combat_admission(
-                entry().entry_id, expected_revision=1, client_pid=pid, client_creation=creation,
-                host=Host(pid, 7, creation), window=123,
-                grant=Grant(8, 9, Owner.AUTOMATION, "worker", "operation"), local_key=LOCAL,
-            )
+    store.clear(expected_revision=1)
+    with pytest.raises(ValueError, match="current manual"):
+        register_command(
+            store, entry().entry_id, expected_revision=1, client_pid=pid, client_creation=creation,
+            host=Host(pid, 7, creation), grant=Grant(8, 9, Owner.AUTOMATION, "worker", "operation"),
+            local_key=LOCAL, engagement=EngagementId(1), actor_address_hint=0x12300000,
+            target_address_hint=0x12400000,
+        )
     assert store.snapshot().revision == 2
     assert not store.path.with_suffix(".admissions.json").exists()
