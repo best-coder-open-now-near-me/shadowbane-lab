@@ -218,7 +218,7 @@ def test_legacy_intent_migrates_unresolved_without_losing_entries(tmp_path):
     store.add(AttackListEntry(observation.entry_id, "New enemy", "manual", "new-selection",
                              observation))
     raw = json.loads(store.path.read_text())
-    assert raw["schema"] == 3
+    assert raw["schema"] == 5
     assert raw["revision"] == 5
     assert next(e for e in raw["entries"] if e["entry_id"] == "old")["observation"] is None
     assert len(AttackListStore(tmp_path, store.owner).snapshot().entries) == 2

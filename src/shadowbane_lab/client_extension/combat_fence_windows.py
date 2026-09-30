@@ -1,4 +1,4 @@
-"""Windows mapping and mutex implementation shared with combat_fence.h.
+"""Windows mapping and mutex implementation shared with combat_v3_fence.h.
 
 Mappings are created once by their producer, never by consumers or mutators. The
 explicit protected DACL grants only the current Windows user access. Names cannot
@@ -12,7 +12,11 @@ import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from .combat_fence import SIZE, STATE_OFFSET, Binding, State
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
+
+from .combat_fence_v3 import SIZE, STATE_OFFSET, Authority, Binding, EngagementId, State
+from .combat_wire_v2 import operation_digest
+from .movement_wire import Grant, Host
 
 
 class FenceError(RuntimeError):
@@ -78,6 +82,16 @@ class Windows:
     def identity(self) -> tuple[int, int]:
         return os.getpid(), self.creation(self.k.GetCurrentProcess())
 
+    def mapping_exists(self, name: str) -> bool:
+        """Read-only legacy retirement check; never create or change old tickets."""
+        handle = self.k.OpenFileMappingW(4, False, name)
+        if not handle:
+            if c.get_last_error() == 2:
+                return False
+            self.checked(handle, "OpenFileMappingW")
+        self.checked(self.k.CloseHandle(handle), "CloseHandle")
+        return True
+
     def alive(self, pid: int, creation: int) -> bool:
         handle = self.k.OpenProcess(0x101000, False, pid)
         if not handle:
@@ -122,6 +136,8 @@ class Ticket:
     """Retain until native cancellation completes; close revokes future admission."""
 
     def __init__(self, binding: Binding, *, create: bool = False) -> None:
+        if not isinstance(binding, Binding):
+            raise ValueError("ticket requires a v3 engagement binding")
         self.binding, self.api = binding, Windows()
         self.mutex = self.mapping = self.view = 0
         k = self.api.k
@@ -135,11 +151,11 @@ class Ticket:
                     self.mutex = self.api.checked(k.CreateMutexW(c.byref(security), False,
                         binding.name + ".lock"), "CreateMutexW")
                     if c.get_last_error() == 183:
-                        raise FenceError("ticket mutex already exists; UUID reuse rejected")
+                        raise FenceError("ticket mutex already exists; binding reuse rejected")
                     self.mapping = self.api.checked(k.CreateFileMappingW(c.c_void_p(-1),
                         c.byref(security), 4, 0, SIZE, binding.name), "CreateFileMappingW")
                     if c.get_last_error() == 183:
-                        raise FenceError("ticket mapping already exists; UUID reuse rejected")
+                        raise FenceError("ticket mapping already exists; binding reuse rejected")
             else:
                 self.mutex = self.api.checked(k.OpenMutexW(0x100001, False,
                     binding.name + ".lock"), "OpenMutexW")
@@ -215,3 +231,33 @@ class Ticket:
 
     def __exit__(self, *args: object) -> None:
         self.close()
+
+
+def create_npc_engagement(
+    *, client_pid: int, client_creation: int, host: Host, grant: Grant,
+    local_key: NativeObjectKey, target_key: NativeObjectKey, owner_digest: bytes,
+    engagement: EngagementId, actor_address_hint: int, target_address_hint: int,
+) -> tuple[Ticket, Binding]:
+    """Arm NPC intent through the same protected kernel ticket implementation.
+
+    NPC authority has no saved-list fields. The caller owns the exact live
+    character identity; native eligibility and object resolution remain required.
+    """
+    if not isinstance(local_key, NativeObjectKey) or not isinstance(target_key, NativeObjectKey):
+        raise ValueError("NPC engagement requires exact native object keys")
+    host.encode()
+    binding = Binding(
+        client_pid, host.process_id, client_creation, host.creation_filetime,
+        host.lease_generation, grant.generation, grant.scene, 0, engagement,
+        bytes(32), owner_digest, bytes(32), operation_digest(grant),
+        (local_key.object_type, local_key.object_uuid),
+        (target_key.object_type, target_key.object_uuid), bytes(32), Authority.NPC,
+        actor_address_hint, target_address_hint,
+    )
+    ticket = Ticket(binding, create=True)
+    try:
+        ticket.arm()
+        return ticket, binding
+    except BaseException:
+        ticket.close()
+        raise

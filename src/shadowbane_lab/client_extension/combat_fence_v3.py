@@ -73,7 +73,8 @@ class Ordinals:
 
     The operation owner retains this object. Beginning an engagement allocates
     its first control ID; subsequent actions and controls use next_request().
-    Only the current engagement can allocate new request identities.
+    Request ordinals also increase across engagements so old-owner cleanup
+    stays available after a newer engagement has been allocated.
     """
 
     def __init__(self) -> None:
@@ -84,13 +85,13 @@ class Ordinals:
     def next_engagement(self) -> EngagementId:
         with self._lock:
             value = EngagementId(self._engagement + 1)
-            self._engagement, self._request = value.value, 0
+            self._engagement = value.value
             return value
 
     def next_request(self, engagement: EngagementId) -> RequestId:
         with self._lock:
-            if type(engagement) is not EngagementId or engagement.value != self._engagement:
-                raise ValueError("cannot allocate an action for another engagement")
+            if type(engagement) is not EngagementId or engagement.value > self._engagement:
+                raise ValueError("cannot allocate a request for an unallocated engagement")
             value = RequestId(self._request + 1)
             self._request = value.value
             return value

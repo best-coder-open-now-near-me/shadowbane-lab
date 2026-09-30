@@ -139,9 +139,10 @@ def test_ordinals_are_monotonic_scoped_and_do_not_wrap():
     assert ids.next_request(first) == RequestId(1)
     assert ids.next_request(first) == RequestId(2)
     second = ids.next_engagement()
-    assert second == EngagementId(2) and ids.next_request(second) == RequestId(1)
-    with pytest.raises(ValueError, match="another engagement"):
-        ids.next_request(first)
+    assert second == EngagementId(2) and ids.next_request(second) == RequestId(3)
+    assert ids.next_request(first) == RequestId(4)  # Old-owner cleanup remains possible.
+    with pytest.raises(ValueError, match="unallocated"):
+        ids.next_request(EngagementId(3))
     ids._request = 2**128 - 1
     with pytest.raises(ValueError):
         ids.next_request(second)
