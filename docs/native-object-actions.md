@@ -1,10 +1,32 @@
 # Native object-target actions: architecture audit, 2026-09-30
 
-Source architecture and qualification plan; native action ABIs remain under review.
+Source architecture and qualification plan; power activation and shared action authority remain under review.
 User direction: object-targeted melee and powers by native power identity; no hotbar,
 hotkey, or selected-target adapter as the delivered production path. Current host
 tracking/cleanup work can be checkpointed, but final packaging is held pending this
 contract. No live client invocation occurred in this audit.
+
+## Current source checkpoint
+
+The explicit melee adapter now preserves the reviewed ordinary native attack
+checks and call order while accepting a retained target object directly. It does
+not read or write UI selection. NativeTarget and the submission observer use the
+explicit route with exact actor/target keys and request-pointer queue correlation.
+The native runtime pins cleanup once and enters the action without its former
+unconditional startup pause/repin cycle. Explicit cancellation retains the same
+owner and must still complete its cleanup.
+
+A private-image probe compares the real ordinary1551 control flow with the adapter
+across 2,048 guard combinations for both original and prepared client 1.3.38.12.
+Helper boundaries are identically instrumented to compare ABI, order, output
+ownership and admission outcomes; this does not execute real game/network effects
+or establish live acceptance. Packaging runs this probe on both executable forms.
+
+Power requests now have a shared outbound-queue observer registration with exact
+scope ownership, distinct from melee factory tickets. The native power entry and
+its callsite interception are being qualified; they are not activated. NPC policy,
+the versioned common action contract and host semantic dispatcher remain next.
+The installed bot is unchanged; no direct-object gameplay acceptance is claimed.
 
 ## Proven reusable boundaries
 
@@ -21,11 +43,11 @@ contract. No live client invocation occurred in this audit.
   selection. UI selection and AF8 are observations, not universal spell targeting.
 - Existing listed-combat wire carries exact actor/target keys and owner/request
   identity. Selection is not part of its immutable binding digest. The current
-  implementation selects only because manual action1551 obtains its argument
-  from the selected global; native legality for a replacement route is still being
-  qualified by the entry-path audit.
+  former implementation selected because manual action1551 obtained its argument
+  from the selected global. The qualified explicit adapter now replaces those reads
+  while preserving that handler's native legality and ownership sequence.
 
-## Current interfaces that cannot be silently generalized
+## Original interfaces and required generalization
 
 - NativeTarget.Identity requires both actor and target UUID class53 (players),
   complete names/server, and manual-list owner/entry proof. The 576-byte wire
@@ -36,8 +58,8 @@ contract. No live client invocation occurred in this audit.
   not another independent long-lived melee engagement, and its completion must
   not force melee cancellation or wait for a projectile to land.
 - Submission observers recognize D0 only at return7d3e0b and CC only7d3e67, both
-  from handler1551. A direct native call currently passes through unscoped and
-  cannot produce a correlated queued receipt. Merely removing the selection check
+  from handler1551. The new explicit Scope route supplies separate call-through
+  provenance and correlated queue receipts. Merely removing the selection check
   or recognizing every D0 on a TLS stack would weaken provenance.
 - Binding() and AppendGate currently require the selected global. Replace that
   clause only for a separately qualified explicit-object entry, preserving exact
@@ -104,6 +126,6 @@ contract. No live client invocation occurred in this audit.
 
 Ownership and object lookup can be reused; the existing submission scope and
 manual-list wire cannot be reused unchanged for arbitrary native powers/NPCs.
-Selection-independent native legality and native power submission are the current
-qualification work, not proven capabilities. Keep the existing host checkpoint
+Melee control-flow equivalence is qualified; real helper effects and live acceptance
+remain separate. Native power submission is still undergoing qualification. Keep the existing host checkpoint
 accurate and do not label the selected keyboard backend production-complete.

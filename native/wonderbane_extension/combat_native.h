@@ -3,6 +3,7 @@
 #include "combat_diagnostic.h"
 #include "combat_wire.h"
 #include "combat_submission.h"
+#include "combat_melee_entry.h"
 
 namespace wonderbane::extension::combat {
 class NativeTarget final {
@@ -19,17 +20,17 @@ public:
     bool CombatTargetCurrent() const noexcept;
     // Release only references owned by this transaction. A fault quarantines them.
     bool Clear() noexcept;
-    bool Current(bool require_selection = true) noexcept;
+    bool Current() noexcept;
 private:
     struct Calls {
         void** (__thiscall* lookup)(void*, void**, const std::uint32_t*) = nullptr;
         void (__thiscall* retain)(void*, void**) = nullptr;
         void (__thiscall* release)(void**, void*) = nullptr;
-        void (__cdecl* select)(void*) = nullptr;
+        decltype(&melee::Invoke) attack = nullptr;
         bool (__cdecl* dispatch)(const void*, void*) = nullptr;
     } calls_{};
     bool Owner() const noexcept;
-    bool RawCurrent(bool selected) const noexcept;
+    bool RawCurrent() const noexcept;
     bool Identity() const noexcept;
     bool Position(movement::GroundPoint&) const noexcept;
     bool Retain(void*&);
@@ -45,7 +46,7 @@ private:
     std::uintptr_t base_ = 0;
     HWND window_ = nullptr;
     DWORD thread_ = 0;
-    bool faulted_ = false, running_ = false, selected_ = false, dispatched_ = false;
+    bool faulted_ = false, running_ = false, dispatched_ = false;
     movement::NativeScene scene_{};
     wire::Command command_{};
     party::Snapshot party_{};
@@ -55,7 +56,8 @@ private:
     void* context_ = nullptr;
     void* actor_ = nullptr;
     void* target_ = nullptr;
-    void* selection_argument_ = nullptr;
+    void* request_ = nullptr;
+    void* transfer_ = nullptr;
     friend struct NativeTargetTestAccess;
 };
 }

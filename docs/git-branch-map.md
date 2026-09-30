@@ -39,15 +39,19 @@ an attack or cancellation caused by manual removal.
 worktree is now on `codex/combat-target-query-20260930`, based on main, published
 through draft [PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46).
 Checkpoint `8cd2bd2` replaces the spatial query with the reviewed native exact-key
-registry resolver and adds original/prepared-client ABI qualification. The next
-checkpoint separates UI selection from the ongoing retained combat target and
+registry resolver and adds original/prepared-client ABI qualification. Checkpoint `a34df57`
+separates UI selection from the ongoing retained combat target and
 exports coherent selected/action tokens; object lifetime remains token plus key.
-The following host checkpoint replaces HUD/log-message control with exact object
+Host checkpoint `2d175cc` replaces HUD/log-message control with exact object
 tracking, adopts existing native actions without a startup stop, distinguishes
 local action completion from projectile effects, and correlates required cleanup.
 The user requires direct native actions without selected-target hotkeys/hotbar
 mapping; the [native object-action plan](native-object-actions.md) records the
-remaining entry-ABI, legality and submission work. These changes are not installed
+remaining entry-ABI, legality and submission work. The explicit-object melee
+adapter now passes ordinary native control-flow equivalence on both executable
+forms; submission checkpoints `e444e8b` and `c5ba765` separate selection and power
+queue ownership. The native startup pause is removed while explicit cleanup
+remains required. Power and NPC action integration is still in progress. These changes are not installed
 or merged. Next: qualify that native action path before final packaging, obtain
 PR #46 merge approval, then complete bounded attack/cancel/recovery acceptance. Other active
 validation worktrees remain available.

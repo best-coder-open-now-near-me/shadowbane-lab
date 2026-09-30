@@ -298,6 +298,7 @@ def main() -> int:
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
         for developer_source in ("movement_tree_probe.cpp", "combat_registry_probe.cpp",
+                                 "combat_melee_entry_test.cpp",
                                  "targeted_action_trace_test.cpp"):
             if included_sources.count(developer_source) != 0:
                 raise RuntimeError(
@@ -448,11 +449,17 @@ def main() -> int:
             run(
                 f"{profile}-combat-registry-build",
                 [cmake, "--build", build, "--config", "Release", "--target",
-                 "wonderbane_extension_combat_registry_probe"],
+                 "wonderbane_extension_combat_registry_probe",
+                 "wonderbane_extension_combat_melee_probe"],
             )
             run(
                 f"{profile}-combat-registry-binding",
                 [build / "Release/wonderbane_extension_combat_registry_probe.exe",
+                 arguments.reviewed_client.resolve()],
+            )
+            run(
+                f"{profile}-combat-melee-binding",
+                [build / "Release/wonderbane_extension_combat_melee_probe.exe",
                  arguments.reviewed_client.resolve()],
             )
             run(
@@ -497,6 +504,10 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             run(
                 f"{profile}-combat-registry-prepared-binding",
                 [build / "Release/wonderbane_extension_combat_registry_probe.exe", prepared_client],
+            )
+            run(
+                f"{profile}-combat-melee-prepared-binding",
+                [build / "Release/wonderbane_extension_combat_melee_probe.exe", prepared_client],
             )
             for test in ("sky_binding", "sky_render"):
                 run(
@@ -828,6 +839,7 @@ else:
         "selected_cue_binding_verified": bool(arguments.reviewed_client),
         "movement_prepared_binding_verified": bool(arguments.reviewed_client),
         "combat_registry_binding_verified": bool(arguments.reviewed_client),
+        "combat_melee_control_flow_verified": bool(arguments.reviewed_client),
         "source_identity": metadata,
         "steps": steps,
         "files": [

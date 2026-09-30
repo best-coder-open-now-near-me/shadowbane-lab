@@ -18,7 +18,7 @@ public:
     HWND window = nullptr;
     std::atomic<bool> ready{false};
     bool bind_attempted = false, updating = false, active = false, starting = false;
-    bool priming = false, stopping = false, retired = false, entered = false;
+    bool stopping = false, retired = false, entered = false;
     bool queued = false;
     std::atomic<bool> cancelled{false};
     movement::NativeScene scene{};
@@ -79,12 +79,12 @@ public:
                    movement::StopReason reason) noexcept {
         if (!target.Available() || stopping || !movement::NativeOwnerStopCurrent(expected, owner)) { return false; }
         if (active && (grant != owner || scene.epoch != expected.epoch)) { return false; }
-        const bool baseline = priming && reason == movement::StopReason::release;
-        if (active && !baseline) { cancelled.store(true, std::memory_order_release); }
+        (void)reason;
+        if (active) { cancelled.store(true, std::memory_order_release); }
         stopping = true;
         StopContext context{&expected, &owner}; NativeTarget::State state{};
         bool stopped = target.Cancel(expected, StopCurrent, &context, state);
-        if (stopped && active && !baseline) {
+        if (stopped && active) {
             stopped = target.Clear();
             if (stopped) {
                 ticket.Close(); lease.reset(); active = false;
@@ -134,25 +134,14 @@ public:
             ticket.Close(); lease.reset(); active = starting = false;
             return Receipt(O::local_cancelled, wire::Phase::idle, false);
         }
-        // Establish native combat/movement cleanup independently of host preflight.
-        priming = true;
-        diagnostic = {Stage::baseline_pause, O::unavailable};
-        const auto paused = movement::PauseNativeOwnerAction(scene, grant);
-        diagnostic.movement_result = static_cast<int>(paused);
-        priming = false;
+        // Begin pins exact-owner cleanup without stopping an existing action.
+        // The explicit native entry decides whether this requested action is legal;
+        // starting an owner is not an implicit pause or a projectile-impact barrier.
         NativeTarget::Result result{O::stale};
-        if (paused == movement::Result::accepted) {
-            diagnostic = {Stage::baseline_current, O::stale};
-            if (Current(this)) {
-                diagnostic = {Stage::owner_repin, O::unavailable};
-                const auto repin = movement::BeginNativeOwnerAction(scene, grant, command.host);
-                diagnostic.movement_result = static_cast<int>(repin);
-                if (repin == movement::Result::accepted) {
-                    result = target.Attack(scene, command, Current, Enter, AppendCurrent, this);
-                    queued = result.queued;
-                    diagnostic = result.diagnostic;
-                }
-            }
+        if (Current(this)) {
+            result = target.Attack(scene, command, Current, Enter, AppendCurrent, this);
+            queued = result.queued;
+            diagnostic = result.diagnostic;
         }
         starting = false;
         if (retired) { return Receipt(O::observed, wire::Phase::retired, false); }
@@ -198,7 +187,7 @@ public:
             NativeTarget::State state{};
             const bool observed_state = target.ReadState(scene, state);
             const bool done = observed_state && state.mode == 1 && state.action == 1 && !state.target;
-            if (!observed_state || !Current(this) || !target.Current(false) || !target.CombatTargetCurrent() || done) {
+            if (!observed_state || !Current(this) || !target.Current() || !target.CombatTargetCurrent() || done) {
                 (void)controller.Update(Cancel(command));
             }
         }

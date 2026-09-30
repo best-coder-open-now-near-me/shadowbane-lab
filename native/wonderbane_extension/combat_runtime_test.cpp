@@ -90,9 +90,7 @@ bool Ready() noexcept { return true; }
 }
 namespace wonderbane::extension::combat {
 bool NativeTarget::Bind(HWND) noexcept { base_ = 0x400000; return true; }
-bool NativeTarget::Current(bool require_selection) noexcept {
-    return live && (!require_selection || selection_current);
-}
+bool NativeTarget::Current() noexcept { return live; }
 bool NativeTarget::CombatTargetCurrent() const noexcept { return live && combat_target_current; }
 // The target fixture separately exercises actual native pointers, ownership and ABI.
 NativeTarget::Result NativeTarget::Attack(const m::NativeScene& scene, const wire::Command&,
@@ -125,8 +123,8 @@ int main() {
     {
         const auto command = Command(1, binding); Mapping mapping(binding);
         auto receipt = Execute(V::start, command);
-        assert(receipt.outcome == O::client_outbound_queued && attacks == 1 && stops == 1);
-        assert((sequence == std::vector<int>{1, 2, 1, 3}));
+        assert(receipt.outcome == O::client_outbound_queued && attacks == 1 && stops == 0);
+        assert((sequence == std::vector<int>{1, 3}));
         assert(mapping.view->state == c::fence::State::entered);
         receipt = Execute(V::start, command); assert(attacks == 1 && receipt.flags & c::wire::outbound_queued);
         mapping.view->state = c::fence::State::entered_revoked;
@@ -164,17 +162,20 @@ int main() {
     }
     {
         const auto command = Command(5, binding); Mapping mapping(binding);
-        const auto before = attacks; stop_ok = false;
+        const auto before = attacks, stopped = stops; stop_ok = false;
         auto receipt = Execute(V::start, command);
-        assert(receipt.outcome == O::pending && attacks == before && native_activity);
-        assert(last_diagnostic.stage == c::Stage::baseline_pause && !last_diagnostic.dispatched
-            && last_diagnostic.movement_result == static_cast<int>(m::Result::stop_failed));
-        assert(mapping.view->state == c::fence::State::pending); // Baseline failure cannot enter attack.
+        assert(receipt.outcome == O::client_outbound_queued && attacks == before + 1
+            && stops == stopped && native_activity);
+        assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.appended);
+        assert(mapping.view->state == c::fence::State::entered);
+        // Stop failure cannot create a startup pause, but an explicit cancel
+        // retains the exact owner and cleanup obligation until it succeeds.
+        receipt = Execute(V::cancel, command);
+        assert(receipt.outcome == O::pending && c::runtime.active && native_activity);
         stop_ok = true;
         receipt = Execute(V::cancel, command);
         assert(receipt.outcome == O::local_cancelled && !native_activity);
-        assert(last_diagnostic.stage == c::Stage::baseline_pause && !last_diagnostic.dispatched
-            && last_diagnostic.movement_result == static_cast<int>(m::Result::stop_failed));
+        assert(last_diagnostic.stage == c::Stage::dispatch && last_diagnostic.appended);
     }
     {
         const auto command = Command(6, binding); Mapping mapping(binding);
