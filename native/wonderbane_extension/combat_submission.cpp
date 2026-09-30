@@ -45,7 +45,8 @@ bool Key(std::uintptr_t at, const std::array<std::uint32_t, 2>& expected) noexce
 }
 bool Binding(const Context& c) noexcept {
     return Pointer(base + 0x16a2d98, c.actor)
-        && Pointer(base + 0x16a2da4, c.target)
+        && (c.route == Route::explicit_object
+            || (c.route == Route::manual_selection && Pointer(base + 0x16a2da4, c.target)))
         && Pointer(c.actor, base + actor_table)
         && Key(c.actor + 0x18, c.local_key) && Key(c.target + 0x18, c.target_key)
         && Pointer(base + 0x16ab88c, c.writer)
@@ -89,7 +90,17 @@ struct Observer {
             SetLastError(error);
             return original_factory(actor, output, target, key, send);
         }
-        const bool allowed = !s->blocked_ && !s->factory_seen_ && Ready()
+        return FactoryCall(s, actor, output, target, key, send, Route::manual_selection);
+    }
+    static void* FactoryCall(Scope* s, void* actor, void** output, void* target,
+        const void* key, bool send, Route route) {
+        const DWORD error = GetLastError();
+        std::uintptr_t prior_output{};
+        const bool empty_output = route != Route::explicit_object || (output
+            && Copy(&prior_output, reinterpret_cast<std::uintptr_t>(output), sizeof(prior_output))
+            && !prior_output);
+        const bool allowed = active == s && s->active_ && s->context_.route == route && output
+            && empty_output && !s->blocked_ && !s->factory_seen_ && Ready()
             && actor == reinterpret_cast<void*>(s->context_.actor)
             && target == reinterpret_cast<void*>(s->context_.target) && send
             && Key(reinterpret_cast<std::uintptr_t>(key), s->context_.target_key)
@@ -98,7 +109,8 @@ struct Observer {
         if (!allowed) {
             Block(*s, s->receipt_.native_entered ? Result::uncertain : Result::denied);
             SetLastError(error);
-            *output = nullptr; // Qualified native factory's empty owned out-reference ABI.
+            // A failed explicit retry must not erase an already-owned reference.
+            if (output && empty_output) { *output = nullptr; }
             return output;
         }
         s->receipt_.native_entered = true;
@@ -131,7 +143,12 @@ struct Observer {
         if (!s || caller != base + followup_return) {
             SetLastError(error); original_followup(actor); return;
         }
-        const bool allowed = !s->blocked_ && s->factory_seen_ && !s->followup_seen_ && Ready()
+        FollowupCall(s, actor, Route::manual_selection);
+    }
+    static void FollowupCall(Scope* s, void* actor, Route route) {
+        const DWORD error = GetLastError();
+        const bool allowed = active == s && s->active_ && s->context_.route == route
+            && !s->blocked_ && s->factory_seen_ && !s->followup_seen_ && Ready()
             && actor == reinterpret_cast<void*>(s->context_.actor) && Binding(s->context_)
             && s->context_.current(s->context_.context);
         s->followup_seen_ = true;
@@ -230,13 +247,20 @@ Scope::Scope(const Context& context) noexcept : context_(context), previous_(act
     const DWORD error = GetLastError();
     active = this; active_ = true;
     if (!Ready() || !context.actor || !context.target || !context.writer || !context.container
-        || !context.current || !context.append_current) {
+        || !context.current || !context.append_current
+        || (context.route != Route::manual_selection && context.route != Route::explicit_object)) {
         receipt_.result = Result::denied; blocked_ = true;
     }
     detail::Observer::Publish(*this);
     SetLastError(error);
 }
 Scope::~Scope() { (void)Finish(); }
+void* Scope::Factory(void* actor, void** output, void* target, const void* key, bool send) {
+    return detail::Observer::FactoryCall(this, actor, output, target, key, send, Route::explicit_object);
+}
+void Scope::Followup(void* actor) {
+    detail::Observer::FollowupCall(this, actor, Route::explicit_object);
+}
 Receipt Scope::Finish() noexcept {
     if (active_) {
         if (active == this) { active = previous_; }

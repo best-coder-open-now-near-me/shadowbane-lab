@@ -328,6 +328,95 @@ int main(int argc, char** argv) {
         "persistent sink preserves queued evidence through C++ unwind");
     context.receipt = nullptr;
     Check(full_checks > 0 && queue_checks > 0, "both distinct admission barriers exercised");
+    auto explicit_context = context; explicit_context.route = cs::Route::explicit_object;
+    const auto make_explicit = [&](cs::Scope& scope) {
+        SetLastError(42);
+        return scope.Factory(actor.data(), &ticket, target.data(), context.target_key.data(), true);
+    };
+    reset();
+    {
+        put(0x16a2da4, 0);
+        cs::Scope scope(explicit_context); make_explicit(scope);
+        Check(GetLastError() == 43, "explicit factory preserves native LastError");
+        put(0x16a2da4, context.actor); // UI selection can change throughout this route.
+        queue(); SetLastError(42); scope.Followup(actor.data());
+        const auto r = scope.Finish();
+        Check(r.result == cs::Result::queued && r.append_observed && r.followup_entered,
+            "explicit object route queues exact ticket without modifying UI selection");
+        Check(cs::Pointer(base + 0x16a2da4, context.actor), "explicit route leaves selection untouched");
+        put(0x16a2da4, context.target);
+    }
+    reset();
+    {
+        cs::Scope scope(context); const auto before = factories;
+        make_explicit(scope);
+        Check(factories == before && scope.Finish().result == cs::Result::denied,
+            "legacy scope cannot invoke explicit-object factory");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); const auto before = factories;
+        make(); // Real legacy handler return site under a different route.
+        Check(factories == before && scope.Finish().result == cs::Result::denied,
+            "legacy native call cannot borrow an explicit-object admission");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); make_explicit(scope); queue_current = false;
+        const auto before = appends, consumed = releases; queue();
+        SetLastError(42); scope.Followup(actor.data());
+        const auto r = scope.Finish();
+        Check(appends == before && releases == consumed + 1 && !r.followup_entered,
+            "explicit append revocation consumes incoming ref and blocks followup");
+        Check(r.result == cs::Result::uncertain && r.native_entered && !r.append_observed,
+            "explicit rejected append retains entered history");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); make_explicit(scope); queue(); throw_followup = true;
+        bool caught = false;
+        try { SetLastError(42); scope.Followup(actor.data()); } catch (const std::runtime_error&) { caught = true; }
+        const auto r = scope.Finish();
+        Check(caught && r.append_observed && r.result == cs::Result::uncertain,
+            "explicit native followup fault preserves queue evidence");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); scope.Finish(); const auto before = factories;
+        make_explicit(scope);
+        Check(factories == before && scope.Finish().result == cs::Result::denied,
+            "finished explicit scope cannot enter factory");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); make_explicit(scope);
+        void* owned = ticket; const auto before = factories;
+        make_explicit(scope);
+        Check(ticket == owned && factories == before && scope.Finish().result == cs::Result::uncertain,
+            "explicit retry cannot erase or reuse an already-owned factory reference");
+    }
+    reset();
+    {
+        cs::Scope scope(explicit_context); ++target[0x18 / 4]; const auto before = factories;
+        make_explicit(scope);
+        Check(factories == before && scope.Finish().result == cs::Result::denied,
+            "explicit route still rejects same pointer with changed native object key");
+        --target[0x18 / 4];
+    }
+    reset();
+    {
+        cs::Scope outer(explicit_context); cs::Scope inner(explicit_context);
+        const auto before = factories; make_explicit(outer);
+        Check(factories == before && outer.Finish().result == cs::Result::denied,
+            "non-current explicit scope cannot enter its original factory");
+    }
+    reset();
+    {
+        auto invalid = explicit_context; invalid.route = static_cast<cs::Route>(77);
+        cs::Scope scope(invalid); const auto before = factories; make_explicit(scope);
+        Check(factories == before && scope.Finish().result == cs::Result::denied,
+            "unknown route cannot bypass selected or explicit admission");
+    }
     // Hooks are process-lifetime objects. The synthetic image is intentionally
     // left mapped until this test process exits, matching production no-unload.
     return failures;

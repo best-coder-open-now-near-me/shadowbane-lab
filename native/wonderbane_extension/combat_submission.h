@@ -3,6 +3,7 @@
 #include <cstdint>
 namespace wonderbane::extension::combat::submission {
 struct Receipt;
+enum class Route { manual_selection, explicit_object };
 struct Context {
     std::uintptr_t actor{}, target{}, writer{}, container{};
     std::array<std::uint32_t, 2> local_key{}, target_key{};
@@ -15,6 +16,7 @@ struct Context {
     // It must outlive Scope AND the enclosing SEH boundary; never use a Run-local
     // receipt. Bounded copies preserve known append history through native faults.
     Receipt* receipt = nullptr;
+    Route route = Route::manual_selection;
 };
 enum class Result { no_submission, queued, uncertain, denied };
 struct Receipt {
@@ -31,6 +33,10 @@ public:
     Scope(const Scope&) = delete;
     Scope& operator=(const Scope&) = delete;
     Receipt Finish() noexcept;
+    // Internal explicit-object entry; native call-throughs and receipt ownership
+    // stay inside this scope. Legacy handler callbacks cannot borrow this route.
+    void* Factory(void* actor, void** output, void* target, const void* key, bool send);
+    void Followup(void* actor);
 private:
     friend struct detail::Observer;
     Context context_{};
