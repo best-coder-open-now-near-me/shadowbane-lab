@@ -261,15 +261,18 @@ class LivePvEAuthoritySnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(PvEObservationCoherenceError, "party roster changed"):
             source.observe(now_ms=27, target_action_active=False, player_action_active=False)
 
-    def test_selection_change_rejects_authority_frame(self) -> None:
+    def test_selection_change_preserves_authority_frame(self) -> None:
         first = NativeTargetHealthObservation(
             target_present=True, current_health=100, maximum_health=100,
             target_token=self.player.token,
         )
         second = replace(first, target_token=self.npc.token)
         source = NativePvEObservationSource(**self._frame_inputs(health=(first, second)))
-        with self.assertRaisesRegex(PvEObservationCoherenceError, "selected target changed"):
-            source.observe(now_ms=27, target_action_active=False, player_action_active=False)
+        frame = source.observe(now_ms=27, target_action_active=False, player_action_active=False)
+        self.assertFalse(frame.selection_observed)
+        self.assertFalse(frame.target.target_present)
+        self.assertEqual(self.local_key, frame.authority_snapshot.local_player_object_key)
+        self.assertEqual(1, frame.authority_snapshot.revision)
 
     def test_runner_preserves_same_frame_party_authority_in_trace(self) -> None:
         stop = EventEmergencyStop()

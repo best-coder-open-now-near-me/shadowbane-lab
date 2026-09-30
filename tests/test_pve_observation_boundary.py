@@ -18,7 +18,6 @@ from shadowbane_lab.pve import (
     PvEController,
     PvEControllerConfig,
     PvEIntent,
-    PvEObservationCoherenceError,
     PvEPhase,
     PvERunner,
 )
@@ -197,27 +196,24 @@ class ExplodingApproach(PvEApproachController):
 
 
 class NativePvEObservationSourceTests(unittest.TestCase):
-    def test_process_backed_selection_change_rejects_frame_before_control(self) -> None:
+    def test_process_backed_selection_change_withholds_only_selection(self) -> None:
         health = ProcessSequenceHealthSource((_target("first"), _target("second")))
         source = NativePvEObservationSource(
             health_reader=health,
             player_vitals_reader=ConstantVitalsSource(_player(), process_id=4321),
         )
 
-        with self.assertRaisesRegex(
-            PvEObservationCoherenceError,
-            "selected target changed",
-        ):
-            source.observe(
-                now_ms=0,
-                target_action_active=False,
-                player_action_active=False,
-            )
+        observation = source.observe(
+            now_ms=0, target_action_active=False, player_action_active=False,
+        )
+        self.assertFalse(observation.selection_observed)
+        self.assertFalse(observation.target.target_present)
+        self.assertEqual(_player(), observation.player)
 
         self.assertTrue(source.selection_boundary_enabled)
         self.assertEqual(2, health.calls)
 
-    def test_cross_channel_target_mismatch_rejects_before_control(self) -> None:
+    def test_cross_channel_target_mismatch_withholds_only_selection(self) -> None:
         health = ProcessSequenceHealthSource((_target("mob"), _target("mob")))
         source = NativePvEObservationSource(
             health_reader=health,
@@ -225,15 +221,12 @@ class NativePvEObservationSourceTests(unittest.TestCase):
             target_identity_reader=MismatchedTargetIdentitySource(),
         )
 
-        with self.assertRaisesRegex(
-            PvEObservationCoherenceError,
-            "target health and identity resolved different targets",
-        ):
-            source.observe(
-                now_ms=0,
-                target_action_active=False,
-                player_action_active=False,
-            )
+        observation = source.observe(
+            now_ms=0, target_action_active=False, player_action_active=False,
+        )
+        self.assertFalse(observation.selection_observed)
+        self.assertFalse(observation.target.target_present)
+        self.assertEqual(_player(), observation.player)
 
 
     def test_process_backed_frame_uses_latest_health_for_stable_selection(self) -> None:
@@ -281,7 +274,14 @@ class GuardedPvERunnerTests(unittest.TestCase):
     def test_public_runner_reuses_canonical_dispatch_loop(self) -> None:
         self.assertIs(CanonicalPvERunner.run, PvERunner.run)
 
-    def test_coherence_failures_retry_then_stop_without_input(self) -> None:
+    def test_actor_identity_failures_retry_then_stop_without_input(self) -> None:
+        class ChangingActorPopulation(ConstantPopulationSource):
+            reads = 0
+
+            def observe_actor_identity(self):
+                self.reads += 1
+                return ("actor", NativeObjectKey(self.reads, 53), None)
+
         health = ProcessSequenceHealthSource(
             (
                 _target("first"),
@@ -296,7 +296,7 @@ class GuardedPvERunnerTests(unittest.TestCase):
             controller=PvEController(PvEControllerConfig()),
             health_reader=health,
             player_vitals_reader=ConstantVitalsSource(_player(), process_id=4321),
-            population_reader=ConstantPopulationSource("first"),
+            population_reader=ChangingActorPopulation("first"),
             player_action_reader=ConstantPlayerActionSource("first"),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),

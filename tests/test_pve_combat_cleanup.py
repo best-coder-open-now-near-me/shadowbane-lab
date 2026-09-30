@@ -113,16 +113,19 @@ def test_busy_action_without_target_is_not_attributed_or_cleanup_proof():
     assert stop.cleanup_request is not None
 
 
-@pytest.mark.parametrize("channel_mismatch", ["selection", "action"])
-def test_mixed_native_frame_is_rejected(channel_mismatch):
+def test_mixed_actual_action_frame_is_rejected():
     frame = _observation(0, _target("mob"), player_action=_player_action())
-    if channel_mismatch == "selection":
-        action = replace(frame.player_action, selected_target_token="other",
-                         targeting_selected=False)
-    else:
-        action = replace(frame.player_action, action_target_token="other", targeting_selected=False)
+    action = replace(frame.player_action, action_target_token="other", targeting_selected=False)
     with pytest.raises(ValueError, match="resolved different|disagree"):
         replace(frame, player_action=action)
+
+
+def test_selection_diagnostic_does_not_invalidate_actual_action_frame():
+    frame = _observation(0, _target("mob"), player_action=_player_action())
+    action = replace(frame.player_action, selected_target_token="other", targeting_selected=False)
+    updated = replace(frame, player_action=action)
+    assert updated.player_action.action_target_token == frame.player_action.action_target_token
+    assert updated.population == frame.population
 
 
 def test_opener_followup_never_targets_new_selection():

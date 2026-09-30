@@ -6,7 +6,7 @@ import hashlib
 import json
 import struct
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
@@ -235,8 +235,13 @@ class NativePlayerActionObservation:
     action_target_token: str | None
     mode: int | None = None
     action_state: int | None = None
+    selection_observed: bool = True
 
     def __post_init__(self) -> None:
+        if not isinstance(self.selection_observed, bool):
+            raise ValueError("selection_observed must be boolean")
+        if not self.selection_observed and self.selected_target_token is not None:
+            raise ValueError("unavailable selection cannot contain a token")
         if not isinstance(self.phase, NativeTargetActionPhase):
             raise ValueError("player action phase must be NativeTargetActionPhase")
         if (self.mode is None) != (self.action_state is None):
@@ -424,19 +429,52 @@ class NativeTargetActionReader:
             raise NativeTargetActionReadError("native target-action reader is closed")
         for _ in range(self._stability_attempts):
             player = self._read_pointer(self._player_pointer_slot, "local player")
-            selected = self._read_pointer(self._selected_pointer_slot, "selected target")
-            first = self._read_player_snapshot(player, selected)
-            second = self._read_player_snapshot(player, selected)
+            try:
+                selected = self._read_pointer(self._selected_pointer_slot, "selected target")
+                selection_observed = True
+            except NativeTargetActionReadError:
+                selected, selection_observed = 0, False
+            first = self._read_player_snapshot(player, 0)
+            second = self._read_player_snapshot(player, 0)
             if first != second:
                 continue
-            if (
-                self._read_pointer(self._player_pointer_slot, "local player") != player
-                or self._read_pointer(self._selected_pointer_slot, "selected target") != selected
-            ):
+            if self._read_pointer(self._player_pointer_slot, "local player") != player:
                 continue
-            return self._player_observation(second)
+            try:
+                selection_observed &= (
+                    self._read_pointer(self._selected_pointer_slot, "selected target") == selected
+                    and (selected == 0 or self._profile.minimum_user_address <= selected
+                         <= self._profile.maximum_user_address - self._profile.pointer_size)
+                )
+            except NativeTargetActionReadError:
+                selection_observed = False
+            return replace(
+                self._player_observation(
+                    replace(second, player=selected if selection_observed else 0),
+                ),
+                selection_observed=selection_observed,
+            )
         raise NativeTargetActionReadError(
             "local-player action changed during every stable-read attempt"
+        )
+
+    def observe_character(self, address: int) -> NativeTargetActionObservation:
+        """Read a population-owned character address without consulting selection.
+
+        The caller owns native-key validation before and after this detail read.
+        This method itself checks stable action data and the local actor pointer.
+        """
+        if self._closed:
+            raise NativeTargetActionReadError("native target-action reader is closed")
+        for _ in range(self._stability_attempts):
+            player = self._read_pointer(self._player_pointer_slot, "local player")
+            first = self._read_snapshot(address, player)
+            second = self._read_snapshot(address, player)
+            if (first == second
+                    and self._read_pointer(self._player_pointer_slot, "local player") == player):
+                return self._observation(second)
+        raise NativeTargetActionReadError(
+            "bound character action changed during every stable-read attempt"
         )
 
     def close(self) -> None:

@@ -105,6 +105,30 @@ class PvETrackedTarget:
 
 
 @dataclass(frozen=True, slots=True)
+class PvETrackedTargetAction:
+    """Action detail attributed to an exact retained native object identity."""
+
+    token: str
+    object_key: NativeObjectKey
+    action: NativeTargetActionObservation
+
+    def __post_init__(self) -> None:
+        if (not self.token or not isinstance(self.object_key, NativeObjectKey)
+                or self.object_key.is_null
+                or not isinstance(self.action, NativeTargetActionObservation)
+                or not self.action.target_present or self.action.target_token != self.token):
+            raise ValueError("tracked action requires matching native object identity")
+
+    def as_dict(self) -> dict[str, object]:
+        return {"token": self.token,
+                "object_key": [self.object_key.object_type, self.object_key.object_uuid],
+                "phase": self.action.phase.value, "action_sequence": self.action.action_sequence,
+                "motion_id": self.action.motion_id, "action_pending": self.action.action_pending,
+                "targeting_player": self.action.targeting_player,
+                "impact_frame": self.action.impact_frame}
+
+
+@dataclass(frozen=True, slots=True)
 class PvECombatCleanupRequest:
     sequence: int
     target_token: str
@@ -436,6 +460,8 @@ class PvEObservation:
     player_position: NativePlayerPositionObservation | None = None
     target_position: NativeTargetPositionObservation | None = None
     target_action: NativeTargetActionObservation | None = None
+    tracked_target_action: PvETrackedTargetAction | None = None
+    selection_observed: bool = True
     player_action: NativePlayerActionObservation | None = None
     target_identity: NativeTargetIdentityObservation | None = None
     population: NativeCharacterPopulationObservation | None = None
@@ -443,6 +469,16 @@ class PvEObservation:
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.now_ms, "now_ms")
+        if not isinstance(self.selection_observed, bool):
+            raise ValueError("selection_observed must be boolean")
+        if not self.selection_observed and self.target.target_present:
+            raise ValueError("unavailable selection cannot contain selected health")
+        if self.tracked_target_action is not None:
+            bound = self.tracked_target_action
+            if (not isinstance(bound, PvETrackedTargetAction) or self.population is None
+                    or not any(c.token == bound.token and c.object_key == bound.object_key
+                               for c in self.population.characters)):
+                raise ValueError("tracked action and population resolved different identities")
         if self.authority_snapshot is not None:
             from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
 
@@ -482,11 +518,6 @@ class PvEObservation:
         ):
             raise ValueError("player_action must be NativePlayerActionObservation")
         if self.player_action is not None:
-            expected_selected = (self.population.selected_target_token
-                                 if self.population is not None else self.target.target_token)
-            if ((self.population is not None or self.target.target_present)
-                    and self.player_action.selected_target_token != expected_selected):
-                raise ValueError("native population/health and player action disagree on selection")
             if (self.population is not None and self.player_action.action_target_token
                     != self.population.player_action_target_token):
                 raise ValueError("population and player action resolved different action targets")
@@ -653,6 +684,8 @@ class PvERunTraceStep:
     player_position: NativePlayerPositionObservation | None = None
     target_position: NativeTargetPositionObservation | None = None
     target_action: NativeTargetActionObservation | None = None
+    tracked_target_action: PvETrackedTargetAction | None = None
+    selection_observed: bool = True
     player_action: NativePlayerActionObservation | None = None
     target_identity: NativeTargetIdentityObservation | None = None
     target_planar_distance: float | None = None
@@ -763,6 +796,9 @@ class PvERunTraceStep:
                 if self.decision.kill_confirmation is None
                 else self.decision.kill_confirmation.value
             ),
+            "selection_observed": self.selection_observed,
+            "tracked_target_action": (None if self.tracked_target_action is None
+                                      else self.tracked_target_action.as_dict()),
             "tracked_target": (None if self.decision.tracked_target is None
                                else self.decision.tracked_target.as_dict()),
             "combat_cleanup": (None if self.combat_cleanup is None
@@ -851,6 +887,7 @@ class PvERunTraceStep:
                     else {
                         "phase": self.player_action.phase.value,
                         "targeting_selected": self.player_action.targeting_selected,
+                        "selection_observed": self.player_action.selection_observed,
                         "selected_target_token": self.player_action.selected_target_token,
                         "action_target_token": self.player_action.action_target_token,
                         "motion_id": self.player_action.motion_id,

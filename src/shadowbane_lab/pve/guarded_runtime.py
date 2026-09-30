@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_input import StopSignal
 from shadowbane_lab.client_observation import (
     NativeTargetActionObservation,
+    NativeTargetActionReadError,
     NativeTargetHealthObservation,
+    NativeTargetHealthReadError,
     NativeTargetIdentityObservation,
     NativeTargetIdentityReadError,
     NativeTargetPositionObservation,
+    NativeTargetPositionReadError,
 )
 from shadowbane_lab.pve.approach import (
     PvEApproachController,
@@ -25,7 +29,7 @@ from shadowbane_lab.pve.authority_snapshot import (
     native_party_identity_signature,
 )
 from shadowbane_lab.pve.controller import PvEController as _BasePvEController
-from shadowbane_lab.pve.model import PvEObservation
+from shadowbane_lab.pve.model import PvEObservation, PvETrackedTarget, PvETrackedTargetAction
 from shadowbane_lab.pve.runtime import (
     CharacterPopulationSource,
     PlayerActionSource,
@@ -45,7 +49,7 @@ from shadowbane_lab.travel.runtime import TravelDecisionDispatcher
 
 
 class PvEObservationCoherenceError(RuntimeError):
-    """Raised when native channels do not describe one stable selected target."""
+    """Raised when native channels disagree on actor, object or party ownership."""
 
 
 @runtime_checkable
@@ -62,11 +66,10 @@ class PvEObservationSource(Protocol):
 
 
 class NativePvEObservationSource:
-    """Assemble native channels behind one selected-target stability boundary.
+    """Assemble actor and exact-object state independently of UI selection.
 
-    Process-backed target-health readers are sampled at the beginning and end of
-    each frame. Tape and sequence readers have no process identity and are treated
-    as already atomic, preserving deterministic replay and existing test fixtures.
+    Selection is optional diagnostic data: a churned or unreadable selected
+    snapshot is withheld without discarding valid actor and population state.
     """
 
     def __init__(
@@ -82,6 +85,7 @@ class NativePvEObservationSource:
         population_reader: CharacterPopulationSource | None = None,
         group_reader: NativeGroupSource | None = None,
         party_group_id: str | None = None,
+        tracked_target: Callable[[], PvETrackedTarget | None] | None = None,
     ) -> None:
         if not isinstance(health_reader, TargetHealthSource):
             raise ValueError("health_reader must implement TargetHealthSource")
@@ -145,6 +149,9 @@ class NativePvEObservationSource:
         if len(process_ids) > 1:
             raise ValueError("native PvE observation readers resolved different processes")
 
+        self._tracked_target = tracked_target
+        self._actor_identity = getattr(population_reader, "observe_actor_identity", None)
+        self._bound_action = getattr(population_reader, "observe_character_detail", None)
         self._health_reader = health_reader
         self._player_vitals_reader = player_vitals_reader
         self._player_position_reader = player_position_reader
@@ -179,15 +186,23 @@ class NativePvEObservationSource:
         if not isinstance(player_action_active, bool):
             raise ValueError("player_action_active must be boolean")
 
-        target = self._health_reader.observe()
+        binding = None if self._tracked_target is None else self._tracked_target()
+        actor_before = None if self._actor_identity is None else self._actor_identity()
+        selection_observed = True
+        try:
+            target = self._health_reader.observe()
+        except NativeTargetHealthReadError:
+            target = NativeTargetHealthObservation(target_present=False)
+            selection_observed = False
         group_before = None if self._group_reader is None else self._group_reader.observe()
         population = (
             None if self._population_reader is None else self._population_reader.observe()
         )
         target_action = (
             None
-            if self._target_action_reader is None or not target_action_active
-            else self._target_action_reader.observe()
+            if (self._target_action_reader is None or not target_action_active
+                or (binding is not None and self._bound_action is not None))
+            else self._selection_detail(self._target_action_reader, NativeTargetActionReadError)
         )
         player_action = (
             None
@@ -198,7 +213,7 @@ class NativePvEObservationSource:
         target_position = (
             None
             if self._target_position_reader is None
-            else self._target_position_reader.observe()
+            else self._selection_detail(self._target_position_reader, NativeTargetPositionReadError)
         )
         player_position = (
             None
@@ -206,6 +221,53 @@ class NativePvEObservationSource:
             else self._player_position_reader.observe()
         )
         player = self._player_vitals_reader.observe()
+
+        if self._selection_boundary_enabled:
+            try:
+                boundary = self._health_reader.observe()
+                selection_observed &= self._same_selection(target, boundary)
+                target = boundary
+            except NativeTargetHealthReadError:
+                selection_observed = False
+        if population is not None:
+            selection_observed &= population.selection_observed
+            if target.target_present and target.target_token != population.selected_target_token:
+                selection_observed = False
+        for detail in (target_action, target_identity, target_position):
+            if detail is not None and (detail.target_present != target.target_present
+                                      or detail.target_token != target.target_token):
+                selection_observed = False
+        if not selection_observed:
+            target = NativeTargetHealthObservation(target_present=False)
+        # Missing optional detail is diagnostic unavailability, not target loss.
+        if self._target_position_reader is not None and target_position is None:
+            selection_observed = False
+            target = NativeTargetHealthObservation(target_present=False)
+            target_position = NativeTargetPositionObservation(target_present=False)
+        tracked_action = None
+        if (binding is not None and population is not None and self._bound_action is not None
+                and self._target_action_reader is not None and target_action_active
+                and any(c.token == binding.token and c.object_key == binding.object_key
+                        for c in population.characters)):
+            detail = self._bound_action(
+                binding.token, binding.object_key, self._target_action_reader,
+            )
+            # The canonical reader owns addresses and refreshes the retained
+            # object. Do not keep stale health if that exact object disappeared.
+            others = tuple(c for c in population.characters if c.token != binding.token)
+            characters = others if detail is None else (*others, detail.character)
+            population = replace(
+                population, characters=tuple(sorted(characters, key=lambda c: c.token)),
+            )
+            if detail is not None and detail.action is not None:
+                tracked_action = PvETrackedTargetAction(
+                    binding.token, binding.object_key, detail.action,
+                )
+        if actor_before is not None:
+            if (self._actor_identity() != actor_before or population is None
+                    or population.local_player_object_key != actor_before[1]
+                    or population.player_action_target_token != actor_before[2]):
+                raise PvEObservationCoherenceError("local actor changed during native PvE frame")
 
         authority_snapshot = None
         if self._group_reader is not None:
@@ -227,14 +289,6 @@ class NativePvEObservationSource:
                 party_group_id=self._party_group_id,
             )
 
-        if self._selection_boundary_enabled:
-            boundary = self._health_reader.observe()
-            if not self._same_selection(target, boundary):
-                raise PvEObservationCoherenceError(
-                    "selected target changed during native PvE frame assembly"
-                )
-            target = boundary
-
         if not target.target_present:
             target_position = self._absent_target_position(target_position)
             target_action = self._absent_target_action(target_action)
@@ -248,6 +302,8 @@ class NativePvEObservationSource:
                 player_position=player_position,
                 target_position=target_position,
                 target_action=target_action,
+                tracked_target_action=tracked_action,
+                selection_observed=selection_observed,
                 player_action=player_action,
                 target_identity=target_identity,
                 population=population,
@@ -262,6 +318,13 @@ class NativePvEObservationSource:
         if authority_snapshot is not None:
             self._authority_revision = authority_snapshot.revision
         return observation
+
+    @staticmethod
+    def _selection_detail(reader, error_type):
+        try:
+            return reader.observe()
+        except error_type:
+            return None
 
     def _observe_target_identity(
         self,
@@ -356,7 +419,10 @@ class _ObservationFrameBridge:
     def complete_observation(self, **values) -> PvEObservation:
         frame = self.require_frame()
         self._frame = None
-        assembled = PvEObservation(**values)
+        assembled = PvEObservation(
+            **values, tracked_target_action=frame.tracked_target_action,
+            selection_observed=frame.selection_observed,
+        )
         expected = replace(frame, now_ms=assembled.now_ms, authority_snapshot=None)
         if assembled != expected:
             raise PvEObservationCoherenceError("runtime channels disagree with completed frame")
@@ -406,10 +472,7 @@ class _FrameTargetActionSource:
         self._bridge = bridge
 
     def observe(self):
-        value = self._bridge.require_frame().target_action
-        if value is None:
-            raise RuntimeError("coherent PvE frame is missing target action")
-        return value
+        return self._bridge.require_frame().target_action
 
 
 class _FramePlayerActionSource:
@@ -618,6 +681,7 @@ class PvERunner(_BasePvERunner):
             population_reader=population_reader,
             group_reader=group_reader,
             party_group_id=party_group_id,
+            tracked_target=lambda: controller.input_target,
         )
         bridge = _ObservationFrameBridge(source, controller)
         self._frame_bridge = bridge

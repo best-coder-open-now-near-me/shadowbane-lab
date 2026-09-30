@@ -708,9 +708,14 @@ class PvEController:
 
     def _interrupt(self, observation: PvEObservation) -> PvEControllerDecision | None:
         intent = self._config.interrupt_intent
-        action = observation.target_action
-        if observation.target.target_token != self._engaged_target_token:
-            return None
+        bound = observation.tracked_target_action
+        if (bound is not None and bound.token == self._engaged_target_token
+                and bound.object_key == self._engaged_object_key):
+            action = bound.action
+        else:
+            action = observation.target_action
+            if observation.target.target_token != self._engaged_target_token:
+                return None
         if intent is None or action is None or not action.interrupt_opportunity:
             return None
         assert action.action_sequence is not None

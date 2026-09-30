@@ -752,6 +752,10 @@ class PvERunner:
             player_position=(None if observation is None else observation.player_position),
             target_position=(None if observation is None else observation.target_position),
             target_action=(None if observation is None else observation.target_action),
+            tracked_target_action=(
+                None if observation is None else observation.tracked_target_action
+            ),
+            selection_observed=(False if observation is None else observation.selection_observed),
             player_action=(None if observation is None else observation.player_action),
             target_identity=(None if observation is None else observation.target_identity),
             population_character_count=(
