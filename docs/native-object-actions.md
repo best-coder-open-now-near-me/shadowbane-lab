@@ -141,10 +141,10 @@ listed/NPC ownership, public-runner cleanup and fresh-frame recovery. These chec
 do not replace final whole-candidate validation.
 
 The integrated host suite passed 4,041 tests with 33 explicit skips and 801
-subtests; repository Ruff passed. Next delivery steps are both native profiles and
-required private-image package gates at the final source head, exact-head CI/review and
-PR #46 merge authorization. Installation and bounded attack/cast/cancel/PvE
-recovery acceptance follow a qualified package. Automatic retaliation remains
+subtests; repository Ruff passed. Both native profiles, required original/prepared-image
+package gates and all 15 hosted checks passed at the approved source head. PR #46
+is merged and its qualified package is installed. Bounded attack/cast/cancel/PvE
+recovery acceptance remains open pending the ready live characters. Automatic retaliation remains
 blocked on the separate authoritative server-character-session contract. Private
 client binaries and diagnostic captures remain outside source delivery; no
 retained deployment rollback artifacts are created.
