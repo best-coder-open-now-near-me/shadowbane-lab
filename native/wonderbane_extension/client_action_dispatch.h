@@ -25,7 +25,7 @@ enum class ClientActionResultStage : std::uint32_t {
 constexpr std::uint32_t kClientActionTransportCapability = 1U << 0U;
 constexpr std::uint32_t kNativeActionDispatchCapability = 1U << 1U;
 constexpr std::uint32_t kLearnedPowerDispatchCapability = 1U << 2U;
-constexpr std::uint32_t kNativeCombatCapability = 1U << 3U;
+constexpr std::uint32_t kNativeCombatCapability = 1U << 4U;
 constexpr std::uint32_t kKnownClientActionCapabilities =
     kClientActionTransportCapability
     | kNativeActionDispatchCapability

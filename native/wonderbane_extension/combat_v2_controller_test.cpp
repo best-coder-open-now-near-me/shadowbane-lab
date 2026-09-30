@@ -36,7 +36,10 @@ struct Backend final:c::Invoker {
                 (void)controller->Execute(w::Verb::cancel_action,request,true,true,true,*this);
             }
         }
-        if(defer_bind) { return {w::Outcome::deferred,w::Entry::unknown,0,{}}; }
+        if(defer_bind) {
+            c::Operation result{w::Outcome::deferred,w::Entry::unknown,0,{}};
+            strcpy_s(result.detail.data(),result.detail.size(),"combat_v2:existing_action:o12:d0n0q0"); return result;
+        }
         return {w::Outcome::bound,w::Entry::unknown,0,{w::Phase::bound}};
     }
     c::Operation Submit(const w::Command& command) noexcept override {
@@ -162,6 +165,16 @@ int main() {
         assert(entered.binds==2);
         (void)Execute(owned,entered,w::Verb::submit,Command(2,2));
         assert(entered.binds==2);
+    }
+    {
+        c::Controller failed; Backend unavailable; unavailable.controller=&failed; unavailable.defer_bind=true;
+        auto request=Command(1,1);
+        (void)Execute(failed,unavailable,w::Verb::submit,request);
+        const auto detail=failed.Diagnose(request);
+        assert(!std::strcmp(detail.data(),"combat_v2:existing_action:o12:d0n0q0"));
+        (void)Execute(failed,unavailable,w::Verb::action_status,request);
+        assert(failed.Diagnose(request)==detail);
+        ++request.power_id; assert((failed.Diagnose(request)==std::array<char,73>{}));
     }
     // Status never allocates a future ordinal or changes admission floors.
     backend.retire_submit=false;

@@ -36,6 +36,7 @@ class Controller final {
         wire::Command binding{};
         State state{};
         Id action_floor{};
+        std::array<char,73> detail{};
         std::uint64_t update{};
         bool ever_bound = false, stop_requested = false;
         unsigned pins{};
@@ -171,6 +172,8 @@ class Controller final {
         // Reserve cleanup responsibility before invoking any native owner callback.
         engagement.state={P::blocked}; active_=&engagement; calling_=true;
         const auto result=invoker.Bind(command); calling_=false; outcome=result.outcome;
+        engagement.detail=result.detail;
+        if(!std::memchr(engagement.detail.data(),0,engagement.detail.size())) { engagement.detail={}; }
         if(before==engagement.update && !Closed(engagement.state)) {
             if(result.state.phase==P::unknown) { Apply(engagement,{P::closed,C::never_bound}); }
             else { Apply(engagement,result.state); }
@@ -189,6 +192,9 @@ public:
     std::array<char,73> Diagnose(const wire::Command& command) const noexcept {
         for(const auto& action:actions_) {
             if(!std::memcmp(&action.command,&command,sizeof(command))) { return action.detail; }
+        }
+        for(const auto& engagement:engagements_) {
+            if(!std::memcmp(&engagement.binding,&command,sizeof(command))) { return engagement.detail; }
         }
         return {};
     }
@@ -246,7 +252,9 @@ public:
         if(verb==wire::Verb::cancel_action) { action->outcome=O::action_cancelled; }
         else {
             O admission{};
-            if(!BindRecord(*engagement,command,live,invoker,admission)) { action->outcome=admission; }
+            if(!BindRecord(*engagement,command,live,invoker,admission)) {
+                action->outcome=admission; action->detail=engagement->detail;
+            }
             else if(!live || calling_) { action->outcome=live?O::pending:O::unavailable; }
             else {
                 const auto before=engagement->update;

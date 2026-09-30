@@ -9,7 +9,7 @@
 #include "vendor_menu_command_queue.h"
 #include "guard_upgrade_command_queue.h"
 #include "condemn_command_queue.h"
-#include "combat_command_queue.h"
+#include "combat_v2_command_queue.h"
 #include "native_owner_services.h"
 #include "guard_funding_command_queue.h"
 
@@ -148,7 +148,7 @@ struct Runtime {
     std::shared_ptr<vendor_menu::QueuedCommand> vendor_menu_pending;
     std::shared_ptr<guard_upgrade::QueuedCommand> guard_upgrade_pending;
     std::shared_ptr<condemn::QueuedCommand> condemn_pending;
-    std::shared_ptr<combat::QueuedCommand> combat_pending;
+    std::shared_ptr<combat::v2::QueuedCommand> combat_pending;
     std::shared_ptr<guard_funding::QueuedCommand> guard_funding_pending;
     void (*before_drain)() noexcept = nullptr;
     DWORD shutdown_wait_ms = 2000;
@@ -558,18 +558,13 @@ inline void RefreshCombatCapability(ClientActionChannelStorage& storage) noexcep
     // The owner-update service binds after the channel starts. Publish only its
     // current readiness; transport availability alone never promises execution.
     auto* flags = reinterpret_cast<volatile LONG*>(&storage.header.capability_flags);
+    InterlockedAnd(flags, ~static_cast<LONG>(1U << 3U)); // Retired v1 receiver is never advertised.
     if (NativeCombatReady()) { InterlockedOr(flags, static_cast<LONG>(kNativeCombatCapability)); }
     else { InterlockedAnd(flags, ~static_cast<LONG>(kNativeCombatCapability)); }
 }
-inline bool CombatReceiptMatches(const combat::wire::Command& command,
-    const combat::wire::Receipt& receipt) noexcept {
-    return combat::wire::Valid(receipt) && receipt.request == command.request
-        && !std::memcmp(&receipt.host, &command.host, sizeof(command.host))
-        && receipt.window == command.window && receipt.revision == command.revision
-        && !std::memcmp(&receipt.grant, &command.grant, sizeof(command.grant))
-        && !std::memcmp(receipt.local_key, command.local_key, sizeof(command.local_key))
-        && !std::memcmp(receipt.target_key, command.target_key, sizeof(command.target_key))
-        && receipt.binding_digest == command.binding_digest;
+inline bool CombatReceiptMatches(const combat::v2::wire::Command& command,
+    combat::v2::wire::Verb verb, const combat::v2::wire::Receipt& receipt) noexcept {
+    return combat::v2::wire::Correlated(command,verb,receipt);
 }
 inline DWORD FinishCombatPending(Runtime& runtime, ULONGLONG now) noexcept {
     const auto& pending = runtime.combat_pending;
@@ -577,16 +572,18 @@ inline DWORD FinishCombatPending(Runtime& runtime, ULONGLONG now) noexcept {
     if (now > pending->deadline) {
         unsigned queued = 0;
         if (pending->state.compare_exchange_strong(queued, 1)) {
-            combat::Complete(pending, combat::wire::Reply(pending->command, combat::wire::Outcome::stale));
+            combat::v2::Complete(pending, combat::v2::wire::Reply(pending->command, pending->verb, combat::v2::wire::Outcome::stale));
         }
     }
     if (pending->state.load(std::memory_order_acquire) != 2) { return ERROR_IO_PENDING; }
-    const bool correlated = CombatReceiptMatches(pending->command, pending->receipt);
+    const bool correlated = CombatReceiptMatches(pending->command, pending->verb, pending->receipt);
     movement::wire::Receipt wire_bytes{};
     static_assert(sizeof(wire_bytes) == sizeof(pending->receipt));
     if (correlated) { std::memcpy(&wire_bytes, &pending->receipt, sizeof(wire_bytes)); }
     char detail[73]{};
-    const auto detail_length = combat::FormatDiagnostic(correlated ? pending->diagnostic : combat::Diagnostic{}, detail);
+    if(correlated) { std::memcpy(detail,pending->diagnostic.data(),sizeof(detail)); }
+    detail[sizeof(detail)-1]=0;
+    const auto detail_length=std::strlen(detail);
     // SUBMITTED here means a correlated typed service reply, including pending,
     // uncertain, stale, and rejected outcomes. Only the wire outcome/flags prove
     // actual native outbound admission or completed local cancellation.
@@ -595,7 +592,7 @@ inline DWORD FinishCombatPending(Runtime& runtime, ULONGLONG now) noexcept {
         correlated ? ERROR_SUCCESS : ERROR_INVALID_DATA, detail, detail_length, now,
         correlated ? &wire_bytes : nullptr, pending->execution_thread)) { return ERROR_NOT_ENOUGH_QUOTA; }
     InterlockedExchange64(&runtime.storage->header.command_read_sequence, static_cast<LONG64>(pending->sequence));
-    combat::Release(pending); runtime.combat_pending.reset(); return ERROR_SUCCESS;
+    combat::v2::Release(pending); runtime.combat_pending.reset(); return ERROR_SUCCESS;
 }
 
 inline DWORD FinishCondemnPending(Runtime& runtime, ULONGLONG now) noexcept {
@@ -781,12 +778,12 @@ inline DWORD DrainCommands(
             return ERROR_RETRY;
         }
 
-        if (snapshot.kind >= 34U && snapshot.kind <= 36U) {
-            const auto verb = static_cast<combat::wire::Verb>(snapshot.kind);
-            combat::wire::Command payload{};
+        if (snapshot.kind >= 37U && snapshot.kind <= 42U) {
+            const auto verb = static_cast<combat::v2::wire::Verb>(snapshot.kind);
+            combat::v2::wire::Command payload{};
             static_assert(sizeof(payload) == sizeof(snapshot.movement));
             std::memcpy(&payload, &snapshot.movement, sizeof(payload));
-            combat::fence::Binding binding{};
+            combat::v2::wire::fence::Binding binding{};
             const bool valid = snapshot.command_id && snapshot.payload_version == kClientActionPayloadVersion
                 && snapshot.created_tick && snapshot.created_tick <= now && now <= snapshot.deadline_tick
                 && snapshot.deadline_tick - snapshot.created_tick <= 5000
@@ -794,18 +791,19 @@ inline DWORD DrainCommands(
                 && !snapshot.argument_length && !snapshot.power_identifier_length
                 && movement::wire::Zero(snapshot.argument, sizeof(snapshot.argument))
                 && movement::wire::Zero(snapshot.power_identifier, sizeof(snapshot.power_identifier))
-                && combat::wire::BindingFor(payload, storage.header.process_id,
+                && combat::v2::wire::Valid(payload.action,payload.power_id,verb)
+                && combat::v2::wire::BindingFor(payload, storage.header.process_id,
                     storage.header.process_creation_filetime_utc, binding);
-            const bool available = verb != combat::wire::Verb::start || NativeCombatReady();
+            const bool available = (verb != combat::v2::wire::Verb::bind && verb != combat::v2::wire::Verb::submit) || NativeCombatReady();
             if (valid && available && &storage == g_runtime.storage && g_runtime.backing) {
                 try {
                     auto lease = CaptureMovementLease(g_runtime.backing, payload.host, now);
                     if (lease) {
-                        auto command = std::make_shared<combat::QueuedCommand>();
+                        auto command = std::make_shared<combat::v2::QueuedCommand>();
                         command->id = snapshot.command_id; command->sequence = static_cast<std::uint64_t>(expected_sequence);
                         command->deadline = snapshot.deadline_tick; command->verb = verb;
                         command->command = payload; command->lease = std::move(lease);
-                        if (!combat::Queue(command)) { return ERROR_RETRY; }
+                        if (!combat::v2::Queue(command)) { return ERROR_RETRY; }
                         g_runtime.combat_pending = std::move(command); return ERROR_IO_PENDING;
                     }
                 } catch (...) { return ERROR_NOT_ENOUGH_MEMORY; }
@@ -1193,7 +1191,7 @@ inline void CloseRuntime() noexcept {
     if (runtime.vendor_menu_pending) { vendor_menu::Release(runtime.vendor_menu_pending); runtime.vendor_menu_pending.reset(); }
     if (runtime.guard_upgrade_pending) { guard_upgrade::Release(runtime.guard_upgrade_pending); runtime.guard_upgrade_pending.reset(); }
     if (runtime.condemn_pending) { condemn::Release(runtime.condemn_pending); runtime.condemn_pending.reset(); }
-    if (runtime.combat_pending) { combat::Release(runtime.combat_pending); runtime.combat_pending.reset(); }
+    if (runtime.combat_pending) { combat::v2::Release(runtime.combat_pending); runtime.combat_pending.reset(); }
     if (runtime.guard_funding_pending) { guard_funding::Release(runtime.guard_funding_pending); runtime.guard_funding_pending.reset(); }
     if (runtime.storage != nullptr) {
         UnmapViewOfFile(runtime.storage);
