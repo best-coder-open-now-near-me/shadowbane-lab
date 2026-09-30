@@ -8,6 +8,7 @@ from math import hypot, isfinite
 from typing import TYPE_CHECKING
 
 from shadowbane_lab.client_observation import (
+    NativeCharacterObservation,
     NativeCharacterPopulationObservation,
     NativeCombatEvent,
     NativePlayerActionObservation,
@@ -18,6 +19,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.travel.model import TravelDecision, TravelDestination
 
 if TYPE_CHECKING:
@@ -44,9 +46,11 @@ class PvEIntent(StrEnum):
 
 class PvEPhase(StrEnum):
     INITIALIZING = "initializing"
+    OBSERVING_ACTION = "observing_action"
     SEEKING = "seeking"
     OPENING = "opening"
     ENGAGED = "engaged"
+    DISENGAGING = "disengaging"
     POST_KILL = "post_kill"
     RECOVERING = "recovering"
     CAMP_IDLE = "camp_idle"
@@ -57,6 +61,88 @@ class PvEPhase(StrEnum):
 class PvEKillConfirmation(StrEnum):
     NATIVE_COMBAT_EVENT = "native_combat_event"
     NATIVE_HEALTH_ZERO = "native_health_zero"
+
+
+@dataclass(frozen=True, slots=True)
+class PvETrackedTarget:
+    """A retained object binding; selection is a separate input channel."""
+
+    token: str
+    object_key: NativeObjectKey
+    character: NativeCharacterObservation | None
+
+    def __post_init__(self) -> None:
+        if (not self.token or not isinstance(self.object_key, NativeObjectKey)
+                or self.object_key.is_null):
+            raise ValueError("tracked target requires an exact token and object key")
+        if self.character is not None and (
+            self.character.token != self.token or self.character.object_key != self.object_key
+        ):
+            raise ValueError("tracked character must match both retained identity fields")
+
+    @property
+    def available(self) -> bool:
+        return self.character is not None
+
+    def planar_distance(self, observation: PvEObservation) -> float | None:
+        player = observation.player_position
+        if self.character is None or player is None:
+            return None
+        return hypot(self.character.lt - player.lt, self.character.lg - player.lg)
+
+    def as_dict(self) -> dict[str, object]:
+        character = self.character
+        return {
+            "token": self.token,
+            "object_key": [self.object_key.object_type, self.object_key.object_uuid],
+            "available": self.available,
+            "current_health": None if character is None else character.current_health,
+            "maximum_health": None if character is None else character.maximum_health,
+            "lt": None if character is None else character.lt,
+            "lg": None if character is None else character.lg,
+            "altitude": None if character is None else character.altitude,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class PvECombatCleanupRequest:
+    sequence: int
+    target_token: str
+    object_key: NativeObjectKey
+    reason: str
+
+    def __post_init__(self) -> None:
+        _non_negative_integer(self.sequence, "cleanup sequence")
+        if not self.target_token or not self.reason:
+            raise ValueError("cleanup requires retained target and reason")
+        if not isinstance(self.object_key, NativeObjectKey) or self.object_key.is_null:
+            raise ValueError("cleanup requires retained object key")
+
+    def as_dict(self) -> dict[str, object]:
+        return {"sequence": self.sequence, "target_token": self.target_token,
+                "object_key": [self.object_key.object_type, self.object_key.object_uuid],
+                "reason": self.reason}
+
+
+@dataclass(frozen=True, slots=True)
+class PvECombatCleanupResult:
+    request: PvECombatCleanupRequest
+    confirmed: bool
+    request_key: str | None = None
+    error: str | None = None
+
+    def __post_init__(self) -> None:
+        if (not isinstance(self.request, PvECombatCleanupRequest)
+                or type(self.confirmed) is not bool):
+            raise ValueError("invalid cleanup result")
+        if self.confirmed and (not self.request_key or self.error is not None):
+            raise ValueError("confirmed cleanup requires correlated native acknowledgment")
+        if not self.confirmed and not self.error:
+            raise ValueError("unconfirmed cleanup requires a diagnostic")
+
+    def as_dict(self) -> dict[str, object]:
+        return {**self.request.as_dict(), "confirmed": self.confirmed,
+                "request_key": self.request_key, "error": self.error}
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +234,7 @@ class PvEControllerConfig:
     interrupt_cooldown_ms: int = 0
     maximum_interrupts_per_target: int = 0
     automatic_attack_expected: bool = False
-    automatic_target_requires_combat_event: bool = False
+    automatic_target_requires_active_action: bool = False
     require_target_identity: bool = False
     use_native_population: bool = False
     melee_approach_radius: float = 20.0
@@ -243,8 +329,8 @@ class PvEControllerConfig:
             (self.accept_automatic_targets, "accept_automatic_targets"),
             (self.automatic_attack_expected, "automatic_attack_expected"),
             (
-                self.automatic_target_requires_combat_event,
-                "automatic_target_requires_combat_event",
+                self.automatic_target_requires_active_action,
+                "automatic_target_requires_active_action",
             ),
             (self.require_target_identity, "require_target_identity"),
             (self.use_native_population, "use_native_population"),
@@ -395,6 +481,15 @@ class PvEObservation:
             NativePlayerActionObservation,
         ):
             raise ValueError("player_action must be NativePlayerActionObservation")
+        if self.player_action is not None:
+            expected_selected = (self.population.selected_target_token
+                                 if self.population is not None else self.target.target_token)
+            if ((self.population is not None or self.target.target_present)
+                    and self.player_action.selected_target_token != expected_selected):
+                raise ValueError("native population/health and player action disagree on selection")
+            if (self.population is not None and self.player_action.action_target_token
+                    != self.population.player_action_target_token):
+                raise ValueError("population and player action resolved different action targets")
         if self.target_identity is not None:
             if not isinstance(self.target_identity, NativeTargetIdentityObservation):
                 raise ValueError("target_identity must be NativeTargetIdentityObservation")
@@ -480,6 +575,9 @@ class PvEControllerDecision:
     terminal_reason: str | None = None
     kill_confirmation: PvEKillConfirmation | None = None
     acquisition_target_token: str | None = None
+    cleanup_request: PvECombatCleanupRequest | None = None
+    tracked_target: PvETrackedTarget | None = None
+    native_action_pending: bool = False
 
     def __post_init__(self) -> None:
         _non_negative_integer(self.decision_id, "decision_id")
@@ -518,6 +616,12 @@ class PvEControllerDecision:
             raise ValueError("acquisition_target_token must be non-empty when present")
         if self.acquisition_target_token is not None and self.phase is not PvEPhase.SEEKING:
             raise ValueError("acquisition_target_token is valid only while seeking")
+        if self.native_action_pending and (self.intent is not None or self.reposition_requested):
+            raise ValueError("uncompleted native action cannot dispatch conflicting input")
+        if self.cleanup_request is not None and (
+            self.intent is not None or self.reposition_requested or self.return_to_camp
+        ):
+            raise ValueError("pending cleanup cannot dispatch input or movement")
         terminal = self.phase in (PvEPhase.COMPLETE, PvEPhase.STOPPED)
         if terminal != (self.terminal_reason is not None):
             raise ValueError("terminal phases require exactly one terminal reason")
@@ -570,6 +674,7 @@ class PvERunTraceStep:
     population_player_action_target_token: str | None = None
     population_scan_generation: int | None = None
     listed_combat: ListedCombatUpdate | None = None
+    combat_cleanup: PvECombatCleanupResult | None = None
 
     def __post_init__(self) -> None:
         if self.movement_arrival_confirmed is not None:
@@ -658,6 +763,13 @@ class PvERunTraceStep:
                 if self.decision.kill_confirmation is None
                 else self.decision.kill_confirmation.value
             ),
+            "tracked_target": (None if self.decision.tracked_target is None
+                               else self.decision.tracked_target.as_dict()),
+            "combat_cleanup": (None if self.combat_cleanup is None
+                               else self.combat_cleanup.as_dict()),
+            "native_action_pending": self.decision.native_action_pending,
+            "cleanup_request": (None if self.decision.cleanup_request is None
+                                else self.decision.cleanup_request.as_dict()),
             "intent": None if self.decision.intent is None else self.decision.intent.value,
             "acquisition_target_token": self.decision.acquisition_target_token,
             "reposition_requested": self.decision.reposition_requested,
@@ -739,12 +851,17 @@ class PvERunTraceStep:
                     else {
                         "phase": self.player_action.phase.value,
                         "targeting_selected": self.player_action.targeting_selected,
+                        "selected_target_token": self.player_action.selected_target_token,
+                        "action_target_token": self.player_action.action_target_token,
                         "motion_id": self.player_action.motion_id,
                         "action_pending": self.player_action.action_pending,
                         "impact_frame": self.player_action.impact_frame,
                         "action_sequence": self.player_action.action_sequence,
                         "motion_sequence": self.player_action.motion_sequence,
                         "action_active": self.player_action.action_active,
+                        "mode": self.player_action.mode,
+                        "action_state": self.player_action.action_state,
+                        "native_action_idle": self.player_action.native_action_idle,
                     }
                 ),
             },

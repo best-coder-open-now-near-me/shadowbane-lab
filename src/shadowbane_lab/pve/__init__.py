@@ -65,8 +65,6 @@ from shadowbane_lab.pve.model import (
 from shadowbane_lab.pve.native_actuator import NativeExtensionPvEIntentDispatcher
 from shadowbane_lab.pve.runtime import (
     ClientPvEIntentDispatcher,
-    CombatLogSource,
-    EmptyCombatLogSource,
     PlayerPositionSource,
     PlayerVitalsSource,
     PvEIntentDispatcher,
@@ -84,8 +82,6 @@ from shadowbane_lab.pve.target_authority import (
 
 __all__ = [
     "ClientPvEIntentDispatcher",
-    "CombatLogSource",
-    "EmptyCombatLogSource",
     "NativeExtensionPvEIntentDispatcher",
     "NativePartyAuthoritySnapshotReadError",
     "NativePartyAuthoritySnapshotReader",

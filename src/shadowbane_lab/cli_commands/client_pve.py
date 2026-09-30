@@ -30,10 +30,7 @@ from shadowbane_lab.client_input.character_config import open_active_character_c
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationError,
     NativeCharacterPopulationProfileLoadError,
-    NativeCombatLogReader,
     NativeHealthProfileLoadError,
-    NativeMessageHudError,
-    NativeMessageHudProfileLoadError,
     NativePlayerPositionError,
     NativePlayerVitalsError,
     NativePositionProfileLoadError,
@@ -47,7 +44,6 @@ from shadowbane_lab.client_observation import (
     NativeVitalsProfileLoadError,
     load_bundled_native_character_population_profile,
     load_bundled_native_health_profile,
-    load_bundled_native_message_hud_profile,
     load_bundled_native_position_profile,
     load_bundled_native_target_action_profile,
     load_bundled_native_target_identity_profile,
@@ -56,7 +52,6 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_zone_profile,
     load_native_character_population_profile,
     load_native_health_profile,
-    load_native_message_hud_profile,
     load_native_position_profile,
     load_native_target_action_profile,
     load_native_target_identity_profile,
@@ -64,7 +59,6 @@ from shadowbane_lab.client_observation import (
     load_native_vitals_profile,
     open_windows_native_character_population_reader,
     open_windows_native_current_zone_reader,
-    open_windows_native_message_hud_reader,
     open_windows_native_player_position_reader,
     open_windows_native_player_vitals_reader,
     open_windows_native_target_action_reader,
@@ -81,7 +75,6 @@ from shadowbane_lab.navigation_inspector.session import (
 from shadowbane_lab.pve import (
     PVE_TRACE_SCHEMA_VERSION,
     ClientPvEIntentDispatcher,
-    EmptyCombatLogSource,
     PvEApproachController,
     PvECombatCalibrationError,
     PvEController,
@@ -99,6 +92,8 @@ from shadowbane_lab.pve.attack_list import (
     AttackListStore,
     default_attack_list_root,
 )
+from shadowbane_lab.pve.combat_cleanup import NativePvECombatCleanup
+from shadowbane_lab.pve.input_guard import NativePvEInputGuard
 from shadowbane_lab.pve.listed_combat import ListedCombatCoordinator
 from shadowbane_lab.travel import (
     SparseNavigationMap,
@@ -198,14 +193,13 @@ def _run_pve(
         return _error("poll-ms must be in [50, 1000]", as_json=as_json)
     if policy not in ("basic", "proc-assassin"):
         return _error("policy must be basic or proc-assassin", as_json=as_json)
-    resolved_combat_source = combat_source or ("log" if combat_log_path is not None else "hud")
-    if resolved_combat_source not in ("state", "hud", "log"):
-        return _error("combat-source must be state, hud, or log", as_json=as_json)
-    if resolved_combat_source == "log":
-        if combat_log_path is None:
-            return _error("combat-source log requires --combat-log", as_json=as_json)
-        if not combat_log_path.is_file():
-            return _error(f"combat log does not exist: {combat_log_path}", as_json=as_json)
+    resolved_combat_source = combat_source or "state"
+    if (resolved_combat_source != "state" or combat_log_path is not None
+            or native_message_hud_profile_path is not None):
+        return _error(
+            "PvE uses native object state; HUD/log combat sources and their profile/path flags "
+            "have been removed. Use --combat-source state or omit it.", as_json=as_json,
+        )
     journal_path = (
         evidence_output_path.with_name(f"{evidence_output_path.stem}.events.jsonl")
         if continuous and evidence_output_path is not None
@@ -236,7 +230,7 @@ def _run_pve(
                 interrupt_cooldown_ms=2_000 if policy == "proc-assassin" else 0,
                 maximum_interrupts_per_target=1 if policy == "proc-assassin" else 0,
                 automatic_attack_expected=policy == "proc-assassin",
-                automatic_target_requires_combat_event=policy == "proc-assassin",
+                automatic_target_requires_active_action=policy == "proc-assassin",
                 require_target_identity=True,
                 use_native_population=True,
                 maximum_stalled_retargets=4 if policy == "proc-assassin" else 0,
@@ -265,13 +259,6 @@ def _run_pve(
             if native_health_profile_path is not None
             else load_bundled_native_health_profile()
         )
-        message_hud_profile = None
-        if resolved_combat_source == "hud":
-            message_hud_profile = (
-                load_native_message_hud_profile(native_message_hud_profile_path)
-                if native_message_hud_profile_path is not None
-                else load_bundled_native_message_hud_profile()
-            )
         vitals_profile = (
             load_native_vitals_profile(native_vitals_profile_path)
             if native_vitals_profile_path is not None
@@ -320,8 +307,6 @@ def _run_pve(
             character_population_profile.executable_sha256,
             group_profile.executable_sha256,
         }
-        if message_hud_profile is not None:
-            native_profile_hashes.add(message_hud_profile.executable_sha256)
         if zone_profile is not None:
             native_profile_hashes.add(zone_profile.executable_sha256)
         if len(native_profile_hashes) != 1:
@@ -483,20 +468,6 @@ def _run_pve(
                         "water_sample_threshold": terrain_seed.water_sample_threshold,
                         "weighted_cells": len(terrain_seed.costs),
                     }
-            if resolved_combat_source == "state":
-                combat_reader = EmptyCombatLogSource()
-            elif message_hud_profile is None:
-                assert combat_log_path is not None
-                combat_reader = NativeCombatLogReader(combat_log_path, start_at_end=True)
-            else:
-                combat_reader = stack.enter_context(
-                    open_windows_native_message_hud_reader(
-                        message_hud_profile,
-                        process_id=process_id,
-                        start_at_end=True,
-                    )
-                )
-                combat_reader.attach()
             active_stop_signal = stop_signal
             if active_stop_signal is None:
                 active_stop_signal = stack.enter_context(WindowsHotkeyEmergencyStop())
@@ -510,8 +481,6 @@ def _run_pve(
                 population_reader.process_id,
                 group_reader.process_id,
             }
-            if message_hud_profile is not None:
-                reader_process_ids.add(combat_reader.process_id)
             if zone_reader is not None:
                 reader_process_ids.add(zone_reader.process_id)
             if len(reader_process_ids) != 1:
@@ -550,6 +519,15 @@ def _run_pve(
                     "learned blockers; "
                     "costs combine slope, water and uncertain object density",
                 )
+            input_guard = NativePvEInputGuard(
+                population_reader, target=lambda: controller.input_target,
+                cleanup_pending=lambda: controller.pending_cleanup is not None,
+            )
+
+            def require_pve_input_current() -> None:
+                character_session.require_current()
+                input_guard.require_current()
+
             # Preparation can be slow or change process-wide window behavior.
             # Revalidate the captured client before acquiring any authority.
             character_session.require_current()
@@ -562,6 +540,7 @@ def _run_pve(
                 combat_owner = native_operation
                 movement_dispatcher = native_operation.dispatcher
                 active_stop_signal = native_operation
+            combat_cleanup = NativePvECombatCleanup(combat_owner.session, combat_owner.grant)
             listed_combat = stack.enter_context(ListedCombatCoordinator(
                 store=attack_list,
                 session=combat_owner.session,
@@ -572,7 +551,7 @@ def _run_pve(
                 guard=guard,
                 backend=input_backend,
                 stop_signal=active_stop_signal,
-                input_precondition=character_session.require_current,
+                input_precondition=require_pve_input_current,
             )
             adapter = ClientInputAdapter(
                 DecisionInputCompiler(
@@ -593,7 +572,6 @@ def _run_pve(
                 population_reader=population_reader,
                 group_reader=group_reader,
                 party_group_id=f"client:{process_id}:party",
-                combat_log_reader=combat_reader,
                 dispatcher=ClientPvEIntentDispatcher(adapter),
                 approach_controller=PvEApproachController(
                     navigation_map=active_navigation_map,
@@ -601,6 +579,7 @@ def _run_pve(
                 ),
                 movement_dispatcher=movement_dispatcher,
                 listed_combat=listed_combat,
+                combat_cleanup=combat_cleanup,
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
                 maximum_retained_trace_steps=(retained_trace_steps if continuous else None),
@@ -621,9 +600,7 @@ def _run_pve(
         NativeHealthProfileLoadError,
         NativeCharacterPopulationError,
         NativeCharacterPopulationProfileLoadError,
-        NativeMessageHudError,
-        NativeMessageHudProfileLoadError,
-        NativePlayerVitalsError,
+                NativePlayerVitalsError,
         NativePlayerPositionError,
         NativePositionProfileLoadError,
         NativeTargetHealthError,
@@ -719,9 +696,6 @@ def _run_pve(
             "target_action_profile_id": target_action_profile.profile_id,
             "target_identity_profile_id": target_identity_profile.profile_id,
             "combat_source": resolved_combat_source,
-            "message_hud_profile_id": (
-                None if message_hud_profile is None else message_hud_profile.profile_id
-            ),
         },
         "terrain_navigation": terrain_navigation_payload,
         "character_config": character_config_payload,

@@ -20,7 +20,9 @@ The normal checkout is clean on main at that merge.
 
 Vendor Test now has source-stamped host 0.3.54 / native 1.8.34 from the exact
 PR #45 head, qualified by `artifacts/b34/1be8a982`. Client 1.3.38.12 and its
-prepared executable are unchanged. The update verified preservation, five
+prepared executable are unchanged. The [September 30 official data patch](client-update-20260930.md)
+updated Config.wpak and CObjects.cache in both client installations, verified
+9,557 preserved files and passed launch preflight without starting the game. The update verified preservation, five
 shortcuts, launch preflight, manager startup and the loaded DLL. Obsolete host
 0.3.53 and its two superseded guest payload binaries were verified and removed;
 no rollback copies were retained. Follow [the deployment receipt](bot-deployment-20260929.md)
@@ -40,11 +42,14 @@ Checkpoint `8cd2bd2` replaces the spatial query with the reviewed native exact-k
 registry resolver and adds original/prepared-client ABI qualification. The next
 checkpoint separates UI selection from the ongoing retained combat target and
 exports coherent selected/action tokens; object lifetime remains token plus key.
-Host object tracking, native cleanup before engagement transitions, and removal
-of HUD/log-message control authority are in progress in the same candidate.
-These changes are not installed or merged. Next: finish that coherent source
-slice, review and qualify the exact committed package, obtain PR #46 merge
-approval, then complete bounded attack/cancel/recovery acceptance. Other active
+The following host checkpoint replaces HUD/log-message control with exact object
+tracking, adopts existing native actions without a startup stop, distinguishes
+local action completion from projectile effects, and correlates required cleanup.
+The user requires direct native actions without selected-target hotkeys/hotbar
+mapping; the [native object-action plan](native-object-actions.md) records the
+remaining entry-ABI, legality and submission work. These changes are not installed
+or merged. Next: qualify that native action path before final packaging, obtain
+PR #46 merge approval, then complete bounded attack/cancel/recovery acceptance. Other active
 validation worktrees remain available.
 Automatic retaliation remains disabled pending an authoritative server
 character-session fence. Historical unrelated renderer/town branches and

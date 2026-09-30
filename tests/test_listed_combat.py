@@ -38,8 +38,10 @@ from shadowbane_lab.client_extension.movement_wire import (
 )
 from shadowbane_lab.client_input import EventEmergencyStop
 from shadowbane_lab.client_observation import (
+    NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetPositionObservation,
 )
@@ -92,6 +94,10 @@ def frame(now=0, *, dead=False, absent=False, party=False, lt=5, local=LOCAL):
         player_position=NativePlayerPositionObservation(0, 0, 0),
         target_position=NativeTargetPositionObservation(False),
         population=population, authority_snapshot=authority,
+        player_action=NativePlayerActionObservation(
+            NativeTargetActionPhase.IDLE, False, 0, False, None, 0, 0, None, None,
+            mode=1, action_state=1,
+        ),
     )
 
 
@@ -333,15 +339,14 @@ def run_public(
         def observe(self):
             return getattr(observed(), self.field)
 
+        def observe_player(self):
+            return self.observe()
+
     class GroupReader:
         process_id = encounter.command.binding.client_pid
 
         def observe(self):
             return NativeGroupObservation(False, False, ())
-
-    class Logs:
-        def read_new_entries(self):
-            return ()
 
     class Dispatcher:
         def dispatch(self, intent, *, sequence):
@@ -366,9 +371,10 @@ def run_public(
             minimum_recovery_stamina_fraction=0.9,
         )),
         health_reader=Reader("target"), player_vitals_reader=Reader("player"),
+        player_action_reader=Reader("player_action"),
         player_position_reader=Reader("player_position"),
         target_position_reader=Reader("target_position"), population_reader=Reader("population"),
-        group_reader=GroupReader(), party_group_id="party", combat_log_reader=Logs(),
+        group_reader=GroupReader(), party_group_id="party",
         dispatcher=Dispatcher(), stop_signal=stop, listed_combat=encounter.coordinator,
         clock=lambda: state.now, sleeper=sleep,
         trace_sink=trace_sink,

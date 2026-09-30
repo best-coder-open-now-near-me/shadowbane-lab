@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from math import isfinite
+from math import hypot, isfinite
 
 from shadowbane_lab.navigation_inspector.events import MotionEvent, emit, measured_position
-from shadowbane_lab.pve.model import PvECampLease, PvEObservation, PvEPhase
+from shadowbane_lab.pve.model import PvECampLease, PvEObservation, PvEPhase, PvETrackedTarget
 from shadowbane_lab.travel import (
     AStarRouteNotFound,
     SparseNavigationMap,
@@ -151,6 +151,7 @@ class PvEApproachController:
         reposition_requested: bool = False,
         camp: PvECampLease | None = None,
         return_to_camp: bool = False,
+        tracked_target: PvETrackedTarget | None = None,
     ) -> PvEApproachUpdate:
         if not isinstance(observation, PvEObservation):
             raise ValueError("observation must be PvEObservation")
@@ -162,28 +163,48 @@ class PvEApproachController:
             raise ValueError("camp must be PvECampLease when present")
         if not isinstance(return_to_camp, bool):
             raise ValueError("return_to_camp must be boolean")
+        if tracked_target is not None and not isinstance(tracked_target, PvETrackedTarget):
+            raise ValueError("tracked_target must be PvETrackedTarget when present")
         if return_to_camp:
             if phase not in (PvEPhase.CAMP_IDLE, PvEPhase.RECOVERING) or camp is None:
                 raise ValueError("camp return requires camp-idle/recovery and a camp lease")
             return self._return_to_camp(observation, camp)
         if phase not in (PvEPhase.OPENING, PvEPhase.ENGAGED):
             return self.cancel("combat_phase_changed")
-        if (
-            not observation.target.target_present
-            or observation.target.target_token is None
-            or observation.player_position is None
-            or observation.target_position is None
-            or not observation.target_position.target_present
-        ):
-            return self.cancel("target_position_unavailable")
-
-        target_token = observation.target.target_token
-        distance = observation.target_planar_distance
-        assert distance is not None
+        if tracked_target is not None:
+            character = tracked_target.character
+            if (
+                character is None
+                or not character.alive
+                or observation.player_position is None
+                or observation.population is None
+                or character not in observation.population.characters
+            ):
+                return self.cancel("tracked_target_position_unavailable")
+            # Route lifetime includes the object key: a reused address is a different target.
+            target_token = f"{tracked_target.token}:{tracked_target.object_key.canonical_token}"
+            target_lt, target_lg = character.lt, character.lg
+            distance = hypot(
+                target_lt - observation.player_position.lt,
+                target_lg - observation.player_position.lg,
+            )
+        else:
+            if (
+                not observation.target.target_present
+                or observation.target.target_token is None
+                or observation.player_position is None
+                or observation.target_position is None
+                or not observation.target_position.target_present
+            ):
+                return self.cancel("target_position_unavailable")
+            target_token = observation.target.target_token
+            target_lt, target_lg = observation.target_position.lt, observation.target_position.lg
+            distance = observation.target_planar_distance
+            assert target_lt is not None and target_lg is not None and distance is not None
         self._last_travel_observation = self._travel_observation(observation)
         if self._target_token != target_token:
             if self._travel is not None and not self._travel.terminal:
-                return self.cancel("selected_target_changed")
+                return self.cancel("approach_target_changed")
             self._begin_target(target_token, distance, observation.now_ms)
 
         if reposition_requested and distance > self._config.reposition_arrival_radius:
@@ -199,7 +220,7 @@ class PvEApproachController:
             if self._forced_reposition
             else self._config.arrival_radius
         )
-        destination = self._destination(observation, arrival_radius=arrival_radius)
+        destination = TravelDestination(lt=target_lt, lg=target_lg, arrival_radius=arrival_radius)
         self._debug_event("observation", observation, destination)
         if self._forced_reposition:
             self._debug_event("reposition", observation, destination)
@@ -400,7 +421,11 @@ class PvEApproachController:
             return
         try:
             if event in (
-                "native_chase", "camp_return", "reposition", "arrival_candidate", "failure"
+                "native_chase",
+                "camp_return",
+                "reposition",
+                "arrival_candidate",
+                "failure",
             ):
                 key = (event, reason, self._target_token)
                 if key == self._debug_phase:
@@ -426,9 +451,7 @@ class PvEApproachController:
                     event,
                     f"pve:{self._target_token or 'none'}",
                     now,
-                    position=None
-                    if position is None
-                    else measured_position(position),
+                    position=None if position is None else measured_position(position),
                     destination=None
                     if destination is None
                     else (destination.lt, destination.lg, destination.arrival_radius),
@@ -484,21 +507,6 @@ class PvEApproachController:
             ),
             self._config.travel,
             observer=self._planner.observer,
-        )
-
-    def _destination(
-        self,
-        observation: PvEObservation,
-        *,
-        arrival_radius: float,
-    ) -> TravelDestination:
-        assert observation.target_position is not None
-        assert observation.target_position.lt is not None
-        assert observation.target_position.lg is not None
-        return TravelDestination(
-            lt=observation.target_position.lt,
-            lg=observation.target_position.lg,
-            arrival_radius=arrival_radius,
         )
 
     @staticmethod

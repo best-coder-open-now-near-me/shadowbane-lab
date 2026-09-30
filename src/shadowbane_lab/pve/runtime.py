@@ -11,8 +11,6 @@ from typing import Protocol, runtime_checkable
 from shadowbane_lab.client_input import ClientInputAdapter, StopSignal
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationObservation,
-    NativeCombatEventParser,
-    NativeCombatLogEntry,
     NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
@@ -28,12 +26,14 @@ from shadowbane_lab.pve.approach import (
     PvEApproachStatus,
     PvEApproachUpdate,
 )
+from shadowbane_lab.pve.combat_cleanup import PvECombatCleanup
 from shadowbane_lab.pve.controller import PvEController
 from shadowbane_lab.pve.listed_combat import (
     ListedCombatCoordinator,
     ListedCombatInterruptionError,
 )
 from shadowbane_lab.pve.model import (
+    PvECombatCleanupResult,
     PvEIntent,
     PvEObservation,
     PvEPhase,
@@ -89,18 +89,6 @@ class CharacterPopulationSource(Protocol):
     def observe(self) -> NativeCharacterPopulationObservation: ...
 
 
-@runtime_checkable
-class CombatLogSource(Protocol):
-    def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]: ...
-
-
-class EmptyCombatLogSource:
-    """Supplies no text events when native state is the combat authority."""
-
-    def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]:
-        return ()
-
-
 class ClientPvEIntentDispatcher:
     """Wraps PvE intents in the shared semantic decision contract."""
 
@@ -147,11 +135,11 @@ class PvERunner:
         player_action_reader: PlayerActionSource | None = None,
         target_identity_reader: TargetIdentitySource | None = None,
         population_reader: CharacterPopulationSource | None = None,
-        combat_log_reader: CombatLogSource,
         dispatcher: PvEIntentDispatcher,
         approach_controller: PvEApproachController | None = None,
         movement_dispatcher: TravelDecisionDispatcher | None = None,
         listed_combat: ListedCombatCoordinator | None = None,
+        combat_cleanup: PvECombatCleanup | None = None,
         stop_signal: StopSignal,
         poll_interval_ms: int = 100,
         maximum_consecutive_observation_failures: int = 3,
@@ -182,6 +170,8 @@ class PvERunner:
             raise ValueError("target_action_reader must implement TargetActionSource")
         if controller.requires_target_action and target_action_reader is None:
             raise ValueError("configured interrupt policy requires a target action reader")
+        if player_action_reader is None:
+            raise ValueError("native PvE requires a player action reader")
         if player_action_reader is not None and not isinstance(
             player_action_reader,
             PlayerActionSource,
@@ -200,8 +190,6 @@ class PvERunner:
             raise ValueError("population_reader must implement CharacterPopulationSource")
         if controller.requires_population and population_reader is None:
             raise ValueError("configured target policy requires a population reader")
-        if not isinstance(combat_log_reader, CombatLogSource):
-            raise ValueError("combat_log_reader must implement CombatLogSource")
         if not isinstance(dispatcher, PvEIntentDispatcher):
             raise ValueError("dispatcher must implement PvEIntentDispatcher")
         if (approach_controller is None) != (movement_dispatcher is None):
@@ -251,7 +239,9 @@ class PvERunner:
         self._player_action_reader = player_action_reader
         self._target_identity_reader = target_identity_reader
         self._population_reader = population_reader
-        self._combat_log_reader = combat_log_reader
+        self._combat_cleanup = combat_cleanup
+        self._cleanup_failed = False
+        self._cleanup_result: PvECombatCleanupResult | None = None
         self._dispatcher = dispatcher
         self._approach_controller = approach_controller
         self._movement_dispatcher = movement_dispatcher
@@ -263,7 +253,6 @@ class PvERunner:
         self._trace_sink = trace_sink
         self._clock = clock
         self._sleeper = sleeper
-        self._parser = NativeCombatEventParser()
 
     def run(self) -> PvERunResult:
         try:
@@ -275,6 +264,31 @@ class PvERunner:
                 self._listed_combat.finish("pve_run_unwound")
                 if self._listed_combat.active:
                     raise RuntimeError("listed combat cleanup remains unconfirmed")
+            request = self._controller.request_final_cleanup()
+            if request is not None and not self._cleanup_failed:
+                result = self._perform_cleanup(request)
+                if not result.confirmed:
+                    raise RuntimeError(f"combat cleanup unconfirmed: {result.error}")
+
+    def _perform_cleanup(self, request) -> PvECombatCleanupResult:
+        if self._cleanup_result is not None and self._cleanup_result.request == request:
+            return self._cleanup_result
+        try:
+            if self._combat_cleanup is None:
+                raise RuntimeError("ordinary combat cleanup boundary is unavailable")
+            result = self._combat_cleanup.cleanup(request)
+            if not isinstance(result, PvECombatCleanupResult) or result.request != request:
+                raise RuntimeError("combat cleanup result does not match pending request")
+        except Exception as exc:
+            result = PvECombatCleanupResult(request, False, error=(
+                f"{type(exc).__name__}:" + " ".join(str(exc).split())[:160]
+            ))
+        self._cleanup_result = result
+        if result.confirmed:
+            self._controller.acknowledge_cleanup(result)
+        else:
+            self._cleanup_failed = True
+        return result
 
     def _run(self) -> PvERunResult:
         trace: list[PvERunTraceStep] | deque[PvERunTraceStep]
@@ -352,15 +366,10 @@ class PvERunner:
                     if target_identity is not None and target_identity.target_present:
                         target_identity = NativeTargetIdentityObservation(target_present=False)
                 player = self._player_vitals_reader.observe()
-                events = tuple(
-                    self._parser.parse(entry)
-                    for entry in self._combat_log_reader.read_new_entries()
-                )
                 observation = self._build_observation(
                     now_ms=now_ms,
                     target=target,
                     player=player,
-                    combat_events=events,
                     player_position=player_position,
                     target_position=target_position,
                     target_action=target_action,
@@ -397,12 +406,29 @@ class PvERunner:
                     self._sleeper(self._poll_interval_seconds)
                     continue
                 decision = self._controller.step(observation)
+                if decision.cleanup_request is not None:
+                    update = self._perform_cleanup(decision.cleanup_request)
+                    record(replace(self._trace(decision, observation=observation),
+                                   combat_cleanup=update))
+                    if not update.confirmed:
+                        terminal = (decision if decision.terminal else self._controller.stop(
+                            "combat_cleanup_unconfirmed", now_ms=now_ms))
+                        break
+                    if decision.terminal:
+                        terminal = decision
+                        break
+                    arrival_pending = arrival_approach = None
+                    if self._approach_controller is not None:
+                        self._approach_controller.cancel("combat_cleanup_confirmed")
+                    self._sleeper(self._poll_interval_seconds)
+                    continue
                 approach = (
                     None
-                    if self._approach_controller is None
+                    if self._approach_controller is None or decision.native_action_pending
                     else self._approach_controller.step(
                         observation,
                         phase=decision.phase,
+                        tracked_target=self._controller.tracked_target(observation),
                         reposition_requested=decision.reposition_requested,
                         camp=decision.camp,
                         return_to_camp=decision.return_to_camp,
@@ -565,6 +591,14 @@ class PvERunner:
                     terminal_reason,
                 )
                 record(self._trace(recovery, observation=observation))
+                if recovery.cleanup_request is not None:
+                    update = self._perform_cleanup(recovery.cleanup_request)
+                    record(replace(self._trace(recovery, observation=observation),
+                                   combat_cleanup=update))
+                    if not update.confirmed:
+                        terminal = (recovery if recovery.terminal else self._controller.stop(
+                            "combat_cleanup_unconfirmed", now_ms=now_ms))
+                        break
                 if recovery.terminal:
                     terminal = recovery
                     break
@@ -635,6 +669,13 @@ class PvERunner:
             if update.terminal_reason is not None:
                 final_phase = PvEPhase.STOPPED
                 terminal_reason = update.terminal_reason
+        request = self._controller.request_final_cleanup()
+        if request is not None:
+            update = self._perform_cleanup(request)
+            record(replace(self._trace(terminal, observation=last_observation),
+                           combat_cleanup=update))
+            if not update.confirmed:
+                final_phase, terminal_reason = PvEPhase.STOPPED, "combat_cleanup_unconfirmed"
         if self._approach_controller is not None:
             cleanup = self._approach_controller.cancel("pve_run_terminal")
             cleanup_decision = cleanup.decision

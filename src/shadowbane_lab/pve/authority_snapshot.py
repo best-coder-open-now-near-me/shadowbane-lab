@@ -24,7 +24,7 @@ from shadowbane_lab.pve.authority import (
     PvETargetCharacterKind,
     evaluate_pve_target_authority,
 )
-from shadowbane_lab.pve.model import PvEObservation
+from shadowbane_lab.pve.model import PvEObservation, PvETrackedTarget
 from shadowbane_lab.sim.affiliations import (
     AffiliationSnapshot,
     DefaultRelationPolicy,
@@ -379,16 +379,36 @@ class SnapshotPvETargetAuthorityEvaluator:
     def evaluate(self, observation: PvEObservation) -> PvETargetAuthorityDecision:
         if not isinstance(observation, PvEObservation):
             raise ValueError("observation must be PvEObservation")
-        target_token = observation.target.target_token
-        if target_token is None:
-            return evaluate_pve_target_authority(observation, None)
-        character = self._snapshot.character_for_token(target_token)
-        if character is None:
-            return evaluate_pve_target_authority(observation, None)
+        return self._evaluate(observation, None)
 
-        actor_id = self._snapshot.identities.entity_id_for(
-            self._snapshot.local_player_object_key
+    def evaluate_tracked(
+        self,
+        observation: PvEObservation,
+        tracked_target: PvETrackedTarget,
+    ) -> PvETargetAuthorityDecision:
+        if not isinstance(tracked_target, PvETrackedTarget):
+            raise ValueError("tracked_target must be PvETrackedTarget")
+        return self._evaluate(observation, tracked_target)
+
+    def _evaluate(
+        self,
+        observation: PvEObservation,
+        tracked_target: PvETrackedTarget | None,
+    ) -> PvETargetAuthorityDecision:
+        if not isinstance(observation, PvEObservation):
+            raise ValueError("observation must be PvEObservation")
+        target_token = (
+            observation.target.target_token if tracked_target is None else tracked_target.token
         )
+        if target_token is None:
+            return evaluate_pve_target_authority(observation, None, tracked_target=tracked_target)
+        character = self._snapshot.character_for_token(target_token)
+        if character is None or (
+            tracked_target is not None and character.object_key != tracked_target.object_key
+        ):
+            return evaluate_pve_target_authority(observation, None, tracked_target=tracked_target)
+
+        actor_id = self._snapshot.identities.entity_id_for(self._snapshot.local_player_object_key)
         target_id = self._snapshot.identities.entity_id_for(character.object_key)
         relation = None
         same_party = None
@@ -428,4 +448,4 @@ class SnapshotPvETargetAuthorityEvaluator:
             attackable=character.attackable,
             evidence_sources=tuple(dict.fromkeys(sources)),
         )
-        return evaluate_pve_target_authority(observation, evidence)
+        return evaluate_pve_target_authority(observation, evidence, tracked_target=tracked_target)

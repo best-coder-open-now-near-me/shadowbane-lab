@@ -4,7 +4,7 @@ import unittest
 from contextlib import redirect_stdout
 from dataclasses import replace
 
-from shadowbane_lab.pve import PvEIntent, PvEPhase
+from shadowbane_lab.pve import PvEIntent, PvEKillConfirmation, PvEPhase
 from shadowbane_lab.rollouts import (
     NearbyMobSimulationConfig,
     frost_walker_observed_config,
@@ -22,6 +22,10 @@ class NearbyMobRolloutTests(unittest.TestCase):
         self.assertEqual(PvEPhase.COMPLETE, result.final_phase)
         self.assertEqual("kill_limit_reached", result.terminal_reason)
         self.assertEqual(1, result.kills)
+        terminal = result.controller_trace[-1]
+        self.assertEqual(PvEKillConfirmation.NATIVE_HEALTH_ZERO, terminal.kill_confirmation)
+        self.assertIsNotNone(terminal.cleanup_request)
+        self.assertEqual("simulation:selected-mob:1", terminal.cleanup_request.target_token)
         self.assertEqual(0.0, result.target_final_health)
         self.assertEqual(config.player_current_health, result.player_final_health)
         self.assertEqual(744.0, result.experience_observed)

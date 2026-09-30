@@ -8,8 +8,6 @@ from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_input import StopSignal
 from shadowbane_lab.client_observation import (
-    NativeCombatEventParser,
-    NativeCombatLogEntry,
     NativeTargetActionObservation,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
@@ -30,7 +28,6 @@ from shadowbane_lab.pve.controller import PvEController as _BasePvEController
 from shadowbane_lab.pve.model import PvEObservation
 from shadowbane_lab.pve.runtime import (
     CharacterPopulationSource,
-    CombatLogSource,
     PlayerActionSource,
     PlayerPositionSource,
     PlayerVitalsSource,
@@ -77,7 +74,6 @@ class NativePvEObservationSource:
         *,
         health_reader: TargetHealthSource,
         player_vitals_reader: PlayerVitalsSource,
-        combat_log_reader: CombatLogSource,
         player_position_reader: PlayerPositionSource | None = None,
         target_position_reader: TargetPositionSource | None = None,
         target_action_reader: TargetActionSource | None = None,
@@ -91,8 +87,6 @@ class NativePvEObservationSource:
             raise ValueError("health_reader must implement TargetHealthSource")
         if not isinstance(player_vitals_reader, PlayerVitalsSource):
             raise ValueError("player_vitals_reader must implement PlayerVitalsSource")
-        if not isinstance(combat_log_reader, CombatLogSource):
-            raise ValueError("combat_log_reader must implement CombatLogSource")
         if (player_position_reader is None) != (target_position_reader is None):
             raise ValueError("player and target position readers must be provided together")
         if player_position_reader is not None and not isinstance(
@@ -145,7 +139,6 @@ class NativePvEObservationSource:
                 player_action_reader,
                 target_identity_reader,
                 population_reader,
-                combat_log_reader,
             )
             if (process_id := self._process_id(reader)) is not None
         }
@@ -164,8 +157,6 @@ class NativePvEObservationSource:
         self._party_group_id = party_group_id
         self._authority_revision = 0
         self._authority_process_id = self._process_id(group_reader)
-        self._combat_log_reader = combat_log_reader
-        self._parser = NativeCombatEventParser()
         self._selection_boundary_enabled = self._process_id(health_reader) is not None
 
     @property
@@ -268,15 +259,9 @@ class NativePvEObservationSource:
                 raise PvEObservationCoherenceError(message) from exc
             raise
 
-        events = tuple(
-            self._parser.parse(entry)
-            for entry in self._combat_log_reader.read_new_entries()
-        )
         if authority_snapshot is not None:
             self._authority_revision = authority_snapshot.revision
-        if not events:
-            return observation
-        return replace(observation, combat_events=events)
+        return observation
 
     def _observe_target_identity(
         self,
@@ -368,24 +353,9 @@ class _ObservationFrameBridge:
             raise RuntimeError("PvE observation frame was requested before target health")
         return self._frame
 
-    def take_combat_entries(self) -> tuple[NativeCombatLogEntry, ...]:
+    def complete_observation(self, **values) -> PvEObservation:
         frame = self.require_frame()
         self._frame = None
-        self._completed_frame = frame
-        return tuple(
-            NativeCombatLogEntry(
-                sequence=event.sequence,
-                timestamp=event.timestamp,
-                message=event.message,
-            )
-            for event in frame.combat_events
-        )
-
-    def complete_observation(self, **values) -> PvEObservation:
-        frame = self._completed_frame
-        self._completed_frame = None
-        if frame is None:
-            raise PvEObservationCoherenceError("no completed native frame for observation")
         assembled = PvEObservation(**values)
         expected = replace(frame, now_ms=assembled.now_ms, authority_snapshot=None)
         if assembled != expected:
@@ -475,14 +445,6 @@ class _FrameCharacterPopulationSource:
         return value
 
 
-class _FrameCombatLogSource:
-    def __init__(self, bridge: _ObservationFrameBridge) -> None:
-        self._bridge = bridge
-
-    def read_new_entries(self) -> tuple[NativeCombatLogEntry, ...]:
-        return self._bridge.take_combat_entries()
-
-
 def _failure_reason(prefix: str, exc: Exception) -> str:
     message = " ".join(str(exc).split())
     detail = f":{message[:160]}" if message else ""
@@ -522,6 +484,15 @@ class _FailClosedController(_BasePvEController):
     @property
     def player_action_observation_active(self) -> bool:
         return self._delegate.player_action_observation_active
+
+    def tracked_target(self, observation: PvEObservation):
+        return self._delegate.tracked_target(observation)
+
+    def request_final_cleanup(self):
+        return self._delegate.request_final_cleanup()
+
+    def acknowledge_cleanup(self, result):
+        return self._delegate.acknowledge_cleanup(result)
 
     def candidate_camp(self, observation: PvEObservation):
         return self._delegate.candidate_camp(observation)
@@ -621,11 +592,11 @@ class PvERunner(_BasePvERunner):
         population_reader: CharacterPopulationSource | None = None,
         group_reader: NativeGroupSource | None = None,
         party_group_id: str | None = None,
-        combat_log_reader: CombatLogSource,
         dispatcher: PvEIntentDispatcher,
         approach_controller: PvEApproachController | None = None,
         movement_dispatcher: TravelDecisionDispatcher | None = None,
         listed_combat=None,
+        combat_cleanup=None,
         stop_signal: StopSignal,
         poll_interval_ms: int = 100,
         maximum_consecutive_observation_failures: int = 3,
@@ -647,7 +618,6 @@ class PvERunner(_BasePvERunner):
             population_reader=population_reader,
             group_reader=group_reader,
             party_group_id=party_group_id,
-            combat_log_reader=combat_log_reader,
         )
         bridge = _ObservationFrameBridge(source, controller)
         self._frame_bridge = bridge
@@ -691,11 +661,11 @@ class PvERunner(_BasePvERunner):
                 if population_reader is None
                 else _FrameCharacterPopulationSource(bridge)
             ),
-            combat_log_reader=_FrameCombatLogSource(bridge),
             dispatcher=dispatcher,
             approach_controller=guarded_approach,
             movement_dispatcher=movement_dispatcher,
             listed_combat=listed_combat,
+            combat_cleanup=combat_cleanup,
             stop_signal=stop_signal,
             poll_interval_ms=poll_interval_ms,
             maximum_consecutive_observation_failures=(

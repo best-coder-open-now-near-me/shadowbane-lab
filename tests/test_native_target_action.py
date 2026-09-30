@@ -34,6 +34,9 @@ def _profile() -> NativeTargetActionProfile:
         impact_frame_offset=0x9A8,
         action_pending_offset=0x9BC,
         target_of_target_pointer_offset=0xAF8,
+        actor_state_pointer_offset=0xAD0,
+        state_mode_offset=0x18,
+        state_action_offset=0x20,
         idle_motion_ids=(21,),
         observed_attack_motion_ids=(106, 107, 108),
         no_impact_frame_sentinel=-1,
@@ -69,6 +72,9 @@ class FakeProcessMemory:
         self.player_pending = False
         self.player_impact_frame = -1
         self.player_action_target = self.target
+        self.state_pointer = 0x12800000
+        self.mode = 1
+        self.action_state = 1
         self.selected_vtable = self.base_address + profile.arc_character_vtable_rva
         self.player_vtable = self.selected_vtable
         self.motion_vtable = self.base_address + profile.arc_motion_vtable_rva
@@ -100,6 +106,12 @@ class FakeProcessMemory:
             return struct.pack("<I", int(self.pending))
         if address == self.selected + self.profile.target_of_target_pointer_offset:
             return struct.pack("<I", self.target_of_target)
+        if address == self.player + self.profile.actor_state_pointer_offset:
+            return struct.pack("<I", self.state_pointer)
+        if address == self.state_pointer + self.profile.state_mode_offset:
+            return struct.pack("<I", self.mode)
+        if address == self.state_pointer + self.profile.state_action_offset:
+            return struct.pack("<I", self.action_state)
         if address == self.player + self.profile.current_motion_pointer_offset:
             if size != 8:
                 raise AssertionError(f"unexpected player motion read size {size}")
@@ -231,6 +243,8 @@ class NativeTargetActionReaderTests(unittest.TestCase):
                 motion_sequence=0,
                 selected_target_token=target_token,
                 action_target_token=target_token,
+                mode=1,
+                action_state=1,
             ),
             idle,
         )
@@ -267,6 +281,74 @@ class NativeTargetActionReaderTests(unittest.TestCase):
         self.assertTrue(cast_without_target.action_active)
         self.assertIsNone(cast_without_target.action_target_token)
         self.assertFalse(cast_without_target.targeting_selected)
+
+    def test_native_action_idle_ignores_animation_impact_and_combat_stance(self) -> None:
+        profile = _profile()
+        process = FakeProcessMemory(profile)
+        reader = NativeTargetActionReader(profile, process)
+        process.mode = 2
+        process.player_motion_id = 107
+        process.player_impact_frame = 8
+        action = reader.observe_player()
+        self.assertTrue(action.native_action_idle)
+        self.assertEqual(NativeTargetActionPhase.IMPACT, action.phase)
+        self.assertIsNotNone(action.action_target_token)
+        self.assertEqual(2, action.mode)
+        self.assertEqual(1, action.action_state)
+
+        # An idle-looking animation and null AF8 cannot clear a busy native cast.
+        process.player_action_target = 0
+        process.player_motion_id = 21
+        process.player_impact_frame = -1
+        process.action_state = 4
+        cast = reader.observe_player()
+        self.assertEqual(NativeTargetActionPhase.IDLE, cast.phase)
+        self.assertFalse(cast.action_active)
+        self.assertFalse(cast.native_action_idle)
+        process.action_state = 1
+        process.player_pending = True
+        self.assertFalse(reader.observe_player().native_action_idle)
+        process.player_pending = False
+        self.assertTrue(reader.observe_player().native_action_idle)
+        self.assertFalse(replace(action, mode=None, action_state=None).native_action_idle)
+
+    def test_native_state_pointer_and_values_must_be_stable(self) -> None:
+        for changed in ("state_pointer", "mode", "action_state"):
+            with self.subTest(changed=changed):
+                profile = _profile()
+                process = FakeProcessMemory(profile)
+                original_read = process.read
+                reads = 0
+
+                def changing_read(
+                    address, size, *, process=process, profile=profile,
+                    changed=changed, original_read=original_read,
+                ):
+                    nonlocal reads
+                    if address == process.player + profile.actor_state_pointer_offset:
+                        reads += 1
+                        values = (0x12800000, 0x12900000) if changed == "state_pointer" else (1, 2)
+                        setattr(process, changed, values[reads % 2])
+                    return original_read(address, size)
+
+                process.read = changing_read
+                with self.assertRaisesRegex(NativeTargetActionReadError, "every stable-read"):
+                    NativeTargetActionReader(profile, process).observe_player()
+
+    def test_native_state_pointer_and_dto_values_fail_closed(self) -> None:
+        profile = _profile()
+        for pointer in (0, 4, 0x12800001, 0x7FFFFFFF, 0xFFFFFFFF):
+            with self.subTest(pointer=pointer):
+                process = FakeProcessMemory(profile)
+                process.state_pointer = pointer
+                with self.assertRaisesRegex(NativeTargetActionReadError, "state pointer"):
+                    NativeTargetActionReader(profile, process).observe_player()
+        action = NativeTargetActionReader(profile, FakeProcessMemory(profile)).observe_player()
+        for values in ({"mode": None}, {"action_state": None}, {"mode": True},
+                       {"action_state": -1}, {"action_state": 0x100000000}):
+            with self.subTest(values=values), self.assertRaises(ValueError):
+                replace(action, **values)
+        self.assertFalse(replace(action, action_state=0xFFFFFFFF).native_action_idle)
 
     def test_player_action_target_must_be_stable_across_both_reads(self) -> None:
         profile = _profile()
@@ -353,6 +435,9 @@ class NativeTargetActionProfileTests(unittest.TestCase):
         self.assertEqual(0x9A8, profile.impact_frame_offset)
         self.assertEqual(0x9BC, profile.action_pending_offset)
         self.assertEqual(0xAF8, profile.target_of_target_pointer_offset)
+        self.assertEqual(0xAD0, profile.actor_state_pointer_offset)
+        self.assertEqual(0x18, profile.state_mode_offset)
+        self.assertEqual(0x20, profile.state_action_offset)
         self.assertEqual((106, 107, 108), profile.observed_attack_motion_ids)
 
     def test_unknown_profile_field_fails_closed(self) -> None:

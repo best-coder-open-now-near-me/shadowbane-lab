@@ -3,12 +3,16 @@ import unittest
 from shadowbane_lab.client_observation import (
     NativeCharacterObservation,
     NativeCharacterPopulationObservation,
+    NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
 )
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
+from shadowbane_lab.client_observation.native_population import NativeCharacterKind
 from shadowbane_lab.pve import (
     PvEController,
     PvEControllerConfig,
@@ -78,6 +82,8 @@ def _identity(
 def _character(token: str, *, lt: float) -> NativeCharacterObservation:
     return NativeCharacterObservation(
         token=token,
+        object_key=NativeObjectKey(20, {"mob": 1, "first": 2, "second": 3}[token]),
+        character_kind=NativeCharacterKind.NPC,
         current_health=10.0,
         maximum_health=10.0,
         lt=lt,
@@ -104,6 +110,11 @@ def _observation(
     return PvEObservation(
         now_ms=now_ms,
         target=_target(target_token, health=target_health),
+        player_action=NativePlayerActionObservation(
+            NativeTargetActionPhase.IDLE, False, 21, False, None, 0, 0,
+            selected_target_token=selected, action_target_token=None,
+            mode=1, action_state=1,
+        ),
         player=_player(),
         player_position=_player_position(),
         target_position=_target_position(target_token),

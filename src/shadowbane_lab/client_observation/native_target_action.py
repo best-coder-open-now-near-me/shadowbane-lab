@@ -20,7 +20,7 @@ from shadowbane_lab.client_observation.native_health import (
     WindowsReadOnlyProcessMemory,
 )
 
-NATIVE_TARGET_ACTION_PROFILE_SCHEMA_VERSION = 1
+NATIVE_TARGET_ACTION_PROFILE_SCHEMA_VERSION = 2
 _BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-target-action.json"
 
 
@@ -67,6 +67,9 @@ class NativeTargetActionProfile:
     impact_frame_offset: int
     action_pending_offset: int
     target_of_target_pointer_offset: int
+    actor_state_pointer_offset: int
+    state_mode_offset: int
+    state_action_offset: int
     idle_motion_ids: tuple[int, ...]
     observed_attack_motion_ids: tuple[int, ...]
     no_impact_frame_sentinel: int
@@ -98,6 +101,9 @@ class NativeTargetActionProfile:
             (self.impact_frame_offset, "impact_frame_offset"),
             (self.action_pending_offset, "action_pending_offset"),
             (self.target_of_target_pointer_offset, "target_of_target_pointer_offset"),
+            (self.actor_state_pointer_offset, "actor_state_pointer_offset"),
+            (self.state_mode_offset, "state_mode_offset"),
+            (self.state_action_offset, "state_action_offset"),
             (self.maximum_motion_id, "maximum_motion_id"),
             (self.maximum_impact_frame, "maximum_impact_frame"),
             (self.minimum_user_address, "minimum_user_address"),
@@ -116,6 +122,14 @@ class NativeTargetActionProfile:
         )
         if tuple(sorted(offsets)) != offsets or len(set(offsets)) != len(offsets):
             raise ValueError("target-action offsets must be unique and increasing")
+        if (
+            self.actor_state_pointer_offset % self.pointer_size
+            or self.state_mode_offset % self.pointer_size
+            or self.state_action_offset != self.state_mode_offset + 8
+            or self.actor_state_pointer_offset + self.pointer_size
+            > self.target_of_target_pointer_offset
+        ):
+            raise ValueError("native actor-state offsets do not match the calibrated layout")
         for values, field_name in (
             (self.idle_motion_ids, "idle_motion_ids"),
             (self.observed_attack_motion_ids, "observed_attack_motion_ids"),
@@ -219,10 +233,17 @@ class NativePlayerActionObservation:
     motion_sequence: int
     selected_target_token: str | None
     action_target_token: str | None
+    mode: int | None = None
+    action_state: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.phase, NativeTargetActionPhase):
             raise ValueError("player action phase must be NativeTargetActionPhase")
+        if (self.mode is None) != (self.action_state is None):
+            raise ValueError("native mode and action state must be observed together")
+        for value, label in ((self.mode, "mode"), (self.action_state, "action_state")):
+            if value is not None and (type(value) is not int or not 0 <= value <= 0xFFFFFFFF):
+                raise ValueError(f"player {label} must be a uint32 when present")
         if not isinstance(self.targeting_selected, bool):
             raise ValueError("targeting_selected must be boolean")
         for token, label in (
@@ -258,6 +279,18 @@ class NativePlayerActionObservation:
             raise ValueError("player motion_sequence must be non-negative")
 
     @property
+    def native_action_idle(self) -> bool:
+        """Local action state is idle with no pending action.
+
+        Combat stance and a retained AF8 autoattack target can remain. This is
+        neither whole-combat idleness nor native cleanup confirmation, and it
+        does not wait for animation impact or a launched projectile to arrive.
+        Unavailable state never authorizes a new action.
+        """
+
+        return self.action_state == 1 and not self.action_pending
+
+    @property
     def action_active(self) -> bool:
         return self.phase in (
             NativeTargetActionPhase.QUEUED,
@@ -276,6 +309,9 @@ class _RawTargetActionSnapshot:
     impact_frame: int
     action_pending: bool
     target_of_target: int
+    state_pointer: int = 0
+    mode: int | None = None
+    action_state: int | None = None
 
 
 class NativeTargetActionReader:
@@ -547,6 +583,19 @@ class NativeTargetActionReader:
                 profile.pointer_size,
                 "local-player action target",
             )
+        # The same qualified actor-state fields used by native combat ReadState.
+        # Include the owning state pointer in both snapshots; animation phase and
+        # projectile impact are not authoritative for local action completion.
+        state_pointer = self._read_pointer(
+            player + profile.actor_state_pointer_offset, "local-player state",
+        )
+        self._require_object_pointer(
+            state_pointer, profile.state_action_offset + 4, "local-player state",
+        )
+        mode = self._read_pointer(state_pointer + profile.state_mode_offset, "native mode")
+        action_state = self._read_pointer(
+            state_pointer + profile.state_action_offset, "native action state",
+        )
         return _RawTargetActionSnapshot(
             selected=player,
             player=selected,
@@ -557,6 +606,9 @@ class NativeTargetActionReader:
             impact_frame=impact_frame,
             action_pending=bool(action_pending_raw),
             target_of_target=action_target,
+            state_pointer=state_pointer,
+            mode=mode,
+            action_state=action_state,
         )
 
     def _observation(
@@ -630,6 +682,8 @@ class NativeTargetActionReader:
             ),
             action_sequence=self._player_action_sequence,
             motion_sequence=self._player_motion_sequence,
+            mode=snapshot.mode,
+            action_state=snapshot.action_state,
             selected_target_token=(
                 self._target_token(snapshot.player) if snapshot.player else None
             ),

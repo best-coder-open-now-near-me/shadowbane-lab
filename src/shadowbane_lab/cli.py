@@ -224,7 +224,6 @@ from shadowbane_lab.progression import (
 from shadowbane_lab.pve import (
     PVE_TRACE_SCHEMA_VERSION,
     ClientPvEIntentDispatcher,
-    EmptyCombatLogSource,
     PvEApproachController,
     PvECombatCalibrationError,
     PvEController,

@@ -9,7 +9,9 @@ from shadowbane_lab.client_observation import (
     NativeCharacterKind,
     NativeCharacterObservation,
     NativeCharacterPopulationObservation,
+    NativePlayerActionObservation,
     NativePlayerVitalsObservation,
+    NativeTargetActionPhase,
     NativeTargetHealthObservation,
 )
 from shadowbane_lab.client_observation.native_group import (
@@ -232,10 +234,14 @@ class LivePvEAuthoritySnapshotTests(unittest.TestCase):
         return dict(
             health_reader=_SequenceSource(42, health or (target, target)),
             player_vitals_reader=SimpleNamespace(observe=lambda: vitals),
+            player_action_reader=SimpleNamespace(process_id=42, observe_player=lambda:
+                NativePlayerActionObservation(
+                    NativeTargetActionPhase.IDLE, False, 0, False, None, 0, 0,
+                    target.target_token, None, mode=1, action_state=1,
+                )),
             population_reader=_SequenceSource(42, (self.population,)),
             group_reader=_SequenceSource(42, groups or (self.group, self.group)),
             party_group_id="fixture-party",
-            combat_log_reader=SimpleNamespace(read_new_entries=lambda: ()),
         )
 
     def test_coherent_frame_carries_party_snapshot_while_members_move(self) -> None:

@@ -284,25 +284,28 @@ class ClientCliTests(unittest.TestCase):
         self.assertFalse(payload["ok"])
         self.assertIn("--live", payload["error"])
 
-    def test_explicit_file_log_source_requires_a_log_path(self) -> None:
-        output = io.StringIO()
-        with redirect_stdout(output):
-            result = main(
-                (
-                    "client",
-                    "run-pve",
-                    "--client-profile",
-                    "pve.json",
-                    "--combat-source",
-                    "log",
-                    "--live",
-                    "--json",
-                )
-            )
-
-        payload = json.loads(output.getvalue())
-        self.assertEqual(2, result)
-        self.assertIn("requires --combat-log", payload["error"])
+    def test_pve_rejects_text_sources_before_opening_readers(self) -> None:
+        for arguments in (
+            ("--combat-source", "log"),
+            ("--combat-source", "hud"),
+            ("--combat-log", "combat.log.txt"),
+            ("--native-message-hud-profile", "hud.json"),
+        ):
+            with self.subTest(arguments=arguments):
+                output = io.StringIO()
+                with (
+                    patch("shadowbane_lab.cli.open_windows_native_message_hud_reader") as hud,
+                    patch("shadowbane_lab.cli.open_windows_native_target_health_reader") as health,
+                    patch("shadowbane_lab.cli.PyAutoGuiBackend") as backend,
+                    redirect_stdout(output),
+                ):
+                    result = main(("client", "run-pve", "--client-profile", "pve.json",
+                                   *arguments, "--live", "--json"))
+                self.assertEqual(2, result)
+                self.assertIn("native object state", json.loads(output.getvalue())["error"])
+                hud.assert_not_called()
+                health.assert_not_called()
+                backend.assert_not_called()
 
     def test_pve_recovery_health_cannot_undercut_safety_threshold(self) -> None:
         output = io.StringIO()
@@ -1348,7 +1351,8 @@ class ClientCliTests(unittest.TestCase):
 
         movement_dispatcher = (
             SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock(),
-                            session=object(), grant=object())
+                            session=SimpleNamespace(require_combat_available=MagicMock()),
+                            grant=object())
             if native_movement
             else None
         )
@@ -1535,6 +1539,8 @@ class ClientCliTests(unittest.TestCase):
                 ),
                 patch("shadowbane_lab.cli.PvETraceJournal", side_effect=prepare_journal),
                 patch("shadowbane_lab.cli.PvERunner") as pve_runner,
+                patch("shadowbane_lab.cli_commands.client_pve.NativePvECombatCleanup") as cleanup,
+                patch("shadowbane_lab.cli_commands.client_pve.NativePvEInputGuard") as input_guard,
                 patch(
                     "shadowbane_lab.cli_commands.client_pve.native_party.load_bundled_native_group_profile",
                     return_value=group_profile,
@@ -1565,7 +1571,7 @@ class ClientCliTests(unittest.TestCase):
                 native_operation.return_value.__enter__.return_value = SimpleNamespace(
                     dispatcher=SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock()),
                     is_set=injected_stop.is_set,
-                    session=object(), grant=object(),
+                    session=SimpleNamespace(require_combat_available=MagicMock()), grant=object(),
                 )
                 owned_operation = native_operation.return_value.__enter__.return_value
 
@@ -1580,7 +1586,12 @@ class ClientCliTests(unittest.TestCase):
                 listed_coordinator.return_value.__exit__.side_effect = (
                     lambda *_: preparation_events.append("listed_closed")
                 )
-                pve_runner.return_value.run.return_value = completed_run
+                def run_pve_fixture():
+                    dispatcher = pve_runner.call_args.kwargs["dispatcher"]
+                    dispatcher._adapter._executor._input_precondition()
+                    return completed_run
+
+                pve_runner.return_value.run.side_effect = run_pve_fixture
                 result = _run_pve(
                     client_profile_path=template,
                     combat_log_path=None,
@@ -1654,7 +1665,11 @@ class ClientCliTests(unittest.TestCase):
                 self.assertTrue(character_memory.closed)
                 dispatcher = pve_runner.call_args.kwargs["dispatcher"]
                 executor = dispatcher._adapter._executor
-                self.assertEqual(character_session.require_current, executor._input_precondition)
+                with self.assertRaisesRegex(RuntimeError, "revoked"):
+                    executor._input_precondition()
+                input_guard.return_value.require_current.assert_called_once_with()
+                input_guard.assert_called_once()
+                self.assertIs(input_guard.call_args.args[0], readers[7])
                 self.assertEqual(
                     character_memory.process_creation_filetime_utc,
                     executor._guard._expected_process_started_at_100ns,
@@ -1664,6 +1679,9 @@ class ClientCliTests(unittest.TestCase):
                 listed_args = listed_coordinator.call_args.kwargs
                 self.assertIs(listed_args["session"], owner.session)
                 self.assertIs(listed_args["grant"], owner.grant)
+                cleanup.assert_called_once_with(owner.session, owner.grant)
+                self.assertIs(pve_runner.call_args.kwargs["combat_cleanup"], cleanup.return_value)
+                self.assertNotIn("combat_log_reader", pve_runner.call_args.kwargs)
                 self.assertEqual(listed_args["require_current"], character_session.require_current)
                 self.assertEqual(listed_args["store"].owner.character, "testercle")
                 self.assertEqual(listed_args["store"].owner.server,
@@ -1702,11 +1720,7 @@ class ClientCliTests(unittest.TestCase):
             native_profiles[3],
             process_id=4320,
         )
-        open_message_hud.assert_called_once_with(
-            native_profiles[4],
-            process_id=4320,
-            start_at_end=True,
-        )
+        open_message_hud.assert_not_called()
         open_target_action.assert_called_once_with(
             native_profiles[5],
             process_id=4320,
@@ -1729,15 +1743,9 @@ class ClientCliTests(unittest.TestCase):
             navigation_map,
             pve_runner.call_args.kwargs["approach_controller"]._navigation_map,
         )
-        readers[4].attach.assert_called_once_with()
-        self.assertEqual(
-            "hud",
-            saved_evidence["native_observation"]["combat_source"],
-        )
-        self.assertEqual(
-            "profile-4",
-            saved_evidence["native_observation"]["message_hud_profile_id"],
-        )
+        readers[4].attach.assert_not_called()
+        self.assertEqual("state", saved_evidence["native_observation"]["combat_source"])
+        self.assertNotIn("message_hud_profile_id", saved_evidence["native_observation"])
         self.assertEqual(
             "profile-5",
             saved_evidence["native_observation"]["target_action_profile_id"],
@@ -1787,9 +1795,7 @@ class ClientCliTests(unittest.TestCase):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as directory:
             profile = Path(directory) / "pve.local.json"
-            combat_log = Path(directory) / "combat.log.txt"
             profile.write_text(json.dumps(profile_data), encoding="utf-8")
-            combat_log.write_text("", encoding="utf-8")
             with redirect_stdout(output):
                 result = main(
                     (
@@ -1797,8 +1803,6 @@ class ClientCliTests(unittest.TestCase):
                         "run-pve",
                         "--client-profile",
                         str(profile),
-                        "--combat-log",
-                        str(combat_log),
                         "--policy",
                         "proc-assassin",
                         "--live",
@@ -1834,10 +1838,8 @@ class ClientCliTests(unittest.TestCase):
         output = io.StringIO()
         with tempfile.TemporaryDirectory() as directory:
             profile = Path(directory) / "pve.local.json"
-            combat_log = Path(directory) / "combat.log.txt"
             hotbar = Path(directory) / "SCREEN_GAME_character.cfg"
             profile.write_text(json.dumps(profile_data), encoding="utf-8")
-            combat_log.write_text("", encoding="utf-8")
             hotbar.write_text(hotbar_text, encoding="utf-8")
             with redirect_stdout(output):
                 result = main(
@@ -1846,8 +1848,6 @@ class ClientCliTests(unittest.TestCase):
                         "run-pve",
                         "--client-profile",
                         str(profile),
-                        "--combat-log",
-                        str(combat_log),
                         "--hotbar-config",
                         str(hotbar),
                         "--policy",

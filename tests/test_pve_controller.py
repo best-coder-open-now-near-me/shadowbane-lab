@@ -1,4 +1,6 @@
 import unittest
+from dataclasses import replace
+from zlib import crc32
 
 from shadowbane_lab.client_input import EventEmergencyStop
 from shadowbane_lab.client_observation import (
@@ -17,11 +19,11 @@ from shadowbane_lab.client_observation import (
     NativeTargetIdentityReadError,
     NativeTargetPositionObservation,
 )
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
+from shadowbane_lab.client_observation.native_population import NativeCharacterKind
 from shadowbane_lab.navigation_inspector.events import PlanEvent
 from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.pve import (
-    CombatLogSource,
-    EmptyCombatLogSource,
     PvEApproachConfig,
     PvEApproachController,
     PvECampLease,
@@ -33,6 +35,7 @@ from shadowbane_lab.pve import (
     PvEPhase,
     PvERunner,
 )
+from shadowbane_lab.pve.model import PvECombatCleanupResult
 from shadowbane_lab.travel import (
     AStarRouteNotFound,
     SparseNavigationMap,
@@ -136,16 +139,25 @@ def _player_action(
     phase: NativeTargetActionPhase = NativeTargetActionPhase.IDLE,
     sequence: int = 0,
     motion_sequence: int = 0,
-    targeting_selected: bool = True,
+    targeting_selected: bool | None = None,
+    token: str | None = "mob",
+    mode: int | None = 1,
+    action_state: int | None = 1,
 ) -> NativePlayerActionObservation:
+    if targeting_selected is None:
+        targeting_selected = token is not None and phase is not NativeTargetActionPhase.IDLE
     return NativePlayerActionObservation(
         phase=phase,
         targeting_selected=targeting_selected,
+        selected_target_token=token,
+        action_target_token=token if targeting_selected else None,
         motion_id=21 if phase is NativeTargetActionPhase.IDLE else 106,
         action_pending=phase is NativeTargetActionPhase.QUEUED,
         impact_frame=19 if phase is NativeTargetActionPhase.IMPACT else None,
         action_sequence=sequence,
         motion_sequence=motion_sequence,
+        mode=mode,
+        action_state=action_state,
     )
 
 
@@ -197,7 +209,7 @@ def _character(
     return NativeCharacterObservation(
         token=token,
         current_health=health,
-        maximum_health=health,
+        maximum_health=max(10.0, health),
         lt=lt,
         lg=lg,
         altitude=10.0,
@@ -206,7 +218,35 @@ def _character(
         banker=False,
         trainer=trainer,
         minion=False,
+        object_key=NativeObjectKey(crc32(token.encode()) or 1, 53),
+        character_kind=NativeCharacterKind.NPC,
     )
+
+
+def _native_observation(**values) -> PvEObservation:
+    target = values["target"]
+    if values.get("player_action") is None:
+        values["player_action"] = _player_action(token=target.target_token)
+    if values.get("population") is None:
+        position = values.get("target_position")
+        identity = values.get("target_identity")
+        characters = ()
+        if target.target_present:
+            character = _character(
+                target.target_token, health=target.current_health,
+                lt=103.0 if position is None or not position.target_present else position.lt,
+                lg=204.0 if position is None or not position.target_present else position.lg,
+            )
+            character = replace(character, maximum_health=target.maximum_health)
+            if identity is not None:
+                character = replace(character, **{name: getattr(identity, name) for name in (
+                    "merchant", "shopkeeper", "banker", "trainer", "minion"
+                )})
+            characters = (character,)
+        action = values.get("player_action")
+        values["population"] = _population(target.target_token, *characters,
+            action_target=None if action is None else action.action_target_token)
+    return PvEObservation(**values)
 
 
 def _observation(
@@ -221,7 +261,11 @@ def _observation(
     target_position: NativeTargetPositionObservation | None = None,
     population: NativeCharacterPopulationObservation | None = None,
 ) -> PvEObservation:
-    return PvEObservation(
+    if player_action is not None and player_action.selected_target_token == "mob":
+        player_action = replace(player_action, selected_target_token=target.target_token,
+            action_target_token=target.target_token if player_action.targeting_selected else None,
+            targeting_selected=player_action.targeting_selected and target.target_token is not None)
+    return _native_observation(
         now_ms=now_ms,
         target=target,
         player=_player() if player is None else player,
@@ -505,70 +549,26 @@ class PvEControllerTests(unittest.TestCase):
         self.assertFalse(killed.terminal)
 
     def test_continuous_stalled_target_exclusion_expires_after_camp_idle(self) -> None:
-        controller = PvEController(
-            PvEControllerConfig(
-                continuous=True,
-                camp_radius=50.0,
-                camp_idle_ms=500,
-                failed_target_cooldown_ms=500,
-            )
-        )
-        controller.step(
-            _observation(
-                0,
-                _absent(),
-                player_position=_player_position(),
-                target_position=_target_position(None),
-            )
-        )
-        controller.step(
-            _observation(
-                100,
-                _target("mob"),
-                player_position=_player_position(),
-                target_position=_target_position("mob"),
-            )
-        )
-        abandoned = controller.step(
-            _observation(
-                2_600,
-                _target("mob"),
-                player_position=_player_position(),
-                target_position=_target_position("mob"),
-            )
-        )
-        idle = controller.step(
-            _observation(
-                2_700,
-                _target("mob"),
-                player_position=_player_position(),
-                target_position=_target_position("mob"),
-            )
-        )
-        controller.step(
-            _observation(
-                3_200,
-                _absent(),
-                player_position=_player_position(),
-                target_position=_target_position(None),
-            )
-        )
-        retried = controller.step(
-            _observation(
-                3_300,
-                _target("mob"),
-                player_position=_player_position(),
-                target_position=_target_position("mob"),
-            )
-        )
-
-        self.assertEqual(PvEPhase.SEEKING, abandoned.phase)
-        self.assertEqual(PvEPhase.CAMP_IDLE, idle.phase)
+        controller = PvEController(PvEControllerConfig(continuous=True, camp_radius=50,
+            camp_idle_ms=500, failed_target_cooldown_ms=500))
+        def frame(now, token):
+            return _observation(now, _absent() if token is None else _target(token),
+                player_position=_player_position(), target_position=_target_position(token))
+        controller.step(frame(0, None))
+        controller.step(frame(100, "mob"))
+        abandoned = controller.step(frame(2600, "mob"))
+        self.assertEqual(PvEPhase.DISENGAGING, abandoned.phase)
+        controller.acknowledge_cleanup(ConfirmedCleanup().cleanup(abandoned.cleanup_request))
+        self.assertIsNone(controller.step(frame(2700, "mob")).intent)
+        rejected = controller.step(frame(2800, "mob"))
+        self.assertNotEqual(PvEIntent.ATTACK_SELECTED_TARGET, rejected.intent)
+        controller.step(frame(3300, None))
+        retried = controller.step(frame(3400, "mob"))
         self.assertEqual(PvEPhase.ENGAGED, retried.phase)
-        self.assertFalse(retried.terminal)
+
 
     def test_spatial_observation_derives_coherent_target_ranges(self) -> None:
-        observation = PvEObservation(
+        observation = _native_observation(
             now_ms=0,
             target=_target("mob"),
             player=_player(),
@@ -581,7 +581,7 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual(13.0, observation.target_spatial_distance)
 
         with self.assertRaisesRegex(ValueError, "different targets"):
-            PvEObservation(
+            _native_observation(
                 now_ms=0,
                 target=_target("mob"),
                 player=_player(),
@@ -597,7 +597,7 @@ class PvEControllerTests(unittest.TestCase):
             )
         )
         controller.step(
-            PvEObservation(
+            _native_observation(
                 now_ms=0,
                 target=_absent(),
                 player=_player(),
@@ -606,7 +606,7 @@ class PvEControllerTests(unittest.TestCase):
             )
         )
         engaged = controller.step(
-            PvEObservation(
+            _native_observation(
                 now_ms=100,
                 target=_target("mob"),
                 player=_player(),
@@ -615,7 +615,7 @@ class PvEControllerTests(unittest.TestCase):
             )
         )
         arrived = controller.step(
-            PvEObservation(
+            _native_observation(
                 now_ms=200,
                 target=_target("mob"),
                 player=_player(),
@@ -668,7 +668,7 @@ class PvEControllerTests(unittest.TestCase):
         complete = controller.step(
             _observation(
                 400,
-                _absent(),
+                _target("frost-walker", current=0),
                 _event(NativeCombatEventKind.TARGET_KILLED),
             )
         )
@@ -681,7 +681,7 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual("kill_limit_reached", complete.terminal_reason)
         self.assertEqual(1, complete.kills)
         self.assertEqual(
-            PvEKillConfirmation.NATIVE_COMBAT_EVENT,
+            PvEKillConfirmation.NATIVE_HEALTH_ZERO,
             complete.kill_confirmation,
         )
 
@@ -747,18 +747,11 @@ class PvEControllerTests(unittest.TestCase):
                             self.assertEqual(0, decision.kills)
                             self.assertIsNone(decision.kill_confirmation)
                             self.assertEqual(
-                                PvEPhase.SEEKING if continuous else PvEPhase.STOPPED,
+                                PvEPhase.OPENING if opening else PvEPhase.ENGAGED,
                                 decision.phase,
                             )
-                            if continuous:
-                                self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, decision.intent)
-                            else:
-                                self.assertIsNone(decision.intent)
-                                self.assertEqual(
-                                    "selected_target_changed_during_opener" if opening else
-                                    "selected_target_changed_during_engagement",
-                                    decision.terminal_reason,
-                                )
+                            self.assertIsNone(decision.intent)
+                            self.assertIsNone(decision.terminal_reason)
 
     def test_dead_acquisition_candidate_is_never_attacked(self) -> None:
         controller = PvEController(
@@ -838,7 +831,7 @@ class PvEControllerTests(unittest.TestCase):
             trainer: bool = False,
             lt: float = 103.0,
         ) -> PvEObservation:
-            return PvEObservation(
+            return _native_observation(
                 now_ms=now_ms,
                 target=_absent() if token is None else _target(token),
                 player=_player(),
@@ -870,7 +863,7 @@ class PvEControllerTests(unittest.TestCase):
             target: NativeTargetHealthObservation,
             position: NativeTargetPositionObservation,
         ) -> PvEObservation:
-            return PvEObservation(
+            return _native_observation(
                 now_ms=now_ms,
                 target=target,
                 player=_player(),
@@ -906,7 +899,7 @@ class PvEControllerTests(unittest.TestCase):
         )
 
         def mob_observation(now_ms: int) -> PvEObservation:
-            return PvEObservation(
+            return _native_observation(
                 now_ms=now_ms,
                 target=_target("only-mob"),
                 player=_player(),
@@ -915,7 +908,7 @@ class PvEControllerTests(unittest.TestCase):
             )
 
         controller.step(
-            PvEObservation(
+            _native_observation(
                 now_ms=0,
                 target=_absent(),
                 player=_player(),
@@ -934,25 +927,30 @@ class PvEControllerTests(unittest.TestCase):
         controller = PvEController(PvEControllerConfig())
         controller.step(_observation(0, _absent()))
         controller.step(_observation(100, _target("first")))
+        old = _character("first", lt=103)
+        decision = controller.step(_observation(200, _target("second"),
+            population=_population("second", old, _character("second", lt=120))))
+        self.assertEqual(PvEPhase.ENGAGED, decision.phase)
+        self.assertEqual("first", decision.tracked_target.token)
+        self.assertIsNone(decision.intent)
+        self.assertIsNone(decision.cleanup_request)
 
-        stopped = controller.step(_observation(200, _target("second")))
-
-        self.assertEqual(PvEPhase.STOPPED, stopped.phase)
-        self.assertEqual("selected_target_changed_during_engagement", stopped.terminal_reason)
 
     def test_player_death_record_stops_from_any_active_phase(self) -> None:
-        controller = PvEController(PvEControllerConfig())
-        controller.step(_observation(0, _absent()))
+        for engaged in (False, True):
+            with self.subTest(engaged=engaged):
+                controller = PvEController(PvEControllerConfig())
+                controller.step(_observation(0, _absent()))
+                if engaged:
+                    controller.step(_observation(10, _target("mob")))
+                ignored = controller.step(_observation(20, _target("mob"),
+                    _event(NativeCombatEventKind.PLAYER_KILLED)))
+                self.assertFalse(ignored.terminal)
+                stopped = controller.step(_observation(30, _target("mob"),
+                    player=_player(current_health=0)))
+                self.assertEqual("player_death_observed", stopped.terminal_reason)
+                self.assertIsNotNone(stopped.cleanup_request)
 
-        stopped = controller.step(
-            _observation(
-                100,
-                _absent(),
-                _event(NativeCombatEventKind.PLAYER_KILLED),
-            )
-        )
-
-        self.assertEqual("player_death_observed", stopped.terminal_reason)
 
     def test_low_native_player_health_stops_before_input(self) -> None:
         controller = PvEController(PvEControllerConfig(minimum_player_health_fraction=0.5))
@@ -979,61 +977,44 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual("engagement_stalled", stopped.terminal_reason)
 
     def test_stalled_engagement_cycles_once_and_requires_a_different_target(self) -> None:
-        controller = PvEController(
-            PvEControllerConfig(
-                stalled_progress_ms=100,
-                engagement_timeout_ms=1_000,
-                maximum_reengage_attempts=0,
-                maximum_stalled_retargets=1,
-                accept_automatic_targets=True,
-                automatic_target_requires_combat_event=True,
-            )
-        )
+        controller = PvEController(PvEControllerConfig(stalled_progress_ms=100,
+            engagement_timeout_ms=1000, maximum_reengage_attempts=0, maximum_stalled_retargets=1))
         controller.step(_observation(0, _absent()))
         controller.step(_observation(10, _target("blocked-mob")))
-
-        cycle = controller.step(_observation(110, _target("blocked-mob")))
-        stale_hit = controller.step(
-            _observation(
-                120,
-                _target("blocked-mob"),
-                _event(NativeCombatEventKind.PLAYER_HIT_TARGET),
-            )
-        )
-        replacement = controller.step(_observation(130, _target("reachable-mob")))
-        stopped = controller.step(_observation(230, _target("reachable-mob")))
-
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
-        self.assertEqual(PvEPhase.SEEKING, stale_hit.phase)
-        self.assertIsNone(stale_hit.intent)
+        cleanup = controller.step(_observation(110, _target("blocked-mob")))
+        self.assertEqual(PvEPhase.DISENGAGING, cleanup.phase)
+        self.assertIsNone(cleanup.intent)
+        stale = controller.step(_observation(120, _target("reachable-mob"),
+            _event(NativeCombatEventKind.PLAYER_HIT_TARGET)))
+        self.assertEqual(cleanup.cleanup_request, stale.cleanup_request)
+        self.assertIsNone(stale.intent)
+        controller.acknowledge_cleanup(ConfirmedCleanup().cleanup(cleanup.cleanup_request))
+        fresh = controller.step(_observation(130, _target("reachable-mob")))
+        self.assertEqual(PvEPhase.SEEKING, fresh.phase)
+        self.assertIsNone(fresh.intent)
+        controller.step(_observation(140, _absent()))
+        replacement = controller.step(_observation(150, _target("reachable-mob")))
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, replacement.intent)
+        stopped = controller.step(_observation(250, _target("reachable-mob")))
         self.assertEqual("engagement_stalled", stopped.terminal_reason)
+        self.assertIsNotNone(stopped.cleanup_request)
+
 
     def test_stalled_targets_remain_excluded_during_bounded_retargeting(self) -> None:
-        controller = PvEController(
-            PvEControllerConfig(
-                stalled_progress_ms=100,
-                engagement_timeout_ms=1_000,
-                maximum_reengage_attempts=0,
-                maximum_stalled_retargets=2,
-            )
-        )
+        controller = PvEController(PvEControllerConfig(stalled_progress_ms=100,
+            engagement_timeout_ms=1000, maximum_reengage_attempts=0, maximum_stalled_retargets=2))
         controller.step(_observation(0, _absent()))
         controller.step(_observation(10, _target("blocked-a")))
+        for now, old, new in ((110, "blocked-a", "blocked-b"), (250, "blocked-b", "reachable")):
+            cleanup = controller.step(_observation(now, _target(old)))
+            self.assertEqual(PvEPhase.DISENGAGING, cleanup.phase)
+            controller.acknowledge_cleanup(ConfirmedCleanup().cleanup(cleanup.cleanup_request))
+            controller.step(_observation(now+10, _absent()))
+            rejected = controller.step(_observation(now+20, _target("blocked-a")))
+            self.assertNotEqual(PvEIntent.ATTACK_SELECTED_TARGET, rejected.intent)
+            attack = controller.step(_observation(now+30, _target(new)))
+            self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, attack.intent)
 
-        first_cycle = controller.step(_observation(110, _target("blocked-a")))
-        second_attack = controller.step(_observation(120, _target("blocked-b")))
-        second_cycle = controller.step(_observation(220, _target("blocked-b")))
-        rejected_old_target = controller.step(_observation(230, _target("blocked-a")))
-        reachable_attack = controller.step(_observation(240, _target("reachable")))
-
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, first_cycle.intent)
-        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, second_attack.intent)
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, second_cycle.intent)
-        self.assertEqual(PvEPhase.SEEKING, rejected_old_target.phase)
-        self.assertIsNone(rejected_old_target.intent)
-        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, reachable_attack.intent)
-        self.assertEqual(PvEPhase.ENGAGED, reachable_attack.phase)
 
     def test_missing_attack_animation_fast_cycles_a_quiet_melee_target(self) -> None:
         controller = PvEController(
@@ -1082,8 +1063,8 @@ class PvEControllerTests(unittest.TestCase):
 
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, attack.intent)
         self.assertIsNone(waiting.intent)
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
-        self.assertEqual(PvEPhase.SEEKING, cycle.phase)
+        self.assertIsNone(cycle.intent)
+        self.assertEqual(PvEPhase.DISENGAGING, cycle.phase)
 
     def test_observed_attack_animation_uses_full_quiet_melee_timeout(self) -> None:
         controller = PvEController(
@@ -1106,7 +1087,7 @@ class PvEControllerTests(unittest.TestCase):
             _observation(
                 100,
                 _target("animated-crab"),
-                player_action=_player_action(sequence=8),
+                player_action=_player_action(token="animated-crab", sequence=8),
                 player_position=_player_position(),
                 target_position=_target_position("animated-crab", 106.0, 200.0),
             )
@@ -1115,7 +1096,7 @@ class PvEControllerTests(unittest.TestCase):
             _observation(
                 200,
                 _target("animated-crab"),
-                player_action=_player_action(
+                player_action=_player_action(token="animated-crab",
                     phase=NativeTargetActionPhase.IMPACT,
                     sequence=8,
                     motion_sequence=1,
@@ -1128,7 +1109,7 @@ class PvEControllerTests(unittest.TestCase):
             _observation(
                 1_600,
                 _target("animated-crab"),
-                player_action=_player_action(sequence=8, motion_sequence=1),
+                player_action=_player_action(token="animated-crab", sequence=8, motion_sequence=1),
                 player_position=_player_position(),
                 target_position=_target_position("animated-crab", 106.0, 200.0),
             )
@@ -1137,14 +1118,14 @@ class PvEControllerTests(unittest.TestCase):
             _observation(
                 2_600,
                 _target("animated-crab"),
-                player_action=_player_action(sequence=8, motion_sequence=1),
+                player_action=_player_action(token="animated-crab", sequence=8, motion_sequence=1),
                 player_position=_player_position(),
                 target_position=_target_position("animated-crab", 106.0, 200.0),
             )
         )
 
         self.assertIsNone(waiting.intent)
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, cycle.intent)
+        self.assertIsNone(cycle.intent)
 
     def test_incoming_hits_without_outgoing_damage_request_reposition(self) -> None:
         controller = PvEController(
@@ -1276,88 +1257,50 @@ class PvEControllerTests(unittest.TestCase):
         controller = PvEController(PvEControllerConfig(maximum_kills=2, post_kill_delay_ms=100))
         controller.step(_observation(0, _absent()))
         controller.step(_observation(10, _target("mob-1")))
-        post_kill = controller.step(
-            _observation(
-                20,
-                _absent(),
-                _event(NativeCombatEventKind.TARGET_KILLED),
-            )
-        )
-        waiting = controller.step(_observation(100, _absent()))
-        acquire = controller.step(_observation(120, _absent()))
-        attack = controller.step(_observation(130, _target("mob-2")))
-
-        self.assertEqual(PvEPhase.POST_KILL, post_kill.phase)
-        self.assertIsNone(waiting.intent)
+        killed = controller.step(_observation(20, _target("mob-1", current=0)))
+        self.assertEqual(PvEPhase.POST_KILL, killed.phase)
+        self.assertIsNone(controller.step(_observation(100, _absent())).cleanup_request)
+        cleanup = controller.step(_observation(120, _absent()))
+        self.assertEqual(PvEPhase.DISENGAGING, cleanup.phase)
+        controller.acknowledge_cleanup(ConfirmedCleanup().cleanup(cleanup.cleanup_request))
+        self.assertIsNone(controller.step(_observation(130, _absent())).intent)
+        acquire = controller.step(_observation(140, _absent()))
+        attack = controller.step(_observation(150, _target("mob-2")))
         self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, acquire.intent)
         self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, attack.intent)
 
+
     def test_post_kill_waits_for_all_recovery_floors_before_reacquiring(self) -> None:
-        controller = PvEController(
-            PvEControllerConfig(
-                maximum_kills=2,
-                post_kill_delay_ms=100,
-                recovery_timeout_ms=1_000,
-                minimum_recovery_health_fraction=0.75,
-                minimum_recovery_mana_fraction=0.5,
-                minimum_recovery_stamina_fraction=0.5,
-            )
-        )
-        controller.step(_observation(0, _absent()))
-        controller.step(_observation(10, _target("mob")))
-        killed = controller.step(_observation(20, _target("mob", current=0)))
+        for player in (_player(current_health=70), _player(current_mana=20),
+                       _player(current_stamina=40)):
+            controller = PvEController(PvEControllerConfig(maximum_kills=2, post_kill_delay_ms=100,
+                minimum_recovery_health_fraction=.75, minimum_recovery_mana_fraction=.5,
+                minimum_recovery_stamina_fraction=.5))
+            controller.step(_observation(0, _absent()))
+            controller.step(_observation(10, _target("mob")))
+            controller.step(_observation(20, _target("mob", current=0)))
+            cleanup = controller.step(_observation(120, _absent(), player=player))
+            controller.acknowledge_cleanup(ConfirmedCleanup().cleanup(cleanup.cleanup_request))
+            waiting = controller.step(_observation(130, _absent(), player=player))
+            self.assertEqual(PvEPhase.RECOVERING, waiting.phase)
+            self.assertIsNone(waiting.intent)
+            self.assertIsNone(controller.step(_observation(140, _absent())).intent)
+            self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB,
+                             controller.step(_observation(150, _absent())).intent)
 
-        waiting = controller.step(
-            _observation(
-                120,
-                _absent(),
-                player=_player(
-                    current_health=70,
-                    current_mana=20,
-                    current_stamina=40,
-                ),
-            )
-        )
-        acquire = controller.step(
-            _observation(
-                220,
-                _absent(),
-                player=_player(
-                    current_health=80,
-                    current_mana=30,
-                    current_stamina=60,
-                ),
-            )
-        )
-
-        self.assertEqual(PvEPhase.POST_KILL, killed.phase)
-        self.assertEqual(PvEKillConfirmation.NATIVE_HEALTH_ZERO, killed.kill_confirmation)
-        self.assertIsNone(waiting.intent)
-        self.assertEqual(PvEIntent.ACQUIRE_NEXT_MOB, acquire.intent)
 
     def test_post_kill_recovery_timeout_stops_instead_of_farming_depleted(self) -> None:
-        controller = PvEController(
-            PvEControllerConfig(
-                maximum_kills=2,
-                post_kill_delay_ms=100,
-                recovery_timeout_ms=500,
-                minimum_recovery_mana_fraction=0.5,
-            )
-        )
+        controller = PvEController(PvEControllerConfig(maximum_kills=2, post_kill_delay_ms=100,
+            recovery_timeout_ms=500, minimum_recovery_mana_fraction=.5))
         controller.step(_observation(0, _absent()))
         controller.step(_observation(10, _target("mob")))
         controller.step(_observation(20, _target("mob", current=0)))
-
-        stopped = controller.step(
-            _observation(
-                520,
-                _absent(),
-                player=_player(current_mana=20),
-            )
-        )
-
+        cleanup = controller.step(_observation(120, _absent()))
+        controller.acknowledge_cleanup(ConfirmedCleanup().cleanup(cleanup.cleanup_request))
+        stopped = controller.step(_observation(620, _absent(), player=_player(current_mana=20)))
         self.assertEqual(PvEPhase.STOPPED, stopped.phase)
-        self.assertEqual("post_kill_recovery_timeout", stopped.terminal_reason)
+        self.assertEqual("combat_recovery_timeout", stopped.terminal_reason)
+
 
     def test_proc_assassin_accepts_auto_target_and_opens_without_redundant_attack(self) -> None:
         controller = PvEController(
@@ -1390,7 +1333,7 @@ class PvEControllerTests(unittest.TestCase):
                 accept_automatic_targets=True,
                 opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
                 opening_mana_cost=55.0,
-                automatic_target_requires_combat_event=True,
+                automatic_target_requires_active_action=True,
             )
         )
         player = _player(current_mana=100.0, maximum_mana=100.0)
@@ -1403,12 +1346,16 @@ class PvEControllerTests(unittest.TestCase):
                 _target("auto-mob", current=9),
                 _event(NativeCombatEventKind.PLAYER_HIT_TARGET),
                 player=player,
+                player_action=_player_action(
+                    token="auto-mob", phase=NativeTargetActionPhase.WINDUP,
+                ),
             )
         )
 
         self.assertIsNone(waiting.intent)
         self.assertIsNone(still_waiting.intent)
-        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, confirmed.intent)
+        self.assertIsNone(confirmed.intent)
+        self.assertEqual(PvEPhase.ENGAGED, confirmed.phase)
 
     def test_stale_uncommanded_selection_cycles_then_accepts_different_mob(self) -> None:
         controller = PvEController(
@@ -1416,7 +1363,7 @@ class PvEControllerTests(unittest.TestCase):
                 accept_automatic_targets=True,
                 opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
                 opening_mana_cost=55.0,
-                automatic_target_requires_combat_event=True,
+                automatic_target_requires_active_action=True,
                 stale_selection_cycle_delay_ms=1_000,
             )
         )
@@ -1601,50 +1548,35 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, ready.intent)
 
     def test_proc_assassin_opens_automatic_replacement_after_confirmed_kill(self) -> None:
-        controller = PvEController(
-            PvEControllerConfig(
-                maximum_kills=2,
-                accept_automatic_targets=True,
-                opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
-                opening_mana_cost=55.0,
-                opening_followup_delay_ms=100,
-                automatic_attack_expected=True,
-                post_kill_delay_ms=100,
-            )
-        )
-        player = _player(current_mana=100.0, maximum_mana=100.0)
-        controller.step(_observation(0, _target("mob-1"), player=player))
-        controller.step(_observation(100, _target("mob-1"), player=player))
-        post_kill = controller.step(
-            _observation(
-                200,
-                _target("mob-2"),
-                _event(NativeCombatEventKind.TARGET_KILLED),
-                player=player,
-            )
-        )
+        controller = PvEController(PvEControllerConfig(maximum_kills=2,
+            accept_automatic_targets=True, opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
+            opening_followup_delay_ms=100, post_kill_delay_ms=100))
+        controller.step(_observation(0, _target("mob-1")))
+        killed = controller.step(_observation(100, _target("mob-2"),
+            population=_population("mob-2", _character("mob-1", lt=103, health=0),
+                                   _character("mob-2", lt=104))))
+        self.assertEqual(PvEPhase.POST_KILL, killed.phase)
+        cleanup = controller.step(_observation(200, _target("mob-2")))
+        self.assertIsNone(cleanup.intent)
+        controller.acknowledge_cleanup(ConfirmedCleanup().cleanup(cleanup.cleanup_request))
+        controller.step(_observation(210, _absent()))
+        controller.step(_observation(220, _absent()))
+        opener = controller.step(_observation(230, _target("mob-3")))
+        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, opener.intent)
 
-        replacement_opener = controller.step(_observation(300, _target("mob-2"), player=player))
-
-        self.assertEqual(PvEPhase.POST_KILL, post_kill.phase)
-        self.assertEqual(PvEPhase.OPENING, replacement_opener.phase)
-        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, replacement_opener.intent)
 
     def test_selection_change_during_opener_stops(self) -> None:
-        controller = PvEController(
-            PvEControllerConfig(
-                accept_automatic_targets=True,
-                opening_intent=PvEIntent.CAST_SHADOW_TOUCH,
-                opening_mana_cost=55.0,
-            )
-        )
-        player = _player(current_mana=100.0, maximum_mana=100.0)
-        controller.step(_observation(0, _target("first"), player=player))
+        controller = PvEController(PvEControllerConfig(accept_automatic_targets=True,
+            opening_intent=PvEIntent.CAST_SHADOW_TOUCH, opening_followup_delay_ms=100))
+        controller.step(_observation(0, _target("first")))
+        decision = controller.step(_observation(100, _target("second"),
+            population=_population("second", _character("first", lt=103),
+                                   _character("second", lt=120))))
+        self.assertEqual(PvEPhase.ENGAGED, decision.phase)
+        self.assertEqual("first", decision.tracked_target.token)
+        self.assertIsNone(decision.intent)
+        self.assertIsNone(decision.cleanup_request)
 
-        stopped = controller.step(_observation(100, _target("second"), player=player))
-
-        self.assertEqual(PvEPhase.STOPPED, stopped.phase)
-        self.assertEqual("selected_target_changed_during_opener", stopped.terminal_reason)
 
     def test_required_intents_include_configured_opener_and_stall_fallback(self) -> None:
         controller = PvEController(PvEControllerConfig(opening_intent=PvEIntent.CAST_SHADOW_TOUCH))
@@ -1710,7 +1642,7 @@ class PvEApproachControllerTests(unittest.TestCase):
             reposition_requested: bool = False,
         ):
             return approach.step(
-                PvEObservation(
+                _native_observation(
                     now_ms=now_ms,
                     target=_target("bugged-mob"),
                     player=_player(),
@@ -1751,7 +1683,7 @@ class PvEApproachControllerTests(unittest.TestCase):
 
         def observe(now_ms: int):
             return approach.step(
-                PvEObservation(
+                _native_observation(
                     now_ms=now_ms,
                     target=_target("turtle"),
                     player=_player(),
@@ -1789,7 +1721,7 @@ class PvEApproachControllerTests(unittest.TestCase):
             PvEApproachConfig(native_progress_grace_ms=100),
             planner=NoRoutePlanner(),
         )
-        observation = PvEObservation(
+        observation = _native_observation(
             now_ms=0,
             target=_target("turtle"),
             player=_player(),
@@ -1802,7 +1734,7 @@ class PvEApproachControllerTests(unittest.TestCase):
             approach.step(observation, phase=PvEPhase.ENGAGED).status.value,
         )
         failed = approach.step(
-            PvEObservation(
+            _native_observation(
                 now_ms=100,
                 target=observation.target,
                 player=observation.player,
@@ -1818,12 +1750,57 @@ class PvEApproachControllerTests(unittest.TestCase):
         self.assertIn("astar_route_not_found", failed.decision.terminal_reason)
 
 
+class ConfirmedCleanup:
+    def cleanup(self, request):
+        return PvECombatCleanupResult(request, True, "11111111-1111-4111-8111-111111111111")
+
+
+class FixtureIdleActionSource:
+    def __init__(self, health):
+        self.health = health
+
+    def observe_player(self):
+        return _player_action(token=self.health.last.target_token)
+
+
+class FixturePopulationSource:
+    def __init__(self, health, position=None, action=None, controller=None):
+        self.health, self.position = health, position
+        self.action, self.controller = action, controller
+
+    def observe(self):
+        target = self.health.last
+        position = None
+        if self.position is not None and self.position.values:
+            position = self.position.values[0]
+        if not target.target_present and position is not None:
+            position = _target_position(None)
+        action = None
+        if (self.action is not None and self.controller.player_action_observation_active
+                and getattr(self.action, "values", None)):
+            action = self.action.values[0]
+        return _native_observation(now_ms=0, target=target, player=_player(),
+            player_action=action,
+            target_position=position,
+            player_position=None if position is None else _player_position()).population
+
+
+def _runner(**values):
+    values.setdefault("player_action_reader", FixtureIdleActionSource(values["health_reader"]))
+    values.setdefault("population_reader", FixturePopulationSource(
+        values["health_reader"], values.get("target_position_reader"),
+        values.get("player_action_reader"), values["controller"]))
+    values.setdefault("combat_cleanup", ConfirmedCleanup())
+    return PvERunner(**values)
+
+
 class SequenceHealthSource:
     def __init__(self, values: tuple[NativeTargetHealthObservation, ...]) -> None:
         self.values = list(values)
 
     def observe(self) -> NativeTargetHealthObservation:
-        return self.values.pop(0)
+        self.last = self.values.pop(0)
+        return self.last
 
 
 class SequenceCombatLogSource:
@@ -1898,7 +1875,7 @@ class FailingSequenceTargetIdentitySource:
 
 class ConstantHealthSource:
     def __init__(self, value: NativeTargetHealthObservation) -> None:
-        self.value = value
+        self.value = self.last = value
 
     def observe(self) -> NativeTargetHealthObservation:
         return self.value
@@ -1989,11 +1966,10 @@ class PvERunnerTests(unittest.TestCase):
     def test_stop_racing_with_dispatch_is_a_clean_emergency_stop(self) -> None:
         clock = AdvancingClock()
         stop = EventEmergencyStop()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(PvEControllerConfig()),
             health_reader=SequenceHealthSource((_absent(),)),
             player_vitals_reader=SequencePlayerVitalsSource((_player(),)),
-            combat_log_reader=SequenceCombatLogSource(((),)),
             dispatcher=StopRacingPvEDispatcher(stop),
             stop_signal=stop,
             poll_interval_ms=100,
@@ -2010,13 +1986,12 @@ class PvERunnerTests(unittest.TestCase):
     def test_runner_journals_every_step_while_retaining_only_a_bounded_tail(self) -> None:
         clock = AdvancingClock()
         journaled = []
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(PvEControllerConfig(maximum_kills=1)),
             health_reader=SequenceHealthSource(
                 (_absent(), _target("mob"), _target("mob", current=0.0))
             ),
             player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 3),
-            combat_log_reader=SequenceCombatLogSource(((),) * 3),
             dispatcher=RecordingPvEDispatcher(),
             stop_signal=EventEmergencyStop(),
             maximum_retained_trace_steps=2,
@@ -2033,21 +2008,16 @@ class PvERunnerTests(unittest.TestCase):
         self.assertEqual([1, 2], [step.decision.decision_id for step in result.trace])
         self.assertEqual([0, 1, 2], [step.decision.decision_id for step in journaled])
 
-    def test_state_combat_source_never_invents_text_events(self) -> None:
-        source = EmptyCombatLogSource()
-
-        self.assertEqual((), source.read_new_entries())
-        self.assertIsInstance(source, CombatLogSource)
-
     def test_runner_samples_and_traces_player_animation_before_attack(self) -> None:
         clock = AdvancingClock()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(PvEControllerConfig(maximum_kills=1)),
             health_reader=SequenceHealthSource(
                 (_absent(), _target("mob"), _target("mob", current=0))
             ),
             player_action_reader=SequencePlayerActionSource(
                 (
+                    _player_action(token=None),
                     _player_action(sequence=4),
                     _player_action(
                         phase=NativeTargetActionPhase.WINDUP,
@@ -2056,7 +2026,6 @@ class PvERunnerTests(unittest.TestCase):
                 )
             ),
             player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 3),
-            combat_log_reader=SequenceCombatLogSource(((),) * 3),
             dispatcher=RecordingPvEDispatcher(),
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
@@ -2075,7 +2044,7 @@ class PvERunnerTests(unittest.TestCase):
     def test_runner_cycles_protected_identity_and_traces_valid_target(self) -> None:
         clock = AdvancingClock()
         dispatcher = RecordingPvEDispatcher()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(
                 PvEControllerConfig(
                     maximum_kills=1,
@@ -2101,7 +2070,6 @@ class PvERunnerTests(unittest.TestCase):
                 )
             ),
             player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 4),
-            combat_log_reader=SequenceCombatLogSource(((),) * 4),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
@@ -2127,7 +2095,7 @@ class PvERunnerTests(unittest.TestCase):
     def test_runner_skips_unclassifiable_target_and_continues_bounded_scan(self) -> None:
         clock = AdvancingClock()
         dispatcher = RecordingPvEDispatcher()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(
                 PvEControllerConfig(
                     maximum_kills=1,
@@ -2153,7 +2121,6 @@ class PvERunnerTests(unittest.TestCase):
                 )
             ),
             player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 4),
-            combat_log_reader=SequenceCombatLogSource(((),) * 4),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
@@ -2180,7 +2147,7 @@ class PvERunnerTests(unittest.TestCase):
     def test_runner_cycles_past_zero_pool_selection_with_stale_position(self) -> None:
         clock = AdvancingClock()
         dispatcher = RecordingPvEDispatcher()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(PvEControllerConfig(maximum_kills=1)),
             health_reader=SequenceHealthSource(
                 (_absent(), _target("mob"), _target("mob", current=0))
@@ -2194,7 +2161,6 @@ class PvERunnerTests(unittest.TestCase):
                     _target_position("mob"),
                 )
             ),
-            combat_log_reader=SequenceCombatLogSource(((),) * 3),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
@@ -2217,7 +2183,7 @@ class PvERunnerTests(unittest.TestCase):
         clock = AdvancingClock()
         combat_dispatcher = RecordingPvEDispatcher()
         movement_dispatcher = RecordingMovementDispatcher()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(
                 PvEControllerConfig(
                     maximum_kills=1,
@@ -2244,7 +2210,6 @@ class PvERunnerTests(unittest.TestCase):
                     *[_target_position("turtle", 110.0, 200.0)] * 10,
                 )
             ),
-            combat_log_reader=SequenceCombatLogSource(((),) * 15),
             dispatcher=combat_dispatcher,
             approach_controller=PvEApproachController(
                 PvEApproachConfig(
@@ -2296,13 +2261,12 @@ class PvERunnerTests(unittest.TestCase):
         dispatcher = RecordingPvEDispatcher()
         clock = AdvancingClock()
         journal_steps = []
-        result = PvERunner(
+        result = _runner(
             controller=PvEController(PvEControllerConfig(maximum_kills=1)),
             health_reader=SequenceHealthSource((
                 _absent(), _target("mob"), _target("unrelated-corpse", current=0),
             )),
             player_vitals_reader=SequencePlayerVitalsSource((_player(),) * 3),
-            combat_log_reader=EmptyCombatLogSource(),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             trace_sink=lambda step: journal_steps.append(step.as_dict()),
@@ -2312,14 +2276,14 @@ class PvERunnerTests(unittest.TestCase):
         ).run()
 
         self.assertEqual(PvEPhase.STOPPED, result.final_phase)
-        self.assertEqual("selected_target_changed_during_engagement", result.terminal_reason)
+        self.assertTrue(result.terminal_reason.startswith("observation_failure:"))
         self.assertEqual(0, result.kills)
         self.assertEqual(
             [PvEIntent.ACQUIRE_NEXT_MOB, PvEIntent.ATTACK_SELECTED_TARGET], dispatcher.intents,
         )
         self.assertEqual(journal_steps, [step.as_dict() for step in result.trace])
         terminal = journal_steps[-1]
-        self.assertEqual("unrelated-corpse", result.trace[-1].target_token)
+        self.assertEqual("mob", result.trace[-1].decision.tracked_target.token)
         self.assertEqual(0, terminal["kills"])
         self.assertIsNone(terminal["kill_confirmation"])
         self.assertIsNone(terminal["intent"])
@@ -2330,32 +2294,12 @@ class PvERunnerTests(unittest.TestCase):
                 _absent(),
                 _target("mob"),
                 _target("mob", current=5),
-                _absent(),
-            )
-        )
-        combat = SequenceCombatLogSource(
-            (
-                (),
-                (),
-                (
-                    NativeCombatLogEntry(
-                        sequence=0,
-                        timestamp="5:02:19",
-                        message="You hit the Frost Walker for 5 points of damage!",
-                    ),
-                ),
-                (
-                    NativeCombatLogEntry(
-                        sequence=1,
-                        timestamp="5:02:20",
-                        message="[Combat] Info: You have killed the Frost Walker!",
-                    ),
-                ),
+                _target("mob", current=0),
             )
         )
         dispatcher = RecordingPvEDispatcher()
         clock = AdvancingClock()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(PvEControllerConfig(maximum_kills=1)),
             health_reader=health,
             player_vitals_reader=SequencePlayerVitalsSource(
@@ -2367,7 +2311,7 @@ class PvERunnerTests(unittest.TestCase):
                     _target_position(None),
                     _target_position("mob"),
                     _target_position("mob"),
-                    _target_position(None),
+                    _target_position("mob"),
                 )
             ),
             target_action_reader=SequenceTargetActionSource(
@@ -2377,10 +2321,9 @@ class PvERunnerTests(unittest.TestCase):
                         phase=NativeTargetActionPhase.WINDUP,
                         sequence=1,
                     ),
-                    _target_action(None),
+                    _target_action("mob"),
                 )
             ),
-            combat_log_reader=combat,
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
@@ -2402,17 +2345,17 @@ class PvERunnerTests(unittest.TestCase):
         self.assertEqual(5.0, hit_step.target_planar_distance)
         self.assertEqual(12.0, hit_step.target_altitude_delta)
         self.assertEqual(13.0, hit_step.target_spatial_distance)
-        self.assertEqual(NativeCombatEventKind.PLAYER_HIT_TARGET, hit_step.combat_events[0].kind)
+        self.assertEqual((), hit_step.combat_events)
         trace_payload = hit_step.as_dict()
         self.assertEqual(5.0, trace_payload["target"]["planar_distance"])
-        self.assertEqual("player_hit_target", trace_payload["combat_events"][0]["kind"])
+        self.assertEqual([], trace_payload["combat_events"])
         self.assertEqual("windup", trace_payload["target"]["action"]["phase"])
         self.assertEqual(
-            PvEKillConfirmation.NATIVE_COMBAT_EVENT,
+            PvEKillConfirmation.NATIVE_HEALTH_ZERO,
             result.trace[-1].decision.kill_confirmation,
         )
         self.assertEqual(
-            "native_combat_event",
+            "native_health_zero",
             result.trace[-1].as_dict()["kill_confirmation"],
         )
 
@@ -2424,13 +2367,14 @@ class PvERunnerTests(unittest.TestCase):
                 _target("mob-1", current=0),
                 _absent(),
                 _absent(),
+                _absent(),
                 _target("mob-2"),
                 _target("mob-2", current=0),
             )
         )
         dispatcher = RecordingPvEDispatcher()
         clock = AdvancingClock()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(
                 PvEControllerConfig(
                     maximum_kills=2,
@@ -2451,9 +2395,9 @@ class PvERunnerTests(unittest.TestCase):
                     _player(current_health=80, current_mana=30, current_stamina=60),
                     _player(current_health=80, current_mana=30, current_stamina=60),
                     _player(current_health=80, current_mana=30, current_stamina=60),
+                    _player(current_health=80, current_mana=30, current_stamina=60),
                 )
             ),
-            combat_log_reader=SequenceCombatLogSource(((),) * 7),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
@@ -2474,7 +2418,7 @@ class PvERunnerTests(unittest.TestCase):
             ],
             dispatcher.intents,
         )
-        self.assertEqual(PvEPhase.POST_KILL, result.trace[3].decision.phase)
+        self.assertEqual(PvEPhase.DISENGAGING, result.trace[3].decision.phase)
         confirmations = tuple(
             step.decision.kill_confirmation
             for step in result.trace
@@ -2490,11 +2434,10 @@ class PvERunnerTests(unittest.TestCase):
 
     def test_runner_stops_immediately_when_guarded_input_is_rejected(self) -> None:
         clock = AdvancingClock()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(PvEControllerConfig()),
             health_reader=SequenceHealthSource((_absent(),)),
             player_vitals_reader=SequencePlayerVitalsSource((_player(),)),
-            combat_log_reader=SequenceCombatLogSource(((),)),
             dispatcher=RecordingPvEDispatcher(accepted=False),
             stop_signal=EventEmergencyStop(),
             clock=clock,
@@ -2509,11 +2452,10 @@ class PvERunnerTests(unittest.TestCase):
 
     def test_runner_stops_when_input_dispatch_raises(self) -> None:
         clock = AdvancingClock()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(PvEControllerConfig()),
             health_reader=SequenceHealthSource((_absent(),)),
             player_vitals_reader=SequencePlayerVitalsSource((_player(),)),
-            combat_log_reader=SequenceCombatLogSource(((),)),
             dispatcher=RecordingPvEDispatcher(raises=True),
             stop_signal=EventEmergencyStop(),
             clock=clock,
@@ -2529,7 +2471,7 @@ class PvERunnerTests(unittest.TestCase):
     def test_runner_pauses_input_and_recovers_after_transient_observation_failures(self) -> None:
         dispatcher = RecordingPvEDispatcher()
         clock = AdvancingClock()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(
                 PvEControllerConfig(
                     maximum_session_ms=500,
@@ -2540,7 +2482,6 @@ class PvERunnerTests(unittest.TestCase):
             ),
             health_reader=ConstantHealthSource(_absent()),
             player_vitals_reader=FlakyPlayerVitalsSource(2),
-            combat_log_reader=ConstantCombatLogSource(),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
@@ -2558,11 +2499,10 @@ class PvERunnerTests(unittest.TestCase):
     def test_runner_stops_after_bounded_consecutive_observation_failures(self) -> None:
         dispatcher = RecordingPvEDispatcher()
         clock = AdvancingClock()
-        runner = PvERunner(
+        runner = _runner(
             controller=PvEController(PvEControllerConfig()),
             health_reader=ConstantHealthSource(_absent()),
             player_vitals_reader=FlakyPlayerVitalsSource(3),
-            combat_log_reader=ConstantCombatLogSource(),
             dispatcher=dispatcher,
             stop_signal=EventEmergencyStop(),
             poll_interval_ms=100,
