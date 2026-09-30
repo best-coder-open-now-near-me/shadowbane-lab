@@ -4,33 +4,43 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Current shared source and deployment - September 29
+## Current shared source and deployment - September 30
 
-Start new development from freshly fetched `origin/main`. The approved bot
-integration [PR #43](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/43)
-merged at `d3389d4eff992074f7a63394c735f5b4cfd1d993` after all 15 hosted checks
-passed on `127bf94476db0ec73199381a9057e6c8a263b799`. It preserves the exact
-PR #39 `a6e8114`, PR #40 `1565732` (including vendor PR #38), PR #41 `8e87a47`,
-and PR #42 `daec3d1` histories. PRs #38-43 are merged. They are not outstanding
-source integration dependencies.
-
-The dashboard correction is merged through
+Start new development from freshly fetched `origin/main`. PRs #38-45 are merged;
+the bot integration, current client support, dashboard correction, combat
+diagnostics and standalone PvE startup ordering are included in shared history.
+[PR #43](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/43)
+merged at `d3389d4eff992074f7a63394c735f5b4cfd1d993`, followed by
 [PR #44](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/44)
-at `5945a00fd160097c5f43e49bbf3386337beabc4f`, after all 15 hosted gates passed.
-The deployed host 0.3.53 / native 1.8.33 package is stamped with reviewed head
-`b5016c491d2b51e0f0ed99b62acaedf134c54c9a`; its history is retained in main.
-`codex/bot-deployment-20260929` now carries the post-deployment receipt and
-host combat diagnostics in [draft PR #45](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/45),
-targeting main. This draft remains outside main and requires hosted validation
-and merge authorization. The qualified installed runtime is unchanged.
-Follow [the deployment receipt](bot-deployment-20260929.md) for exact hashes,
-installed state, preservation checks, and remaining live-test investigation. The normal
-checkout stays on main. Active validation worktrees remain available for the
-pending live acceptance; unrelated historical branches are not cleanup targets.
+at `5945a00fd160097c5f43e49bbf3386337beabc4f`.
+[PR #45](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/45)
+merged at `79b374da0a446cce913238543ee737cc01ad3e78` after all 15 hosted checks
+passed on `ab5e043a84808eea776b2e463e7d6e3d2cf63116` and merge authorization.
+The normal checkout is clean on main at that merge.
 
-Manual-list combat is implemented. Automatic retaliation is disabled pending an
-authoritative server character-session fence. Active validation artifacts and
-worktrees remain available; historical unrelated renderer/town branches and
+Vendor Test now has source-stamped host 0.3.54 / native 1.8.34 from the exact
+PR #45 head, qualified by `artifacts/b34/1be8a982`. Client 1.3.38.12 and its
+prepared executable are unchanged. The update verified preservation, five
+shortcuts, launch preflight, manager startup and the loaded DLL. Obsolete host
+0.3.53 and its two superseded guest payload binaries were verified and removed;
+no rollback copies were retained. Follow [the deployment receipt](bot-deployment-20260929.md)
+for exact artifact identities and evidence.
+
+Live manual-list combat acceptance remains open. The fresh bounded attempt
+`85193158420e4802af16fffdde28f706` was rejected at `query_match` as stale, before
+native dispatcher/factory/queue/followup entry. It recorded no queued attack,
+confirmed cleanup and a strictly later PvE SEEKING step. The test-owned entry
+was removed, leaving the original empty list at revision 6. This does not prove
+an attack or cancellation caused by manual removal.
+
+`codex/bot-deployment-20260929` at `ab5e043` is retained in main. The bot-runtime
+worktree is now on `codex/combat-target-query-20260930`, based on main, for the
+focused query-match investigation and documentation follow-up. That follow-up
+is unfinished and is not part of the installed package. Other active validation
+worktrees remain available. Next: diagnose the rejected query match, then complete
+bounded attack/cancel/recovery acceptance.
+Automatic retaliation remains disabled pending an authoritative server
+character-session fence. Historical unrelated renderer/town branches and
 cancelled carpenter drafts have not been silently integrated or deleted.
 
 Everything below is a dated historical snapshot. Earlier pending/draft/active
