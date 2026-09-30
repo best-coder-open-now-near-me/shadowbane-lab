@@ -12,7 +12,43 @@ proves that only one embedded version byte differs; callback bodies and class
 tables are unchanged. The loaded-image verifier remains mandatory. Original
 unprepared images and unknown hashes do not receive combat capability.
 
-## Ownership and native entry
+## Current object entry qualification - September 30
+
+The production replacement uses retained actor and target objects without GUI
+selection or hotkey mappings. The earlier selected-action analysis below is
+historical evidence, not an admission requirement for this replacement. The
+shared engagement service is being integrated; these adapters are not yet
+activated as the production host path or deployed.
+
+The melee adapter preserves the reviewed action 1551 legality and ownership
+sequence while replacing its selected-object reads with the retained target.
+The exact-image probe compares 2,048 control-flow combinations against the
+original handler with instrumented helper calls. It qualifies argument order,
+branch behavior and reference transfer, not live server acceptance.
+
+The power adapter invokes ordinary native entry at RVA `0x9bbf0` with the
+verified numeric learned-power ID, learned rank, retained actor and target, and
+zero optional key. It resolves the manager-owned definition at each call and
+rejects unsupported self/location delivery before entry. Ordinary client target,
+line-of-sight, resource and cooldown checks remain in the native path. Neither
+the definition nor a temporary learned-rank record is retained as an ArcObject.
+
+Process-pinned observers at the exact native send and follow-up callsites bind
+outbound evidence to the invocation's actual stack frames and owned message.
+An unrelated native cast passes through without borrowing that invocation's
+receipt. The shared outbound observer records the exact queue admission;
+rejection prevents the correlated local follow-up. Persistent receipts preserve
+entry and queue history through C++ and structured exceptions. This is local
+client evidence, not proof of server acceptance, damage or projectile impact.
+
+Focused native tests cover admission, unrelated invocation frames, unavailable
+queue, partial observer installation and fault handling. Package qualification
+executes the power and melee probes against both original and package-prepared
+reviewed images in both build profiles. Private binaries and captures stay out
+of source delivery. The coordinated command/fence replacement and final package
+qualification remain open; see the active bot work ledger.
+
+## Historical ownership and native entry
 
 The existing native owner-update service owns selection, attack, observation, and
 cancellation under the captured movement Grant. The generic transport-worker

@@ -45,6 +45,8 @@ add_library(
   combat_native.cpp
   combat_melee_entry.cpp
   combat_target_policy.cpp
+  combat_power_entry.cpp
+  combat_power_observer.cpp
   combat_runtime.cpp
   vendor_navigation_native.cpp
   movement_settings.cpp
@@ -1462,6 +1464,31 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_combat_melee_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   add_test(NAME wonderbane_extension_combat_melee_entry COMMAND wonderbane_extension_combat_melee_entry_test)
   set_tests_properties(wonderbane_extension_combat_melee_entry PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_power_entry_test combat_power_entry_test.cpp)
+  target_compile_features(wonderbane_extension_combat_power_entry_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_power_entry_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_power_entry_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  add_test(NAME wonderbane_extension_combat_power_entry COMMAND wonderbane_extension_combat_power_entry_test)
+  add_test(NAME wonderbane_extension_combat_power_partial_install COMMAND wonderbane_extension_combat_power_entry_test partial-install)
+  set_tests_properties(wonderbane_extension_combat_power_entry wonderbane_extension_combat_power_partial_install PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  foreach(target wonderbane_extension_movement_native_stop_test wonderbane_extension_movement_runtime_test wonderbane_extension_movement_settings_runtime_test)
+    target_sources(${target} PRIVATE combat_power_image_test_stub.cpp)
+  endforeach()
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_power_probe EXCLUDE_FROM_ALL combat_power_probe.cpp)
+  target_compile_features(wonderbane_extension_combat_power_probe PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_power_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_power_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_power_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_combat_power_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
 endif()
 
 if(BUILD_TESTING)
