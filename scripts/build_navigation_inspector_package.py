@@ -77,6 +77,8 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_combat_initiation",
     "wonderbane_extension_combat_power_readiness",
     "wonderbane_extension_movement_boundary_outermost_service",
+    "wonderbane_extension_movement_runtime_owner-service",
+    "wonderbane_extension_movement_windows_input_mouse",
     "wonderbane_extension_combat_submission",
     "wonderbane_extension_combat_submission_install_failure",
     "wonderbane_extension_combat_melee_entry",

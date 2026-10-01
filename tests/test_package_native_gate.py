@@ -264,12 +264,14 @@ def test_power_gate_cannot_count_one_image_twice(pair, feature):
         getattr(builder, f"validate_combat_power_{feature}_steps")(steps, reviewed_client=True)
 
 
-@pytest.mark.parametrize(
-    "image", ["prepared12", "original12", "prepared13", "original13", "unknown"],
-)
+@pytest.mark.parametrize("name", [
+    *(f"wonderbane_extension_combat_power_image_{image}"
+      for image in ("prepared12", "original12", "prepared13", "original13", "unknown")),
+    "wonderbane_extension_movement_runtime_owner-service",
+    "wonderbane_extension_movement_windows_input_mouse",
+])
 @pytest.mark.parametrize("failure", ["missing", "skipped", "failure", "duplicate"])
-def test_initiation_image_admission_is_a_required_gate(tmp_path, image, failure):
-    name = f"wonderbane_extension_combat_power_image_{image}"
+def test_native_combat_entry_and_ownership_are_required_gates(tmp_path, name, failure):
     assert name in builder.REQUIRED_COMBAT_TESTS
     suite = ET.Element("testsuite")
     for required in sorted(builder.REQUIRED_COMBAT_TESTS):
