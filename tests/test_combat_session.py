@@ -79,9 +79,10 @@ def owner(monkeypatch):
     monkeypatch.setattr(channel, "WindowsNativeActionCommandTransport", Transport)
     session = NativeMovementSession(identity, command.window, timeout_ms=127)
     before = movement.Snapshot(
-        2, identity.process_id, 2, identity.creation_filetime_utc, command.window,
+        2, identity.process_id, 3, identity.creation_filetime_utc, command.window,
         command.grant, movement.Settings(), 1, 1,
     )
+    monkeypatch.setattr(session, "snapshot", lambda: before)
     grant = session.acquire(before, "worker", "operation", str(uuid.uuid4()))
     transport = opened[0]
     transport.commands.clear()

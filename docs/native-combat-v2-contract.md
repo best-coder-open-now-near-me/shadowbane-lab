@@ -1,15 +1,28 @@
 # Native combat command v2 and engagement fence v3
 
-Source contract for the coordinated implementation merged through
-[PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46)
-on September 30, 2026. Qualified source
-`6f101f61a7a2f093b0360baef2b628bead057220` is installed as host 0.3.55 /
-native 1.8.35; the shared main merge is
-`7f250c6166b66459a6fba4de527743e5f7363c90`. Native/package qualification and
-installation checks passed; supervised gameplay acceptance remains pending
-login. See the [deployment receipt](bot-deployment-20260930.md). The host and
-native extension ship together. Legacy verbs 34-36 are rejected after the
-upgrade. There is no keyboard/hotbar fallback.
+The shared native combat implementation from PR #46 is installed with the
+[client 1.3.38.13 update](client-update-20260930-late.md), merged through PR #48
+at `35fce4ba273a399b31e577d6d487a68b08dc34e3`. Installed host 0.3.56 / native
+1.8.36 is exact qualified source `e6c7a28f229043540d3f93181900072ded58752c`.
+Package, hosted, installation and loaded-DLL checks passed. The first live
+manual attack queued independently of selection and cleanup confirmed native
+stop; an earlier operation emergency stop prevented later SEEKING recovery.
+Full recovery and NPC/cast acceptance remain open. Host and native ship together;
+legacy verbs 34-36 are rejected and there is no keyboard/hotbar fallback.
+
+## Same-owner cleanup status
+
+The 0.3.57 / 1.8.37 candidate distinguishes movement request readiness from
+owner lifetime during native cancellation. Movement status `CLEANUP_PENDING`
+(`0x40`) describes only cleanup still owned by the exact current automation
+Grant, under valid native bindings, scene and input/safety conditions. READY
+stays clear. The host may retain that owner, renew its lease and poll or finish
+cleanup; it must not acquire a replacement or submit new movement/combat work.
+When native cleanup completes, the same owner can return to READY and ordinary
+PvE seeking. Pending cleanup does not count as completed cleanup or server proof.
+Changed Grant/scene, terminal/fault or focus/UI invalidation remain permanent
+stops. Missing READY without this explicit valid pending state is still rejected.
+The host and native changes must be qualified and installed together.
 
 ## Ownership and identities
 

@@ -11,7 +11,18 @@ from typing import TYPE_CHECKING
 
 from . import action_channel as channel
 from .combat_fence_v3 import Ordinals
-from .movement_wire import Command, Grant, Host, Outcome, Receipt, Settings, Snapshot, Verb
+from .movement_wire import (
+    CLEANUP_PENDING,
+    Command,
+    Grant,
+    Host,
+    Outcome,
+    Receipt,
+    Settings,
+    Snapshot,
+    Verb,
+    owner_maintenance_available,
+)
 
 if TYPE_CHECKING:
     from .combat_wire_v2 import Receipt as CombatReceipt
@@ -24,6 +35,10 @@ class NativeMovementError(channel.NativeActionChannelError):
     def __init__(self, outcome: Outcome, receipt: Receipt | None = None):
         super().__init__(f"native movement {outcome.name.lower()}")
         self.outcome, self.receipt = outcome, receipt
+
+
+class NativeMovementCleanupPending(channel.NativeActionChannelError):
+    """The exact owner is retained for cleanup; no new work was submitted."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,6 +217,15 @@ class NativeMovementSession:
         if grant in self._revoked or grant.host != self._host(acquire=False):
             raise NativeMovementError(Outcome.STALE)
 
+    def _require_new_work_ready(self, grant: NativeMovementGrant) -> None:
+        snapshot = self.snapshot()
+        self._expected(snapshot)
+        if snapshot.grant != grant.ownership or not owner_maintenance_available(snapshot.flags):
+            self._revoked.add(grant)
+            raise NativeMovementError(Outcome.STALE)
+        if snapshot.flags & CLEANUP_PENDING:
+            raise NativeMovementCleanupPending("native movement cleanup pending")
+
     def move(
         self, grant: NativeMovementGrant, destination: tuple[float, float, float], request_key: str
     ) -> Receipt:
@@ -209,12 +233,17 @@ class NativeMovementSession:
             self._check_grant(grant)
             if grant in self._stops:
                 raise NativeMovementError(Outcome.INHIBITED)
+            self._require_new_work_ready(grant)
             try:
                 return self._submit(
                     Verb.DESTINATION,
                     Command(grant.host, grant.window, grant.ownership, request_key, destination),
                 )
-            except NativeMovementError:
+            except NativeMovementError as exc:
+                if (exc.outcome is Outcome.STOP_FAILED and exc.receipt is not None
+                        and exc.receipt.grant == grant.ownership
+                        and exc.receipt.flags & CLEANUP_PENDING):
+                    raise NativeMovementCleanupPending("native movement cleanup pending") from exc
                 self._revoked.add(grant)
                 raise
 
@@ -222,7 +251,8 @@ class NativeMovementSession:
         with self._session_lock:
             self._check_grant(grant)
             snapshot = self.snapshot()
-            if snapshot.grant != grant.ownership or not snapshot.flags & 2 or snapshot.flags & 8:
+            self._expected(snapshot)
+            if snapshot.grant != grant.ownership or not owner_maintenance_available(snapshot.flags):
                 self._revoked.add(grant)
                 raise NativeMovementError(Outcome.STALE)
             transport = self._transport
@@ -237,12 +267,20 @@ class NativeMovementSession:
                 receipt = self._submit(
                     Verb.PAUSE, Command(grant.host, grant.window, grant.ownership, request_key)
                 )
-            except NativeMovementError:
+            except NativeMovementError as exc:
+                # A correlated failed cleanup can retain the same owner. It is
+                # retryable cleanup, never a new movement or an ownership loss.
+                if (exc.outcome is Outcome.STOP_FAILED and exc.receipt is not None
+                        and exc.receipt.grant == grant.ownership
+                        and exc.receipt.flags & CLEANUP_PENDING):
+                    raise NativeMovementCleanupPending("native movement cleanup pending") from exc
                 self._revoked.add(grant)
                 raise
             if receipt.grant != grant.ownership:
                 self._revoked.add(grant)
                 raise channel.NativeActionChannelError("pause changed operation ownership")
+            if receipt.flags & CLEANUP_PENDING:
+                raise NativeMovementCleanupPending("native movement cleanup remains pending")
             return receipt
 
     def stop(self, grant: NativeMovementGrant, request_key: str) -> Receipt:
@@ -341,6 +379,7 @@ class NativeMovementSession:
                 self._check_grant(grant)
                 if grant in self._stops:
                     raise NativeMovementError(Outcome.INHIBITED)
+                self._require_new_work_ready(grant)
             # STATUS/CANCEL remain callable for the immutable old owner after native
             # revocation. Native correlates its retired transaction, never a replacement.
             transport = self._combat_transport(grant, require_capability=admission)

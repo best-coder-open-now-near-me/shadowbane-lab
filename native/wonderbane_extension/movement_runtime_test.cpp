@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
     Check(rt.controls.Configure(rt.settings) == wm::Result::accepted && rt.input.Configure(rt.settings), "consumer settings configured");
     const auto step = [&] { rt.Update(f.game_window.data()); };
     step(); step();
-    if (mode == "ipc" || mode == "ipc-profile") {
+    if (mode == "ipc" || mode == "ipc-profile" || mode == "ipc-cleanup") {
         FILETIME created{}, exited{}, kernel{}, user{};
         Check(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) != FALSE, "IPC client lifetime");
         rt.process = {GetCurrentProcessId(), (static_cast<std::uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime};
@@ -132,15 +132,52 @@ int main(int argc, char** argv) {
         Check(rt.controls.Configure(rt.settings) == wm::Result::accepted && rt.input.Configure(rt.settings),
             "manual disabled retains native automation readiness");
         Check(wonderbane::extension::StartClientActionCommandChannel(rt.process) == ERROR_SUCCESS, "IPC production channel");
+        static bool cleanup_started = false, cleanup_allowed = false;
+        if (mode == "ipc-cleanup") {
+            wonderbane::extension::combat_owner_stop.store(+[](const wm::NativeScene& scene,
+                    const wm::Grant& grant, wm::StopReason) noexcept {
+                return cleanup_allowed && wm::NativeOwnerStopCurrent(scene, grant);
+            });
+            wonderbane::extension::combat_owner_retire.store(+[](std::uint64_t) noexcept {});
+            wonderbane::extension::combat_owner_service.store(+[](void*, HWND) noexcept {
+                auto& owner_runtime = wm::runtime;
+                if (cleanup_started || !owner_runtime.automation_lease
+                    || owner_runtime.controls.Current().owner != wm::Owner::automation) { return; }
+                const auto grant = owner_runtime.controls.Current();
+                if (wm::BeginNativeOwnerAction(observed, grant, owner_runtime.automation_lease->host)
+                        != wm::Result::accepted) { return; }
+                cleanup_started = true;
+                Check(wm::PauseNativeOwnerAction(observed, grant) == wm::Result::stop_failed,
+                    "IPC cleanup starts an unconfirmed native cancellation under the acquired owner");
+            });
+        }
         step(); step(); rt.Publish();
         std::printf("%lu %llu %llu\n", static_cast<unsigned long>(rt.process.process_id),
             static_cast<unsigned long long>(rt.process.creation_filetime_utc),
             static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(f.window))); std::fflush(stdout);
-        const auto expected_receipts = mode == "ipc-profile" ? 4 : 6;
+        const auto expected_receipts = mode == "ipc-profile" ? 4 : mode == "ipc-cleanup" ? 2 : 6;
         const auto until = GetTickCount64() + 10000;
         auto* storage = wonderbane::extension::command_channel_detail::g_runtime.storage;
         while (GetTickCount64() < until && InterlockedCompareExchange64(&storage->header.result_read_sequence, 0, 0) < expected_receipts) {
+            if (mode == "ipc-cleanup" && !cleanup_allowed) {
+                // Anonymous stdin pipe handshake: no blocking reader thread or
+                // wall-clock auto-completion can manufacture a native stop ack.
+                DWORD available = 0;
+                const auto input_pipe = GetStdHandle(STD_INPUT_HANDLE);
+                if (PeekNamedPipe(input_pipe, nullptr, 0, nullptr, &available, nullptr) && available) {
+                    char bytes[32]{}; DWORD read = 0;
+                    if (ReadFile(input_pipe, bytes, (std::min)(available, DWORD{32}), &read, nullptr)) {
+                        cleanup_allowed = std::find(bytes, bytes + read, 'r') != bytes + read;
+                    }
+                }
+            }
             step(); Sleep(5);
+        }
+        if (mode == "ipc-cleanup") {
+            Check(cleanup_started && cleanup_allowed, "Python acknowledged the retained cleanup fixture");
+            wonderbane::extension::combat_owner_service.store(nullptr);
+            wonderbane::extension::combat_owner_stop.store(nullptr);
+            wonderbane::extension::combat_owner_retire.store(nullptr);
         }
         Check(storage->header.result_read_sequence == expected_receipts, "Python consumed correlated native receipts");
         wonderbane::extension::StopClientActionCommandChannel(); rt.input.Retire(); return failures ? 1 : 0;
@@ -172,6 +209,12 @@ int main(int argc, char** argv) {
         Check(acquire->receipt.outcome == 0 && owned.owner == wm::Owner::automation, "queued acquire obtains native owner");
         if (mode == "owner-service") {
             namespace extension = wonderbane::extension;
+            FILETIME created{}, exited{}, kernel{}, user{};
+            Check(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) != FALSE,
+                "owner-service IPC fixture captures exact process lifetime");
+            rt.process = {GetCurrentProcessId(), (std::uint64_t{created.dwHighDateTime} << 32) | created.dwLowDateTime};
+            Check(extension::StartClientActionCommandChannel(rt.process) == ERROR_SUCCESS,
+                "owner-service publishes through the production shared status channel");
             static wm::NativeScene expected_scene;
             static wm::Grant expected_grant;
             static wm::wire::Host expected_host;
@@ -224,12 +267,32 @@ int main(int argc, char** argv) {
             Check(rejected_baseline->receipt.outcome != 0 && ordinary_combat
                 && !rt.controls.Ready() && rt.owner_activity_stop && rt.controls.Current() == owned,
                 "failed idle PAUSE retains native cleanup rather than claiming a baseline");
+            rt.Publish();
+            const auto& pending_status = extension::command_channel_detail::g_runtime.storage->movement_status;
+            wm::Grant status_grant{}; wm::RuntimeSnapshot pending_snapshot{};
+            Check(wm::wire::Decode(pending_status.grant, status_grant) && status_grant == owned
+                && (pending_status.flags & wm::wire::cleanup_pending)
+                && (pending_status.flags & wm::wire::bindings) && !(pending_status.flags & wm::wire::ready)
+                && !(pending_status.flags & wm::wire::terminal)
+                && wm::ReadNativeMovementControls(pending_snapshot) && pending_snapshot.cleanup_pending,
+                "deferred owner cleanup publishes exact-grant continuation through real IPC");
+            Check((rejected_baseline->receipt.flags & wm::wire::cleanup_pending) != 0,
+                "failed pause receipt also distinguishes retained cleanup");
+            auto blocked_move = make(wm::wire::Verb::destination, owned, 89);
+            blocked_move->command.destination = {1, 0, 2}; const auto moves_before = f.moves;
+            run(blocked_move); step();
+            Check(blocked_move->receipt.outcome == static_cast<unsigned>(wm::Result::stop_failed)
+                && f.moves == moves_before && !action_gate && rt.controls.Current() == owned,
+                "cleanup continuation admits neither native destination nor combat action");
             const auto baseline_stop = extension::combat_owner_stop.exchange(nullptr);
             const auto baseline_retire = extension::combat_owner_retire.exchange(nullptr);
             const auto before_baseline_retry = stops; stop_ok = true; step();
             Check(stops > before_baseline_retry && !ordinary_combat && rt.controls.Ready()
                 && !rt.owner_activity_stop && rt.controls.Current() == owned,
                 "baseline retry uses pinned cleanup after service unregister without replacing owner");
+            rt.Publish();
+            Check(!(pending_status.flags & wm::wire::cleanup_pending) && (pending_status.flags & wm::wire::ready),
+                "successful retry clears pending status and restores same-owner readiness");
             extension::combat_owner_stop.store(baseline_stop);
             extension::combat_owner_retire.store(baseline_retire);
             begin_action = true; stop_ok = false;
@@ -244,6 +307,9 @@ int main(int argc, char** argv) {
             Check(!action_gate && stops && stop_gate && !rt.controls.Ready()
                 && rt.controls.AuthorizesNativeStop(owned),
                 "UI loss retains failed exact-Grant owner cleanup obligation");
+            rt.Publish();
+            Check(!(pending_status.flags & wm::wire::cleanup_pending),
+                "retired UI owner cannot claim cleanup continuation even while old stop remains pending");
             const auto prior_stops = stops;
             const auto registered_stop = extension::combat_owner_stop.exchange(nullptr);
             const auto registered_retire = extension::combat_owner_retire.exchange(nullptr);
@@ -262,6 +328,7 @@ int main(int argc, char** argv) {
             Check(retirements > before_retire, "scene retirement notifies owner service without adopting new actor");
             extension::combat_owner_service.store(nullptr); extension::combat_owner_stop.store(nullptr);
             extension::combat_owner_retire.store(nullptr);
+            extension::StopClientActionCommandChannel();
             rt.input.Retire(); return failures ? 1 : 0;
         }
         auto retry = make(wm::wire::Verb::acquire, original, 1); run(retry);

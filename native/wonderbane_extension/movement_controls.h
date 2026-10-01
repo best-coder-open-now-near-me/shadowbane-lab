@@ -136,6 +136,13 @@ public:
     bool ConsumesDrag() const noexcept { return drag_active_; }
     Grant Current() const noexcept { return grant_; }
     bool Ready() const noexcept { return available_ && !pending_stop_; }
+    // A deferred stop keeps this exact automation owner alive for heartbeat and
+    // cleanup only. It grants neither movement nor a new native action.
+    bool CleanupPending() const noexcept {
+        return pending_stop_ && pending_grant_ == grant_ && grant_.owner == Owner::automation
+            && available_ && foreground_ && !text_owned_ && !faulted_
+            && !shutdown_ && !shutdown_pending_;
+    }
     bool CameraReady() const noexcept { return available_ && !camera_faulted_; }
     // Passive owner-thread diagnostic only; these bits never grant authority.
     std::uint32_t DiagnosticState() const noexcept {
