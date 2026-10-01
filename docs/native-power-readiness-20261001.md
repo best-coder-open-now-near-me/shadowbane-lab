@@ -88,6 +88,11 @@ Host and native independent source reviews found no actionable issue. The actual
 two-encounter runner regression covers native death, cleanup, later SEEKING, and
 a reuse-blocked second opener followed by ATTACK on the same binding. The direct
 native/production differential probe passes 22 cases on each exact client image.
+The Windows cross-process test exercises the production command mapping, host
+lease, queue and controller ledger with a synthetic action backend. It verifies
+reuse-blocked replay/status without re-entry, same-binding ATTACK, denial of new
+actions after capability loss, and STOP plus retained closed action history.
+This test performs no game effects; native power legality is covered separately.
 
 Active: qualify the combined committed source and package. Pending: full
 host checks, both native profiles, cross-process wire/history tests, required

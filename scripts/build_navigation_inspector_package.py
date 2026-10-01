@@ -94,6 +94,7 @@ REQUIRED_COMBAT_TESTS = frozenset({
 })
 
 REQUIRED_COMBAT_IPC_TESTS = frozenset({
+    "test_real_power_readiness_mapping_retains_binding_and_cleanup",
     "test_native_entry_once_then_mutation_requires_cancellation",
     "test_native_revocation_wins_and_immutable_binding_rejected",
     "test_abandoned_mutex_revokes_native_admission",
@@ -252,6 +253,7 @@ def main() -> int:
     environment.pop("WONDERBANE_MOVEMENT_BOUNDARY_TEST", None)
     environment.pop("WONDERBANE_TEST_GDI_GL", None)
     environment.pop("SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE", None)
+    environment.pop("SHADOWBANE_COMBAT_CHANNEL_TEST_EXE", None)
     environment["PYTHONUTF8"] = "1"
     steps = []
     diagnostic_failures = []
@@ -550,15 +552,20 @@ def main() -> int:
         environment["SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE"] = str(
             build / "Release/wonderbane_extension_combat_v3_fence_test.exe"
         )
+        environment["SHADOWBANE_COMBAT_CHANNEL_TEST_EXE"] = str(
+            build / "Release/wonderbane_extension_combat_channel_test.exe"
+        )
         try:
             run(
                 f"{profile}-combat-ipc",
                 [sys.executable, "-m", "pytest", "tests/test_combat_fence.py",
                  "tests/test_combat_wire.py", "tests/test_combat_wire_v2.py",
+                 "tests/test_combat_ipc_windows.py",
                  "-q", f"--junitxml={combat_results}"],
             )
         finally:
             environment.pop("SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE", None)
+            environment.pop("SHADOWBANE_COMBAT_CHANNEL_TEST_EXE", None)
         validate_combat_ipc_results(combat_results, profile)
         if arguments.reviewed_client:
             run(
