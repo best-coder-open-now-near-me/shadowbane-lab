@@ -1,14 +1,20 @@
 # Late client update - September 30, 2026
 
-Official client **1.3.38.13** changes the executable and two data files. Candidate
-host **0.3.56** / native **1.8.36** is on `codex/client-update-20260930-late`,
-targeting `main`. It includes merged object combat PR #46 and the deployment
-receipt commits through `cab8b029` from PR #47, now closed as superseded by
-[draft PR #48](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/48).
-Exact package source is `e6c7a28f229043540d3f93181900072ded58752c`; later
-documentation does not change its runtime identity. The normal checkout remains
-on `main@35fce4b`. PR #48 is merged and this package is installed; the verified
-installation and live acceptance status are recorded below.
+Installed host **0.3.58** / native **1.8.38** use exact qualified source
+`05c888a4ff1e1443163ef3cb2ea6e2432672c372` with official client **1.3.38.13**.
+[PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
+merged at `214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` on October 1,
+04:14:59 UTC after all 15 hosted checks passed. Qualification, installation,
+manager activation and loaded-DLL identity passed. The current live gate awaits
+Umbra login: no .58 NPC or skill combat has run. The earlier .57 manual-player
+attack/cancel/recovery gate passed; its NPC cleanup attempts remained unconfirmed.
+See the [deployment record](queued-skills-20261001.md) for evidence and limits.
+
+Current package and installation details are in the
+[queued-skill deployment record](queued-skills-20261001.md). The unchanged client
+binary/data proof and the older .56/.36 and .57/.37 receipts below are historical.
+PR #50's .57 receipt facts are incorporated here without merging its Git commit;
+that documentation PR remains open pending replacement-receipt review.
 
 ## Binary proof and admission scope
 
@@ -31,7 +37,7 @@ to reject original and unknown images. Runtime signatures, exact object/session
 identity, capability gates and action acknowledgement requirements are unchanged.
 No future-version admission or crafting affix-discard qualification is implied.
 
-## Official data and deployment boundary
+## Historical official-data and deployment boundary
 
 The official manifest still lists 211 files and stale metadata version
 `20260518-185052` / gameVersion `1.0.5`; file hashes and embedded executable
@@ -59,7 +65,7 @@ Retire the obsolete host only after successful activation and inspection of its
 contents and references. Private downloads, comparison reports and receipts live
 under `artifacts/guard-deploy/client-update-20260930-late`, outside source delivery.
 
-## Qualification and remaining work
+## Historical .56/.36 qualification
 
 Host focused validation passes 113 tests, including original/unknown-image
 rejection before memory access, all crafting signatures, recipe ownership and
@@ -78,7 +84,7 @@ NPC/cast acceptance remain incomplete. UI selection,
 hotkeys and system-message text are not combat authority. Automatic retaliation
 remains disabled pending an authoritative server character-session fence.
 
-## Exact-source package qualification
+## Historical .56/.36 exact-source qualification
 
 Package `artifacts/b36/d86bc533` is acceptance eligible at source
 `e6c7a28f229043540d3f93181900072ded58752c`. All 78 recorded file hashes and
@@ -104,7 +110,7 @@ read-only inspection found the old game running; the later closed-client snapsho
 was required before preparation. The user confirmed closure and approved the merge.
 Installation is verified below; full live combat acceptance remains incomplete.
 
-## Verified October 1 installation and first live attempt
+## Historical .56/.36 installation and first live attempt
 
 All 15 hosted checks passed at approved head `f73f7d53557721f449e7547de85e5b6f26a7f8e4`.
 PR #48 merged at `35fce4ba273a399b31e577d6d487a68b08dc34e3` on October 1,
@@ -144,7 +150,7 @@ partial result, not completed attack/cancel/recovery acceptance or proof of a
 server-accepted hit. The second attempt below captures the interruption cause; bounded recovery and
 NPC/cast acceptance remain open.
 
-## Recovery contract correction in progress
+## Historical .56/.36 recovery diagnosis and .57 correction
 
 The diagnostic repeat (`e3d20050df4d458a9d2ffd6bbc746b2d`) again queued the
 manual attack and confirmed terminal native cleanup with an empty final list.
@@ -169,3 +175,64 @@ Both-profile package qualification is next on `codex/client-deployment-20261001`
 the installed package remains
 0.3.56 / 1.8.36. Next: qualify the complete fix, publish it for review/approval,
 then repeat bounded recovery acceptance before NPC/cast work.
+
+## Historical .57/.37 qualification and verified deployment
+
+Package `artifacts/b37/3f2832bd` is acceptance eligible at exact source
+`1d107a25c1356d20a0b633cc411d6b5efdc47a9b`; all 78 recorded artifact hashes
+were verified. Archived-source host validation passed 4,086 tests, with 34
+explicit skips and 801 passing subtests. Each native profile (full and diagnostics-only) records 202 passing
+native tests, three image-dependent generic CTest skips, 83 passing combat IPC
+tests and 64 passing movement IPC tests, including the mandatory cleanup-pending
+cross-process regression. The official/prepared client hashes and seven loader
+writes remain unchanged from the reviewed 1.3.38.13 update. The two optional
+renderer-transparency diagnostics per profile remain separately recorded failures;
+all required package gates passed.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Acceptance archive | `10e2f3aa5605b0ccb08a6acb811668a98df03873dc0443bda780b376699c6af5` |
+| Receipt | `a3aecd6a67b4c9269764eada98c40aaa82ee17c800abf0408ef68c2b84b6cb24` |
+| Full DLL | `9da29afdd6dc94a23c03f7a563876bc7f5b6b29ecae8194b11f18ca620805b1e` |
+| Host wheel | `9ca3db24c305762be042e15707861b855e3a969e45e2dd51527c14071aa03b16` |
+
+Installation verified 450 module files, 9,566 retained user/settings/record files,
+one client DLL change, all five shortcuts and launch preflight. Manager activation
+was healthy and unbound at observed PID 6868. User data remains in place.
+
+The obsolete host .56 contained 2,090 verified files and 47,550,096 bytes, with
+inventory SHA-256 `a27cd66f724ee33be2dd04991ca7d44c31fce554322a5df56fb3088c83053250`.
+It and the exact two old guest payload binaries were removed after verification:
+50,218,181 bytes total. No runtime rollback copies were retained.
+
+Launch at October 1 03:09:12.9305389 UTC verified the new DLL in game PID 3024,
+creation time `134352977426142998`, HWND `8258364`. These recorded process values
+are evidence, not enduring authorization for another action.
+
+## Historical .57 passed manual-player cancellation and recovery
+
+After fresh user readiness, the reviewed harness ran against the exact current
+native objects with 98.7% player health, full mana/stamina and about 30 world
+units between actor and target. Private evidence is retained under
+`artifacts/bot-deploy/20261001-b37/2ed3fb4cadc744fbb9845a19f6e40de0`.
+
+The intended manual-player attack queued, the test-owned list entry was removed,
+and the harness verified correlated `NATIVE_STOPPED` cleanup followed by a strictly
+later unlisted PvE SEEKING frame. Final list membership was zero; ordinary NPC
+proposals were zero and the watchdog did not fire. The dispatcher interruption
+reason remained null. The terminal `emergency_stop` was the harness's deliberate
+explicit stop after recovery, not the earlier readiness-loss failure.
+
+Trace loop timestamps place cleanup at 985 ms, later SEEKING at 1,344 ms and the
+explicit stop at 1,485 ms; these are loop timestamps, not exact native latencies.
+The reviewed synchronous harness and correlated receipts establish removal and
+cleanup ordering; no separate removal timestamp is claimed. The harness checked
+the typed native-stop proof even though the trace serialization omits that field.
+Independent review confirmed the pass. A separate passive post-test observation
+found the same process READY with no owner, no cleanup pending and no terminal
+status.
+
+This completes the bounded manual-player attack/cancel/recovery gate. It does not
+prove a server-accepted hit, NPC combat or learned-power casting. At that checkpoint, NPC/cast acceptance remained next; the .58 status is recorded
+in the current deployment section above. Automatic retaliation
+remains disabled pending the authoritative server character-session fence.
