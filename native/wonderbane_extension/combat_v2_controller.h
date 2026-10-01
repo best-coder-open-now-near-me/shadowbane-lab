@@ -146,7 +146,9 @@ class Controller final {
         }
     }
     wire::Receipt ActionReply(const Action& action,const Engagement& engagement,wire::Verb verb) const noexcept {
-        return Receipt(action.command,verb,action.outcome,engagement.state,action.entry,action.history);
+        const auto outcome=(verb==wire::Verb::cancel_action && action.outcome==O::power_reuse_blocked)
+            ? O::action_cancelled : action.outcome;
+        return Receipt(action.command,verb,outcome,engagement.state,action.entry,action.history);
     }
     void StopRecord(Engagement& engagement,Invoker& invoker) noexcept {
         if(!Owned(engagement.state)) { return; }

@@ -245,6 +245,16 @@ Operation NativeTarget::Run() {
     (void)calls_.cast(scope);
     const auto receipt=scope.Finish();
     const bool queued=receipt.append_observed;
+    if(!receipt.native_entered && !queued) {
+        if(!Current()) { return {O::stale,wire::Entry::never_entered}; }
+        if(receipt.availability!=power::Availability::unknown && (!receipt.availability_epoch
+            || power::InitiationEpoch()!=receipt.availability_epoch)) {
+            return {O::deferred,wire::Entry::never_entered};
+        }
+        if(receipt.availability==power::Availability::reuse_blocked) { return {O::power_reuse_blocked,wire::Entry::never_entered}; }
+        if(receipt.availability==power::Availability::global_recovery) { return {O::deferred,wire::Entry::never_entered}; }
+        if(receipt.availability==power::Availability::unknown) { return {O::unavailable,wire::Entry::never_entered}; }
+    }
     const bool uncertain=receipt.native_entered && (receipt.result==power::Result::uncertain || !Current());
     if(qualify_self && queued && !uncertain && receipt.followup_entered && receipt.initiation_epoch
         && power::InitiationEpoch()==receipt.initiation_epoch && Current()) {

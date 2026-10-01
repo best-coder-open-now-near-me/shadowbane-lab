@@ -4,22 +4,40 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`, currently the PR #52 merge
-`72f13d5f64f896a5b646838ed3bd5c268fac7773`. The installed bot uses host .59/native
-.39 from qualified source `e90d2f6` with official client 1.3.38.13.
+Start new work from freshly fetched `origin/main`, currently the PR #54 merge
+`89f58cdbb50c2ef8bc8d80f0583897ac982f80f4`. The installed bot uses host **0.3.60** /
+native **1.8.40** from qualified source `f0263c3` with official client **1.3.38.13**.
 
-The reviewed .60/.40 candidate is published on `codex/registry-backed-population`
-through [draft PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54),
-with main as its integration destination. Exact package source `f0263c3` passed
-host, native, cross-process and original/prepared client qualification. It adds
-registered object membership, native initiation observation, and guarded skill-to-attack
-request provenance. It remains unmerged and uninstalled pending new approval.
-PR #54 includes the full PR #53 deployment receipt and will supersede it after integration.
+[PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54)
+merged after all 15 hosted checks passed at approved head `3b5e628`. It includes
+registered object membership, native initiation observation, and guarded
+skill-to-attack request provenance. PR #53's included documentation is also merged.
+Installation, manager activation, five shortcuts, startup preflight and the
+loaded-DLL launch check passed. The inspected obsolete .59 runtime was removed
+without retaining rollback copies. After Umbra login, the .60 follow-through
+queued the skill and attack, observed the exact NPC at zero health, and confirmed
+native cleanup. A later run verified first-NPC death, exact cleanup, a strictly
+later SEEKING frame and distinct second-NPC admission. The second opener entered
+without a positive outbound receipt; bounded polling ended in confirmed cleanup.
+The original full two-encounter result remains not passed. Native skill reuse
+availability and optional-opener fallback are implemented and locally qualified in PR #56.
+Installed source is unchanged.
+The installation receipt is published on `codex/native-initiation-deployment-20261001`
+through [draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55),
+with main as its integration destination.
+Active [native reuse handling](docs/native-power-readiness-20261001.md) is on
+`codex/native-power-readiness-20261001` through [draft PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56),
+based on the full published receipt tip `37e0e1e`. Candidate **0.3.61 / 1.8.41**
+passed exact-source qualification at `29c9728`; merge/install approval and the
+new bounded live acceptance remain pending. The installed runtime is unchanged.
 
 Read the [branch map](docs/git-branch-map.md) before selecting a development base,
 the [current bot qualification and live-test todos](docs/queued-skills-20261001.md),
 and the [contributor workflow](CONTRIBUTING.md) before starting a new task.
-Automatic retaliation remains disabled pending the authoritative server session contract.
+Automatic retaliation remains disabled; the [offline session-boundary audit](docs/retaliation-session-boundary-20261001.md)
+records the remaining attribution and session guarantees. The
+[native effects audit](docs/native-combat-effects-20261001.md) records actor-owned
+effect paths and the remaining active-buff observation gaps.
 Earlier integration history and retained lanes are recorded in the
 [integration inventory](docs/integration-status-20260923.md).
 

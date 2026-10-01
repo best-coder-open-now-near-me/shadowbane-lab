@@ -218,25 +218,28 @@ def test_combat_ipc_requires_real_execution(tmp_path, outcome):
             builder.validate_combat_ipc_results(path, "diagnostics-only")
 
 
-def initiation_steps():
+def power_probe_steps(feature):
     return [
-        {"name": f"{profile}-combat-power-initiation-{suffix}", "exit_code": 0,
-         "command": ["wonderbane_extension_combat_power_initiation_probe.exe", image]}
+        {"name": f"{profile}-combat-power-{feature}-{suffix}", "exit_code": 0,
+         "command": [f"wonderbane_extension_combat_power_{feature}_probe.exe", image]}
         for profile in ("full", "diagnostics-only")
         for suffix, image in (("binding", "official-13.exe"),
                               ("prepared-binding", f"{profile}-prepared-13.exe"))
     ]
 
 
-def test_initiation_receipt_requires_all_four_executed_exact_image_gates():
-    assert builder.validate_combat_power_initiation_steps(initiation_steps(), reviewed_client=True)
-    assert not builder.validate_combat_power_initiation_steps([], reviewed_client=False)
+@pytest.mark.parametrize("feature", ["initiation", "readiness"])
+def test_power_receipt_requires_all_four_executed_exact_image_gates(feature):
+    validate = getattr(builder, f"validate_combat_power_{feature}_steps")
+    assert validate(power_probe_steps(feature), reviewed_client=True)
+    assert not validate([], reviewed_client=False)
 
 
 @pytest.mark.parametrize("index", range(4))
 @pytest.mark.parametrize("failure", ["missing", "failed", "duplicate", "wrong_probe", "no_image"])
-def test_initiation_receipt_cannot_certify_missing_or_wrong_execution(index, failure):
-    steps = initiation_steps()
+@pytest.mark.parametrize("feature", ["initiation", "readiness"])
+def test_power_receipt_cannot_certify_missing_or_wrong_execution(index, failure, feature):
+    steps = power_probe_steps(feature)
     if failure == "missing":
         steps.pop(index)
     elif failure == "failed":
@@ -247,16 +250,17 @@ def test_initiation_receipt_cannot_certify_missing_or_wrong_execution(index, fai
         steps[index]["command"][0] = "other.exe"
     else:
         steps[index]["command"] = steps[index]["command"][:1]
-    with pytest.raises(RuntimeError, match="initiation"):
-        builder.validate_combat_power_initiation_steps(steps, reviewed_client=True)
+    with pytest.raises(RuntimeError, match=feature):
+        getattr(builder, f"validate_combat_power_{feature}_steps")(steps, reviewed_client=True)
 
 
 @pytest.mark.parametrize("pair", [0, 2])
-def test_initiation_gate_cannot_count_one_image_twice(pair):
-    steps = initiation_steps()
+@pytest.mark.parametrize("feature", ["initiation", "readiness"])
+def test_power_gate_cannot_count_one_image_twice(pair, feature):
+    steps = power_probe_steps(feature)
     steps[pair+1]["command"][1] = steps[pair]["command"][1]
     with pytest.raises(RuntimeError, match="original and prepared"):
-        builder.validate_combat_power_initiation_steps(steps, reviewed_client=True)
+        getattr(builder, f"validate_combat_power_{feature}_steps")(steps, reviewed_client=True)
 
 
 @pytest.mark.parametrize(

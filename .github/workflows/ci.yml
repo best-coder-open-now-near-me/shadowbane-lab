@@ -64,7 +64,8 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $env:SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE = (Resolve-Path "build/native-${{ matrix.profile }}/Release/wonderbane_extension_combat_v3_fence_test.exe").Path
-          python -m pytest tests/test_combat_fence.py tests/test_combat_wire.py tests/test_combat_wire_v2.py -q --junitxml=combat-ipc.xml
+          $env:SHADOWBANE_COMBAT_CHANNEL_TEST_EXE = (Resolve-Path "build/native-${{ matrix.profile }}/Release/wonderbane_extension_combat_channel_test.exe").Path
+          python -m pytest tests/test_combat_fence.py tests/test_combat_wire.py tests/test_combat_wire_v2.py tests/test_combat_ipc_windows.py -q --junitxml=combat-ipc.xml
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -c "from pathlib import Path; from scripts.build_navigation_inspector_package import validate_combat_ipc_results; validate_combat_ipc_results(Path('combat-ipc.xml'), '${{ matrix.profile }}')"
       - name: Check deferred transparency diagnostic outcomes

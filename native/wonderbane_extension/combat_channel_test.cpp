@@ -1,4 +1,6 @@
 #include "command_channel.h"
+#include "combat_v2_controller.h"
+#include <cstdio>
 #include <fstream>
 #include <string>
 #undef NDEBUG
@@ -16,7 +18,71 @@ namespace {
 HANDLE entered = nullptr, release_worker = nullptr;
 void Hold() noexcept { SetEvent(entered); WaitForSingleObject(release_worker, INFINITE); }
 }
+
+// Real cross-process transport and ledger fixture; Invoker deliberately performs
+// no game action. Native power legality is covered by the separate image probe.
+namespace {
+struct ReadinessInvoker final : v::Invoker {
+    unsigned binds{}, powers{}, attacks{}, stops{};
+    void RevokeAdmission(const v::wire::Command&) noexcept override {}
+    v::Operation Bind(const v::wire::Command&) noexcept override {
+        ++binds;
+        return {v::wire::Outcome::bound,v::wire::Entry::unknown,0,{v::wire::Phase::bound}};
+    }
+    v::Operation Submit(const v::wire::Command& command) noexcept override {
+        if(command.action==v::wire::Action::self_power) {
+            ++powers;
+            return {v::wire::Outcome::power_reuse_blocked,v::wire::Entry::never_entered,
+                0,{v::wire::Phase::bound}};
+        }
+        assert(command.action==v::wire::Action::attack);
+        ++attacks;
+        outer::test_ready=false;
+        return {v::wire::Outcome::client_outbound_queued,v::wire::Entry::entered,
+            v::wire::outbound_queued,{v::wire::Phase::bound}};
+    }
+    v::State Stop(const v::wire::Command&) noexcept override {
+        ++stops;
+        return {v::wire::Phase::closed,v::wire::Closure::native_stopped,1,1,0};
+    }
+};
+int ReadinessIpc() {
+    FILETIME created{},exited{},kernel{},user{};
+    assert(GetProcessTimes(GetCurrentProcess(),&created,&exited,&kernel,&user));
+    ProcessIdentity identity{GetCurrentProcessId(),
+        (static_cast<std::uint64_t>(created.dwHighDateTime)<<32)|created.dwLowDateTime};
+    combat_owner_ready.store(&outer::Ready,std::memory_order_release);
+    outer::test_ready=true;
+    assert(StartClientActionCommandChannel(identity)==ERROR_SUCCESS);
+    d::RefreshCombatCapability(*d::g_runtime.storage);
+    std::printf("%lu %llu\n",identity.process_id,
+        static_cast<unsigned long long>(identity.creation_filetime_utc));
+    std::fflush(stdout);
+    v::Controller controller; ReadinessInvoker invoker;
+    const auto deadline=GetTickCount64()+10000;
+    bool done=false;
+    while(GetTickCount64()<deadline) {
+        if(auto pending=v::Take()) {
+            const auto receipt=controller.Execute(pending->verb,pending->command,true,
+                pending->lease->Current(GetTickCount64()),true,invoker);
+            v::Complete(pending,receipt);
+        }
+        DWORD available{};
+        if(PeekNamedPipe(GetStdHandle(STD_INPUT_HANDLE),nullptr,0,nullptr,&available,nullptr)
+            && available) { done=std::getchar()=='d'; break; }
+        Sleep(1);
+    }
+    StopClientActionCommandChannel();
+    combat_owner_ready.store(nullptr,std::memory_order_release);
+    std::printf("%u %u %u %u\n",invoker.binds,invoker.powers,invoker.attacks,invoker.stops);
+    std::fflush(stdout);
+    return done && invoker.binds==1 && invoker.powers==1 && invoker.attacks==1
+        && invoker.stops==1 ? 0 : 2;
+}
+}
+
 int main(int argc, char** argv) {
+    if(argc==2 && std::string(argv[1])=="--ipc-readiness") { return ReadinessIpc(); }
     assert(argc == 2);
     std::ifstream file(argv[1]); std::string hex; v::wire::Command prototype{};
     assert(std::getline(file, hex) && hex.size() == sizeof(prototype) * 2);
@@ -73,7 +139,7 @@ int main(int argc, char** argv) {
         v::wire::Receipt receipt{}; std::memcpy(&receipt, &last_result().movement, sizeof(receipt)); return receipt;
     };
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
-    assert(!(storage.header.capability_flags & (kNativeCombatCapability|kNativeSelfPowerCapability)));
+    assert(!(storage.header.capability_flags & (kNativeCombatCapability|kNativeSelfPowerCapability|kNativePowerReadinessCapability)));
     publish(v::wire::Verb::submit);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
     assert(!v::Take() && last_result().stage == static_cast<unsigned>(ClientActionResultStage::failed));
@@ -86,6 +152,7 @@ int main(int argc, char** argv) {
     publish(v::wire::Verb::submit);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
     assert(storage.header.capability_flags & kNativeCombatCapability);
+    assert(kNativePowerReadinessCapability==64U && (storage.header.capability_flags&kNativePowerReadinessCapability));
     assert(kNativeCombatCapability==16U && kNativeSelfPowerCapability==32U
         && (storage.header.capability_flags&kNativeSelfPowerCapability) && !(storage.header.capability_flags&8U));
     assert(runtime.combat_pending && !runtime.pending && storage.header.command_read_sequence == 1);
@@ -108,7 +175,7 @@ int main(int argc, char** argv) {
     outer::test_ready = false;
     publish(v::wire::Verb::cancel_action);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
-    assert(!(storage.header.capability_flags & (kNativeCombatCapability|kNativeSelfPowerCapability)));
+    assert(!(storage.header.capability_flags & (kNativeCombatCapability|kNativeSelfPowerCapability|kNativePowerReadinessCapability)));
     command = v::Take(); assert(command && command->verb == v::wire::Verb::cancel_action);
     receipt = v::wire::Reply(command->command, command->verb, v::wire::Outcome::pending);
     receipt.flags = v::wire::cleanup_required; receipt.phase = v::wire::Phase::stopping;

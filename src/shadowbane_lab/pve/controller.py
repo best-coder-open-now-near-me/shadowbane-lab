@@ -14,6 +14,7 @@ from shadowbane_lab.pve.model import (
     PvECombatCleanupResult,
     PvECombatDisposition,
     PvECombatKind,
+    PvECombatNotReadyReason,
     PvECombatProposal,
     PvEControllerConfig,
     PvEControllerDecision,
@@ -85,6 +86,7 @@ class PvEController:
         self._proposal_interrupt_sequence: int | None = None
         self._proposal_reengage = False
         self._opening_queued_at: int | None = None
+        self._opening_skipped = False
 
     @property
     def phase(self) -> PvEPhase:
@@ -163,6 +165,19 @@ class PvEController:
         self._last_combat_ack = (proposal, result)
         self._combat_ack_at = now_ms
         if disposition is PvECombatDisposition.UNCERTAIN:
+            return
+        if disposition is PvECombatDisposition.NOT_READY:
+            opener = self._config.resolved_opening_ability
+            if (self._phase is not PvEPhase.OPENING or opener is None
+                    or proposal.kind is not opener.kind or proposal.power_id != opener.power_id
+                    or proposal.interrupt_sequence is not None or proposal.adopted_existing_action
+                    or result.not_ready_reason is not PvECombatNotReadyReason.POWER_REUSE):
+                self._request_cleanup("native_power_not_ready", now_ms)
+                return
+            self._pending_combat = self._retry_proposal = None
+            self._opening_skipped = True
+            self._opening_queued_at = None
+            self._queued_self_followup = None
             return
         if disposition is PvECombatDisposition.REJECTED:
             # Even an unentered action may have bound an engagement. Only the
@@ -545,6 +560,7 @@ class PvEController:
         self._population_desired_target_token = None
         self._population_cycle_seen.clear()
         self._opening_queued_at = None
+        self._opening_skipped = False
         if not self._outside_melee and self._best_approach_distance is not None:
             self._melee_entered_at = now
         if adopt_existing_action:
@@ -613,7 +629,10 @@ class PvEController:
             if self._phase_elapsed(now) >= self._config.engagement_timeout_ms:
                 return self.stop("engagement_timeout", now_ms=now)
             return self._emit(now)
-        if (self._opening_queued_at is None
+        if self._opening_skipped:
+            if self._combat_ack_at is None or now <= self._combat_ack_at:
+                return self._emit(now)
+        elif (self._opening_queued_at is None
                 or now - self._opening_queued_at < self._config.opening_followup_delay_ms):
             return self._emit(now)
         self._enter(PvEPhase.ENGAGED, now)
@@ -872,6 +891,7 @@ class PvEController:
         self._proposal_interrupt_sequence = None
         self._proposal_reengage = False
         self._opening_queued_at = None
+        self._opening_skipped = False
         self._last_health = None
         self._last_player_health = None
         self._last_progress_at = None
@@ -959,6 +979,9 @@ class PvEController:
             cleanup_request=self._pending_cleanup,
             tracked_target=tracked,
             native_action_pending=native_action_pending,
+            opening_skill_skipped=self._opening_skipped,
+            opening_skill_skip_reason=(
+                PvECombatNotReadyReason.POWER_REUSE if self._opening_skipped else None),
             combat_proposal=proposal,
             intent=intent,
             reposition_requested=reposition_requested,

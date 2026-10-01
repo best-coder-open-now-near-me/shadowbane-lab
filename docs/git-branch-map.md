@@ -7,56 +7,116 @@ records in place. Historical backup/rollback requirements below are superseded.
 ## Current shared source and deployment - October 1
 
 Start new development from freshly fetched `origin/main`, now
-`72f13d5f64f896a5b646838ed3bd5c268fac7773` (merged PR #52). The normal project
-checkout is clean on that main revision. The approved final PR head `cf77b4d`
-passed all 15 hosted checks; merge completed October 1 at 15:53:29 UTC.
-Exact installed package source `e90d2f64ea49df5af94365012548266e6829e3a1` is
+`89f58cdbb50c2ef8bc8d80f0583897ac982f80f4` (merged PR #54). The normal project
+checkout is clean on that main revision. Approved final PR head `3b5e628` passed
+all 15 hosted checks; merge completed October 1 at 17:41:37 UTC.
+Exact installed package source `f0263c38ef36874da0e68e0aa5e0c8775550e618` is
 retained in main. Later documentation commits do not change the package stamp.
 
-The deployment receipt is published on `codex/native-stance-deployment-20261001`
-in the bot-runtime worktree through [draft PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53).
-Its complete tip `ec1ad28` is now included in the combined
-[draft PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54),
-branch `codex/registry-backed-population` in the reused bot-integration checkout.
-PR #54 targets main and will supersede #53 after integration; both remain unmerged.
-The old `codex/queued-skill-deployment-20261001` branch was retired
-locally and remotely after ancestry checks. PR #50 was closed as superseded:
-its relevant .57 receipt facts are incorporated, but its branch is retained
-because its exact tip is not an ancestor of main.
+[PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54)
+contains the registry-backed population, native initiation and request-provenance
+corrections plus PR #53's full documentation tip. GitHub marked
+[PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53)
+merged at 17:41:38 UTC. The reused bot-integration checkout is now on
+`codex/native-initiation-deployment-20261001` for the installation receipt; its
+[draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55)
+targets main and remains unmerged at published tip
+`37e0e1e762b72e417be05939309fdd69b2b1b13d`. The active implementation branch
+`codex/native-power-readiness-20261001` starts from that full tip and targets main,
+so it retains the installed-source ancestry and all current receipt/audit work.
+Its [draft PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56)
+adds [native skill-reuse availability and optional-opener fallback](native-power-readiness-20261001.md).
+Independent review and exact-source .61/.41 qualification at `29c9728` passed;
+separate merge/install approval and live acceptance remain pending. Root owns Git,
+versions, packaging and live actions; parallel lanes own host behavior, native
+readiness, and the isolated image probe. The completed
+`codex/registry-backed-population` and
+`codex/native-stance-deployment-20261001` branches were retired locally and remotely
+after tip ancestry checks. The bot-runtime worktree now owns the active
+`codex/native-power-readiness-20261001` implementation; bot-integration stays on
+the published receipt branch. No active checkout should be switched by another lane. PR #50 is closed as superseded; its relevant .57 receipt facts are incorporated, but its branch is
+retained because its exact tip is not an ancestor of main.
 
-Host **0.3.59** / native **1.8.39** are installed from the qualified b39 package.
-Both clients retain official **1.3.38.13** data. Installation verified 454 modules,
-9,568 preserved files, one DLL inventory change, five shortcuts and launch preflight.
-The obsolete .58 host and two exact old payload binaries were inspected and
-removed; settings, jobs and diagnostic records remain, with no retained rollback.
-The [deployment record](queued-skills-20261001.md) records exact hashes and checks.
+Host **0.3.60** / native **1.8.40** are installed from qualified package
+`artifacts/b40/b1c83d60`. Both clients retain official **1.3.38.13** data.
+Installation verified 455 modules, 9,569 preserved files, one DLL inventory
+change, five shortcuts and startup preflight. Manager PID 3900 was healthy and
+unbound. The inspected obsolete .59 host and two exact old payload binaries
+were removed; settings, jobs and diagnostic records remain, with no retained
+rollback. The [deployment record](queued-skills-20261001.md) records exact hashes
+and checks. Launch at 17:45:09.8119540 UTC verified the exact DLL in PID 1836,
+creation FILETIME `134353503028775811`, HWND `3736294`. Passive readiness reports
+login/loading at launch. After Umbra login, the bounded .60 follow-through queued
+one SELF_POWER and one same-engagement ATTACK, observed the exact NPC at zero
+health, and confirmed NATIVE_STOPPED cleanup. These are recorded observations,
+not continuing process authorization.
 
-The .59 bounded skill/attack/cleanup gate passed: SELF_POWER and the following
-ATTACK queued against the same NPC binding and owner, then NATIVE_STOPPED confirmed
-terminal cleanup. No owner or manual-list entry remained. Umbra/Wonderbane has
-saved basic policy with Shot to the Leg opener 563795161, revision 1, for the next
-PvE run. Earlier .58 basic-pass/skill-uncertain and .57 manual-player recovery
-results are historical; the earlier owner-revocation trigger remains unknown.
-The planned follow-through has not run: read-only preflight found persistent
-action state 2, and population observation rejected duplicate NPC identities.
-The user reports that the previously attacked NPC died and that no manual input
-was occurring. Separate passive evidence found its old heap object at zero health
-and a live replacement with the same key but a different token; a complete world
-registry census contained only the replacement. Engagement cannot transfer to it.
-Registry-backed population is implemented at `6eecda8`, independently reviewed,
-and passed 4,251 host tests plus 801 subtests with 36 skips. It remains
-uninstalled and outside main in PR #54. The reviewed outermost-update guard is
-also pushed at `8090c17`, and the host correction at `0e218bc`. Exact-source
-host .60/native .40 package `f0263c38ef36874da0e68e0aa5e0c8775550e618` is now
-qualified: 4,325 host tests, 788 subtests, and 204 native/72 movement IPC/85 combat
-IPC tests per profile passed, including original/prepared client .13 probes.
-All 60 package steps and 86 indexed artifacts were verified. Active next item:
-obtain PR #54 merge/install approval and a closed-client confirmation, then merge
-after hosted checks pass and install the qualified package. The source is not yet
-merged or installed. Bounded follow-through awaits installation. Neither the user
-report nor the passive snapshot proves player kill credit, skill consumption or snare application.
-Automatic retaliation remains disabled pending the separate authoritative
-server-character-session fence.
+Exact-source qualification passed 4,325 host tests, 788 subtests, and 204 native /
+72 movement IPC / 85 combat IPC tests per profile, including original/prepared
+client .13 probes. All 60 package steps and 86 indexed artifacts were verified.
+Registered membership replaces stale heap-scan authority. Native initiation and
+request provenance replace animation-derived admission while preserving pending
+native power initiation and exact engagement ownership.
+
+The earlier .59 bounded skill/attack/cleanup gate passed: SELF_POWER and the
+following ATTACK queued against the same NPC binding and owner, then
+NATIVE_STOPPED confirmed terminal cleanup. Umbra/Wonderbane retains saved basic
+policy with Shot to the Leg opener 563795161, revision 1. The subsequent .59
+follow-through preflight sent no action: it found persistent action state 2 and
+stale duplicate heap identities. Passive evidence distinguished the old dead
+object from a registered replacement with the same key and a different token;
+engagement cannot transfer to that replacement. These historical results do not
+constitute .60 live acceptance or prove player kill credit, skill consumption or
+snare application.
+
+The original harness result remains partial because it logged only the earlier
+population sample. Independent supplementary review confirms the later production
+detail trace: the same key/token changed from health 400 to zero before confirmed
+cleanup. This establishes an observed native-object death, without server kill
+credit, skill-consumption or snare claims. No owner, list entry, error or watchdog
+remained. The deployment export verified 12 compact receipts and seven installed
+file hashes. Four additional obsolete .59/.39 staging binaries were removed by
+exact hash, totaling 5,361,484 bytes; user records remain in place.
+
+The subsequent two-encounter recovery attempt `daa891ed86f24f3e9c8192a847b333e0`
+remains not passed. The first NPC fell from health 400 to 61.6008, but the private
+one-attack boundary rejected a production same-target attack renewal when the NPC
+crossed the 20-unit close-range threshold. No death, second NPC or recovery was
+observed. Native cleanup was confirmed; no owner or list entry remained and no
+error or watchdog fired. The rejection summary counted one actual rejection twice.
+Afterward the user reported buff loss; passive native vitals confirmed lower
+maximum health, mana and stamina, all full. Effect identity and causation are
+unknown. Installed source `f0263c3` remains unchanged.
+
+The renewal retry observed exact native death and confirmed cleanup but remains
+not passed: the private explicit stop was set before recovery, without a retained
+observation exception identifying why. No action-boundary rejection or watchdog
+occurred. The original evidence remains unchanged.
+
+The subsequent lifecycle run captured a native read-consistency exception before
+production death confirmation and again confirmed cleanup. Its partial zero-health
+sample does not establish a completed death frame. The private recorder stopped
+on the first read failure, preventing production bounded observation retry.
+
+The subsequent bounded-retry run proves first-NPC native death at trace 9, exact
+cleanup at 17 and strictly later SEEKING at 18, followed by distinct second-NPC
+admission under the same Grant. The second skill entered but had no observed
+outbound queue receipt; one submission and 19 same-request status polls ended in
+confirmed native cleanup. Its helper incorrectly required a queued-attack anchor
+for that cleanup. A separate evidence review records the proven recovery subgate;
+the original overall not-passed result remains unchanged.
+
+Active next item: qualify native skill reuse availability and implement optional
+opener fallback before native entry. The user-reported reuse message supports the
+investigation but supplies no bot action authority. Already-entered uncertainty
+must retain original-request polling and cleanup. The first-NPC recovery proof
+needs no additional fight; full second-encounter skill/attack acceptance is open.
+The current receipts are published through draft PR #55 and remain outside main.
+Automatic retaliation remains disabled; the
+[offline session-boundary findings](retaliation-session-boundary-20261001.md)
+identify missing guarantees. The [native effects audit](native-combat-effects-20261001.md)
+qualifies persistent actor-owned storage and ordinary lifecycle paths, with effect
+identity, clock semantics and complete mutation coverage still unresolved.
 
 Everything below is historical. Earlier current/candidate/next statements do not
 override the current source, installed runtime and active work above.

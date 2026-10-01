@@ -150,7 +150,8 @@ def test_self_power_then_attack_reuses_native_engagement_and_immutable_timeout(c
         following.binding == original.binding and following.request.value > original.request.value
     )
     assert following.action is Action.ATTACK and len(tickets) == 1
-    session.require_combat_available.assert_any_call(combat.grant, self_power=True)
+    session.require_combat_available.assert_any_call(
+        combat.grant, self_power=True, power_readiness=True)
     session.pause.assert_not_called()
 
 
@@ -163,7 +164,8 @@ def test_missing_self_capability_rejects_before_new_ticket(coordinator):
     session.combat.assert_not_called()
 
 
-def test_public_runner_enqueues_self_power_then_attack_under_one_engagement(coordinator):
+@pytest.mark.parametrize("reuse_blocked", [False, True])
+def test_public_runner_opener_then_attack_under_one_engagement(coordinator, reuse_blocked):
     from types import SimpleNamespace
 
     from shadowbane_lab.client_extension.combat_wire_v2 import ClosureProof, Outcome, Phase
@@ -201,6 +203,9 @@ def test_public_runner_enqueues_self_power_then_attack_under_one_engagement(coor
             )
         else:
             receipt = answer(command, verb)
+            if reuse_blocked and command.action is Action.SELF_POWER:
+                from test_power_readiness import blocked
+                receipt = blocked(command, verb)
             if command.action is Action.ATTACK:
                 stop.trip()
         return SimpleNamespace(receipt=receipt, native_detail=None)
@@ -248,6 +253,12 @@ def test_public_runner_enqueues_self_power_then_attack_under_one_engagement(coor
     assert [s.decision.now_ms for s in trace if s.native_combat is not None] == [0, 100]
     assert trace[0].decision.intent is None  # generic native ability needs no legacy descriptor
     session.pause.assert_not_called()
+    if reuse_blocked:
+        assert trace[0].native_combat.acknowledgement.disposition is PvECombatDisposition.NOT_READY
+        assert trace[0].as_dict()["native_combat"]["not_ready_reason"] == "power_reuse"
+        assert trace[1].as_dict()["opening_skill_skipped"] is True
+        assert trace[1].as_dict()["opening_skill_skip_reason"] == "power_reuse"
+        assert not runner._controller._last_power_at
 
 
 @pytest.mark.parametrize("ids", [(123,), (123, 123), (123, 999)])

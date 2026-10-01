@@ -1,5 +1,6 @@
 #pragma once
 #include "combat_submission.h"
+#include "combat_power_readiness.h"
 #include <array>
 #include <cstdint>
 #include <span>
@@ -12,6 +13,8 @@ struct Receipt {
     bool native_entered = false, send_observed = false, append_observed = false;
     bool followup_entered = false;
     std::uint64_t initiation_epoch = 0;
+    Availability availability = Availability::unknown;
+    std::uint64_t availability_epoch = 0;
 };
 struct Context {
     std::uintptr_t image{}, actor{}, target{}, writer{}, container{};
@@ -42,6 +45,7 @@ public:
     // not provide the private bridge frame required by sender/append observers.
     bool Current() const noexcept;
     bool Enter(std::uintptr_t definition, std::uint32_t native_rank) noexcept;
+    bool AdmitAvailability(Availability value, std::uint64_t epoch) noexcept;
     Receipt Finish() noexcept;
     const Context& Binding() const noexcept { return context_; }
 private:

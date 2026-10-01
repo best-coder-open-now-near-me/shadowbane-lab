@@ -51,6 +51,7 @@ class Outcome(IntEnum):
     ACTION_CANCELLED = 11
     DEFERRED = 12
     HISTORY_EXPIRED = 13
+    POWER_REUSE_BLOCKED = 14
 
 
 class Phase(IntEnum):
@@ -234,6 +235,19 @@ class Receipt:
             self.entry_state is not EntryState.NEVER_ENTERED or history
         ):
             raise ValueError("individual action cancellation requires definite no-entry proof")
+        if self.outcome is Outcome.POWER_REUSE_BLOCKED:
+            owned = self.phase in (Phase.BOUND, Phase.STOPPING, Phase.BLOCKED)
+            closed = (self.phase is Phase.CLOSED
+                      and self.closure is ClosureProof.NATIVE_STOPPED)
+            retired = (self.phase is Phase.RETIRED
+                       and self.closure is ClosureProof.SCENE_RETIRED)
+            if (self.action not in (Action.CAST, Action.SELF_POWER)
+                    or self.verb not in (Verb.SUBMIT, Verb.ACTION_STATUS)
+                    or self.entry_state is not EntryState.NEVER_ENTERED
+                    or (owned and (self.closure is not ClosureProof.NONE
+                                   or self.flags != CLEANUP_REQUIRED))
+                    or (not owned and (not (closed or retired) or self.flags))):
+                raise ValueError("power reuse history requires exact no-entry ownership proof")
         if self.outcome is Outcome.DEFERRED:
             expected_entry = (EntryState.UNKNOWN if self.action is Action.NONE
                               else EntryState.NEVER_ENTERED)

@@ -19,7 +19,7 @@ struct Backend final:c::Invoker {
     unsigned binds{},submits{},stops{};
     bool defer_bind=false,defer_submit=false,fail_stop=false,retire_submit=false;
     c::Controller* controller{};
-    unsigned reentrant{}; bool revoked=false, unknown_submit=false;
+    unsigned reentrant{}; bool revoked=false, unknown_submit=false, reuse_blocked=false;
     void RevokeAdmission(const w::Command&) noexcept override { revoked=true; }
     c::Operation Bind(const w::Command& command) noexcept override {
         ++binds; revoked=false;
@@ -51,6 +51,7 @@ struct Backend final:c::Invoker {
             assert(pending.phase==w::Phase::stopping && pending.flags&w::cleanup_required && revoked);
             if(reentrant==3) { assert(pending.entry==w::Entry::unknown && pending.outcome!=w::Outcome::action_cancelled); }
         }
+        if(reuse_blocked) { return {w::Outcome::power_reuse_blocked,w::Entry::never_entered,0,{w::Phase::bound}}; }
         if(unknown_submit) { return {}; }
         if(retire_submit) { controller->Retire(command.grant.scene); }
         if(defer_submit) { return {w::Outcome::deferred,w::Entry::never_entered,0,{w::Phase::bound}}; }
@@ -82,6 +83,21 @@ int main() {
         assert(Execute(sequence,owner,w::Verb::stop,binding).closure==w::Closure::native_stopped);
         const auto history=Execute(sequence,owner,w::Verb::action_status,skill,false,false);
         assert(history.flags&w::outbound_queued && history.closure==w::Closure::native_stopped);
+    }
+    for(unsigned terminal=0;terminal<3;++terminal) {
+        c::Controller ledger;Backend owner;owner.controller=&ledger;owner.reuse_blocked=true;
+        const auto power=Command(1,1,w::Action::self_power), control=Command(1,2,w::Action::none);
+        const auto first=Execute(ledger,owner,w::Verb::submit,power);
+        assert(first.outcome==w::Outcome::power_reuse_blocked && first.entry==w::Entry::never_entered
+            &&first.flags==w::cleanup_required&&first.phase==w::Phase::bound);
+        assert(Execute(ledger,owner,w::Verb::submit,power).outcome==w::Outcome::power_reuse_blocked&&owner.submits==1);
+        assert(Execute(ledger,owner,w::Verb::cancel_action,power).outcome==w::Outcome::action_cancelled&&!owner.stops);
+        if(terminal==2) { ledger.Retire(power.grant.scene); }
+        else { owner.fail_stop=terminal==1;(void)Execute(ledger,owner,w::Verb::stop,control); }
+        const auto historical=Execute(ledger,owner,w::Verb::action_status,power,false,false);
+        assert(historical.outcome==w::Outcome::power_reuse_blocked && historical.entry==w::Entry::never_entered
+            &&historical.phase==(terminal==2?w::Phase::retired:terminal==1?w::Phase::stopping:w::Phase::closed)
+            &&!(historical.flags&(w::outbound_queued|w::uncertain_history)));
     }
     c::Controller controller; Backend backend; backend.controller=&controller;
     auto control=Command(1,1,w::Action::none);

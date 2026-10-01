@@ -1723,7 +1723,7 @@ class ClientCliTests(unittest.TestCase):
                     self.assertIs(ability.recipient, PvEAbilityRecipient.ACTOR)
                     self.assertEqual(skill.as_dict(), saved_evidence["opening_skill"])
                     owner.session.require_combat_available.assert_called_once_with(
-                        owner.grant, self_power=True,
+                        owner.grant, self_power=True, power_readiness=True,
                     )
                 else:
                     resolve_skill.assert_not_called()
