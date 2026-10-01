@@ -13,9 +13,12 @@ passed all 15 hosted checks; merge completed October 1 at 15:53:29 UTC.
 Exact installed package source `e90d2f64ea49df5af94365012548266e6829e3a1` is
 retained in main. Later documentation commits do not change the package stamp.
 
-The reused bot-runtime worktree is on `codex/native-stance-deployment-20261001`,
-based on that main merge, for this documentation-only deployment receipt. Its
-integration destination is main through [draft PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53).
+The deployment receipt is published on `codex/native-stance-deployment-20261001`
+in the bot-runtime worktree through [draft PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53).
+Its complete tip `ec1ad28` is now included in the combined
+[draft PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54),
+branch `codex/registry-backed-population` in the reused bot-integration checkout.
+PR #54 targets main and will supersede #53 after integration; both remain unmerged.
 The old `codex/queued-skill-deployment-20261001` branch was retired
 locally and remotely after ancestry checks. PR #50 was closed as superseded:
 its relevant .57 receipt facts are incorporated, but its branch is retained
@@ -40,12 +43,11 @@ The user reports that the previously attacked NPC died and that no manual input
 was occurring. Separate passive evidence found its old heap object at zero health
 and a live replacement with the same key but a different token; a complete world
 registry census contained only the replacement. Engagement cannot transfer to it.
-Active next item: implement registry-backed population and qualify persistent
-action admission before repeating bounded follow-through. The code lane uses the
-reused bot-integration checkout on `codex/registry-backed-population`, based on
-main `72f13d5f`; it remains outside main pending a new PR. This source lane is
-separate from documentation PR #53. Neither the user report nor the passive
-snapshot proves player kill credit, skill consumption or snare application.
+Registry-backed population is implemented at `6eecda8`, independently reviewed,
+and passed 4,251 host tests plus 801 subtests with 36 skips. It remains
+uninstalled and outside main in PR #54. Active next item: qualify and correct
+persistent action admission before repeating bounded follow-through. Neither the
+user report nor the passive snapshot proves player kill credit, skill consumption or snare application.
 Automatic retaliation remains disabled pending the separate authoritative
 server-character-session fence.
 

@@ -15,7 +15,10 @@ validated for the next run. The earlier .58 and .57 results remain historical.
 The normal checkout is on the PR #52 main merge. The reused worktree is on
 `codex/native-stance-deployment-20261001` for this documentation-only receipt,
 with main as its integration destination through
-[draft PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53). The merged
+[draft PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53).
+That documentation tip `ec1ad28` is also included in the combined
+[draft PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54);
+#54 will supersede #53 after integration. The merged
 PR #52 feature branch is retired. PR #50 is closed as superseded; its relevant
 historical receipt facts are incorporated, while its branch is retained because
 its exact tip is not an ancestor of main.
@@ -209,8 +212,9 @@ was occurring. This is a user observation, separate from the bounded gate's queu
 and cleanup receipts. The planned follow-through itself has **not run** and sent
 no gameplay action: its read-only preflight observed native action state 2.
 Subsequent passive samples under the same exact Umbra process lifetime confirmed
-mode 1/action state 2, pending false, no AF8 combat target and no automation owner.
-Those fields do not identify a cast, prove idle, or attribute a later action.
+mode 1/action state 2, a zero in the field then labeled pending, no AF8 combat
+target and no automation owner. Those fields do not identify a cast, prove idle,
+or attribute a later action.
 
 The production heap-scanned population reader also rejected duplicate native
 object identities on two reads. Private `population-duplicates-result.json`
@@ -223,12 +227,29 @@ heap-scan membership alongside a registered replacement consistent with respawn;
 it does not show two currently registered targets. A matching key cannot transfer the old engagement to a replacement token.
 The passive census does not retain a native reference or authorize any action.
 
-The active source correction is registry-backed population plus qualification of
-persistent action admission before a bounded repeat. It is being implemented in
-the reused bot-integration checkout on `codex/registry-backed-population`, based
-on main `72f13d5f`, outside main pending a new PR. Documentation PR #53 remains
-separate. Installed .59/.39 and the earlier queue/cleanup pass are unchanged;
-no skill-consumption, snare or player kill-credit claim follows from these reads.
+Registry-backed population is implemented at `6eecda8` on
+`codex/registry-backed-population` in the reused bot-integration checkout. Its
+schema-4 profile admits only explicitly qualified images; complete bounded
+registry rereads replace heap membership, and registered actor/key/address
+checks surround field reads. Dispatch still reacquires a retained native
+reference on the owner thread. Duplicate registry identities, observed churn,
+and budget expiry reject the observation. Same-key respawn cannot transfer an
+old engagement or manufacture death/kill credit. Independent review, 87 focused
+and 79 consumer/health tests, repository Ruff, and the full host suite passed:
+4,251 tests, 801 subtests, and 36 skips. This source is not installed.
+PR #54 contains this correction and the full PR #53 documentation tip, targeting
+main as one integration review.
+
+Persistent-action qualification remains active. Exact client code identifies
+`actor+0x9BC` as an animation-event index rather than the boolean pending-action
+field used by the current reader. Native state updates can set mode and action
+independently; action state 2 alone is not proof of casting. The actor's `AE4`
+task pointer can survive task destruction and is not ownership evidence. Native
+power recovery uses `actor+0x67C` and the client's own clock, but elapsed recovery
+alone is not yet qualified as permission to interrupt an existing cast. These
+findings require a coherent observation/admission correction, not a wider guessed
+idle predicate. Installed .59/.39 remains unchanged and no follow-through action
+has run.
 
 ## Historical .57 live evidence
 
@@ -254,10 +275,13 @@ its offline and real-process qualification is distinct from live acceptance.
   PR #52 merge, installation, activation, launch and obsolete-runtime retirement.
 - Complete: bounded .59 skill-request/attack/native-cleanup gate and saved
   Umbra/Wonderbane basic Shot to the Leg opener, revision 1.
-- Active: fix registry-backed population and qualify persistent action admission
-  before repeating bounded one-NPC follow-through; no gameplay repeat has run.
+- Complete: registry-backed population source checkpoint and independent/full
+  host validation; included in draft PR #54, not installed.
+- Active: qualify and correct persistent action admission before repeating
+  bounded one-NPC follow-through; no gameplay repeat has run.
 - Pending: bounded follow-through with exact native health/death observation and
   cleanup, without player kill-credit or skill-consumption inference.
-- Pending: review/integrate this documentation-only deployment receipt.
+- Pending: qualify and integrate the combined PR #54 source and deployment
+  receipt, then supersede documentation PR #53.
 - Pending: qualified server-effect evidence and the authoritative
   server-character-session fence required for automatic retaliation.
