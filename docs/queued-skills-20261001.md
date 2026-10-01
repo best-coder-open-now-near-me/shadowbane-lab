@@ -121,7 +121,8 @@ its private receipt is `skill-stance-result.json`, definition SHA-256
 This confirms the definition/prerequisite mismatch at that observation; it does
 not retrospectively establish the sole cause of the earlier failed attempt.
 Candidate host **0.3.59** / native **1.8.39** contains the correction on the
-existing PR #52 branch and awaits qualification. Installed .58/.38 is unchanged.
+existing PR #52 branch and passed exact-source qualification below. Installed
+.58/.38 is unchanged.
 Owner revocation was a distinct later
 event; the sampled generation/no-owner state does not identify its trigger.
 Existing fail-closed handling stays in place, with no automatic restart.
@@ -132,6 +133,34 @@ configured numeric skill; only its correlated queue acknowledgement can advance
 the attack. UNCERTAIN retains the exact command for status/cleanup. Native
 callbacks must revalidate ownership after any mode transition and preserve entry
 history. No new hotkey, configuration flag or arbitrary host delay is required.
+
+## Qualified .59/.39 candidate
+
+Exact package source `e90d2f64ea49df5af94365012548266e6829e3a1` is pushed on
+`codex/queued-skill-deployment-20261001` and included in PR #52. Subsequent
+qualification documentation does not change that package source identity.
+Package `artifacts/b39/e2bdddda` passed 4,203 host tests with 35 explicit environment
+skips and 801 subtests. Both native profiles passed 202 native tests, 72 movement
+IPC tests and 85 combat IPC tests, including delayed parent-cancel cleanup.
+The three generic image skips were covered by explicit private image gates.
+
+The new required-mode probe executes the native predicate in 48 cases against
+both original and prepared client 13 for each profile. It proves signed mode
+eligibility, not native synchronization or all power admission. Existing power
+entry probes and 2,048-case melee control-flow probes also passed both images.
+Independent review accepted the native change, probes and deployment procedure.
+All 56 package steps and 82 indexed artifact hashes were verified. The two known
+optional renderer transparency diagnostics remain recorded separately.
+
+- Archive SHA-256: `776822bd98f7a4da2afaab90e7726a8e90610732881cc57e51460efb075df3fe`.
+- Receipt SHA-256: `cbc3b1850d3e0493e8075799ab2d041e28b1be0c5cd74fe4beefc64c27406c05`.
+- Full DLL SHA-256: `a53afdffb2e756f349ae065c03c000563eb765632f4a0e88db2b970163f860c2`.
+- Wheel SHA-256: `479f0510919181f2bc776529d955ade9cd4972d2cb910145ba0937688c302812`.
+
+No .59/.39 deployment or live acceptance is claimed. The next steps are approval
+and exact-head hosted checks for PR #52, closed-client installation, then bounded
+skill/attack acceptance. The installed .58/.38 DLL was still loaded in Vendor Test
+at the fresh deployment inspection; existing settings and jobs remain in place.
 
 ## Historical .57 live evidence
 
@@ -157,11 +186,11 @@ its offline and real-process qualification is distinct from live acceptance.
   merge, installation, activation, launch identity and obsolete-runtime retirement.
 - Complete: .58 bounded basic NPC queue/terminal-cleanup gate; no server-hit or
   PvE-recovery claim.
-- Active: qualify candidate .59/.39's native combat-mode prerequisite correction
-  for the unconfirmed skill attempt, on draft PR #52 outside main. The later revocation's trigger remains
-  unknown from the retained evidence; it does not justify relaxing owner guards.
-- Pending: qualify/review the corrected source, approved deployment and bounded
-  queued-skill/attack acceptance.
+- Complete: native combat-mode prerequisite correction, independent review and
+  exact-source .59/.39 package qualification. The earlier revocation trigger remains
+  unknown; owner guards remain intact.
+- Active: PR #52 merge/deployment approval and exact-head hosted checks.
+- Pending: closed-client installation and bounded queued-skill/attack acceptance.
 - Pending: expanded PR #52 review/integration, then supersede the still-open PR #50.
 - Pending: server-consumption/impact proof and the authoritative
   server-character-session fence required for automatic retaliation.

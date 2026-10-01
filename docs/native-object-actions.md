@@ -105,9 +105,9 @@ power-tracking vector nor queue acknowledgement proves server consumption or
 skill application. Existing CAST semantics remain unchanged.
 
 The .58 skill attempt exposed a combat-mode prerequisite gap: ordinary attack
-entry establishes combat mode, while the current power route does not. A native
-correction is implemented in candidate .59/.39 on draft PR #52, outside main
-and the installed package, pending qualification. Passive exact-session inspection
+entry establishes combat mode, while the installed power route does not. A native
+correction is qualified in .59/.39 on draft PR #52, outside main and the
+installed package. Passive exact-session inspection
 confirmed Shot's native stance requirement 1 while the actor was in mode 1.
 Mode preparation must remain inside the same owned native action, preserving
 entry/correlation evidence and rechecking the Grant/fence after callbacks. Host

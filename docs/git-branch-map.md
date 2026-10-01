@@ -18,8 +18,10 @@ based on that main merge. Deployment documentation and the pending native
 combat-mode prerequisite correction are outside main, with main as the integration
 destination through [draft PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52).
 The installed .58/.38 runtime remains the merged `05c888a4` package. Candidate
-host .59/native .39 carries the combat-mode prerequisite correction and awaits
-qualification; it is not installed.
+host .59/native .39 is qualified at package source
+`e90d2f64ea49df5af94365012548266e6829e3a1` but is not installed. Subsequent
+qualification documentation does not alter that package source identity; hosted
+checks and merge approval apply to the final PR head.
 This receipt incorporates the relevant .57 deployment and successful manual-player
 recovery facts from [PR #50](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/50)
 (`1bc32e3`). That documentation PR is still open and unmerged; PR #52 will supersede
@@ -36,10 +38,10 @@ The .57 manual-player attack/list-removal/native-stop/later-SEEKING gate passed.
 Its NPC attacks queued but did not confirm cleanup under the former immediate
 retry policy. The installed .58 correction uses bounded same-owner settlement.
 The .58 bounded basic NPC queue/terminal-cleanup gate has now passed. The skill
-attempt remained UNCERTAIN with no queue evidence or followup attack; cleanup was
-confirmed and later owner revocation was also recorded, with its trigger unknown.
-Active next item: qualify the native combat-mode prerequisite correction and repeat
-bounded skill acceptance. Owner guards and no-restart handling remain unchanged.
+attempt remained UNCERTAIN with no queue evidence or followup attack. A later
+owner revocation preceded confirmed terminal cleanup; its trigger remains unknown.
+Active next item: PR #52 approval and hosted checks, then closed-client
+installation of the qualified .59/.39 correction and bounded skill acceptance. Owner guards and no-restart handling remain unchanged.
 No server-consumption success is claimed. Automatic retaliation remains disabled pending the separate
 authoritative server-character-session fence.
 
