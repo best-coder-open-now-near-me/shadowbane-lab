@@ -6,43 +6,41 @@ records in place. Historical backup/rollback requirements below are superseded.
 
 ## Current shared source and deployment - October 1
 
-Start new development from freshly fetched `origin/main`. PRs #38-46 and
-[PR #48](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/48)
-are merged. PR #48 merged at `35fce4ba273a399b31e577d6d487a68b08dc34e3` on
-October 1, 01:50:01 UTC after all 15 hosted checks passed at the approved head.
-It includes PR #47's full documentation tip; #47 was closed as superseded.
-The normal checkout is clean on that main merge. The merged late-update and
-PR #47 documentation branches were retired after verifying ancestry.
+Start new development from freshly fetched `origin/main`. PRs #38-46, #48 and
+[PR #49](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/49)
+are merged. PR #49 merged as `18e65bba0229771895bcf159eea96977a43ecc99` on
+October 1 at 03:02:32 UTC after all 15 hosted checks passed. PR #48 includes
+PR #47's documentation; #47 was closed as superseded. The normal checkout is
+clean on `main@18e65bb`. The old PR #49 branch `codex/client-deployment-20261001`
+was retired locally and remotely after verified ancestry and checkout checks.
 
-The bot-runtime worktree now uses `codex/client-deployment-20261001` for the
-installation receipt and the recovery correction found during live acceptance.
-Candidate host 0.3.57 / native 1.8.37 and its receipt updates remain outside main;
-integration destination is main through the next review. Installed .56/.36 source
-is already merged. See the [late client update receipt](client-update-20260930-late.md).
+The reused bot-runtime worktree is on `codex/bot-recovery-receipt-20261001` for
+this receipt update, targeting main through a draft PR awaiting merge
+authorization. Runtime source is already merged; this handoff adds documentation.
 
-Both installed client copies have official **1.3.38.13** data. Vendor Test uses
-host **0.3.56** / native **1.8.36**, exact source
-`e6c7a28f229043540d3f93181900072ded58752c`. Package `artifacts/b36/d86bc533`
-passed both native profiles, 202 required native tests and 83 host/native IPC
-cases per profile, all private executable gates and 78 artifact hashes.
-Installation verified 450 modules, 9,559 preserved files, all five shortcuts,
-launch preflight, manager health and the loaded DLL. The inspected obsolete
-host 0.3.55 and its two old guest payload binaries were removed; no rollback
-copies were retained. User settings and records remain in place.
+Both installed clients retain official **1.3.38.13** data. Vendor Test uses
+host **0.3.57** / native **1.8.37**, exact qualified source
+`1d107a25c1356d20a0b633cc411d6b5efdc47a9b`, package `artifacts/b37/3f2832bd`.
+Both profiles passed required native and real IPC qualification, including the
+same-owner cleanup-pending regression; 78 artifact hashes were verified.
+Installation verified 450 modules, 9,566 retained files, one DLL replacement,
+five shortcuts, preflight, healthy manager activation and the loaded DLL. The
+inspected obsolete .56 host and two old payload binaries were removed; no runtime
+rollback copies were retained. User settings and records remain in place.
 
-The native object-action architecture and v2 command/v3 engagement contract are
-merged and installed. UI selection, hotkeys, hotbar/CFG and system-message text
-are not combat authority. In the first ready live attempt, the client queued a
-native attack against Day while Umbra remained selected. Test list removal and exact native
-stop were confirmed, but an emergency stop preceded cleanup and prevented the
-required later PvE SEEKING frame. The list is empty; full recovery acceptance is
-not yet passed. A diagnostic repeat identified native cleanup pending under the
-same exact owner; the host treated absent movement readiness as permanent owner
-loss. Next active item: qualify the explicit cleanup-pending contract correction,
-then complete bounded recovery and NPC/cast acceptance. Automatic
-retaliation remains disabled pending the authoritative server-character-session
-fence. Other worktrees remain available; unrelated renderer/town branches and
-cancelled carpenter drafts were not silently integrated or deleted.
+The bounded manual-player attack, list removal, exact native cancellation and
+strictly later PvE SEEKING gate now passes. Final membership and ordinary NPC
+proposals were zero, the watchdog did not fire, and the dispatcher did not
+interrupt. The final explicit harness stop occurred only after recovery. A passive
+post-test observation confirmed READY, no owner and no pending cleanup. See the
+[late-update receipt](client-update-20260930-late.md) for exact source, package,
+deployment and live evidence. No server-accepted hit or NPC/cast success is claimed.
+
+Next active work is NPC/cast acceptance under the agreed camp and native-object
+policy. UI selection, hotkeys, hotbar/CFG and system-message text remain outside
+combat authority. Automatic retaliation remains disabled pending an authoritative
+server character-session fence. Unrelated renderer/town branches and cancelled
+carpenter drafts have not been silently integrated or deleted.
 
 Everything below is a dated historical snapshot. Earlier pending/draft/active
 statements do not override the merged source and current handoff above.

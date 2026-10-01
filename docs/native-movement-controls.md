@@ -1,10 +1,11 @@
 # Native movement and camera controls
 
-Native controls, transport, manager and standalone automation ownership are integrated
-through `codex/native-lifecycle-hardening`. This document describes their settings
-and behavior. The integration owner verifies the exact combined package and supplies
-its acceptance record. Connected movement behavior remains pending that focused
-acceptance; source tests and installed control checks do not establish live success.
+Native controls, transport, manager and standalone automation ownership are merged
+in `main`. Installed host **0.3.57** / native **1.8.37** include the same-owner
+cleanup correction from PR #49. The bounded manual-player cancellation/recovery
+gate passed; the device, movement and isolation acceptance checklist below is
+separate and remains pending where no observation is recorded. See the
+[deployment receipt](client-update-20260930-late.md) for exact package identity.
 
 ## Settings
 
@@ -151,7 +152,7 @@ without changing the accepted source or introducing alternate movement writers.
 
 ## Automation cleanup readiness
 
-Candidate host 0.3.57 / native 1.8.37 adds explicit same-owner cleanup-pending
+Installed host 0.3.57 / native 1.8.37 adds explicit same-owner cleanup-pending
 status for deferred native cancellation. A temporary pending stop blocks new
 movement/combat requests but does not by itself revoke the unchanged operation
 Grant or its heartbeat. The native owner must still satisfy bindings, scene and
@@ -159,4 +160,6 @@ input/safety checks. True takeover, focus/UI invalidation, scene loss and termin
 failure remain stops; there is no reacquisition or automatic restart after them.
 See the [combat contract](native-combat-v2-contract.md) and the
 [live update receipt](client-update-20260930-late.md) for validation and deployment
-status. Current installed host 0.3.56 / native 1.8.36 does not yet contain this fix.
+status. The bounded live test confirmed native cleanup followed by a later PvE
+SEEKING frame without a dispatcher interruption. Pending cleanup itself remains
+unconfirmed until the native acknowledgement arrives.

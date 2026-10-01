@@ -1,18 +1,19 @@
 # Native combat command v2 and engagement fence v3
 
-The shared native combat implementation from PR #46 is installed with the
-[client 1.3.38.13 update](client-update-20260930-late.md), merged through PR #48
-at `35fce4ba273a399b31e577d6d487a68b08dc34e3`. Installed host 0.3.56 / native
-1.8.36 is exact qualified source `e6c7a28f229043540d3f93181900072ded58752c`.
-Package, hosted, installation and loaded-DLL checks passed. The first live
-manual attack queued independently of selection and cleanup confirmed native
-stop; an earlier operation emergency stop prevented later SEEKING recovery.
-Full recovery and NPC/cast acceptance remain open. Host and native ship together;
-legacy verbs 34-36 are rejected and there is no keyboard/hotbar fallback.
+The shared native object-combat implementation and cleanup-pending correction
+are merged through [PR #49](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/49)
+at `18e65bba0229771895bcf159eea96977a43ecc99`. Installed host **0.3.57** /
+native **1.8.37** use exact qualified source
+`1d107a25c1356d20a0b633cc411d6b5efdc47a9b` with client **1.3.38.13**.
+The bounded live manual-player attack, list removal, native cancellation and
+strictly later PvE SEEKING gate passed. This does not establish a server-accepted
+hit or NPC/cast acceptance. See the [deployment and live receipt](client-update-20260930-late.md).
+Host and native ship together; legacy verbs 34-36 are rejected and there is no
+keyboard/hotbar fallback.
 
 ## Same-owner cleanup status
 
-The 0.3.57 / 1.8.37 candidate distinguishes movement request readiness from
+Installed 0.3.57 / 1.8.37 distinguishes movement request readiness from
 owner lifetime during native cancellation. Movement status `CLEANUP_PENDING`
 (`0x40`) describes only cleanup still owned by the exact current automation
 Grant, under valid native bindings, scene and input/safety conditions. READY
@@ -22,7 +23,7 @@ When native cleanup completes, the same owner can return to READY and ordinary
 PvE seeking. Pending cleanup does not count as completed cleanup or server proof.
 Changed Grant/scene, terminal/fault or focus/UI invalidation remain permanent
 stops. Missing READY without this explicit valid pending state is still rejected.
-The host and native changes must be qualified and installed together.
+The host and native changes were qualified and installed together.
 
 ## Ownership and identities
 

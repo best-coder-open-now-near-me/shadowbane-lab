@@ -1,14 +1,15 @@
 # Native object-target actions
 
-The shared native combat implementation from PR #46 is installed with the
-[client 1.3.38.13 update](client-update-20260930-late.md), merged through PR #48
-at `35fce4ba273a399b31e577d6d487a68b08dc34e3`. Installed host 0.3.56 / native
-1.8.36 is exact qualified source `e6c7a28f229043540d3f93181900072ded58752c`.
-Package, hosted, installation and loaded-DLL checks passed. The first live
-manual attack queued independently of selection and cleanup confirmed native
-stop; an earlier operation emergency stop prevented later SEEKING recovery.
-Full recovery and NPC/cast acceptance remain open. Host and native ship together;
-legacy verbs 34-36 are rejected and there is no keyboard/hotbar fallback.
+The shared native object-combat implementation and cleanup-pending correction
+are merged through [PR #49](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/49)
+at `18e65bba0229771895bcf159eea96977a43ecc99`. Installed host **0.3.57** /
+native **1.8.37** use exact qualified source
+`1d107a25c1356d20a0b633cc411d6b5efdc47a9b` with client **1.3.38.13**.
+The bounded live manual-player attack, list removal, native cancellation and
+strictly later PvE SEEKING gate passed. This does not establish a server-accepted
+hit or NPC/cast acceptance. See the [deployment and live receipt](client-update-20260930-late.md).
+Host and native ship together; legacy verbs 34-36 are rejected and there is no
+keyboard/hotbar fallback.
 
 ## Ownership and composition
 
@@ -140,14 +141,15 @@ Focused native fixtures cover replay, revocation, busy casts, selection
 independence, faults, reentrant stop/retirement and bounded history. Host tests
 cover typed acknowledgement accounting, exact pending-action polling, shared
 listed/NPC ownership, public-runner cleanup and fresh-frame recovery. These checks
-do not replace final whole-candidate validation.
+are complemented by the qualified whole-package and bounded live gate below.
 
-The integrated host suite passed 4,041 tests with 33 explicit skips and 801
+At the historical PR #46 checkpoint, the integrated host suite passed 4,041 tests with 33 explicit skips and 801
 subtests; repository Ruff passed. Both native profiles, required original/prepared-image
 package gates and all 15 hosted checks passed at the approved source head. PR #46
 is merged; PR #48 subsequently qualified and installed client 1.3.38.13.
-Current bounded acceptance results and the unresolved interruption are recorded
-in the late client update receipt above. Automatic retaliation remains
+PR #49 subsequently corrected same-owner cleanup readiness and installed .57/.37.
+The manual-player cancellation/recovery gate now passes; NPC/cast acceptance
+remains open. Exact package and live evidence are recorded in the late-update receipt. Automatic retaliation remains
 blocked on the separate authoritative server-character-session contract. Private
 client binaries and diagnostic captures remain outside source delivery; no
 retained deployment rollback artifacts are created.
