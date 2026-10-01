@@ -2,6 +2,7 @@
 #include "targeted_action_trace.h"
 #include "condemn_responses.h"
 #include "combat_runtime.h"
+#include "actor_effects_native.h"
 #include "movement_runtime.h"
 #include "vendor_runtime.h"
 #include "camera_observation.h"
@@ -23,6 +24,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <intrin.h>
 
 namespace {
 
@@ -32,7 +34,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.8.42";
+constexpr char kExtensionVersion[] = "1.8.43";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -358,6 +360,7 @@ DWORD WriteHeartbeat(
 }  // namespace
 
 extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
+    const auto initializer_return = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
     const LONG initializing = static_cast<LONG>(WonderBaneExtensionState::initializing);
     const LONG previous = InterlockedCompareExchange(
         &g_state,
@@ -400,6 +403,12 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         }
         if (result == ERROR_SUCCESS) {
             result = PinExtensionModule();
+        }
+        if (result == ERROR_SUCCESS && is_client && !kDiagnosticsOnly) {
+            // This observer requires the synchronous prepared entrypoint. A late
+            // initializer remains usable, but cannot publish buff absence.
+            (void)wonderbane::extension::actor_effects::StartAtBootstrap(
+                reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr)), initializer_return);
         }
         if (result == ERROR_SUCCESS && world_map_supported) {
             result = wonderbane::extension::StartWorldMapCapture(

@@ -190,3 +190,62 @@ def test_worker_uses_current_character_settings_instead_of_assassin_default(tmp_
     assert run.call_args.kwargs["policy"] is None
     assert run.call_args.kwargs["client_process_id"] == 123
     assert run.call_args.kwargs["movement_dispatcher"] is dispatcher
+
+
+def buff_intent():
+    from shadowbane_lab.pve.buff_intent import BuffAction, BuffGroup, BuffSettings
+    from shadowbane_lab.pve.preparation import PreparationAction
+    return BuffSettings(True, (BuffGroup("concoction", (BuffAction(
+        PreparationAction("concoction", item_template=(980066, 0)), 429021400),)),))
+
+
+def test_schema1_migration_preserves_intent_and_revision_without_write(tmp_path, owner):
+    path = settings._path(owner, tmp_path)
+    original = json.dumps({"schema_version": 1, "server": "Wonderbane", "character": "Umbra",
+                           "policy": "basic", "opening_skill": "563795161", "revision": 9})
+    path.write_text(original)
+    loaded = settings.load_pve_settings(owner, root=tmp_path)
+    assert loaded.opening_skill == "563795161" and loaded.revision == 9
+    assert not loaded.buffs.enabled and loaded.buffs.groups == ()
+    assert path.read_text() == original
+    updated = save(owner, tmp_path, replace(loaded, buffs=buff_intent()), expected=loaded)
+    stored = json.loads(path.read_text())
+    assert stored["schema_version"] == 2 and stored["revision"] == 10
+    assert stored["opening_skill"] == "563795161"
+    assert settings.load_pve_settings(owner, root=tmp_path) == updated
+    with pytest.raises(ValueError, match="changed"):
+        save(owner, tmp_path, loaded, expected=loaded)
+
+
+def test_buff_config_edit_preserves_opener_and_disable_preserves_groups(cli, owner, tmp_path):
+    assert command._configure_pve_settings(process_id=123, opening_skill="My Skill") == 0
+    path = tmp_path / "buffs.json"
+    path.write_text(json.dumps(buff_intent().as_dict()))
+    assert command._configure_pve_settings(process_id=123, buff_config=path) == 0
+    configured = settings.load_pve_settings(owner)
+    assert configured.opening_skill == "12345" and configured.buffs == buff_intent()
+    assert command._configure_pve_settings(process_id=123, buffs_enabled=False) == 0
+    disabled = settings.load_pve_settings(owner)
+    assert not disabled.buffs.enabled and disabled.buffs.groups == configured.buffs.groups
+    assert disabled.opening_skill == configured.opening_skill
+
+
+@pytest.mark.parametrize("field,value", [("enabled", 1), ("groups", {}), ("observed", True)])
+def test_invalid_buff_configuration_never_changes_saved_intent(cli, owner, tmp_path, field, value):
+    original = settings.load_pve_settings(owner)
+    document = buff_intent().as_dict()
+    document[field] = value
+    path = tmp_path / "invalid-buffs.json"
+    path.write_text(json.dumps(document))
+    assert command._configure_pve_settings(process_id=123, buff_config=path) == 2
+    assert settings.load_pve_settings(owner) == original
+
+
+def test_buff_config_rejects_foreign_power_coverage_and_duplicate_actions():
+    from shadowbane_lab.pve.buff_intent import BuffAction, BuffGroup, BuffSettings
+    from shadowbane_lab.pve.preparation import PreparationAction
+    action = BuffAction(PreparationAction("precision", power_id=429545819), 429545819)
+    with pytest.raises(ValueError, match="own native definition"):
+        replace(action, coverage_power_id=429021400)
+    with pytest.raises(ValueError, match="unique"):
+        BuffSettings(True, (BuffGroup("one", (action,)), BuffGroup("two", (action,))))

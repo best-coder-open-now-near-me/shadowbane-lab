@@ -20,6 +20,8 @@ from shadowbane_lab.record_store import (
     read_record_bytes,
 )
 
+from .buff_intent import BuffSettings
+
 _MAX_BYTES = 16_384
 
 
@@ -28,8 +30,11 @@ class PvESettings:
     policy: str = "basic"
     opening_skill: str | None = None
     revision: int = 0
+    buffs: BuffSettings = BuffSettings()
 
     def __post_init__(self) -> None:
+        if not isinstance(self.buffs, BuffSettings):
+            raise ValueError("buff settings must be typed")
         if self.policy not in ("basic", "proc-assassin"):
             raise ValueError("PvE policy must be basic or proc-assassin")
         if self.opening_skill is not None:
@@ -51,6 +56,7 @@ class PvESettings:
             "policy": self.policy,
             "opening_skill": self.opening_skill,
             "revision": self.revision,
+            "buffs": self.buffs.as_dict(),
         }
 
 
@@ -99,17 +105,18 @@ def load_pve_settings(identity, *, root: Path | None = None) -> PvESettings:
     if len(raw) > _MAX_BYTES:
         raise ValueError("PvE settings exceed bounded record size")
     value = json.loads(raw, object_pairs_hook=_unique_object)
-    if (
-        not isinstance(value, dict)
-        or set(value)
-        != {"schema_version", "server", "character", "policy", "opening_skill", "revision"}
-        or type(value["schema_version"]) is not int
-        or value["schema_version"] != 1
-    ):
+    fields = {"schema_version", "server", "character", "policy", "opening_skill", "revision"}
+    if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
+            or value["schema_version"] not in (1, 2)
+            or set(value) != (fields if value["schema_version"] == 1 else fields | {"buffs"})):
         raise ValueError("PvE settings schema is invalid")
+
     if (value["server"], value["character"]) != _owner(identity):
         raise ValueError("PvE settings belong to another character")
-    return PvESettings(value["policy"], value["opening_skill"], value["revision"])
+    # Loading schema 1 is a pure migration: no write, no implicit buff enablement.
+    buffs = (BuffSettings() if value["schema_version"] == 1
+             else BuffSettings.from_dict(value["buffs"]))
+    return PvESettings(value["policy"], value["opening_skill"], value["revision"], buffs)
 
 
 def save_pve_settings(
@@ -132,10 +139,12 @@ def save_pve_settings(
         updated = replace(settings, revision=expected.revision + 1)
         server, character = _owner(identity)
         payload = json.dumps(
-            {"schema_version": 1, "server": server, "character": character, **updated.as_dict()},
+            {"schema_version": 2, "server": server, "character": character, **updated.as_dict()},
             ensure_ascii=True,
             allow_nan=False,
         ).encode()
+        if len(payload) > _MAX_BYTES:
+            raise ValueError("PvE settings exceed bounded record size")
         require_current()
         publish_atomic_record(path, payload, temporary_label="pve-settings")
     return updated

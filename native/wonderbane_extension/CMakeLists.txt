@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.42 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.43 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -41,13 +41,18 @@ add_library(
   guard_funding_native.cpp
   city_window_native.cpp
   building_native_target.cpp
+  actor_effects_native.cpp
+  combat_item_entry.cpp
   combat_submission.cpp
-  combat_v2_native.cpp
+  actor_inventory_native.cpp
+  actor_buff_observation.cpp
+  actor_action_native.cpp
+  actor_publication.cpp
   combat_melee_entry.cpp
   combat_target_policy.cpp
   combat_power_entry.cpp
   combat_power_observer.cpp
-  combat_v2_runtime.cpp
+  actor_action_runtime.cpp
   vendor_navigation_native.cpp
   movement_settings.cpp
   movement_native_image.cpp
@@ -1439,7 +1444,7 @@ if(BUILD_TESTING)
   target_compile_definitions(wonderbane_extension_combat_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_combat_channel_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_combat_channel_test PRIVATE bcrypt)
-  add_test(NAME wonderbane_extension_combat_channel COMMAND wonderbane_extension_combat_channel_test "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_command_v2.hex")
+  add_test(NAME wonderbane_extension_combat_channel COMMAND wonderbane_extension_combat_channel_test "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/actor_command_v3.hex")
   set_tests_properties(wonderbane_extension_combat_channel PROPERTIES TIMEOUT 15)
   foreach(kind city_window movement guard_upgrade guard_funding condemn event vendor_navigation vendor vendor_menu)
     target_link_libraries(wonderbane_extension_${kind}_channel_test PRIVATE bcrypt)
@@ -1609,4 +1614,141 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_combat_v2_runtime_test PRIVATE bcrypt user32)
   add_test(NAME wonderbane_extension_combat_v2_runtime COMMAND wonderbane_extension_combat_v2_runtime_test)
   set_tests_properties(wonderbane_extension_combat_v2_runtime PROPERTIES TIMEOUT 15)
+endif()
+
+# Shared native item entry; the test includes its implementation for fault injection.
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_item_entry_test combat_item_entry_test.cpp)
+  target_compile_features(wonderbane_extension_combat_item_entry_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_item_entry_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_item_entry_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  add_test(NAME wonderbane_extension_combat_item_entry COMMAND wonderbane_extension_combat_item_entry_test)
+  set_tests_properties(wonderbane_extension_combat_item_entry PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_item_probe EXCLUDE_FROM_ALL combat_item_probe.cpp)
+  target_compile_features(wonderbane_extension_combat_item_probe PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_item_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_item_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_item_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_combat_item_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_actor_effects_native_test actor_effects_native_test.cpp)
+  add_executable(wonderbane_extension_actor_effects_native_probe EXCLUDE_FROM_ALL actor_effects_native_probe.cpp)
+  foreach(target wonderbane_extension_actor_effects_native_test wonderbane_extension_actor_effects_native_probe)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    target_compile_definitions(${target} PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+    target_compile_options(${target} PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  endforeach()
+  target_link_libraries(wonderbane_extension_actor_effects_native_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_actor_effects_native_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_actor_effects_native COMMAND wonderbane_extension_actor_effects_native_test)
+  foreach(mode partial cpp saturation)
+    add_test(NAME wonderbane_extension_actor_effects_native_${mode} COMMAND wonderbane_extension_actor_effects_native_test ${mode})
+    set_tests_properties(wonderbane_extension_actor_effects_native_${mode} PROPERTIES TIMEOUT 15)
+  endforeach()
+  set_tests_properties(wonderbane_extension_actor_effects_native PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_actor_application_journal_test actor_application_journal_test.cpp)
+  target_compile_features(wonderbane_extension_actor_application_journal_test PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_actor_application_journal_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  add_test(NAME wonderbane_extension_actor_application_journal COMMAND wonderbane_extension_actor_application_journal_test)
+  set_tests_properties(wonderbane_extension_actor_application_journal PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_actor_inventory_native_test actor_inventory_native_test.cpp)
+  add_executable(wonderbane_extension_actor_inventory_native_probe EXCLUDE_FROM_ALL actor_inventory_native_probe.cpp)
+  foreach(target wonderbane_extension_actor_inventory_native_test wonderbane_extension_actor_inventory_native_probe)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    target_compile_definitions(${target} PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+    target_compile_options(${target} PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  endforeach()
+  target_link_libraries(wonderbane_extension_actor_inventory_native_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_actor_inventory_native_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_actor_inventory_native COMMAND wonderbane_extension_actor_inventory_native_test)
+  set_tests_properties(wonderbane_extension_actor_inventory_native PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_actor_selector_manifest_test actor_selector_manifest_test.cpp)
+  target_compile_features(wonderbane_extension_actor_selector_manifest_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_actor_selector_manifest_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_actor_selector_manifest_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_actor_selector_manifest_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_actor_selector_manifest COMMAND wonderbane_extension_actor_selector_manifest_test "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/actor_selector_manifest_v1.hex")
+  set_tests_properties(wonderbane_extension_actor_selector_manifest PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_actor_action_wire_test actor_action_wire_test.cpp)
+  target_compile_features(wonderbane_extension_actor_action_wire_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_actor_action_wire_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_actor_action_wire_test PRIVATE /W4 /WX /permissive- /sdl /utf-8 /UNDEBUG)
+  target_link_libraries(wonderbane_extension_actor_action_wire_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_actor_action_wire COMMAND wonderbane_extension_actor_action_wire_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/actor_owner_v4.hex"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/actor_context_v4.hex"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/actor_command_v3.hex"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/actor_receipt_v3.hex")
+  set_tests_properties(wonderbane_extension_actor_action_wire PROPERTIES TIMEOUT 15)
+
+  add_executable(wonderbane_extension_actor_buff_observation_test actor_buff_observation_test.cpp)
+  add_executable(wonderbane_extension_actor_buff_observation_probe EXCLUDE_FROM_ALL actor_buff_observation_probe.cpp)
+  foreach(target wonderbane_extension_actor_buff_observation_test wonderbane_extension_actor_buff_observation_probe)
+    target_compile_features(${target} PRIVATE cxx_std_20)
+    target_compile_definitions(${target} PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+    target_compile_options(${target} PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  endforeach()
+  target_link_libraries(wonderbane_extension_actor_buff_observation_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_actor_buff_observation_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_actor_buff_observation COMMAND wonderbane_extension_actor_buff_observation_test)
+  set_tests_properties(wonderbane_extension_actor_buff_observation PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_actor_action_controller_test actor_action_controller_test.cpp)
+  target_compile_features(wonderbane_extension_actor_action_controller_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_actor_action_controller_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_actor_action_controller_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_actor_action_controller_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_actor_action_controller COMMAND wonderbane_extension_actor_action_controller_test
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/actor_command_v3.hex"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/actor_context_v4.hex")
+  set_tests_properties(wonderbane_extension_actor_action_controller PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_actor_action_native_test actor_action_native_test.cpp actor_action_native.cpp combat_target_policy.cpp)
+  target_compile_features(wonderbane_extension_actor_action_native_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_actor_action_native_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_actor_action_native_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_actor_action_native_test PRIVATE bcrypt user32)
+  add_test(NAME wonderbane_extension_actor_action_native COMMAND wonderbane_extension_actor_action_native_test)
+  set_tests_properties(wonderbane_extension_actor_action_native PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_actor_publication_test actor_publication_test.cpp)
+  target_compile_features(wonderbane_extension_actor_publication_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_actor_publication_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_actor_publication_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_actor_publication_test PRIVATE bcrypt advapi32)
+  add_test(NAME wonderbane_extension_actor_publication COMMAND wonderbane_extension_actor_publication_test)
+  set_tests_properties(wonderbane_extension_actor_publication PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_actor_action_runtime_test actor_action_runtime_test.cpp)
+  target_compile_features(wonderbane_extension_actor_action_runtime_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_actor_action_runtime_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_actor_action_runtime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_actor_action_runtime_test PRIVATE bcrypt advapi32)
+  add_test(NAME wonderbane_extension_actor_action_runtime COMMAND wonderbane_extension_actor_action_runtime_test)
+  set_tests_properties(wonderbane_extension_actor_action_runtime PROPERTIES TIMEOUT 15)
 endif()

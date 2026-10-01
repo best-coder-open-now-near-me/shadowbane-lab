@@ -52,6 +52,7 @@ LEARNED_POWER_DISPATCH_CAPABILITY = 1 << 2
 EXPLICIT_COMBAT_CAPABILITY = 1 << 3  # Retired v1 service; never authorizes v2 actions.
 OBJECT_COMBAT_CAPABILITY = 1 << 4
 SELF_POWER_CAPABILITY = 1 << 5
+ACTOR_ACTION_CAPABILITY = 1 << 7
 POWER_READINESS_CAPABILITY = 1 << 6
 KNOWN_CLIENT_ACTION_CAPABILITIES = (
     CLIENT_ACTION_TRANSPORT_CAPABILITY
@@ -61,6 +62,7 @@ KNOWN_CLIENT_ACTION_CAPABILITIES = (
     | OBJECT_COMBAT_CAPABILITY
     | SELF_POWER_CAPABILITY
     | POWER_READINESS_CAPABILITY
+    | ACTOR_ACTION_CAPABILITY
 )
 
 _HEADER = struct.Struct("<8s8IQ6q2iq2i8s")
@@ -702,6 +704,7 @@ class WindowsNativeActionCommandTransport:
         *,
         timeout_ms: int,
     ) -> NativeActionResult:
+        from .actor_action_channel import NativeActorCommand
         from .city_window_session import NativeCityWindowCommand
         from .combat_channel import NativeCombatCommand
         from .condemn_session import NativeCondemnCommand
@@ -711,9 +714,11 @@ class WindowsNativeActionCommandTransport:
         from .vendor_session import NativeVendorCommand
 
         if not isinstance(
-            command, (NativeActionCommand, NativeMovementCommand, NativeCombatCommand,
-                      NativeVendorCommand, NativeCityWindowCommand, NativeVendorNavigationCommand,
-                      NativeGuardUpgradeCommand, NativeGuardFundingCommand, NativeCondemnCommand)
+            command, (
+                NativeActionCommand, NativeMovementCommand, NativeCombatCommand, NativeActorCommand,
+                NativeVendorCommand, NativeCityWindowCommand, NativeVendorNavigationCommand,
+                NativeGuardUpgradeCommand, NativeGuardFundingCommand, NativeCondemnCommand,
+            )
         ):
             raise ValueError("command must be a supported native command")
         if isinstance(timeout_ms, bool) or not isinstance(timeout_ms, int) or timeout_ms <= 0:

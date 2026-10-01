@@ -19,6 +19,7 @@ class CleanupObligation:
     grant: Any
     deadline: float | None = None
     released: bool = False
+    context_command: Any = None
 
 
 class CleanupSettlement:
@@ -47,6 +48,47 @@ class CleanupSettlement:
             if terminal is not None:
                 obligation.deadline = min(obligation.deadline, terminal)
             return obligation.deadline
+
+    def begin_context(self, obligation: CleanupObligation, command) -> float:
+        """Arm one exact child stop while retaining the parent cleanup obligation."""
+        from .actor_action_wire import Command, Verb
+
+        if not isinstance(command, Command):
+            raise ValueError("context settlement requires an actor command")
+        command.require_verb(Verb.STOP_CONTEXT)
+        with self._condition:
+            grant = obligation.grant
+            if (self._owners.get(grant) is not obligation or obligation.released
+                    or command.grant != grant.ownership or command.host != grant.host
+                    or command.window != grant.window):
+                raise ValueError("context settlement belongs to another registered owner")
+            if obligation.context_command is not None and command != obligation.context_command:
+                raise RuntimeError("another context settlement remains unresolved")
+            obligation.context_command = command
+            return self.begin(obligation)
+
+    def continue_owner(self, obligation: CleanupObligation, receipt) -> None:
+        """Clear only a positively proved child stop, never a terminal deadline."""
+        from .actor_action_wire import OWNER_CLEANUP, Closure, ClosureScope, Phase, Verb
+
+        with self._condition:
+            grant = obligation.grant
+            command = obligation.context_command
+            if (self._owners.get(grant) is not obligation or obligation.released
+                    or command is None):
+                raise ValueError("no exact context settlement is pending")
+            receipt.require_command(command, Verb.STOP_CONTEXT)
+            if (receipt.owner_phase is not Phase.BOUND or receipt.context_phase is not Phase.CLOSED
+                    or receipt.closure_scope is not ClosureScope.CONTEXT
+                    or receipt.closure not in (
+                        Closure.NATIVE_STOPPED, Closure.LOCAL_RELEASED, Closure.NEVER_BOUND)
+                    or receipt.flags != OWNER_CLEANUP):
+                raise ValueError("receipt does not prove child closure under the retained parent")
+            if grant in self._terminal or grant in self._aborted:
+                raise RuntimeError("terminal owner cannot resume after child closure")
+            obligation.context_command = None
+            obligation.deadline = None
+            self._condition.notify_all()
 
     def release(self, obligation: CleanupObligation) -> None:
         """Called only after the owning client establishes its exact closure proof."""

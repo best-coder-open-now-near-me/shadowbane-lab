@@ -93,10 +93,23 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_combat_v2_native",
     "wonderbane_extension_combat_v2_runtime",
     "wonderbane_extension_combat_channel",
+    "wonderbane_extension_actor_action_wire",
+    "wonderbane_extension_actor_action_controller",
+    "wonderbane_extension_actor_action_native",
+    "wonderbane_extension_actor_action_runtime",
+    "wonderbane_extension_actor_selector_manifest",
+    "wonderbane_extension_actor_application_journal",
+    "wonderbane_extension_actor_inventory_native",
+    "wonderbane_extension_actor_buff_observation",
+    "wonderbane_extension_actor_publication",
+    "wonderbane_extension_combat_item_entry",
+    "wonderbane_extension_actor_effects_native",
+    *(f"wonderbane_extension_actor_effects_native_{mode}"
+      for mode in ("partial", "cpp", "saturation")),
 })
 
 REQUIRED_COMBAT_IPC_TESTS = frozenset({
-    "test_real_power_readiness_mapping_retains_binding_and_cleanup",
+    "test_real_actor_readiness_mapping_retains_parent_context_and_cleanup",
     "test_native_entry_once_then_mutation_requires_cancellation",
     "test_native_revocation_wins_and_immutable_binding_rejected",
     "test_abandoned_mutex_revokes_native_admission",
@@ -109,6 +122,22 @@ REQUIRED_COMBAT_IPC_TESTS = frozenset({
     *(f"test_real_process_command_registration_and_revocation[{case}]"
       for case in ("enter_remove", "remove_enter", "wrong_binding", "wrong_name")),
 })
+
+
+REQUIRED_ACTOR_IPC_TESTS = frozenset({
+    "test_real_windows_parent_and_child_native_consumer",
+    "test_real_native_publication_mapping_roundtrip",
+})
+
+
+def validate_actor_ipc_results(path: Path, profile: str) -> None:
+    cases = ET.parse(path).getroot().findall(".//testcase")
+    names = [case.get("name") for case in cases]
+    if any(names.count(name) != 1 for name in REQUIRED_ACTOR_IPC_TESTS) or any(
+        case.find("skipped") is not None or case.find("failure") is not None
+        or case.find("error") is not None for case in cases
+    ):
+        raise RuntimeError(f"{profile}: required native actor IPC did not execute and pass")
 
 
 def validate_combat_ipc_results(path: Path, profile: str) -> None:
@@ -168,6 +197,30 @@ def _validate_combat_power_probe_steps(steps, *, reviewed_client, feature):
             raise RuntimeError(
                 f"{profile}: {feature} probe must exercise original and prepared images"
             )
+    return True
+
+
+def validate_actor_probe_steps(steps, *, reviewed_client):
+    if not reviewed_client:
+        return False
+    for profile in ("full", "diagnostics-only"):
+        for feature in ("combat_item", "actor_effects_native",
+                        "actor_inventory_native", "actor_buff_observation"):
+            images = []
+            for suffix in ("binding", "prepared-binding"):
+                name = f"{profile}-{feature}-{suffix}"
+                matches = [step for step in steps if step.get("name") == name]
+                if len(matches) != 1 or matches[0].get("exit_code") != 0:
+                    raise RuntimeError(f"required actor probe did not pass: {name}")
+                command = matches[0].get("command")
+                if (not isinstance(command, list) or len(command) != 2
+                        or not all(isinstance(item, str) and item for item in command)
+                        or Path(command[0]).name != f"wonderbane_extension_{feature}_probe.exe"):
+                    raise RuntimeError(f"incorrect actor probe command: {name}")
+                images.append(command[1])
+            if images[0] == images[1]:
+                raise RuntimeError(
+                    f"{profile}: actor probe must exercise original and prepared images")
     return True
 
 
@@ -257,6 +310,8 @@ def main() -> int:
     environment.pop("WONDERBANE_TEST_GDI_GL", None)
     environment.pop("SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE", None)
     environment.pop("SHADOWBANE_COMBAT_CHANNEL_TEST_EXE", None)
+    environment.pop("WONDERBANE_ACTOR_ACTION_TEST", None)
+    environment.pop("SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE", None)
     environment["PYTHONUTF8"] = "1"
     steps = []
     diagnostic_failures = []
@@ -387,13 +442,28 @@ def main() -> int:
                 raise RuntimeError(f"{profile}: Condemn test entered runtime")
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
-        for combat_source in ("combat_submission.cpp", "combat_v2_native.cpp",
-                              "combat_v2_runtime.cpp", "combat_melee_entry.cpp",
+        for combat_source in ("combat_submission.cpp", "actor_action_native.cpp",
+                              "actor_action_runtime.cpp", "actor_effects_native.cpp",
+                              "actor_inventory_native.cpp", "actor_buff_observation.cpp",
+                              "actor_publication.cpp", "combat_item_entry.cpp",
+                              "combat_melee_entry.cpp",
                               "combat_power_entry.cpp", "combat_power_observer.cpp",
                               "combat_target_policy.cpp"):
             if included_sources.count(combat_source) != 1:
                 raise RuntimeError(f"{profile}: combat source must have one owner: {combat_source}")
         for developer_source in ("combat_native.cpp", "combat_runtime.cpp",
+                                 "combat_v2_native.cpp", "combat_v2_runtime.cpp",
+                                 "actor_action_native_test.cpp", "actor_action_runtime_test.cpp",
+                                 "actor_action_controller_test.cpp", "actor_action_wire_test.cpp",
+                                 "actor_application_journal_test.cpp",
+                                 "actor_selector_manifest_test.cpp",
+                                 "actor_publication_test.cpp", "actor_effects_native_test.cpp",
+                                 "actor_inventory_native_test.cpp",
+                                 "actor_buff_observation_test.cpp",
+                                 "actor_effects_native_probe.cpp",
+                                 "actor_inventory_native_probe.cpp",
+                                 "actor_buff_observation_probe.cpp", "combat_item_probe.cpp",
+                                 "combat_item_entry_test.cpp",
                                  "combat_v2_wire_test.cpp", "combat_v2_controller_test.cpp",
                                  "combat_v3_fence_test.cpp", "combat_v2_native_test.cpp",
                                  "combat_v2_runtime_test.cpp", "movement_tree_probe.cpp",
@@ -570,6 +640,20 @@ def main() -> int:
             environment.pop("SHADOWBANE_COMBAT_FENCE_V3_TEST_EXE", None)
             environment.pop("SHADOWBANE_COMBAT_CHANNEL_TEST_EXE", None)
         validate_combat_ipc_results(combat_results, profile)
+        actor_results = logs / f"{profile}-actor-ipc.xml"
+        environment["WONDERBANE_ACTOR_ACTION_TEST"] = str(
+            build / "Release/wonderbane_extension_actor_action_wire_test.exe")
+        environment["SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE"] = str(
+            build / "Release/wonderbane_extension_actor_publication_test.exe")
+        try:
+            run(f"{profile}-actor-ipc", [sys.executable, "-m", "pytest",
+                "tests/test_actor_action_wire.py", "tests/test_actor_publication.py",
+                "tests/test_actor_action_session.py", "tests/test_actor_selector_manifest.py",
+                "-q", f"--junitxml={actor_results}"])
+        finally:
+            environment.pop("WONDERBANE_ACTOR_ACTION_TEST", None)
+            environment.pop("SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE", None)
+        validate_actor_ipc_results(actor_results, profile)
         if arguments.reviewed_client:
             run(
                 f"{profile}-combat-registry-build",
@@ -579,7 +663,11 @@ def main() -> int:
                  "wonderbane_extension_combat_power_probe",
                  "wonderbane_extension_combat_power_mode_probe",
                  "wonderbane_extension_combat_power_initiation_probe",
-                 "wonderbane_extension_combat_power_readiness_probe"],
+                 "wonderbane_extension_combat_power_readiness_probe",
+                 "wonderbane_extension_combat_item_probe",
+                 "wonderbane_extension_actor_effects_native_probe",
+                 "wonderbane_extension_actor_inventory_native_probe",
+                 "wonderbane_extension_actor_buff_observation_probe"],
             )
             run(
                 f"{profile}-combat-registry-binding",
@@ -677,6 +765,12 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
                 [build / "Release/wonderbane_extension_combat_power_readiness_probe.exe",
                  prepared_client],
             )
+            for feature in ("combat_item", "actor_effects_native",
+                        "actor_inventory_native", "actor_buff_observation"):
+                for suffix, image in (("binding", arguments.reviewed_client.resolve()),
+                                      ("prepared-binding", prepared_client)):
+                    run(f"{profile}-{feature}-{suffix}",
+                        [build / f"Release/wonderbane_extension_{feature}_probe.exe", image])
             for test in ("sky_binding", "sky_render"):
                 run(
                     f"{profile}-{test}",
@@ -724,6 +818,10 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
         if "shadowbane_lab/client_extension/movement_dispatcher.py" not in package.namelist():
             raise RuntimeError("wheel missing native movement dispatcher")
         for name in (
+            "client_extension/actor_action_wire.py", "client_extension/actor_action_fence.py",
+            "client_extension/actor_action_channel.py", "client_extension/actor_publication.py",
+            "client_extension/actor_selector_manifest.py", "pve/native_actor.py",
+            "pve/preparation.py", "pve/buff_intent.py",
             "client_extension/condemn_session.py", "client_extension/condemn_transaction.py",
             "client_extension/condemn_progress.py", "client_extension/condemn_wire.py",
             "manager/condemn_cycle.py", "manager/condemn_plan.py", "manager/condemn_job.py",
@@ -753,6 +851,14 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             "native/wonderbane_extension/navigation_draw.cpp",
             "native/wonderbane_extension/effects_runtime.cpp",
             "native/wonderbane_extension/effects_test.cpp",
+            "native/wonderbane_extension/actor_action_runtime.cpp",
+            "native/wonderbane_extension/actor_publication.cpp",
+            "native/wonderbane_extension/actor_action_controller.h",
+            "tests/fixtures/actor_owner_v4.hex",
+            "tests/fixtures/actor_context_v4.hex",
+            "tests/fixtures/actor_command_v3.hex",
+            "tests/fixtures/actor_receipt_v3.hex",
+            "tests/fixtures/actor_selector_manifest_v1.hex",
             "native/wonderbane_extension/movement_runtime.cpp",
             "native/wonderbane_extension/movement_settings.cpp",
             "src/shadowbane_lab/client_extension/movement_settings.py",
@@ -1006,7 +1112,9 @@ else:
         "live_acceptance": "pending; no deployment performed",
         "selected_cue_binding_verified": bool(arguments.reviewed_client),
         "movement_prepared_binding_verified": bool(arguments.reviewed_client),
-        "combat_v2_host_native_interop_verified": True,
+        "actor_v3_host_native_interop_verified": True,
+        "native_buff_observation_verified": validate_actor_probe_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client)),
         "combat_registry_binding_verified": bool(arguments.reviewed_client),
         "combat_melee_control_flow_verified": bool(arguments.reviewed_client),
         "combat_power_entry_verified": bool(arguments.reviewed_client),

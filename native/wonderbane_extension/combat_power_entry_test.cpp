@@ -14,7 +14,7 @@ std::uintptr_t verified_image{};
 unsigned verification_calls{};
 int references = 2;
 void Check(bool ok, const char* label) { if (!ok) { ++failures; std::fprintf(stderr, "%s\n", label); } }
-sb::PowerAppendObserver registered{};
+sb::AppendObserver registered{};
 unsigned sends{}, appends{}, followups{}, releases{}, uses{}, lookups{};
 bool current = true, queue_current = true, fault_send = false, fault_followup = false;
 bool seh_send = false, seh_followup = false, corrupt_key = false;
@@ -135,7 +135,7 @@ namespace wonderbane::extension {
 bool GraphicsExecutableSha256Matches(const char* digest) noexcept { return std::strcmp(digest,image_digest)==0; }
 namespace movement { bool VerifyNativeMovementImage(std::uintptr_t& output) noexcept { ++verification_calls; output=verified_image; return output!=0; } }
 namespace combat::submission {
-bool RegisterPowerAppendObserver(const PowerAppendObserver& observer) noexcept { registered = observer; return true; }
+bool RegisterAppendObserver(AppendObserverKind kind, const AppendObserver& observer) noexcept { if(kind != AppendObserverKind::power) { return false; } registered = observer; return true; }
 }
 }
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
@@ -148,7 +148,7 @@ int main(int argc, char** argv) {
     const auto base = reinterpret_cast<std::uintptr_t>(image);
     const auto put = [base](std::uintptr_t at, std::uintptr_t value) { *reinterpret_cast<std::uintptr_t*>(base+at)=value; };
     std::array<std::uint32_t,0x700/4> actor{}, target{};
-    const pw::Key local{123,53}, victim{456,42};
+    const pw::Key local{123,53}, victim{456,37};
     actor[0]=static_cast<std::uint32_t>(base+0x114165c); actor[6]=local[0]; actor[7]=local[1];
     target[6]=victim[0]; target[7]=victim[1];
     put(0x16a2d98,reinterpret_cast<std::uintptr_t>(actor.data()));
@@ -270,6 +270,20 @@ int main(int argc, char** argv) {
         reset();unrelated_power=nested_id;reenter_send=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"self sender reentry retains exact frame");Check(!receipt.initiation_epoch,"nested native work invalidates instant followup provenance");
         reset();unrelated_power=nested_id;reenter_followup=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"self followup reentry retains exact frame");Check(!receipt.initiation_epoch,"nested native work invalidates instant followup provenance");
     }
+    // Explicit actor authority is independent of selection and target lifetime.
+    const auto engagement_context=context;
+    context.authority=pw::Authority::actor;context.target=0;context.target_key={};
+    reset();Check(Guarded(context)&&receipt.result==pw::Result::queued,
+        "actor-only self power queues without target object");
+    reset();++target[6];Check(Guarded(context)&&receipt.append_observed,
+        "unrelated target replacement does not revoke actor-only power");--target[6];
+    reset();context.target=engagement_context.target;
+    Check(Guarded(context)&&!receipt.native_entered,"actor authority rejects embedded target");context.target=0;
+    reset();context.target_key=victim;
+    Check(Guarded(context)&&!receipt.native_entered,"actor authority rejects target key");context.target_key={};
+    reset();context.target_mode=pw::TargetMode::engagement_object;
+    Check(Guarded(context)&&!receipt.native_entered,"actor authority cannot send targeted power");
+    context=engagement_context;
     // Native definition +1f0, not category/self, owns the stance prerequisite.
     definition[0x1f0/4]=1;
     reset();auto stance_uses=uses;

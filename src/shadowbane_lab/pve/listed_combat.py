@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from shadowbane_lab.client_extension.combat_wire_v2 import (
+from shadowbane_lab.client_extension.actor_action_wire import (
     OUTBOUND_QUEUED,
     Phase,
     Receipt,
@@ -20,7 +20,10 @@ from shadowbane_lab.pve.model import (
     PvECombatProposal,
     PvEObservation,
 )
-from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
+from shadowbane_lab.pve.native_combat import (
+    NativeCombatCoordinator,
+    context_cleanup_confirmed,
+)
 
 
 class ListedCombatInterruptionError(RuntimeError):
@@ -55,7 +58,7 @@ class ListedCombatUpdate:
         return {
             "reason": self.reason, "request": self.request,
             "outcome": None if receipt is None else receipt.outcome.name.lower(),
-            "phase": None if receipt is None else receipt.phase.name.lower(),
+            "phase": None if receipt is None else receipt.context_phase.name.lower(),
             "flags": None if receipt is None else receipt.flags,
             "outbound_queued": None if receipt is None else bool(receipt.flags & OUTBOUND_QUEUED),
             "mode": None if receipt is None else receipt.mode,
@@ -63,7 +66,7 @@ class ListedCombatUpdate:
             "combat_target_present": None if receipt is None else receipt.combat_target_present,
             # Diagnostic text is retained verbatim; it never supplies state proof.
             "native_detail": self.native_detail,
-            "cleanup_confirmed": receipt is not None and receipt.cleanup_confirmed,
+            "cleanup_confirmed": receipt is not None and context_cleanup_confirmed(receipt),
             "recovered": self.recovered, "terminal_reason": self.terminal_reason,
         }
 
@@ -160,7 +163,7 @@ class ListedCombatCoordinator:
             receipt, detail = self.combat.observe()
             if receipt is None:
                 self._cancel_reason = "listed_status_unconfirmed"
-            elif receipt.phase is not Phase.BOUND:
+            elif receipt.context_phase is not Phase.BOUND:
                 self._cancel_reason = "listed_engagement_closed"
             return self._update(self._cancel_reason or "listed_combat_engaged", receipt, detail)
         if update.acknowledgement.disposition in (
@@ -170,11 +173,18 @@ class ListedCombatCoordinator:
         return self._update(self._cancel_reason or "listed_combat_engaged",
                             update.receipt, update.detail)
 
+    @property
+    def preparation_allowed(self):
+        """Refresh only after listed health/closure checks and settled admission."""
+        return (self._active and self._proposal is not None
+                and self._cancel_reason is None and self.combat.pending is None)
+
     def _update(self, reason, receipt=None, detail=None):
         return ListedCombatUpdate(
-            reason, None if receipt is None else receipt.engagement.encode().hex(), receipt,
+            reason, (None if receipt is None or receipt.context_id is None
+                     else receipt.context_id.encode().hex()), receipt,
             terminal_reason=("listed_combat_cleanup_unconfirmed"
-                             if self._cleanup_attempts >= 3 else None),
+                             if self.combat.cleanup_expired else None),
             native_detail=detail,
         )
 
@@ -187,21 +197,29 @@ class ListedCombatCoordinator:
         confirmed, receipt, detail = self.combat.stop(reason)
         if not confirmed:
             return self._update(reason, receipt, detail)
-        retired = receipt is not None and receipt.phase is Phase.RETIRED
+        return self._cancel_complete(confirmed, receipt, detail, reason)
+
+    def _cancel_complete(self, confirmed, receipt, detail, reason):
+        if not confirmed:
+            return self._update(reason, receipt, detail)
+        retired = receipt is not None and (receipt.context_phase is Phase.RETIRED
+                                           or receipt.owner_phase is Phase.RETIRED)
+        owner_closed = receipt is not None and receipt.owner_phase in (Phase.CLOSED, Phase.RETIRED)
         self._active = False
         self._candidate = self._proposal = self._started_at = self._cancel_reason = None
         self._cleanup_attempts = 0
         return ListedCombatUpdate(
             "listed_scene_retired" if retired else "listed_local_cleanup_confirmed",
-            None if receipt is None else receipt.engagement.encode().hex(), receipt,
-            recovered=not retired,
-            terminal_reason="listed_combat_scene_retired" if retired else None,
+            (None if receipt is None or receipt.context_id is None
+             else receipt.context_id.encode().hex()), receipt,
+            recovered=not owner_closed,
+            terminal_reason=("listed_combat_scene_retired" if retired
+                             else "listed_actor_owner_closed" if owner_closed else None),
             native_detail=detail,
         )
 
     def finish(self, reason):
-        for _ in range(3):
-            update = self.cancel(reason)
-            if not self.active:
-                return update
-        return update
+        if not self.active:
+            return self.cancel(reason)
+        self._cancel_reason = reason
+        return self._cancel_complete(*self.combat.finish(reason), reason)

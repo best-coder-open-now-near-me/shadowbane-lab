@@ -526,6 +526,24 @@ class NativeCharacterPopulationReader:
             raise NativeCharacterPopulationReadError("local actor identity changed during read")
         return self._token(player), key, self._token(action) if action else None
 
+    def resolve_actor_address(self, *, local_key: NativeObjectKey, token: str) -> int:
+        """Fresh canonical actor hint, without selecting or inventing a target."""
+        if (not isinstance(local_key, NativeObjectKey) or local_key.is_null
+                or local_key.object_uuid != 53 or not isinstance(token, str) or not token):
+            raise ValueError("actor resolution requires exact player key and token")
+        registry = self._capture_registry()
+        before = self.observe_actor_identity()
+        address = self._read_pointer(self._player_slot, "local player")
+        if before[:2] != (token, local_key) or self._token(address) != token:
+            raise NativeCharacterPopulationReadError("actor resolution identity differs")
+        self._require_registered_actor(registry, address, local_key)
+        self._verify_registry(registry)
+        if (self.observe_actor_identity()[:2] != (token, local_key)
+                or self._read_pointer(self._player_slot, "local player") != address):
+            raise NativeCharacterPopulationReadError("actor changed during address resolution")
+        self._check_registry_budget(registry)
+        return address
+
     def resolve_combat_addresses(
         self, *, local_key: NativeObjectKey, target_token: str, target_key: NativeObjectKey,
     ) -> tuple[int, int]:

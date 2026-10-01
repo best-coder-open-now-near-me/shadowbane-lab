@@ -1000,6 +1000,12 @@ def _parser() -> argparse.ArgumentParser:
     settings_opener = pve_settings.add_mutually_exclusive_group()
     settings_opener.add_argument("--opening-skill", help="exact learned native name or ID")
     settings_opener.add_argument("--clear-opening-skill", action="store_true")
+    pve_settings.add_argument("--buff-config", type=Path,
+                              help="JSON buff groups and native selectors for this character")
+    settings_buffs = pve_settings.add_mutually_exclusive_group()
+    settings_buffs.add_argument("--buffs-enabled", dest="buffs_enabled", action="store_true")
+    settings_buffs.add_argument("--no-buffs-enabled", dest="buffs_enabled", action="store_false")
+    pve_settings.set_defaults(buffs_enabled=None)
     pve_settings.add_argument("--json", action="store_true")
 
     calibrate_pve = client_commands.add_parser(

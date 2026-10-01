@@ -9,7 +9,7 @@
 #include "vendor_menu_command_queue.h"
 #include "guard_upgrade_command_queue.h"
 #include "condemn_command_queue.h"
-#include "combat_v2_command_queue.h"
+#include "actor_action_command_queue.h"
 #include "native_owner_services.h"
 #include "guard_funding_command_queue.h"
 
@@ -148,7 +148,7 @@ struct Runtime {
     std::shared_ptr<vendor_menu::QueuedCommand> vendor_menu_pending;
     std::shared_ptr<guard_upgrade::QueuedCommand> guard_upgrade_pending;
     std::shared_ptr<condemn::QueuedCommand> condemn_pending;
-    std::shared_ptr<combat::v2::QueuedCommand> combat_pending;
+    std::shared_ptr<actor::QueuedCommand> combat_pending;
     std::shared_ptr<guard_funding::QueuedCommand> guard_funding_pending;
     void (*before_drain)() noexcept = nullptr;
     DWORD shutdown_wait_ms = 2000;
@@ -558,14 +558,14 @@ inline void RefreshCombatCapability(ClientActionChannelStorage& storage) noexcep
     // The owner-update service binds after the channel starts. Publish only its
     // current readiness; transport availability alone never promises execution.
     auto* flags = reinterpret_cast<volatile LONG*>(&storage.header.capability_flags);
-    InterlockedAnd(flags, ~static_cast<LONG>(1U << 3U)); // Retired v1 receiver is never advertised.
-    constexpr auto supported = kNativeCombatCapability | kNativeSelfPowerCapability | kNativePowerReadinessCapability;
+    InterlockedAnd(flags, ~static_cast<LONG>((1U << 3U) | kNativeCombatCapability | kNativeSelfPowerCapability | kNativePowerReadinessCapability)); // Retired target-owner receivers are never advertised.
+    constexpr auto supported = kNativeActorCapability;
     if (NativeCombatReady()) { InterlockedOr(flags, static_cast<LONG>(supported)); }
     else { InterlockedAnd(flags, ~static_cast<LONG>(supported)); }
 }
-inline bool CombatReceiptMatches(const combat::v2::wire::Command& command,
-    combat::v2::wire::Verb verb, const combat::v2::wire::Receipt& receipt) noexcept {
-    return combat::v2::wire::Correlated(command,verb,receipt);
+inline bool CombatReceiptMatches(const actor::wire::Command& command,
+    actor::wire::Verb verb, const actor::wire::Receipt& receipt) noexcept {
+    return actor::wire::Correlated(command,verb,receipt);
 }
 inline DWORD FinishCombatPending(Runtime& runtime, ULONGLONG now) noexcept {
     const auto& pending = runtime.combat_pending;
@@ -573,7 +573,7 @@ inline DWORD FinishCombatPending(Runtime& runtime, ULONGLONG now) noexcept {
     if (now > pending->deadline) {
         unsigned queued = 0;
         if (pending->state.compare_exchange_strong(queued, 1)) {
-            combat::v2::Complete(pending, combat::v2::wire::Reply(pending->command, pending->verb, combat::v2::wire::Outcome::stale));
+            actor::Complete(pending, actor::wire::Reply(pending->command, pending->verb, actor::wire::Outcome::stale));
         }
     }
     if (pending->state.load(std::memory_order_acquire) != 2) { return ERROR_IO_PENDING; }
@@ -593,7 +593,7 @@ inline DWORD FinishCombatPending(Runtime& runtime, ULONGLONG now) noexcept {
         correlated ? ERROR_SUCCESS : ERROR_INVALID_DATA, detail, detail_length, now,
         correlated ? &wire_bytes : nullptr, pending->execution_thread)) { return ERROR_NOT_ENOUGH_QUOTA; }
     InterlockedExchange64(&runtime.storage->header.command_read_sequence, static_cast<LONG64>(pending->sequence));
-    combat::v2::Release(pending); runtime.combat_pending.reset(); return ERROR_SUCCESS;
+    actor::Release(pending); runtime.combat_pending.reset(); return ERROR_SUCCESS;
 }
 
 inline DWORD FinishCondemnPending(Runtime& runtime, ULONGLONG now) noexcept {
@@ -779,12 +779,11 @@ inline DWORD DrainCommands(
             return ERROR_RETRY;
         }
 
-        if (snapshot.kind >= 37U && snapshot.kind <= 42U) {
-            const auto verb = static_cast<combat::v2::wire::Verb>(snapshot.kind);
-            combat::v2::wire::Command payload{};
+        if (snapshot.kind >= 43U && snapshot.kind <= 53U) {
+            const auto verb = static_cast<actor::wire::Verb>(snapshot.kind);
+            actor::wire::Command payload{};
             static_assert(sizeof(payload) == sizeof(snapshot.movement));
             std::memcpy(&payload, &snapshot.movement, sizeof(payload));
-            combat::v2::wire::fence::Binding binding{};
             const bool valid = snapshot.command_id && snapshot.payload_version == kClientActionPayloadVersion
                 && snapshot.created_tick && snapshot.created_tick <= now && now <= snapshot.deadline_tick
                 && snapshot.deadline_tick - snapshot.created_tick <= 5000
@@ -792,19 +791,17 @@ inline DWORD DrainCommands(
                 && !snapshot.argument_length && !snapshot.power_identifier_length
                 && movement::wire::Zero(snapshot.argument, sizeof(snapshot.argument))
                 && movement::wire::Zero(snapshot.power_identifier, sizeof(snapshot.power_identifier))
-                && combat::v2::wire::Valid(payload.action,payload.power_id,verb)
-                && combat::v2::wire::BindingFor(payload, storage.header.process_id,
-                    storage.header.process_creation_filetime_utc, binding);
-            const bool available = (verb != combat::v2::wire::Verb::bind && verb != combat::v2::wire::Verb::submit) || NativeCombatReady();
+                && actor::wire::Valid(verb,payload);
+            const bool available = (verb != actor::wire::Verb::open_owner && verb != actor::wire::Verb::attach_context && verb != actor::wire::Verb::submit) || NativeCombatReady();
             if (valid && available && &storage == g_runtime.storage && g_runtime.backing) {
                 try {
                     auto lease = CaptureMovementLease(g_runtime.backing, payload.host, now);
                     if (lease) {
-                        auto command = std::make_shared<combat::v2::QueuedCommand>();
+                        auto command = std::make_shared<actor::QueuedCommand>();
                         command->id = snapshot.command_id; command->sequence = static_cast<std::uint64_t>(expected_sequence);
                         command->deadline = snapshot.deadline_tick; command->verb = verb;
                         command->command = payload; command->lease = std::move(lease);
-                        if (!combat::v2::Queue(command)) { return ERROR_RETRY; }
+                        if (!actor::Queue(command)) { return ERROR_RETRY; }
                         g_runtime.combat_pending = std::move(command); return ERROR_IO_PENDING;
                     }
                 } catch (...) { return ERROR_NOT_ENOUGH_MEMORY; }
@@ -1192,7 +1189,7 @@ inline void CloseRuntime() noexcept {
     if (runtime.vendor_menu_pending) { vendor_menu::Release(runtime.vendor_menu_pending); runtime.vendor_menu_pending.reset(); }
     if (runtime.guard_upgrade_pending) { guard_upgrade::Release(runtime.guard_upgrade_pending); runtime.guard_upgrade_pending.reset(); }
     if (runtime.condemn_pending) { condemn::Release(runtime.condemn_pending); runtime.condemn_pending.reset(); }
-    if (runtime.combat_pending) { combat::v2::Release(runtime.combat_pending); runtime.combat_pending.reset(); }
+    if (runtime.combat_pending) { actor::Release(runtime.combat_pending); runtime.combat_pending.reset(); }
     if (runtime.guard_funding_pending) { guard_funding::Release(runtime.guard_funding_pending); runtime.guard_funding_pending.reset(); }
     if (runtime.storage != nullptr) {
         UnmapViewOfFile(runtime.storage);

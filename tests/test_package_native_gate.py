@@ -289,3 +289,80 @@ def test_native_combat_entry_and_ownership_are_required_gates(tmp_path, name, fa
             path, set(builder.REQUIRED_COMBAT_TESTS), diagnostic=False,
             exit_code=8 if failure == "failure" else 0,
         )
+
+
+@pytest.mark.parametrize("profile", ["full", "diagnostics-only"])
+@pytest.mark.parametrize("name", sorted(builder.REQUIRED_ACTOR_IPC_TESTS))
+@pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "error", "duplicate"])
+def test_actor_ipc_requires_each_real_case_exactly_once(tmp_path, profile, name, outcome):
+    suite = ET.Element("testsuite")
+    for required in builder.REQUIRED_ACTOR_IPC_TESTS:
+        if required == name and outcome == "missing":
+            continue
+        case = ET.SubElement(suite, "testcase", name=required)
+        if required == name and outcome in ("skipped", "failure", "error"):
+            ET.SubElement(case, outcome)
+        if required == name and outcome == "duplicate":
+            ET.SubElement(suite, "testcase", name=required)
+    path = tmp_path / "actor-ipc.xml"
+    ET.ElementTree(suite).write(path)
+    if outcome == "pass":
+        builder.validate_actor_ipc_results(path, profile)
+    else:
+        with pytest.raises(RuntimeError, match="actor IPC"):
+            builder.validate_actor_ipc_results(path, profile)
+
+
+def actor_probe_steps():
+    return [
+        {"name": f"{profile}-{feature}-{suffix}", "exit_code": 0,
+         "command": [f"wonderbane_extension_{feature}_probe.exe", image]}
+        for profile in ("full", "diagnostics-only")
+        for feature in ("combat_item", "actor_effects_native",
+                        "actor_inventory_native", "actor_buff_observation")
+        for suffix, image in (("binding", "official-13.exe"),
+                              ("prepared-binding", f"{profile}-prepared-13.exe"))
+    ]
+
+
+def test_actor_probe_gates_require_both_images_and_both_profiles():
+    assert builder.validate_actor_probe_steps(actor_probe_steps(), reviewed_client=True)
+    assert not builder.validate_actor_probe_steps([], reviewed_client=False)
+
+
+@pytest.mark.parametrize("index", range(16))
+@pytest.mark.parametrize("failure", ["missing", "failed", "duplicate", "wrong_binary",
+                                    "missing_command", "not_list", "no_image", "extra_argument",
+                                    "empty_image", "nonstring_image"])
+def test_actor_probe_gate_rejects_missing_malformed_or_wrong_execution(index, failure):
+    steps = actor_probe_steps()
+    if failure == "missing":
+        steps.pop(index)
+    elif failure == "failed":
+        steps[index]["exit_code"] = 1
+    elif failure == "duplicate":
+        steps.append(dict(steps[index]))
+    elif failure == "wrong_binary":
+        steps[index]["command"][0] = "wonderbane_extension_other_probe.exe"
+    elif failure == "missing_command":
+        del steps[index]["command"]
+    elif failure == "not_list":
+        steps[index]["command"] = "probe.exe official-13.exe"
+    elif failure == "no_image":
+        steps[index]["command"].pop()
+    elif failure == "extra_argument":
+        steps[index]["command"].append("extra")
+    elif failure == "empty_image":
+        steps[index]["command"][1] = ""
+    else:
+        steps[index]["command"][1] = 13
+    with pytest.raises(RuntimeError, match="actor probe"):
+        builder.validate_actor_probe_steps(steps, reviewed_client=True)
+
+
+@pytest.mark.parametrize("pair", range(0, 16, 2))
+def test_actor_probe_cannot_count_same_image_twice(pair):
+    steps = actor_probe_steps()
+    steps[pair + 1]["command"][1] = steps[pair]["command"][1]
+    with pytest.raises(RuntimeError, match="original and prepared"):
+        builder.validate_actor_probe_steps(steps, reviewed_client=True)

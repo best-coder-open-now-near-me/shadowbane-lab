@@ -25,6 +25,7 @@ from shadowbane_lab.travel.model import TravelDecision, TravelDestination
 if TYPE_CHECKING:
     from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
     from shadowbane_lab.pve.listed_combat import ListedCombatUpdate
+    from shadowbane_lab.pve.native_actor import NativePreparationUpdate
     from shadowbane_lab.pve.native_combat import NativeCombatUpdate
 
 
@@ -864,6 +865,7 @@ class PvERunTraceStep:
     population_player_action_target_token: str | None = None
     population_scan_generation: int | None = None
     native_combat: NativeCombatUpdate | None = None
+    preparation: NativePreparationUpdate | None = None
     listed_combat: ListedCombatUpdate | None = None
     combat_cleanup: PvECombatCleanupResult | None = None
 
@@ -879,6 +881,11 @@ class PvERunTraceStep:
             raise ValueError("target_present must be a boolean")
         if self.input_accepted is not None and not isinstance(self.input_accepted, bool):
             raise ValueError("input_accepted must be a boolean when present")
+        if self.preparation is not None:
+            from shadowbane_lab.pve.native_actor import NativePreparationUpdate
+
+            if not isinstance(self.preparation, NativePreparationUpdate):
+                raise ValueError("preparation trace requires a typed correlated update")
         if self.native_combat is not None:
             from shadowbane_lab.pve.native_combat import NativeCombatUpdate
 
@@ -951,6 +958,7 @@ class PvERunTraceStep:
     def as_dict(self) -> dict[str, object]:
         return {
             "native_combat": None if self.native_combat is None else self.native_combat.as_dict(),
+            "preparation": None if self.preparation is None else self.preparation.as_dict(),
             "listed_combat": None if self.listed_combat is None else self.listed_combat.as_dict(),
             "decision_id": self.decision.decision_id,
             "at_ms": self.decision.now_ms,

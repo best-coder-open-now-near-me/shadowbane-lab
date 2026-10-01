@@ -7,7 +7,7 @@ from test_native_combat_coordinator import answer
 from test_native_combat_coordinator import setup as coordinator_fixture
 from test_pve_native_proposals import ack, character, observe
 
-from shadowbane_lab.client_extension.combat_wire_v2 import Action, Verb
+from shadowbane_lab.client_extension.actor_action_wire import Action, Verb
 from shadowbane_lab.pve.model import (
     PvEAbility,
     PvEAbilityRecipient,
@@ -21,8 +21,8 @@ from shadowbane_lab.pve.target_authority import PvEController
 
 
 @pytest.fixture
-def coordinator(monkeypatch):
-    return coordinator_fixture.__wrapped__(monkeypatch)
+def coordinator():
+    return coordinator_fixture.__wrapped__()
 
 
 @pytest.mark.parametrize("power_id", [563795161, 12345])
@@ -128,47 +128,65 @@ def test_self_power_then_attack_reuses_native_engagement_and_immutable_timeout(c
 
     combat, session, tickets, observation, proposal = coordinator
     opening = replace(proposal, kind=PvECombatKind.SELF_POWER, power_id=123)
-    session.combat.side_effect = TimeoutError()
+
+    def uncertain(g, v, c, **kw):
+        if v is Verb.SUBMIT:
+            raise TimeoutError()
+        return SimpleNamespace(receipt=answer(c, v), native_detail=None)
+
+    session.actor_action.side_effect = uncertain
     assert (
         combat.advance(opening, observation).acknowledgement.disposition
         is PvECombatDisposition.UNCERTAIN
     )
-    original = session.combat.call_args.args[2]
+    original = session.actor_action.call_args.args[2]
     assert original.action is Action.SELF_POWER and original.power_id == 123
-    assert original.binding.local_key != original.binding.target_key
-    session.combat.side_effect = lambda g, v, c: SimpleNamespace(
+    assert combat.owner.parent.actor_key != combat.owner.context.target_key
+    session.actor_action.side_effect = lambda g, v, c, **kw: SimpleNamespace(
         receipt=answer(c, v), native_detail=None
     )
     update = combat.advance(opening, observation)
     assert update.acknowledgement.disposition is PvECombatDisposition.QUEUED
-    assert session.combat.call_args.args[1] is Verb.ACTION_STATUS
-    assert session.combat.call_args.args[2] is original
+    assert session.actor_action.call_args.args[1] is Verb.ACTION_STATUS
+    assert session.actor_action.call_args.args[2] is original
     attack = replace(opening, proposal_id=2, kind=PvECombatKind.ATTACK, power_id=0)
     combat.advance(attack, observation)
-    following = session.combat.call_args.args[2]
+    following = session.actor_action.call_args.args[2]
     assert (
-        following.binding == original.binding and following.request.value > original.request.value
+        following.parent_id == original.parent_id
+        and following.context_id == original.context_id
+        and following.request.value > original.request.value
     )
-    assert following.action is Action.ATTACK and len(tickets) == 1
-    session.require_combat_available.assert_any_call(
-        combat.grant, self_power=True, power_readiness=True)
+    assert following.action is Action.ATTACK and len(tickets) == 2
+    session.require_actor_actions.assert_any_call(combat.owner.grant)
     session.pause.assert_not_called()
 
 
-def test_missing_self_capability_rejects_before_new_ticket(coordinator):
-    combat, session, tickets, observation, proposal = coordinator
-    session.require_combat_available.side_effect = RuntimeError("self power unavailable")
+def test_missing_actor_capability_rejects_before_new_owner_or_context(coordinator):
+    from shadowbane_lab.pve.native_actor import NativeActorCoordinator
+
+    combat, session, tickets, _, _ = coordinator
+    session.require_actor_actions.side_effect = RuntimeError("actor actions unavailable")
+    count = len(tickets)
     with pytest.raises(RuntimeError, match="unavailable"):
-        combat.advance(replace(proposal, kind=PvECombatKind.SELF_POWER), observation)
-    assert not tickets
-    session.combat.assert_not_called()
+        NativeActorCoordinator(
+            session=session,
+            grant=combat.owner.grant,
+            population=combat.owner.population,
+            character_session=combat.owner.character_session,
+            store=combat.owner.store,
+            ticket_factory=combat.owner._ticket_factory,
+        )
+    assert len(tickets) == count
+    session.actor_action.assert_not_called()
 
 
 @pytest.mark.parametrize("reuse_blocked", [False, True])
 def test_public_runner_opener_then_attack_under_one_engagement(coordinator, reuse_blocked):
     from types import SimpleNamespace
 
-    from shadowbane_lab.client_extension.combat_wire_v2 import ClosureProof, Outcome, Phase
+    from shadowbane_lab.client_extension.actor_action_wire import Closure as ClosureProof
+    from shadowbane_lab.client_extension.actor_action_wire import Outcome, Phase
     from shadowbane_lab.client_input import EventEmergencyStop
     from shadowbane_lab.client_observation import NativeGroupObservation
     from shadowbane_lab.pve import PvERunner
@@ -191,8 +209,8 @@ def test_public_runner_opener_then_attack_under_one_engagement(coordinator, reus
     def source(field):
         return SimpleNamespace(process_id=1234, observe=lambda: getattr(current(), field))
 
-    def response(grant, verb, command):
-        if verb is Verb.STOP_ENGAGEMENT:
+    def response(grant, verb, command, **kwargs):
+        if verb is Verb.STOP_CONTEXT:
             receipt = answer(
                 command,
                 verb,
@@ -205,12 +223,13 @@ def test_public_runner_opener_then_attack_under_one_engagement(coordinator, reus
             receipt = answer(command, verb)
             if reuse_blocked and command.action is Action.SELF_POWER:
                 from test_power_readiness import blocked
+
                 receipt = blocked(command, verb)
             if command.action is Action.ATTACK:
                 stop.trip()
         return SimpleNamespace(receipt=receipt, native_detail=None)
 
-    session.combat.side_effect = response
+    session.actor_action.side_effect = response
     trace = []
 
     def sleep(seconds):
@@ -242,13 +261,18 @@ def test_public_runner_opener_then_attack_under_one_engagement(coordinator, reus
         poll_interval_ms=100,
     )
     result = runner.run()
-    calls = session.combat.call_args_list
+    calls = [
+        c
+        for c in session.actor_action.call_args_list
+        if c.args[1] not in (Verb.OPEN_OWNER, Verb.ATTACH_CONTEXT)
+    ]
     assert [(c.args[1], c.args[2].action) for c in calls] == [
         (Verb.SUBMIT, Action.SELF_POWER),
         (Verb.SUBMIT, Action.ATTACK),
-        (Verb.STOP_ENGAGEMENT, Action.NONE),
+        (Verb.STOP_CONTEXT, Action.NONE),
     ]
-    assert len({c.args[2].binding for c in calls}) == len(tickets) == 1
+    assert len({(c.args[2].parent_id, c.args[2].context_id) for c in calls}) == 1
+    assert len(tickets) == 2
     assert result.terminal_reason == "emergency_stop" and not combat.active
     assert [s.decision.now_ms for s in trace if s.native_combat is not None] == [0, 100]
     assert trace[0].decision.intent is None  # generic native ability needs no legacy descriptor
@@ -263,13 +287,13 @@ def test_public_runner_opener_then_attack_under_one_engagement(coordinator, reus
 
 @pytest.mark.parametrize("ids", [(123,), (123, 123), (123, 999)])
 def test_owned_queued_self_followup_is_only_a_native_admission_proposal(ids):
-    controller = PvEController(PvEControllerConfig(
-        opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR)))
+    controller = PvEController(
+        PvEControllerConfig(opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR))
+    )
     opening = controller.step(observe()).combat_proposal
     ack(controller, opening)
     pending = observe(1, busy=True)
-    pending = replace(pending, player_action=replace(pending.player_action,
-                      power_protocol_ids=ids))
+    pending = replace(pending, player_action=replace(pending.player_action, power_protocol_ids=ids))
     followup = controller.step(pending).combat_proposal
     assert followup.kind is PvECombatKind.ATTACK
     assert followup.target_key == opening.target_key
@@ -283,20 +307,26 @@ def test_owned_queued_self_followup_is_only_a_native_admission_proposal(ids):
 
 
 def test_owned_followup_never_reconstructs_missing_initiation_observation():
-    controller = PvEController(PvEControllerConfig(
-        opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR)))
+    controller = PvEController(
+        PvEControllerConfig(opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR))
+    )
     ack(controller, controller.step(observe()).combat_proposal)
     unknown = observe(1)
-    unknown = replace(unknown, player_action=replace(unknown.player_action,
-                      initiation_state=None, power_protocol_ids=None))
+    unknown = replace(
+        unknown,
+        player_action=replace(
+            unknown.player_action, initiation_state=None, power_protocol_ids=None
+        ),
+    )
     assert controller.step(unknown).combat_proposal is None
     assert controller.pending_cleanup is None
 
 
 @pytest.mark.parametrize("terminal", [False, True])
 def test_followup_provenance_is_revoked_on_cleanup_or_terminal_stop(terminal):
-    controller = PvEController(PvEControllerConfig(
-        opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR)))
+    controller = PvEController(
+        PvEControllerConfig(opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR))
+    )
     ack(controller, controller.step(observe()).combat_proposal)
     assert controller._queued_self_followup is not None
     if terminal:
@@ -307,16 +337,18 @@ def test_followup_provenance_is_revoked_on_cleanup_or_terminal_stop(terminal):
 
 
 def test_direct_cast_queue_does_not_authorize_busy_followup_attack():
-    controller = PvEController(PvEControllerConfig(
-        opening_ability=PvEAbility(123, PvEAbilityRecipient.ENGAGEMENT_TARGET)))
+    controller = PvEController(
+        PvEControllerConfig(opening_ability=PvEAbility(123, PvEAbilityRecipient.ENGAGEMENT_TARGET))
+    )
     ack(controller, controller.step(observe()).combat_proposal)
     assert controller.step(observe(1, busy=True)).combat_proposal is None
     assert controller._queued_self_followup is None
 
 
 def test_queued_attack_consumes_self_followup_permission():
-    controller = PvEController(PvEControllerConfig(
-        opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR)))
+    controller = PvEController(
+        PvEControllerConfig(opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR))
+    )
     ack(controller, controller.step(observe()).combat_proposal)
     attack = controller.step(observe(1, busy=True)).combat_proposal
     ack(controller, attack, now=1)

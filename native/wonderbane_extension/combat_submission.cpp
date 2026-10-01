@@ -30,8 +30,8 @@ SRWLOCK installation_lock = SRWLOCK_INIT;
 bool attempted = false;
 volatile LONG installed = 0;
 thread_local Scope* active = nullptr;
-PowerAppendObserver power_observer{};
-volatile LONG power_registered = 0;
+struct RegisteredObserver { AppendObserver callbacks{}; volatile LONG ready = 0; };
+std::array<RegisteredObserver, 2> append_observers{};
 
 bool Copy(void* destination, std::uintptr_t source, std::size_t size) noexcept {
     __try { std::memcpy(destination, reinterpret_cast<const void*>(source), size); return true; }
@@ -179,24 +179,38 @@ struct Observer {
         // Match the originating frame even while another scope is nested above
         // it. Exact returned-ticket provenance, not keys/class, owns this append.
         while (s && (!s->ticket_ || message != reinterpret_cast<void*>(s->ticket_))) { s = s->previous_; }
-        const bool power_ready = InterlockedCompareExchange(&power_registered, 0, 0) != 0;
-        const auto power = power_ready
-            ? power_observer.claim(container, message, caller >= base ? caller - base : 0)
-            : AppendClaim{};
-        if (power.decision != AppendDecision::unrelated) {
-            // A ticket cannot belong to two operations. Fail both scopes closed.
-            const bool allowed = !s && power.owner && power.decision == AppendDecision::allow
+        std::array<AppendClaim, 2> claims{};
+        std::size_t claimed = 0, selected = 0;
+        for (std::size_t i = 0; i < append_observers.size(); ++i) {
+            auto& observer = append_observers[i];
+            if (InterlockedCompareExchange(&observer.ready, 0, 0)) {
+                claims[i] = observer.callbacks.claim(container, message, caller >= base ? caller - base : 0);
+                if (claims[i].decision != AppendDecision::unrelated) { ++claimed; selected = i; }
+            }
+        }
+        if (claimed) {
+            // Claim history lives in each originating owner, never in the message.
+            // A collision cannot select a winner or consume the argument twice.
+            const auto claim = claims[selected];
+            const bool allowed = claimed == 1 && !s && claim.owner && claim.decision == AppendDecision::allow
                 && Ready() && caller == base + append_return;
             if (s) { Block(*s, Result::uncertain); }
             if (!allowed) {
-                if (power.owner) { power_observer.complete(power.owner, AppendResult::denied); }
+                for (std::size_t i = 0; i < claims.size(); ++i) {
+                    if (claims[i].decision != AppendDecision::unrelated && claims[i].owner) {
+                        append_observers[i].callbacks.complete(claims[i].owner, AppendResult::denied);
+                    }
+                }
                 SetLastError(error); Consume(message); return;
             }
+            // Registration is immutable and process-pinned. Capture the owner and
+            // callback before native append, which may reenter or destroy message.
+            const auto complete = append_observers[selected].callbacks.complete;
             SetLastError(error);
             try { original_append(container, message); }
-            catch (...) { power_observer.complete(power.owner, AppendResult::fault); throw; }
+            catch (...) { complete(claim.owner, AppendResult::fault); throw; }
             const DWORD native_error = GetLastError();
-            power_observer.complete(power.owner, AppendResult::queued);
+            complete(claim.owner, AppendResult::queued);
             SetLastError(native_error); return;
         }
         if (!s) {
@@ -303,16 +317,19 @@ Receipt Scope::Finish() noexcept {
 }
 Boundary::Boundary() noexcept : previous_(active) {}
 void Boundary::Restore() noexcept { active = previous_; }
-bool RegisterPowerAppendObserver(const PowerAppendObserver& observer) noexcept {
+bool RegisterAppendObserver(AppendObserverKind kind, const AppendObserver& observer) noexcept {
     const DWORD error = GetLastError();
-    if (!observer.claim || !observer.complete) { SetLastError(error); return false; }
+    if ((kind != AppendObserverKind::power && kind != AppendObserverKind::item)
+        || !observer.claim || !observer.complete) { SetLastError(error); return false; }
+    const auto index = static_cast<std::size_t>(kind);
     AcquireSRWLockExclusive(&installation_lock);
+    auto& slot = append_observers[index];
     bool ok = Ready();
-    if (ok && InterlockedCompareExchange(&power_registered, 0, 0)) {
-        ok = power_observer.claim == observer.claim && power_observer.complete == observer.complete;
+    if (ok && InterlockedCompareExchange(&slot.ready, 0, 0)) {
+        ok = slot.callbacks.claim == observer.claim && slot.callbacks.complete == observer.complete;
     } else if (ok) {
-        power_observer = observer;
-        InterlockedExchange(&power_registered, 1);
+        slot.callbacks = observer;
+        InterlockedExchange(&slot.ready, 1);
     }
     ReleaseSRWLockExclusive(&installation_lock);
     SetLastError(error); return ok;

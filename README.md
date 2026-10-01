@@ -4,37 +4,37 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`, currently the PR #56 merge
-`88af7953461cc6311c0bcc79b8fb0162013cfd54`. Installed host **0.3.61** / native
-**1.8.41** use qualified source `29c9728` with official client **1.3.38.13**.
+Start new work from freshly fetched `origin/main`, currently the PR #58 merge
+`8fa16aa4d4d6da2dabf8afe2e26418048ac9fcd0`. Installed host **0.3.62** / native
+**1.8.42** use qualified source `7f37ff5` with official client **1.3.38.13**.
 
-[PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56)
-merged after all 15 hosted checks passed at approved head `a155793`. Its included
-[PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55)
-receipt and architecture work is also merged. Installation, healthy manager
-activation, five shortcuts, startup preflight and exact loaded-DLL launch passed.
-The inspected obsolete .60 runtime and .40 payloads were removed without retaining
-rollback copies; user settings, jobs and diagnostic evidence remain preserved.
+[PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58)
+merged after all 15 hosted checks passed at approved head `3cc3101`. Its included
+[PR #57](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/57)
+receipt is also merged. Installation verified 455 modules, 9,571 preserved files,
+one DLL change, healthy manager activation, five shortcuts and startup preflight.
+The inspected obsolete .61 runtime and .41 payloads were removed without rollback
+copies; settings, jobs and diagnostic evidence remain preserved.
 
-[Native reuse handling](docs/native-power-readiness-20261001.md) is installed and
-qualified offline. The new live run remains not passed: SELF_POWER queued, but
-ATTACK never entered before a 297 ms client update gap triggered native owner
-revocation. Exact native cleanup was confirmed; no second encounter or reuse
-fallback was tested. The user reported no interaction. Earlier .60 evidence still
-proves first-NPC death, cleanup and later SEEKING, without changing the original
-not-passed overall result.
+The [native owner-liveness correction](docs/native-owner-liveness-20261001.md)
+is installed and passed bounded live acceptance: first-NPC native health zero,
+exact cleanup, later SEEKING, then a distinct second NPC with native reuse-blocked
+opener skip, queued ATTACK and terminal cleanup under the same Grant. No owner,
+list entry, error or watchdog remained. This proves the observed control/recovery
+path, not server kill credit, skill consumption or snare application.
+The earlier .61 run remains not passed: SELF_POWER queued, then a
+297 ms client update gap revoked ownership before ATTACK entered. Native cleanup
+was confirmed. That preserved failure is not a result for the new runtime.
 
-Bot-integration owns `codex/native-readiness-deployment-20261001` for the current
-receipt, included in [draft PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58).
-Bot-runtime owns `codex/native-owner-liveness-20261001` for the
-[candidate correction](docs/native-owner-liveness-20261001.md), separating current
-leased service work from stale movement across an
-update gap. The .62/.42 candidate passed exact-source qualification at `7f37ff5`;
-PR #58 targets main, with merge/install approval and live acceptance pending.
-Automatic buff preparation is a separate lane on
-`codex/native-buff-preparation-20261001`; it has not changed the installed runtime.
-The completed readiness and initiation deployment branches were retired after
-main-ancestry checks.
+Bot-integration owns `codex/native-buff-preparation-20261001` through
+[draft PR #59](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/59),
+now targeting main and incorporating PR #58. It records
+[automatic buff preparation](docs/buff-preparation-20261001.md); actor/effect/item
+authority remains under qualification, with no buff implementation or live claim.
+The merged owner-liveness and receipt branches were retired locally and remotely
+after ancestry checks; the clean runtime worktree is detached at `8fa16aa` for reuse.
+Active next item is buff effect/item/actor-authority qualification. Automatic
+retaliation remains disabled.
 
 Read the [branch map](docs/git-branch-map.md) before selecting a development base,
 the [current bot qualification and live-test todos](docs/queued-skills-20261001.md),

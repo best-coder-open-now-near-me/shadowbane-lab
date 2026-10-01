@@ -7,6 +7,7 @@
 namespace wonderbane::extension::combat::power {
 using Key = std::array<std::uint32_t, 2>;
 enum class TargetMode { engagement_object, self };
+enum class Authority { engagement, actor };
 enum class Result { denied, entered, queued, uncertain };
 struct Receipt {
     Result result = Result::denied;
@@ -26,9 +27,10 @@ struct Context {
     void* owner = nullptr;
     // Stable owner storage; must outlive Scope and the enclosing SEH boundary.
     Receipt* receipt = nullptr;
-    // The engagement object remains authoritative even when the native power
-    // recipient is the actor. Never accept a separate host-supplied recipient.
+    // Engagement authority retains its object even for a self recipient.
+    // Actor authority has no target object and permits only the self recipient.
     TargetMode target_mode = TargetMode::engagement_object;
+    Authority authority = Authority::engagement;
     std::uintptr_t Recipient() const noexcept { return target_mode == TargetMode::self ? actor : target; }
     const Key& RecipientKey() const noexcept { return target_mode == TargetMode::self ? actor_key : target_key; }
 };

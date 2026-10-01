@@ -25,6 +25,7 @@ from .movement_wire import (
 )
 
 if TYPE_CHECKING:
+    from .actor_action_wire import Receipt as ActorReceipt
     from .combat_wire_v2 import Receipt as CombatReceipt
 
 # Exact terminal-only wire flags: no binding, readiness, camera or device claim.
@@ -55,6 +56,14 @@ class NativeCombatResult:
     """Correlated receipt plus opaque diagnostics, never additional action authority."""
 
     receipt: CombatReceipt
+    native_detail: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class NativeActorResult:
+    """Only correlated typed state is authority; native_detail stays opaque."""
+
+    receipt: ActorReceipt
     native_detail: str | None = None
 
 
@@ -124,6 +133,8 @@ class NativeMovementSession:
         self._transport: channel.WindowsNativeActionCommandTransport | None = None
         self._ids = itertools.count(1)
         self._combat_ordinals = Ordinals()
+        from .actor_action_fence import Ordinals as ActorOrdinals
+        self._actor_ordinals = ActorOrdinals()
         self._acquisitions: dict[str, Command] = {}
         self._revoked: set[NativeMovementGrant] = set()
         self._stops: dict[NativeMovementGrant, str] = {}
@@ -421,3 +432,84 @@ class NativeMovementSession:
             # after immutable receipt correlation and outer-result validation.
             # Legacy markers and new diagnostic formats remain opaque to callers.
             return NativeCombatResult(receipt, result.detail or None)
+
+
+    def _actor_transport(self, *, grant=None, require_capability=True):
+        if grant is not None and (grant.process_identity != self.identity
+                                  or grant.window != self.window):
+            raise ValueError("actor Grant belongs to another client")
+        transport = self._transport
+        if transport is None or self._closed:
+            raise channel.NativeActionChannelUnavailable("actor owner session is closed")
+        host = self._host(acquire=False)
+        if grant is not None and grant.host != host:
+            raise channel.NativeActionChannelUnavailable("actor producer lease changed")
+        header = transport.header
+        if header.process_identity != self.identity:
+            raise channel.NativeActionChannelUnavailable("actor exact client lifetime changed")
+        if require_capability and not header.capability_flags & channel.ACTOR_ACTION_CAPABILITY:
+            raise channel.NativeActionChannelUnavailable("shared actor protocol is unavailable")
+        return transport
+
+    def require_actor_actions(self, grant: NativeMovementGrant) -> None:
+        """Require the complete actor protocol before authority or new action entry."""
+        with self._session_lock:
+            self._check_grant(grant)
+            if grant in self._stops or self.cleanup.blocked(grant):
+                raise NativeMovementError(Outcome.INHIBITED)
+            self._actor_transport(grant=grant)
+
+    def actor_ordinals(self, grant: NativeMovementGrant):
+        with self._session_lock:
+            self.require_actor_actions(grant)
+            return self._actor_ordinals
+
+    def actor_action(self, grant, verb, command, *, parent=None, context=None) -> NativeActorResult:
+        """One publication, never retry/reacquire; lifecycle keeps its immutable old owner.
+
+        Read-only selector/observation commands borrow this producer connection
+        but carry no movement Grant and cannot create actor ownership.
+        """
+        from .actor_action_channel import NativeActorCommand
+        from .actor_action_wire import Command as ActorCommand
+        from .actor_action_wire import Receipt as ActorReceipt
+        from .actor_action_wire import Verb as ActorVerb
+
+        with self._session_lock:
+            if not isinstance(command, ActorCommand) or not isinstance(verb, ActorVerb):
+                raise ValueError("actor protocol requires typed command and verb")
+            command.require_verb(verb)
+            readonly = verb in (ActorVerb.OBSERVE_ACTOR, ActorVerb.REGISTER_SELECTORS)
+            admission = verb in (ActorVerb.OPEN_OWNER, ActorVerb.ATTACH_CONTEXT, ActorVerb.SUBMIT)
+            if command.window != self.window or command.host != self._host(acquire=False):
+                raise ValueError("actor command belongs to another client/producer")
+            if readonly:
+                if grant is not None or parent is not None or context is not None:
+                    raise ValueError("observation cannot carry mutation ownership")
+            else:
+                if (not isinstance(grant, NativeMovementGrant)
+                        or command.grant != grant.ownership or command.host != grant.host):
+                    raise ValueError("actor command belongs to another owner")
+                command.require_bindings(parent, context)
+                if (parent.client_pid, parent.client_creation) != (
+                        self.identity.process_id, self.identity.creation_filetime_utc):
+                    raise ValueError("actor fence belongs to another client lifetime")
+                if admission:
+                    self._check_grant(grant)
+                    if grant in self._stops or self.cleanup.blocked(grant):
+                        raise NativeMovementError(Outcome.INHIBITED)
+                    self._require_new_work_ready(grant)
+            transport = self._actor_transport(grant=grant,
+                                              require_capability=readonly or admission)
+            timeout = (self.cleanup.timeout_ms(grant, self.timeout_ms)
+                       if verb in (ActorVerb.STOP_OWNER, ActorVerb.STOP_CONTEXT,
+                                   ActorVerb.CANCEL_ACTION) else self.timeout_ms)
+            result = transport.submit(NativeActorCommand(next(self._ids), verb, command),
+                                      timeout_ms=timeout)
+            if not result.movement_payload or not any(result.movement_payload):
+                raise channel.NativeActionChannelUnavailable("actor receipt is unavailable")
+            receipt = ActorReceipt.decode(result.movement_payload)
+            receipt.require_command(command, verb)
+            if not result.stage.accepted_submission or result.error_code:
+                raise channel.NativeActionChannelError("actor receipt contradicts transport result")
+            return NativeActorResult(receipt, result.detail or None)
