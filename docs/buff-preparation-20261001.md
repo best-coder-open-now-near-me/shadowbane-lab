@@ -8,8 +8,9 @@ captures requirements, native read-only findings and the production ownership
 boundaries. **The complete native/host slice is implemented but not installed or
 live-qualified.** Shared actor ownership, canonical native observations, automatic
 preparation, saved intent and both NPC/manual-player runners are integrated.
-Independent review and focused checks passed; final regression and exact-source
-package qualification are the active delivery gate.
+Independent review, regression suites and exact-source package qualification
+passed for source `e8aec9942e84ef367593461b698fee9eb143e3aa`. Deployment and
+live-acceptance helper migration is the active, source-only preparation step.
 
 The focused branch is `codex/native-buff-preparation-20261001`. Its dependency,
 [PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58),
@@ -264,10 +265,15 @@ listener and manager composition must use the same policy and observations.
    boundaries, canonical publication and actor/context ownership contracts.
 2. Complete: integrate the shared native runtime, host coordinator, preparation
    policy, settings migration and NPC/manual-player runner/status paths.
-3. **Active:** finish independent review, complete regression suites, publish the
-   integrated checkpoint and qualify an exact committed .63/.43 package.
-4. Await concrete user approval to merge PR #59 and install that qualified package.
-5. Run bounded live acceptance against fresh character/item/effect evidence:
+3. Complete: independent review, complete regression suites, published integrated
+   checkpoints `a03e729` / `e8aec99`, and exact-source .63/.43 package qualification.
+4. **Active:** prepare and review deployment and acceptance helper migration.
+   Automatic approval review initially rejected creating the b43 verifier as
+   outside prior .62/.42 approval. The user subsequently approved source-only
+   preparation and reported the game closed; no merge/install is implied by
+   that source-only approval.
+5. Obtain concrete approval to merge PR #59 and install the qualified package.
+6. Run bounded live acceptance against fresh character/item/effect evidence:
    potion overlap without repeat consumption, ready independent buffs, either-form
    coverage, expiry/refresh and target cleanup. Only qualified native effect
    observations prove application; retain unresolved outcomes honestly.
@@ -337,3 +343,51 @@ The production runtime fixture exercises 189 assertions, including the unresolve
 child cleanup gate, positive closure and immutable replay. Host source/package
 lint passed. Independent host, native adapter, runtime and CI reviews are complete.
 The candidate versions are host 0.3.63 and native 1.8.43.
+
+## Exact-source package qualification
+
+Package `artifacts/b43/c34beb8b` is an acceptance candidate built from committed
+source `e8aec9942e84ef367593461b698fee9eb143e3aa`, host 0.3.63 / native 1.8.43.
+All 15 hosted checks passed on that source head. The packaging environment was the
+existing repository Python 3.12.14 / pytest 8.4.2 environment; its host run passed
+4,788 tests with 37 environment skips. Both native profiles passed 219 tests, with
+three image-dependent CTests covered by explicit original/prepared client probes.
+Each profile additionally passed 73 movement, 86 combat and 106 actor IPC checks,
+with no skips in those IPC suites. All 16 new item/effect/inventory/buff probes
+passed across both images and profiles. Installed-wheel checks passed.
+
+The package completed 82 stages. Read-only inspection verified all 110 indexed
+file sizes/hashes, exact Git source archive contents, required IPC/probe receipts
+and the DLL version resource 1.8.43.0. The existing two transparency diagnostics
+per profile reproduce their documented rendering limitations and remain recorded
+in the receipt; they are not new bot failures.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Acceptance ZIP | `a273661516d7ccde20ed98cf326fd4d8dc48a41324d9f8792df2535955528b26` |
+| Receipt | `48c2522bfd67d3ce9ee5db2595b2f72c05384a1be5c921a2b09f7c7ed5a5dab8` |
+| Full DLL | `0807494a529c2c59dd15031a5eb6701926cc40a4e454167efa5c0aa87709e098` |
+| Host wheel | `fc2cbdcbf13d38699e4fc5ac1f98868394ffb1a71c38a94f1a98591d43f938f4` |
+
+Failed attempt `45545fb4` caught a stale exported API patch version; `e8aec99`
+fixed it. Attempt `d0178057` passed native/profile gates but stopped at wheel build
+because the invoked Python 3.11 lacked packaging tools. Final `c34beb8b` reran the
+complete committed workflow in the verified existing build environment. Failed
+attempt records are diagnostic evidence, not deployment fallbacks.
+
+The read-only deployment audit found required migrations: readiness must require
+actor capability 0x80, payload verification must check actor-v3 and native buff
+publication gates, and controlled live helpers must distinguish actor owner,
+target context, local settlement and remote application. Old v2 acceptance helpers
+cannot be used with version-only edits. Source-only helper preparation was initially blocked by automatic review. The
+user explicitly approved that preparation and reported the game closed, so helper
+migration can proceed. Package generation and read-only receipt inspection
+completed independently. No VM files or live settings have been changed.
+
+A private Umbra intent JSON is schema/CLI/manifest validated under
+`artifacts/bot-buffs/20261001/umbra-buff-intent.json`, SHA-256
+`db8810268cf75acf6d55fb95eac9d9655868b019dde3ddcf02aa6fc7252946ea`.
+It enables five groups/six actions and preserves existing Shot to the Leg settings
+when applied through the buff-only settings option. It has not been saved to the
+live character. Installed .62/.42 remains in place; automatic retaliation remains
+disabled. Merge, installation and live buff acceptance are still outstanding.

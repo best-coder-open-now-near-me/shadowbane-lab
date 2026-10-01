@@ -55,13 +55,25 @@ buff branch. Do not switch an actively owned checkout. PR #50 remains closed
 as superseded; its branch is retained because its exact tip is not an ancestor
 of main.
 
-**Active next item:** complete regression and exact-source package qualification
-for the integrated buff slice, then request approval for the concrete PR #59
-candidate before merge/install. Live buff acceptance follows installation. The
-.62 run `npc-recovery-readiness-171aeadcf4c44bd19a38876e94c87ef4` already proves the
-bounded combat recovery and reuse fallback gate; repeating it is not a prerequisite
-for source work. It does not prove buff application, second-NPC death, server kill
-credit or snare application. Automatic retaliation remains disabled.
+Integrated source `e8aec9942e84ef367593461b698fee9eb143e3aa` (following
+`a03e729`) passed all 15 hosted checks and exact-source .63/.43 package
+qualification at private `artifacts/b43/c34beb8b`. All 110 indexed file hashes and
+82 stages were checked; package hashes and validation counts are recorded in the
+[buff qualification receipt](buff-preparation-20261001.md#exact-source-package-qualification).
+The active integration checkout remains on its published feature branch; canonical
+`E:\Projects\shadowbane` remains clean on main `8fa16aa`.
+
+**Active next item:** migrate and review source-only deployment and live-acceptance
+helpers for actor-v3. Automatic approval review initially rejected creating the new
+verifier as outside earlier .62/.42 approval; the user subsequently approved
+source-only preparation and reported the game closed. Source/package work is
+complete. After reviewed helper preparation,
+obtain separate concrete merge/install approval for PR #59, then run bounded live
+buff acceptance. No new merge or deployment is authorized by package qualification.
+The .62 run `npc-recovery-readiness-171aeadcf4c44bd19a38876e94c87ef4` already proves
+bounded combat recovery and reuse fallback. It does not prove buff application,
+second-NPC death, server kill credit or snare application. Automatic retaliation
+remains disabled.
 
 ## Previous .61/.41 live evidence
 
