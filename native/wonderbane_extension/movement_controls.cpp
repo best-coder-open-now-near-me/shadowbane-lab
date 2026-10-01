@@ -78,7 +78,7 @@ bool Controls::RetryStop() noexcept {
     if (!pending_stop_) { return true; }
     { const ActuationGuard guard(actuating_);
       if (!actuator_.Stop(pending_grant_, pending_reason_)) { return false; } }
-    pending_stop_ = false;
+    pending_stop_ = pending_service_only_ = false;
     return true;
 }
 bool Controls::StopActive(StopReason reason) noexcept {
@@ -86,11 +86,13 @@ bool Controls::StopActive(StopReason reason) noexcept {
     // Native click/follow intent may exist before this controller has submitted
     // a move. Admission must retire it before publishing a replacement owner.
     if (!moving_ && !native_activity_ && reason != StopReason::takeover) { return true; }
+    const bool service_only = native_activity_ && !moving_;
     moving_ = native_activity_ = false;
     { const ActuationGuard guard(actuating_);
       if (actuator_.Stop(grant_, reason)) { return true; } }
     pending_grant_ = grant_;
     pending_reason_ = reason;
+    pending_service_only_ = service_only;
     pending_stop_ = true;
     return false;
 }
@@ -229,7 +231,7 @@ void Controls::ObserveScene(std::uint64_t scene) noexcept {
         const auto old = grant_;
         { const ActuationGuard guard(actuating_); actuator_.SceneRetired(old.scene); }
         // Never invoke an old actor's stop on a replacement actor or reused pointer.
-        moving_ = native_activity_ = pending_stop_ = false;
+        moving_ = native_activity_ = pending_stop_ = pending_service_only_ = false;
         (void)Retire(StopReason::scene_changed, Owner::none, {}, scene);
         Inhibit(StopReason::scene_changed);
         has_tick_ = false;
@@ -250,7 +252,7 @@ bool Controls::ObserveParentScene(std::uint64_t scene, bool manual_admitted, std
     { const ActuationGuard guard(actuating_); actuator_.SceneRetired(old.scene); }
     // Old targets cannot stop this epoch. Pending old cleanup forbids continuity;
     // a fresh stop below must independently retire this same actor's native work.
-    moving_ = native_activity_ = pending_stop_ = false;
+    moving_ = native_activity_ = pending_stop_ = pending_service_only_ = false;
     const bool retired = Retire(StopReason::scene_changed, preserve ? Owner::manual : Owner::none, {}, scene);
     has_tick_ = false;
     if (!preserve) { Inhibit(StopReason::scene_changed); }
@@ -286,12 +288,22 @@ void Controls::Tick(const Input& input) noexcept {
     foreground_ = true;
     if (!ContinueInput()) { return; }
     if (discontinuity && grant_.owner == Owner::automation) {
-        // Pending cleanup must not hide an actual owner-update stall. Preserve
-        // its old stop obligation, but revoke continuation under the same policy.
-        Inhibit(StopReason::stalled); return;
+        // A delayed frame is not a dead producer. Only a known service-only
+        // obligation may continue, under a fresh exact-owner lease proof. A
+        // stale route or unknown owner still retires; failed stop provenance
+        // must not become service-only merely because moving_ was cleared.
+        const bool service_only = !text_owned_ && !moving_ && (native_activity_
+            || (pending_stop_ && pending_service_only_ && pending_grant_ == grant_));
+        if (!service_only || !actuator_.AutomationLeaseCurrent(grant_)) {
+            Inhibit(StopReason::stalled); return;
+        }
     }
-    if (!RetryStop()) { return; }
-    if (discontinuity) {
+    const bool cleanup_ready = RetryStop();
+    // Pending automation still observes fresh manual intent through the same
+    // configured keyboard/controller/drag interpretation below. It cannot send
+    // camera or movement writes, but an old failed stop cannot hide takeover.
+    if (!cleanup_ready && grant_.owner != Owner::automation) { return; }
+    if (discontinuity && grant_.owner != Owner::automation) {
         // A delayed owning update is not a focus/UI/lifetime transition. Retire
         // its stale manual destination, then use this fresh admitted sample.
         // Keep existing arm state (including any prior safety disarm), never
@@ -356,6 +368,7 @@ void Controls::Tick(const Input& input) noexcept {
             == ControllerAction::cancel_movement) { cancel = true; }
     }
     if (connected && controller_armed_ && cancel) {
+        if (!cleanup_ready) { Inhibit(StopReason::takeover); return; }
         // Deliberate cancel is one native manual takeover, including native click
         // intent when no prior controls owner exists. Held cancel never repeats.
         (void)Retire(StopReason::takeover, Owner::manual);
@@ -363,7 +376,7 @@ void Controls::Tick(const Input& input) noexcept {
         drag_pending_ = drag_active_ = previous_drag_down_ = false;
         return;
     }
-    if (connected && controller_armed_ && !input.camera_blocked && !camera_faulted_ && seconds > 0 && Nonzero(camera)) {
+    if (cleanup_ready && connected && controller_armed_ && !input.camera_blocked && !camera_faulted_ && seconds > 0 && Nonzero(camera)) {
         const float scale = settings_.camera_radians_per_second * seconds;
         bool accepted = false;
         { const ActuationGuard guard(actuating_);
@@ -382,13 +395,13 @@ void Controls::Tick(const Input& input) noexcept {
     const bool drag_down = settings_.drag && !text_owned_ && input.keys[settings_.drag_button];
     if (!drag_down && !text_owned_) { drag_armed_ = true; }
     if (drag_down && !previous_drag_down_ && drag_armed_) {
-        drag_pending_ = input.pointer_in_world && input.ground_valid && Finite(input.ground)
+        drag_pending_ = input.pointer_in_world && (!cleanup_ready || (input.ground_valid && Finite(input.ground)))
             && std::isfinite(input.pointer_x) && std::isfinite(input.pointer_y);
         drag_origin_x_ = input.pointer_x;
         drag_origin_y_ = input.pointer_y;
         if (input.press_origin) {
             drag_origin_x_ = input.press_origin->x; drag_origin_y_ = input.press_origin->y;
-            drag_pending_ = input.press_origin->ground_valid && input.pointer_in_world
+            drag_pending_ = (!cleanup_ready || input.press_origin->ground_valid) && input.pointer_in_world
                 && std::isfinite(drag_origin_x_) && std::isfinite(drag_origin_y_);
         }
     }
@@ -411,6 +424,13 @@ void Controls::Tick(const Input& input) noexcept {
     const bool destination = !Nonzero(direction) && drag_active_
         && input.ground_valid && Finite(input.ground);
     const bool directional = Nonzero(direction) && Basis(input);
+    if (!cleanup_ready) {
+        // Native basis/terrain queries themselves require Ready. Recognize the
+        // configured physical intent before those actuation-only prerequisites;
+        // captured drag still requires its ordinary UI/capture/threshold gates.
+        if (Nonzero(direction) || drag_active_) { Inhibit(StopReason::takeover); }
+        return;
+    }
     if (directional || destination) {
         if (grant_.owner != Owner::manual &&
             !Retire(StopReason::takeover, Owner::manual)) { return; }

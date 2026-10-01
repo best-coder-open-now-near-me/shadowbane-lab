@@ -17,6 +17,11 @@ struct Actuator final : NativeActuator {
     bool stop_ok = true;
     bool move_ok = true;
     bool camera_ok = true;
+    bool lease_current = false;
+    Grant lease_grant{};
+    bool AutomationLeaseCurrent(const Grant& grant) const noexcept override {
+        return lease_current && lease_grant == grant;
+    }
     Controls* reenter_controls = nullptr;
     Grant reenter_grant{};
     Result reenter_result = Result::accepted;
@@ -540,6 +545,128 @@ void OwnerServiceStopResponsibility() {
       Check(f.actuator.Count('s') == before + 1 && f.controls.Current().owner == Owner::none,
           "stalled owner update cleans service work with no movement"); }
 }
+void ServiceUpdateGaps() {
+    const auto acquire = [](Fixture& f) {
+        Grant grant{};
+        Check(f.controls.AcquireAutomation(f.controls.Current().generation, Identity("service"), grant)
+            == Result::accepted, "service gap owner acquired");
+        f.actuator.lease_current = true; f.actuator.lease_grant = grant;
+        Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted, "service obligation pinned");
+        return grant;
+    };
+    { Fixture f; const auto grant = acquire(f); const auto stops = f.actuator.Count('s');
+      f.input.right_stick = {1, 0}; f.Step(297);
+      Check(f.controls.Current() == grant && f.controls.Ready() && f.actuator.Count('s') == stops
+          && f.actuator.Count('c') == 0, "live service survives delayed frame without cancellation or camera integration");
+      Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted,
+          "same owner admits subsequent work without reacquisition"); }
+    { Fixture f; const auto grant = acquire(f); f.actuator.stop_ok = false;
+      Check(f.controls.PauseAutomation(grant) == Result::stop_failed, "service cleanup remains unresolved");
+      f.Step(297);
+      Check(f.controls.Current() == grant && f.controls.CleanupPending() && !f.controls.Ready()
+          && f.controls.BeginAutomationNativeAction(grant) == Result::stop_failed
+          && f.controls.AutomationDestination(grant, {1,0,2}) == Result::stop_failed,
+          "delayed pending service retains only cleanup authority");
+      f.actuator.stop_ok = true; f.Step(297);
+      Check(f.controls.Current() == grant && f.controls.Ready() && !f.controls.CleanupPending(),
+          "confirmed service cleanup restores same owner after delayed update");
+      f.Step(297);
+      Check(f.controls.Current().owner == Owner::none,
+          "completed service does not leave a reusable gap exemption"); }
+    for (unsigned failure = 0; failure != 9; ++failure) {
+        Fixture f; const auto grant = acquire(f);
+        if (failure == 0) { f.actuator.lease_current = false; }
+        if (failure == 1) { ++f.actuator.lease_grant.generation; }
+        if (failure == 2) { f.input.exact_foreground = false; }
+        if (failure == 3) { f.input.text_owns_input = true; }
+        if (failure == 4) { f.input.ui_owns_input = true; }
+        if (failure == 5) { f.input.native_available = false; }
+        if (failure == 6) { ++f.input.scene; }
+        if (failure == 7) { f.input.tick_ms = 0; f.controls.Tick(f.input); }
+        else { if (failure == 8) { f.input.keys['W'] = true; } f.Step(297); }
+        Check(f.controls.Current() != grant && f.controls.Current().owner
+            == (failure == 8 ? Owner::manual : Owner::none),
+            "lease clock scene UI focus binding loss or manual takeover still retires service owner");
+    }
+    for (const bool pending : {false, true}) {
+        Fixture f; const auto grant = acquire(f);
+        Check(f.controls.AutomationDestination(grant, {1,0,2}) == Result::accepted, "route shares service owner");
+        if (pending) { f.actuator.stop_ok = false; (void)f.controls.PauseAutomation(grant); }
+        f.Step(297);
+        Check(f.controls.Current().owner == Owner::none && f.controls.Current() != grant,
+            "active or pending movement route cannot become service-only after moving flag clears");
+    }
+    { Fixture f; const auto grant = acquire(f); f.actuator.stop_ok = false;
+      (void)f.controls.PauseAutomation(grant); f.actuator.lease_current = false; f.Step(297);
+      Check(f.controls.Current() != grant && !f.controls.CleanupPending()
+          && f.controls.AuthorizesNativeStop(grant), "expired service lease retains old cleanup obligation but loses owner"); }
+}
+void PendingServiceTakeover() {
+    for (const auto gap : {std::uint64_t{16}, std::uint64_t{297}})
+    for (unsigned kind = 0; kind != 5; ++kind) {
+        Fixture f;
+        if (kind == 1) { f.settings.keys = {'I','K','J','L'}; (void)f.controls.Configure(f.settings); f.Step(); }
+        if (kind == 3) {
+            std::swap(f.settings.controller_profile.bindings[0].control,
+                f.settings.controller_profile.bindings[1].control);
+            (void)f.controls.Configure(f.settings); f.Step();
+        }
+        if (kind == 4) {
+            f.settings.controller_profile.bindings[2] = {ControllerAction::cancel_movement, ControllerControl::x, 1};
+            (void)f.controls.Configure(f.settings); f.Step();
+        }
+        Grant grant{};
+        Check(f.controls.AcquireAutomation(f.controls.Current().generation, Identity("pending-input"), grant)
+            == Result::accepted, "pending takeover owner acquired");
+        f.actuator.lease_current = true; f.actuator.lease_grant = grant;
+        Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted, "pending takeover service pinned");
+        f.actuator.stop_ok = false; (void)f.controls.PauseAutomation(grant);
+        if (kind == 0) {
+            f.input.keys['W'] = f.input.keys['S'] = true; f.Step(gap);
+            Check(f.controls.Current() == grant, "opposing keys have no takeover direction");
+            f.input.keys['S'] = false;
+        }
+        if (kind == 1) {
+            f.input.keys['W'] = true; f.Step(gap);
+            Check(f.controls.Current() == grant, "unconfigured key cannot steal pending service");
+            f.input.keys['W'] = false;
+        }
+        if (kind == 4) {
+            f.input.controller_buttons = 0x4000; f.Step(gap);
+            Check(f.controls.Current() == grant, "cancel requires its configured modifier context");
+        }
+        if (kind < 2) { f.input.keys[kind == 0 ? 'W' : 'I'] = true; }
+        if (kind == 2) { f.input.left_stick = {1,0}; }
+        if (kind == 3) { f.input.right_stick = {1,0}; }
+        if (kind == 4) { f.input.controller_buttons = 0x4100; }
+        const auto directions = f.actuator.Count('d'), destinations = f.actuator.Count('p');
+        f.Step(gap);
+        Check(f.controls.Current().owner == Owner::none && f.controls.Current() != grant
+            && !f.controls.CleanupPending() && f.controls.AuthorizesNativeStop(grant)
+            && f.actuator.Count('d') == directions && f.actuator.Count('p') == destinations,
+            "fresh configured manual intent revokes pending service without replacement movement");
+        f.actuator.stop_ok = true; f.Step();
+        Check(!f.controls.AuthorizesNativeStop(grant) && f.actuator.Count('d') == directions
+            && f.actuator.Count('p') == destinations, "cleanup completion cannot resume held takeover input");
+        f.input.keys.fill(false); f.input.left_stick = f.input.right_stick = {};
+        f.input.controller_buttons = 0; f.Step(); f.input.keys[f.settings.keys[0]] = true; f.Step();
+        Check(f.controls.Current().owner == Owner::manual && f.actuator.Count('d') == directions + 1,
+            "manual movement can start only after confirmed cleanup and fresh neutral rearm");
+    }
+    { Fixture f; Grant grant{};
+      (void)f.controls.AcquireAutomation(f.controls.Current().generation, Identity("pending-drag"), grant);
+      f.actuator.lease_current = true; f.actuator.lease_grant = grant;
+      (void)f.controls.BeginAutomationNativeAction(grant);
+      f.actuator.stop_ok = false; (void)f.controls.PauseAutomation(grant);
+      f.input.right_stick = {1,0}; f.Step();
+      Check(f.controls.Current() == grant && f.actuator.Count('c') == 0,
+          "camera-only input neither steals pending service nor invokes native camera");
+      f.input.right_stick = {}; f.input.keys[f.settings.drag_button] = true; f.Step(297);
+      Check(f.controls.Current() == grant, "a press below drag threshold is not movement takeover");
+      f.input.pointer_x += f.settings.drag_threshold_pixels + 1; f.Step(297);
+      Check(f.controls.Current().owner == Owner::none && f.controls.AuthorizesNativeStop(grant)
+          && f.actuator.Count('p') == 0, "qualified drag threshold revokes pending service without a destination write"); }
+}
 void RetainedCleanupStatus() {
     for (unsigned failure = 0; failure != 7; ++failure) {
         Fixture f; const auto grant = f.Automate();
@@ -597,6 +724,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    RetainedCleanupStatus(); ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
+    PendingServiceTakeover(); ServiceUpdateGaps(); RetainedCleanupStatus(); ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

@@ -7,37 +7,65 @@ records in place. Historical backup/rollback requirements below are superseded.
 ## Current shared source and deployment - October 1
 
 Start new development from freshly fetched `origin/main`, now
-`89f58cdbb50c2ef8bc8d80f0583897ac982f80f4` (merged PR #54). The normal project
-checkout is clean on that main revision. Approved final PR head `3b5e628` passed
-all 15 hosted checks; merge completed October 1 at 17:41:37 UTC.
-Exact installed package source `f0263c38ef36874da0e68e0aa5e0c8775550e618` is
-retained in main. Later documentation commits do not change the package stamp.
+`88af7953461cc6311c0bcc79b8fb0162013cfd54` (PR #56 merge). The normal project
+checkout is clean on this revision. Approved head `a1557938a695ef4d3a82ed6b67bb19a709975e95`
+passed all 15 hosted checks; [PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56)
+merged October 1 at 19:24:23 UTC. Its included receipt/audit
+[PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55)
+was marked merged at 19:24:25 UTC. Exact package source
+`29c9728abf6ef13cf90eb7dcba9a73c19d634ce7` is retained in main; later documentation
+commits do not change the installed source stamp.
 
-[PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54)
-contains the registry-backed population, native initiation and request-provenance
-corrections plus PR #53's full documentation tip. GitHub marked
-[PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53)
-merged at 17:41:38 UTC. The reused bot-integration checkout is now on
-`codex/native-initiation-deployment-20261001` for the installation receipt; its
-[draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55)
-targets main and remains unmerged at published tip
-`37e0e1e762b72e417be05939309fdd69b2b1b13d`. The active implementation branch
-`codex/native-power-readiness-20261001` starts from that full tip and targets main,
-so it retains the installed-source ancestry and all current receipt/audit work.
-Its [draft PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56)
-adds [native skill-reuse availability and optional-opener fallback](native-power-readiness-20261001.md).
-Independent review and exact-source .61/.41 qualification at `29c9728` passed;
-separate merge/install approval and live acceptance remain pending. Root owns Git,
-versions, packaging and live actions; parallel lanes own host behavior, native
-readiness, and the isolated image probe. The completed
-`codex/registry-backed-population` and
-`codex/native-stance-deployment-20261001` branches were retired locally and remotely
-after tip ancestry checks. The bot-runtime worktree now owns the active
-`codex/native-power-readiness-20261001` implementation; bot-integration stays on
-the published receipt branch. No active checkout should be switched by another lane. PR #50 is closed as superseded; its relevant .57 receipt facts are incorporated, but its branch is
-retained because its exact tip is not an ancestor of main.
+Host **0.3.61** / native **1.8.41** are installed from qualified package
+`artifacts/b41/2d632561`. Both clients retain official **1.3.38.13** data.
+Installation verified 455 modules, 9,570 preserved files, one DLL inventory change,
+five shortcuts and startup preflight. Manager PID 7092 was healthy. Launch at
+19:29:46.9919521 UTC verified the exact DLL in PID 9224, creation FILETIME
+`134353565789124161`, HWND `7209758`. These are recorded observations, not ongoing
+process authorization. The [readiness delivery record](native-power-readiness-20261001.md)
+contains qualification, hashes and the live-test limitation.
 
-Host **0.3.60** / native **1.8.40** are installed from qualified package
+The obsolete .60 host (2,100 files; 47,660,291 bytes) and two exact .40 guest payload
+binaries were removed, totaling 50,349,138 bytes. Four additional obsolete host/share
+staging binaries totaled 5,377,694 bytes. Settings, jobs, dependency wheels and
+historical diagnostic evidence remain; no rollback copies were retained.
+
+The .61 live run `npc-recovery-readiness-e622dab2634a4d9ca042a7c3dbdc3cdf`
+remains **not passed**. The first SELF_POWER queued; ATTACK never entered, and the
+native owner changed from generation 3 to generation 4/NONE. Exact NATIVE_STOPPED
+cleanup was confirmed with no retained combat owner or list entry. No second
+encounter or reuse fallback was observed. Retained owner-loss telemetry identifies
+`stalled` at tick 302842953: a 297 ms client update interval exceeded the 250 ms
+movement discontinuity threshold, with key bits zero. The user reported no
+interaction. This establishes the revocation branch, not why the client update
+was delayed. Prior failures remain preserved.
+
+The completed `codex/native-power-readiness-20261001` and
+`codex/native-initiation-deployment-20261001` branches were retired locally and
+remotely after main-ancestry verification. The completed receipt remains on
+`codex/native-readiness-deployment-20261001`, published at
+`22c0baf` through draft PR #57. Bot-runtime owns
+`codex/native-owner-liveness-20261001`
+from `88af795` for the unfinished correction: distinguish positively current,
+leased native service work from stale movement across a client update gap.
+Root owns Git, release and live actions; no other lane should switch these active
+checkouts. PR #50 remains closed as superseded; its branch is retained because
+its exact tip is not an ancestor of main.
+
+The combined [draft PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58)
+includes the full receipt tip `22c0baf` from PR #57.
+
+The [owner-liveness correction](native-owner-liveness-20261001.md) passed complete
+exact-source .62/.42 qualification at `7f37ff5`. Active next item: separate
+merge/install approval after hosted checks, then bounded acceptance with fresh
+identity/readiness. Bot-integration now owns `codex/native-buff-preparation-20261001`
+from `7f37ff5` for automatic buff preparation; the receipt branch remains published
+at `22c0baf` and included in PR #58. Buff runtime work is not yet qualified. Native reuse fallback
+is qualified offline but remains untested live. Automatic retaliation remains disabled.
+
+## Previous .60/.40 deployment and live evidence
+
+Host **0.3.60** / native **1.8.40** were installed from qualified package
 `artifacts/b40/b1c83d60`. Both clients retain official **1.3.38.13** data.
 Installation verified 455 modules, 9,569 preserved files, one DLL inventory
 change, five shortcuts and startup preflight. Manager PID 3900 was healthy and
@@ -86,7 +114,7 @@ observed. Native cleanup was confirmed; no owner or list entry remained and no
 error or watchdog fired. The rejection summary counted one actual rejection twice.
 Afterward the user reported buff loss; passive native vitals confirmed lower
 maximum health, mana and stamina, all full. Effect identity and causation are
-unknown. Installed source `f0263c3` remains unchanged.
+unknown. The installed source at that time was `f0263c3`.
 
 The renewal retry observed exact native death and confirmed cleanup but remains
 not passed: the private explicit stop was set before recovery, without a retained
@@ -106,12 +134,11 @@ confirmed native cleanup. Its helper incorrectly required a queued-attack anchor
 for that cleanup. A separate evidence review records the proven recovery subgate;
 the original overall not-passed result remains unchanged.
 
-Active next item: qualify native skill reuse availability and implement optional
-opener fallback before native entry. The user-reported reuse message supports the
-investigation but supplies no bot action authority. Already-entered uncertainty
-must retain original-request polling and cleanup. The first-NPC recovery proof
-needs no additional fight; full second-encounter skill/attack acceptance is open.
-The current receipts are published through draft PR #55 and remain outside main.
+That run motivated native reuse availability and optional-opener fallback, now
+merged and installed through PR #56. The user-reported reuse message supplied no
+bot action authority; entered uncertainty retained original-request polling and
+cleanup. The first-NPC recovery proof remains valid without another fight, while
+full second-encounter acceptance remains open. PR #55's receipts are now in main.
 Automatic retaliation remains disabled; the
 [offline session-boundary findings](retaliation-session-boundary-20261001.md)
 identify missing guarantees. The [native effects audit](native-combat-effects-20261001.md)

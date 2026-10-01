@@ -77,6 +77,8 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_combat_initiation",
     "wonderbane_extension_combat_power_readiness",
     "wonderbane_extension_movement_boundary_outermost_service",
+    "wonderbane_extension_movement_runtime_owner-service",
+    "wonderbane_extension_movement_windows_input_mouse",
     "wonderbane_extension_combat_submission",
     "wonderbane_extension_combat_submission_install_failure",
     "wonderbane_extension_combat_melee_entry",
@@ -182,6 +184,7 @@ def validate_combat_power_readiness_steps(steps, *, reviewed_client):
 
 
 REQUIRED_MOVEMENT_IPC_TESTS = frozenset({
+    "test_real_service_only_update_gap_preserves_exact_owner_and_cleanup",
     "test_real_parent_cancel_preserves_pending_native_owner_until_cleanup_ack",
     "test_real_cleanup_pending_preserves_owner_until_native_ack",
     "test_native_input_publisher_reader_interoperability",

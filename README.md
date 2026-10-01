@@ -4,32 +4,37 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`, currently the PR #54 merge
-`89f58cdbb50c2ef8bc8d80f0583897ac982f80f4`. The installed bot uses host **0.3.60** /
-native **1.8.40** from qualified source `f0263c3` with official client **1.3.38.13**.
+Start new work from freshly fetched `origin/main`, currently the PR #56 merge
+`88af7953461cc6311c0bcc79b8fb0162013cfd54`. Installed host **0.3.61** / native
+**1.8.41** use qualified source `29c9728` with official client **1.3.38.13**.
 
-[PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54)
-merged after all 15 hosted checks passed at approved head `3b5e628`. It includes
-registered object membership, native initiation observation, and guarded
-skill-to-attack request provenance. PR #53's included documentation is also merged.
-Installation, manager activation, five shortcuts, startup preflight and the
-loaded-DLL launch check passed. The inspected obsolete .59 runtime was removed
-without retaining rollback copies. After Umbra login, the .60 follow-through
-queued the skill and attack, observed the exact NPC at zero health, and confirmed
-native cleanup. A later run verified first-NPC death, exact cleanup, a strictly
-later SEEKING frame and distinct second-NPC admission. The second opener entered
-without a positive outbound receipt; bounded polling ended in confirmed cleanup.
-The original full two-encounter result remains not passed. Native skill reuse
-availability and optional-opener fallback are implemented and locally qualified in PR #56.
-Installed source is unchanged.
-The installation receipt is published on `codex/native-initiation-deployment-20261001`
-through [draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55),
-with main as its integration destination.
-Active [native reuse handling](docs/native-power-readiness-20261001.md) is on
-`codex/native-power-readiness-20261001` through [draft PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56),
-based on the full published receipt tip `37e0e1e`. Candidate **0.3.61 / 1.8.41**
-passed exact-source qualification at `29c9728`; merge/install approval and the
-new bounded live acceptance remain pending. The installed runtime is unchanged.
+[PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56)
+merged after all 15 hosted checks passed at approved head `a155793`. Its included
+[PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55)
+receipt and architecture work is also merged. Installation, healthy manager
+activation, five shortcuts, startup preflight and exact loaded-DLL launch passed.
+The inspected obsolete .60 runtime and .40 payloads were removed without retaining
+rollback copies; user settings, jobs and diagnostic evidence remain preserved.
+
+[Native reuse handling](docs/native-power-readiness-20261001.md) is installed and
+qualified offline. The new live run remains not passed: SELF_POWER queued, but
+ATTACK never entered before a 297 ms client update gap triggered native owner
+revocation. Exact native cleanup was confirmed; no second encounter or reuse
+fallback was tested. The user reported no interaction. Earlier .60 evidence still
+proves first-NPC death, cleanup and later SEEKING, without changing the original
+not-passed overall result.
+
+Bot-integration owns `codex/native-readiness-deployment-20261001` for the current
+receipt, included in [draft PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58).
+Bot-runtime owns `codex/native-owner-liveness-20261001` for the
+[candidate correction](docs/native-owner-liveness-20261001.md), separating current
+leased service work from stale movement across an
+update gap. The .62/.42 candidate passed exact-source qualification at `7f37ff5`;
+PR #58 targets main, with merge/install approval and live acceptance pending.
+Automatic buff preparation is a separate lane on
+`codex/native-buff-preparation-20261001`; it has not changed the installed runtime.
+The completed readiness and initiation deployment branches were retired after
+main-ancestry checks.
 
 Read the [branch map](docs/git-branch-map.md) before selecting a development base,
 the [current bot qualification and live-test todos](docs/queued-skills-20261001.md),

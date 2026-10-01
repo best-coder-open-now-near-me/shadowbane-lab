@@ -234,7 +234,7 @@ LRESULT WindowsInput::Message(UINT message, WPARAM wp, LPARAM lp) {
     }
     if (button && Down(message) && !mouse_up_owned_ && settings_.enabled && settings_.drag
         && button == settings_.drag_button && button != VK_RBUTTON && Current() && ExactFocus()
-        && controls_.Ready() && !GetCapture()) {
+        && (controls_.Ready() || controls_.CleanupPending()) && !GetCapture()) {
         const POINT point{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}; NativeUiState ui{};
         const WPARAM buttons = MK_LBUTTON | MK_RBUTTON | MK_MBUTTON | MK_XBUTTON1 | MK_XBUTTON2;
         if (!(wp & (buttons & ~ButtonMask(button))) && Inside(point) && Query(point, ui)

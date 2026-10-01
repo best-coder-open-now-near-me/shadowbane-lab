@@ -100,6 +100,9 @@ public:
     // A safety event nested inside this input/command's native callback can
     // veto its remaining work before a replacement grant or move is accepted.
     virtual std::optional<StopReason> Interrupted() const noexcept { return std::nullopt; }
+    // Fresh exact-owner lease and pinned native-service proof, never inferred
+    // from elapsed time or permissive stop admission. Unknown remains false.
+    virtual bool AutomationLeaseCurrent(const Grant&) const noexcept { return false; }
 };
 
 // Exactly one instance per injected client. All calls (including automation
@@ -168,6 +171,7 @@ private:
     Grant grant_{1, 0, Owner::none, {}};
     Grant pending_grant_{};
     StopReason pending_reason_ = StopReason::release;
+    bool pending_service_only_ = false;
     bool pending_stop_ = false;
     bool actuating_ = false;
     bool shutdown_pending_ = false, shutdown_ = false;
