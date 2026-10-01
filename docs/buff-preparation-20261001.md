@@ -5,7 +5,7 @@
 The user authorized automatic application and refresh of missing Greater Concoction
 Potion, Precision, Beorc Rune, Transform and Defensive Stance effects. This record
 captures requirements, native read-only findings and the production ownership
-boundaries. **The complete native/host slice is implemented but not installed or
+boundaries. **The complete native/host slice is installed as .63/.43 but not yet
 live-qualified.** Shared actor ownership, canonical native observations, automatic
 preparation, saved intent and both NPC/manual-player runners are integrated.
 Independent review, regression suites and exact-source package qualification
@@ -267,13 +267,13 @@ listener and manager composition must use the same policy and observations.
    policy, settings migration and NPC/manual-player runner/status paths.
 3. Complete: independent review, complete regression suites, published integrated
    checkpoints `a03e729` / `e8aec99`, and exact-source .63/.43 package qualification.
-4. **Active:** prepare and review deployment and acceptance helper migration.
+4. Complete: prepare and independently review deployment/readiness/retirement helpers.
    Automatic approval review initially rejected creating the b43 verifier as
    outside prior .62/.42 approval. The user subsequently approved source-only
    preparation and reported the game closed; no merge/install is implied by
    that source-only approval.
-5. Obtain concrete approval to merge PR #59 and install the qualified package.
-6. Run bounded live acceptance against fresh character/item/effect evidence:
+5. Complete: the user approved merge/install; PR #59 merged and .63/.43 is installed.
+6. **Active:** finish bounded acceptance-helper review and run live acceptance against fresh character/item/effect evidence:
    potion overlap without repeat consumption, ready independent buffs, either-form
    coverage, expiry/refresh and target cleanup. Only qualified native effect
    observations prove application; retain unresolved outcomes honestly.
@@ -391,3 +391,30 @@ It enables five groups/six actions and preserves existing Shot to the Leg settin
 when applied through the buff-only settings option. It has not been saved to the
 live character. Installed .62/.42 remains in place; automatic retaliation remains
 disabled. Merge, installation and live buff acceptance are still outstanding.
+
+## Installed .63/.43 and restarted-client boundary
+
+The user explicitly approved PR #59 merge/install after hosted checks. All 15
+checks passed at `1ceead0`; merge `1517a61` retains package source `e8aec99`.
+The separately reviewed deployment helpers verified the actual .62/.42 baseline,
+then installed 463 host modules while preserving 9,572 files. Exactly one client
+inventory record changed, for the new DLL. Manager 6480 activated healthy; all five
+shortcuts and startup preflight passed. The old .62 host and .42 payload/staging
+binaries were removed after exact ownership/hash checks; no rollback was retained.
+
+Initial PID 5328 loaded the qualified DLL at 23:11:43.8987094 UTC. The user then
+restarted the client through the updated desktop shortcut. Fresh launch receipt:
+PID 8616 / creation FILETIME 134353700194624995 / HWND 2687708, source `e8aec99`,
+DLL SHA `0807494a529c2c59dd15031a5eb6701926cc40a4e454167efa5c0aa87709e098`.
+Both Vendor Test and Modded Client shortcuts point to `launch-reviewed.ps1`;
+dashboard shortcuts point to `host-0.3.63/Scripts/pythonw.exe`. The user reported
+Umbra in world near NPCs; read-only readiness found actor capability 0x80, alive
+actor, owner NONE, fresh scene 1 and no cleanup pending. Revalidate before each
+live operation. This record does not claim a buff application or NPC action.
+
+Compact installation evidence under private `artifacts/bot-deploy/20261001-b43`
+includes twelve exported receipts and seven independently checked installed-file
+hashes. Initial exported launch/readiness receipts retain PID 5328 deliberately;
+they must not authorize the restarted PID 8616. The active bounded test will record
+its own exact identity and distinguish entry, local settlement, pending remote
+application, native effect presence, child closure and final parent closure.
