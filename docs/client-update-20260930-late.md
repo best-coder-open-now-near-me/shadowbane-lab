@@ -7,7 +7,8 @@ receipt commits through `cab8b029` from PR #47, now closed as superseded by
 [draft PR #48](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/48).
 Exact package source is `e6c7a28f229043540d3f93181900072ded58752c`; later
 documentation does not change its runtime identity. The normal checkout remains
-on `main@7f250c6`. This candidate is not installed or merge-approved yet.
+on `main@35fce4b`. PR #48 is merged and this package is installed; the verified
+installation and live acceptance status are recorded below.
 
 ## Binary proof and admission scope
 
@@ -68,11 +69,12 @@ and 801 passing subtests. Independent host/native review found no actionable
 issues. Sixteen focused native tests and ten actual-image probes pass, including
 registry, melee, power and scene checks against both images, original tree
 behavior and paired original/prepared image authentication. Exact-source
-packaging is qualified as recorded below; hosted checks remain pending.
+packaging is qualified as recorded below; all 15 hosted checks passed at the
+approved PR head before merge.
 
-Next: complete qualification and obtain the combined PR #48 merge approval,
-then install and verify the update with the game closed. Supervised object-based
-attack/cast/cancel/PvE recovery remains pending fresh user readiness. UI selection,
+Qualification, approved merge and installation are complete. Supervised
+object-based attack/cancel has initial live evidence below; PvE recovery and
+NPC/cast acceptance remain incomplete. UI selection,
 hotkeys and system-message text are not combat authority. Automatic retaliation
 remains disabled pending an authoritative server character-session fence.
 
@@ -97,8 +99,47 @@ and are recorded separately; no required gate failed or rendering fix is claimed
 | Host wheel | `e514db4fa968de179a5833d5c7ad056b1534a93fc6a31b6d125171d5806889c0` |
 
 Private deployment helpers passed independent review and ten offline tests; all
-Python and PowerShell helpers parsed. Qualified release pins exist, but no payload
-has been staged or applied. The latest read-only inspection at October 1 01:27 UTC
-still found the old game running and the manager healthy/unbound. A running-client
-snapshot cannot pass deployment preparation. Fresh closure, installation and live
-combat acceptance remain unfinished. PR #48 merge approval is also pending.
+Python and PowerShell helpers parsed. Qualified release pins were finalized before staging. The October 1 01:27 UTC
+read-only inspection found the old game running; the later closed-client snapshot
+was required before preparation. The user confirmed closure and approved the merge.
+Installation is verified below; full live combat acceptance remains incomplete.
+
+## Verified October 1 installation and first live attempt
+
+All 15 hosted checks passed at approved head `f73f7d53557721f449e7547de85e5b6f26a7f8e4`.
+PR #48 merged at `35fce4ba273a399b31e577d6d487a68b08dc34e3` on October 1,
+01:50:01 UTC. The normal project checkout was fast-forwarded to that merge.
+The obsolete late-update and PR #47 documentation branches were retired only
+after their exact tips were verified in `origin/main`. The bot-runtime worktree
+now holds the deployment handoff on `codex/client-deployment-20261001`.
+
+Both client copies contain official 1.3.38.13 data. The normal executable matches
+the official hash and Vendor Test matches the prepared hash above. Host 0.3.56 /
+native 1.8.36 use exact package source `e6c7a28`. Installation verified 450 module
+files, 9,559 preserved settings/record files, five shortcuts and non-launching
+preflight. Manager activation was healthy and unbound at observed PID 1816; the
+only expected retained-file transition was the revoked/unbound dispatch permit.
+
+The old host 0.3.55 contained 2,090 verified generated/distribution files,
+47,546,902 bytes and no unknown data or active references. Its inventory SHA-256
+was `bfb3c5ae8674deec416de60f8df76baa8ad004c49f9e473c63379e6e0a153b3f`.
+After activation verification it and the exact two obsolete b35 guest payload
+binaries were removed: 50,214,524 bytes total. No rollback copies were retained.
+Eleven compact deployment receipts and their hash inventory remain under the
+private late-patch artifact directory.
+
+Launch at 01:58:35 UTC verified the new DLL in game PID 460, creation time
+`134352935067334669`, window `7406358`. These are recorded process observations,
+not enduring authorization. After the user reported readiness, native objects
+identified Umbra and `day` on Wonderbane about 23.5 world units apart, with full
+resources. Native capability `0x10` and movement readiness were present.
+
+The first bounded attempt (`4c73d85b6723485bbd998e5d53054bcf`) queued the manual
+attack against Day while the selected object remained Umbra. Its test-owned list
+entry was removed and the final list was empty. Terminal cleanup confirmed
+`NATIVE_STOPPED` for that engagement, with no ordinary NPC proposals. However,
+the runner reported `emergency_stop` at 907 ms before cleanup and never reached a
+strictly later SEEKING frame; the 12-second watchdog did not fire. This is a
+partial result, not completed attack/cancel/recovery acceptance or proof of a
+server-accepted hit. Next: capture the operation's first interruption reason,
+resolve that cause, and repeat bounded recovery acceptance before NPC/cast work.

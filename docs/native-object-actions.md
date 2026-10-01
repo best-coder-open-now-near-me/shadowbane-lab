@@ -1,12 +1,14 @@
 # Native object-target actions
 
-Source architecture as of September 30, 2026, merged through
-[PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46)
-at `7f250c6166b66459a6fba4de527743e5f7363c90`. Qualified source
-`6f101f61a7a2f093b0360baef2b628bead057220` is installed as host 0.3.55 /
-native 1.8.35. Both-profile package qualification, hosted checks, installation
-and loaded-DLL verification passed. Supervised gameplay acceptance remains
-pending login; see the [deployment receipt](bot-deployment-20260930.md).
+The shared native combat implementation from PR #46 is installed with the
+[client 1.3.38.13 update](client-update-20260930-late.md), merged through PR #48
+at `35fce4ba273a399b31e577d6d487a68b08dc34e3`. Installed host 0.3.56 / native
+1.8.36 is exact qualified source `e6c7a28f229043540d3f93181900072ded58752c`.
+Package, hosted, installation and loaded-DLL checks passed. The first live
+manual attack queued independently of selection and cleanup confirmed native
+stop; an earlier operation emergency stop prevented later SEEKING recovery.
+Full recovery and NPC/cast acceptance remain open. Host and native ship together;
+legacy verbs 34-36 are rejected and there is no keyboard/hotbar fallback.
 
 ## Ownership and composition
 
@@ -143,8 +145,9 @@ do not replace final whole-candidate validation.
 The integrated host suite passed 4,041 tests with 33 explicit skips and 801
 subtests; repository Ruff passed. Both native profiles, required original/prepared-image
 package gates and all 15 hosted checks passed at the approved source head. PR #46
-is merged and its qualified package is installed. Bounded attack/cast/cancel/PvE
-recovery acceptance remains open pending the ready live characters. Automatic retaliation remains
+is merged; PR #48 subsequently qualified and installed client 1.3.38.13.
+Current bounded acceptance results and the unresolved interruption are recorded
+in the late client update receipt above. Automatic retaliation remains
 blocked on the separate authoritative server-character-session contract. Private
 client binaries and diagnostic captures remain outside source delivery; no
 retained deployment rollback artifacts are created.
