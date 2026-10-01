@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.39 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.40 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -1013,6 +1013,8 @@ if(BUILD_TESTING)
     COMMAND wonderbane_extension_movement_boundary_test shared-controls-first)
   add_test(NAME wonderbane_extension_movement_shared_held_control
     COMMAND wonderbane_extension_movement_boundary_test shared-held-control)
+  add_test(NAME wonderbane_extension_movement_boundary_outermost_service
+    COMMAND wonderbane_extension_movement_boundary_test outermost-service)
   add_test(NAME wonderbane_extension_movement_update_startup_failure
     COMMAND wonderbane_extension_movement_boundary_test movement-startup-failure)
   add_test(NAME wonderbane_extension_movement_shared_slot_replaced
@@ -1482,7 +1484,7 @@ if(BUILD_TESTING)
   foreach(image_case prepared12 original12 prepared13 original13 unknown)
     if(image_case STREQUAL "prepared12")
       set(digest "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289")
-      set(admission allow)
+      set(admission deny)
     elseif(image_case STREQUAL "original12")
       set(digest "3891fcab09dac06d858ac55911046448e75f3519e2f58e1d7c2ccc954aa410b7")
       set(admission deny)
@@ -1516,6 +1518,16 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_combat_power_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_combat_power_probe PRIVATE bcrypt)
   set_property(TARGET wonderbane_extension_combat_power_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_executable(wonderbane_extension_combat_initiation_test combat_initiation_test.cpp)
+  target_compile_features(wonderbane_extension_combat_initiation_test PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_combat_initiation_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  add_test(NAME wonderbane_extension_combat_initiation COMMAND wonderbane_extension_combat_initiation_test)
+  add_executable(wonderbane_extension_combat_power_initiation_probe EXCLUDE_FROM_ALL combat_power_initiation_probe.cpp)
+  target_compile_features(wonderbane_extension_combat_power_initiation_probe PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_power_initiation_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_power_initiation_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_power_initiation_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_combat_power_initiation_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   add_executable(wonderbane_extension_combat_power_mode_probe EXCLUDE_FROM_ALL combat_power_mode_probe.cpp)
   target_compile_features(wonderbane_extension_combat_power_mode_probe PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_combat_power_mode_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)

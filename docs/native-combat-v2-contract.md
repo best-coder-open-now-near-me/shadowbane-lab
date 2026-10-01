@@ -1,15 +1,16 @@
 # Native combat command v2 and engagement fence v3
 
-Installed host **0.3.58** / native **1.8.38** use exact qualified source
-`05c888a4ff1e1443163ef3cb2ea6e2432672c372` with official client **1.3.38.13**.
-[PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
-merged at `214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` on October 1,
-04:14:59 UTC after all 15 hosted checks passed. Qualification, installation,
-manager activation and loaded-DLL identity passed. The bounded .58 basic NPC
-attack/cleanup gate passed after login. The skill-opener attempt did not pass:
-SELF_POWER remained UNCERTAIN without queue evidence or a followup attack, while
-terminal native cleanup was confirmed. The earlier .57 manual-player recovery
-pass and unconfirmed NPC cleanup attempts remain separate historical evidence.
+Installed host **0.3.59** / native **1.8.39** use exact qualified package source
+`e90d2f64ea49df5af94365012548266e6829e3a1` with official client **1.3.38.13**.
+[PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52)
+merged at `72f13d5f64f896a5b646838ed3bd5c268fac7773` on October 1,
+15:53:29 UTC after all 15 hosted checks passed at the approved final head.
+Installation, activation and loaded-DLL identity passed. The bounded .59 gate
+passed: Shot to the Leg SELF_POWER queued, then ATTACK queued against the same
+NPC and owner, followed by confirmed NATIVE_STOPPED cleanup. This proves local
+queue admission and cleanup, not server consumption, snare or damage attribution.
+Umbra/Wonderbane now has basic policy with saved opener 563795161 at revision 1,
+validated for the next run. The earlier .58 and .57 results remain historical.
 See the [deployment record](queued-skills-20261001.md) for evidence and limits.
 
 Host and native ship together. Legacy verbs 34-36 remain rejected; there is no
@@ -28,13 +29,14 @@ When native cleanup completes, the same owner can return to READY and ordinary
 PvE seeking. Pending cleanup does not count as completed cleanup or server proof.
 Changed Grant/scene, terminal/fault or focus/UI invalidation remain permanent
 stops. Missing READY without this explicit valid pending state is still rejected.
-The .57 manual-player cleanup/recovery gate passed. Installed .58/.38 additionally
-shares one absolute three-second combat settlement deadline across STOP_ENGAGEMENT,
+The .57 manual-player cleanup/recovery gate passed. The installed implementation,
+extended in .58/.38, additionally shares one absolute three-second combat settlement deadline across STOP_ENGAGEMENT,
 PAUSE and fence revocation/closure. Terminal cancellation blocks new actions
 immediately while preserving only the exact pending cleanup owner's heartbeat;
 expiry never proves closure. Subsequent terminal movement-owner STOP has its own
 bounded session transport timeout and may retry once with the same request
-identity. The .58 basic NPC queue/cleanup gate passed; skill acceptance remains pending.
+identity. The .58 basic NPC gate and .59 skill/same-NPC attack/cleanup gate passed.
+Neither queue acknowledgement proves skill consumption or a server-applied effect.
 
 ## Ownership and identities
 

@@ -12,7 +12,6 @@ from shadowbane_lab.client_observation import (
     NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
-    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetPositionObservation,
 )
@@ -243,8 +242,16 @@ class LivePvEAuthoritySnapshotTests(unittest.TestCase):
             player_vitals_reader=SimpleNamespace(observe=lambda: vitals),
             player_action_reader=SimpleNamespace(process_id=42, observe_player=lambda:
                 NativePlayerActionObservation(
-                    NativeTargetActionPhase.IDLE, False, 0, False, None, 0, 0,
-                    target.target_token, None, mode=1, action_state=1,
+                    targeting_selected=False,
+                    motion_id=0,
+                    animation_event_index=0,
+                    animation_frame=None,
+                    selected_target_token=target.target_token,
+                    action_target_token=None,
+                    initiation_state=5,
+                    power_protocol_ids=(),
+                    mode=1,
+                    action_state=1,
                 )),
             population_reader=_SequenceSource(42, (self.population,)),
             group_reader=_SequenceSource(42, groups or (self.group, self.group)),

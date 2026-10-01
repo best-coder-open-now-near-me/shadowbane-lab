@@ -25,7 +25,7 @@ from shadowbane_lab.client_extension import action_channel as channel
 from shadowbane_lab.client_extension.movement_session import NativeMovementError
 from shadowbane_lab.client_extension.movement_wire import Outcome, Verb
 from shadowbane_lab.client_input import EventEmergencyStop
-from shadowbane_lab.client_observation import NativeCombatEventKind, NativeTargetActionPhase
+from shadowbane_lab.client_observation import NativeCombatEventKind
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.pve import PvEController, PvEControllerConfig, PvEIntent, PvEPhase
 from shadowbane_lab.pve.combat_cleanup import NativePvECombatCleanup
@@ -91,24 +91,24 @@ def test_delayed_text_kills_hits_and_player_death_never_control_engagement():
 
 def test_actual_action_identity_remains_correlated_after_deselection():
     controller = engage()
-    action = replace(_player_action(phase=NativeTargetActionPhase.WINDUP),
+    action = replace(_player_action(event_index=1),
                      selected_target_token=None, action_target_token="mob",
                      targeting_selected=False)
     frame = _observation(200, _absent(), player_action=action,
         population=_population(None, _character("mob", lt=103), action_target="mob"))
     decision = controller.step(frame)
     assert decision.phase is PvEPhase.ENGAGED
-    assert controller._player_attack_animation_observed
+    assert controller.tracked_target(frame).token == "mob"
     assert decision.intent is None
 
 
 def test_busy_action_without_target_is_not_attributed_or_cleanup_proof():
     controller = engage()
-    action = replace(_player_action(phase=NativeTargetActionPhase.QUEUED),
+    action = replace(_player_action(initiation_state=6),
                      action_target_token=None, targeting_selected=False)
     frame = _observation(200, _target("mob"), player_action=action)
     decision = controller.step(frame)
-    assert not controller._player_attack_animation_observed
+    assert controller._last_target_health_progress_at is None
     assert decision.phase is PvEPhase.ENGAGED
     stop = controller.stop("operator_stop", now_ms=300)
     assert stop.cleanup_request is not None
@@ -263,7 +263,7 @@ def test_startup_adopts_exact_current_npc_without_redundant_selection_or_attack(
     assert adopted.phase is PvEPhase.ENGAGED
     assert adopted.tracked_target.token == "mob"
     assert adopted.intent is None and adopted.cleanup_request is None
-    assert adopted.native_action_pending
+    assert adopted.combat_proposal.kind.value == "bind"
     still_casting = controller.step(replace(frame, now_ms=3000))
     assert still_casting.intent is None and still_casting.cleanup_request is None
 
@@ -274,14 +274,16 @@ def test_unknown_target_action_waits_for_actual_completion_not_animation_or_impa
 ):
     controller = PvEController(PvEControllerConfig())
     action = replace(_player_action(token="other", mode=mode, action_state=state),
-                     action_pending=pending)
+                     initiation_state=6 if state is not None else None,
+                     power_protocol_ids=() if state is not None else None)
     frame = _observation(0, _target("other"), player_action=action)
     waiting = controller.step(frame)
     assert waiting.phase is PvEPhase.OBSERVING_ACTION
     assert waiting.tracked_target is None and waiting.intent is None
     assert waiting.cleanup_request is None
     # Actual action completion allows new work without waiting for projectile impact.
-    finished = replace(action, mode=2, action_state=1, action_pending=False)
+    finished = replace(action, mode=2, action_state=2, animation_event_index=12,
+                       initiation_state=5, power_protocol_ids=())
     after = controller.step(replace(frame, now_ms=100, player_action=finished))
     assert after.phase is PvEPhase.SEEKING and after.intent is None
     acquire = controller.step(_observation(200, _absent()))
@@ -325,7 +327,7 @@ def test_runner_existing_unknown_cast_performs_no_input_or_cleanup_until_stop():
         def cleanup(self, pending):
             calls.append(pending)
             return ConfirmedCleanup().cleanup(pending)
-    action = _player_action(token="mob", mode=1, action_state=4)
+    action = _player_action(token="mob", mode=1, action_state=4, initiation_state=6)
     clock, dispatcher = AdvancingClock(), RecordingPvEDispatcher()
     result = _runner(controller=PvEController(PvEControllerConfig(maximum_session_ms=200)),
         health_reader=SequenceHealthSource((_target("mob"),)*3),
@@ -346,8 +348,8 @@ def test_listed_admission_waits_for_unknown_cast_completion_without_pausing():
         def prepare(self, observation, camp):
             prepared.append(observation.now_ms)
             return False
-    busy = _player_action(token="mob", mode=1, action_state=4)
-    idle = replace(busy, mode=2, action_state=1)
+    busy = _player_action(token="mob", mode=1, action_state=4, initiation_state=6)
+    idle = replace(busy, mode=2, action_state=2, initiation_state=5)
     clock, dispatcher = AdvancingClock(), RecordingPvEDispatcher()
     result = _runner(controller=PvEController(PvEControllerConfig(maximum_session_ms=300)),
         health_reader=SequenceHealthSource((_target("mob"),)*4),
@@ -363,6 +365,6 @@ def test_listed_admission_waits_for_unknown_cast_completion_without_pausing():
 
 def test_owned_ordinary_engagement_keeps_explicit_list_interruption_policy():
     controller = engage()
-    action = _player_action(token="mob", mode=1, action_state=4)
+    action = _player_action(token="mob", mode=1, action_state=4, initiation_state=6)
     assert controller.can_start_external_combat(_observation(200, _target("mob"),
                                                               player_action=action))

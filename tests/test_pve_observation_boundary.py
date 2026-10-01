@@ -6,7 +6,6 @@ from shadowbane_lab.client_observation import (
     NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
-    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
     NativeTargetPositionObservation,
@@ -91,9 +90,16 @@ class ConstantPlayerActionSource:
 
     def observe_player(self) -> NativePlayerActionObservation:
         return NativePlayerActionObservation(
-            NativeTargetActionPhase.IDLE, False, 21, False, None, 0, 0,
-            selected_target_token=self.selected, action_target_token=None,
-            mode=1, action_state=1,
+            targeting_selected=False,
+            motion_id=21,
+            animation_event_index=0,
+            animation_frame=None,
+            selected_target_token=self.selected,
+            action_target_token=None,
+            initiation_state=5,
+            power_protocol_ids=(),
+            mode=1,
+            action_state=1,
         )
 
 

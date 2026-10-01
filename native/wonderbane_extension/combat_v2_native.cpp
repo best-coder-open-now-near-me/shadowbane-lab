@@ -42,7 +42,7 @@ bool NativeTarget::Bind(HWND window) noexcept {
     if (base_ || faulted_) { return false; }
     window_ = window; thread_ = GetCurrentThreadId();
     if (!Owner() || !movement::VerifyNativeMovementImage(base_)) { base_ = 0; return false; }
-    calls_.attack = &melee::Invoke; calls_.cast = &power::Invoke;
+    calls_.attack = &melee::Invoke; calls_.cast = &power::Invoke; calls_.self_initiation = &power::ReadSelfInitiation;
     calls_.lookup = reinterpret_cast<decltype(calls_.lookup)>(base_ + 0x1fcc80);
     calls_.retain = reinterpret_cast<decltype(calls_.retain)>(base_ + 0x131190);
     calls_.release = reinterpret_cast<decltype(calls_.release)>(base_ + 0x89bd0);
@@ -86,7 +86,19 @@ bool NativeTarget::Current() noexcept {
         && (!target_ || Identity()) && RawCurrent()
         && current_(context_) && movement::NativeMovementLifetimeCurrent(scene_);
 }
-bool NativeTarget::Gate(void* context) noexcept { return static_cast<NativeTarget*>(context)->Current(); }
+bool NativeTarget::Gate(void* context) noexcept {
+    auto& self=*static_cast<NativeTarget*>(context);
+    if(!self.Current() || power::NativeUseInFlight()) { return false; }
+    const bool entered=self.command_.action==wire::Action::attack
+        ? self.submission_receipt_.native_entered : self.power_receipt_.native_entered;
+    if(!entered) {
+        Observation state{};
+        if(!self.pre_entry_epoch_ || power::InitiationEpoch()!=self.pre_entry_epoch_
+            || !self.ReadState(self.scene_,state)
+            || (!state.ClearInitiation() && !state.initiation.Only(self.pre_entry_self_id_))) { return false; }
+    }
+    return true;
+}
 bool NativeTarget::AppendGate(void* context) noexcept {
     auto& self = *static_cast<NativeTarget*>(context);
     // Executed under the native outbound queue lock. No runtime/party/fence lock,
@@ -114,6 +126,7 @@ bool NativeTarget::Retain(void*& value) {
 }
 void NativeTarget::ClearImpl() {
     if (faulted_) { return; }
+    instant_self_id_=0; instant_self_epoch_=0; instant_self_definition_={};
     melee::Release(transfer_);
     melee::Release(request_);
     if (target_) { calls_.release(&target_, nullptr); }
@@ -137,6 +150,7 @@ bool NativeTarget::Clear() noexcept {
     return result;
 }
 Operation NativeTarget::PrepareImpl() {
+    if(power::NativeUseInFlight()) { return {O::deferred}; }
     stage_="party_snapshot";
     if(!party::Capture(base_,scene_,party_) || party::Protected(party_,{command_.target_key[0],command_.target_key[1]})) { return {O::stale}; }
     if(!Current() || scene_.actor!=command_.actor_hint) { return {O::stale}; }
@@ -154,16 +168,46 @@ Operation NativeTarget::PrepareImpl() {
     // Adoption observes only the actual retained combat pointer. Unknown casts
     // are preserved without input; their target is never inferred from selection.
     if(state.target!=reinterpret_cast<std::uintptr_t>(target_)
-        && (state.target || !state.Idle())) { return {O::deferred}; }
+        && (state.target || !state.ClearInitiation())) { return {O::deferred}; }
     return {O::bound};
 }
 Operation NativeTarget::Run() {
     if(preparing_) { return PrepareImpl(); }
+    if(power::NativeUseInFlight()) { return {O::deferred,wire::Entry::never_entered}; }
     stage_="action_current";
     if(!Current()) { return {O::stale,wire::Entry::never_entered}; }
+    const auto observed_epoch=power::InitiationEpoch();
     Observation observation{};
     if(!ReadState(scene_,observation)) { return {O::unavailable,wire::Entry::never_entered}; }
-    if(!observation.Idle() || (observation.target && observation.target!=reinterpret_cast<std::uintptr_t>(target_))) {
+    if(observation.ClearInitiation() || !observation.initiation.Only(instant_self_id_)) {
+        instant_self_id_=0; instant_self_epoch_=0; instant_self_definition_={};
+    }
+    bool owned_followup=false;
+    if(command_.action==wire::Action::attack && instant_self_id_
+        && observation.initiation.Only(instant_self_id_)
+        && instant_self_epoch_ && power::InitiationEpoch()==instant_self_epoch_) {
+        power::InitiationDefinition current_definition{};
+        owned_followup=calls_.self_initiation(base_,scene_.actor,instant_self_id_,current_definition)
+            && current_definition==instant_self_definition_ && current_definition.seconds==0
+            && power::InitiationEpoch()==instant_self_epoch_ && Current();
+    }
+    if(command_.action==wire::Action::attack && !owned_followup) { instant_self_id_=0; instant_self_epoch_=0; instant_self_definition_={}; }
+    if((!observation.ClearInitiation() && !owned_followup)
+        || (observation.target && observation.target!=reinterpret_cast<std::uintptr_t>(target_))) {
+        return {O::deferred,wire::Entry::never_entered};
+    }
+    power::InitiationDefinition self_definition{};
+    const bool qualify_self=command_.action==wire::Action::self_power && observation.ClearInitiation()
+        && calls_.self_initiation(base_,scene_.actor,command_.power_id,self_definition)
+        && self_definition.seconds==0;
+    if(!Current()) { return {O::stale,wire::Entry::never_entered}; }
+    Observation final_observation{};
+    if(!ReadState(scene_,final_observation) || final_observation!=observation) {
+        return {O::deferred,wire::Entry::never_entered};
+    }
+    pre_entry_epoch_=owned_followup?instant_self_epoch_:observed_epoch;
+    pre_entry_self_id_=owned_followup?instant_self_id_:0;
+    if(!pre_entry_epoch_ || power::InitiationEpoch()!=pre_entry_epoch_) {
         return {O::deferred,wire::Entry::never_entered};
     }
     std::uintptr_t writer{},container{}; stage_="writer";
@@ -178,6 +222,7 @@ Operation NativeTarget::Run() {
         context.current=Gate; context.append_current=AppendGate; context.context=this; context.receipt=&submission_receipt_;
         submission::Scope scope(context);
         if(!Current()) { return {O::stale,wire::Entry::never_entered}; }
+        instant_self_id_=0; instant_self_epoch_=0; instant_self_definition_={};
         dispatched_=true; // Includes the ordinary pre-D0 stance transition.
         (void)calls_.attack(base_,actor_,target_,scope,request_,transfer_,Gate,this);
         const auto receipt=scope.Finish();
@@ -195,11 +240,22 @@ Operation NativeTarget::Run() {
     context.current=Gate; context.append_current=AppendGate; context.owner=this; context.receipt=&power_receipt_;
     power::Scope scope(context);
     if(!Current()) { return {O::stale,wire::Entry::never_entered}; }
+    instant_self_id_=0; instant_self_epoch_=0; instant_self_definition_={};
     dispatched_=true;
     (void)calls_.cast(scope);
     const auto receipt=scope.Finish();
     const bool queued=receipt.append_observed;
     const bool uncertain=receipt.native_entered && (receipt.result==power::Result::uncertain || !Current());
+    if(qualify_self && queued && !uncertain && receipt.followup_entered && receipt.initiation_epoch
+        && power::InitiationEpoch()==receipt.initiation_epoch && Current()) {
+        power::InitiationDefinition after_definition{}; Observation after{};
+        if(calls_.self_initiation(base_,scene_.actor,command_.power_id,after_definition)
+            && after_definition==self_definition && ReadState(scene_,after)
+            && after.initiation.Only(command_.power_id)
+            && power::InitiationEpoch()==receipt.initiation_epoch && Current()) {
+            instant_self_id_=command_.power_id; instant_self_epoch_=receipt.initiation_epoch; instant_self_definition_=self_definition;
+        }
+    }
     return {uncertain?O::uncertain:queued?O::client_outbound_queued:O::native_rejected,
         receipt.native_entered?wire::Entry::entered:wire::Entry::never_entered,
         (queued?wire::outbound_queued:0U)|(uncertain?wire::uncertain_history:0U)};
@@ -256,11 +312,12 @@ bool NativeTarget::ReadState(const movement::NativeScene& scene,Observation& out
     Observation first{},second{};
     auto read=[&](Observation& value) noexcept {
         return Read(pointer+0x18,value.mode) && Read(pointer+0x20,value.action)
-            && Read(scene.actor+0x9bc,value.pending) && value.pending<=1
+            && Read(scene.actor+0x9bc,value.animation_event_index)
+            && initiation::Capture(scene.actor,pointer,value.initiation,[](std::uintptr_t at, auto& value) noexcept { return Read(at,value); })
             && Read(scene.actor+0xaf8,value.target)
             && (!value.target || (value.target>=0x10000 && value.target<=0x7fff0000-4 && value.target%4==0));
     };
-    if(!movement::NativeMovementLifetimeCurrent(scene) || !Read(base_+0x16a2d98,after) || after!=scene.actor
+    if(!Owner() || !movement::NativeMovementLifetimeCurrent(scene) || !Read(base_+0x16a2d98,after) || after!=scene.actor
         || !Read(scene.actor,table) || table!=base_+0x114165c || !Read(scene.actor+0x18,key) || key!=scene.identity
         || !Read(scene.actor+0xad0,pointer) || pointer<0x10000 || pointer%4
         || !read(first) || !read(second) || first!=second || !Read(scene.actor+0xad0,after) || pointer!=after
@@ -271,13 +328,13 @@ bool NativeTarget::CombatTargetCurrent() const noexcept {
     Observation state{}; return Prepared() && ReadState(scene_,state) && state.target==reinterpret_cast<std::uintptr_t>(target_);
 }
 bool NativeTarget::CancelImpl(const movement::NativeScene& scene,Admission current,void* context,Observation& out) {
-    if(!current || !current(context) || !ReadState(scene,out)) { return false; }
+    if(power::NativeUseInFlight() || !current || !current(context) || !ReadState(scene,out)) { return false; }
     if(out.mode==2) {
         const std::array<std::uint32_t,9> action{0x616};
         if(!current(context) || !movement::NativeMovementLifetimeCurrent(scene)) { return false; }
         (void)calls_.dispatch(action.data(),reinterpret_cast<void*>(scene.window));
     }
-    return current(context) && ReadState(scene,out) && out.mode==1 && out.Idle() && !out.target;
+    return current(context) && ReadState(scene,out) && out.mode==1 && out.ClearInitiation() && !out.target;
 }
 bool NativeTarget::CancelCxx(const movement::NativeScene& scene,Admission current,void* context,Observation& state) noexcept {
     try { return CancelImpl(scene,current,context,state); }

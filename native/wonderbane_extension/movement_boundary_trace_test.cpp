@@ -21,6 +21,9 @@ bool hold_install = false;
 std::atomic<int> calls{0}, movement_calls{0};
 HANDLE movement_entered = nullptr, movement_release = nullptr;
 bool hold_movement = false;
+std::uint32_t nested_callback = 0;
+bool recurse_original = false, recurse_service = false, fault_original = false, throw_original = false;
+bool Call(std::uint32_t address);
 void Movement(void* receiver, double dt) noexcept;
 std::atomic<bool> forwarded{true};
 bool fail_after_install = false, failure_injected = false;
@@ -29,6 +32,9 @@ constexpr auto result_value = 0x13579BDFU;
 std::uint32_t __fastcall Original(void* receiver, void*, double dt) {
     if (reinterpret_cast<std::uintptr_t>(receiver) != 0x123450 || dt != 0.125) { forwarded=false; }
     ++calls; SetEvent(entered);
+    if (recurse_original) { recurse_original = false; if (!Call(nested_callback)) { forwarded = false; } }
+    if (fault_original) { fault_original = false; RaiseException(0xe0424242, 0, 0, nullptr); }
+    if (throw_original) { throw_original = false; throw 42; }
     (void)WaitForSingleObject(release_call,5000);
     return result_value;
 }
@@ -38,10 +44,16 @@ bool Call(std::uint32_t address) {
 void Movement(void* receiver, double dt) noexcept {
     if (reinterpret_cast<std::uintptr_t>(receiver) != 0x123450 || dt != 0.125) { forwarded = false; }
     ++movement_calls;
+    if (recurse_service) { recurse_service = false; if (!Call(nested_callback)) { forwarded = false; } }
     if (hold_movement) {
         SetEvent(movement_entered);
         if (WaitForSingleObject(movement_release, 5000) != WAIT_OBJECT_0) { forwarded = false; }
     }
+}
+bool CatchNativeFault(std::uint32_t callback) {
+    __try { (void)Call(callback); }
+    __except(GetExceptionCode() == 0xe0424242 ? EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH) { return true; }
+    return false;
 }
 int failures=0;
 void Check(bool ok,const char* message) { if (!ok) { ++failures; std::cerr << message << '\n'; } }
@@ -86,6 +98,28 @@ int main(int argc,char** argv) {
     auto stale=identity; ++stale.creation_filetime_utc;
     Check(we::StartMovementBoundaryTraceForTesting(stale,&slot,slot)==ERROR_INVALID_DATA
         && !we::MovementBoundaryTraceForTesting(),"stale current-process creation time rejected");
+    if (argc > 1 && std::strcmp(argv[1], "outermost-service") == 0) {
+        const auto original = slot;
+        Check(we::StartNativeMovementUpdatesForTesting(identity, &Movement, &slot, original) == ERROR_SUCCESS,
+            "outermost service installs");
+        nested_callback = slot; SetEvent(release_call);
+        recurse_service = true;
+        Check(Call(slot) && movement_calls == 1 && calls == 2, "service reentry forwards without nested admission");
+        recurse_original = true;
+        Check(Call(slot) && movement_calls == 2 && calls == 4, "original reentry forwards without nested admission");
+        fault_original = true;
+        Check(CatchNativeFault(slot), "native exception propagates through boundary");
+        Check(Call(slot) && movement_calls == 4, "SEH restores outermost service admission");
+        throw_original = true;
+        bool caught = false;
+        try { (void)Call(slot); } catch (int value) { caught = value == 42; }
+        Check(caught && Call(slot) && movement_calls == 6, "C++ unwind restores outermost service admission");
+        std::thread independent([&] { if (!Call(slot)) { forwarded = false; } }); independent.join();
+        Check(movement_calls == 7 && forwarded, "separate thread retains independent outermost boundary");
+        we::StopNativeMovementUpdates();
+        Check(slot == original, "outermost guard preserves hook retirement");
+        CloseHandle(entered); CloseHandle(release_call); return failures ? 1 : 0;
+    }
     if (argc > 1 && std::strcmp(argv[1], "movement-startup-failure") == 0) {
         const auto original = slot;
         Check(we::StartNativeMovementUpdatesForTesting(identity, &Movement, &slot, original) == ERROR_ACCESS_DENIED,

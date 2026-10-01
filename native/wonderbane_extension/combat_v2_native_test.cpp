@@ -13,12 +13,25 @@ namespace {
 std::uintptr_t base{}; HWND window{}; m::NativeScene scene{};
 bool live=true,admitted=true,throw_attack=false,seh_attack=false,reject_cancel=false;
 unsigned attacks{},casts{},stops{},lookups{},restores{},lookup_mode{};
+double initiation_seconds{};
+std::uint32_t learned_rank=20, definition_generation=1;
+bool definition_available=true;
+std::uint64_t epoch=1;
+bool mutate_after_definition=false, mutate_on_current=false;
+bool native_in_flight=false, mutate_before_entry=false, mutate_after_entry=false;
 std::map<void*,unsigned> references;
 s::Context melee_context{}; p::Context power_context{};
 s::Receipt melee_receipt{s::Result::queued,true,true,true};
 p::Receipt power_receipt{p::Result::queued,true,true,true,true};
 template<class T> void Put(std::uintptr_t at,T value) { std::memcpy(reinterpret_cast<void*>(at),&value,sizeof(value)); }
-bool Current(void*) noexcept { return admitted; }
+bool Current(void*) noexcept { if(mutate_on_current) { ++epoch; mutate_on_current=false; } return admitted; }
+void Protocol(std::initializer_list<std::uint32_t> ids) {
+    const auto storage=base+0xf000;
+    std::size_t i=0; for(auto id:ids) { Put(storage+i++*4,id); }
+    Put(scene.actor+0x65c,static_cast<std::uint32_t>(storage));
+    Put(scene.actor+0x660,static_cast<std::uint32_t>(storage+ids.size()*4));
+    Put(scene.actor+0x664,static_cast<std::uint32_t>(storage+256*4));
+}
 void Text(std::uintptr_t field,std::uintptr_t storage,const wchar_t* value) {
     const auto count=wcslen(value); std::memcpy(reinterpret_cast<void*>(storage),value,(count+1)*2);
     Put(field+4,storage); Put(field+8,storage+count*2); Put(field+12,storage+(count+1)*2);
@@ -26,8 +39,9 @@ void Text(std::uintptr_t field,std::uintptr_t storage,const wchar_t* value) {
 void Reset() {
     for(const auto& [object,count]:references) { (void)object; assert(!count); }
     std::memset(reinterpret_cast<void*>(base),0,0x10000); references.clear(); lookup_mode=0;
+    mutate_after_definition=mutate_on_current=false; native_in_flight=mutate_before_entry=mutate_after_entry=false; epoch=1; initiation_seconds=0; learned_rank=20; definition_generation=1; definition_available=true;
     live=admitted=true; throw_attack=seh_attack=reject_cancel=false; attacks=casts=stops=lookups=0;
-    melee_receipt={s::Result::queued,true,true,true}; power_receipt={p::Result::queued,true,true,true,true};
+    melee_receipt={s::Result::queued,true,true,true}; power_receipt={p::Result::queued,true,true,true,true,1};
     scene={}; scene.epoch=1; scene.actor=base+0x2000; scene.window=base+0x1000;
     scene.world=base+0x6000; scene.parent=0; scene.identity={100,53};
     Put(base+0x16a2d98,scene.actor); Put(base+0x16a7bfc,scene.window); Put(base+0x1389028,scene.world);
@@ -44,6 +58,7 @@ void Reset() {
     }
     Put(scene.actor+0x4b0,base+0xb000); Put(base+0xb000,base+0xb100); Put(base+0xb108,scene.parent);
     Put(base+0xb120,m::GroundPoint{2000,40,-3000});
+    Put(base+0xc010,std::uint32_t{5});
     Put(scene.actor+0xad0,base+0xc000); Put(base+0xc018,std::uint32_t{1}); Put(base+0xc020,std::uint32_t{1});
     Put(base+0x45cc,80.0f); Put(base+0x45d0,100.0f);
     unsigned role=1;
@@ -77,14 +92,23 @@ Scope::~Scope() {}
 Receipt Scope::Finish() noexcept { if(melee_context.receipt) { *melee_context.receipt=melee_receipt; } return melee_receipt; }
 }
 namespace wonderbane::extension::combat::power {
+std::uint64_t InitiationEpoch() noexcept { return epoch; }
+bool NativeUseInFlight() noexcept { return native_in_flight; }
 bool Ready() noexcept { return true; }
 Boundary::Boundary() noexcept {} void Boundary::Restore() noexcept { ++restores; }
 Scope::Scope(const Context& value) noexcept:context_(value) { power_context=value; }
 Scope::~Scope() {}
 Receipt Scope::Finish() noexcept { if(power_context.receipt) { *power_context.receipt=power_receipt; } return power_receipt; }
+bool ReadSelfInitiation(std::uintptr_t,std::uintptr_t,std::uint32_t,InitiationDefinition& out) {
+    if(!definition_available) { return false; }
+    out={base+0x10000+definition_generation*4,learned_rank,initiation_seconds};
+    if(mutate_after_definition) { mutate_on_current=true; } return true;
+}
 bool Invoke(Scope& scope) {
     ++casts; assert(scope.Binding().power_id==428918601);
-    Put(scene.actor+0x9bc,std::uint32_t{1}); Put(base+0xc020,std::uint32_t{4});
+    if(power_context.receipt) { *power_context.receipt=power_receipt; }
+    Put(scene.actor+0x9bc,std::uint32_t{12}); Put(base+0xc020,std::uint32_t{4});
+    Put(base+0xc010,std::uint32_t{6}); Protocol({scope.Binding().power_id});
     assert(power_context.current(power_context.owner)); // Native entry may legitimately become busy.
     return true;
 }
@@ -100,6 +124,9 @@ bool Invoke(std::uintptr_t image,void* actor,void* target,submission::Scope&,voi
         if(seh_attack) { RaiseException(0xe0005555,0,0,nullptr); }
         throw std::runtime_error("owned request fault");
     }
+    if(mutate_before_entry) { ++epoch; assert(!current(context)); return false; }
+    if(melee_context.receipt) { *melee_context.receipt=melee_receipt; }
+    if(mutate_after_entry) { ++epoch; }
     Put(base+0xc020,std::uint32_t{2}); Put(scene.actor+0xaf8,base+0x4000);
     assert(current(context)); return true;
 }
@@ -130,6 +157,7 @@ struct NativeTargetTestAccess {
         value.calls_.lookup=reinterpret_cast<decltype(value.calls_.lookup)>(&Lookup);
         value.calls_.retain=reinterpret_cast<decltype(value.calls_.retain)>(&Retain);
         value.calls_.release=reinterpret_cast<decltype(value.calls_.release)>(&Release);
+        value.calls_.self_initiation=&power::ReadSelfInitiation;
         value.calls_.attack=&melee::Invoke; value.calls_.cast=&power::Invoke; value.calls_.dispatch=&Dispatch;
     }
     static void Dispose(NativeTarget& value) {
@@ -145,9 +173,11 @@ int main() {
         assert(target.Prepare(scene,command,Current,Current,nullptr).outcome==O::bound && !attacks && !casts && !stops);
         command.action=c::wire::Action::attack;
         assert(target.Execute(command).outcome==O::client_outbound_queued && attacks==1 && lookups==1);
-        assert(target.Execute(command).outcome==O::deferred && attacks==1); // Native action, not animation impact.
+        // A persistent action2 and any animation event index are not pending initiation.
+        Put(scene.actor+0x9bc,std::uint32_t{99}); command.request.back()=2;
+        assert(target.Execute(command).outcome==O::client_outbound_queued && attacks==2);
         Put(base+0xc020,std::uint32_t{1});
-        command.request.back()=2; command.action=c::wire::Action::cast; command.power_id=428918601;
+        command.request.back()=3; command.action=c::wire::Action::cast; command.power_id=428918601;
         assert(target.Execute(command).outcome==O::client_outbound_queued && casts==1 && lookups==1);
         assert(target.Prepared() && !stops && target.Clear());
     }
@@ -162,16 +192,65 @@ int main() {
         assert(power_context.RecipientKey()[0]==100 && command.target_key[0]==200);
         assert(references[reinterpret_cast<void*>(scene.actor)]==1 && references[reinterpret_cast<void*>(base+0x4000)]==1);
         command.request.back()=2; command.action=c::wire::Action::attack; command.power_id=0;
-        assert(target.Execute(command).outcome==O::deferred && attacks==0); // Preserve native busy state.
-        Put(base+0xc020,std::uint32_t{1}); Put(scene.actor+0x9bc,std::uint32_t{0});
+        // Exact owned instant self-power may hand off without waiting for animation/state6.
         assert(target.Execute(command).outcome==O::client_outbound_queued && attacks==1 && casts==1);
+        command.request.back()=3;
+        assert(target.Execute(command).outcome==O::deferred && attacks==1); // Allowance consumed once.
         assert(target.Clear());
+    }
+    for(unsigned scenario=0;scenario<15;++scenario) {
+        Reset(); auto command=Command(true); c::NativeTarget target; c::NativeTargetTestAccess::Bind(target);
+        assert(target.Prepare(scene,command,Current,Current,nullptr).outcome==O::bound);
+        if(scenario==0) { initiation_seconds=1; }
+        if(scenario==1) { power_receipt={p::Result::uncertain,true,true,true,true}; }
+        if(scenario==2) { power_receipt={p::Result::entered,true,false,false,true}; }
+        command.action=c::wire::Action::self_power; command.power_id=428918601;
+        (void)target.Execute(command);
+        if(scenario==3) { ++learned_rank; }
+        if(scenario==4) { ++definition_generation; }
+        if(scenario==5) { Protocol({428918601,428918601,428918601}); }
+        if(scenario==6) { Protocol({428918601,123}); }
+        if(scenario==7) { definition_available=false; }
+        if(scenario==8) { Protocol({428918601,428918601}); }
+        if(scenario==9) { admitted=false; }
+        if(scenario==10) { ++epoch; Protocol({428918601}); } // Removed/re-added same ID is foreign history.
+        if(scenario==11) { epoch=0; } // Saturated epoch cannot collide.
+        if(scenario==13) { mutate_after_entry=true; }
+        if(scenario==14) { mutate_after_definition=true; }
+        if(scenario==12) { mutate_before_entry=true; melee_receipt={s::Result::denied,false,false,false}; }
+        command.request.back()=2; command.action=c::wire::Action::attack; command.power_id=0;
+        const auto result=target.Execute(command);
+        assert(((scenario==8||scenario==13) ? result.outcome==O::client_outbound_queued && attacks==1
+            : result.outcome!=O::client_outbound_queued && (scenario==12?attacks==1:!attacks)));
+        assert(target.Clear());
+    }
+    // Both stationary and moving native initiation must preserve foreign work.
+    for(const auto state:{5U,6U}) {
+        Reset(); auto command=Command(true); c::NativeTarget target; c::NativeTargetTestAccess::Bind(target);
+        assert(target.Prepare(scene,command,Current,Current,nullptr).outcome==O::bound);
+        Put(base+0xc010,state); Protocol({123});
+        command.action=c::wire::Action::attack;
+        assert(target.Execute(command).outcome==O::deferred && !attacks);
+        Protocol({});
+        assert(target.Execute(command).outcome==(state==6?O::deferred:O::client_outbound_queued));
+        assert(target.Clear());
+    }
+    {
+        Reset();auto command=Command(true);c::NativeTarget target;c::NativeTargetTestAccess::Bind(target);
+        native_in_flight=true;
+        assert(target.Prepare(scene,command,Current,Current,nullptr).outcome==O::deferred);
+        native_in_flight=false;
+        assert(target.Prepare(scene,command,Current,Current,nullptr).outcome==O::bound);
+        native_in_flight=true;command.action=c::wire::Action::attack;
+        assert(target.Execute(command).outcome==O::deferred);
+        c::NativeTarget::Observation state{};assert(!target.Cancel(scene,Current,nullptr,state));
+        assert(!attacks&&!casts&&!stops);native_in_flight=false;assert(target.Clear());
     }
     for(unsigned scenario=0;scenario<4;++scenario) {
         Reset(); auto command=Command(true); c::NativeTarget target; c::NativeTargetTestAccess::Bind(target);
-        Put(base+0xc020,std::uint32_t{4}); Put(scene.actor+0x9bc,std::uint32_t{1});
+        Put(base+0xc010,std::uint32_t{6}); Put(base+0xc020,std::uint32_t{4}); Put(scene.actor+0x9bc,std::uint32_t{1});
         Put(scene.actor+0xaf8,scenario==0?base+0x4000:scenario==1?base+0x6000:std::uintptr_t{0});
-        if(scenario==3) { Put(base+0xc020,std::uint32_t{1}); Put(scene.actor+0x9bc,std::uint32_t{0}); Put(base+0xc018,std::uint32_t{2}); }
+        if(scenario==3) { Put(base+0xc010,std::uint32_t{5}); Put(base+0xc020,std::uint32_t{1}); Put(scene.actor+0x9bc,std::uint32_t{0}); Put(base+0xc018,std::uint32_t{2}); }
         assert(target.Prepare(scene,command,Current,Current,nullptr).outcome==((scenario==0||scenario==3)?O::bound:O::deferred));
         assert(!attacks && !casts && !stops && target.Clear());
     }
@@ -201,7 +280,7 @@ int main() {
         if(bad==2) { Put(base+0x4d0c,std::uint16_t{1}); }
         if(bad==3) { command.owner.fill(9); }
         if(bad==4) { Put(base+0x8104,std::uintptr_t{1}); }
-        if(bad==5) { Put(scene.actor+0x9bc,std::uint32_t{2}); }
+        if(bad==5) { Put(scene.actor+0x65c,std::uint32_t{1}); }
         c::NativeTarget target; c::NativeTargetTestAccess::Bind(target);
         assert(target.Prepare(scene,command,Current,Current,nullptr).outcome!=O::bound);
         assert(!attacks && !casts && !stops && target.Clear());
@@ -213,10 +292,11 @@ int main() {
         c::NativeTarget::Observation state{};
         assert(!target.Cancel(scene,Current,nullptr,state) && state.target==base+0x4000);
         Put(base+0xc018,std::uint32_t{1}); Put(base+0xc020,std::uint32_t{4}); Put(scene.actor+0xaf8,std::uintptr_t{0});
-        assert(!target.Cancel(scene,Current,nullptr,state)); // No target does not prove a cast completed.
-        Put(base+0xc020,std::uint32_t{1}); Put(scene.actor+0x9bc,std::uint32_t{1});
+        Put(base+0xc010,std::uint32_t{6});
+        assert(!target.Cancel(scene,Current,nullptr,state)); // No target does not prove initiation settled.
+        Put(base+0xc010,std::uint32_t{5}); Protocol({428918601});
         assert(!target.Cancel(scene,Current,nullptr,state));
-        Put(scene.actor+0x9bc,std::uint32_t{0});
+        Protocol({}); Put(base+0xc020,std::uint32_t{2}); Put(scene.actor+0x9bc,std::uint32_t{23});
         assert(target.Cancel(scene,Current,nullptr,state) && target.Clear());
     }
     Reset(); auto command=Command(true); ++command.target_hint; c::NativeTarget mismatch; c::NativeTargetTestAccess::Bind(mismatch);

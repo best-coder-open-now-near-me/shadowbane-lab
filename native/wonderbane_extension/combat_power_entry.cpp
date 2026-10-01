@@ -3,6 +3,7 @@
 #include <Windows.h>
 #include <algorithm>
 #include <cstring>
+#include <cmath>
 namespace wonderbane::extension::combat::power {
 namespace {
 bool Read(void* out, std::uintptr_t at, std::size_t size) noexcept {
@@ -108,6 +109,26 @@ bool InvokeBound(Scope& scope, const Calls& calls) {
     const float position[3]{};
     return detail::Entry::Call(scope, calls.use, rank, position);
 }
+}
+bool ReadSelfInitiation(std::uintptr_t image, std::uintptr_t actor, std::uint32_t id,
+    InitiationDefinition& out) {
+    using Curve = double(__thiscall*)(void*, std::uint32_t, std::uint32_t);
+    const auto lookup = reinterpret_cast<Definition>(image + 0x16d8a0);
+    const auto rank = reinterpret_cast<Rank>(image + 0x9b400);
+    const auto curve = reinterpret_cast<Curve>(image + 0x1725b0);
+    const auto definition = reinterpret_cast<std::uintptr_t>(lookup(id));
+    const int learned = rank(reinterpret_cast<void*>(actor), id);
+    std::uint32_t actual{}, category{}, recipient{}, delivery{};
+    if (!id || !definition || learned <= 0
+        || !Read(&actual, definition + 0x138, 4) || actual != id
+        || !Read(&category, definition + 0x204, 4) || category > 1
+        || !Read(&recipient, definition + 0x1a8, 4) || recipient != 2
+        || !Read(&delivery, definition + 0x1b4, 4) || delivery != 0) { return false; }
+    const auto capped = static_cast<std::uint32_t>(std::min(learned, 9999));
+    const double seconds = curve(reinterpret_cast<void*>(definition), 3, capped);
+    if (!std::isfinite(seconds) || seconds < 0 || lookup(id) != reinterpret_cast<void*>(definition)
+        || rank(reinterpret_cast<void*>(actor), id) != learned) { return false; }
+    out = {definition, capped, seconds}; return true;
 }
 bool Invoke(Scope& scope) {
     const auto image = scope.Binding().image;

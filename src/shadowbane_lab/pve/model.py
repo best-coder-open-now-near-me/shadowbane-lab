@@ -235,10 +235,12 @@ class PvETrackedTargetAction:
     def as_dict(self) -> dict[str, object]:
         return {"token": self.token,
                 "object_key": [self.object_key.object_type, self.object_key.object_uuid],
-                "phase": self.action.phase.value, "action_sequence": self.action.action_sequence,
-                "motion_id": self.action.motion_id, "action_pending": self.action.action_pending,
+                "initiation_state": self.action.initiation_state,
+                "power_protocol_ids": self.action.power_protocol_ids,
+                "motion_id": self.action.motion_id,
+                "animation_event_index": self.action.animation_event_index,
                 "targeting_player": self.action.targeting_player,
-                "impact_frame": self.action.impact_frame}
+                "animation_frame": self.action.animation_frame}
 
 
 @dataclass(frozen=True, slots=True)
@@ -349,7 +351,6 @@ class PvEControllerConfig:
     engagement_timeout_ms: int = 30_000
     stalled_progress_ms: int = 5_000
     quiet_melee_timeout_ms: int = 2_500
-    missing_attack_animation_timeout_ms: int = 1_500
     incoming_reposition_grace_ms: int = 1_500
     incoming_reposition_window_ms: int = 3_000
     selection_loss_grace_ms: int = 750
@@ -397,10 +398,6 @@ class PvEControllerConfig:
             (self.engagement_timeout_ms, "engagement_timeout_ms"),
             (self.stalled_progress_ms, "stalled_progress_ms"),
             (self.quiet_melee_timeout_ms, "quiet_melee_timeout_ms"),
-            (
-                self.missing_attack_animation_timeout_ms,
-                "missing_attack_animation_timeout_ms",
-            ),
             (self.incoming_reposition_grace_ms, "incoming_reposition_grace_ms"),
             (self.incoming_reposition_window_ms, "incoming_reposition_window_ms"),
             (self.selection_loss_grace_ms, "selection_loss_grace_ms"),
@@ -437,8 +434,6 @@ class PvEControllerConfig:
             raise ValueError("target sample interval cannot exceed acquisition timeout")
         if self.stalled_progress_ms > self.engagement_timeout_ms:
             raise ValueError("stalled progress timeout cannot exceed engagement timeout")
-        if self.missing_attack_animation_timeout_ms > self.quiet_melee_timeout_ms:
-            raise ValueError("missing attack-animation timeout cannot exceed quiet melee timeout")
         if self.selection_loss_grace_ms > self.engagement_timeout_ms:
             raise ValueError("selection loss grace cannot exceed engagement timeout")
         if self.post_kill_delay_ms > self.recovery_timeout_ms:
@@ -991,17 +986,13 @@ class PvERunTraceStep:
                     None
                     if self.target_action is None
                     else {
-                        "phase": (
-                            None
-                            if self.target_action.phase is None
-                            else self.target_action.phase.value
-                        ),
                         "targeting_player": self.target_action.targeting_player,
                         "motion_id": self.target_action.motion_id,
-                        "action_pending": self.target_action.action_pending,
-                        "impact_frame": self.target_action.impact_frame,
-                        "action_sequence": self.target_action.action_sequence,
-                        "interrupt_opportunity": (self.target_action.interrupt_opportunity),
+                        "animation_event_index": self.target_action.animation_event_index,
+                        "animation_frame": self.target_action.animation_frame,
+                        "initiation_state": self.target_action.initiation_state,
+                        "power_protocol_ids": self.target_action.power_protocol_ids,
+                        "initiation_pending": self.target_action.initiation_pending,
                     }
                 ),
                 "identity": (
@@ -1037,20 +1028,19 @@ class PvERunTraceStep:
                     None
                     if self.player_action is None
                     else {
-                        "phase": self.player_action.phase.value,
                         "targeting_selected": self.player_action.targeting_selected,
                         "selection_observed": self.player_action.selection_observed,
                         "selected_target_token": self.player_action.selected_target_token,
                         "action_target_token": self.player_action.action_target_token,
                         "motion_id": self.player_action.motion_id,
-                        "action_pending": self.player_action.action_pending,
-                        "impact_frame": self.player_action.impact_frame,
-                        "action_sequence": self.player_action.action_sequence,
-                        "motion_sequence": self.player_action.motion_sequence,
-                        "action_active": self.player_action.action_active,
+                        "animation_event_index": self.player_action.animation_event_index,
+                        "animation_frame": self.player_action.animation_frame,
+                        "initiation_state": self.player_action.initiation_state,
+                        "power_protocol_ids": self.player_action.power_protocol_ids,
+                        "initiation_pending": self.player_action.initiation_pending,
                         "mode": self.player_action.mode,
                         "action_state": self.player_action.action_state,
-                        "native_action_idle": self.player_action.native_action_idle,
+                        "initiation_clear": self.player_action.initiation_clear,
                     }
                 ),
             },

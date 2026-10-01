@@ -25,7 +25,7 @@ def test_resolves_exact_objects_without_reading_selection():
     process, reader, binding = setup_reader()
     del process.memory[process.base_address + process.profile.selected_pointer_rva]
     assert reader.resolve_combat_addresses(**binding) == (process.player, process.crab)
-    assert process.find_calls == 1
+    assert process.find_calls == 0
 
 
 @pytest.mark.parametrize("change", ["unknown_token", "wrong_key", "replaced", "actor", "closed"])

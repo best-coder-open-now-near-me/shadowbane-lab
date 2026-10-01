@@ -4,28 +4,24 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`.
-[PR #25](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/25)
-merged the consolidated development history as
-`555f6bf8d7609a03c5a4828c56c464879b34d8dd`, including the guard/vendor/runtime
-baseline, reconciled movement history, and the catch-up source changes.
-All 15 hosted checks passed for its exact reviewed head `e8062fd`.
-The [integration inventory](docs/integration-status-20260923.md) records retained
-source, deferred lanes, validation and remaining acceptance.
+Start new work from freshly fetched `origin/main`, currently the PR #52 merge
+`72f13d5f64f896a5b646838ed3bd5c268fac7773`. The installed bot uses host .59/native
+.39 from qualified source `e90d2f6` with official client 1.3.38.13.
 
-The combined bot source is merged into `main` through
-[PR #43](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/43)
-at `d3389d4eff992074f7a63394c735f5b4cfd1d993`, including PRs #38-42. Start new
-work from freshly fetched main. Manual-list combat, exact PvE attribution,
-captured-client command ownership, and client 1.3.38.12 support are included.
-The [integration receipt](docs/bot-integration-20260928.md) records exact source
-and validation. Follow the [September 29 deployment handoff](docs/bot-deployment-20260929.md)
-for the host 0.3.53 / native 1.8.33 update, live-test readiness, and remaining input.
-Automatic retaliation still requires the authoritative server session contract.
+The reviewed .60/.40 candidate is published on `codex/registry-backed-population`
+through [draft PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54),
+with main as its integration destination. Exact package source `f0263c3` passed
+host, native, cross-process and original/prepared client qualification. It adds
+registered object membership, native initiation observation, and guarded skill-to-attack
+request provenance. It remains unmerged and uninstalled pending new approval.
+PR #54 includes the full PR #53 deployment receipt and will supersede it after integration.
 
-Read the [branch map](docs/git-branch-map.md) before choosing a development base,
+Read the [branch map](docs/git-branch-map.md) before selecting a development base,
+the [current bot qualification and live-test todos](docs/queued-skills-20261001.md),
 and the [contributor workflow](CONTRIBUTING.md) before starting a new task.
-The branch map identifies later work that still needs separate integration.
+Automatic retaliation remains disabled pending the authoritative server session contract.
+Earlier integration history and retained lanes are recorded in the
+[integration inventory](docs/integration-status-20260923.md).
 
 `shadowbane-lab` is a deterministic simulation and bot-policy laboratory. It treats
 Shadowbane as a data-driven ruleset and keeps deployment mechanisms outside the policy.

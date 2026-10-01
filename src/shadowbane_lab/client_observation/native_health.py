@@ -162,6 +162,13 @@ class ReadOnlyProcessMemory(Protocol):
     def close(self) -> None: ...
 
 
+@runtime_checkable
+class BlockReadOnlyProcessMemory(ReadOnlyProcessMemory, Protocol):
+    """Read exact bounded blocks without requiring memory-region scanning."""
+
+    def read_block(self, address: int, size: int) -> bytes: ...
+
+
 @dataclass(frozen=True, slots=True)
 class NativeMemoryRegion:
     """One committed virtual-memory region exposed by the read-only backend."""

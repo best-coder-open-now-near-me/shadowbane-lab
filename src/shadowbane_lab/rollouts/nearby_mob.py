@@ -12,7 +12,6 @@ from shadowbane_lab.client_observation import (
     NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
-    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetPositionObservation,
 )
@@ -319,8 +318,8 @@ def run_nearby_mob_simulation(
                     player.position.x, player.position.y, 0.0),
                 target_position=NativeTargetPositionObservation(target_present=False),
                 player_action=NativePlayerActionObservation(
-                    phase=NativeTargetActionPhase.IDLE, motion_id=0, action_pending=False,
-                    impact_frame=None, action_sequence=0, motion_sequence=0,
+                    motion_id=0, animation_event_index=0,
+                    animation_frame=None, initiation_state=5, power_protocol_ids=(),
                     mode=2 if auto_attack else 1, action_state=1,
                     selected_target_token=target.target_token,
                     action_target_token="simulation:mob:1" if auto_attack else None,

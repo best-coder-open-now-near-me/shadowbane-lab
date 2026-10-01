@@ -216,3 +216,69 @@ def test_combat_ipc_requires_real_execution(tmp_path, outcome):
     else:
         with pytest.raises(RuntimeError, match="combat IPC"):
             builder.validate_combat_ipc_results(path, "diagnostics-only")
+
+
+def initiation_steps():
+    return [
+        {"name": f"{profile}-combat-power-initiation-{suffix}", "exit_code": 0,
+         "command": ["wonderbane_extension_combat_power_initiation_probe.exe", image]}
+        for profile in ("full", "diagnostics-only")
+        for suffix, image in (("binding", "official-13.exe"),
+                              ("prepared-binding", f"{profile}-prepared-13.exe"))
+    ]
+
+
+def test_initiation_receipt_requires_all_four_executed_exact_image_gates():
+    assert builder.validate_combat_power_initiation_steps(initiation_steps(), reviewed_client=True)
+    assert not builder.validate_combat_power_initiation_steps([], reviewed_client=False)
+
+
+@pytest.mark.parametrize("index", range(4))
+@pytest.mark.parametrize("failure", ["missing", "failed", "duplicate", "wrong_probe", "no_image"])
+def test_initiation_receipt_cannot_certify_missing_or_wrong_execution(index, failure):
+    steps = initiation_steps()
+    if failure == "missing":
+        steps.pop(index)
+    elif failure == "failed":
+        steps[index]["exit_code"] = 1
+    elif failure == "duplicate":
+        steps.append(dict(steps[index]))
+    elif failure == "wrong_probe":
+        steps[index]["command"][0] = "other.exe"
+    else:
+        steps[index]["command"] = steps[index]["command"][:1]
+    with pytest.raises(RuntimeError, match="initiation"):
+        builder.validate_combat_power_initiation_steps(steps, reviewed_client=True)
+
+
+@pytest.mark.parametrize("pair", [0, 2])
+def test_initiation_gate_cannot_count_one_image_twice(pair):
+    steps = initiation_steps()
+    steps[pair+1]["command"][1] = steps[pair]["command"][1]
+    with pytest.raises(RuntimeError, match="original and prepared"):
+        builder.validate_combat_power_initiation_steps(steps, reviewed_client=True)
+
+
+@pytest.mark.parametrize(
+    "image", ["prepared12", "original12", "prepared13", "original13", "unknown"],
+)
+@pytest.mark.parametrize("failure", ["missing", "skipped", "failure", "duplicate"])
+def test_initiation_image_admission_is_a_required_gate(tmp_path, image, failure):
+    name = f"wonderbane_extension_combat_power_image_{image}"
+    assert name in builder.REQUIRED_COMBAT_TESTS
+    suite = ET.Element("testsuite")
+    for required in sorted(builder.REQUIRED_COMBAT_TESTS):
+        if required == name and failure == "missing":
+            continue
+        case = ET.SubElement(suite, "testcase", name=required, status="run")
+        if required == name and failure in ("skipped", "failure"):
+            ET.SubElement(case, failure)
+        if required == name and failure == "duplicate":
+            ET.SubElement(suite, "testcase", name=required, status="run")
+    path = tmp_path / "admission.xml"
+    ET.ElementTree(suite).write(path)
+    with pytest.raises(RuntimeError):
+        builder.validate_native_results(
+            path, set(builder.REQUIRED_COMBAT_TESTS), diagnostic=False,
+            exit_code=8 if failure == "failure" else 0,
+        )

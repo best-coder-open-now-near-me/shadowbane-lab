@@ -7,43 +7,56 @@ records in place. Historical backup/rollback requirements below are superseded.
 ## Current shared source and deployment - October 1
 
 Start new development from freshly fetched `origin/main`, now
-`214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` (merged PR #51). The normal project
-checkout is clean on that main revision. PR #49 is also merged. The exact .58/.38
-package source `05c888a4ff1e1443163ef3cb2ea6e2432672c372` is retained in main.
-The old `codex/queued-weapon-skill-opener` branch was retired locally and remotely
-after ancestry and checkout checks.
+`72f13d5f64f896a5b646838ed3bd5c268fac7773` (merged PR #52). The normal project
+checkout is clean on that main revision. The approved final PR head `cf77b4d`
+passed all 15 hosted checks; merge completed October 1 at 15:53:29 UTC.
+Exact installed package source `e90d2f64ea49df5af94365012548266e6829e3a1` is
+retained in main. Later documentation commits do not change the package stamp.
 
-The reused bot-runtime worktree is on `codex/queued-skill-deployment-20261001`,
-based on that main merge. Deployment documentation and the pending native
-combat-mode prerequisite correction are outside main, with main as the integration
-destination through [draft PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52).
-The installed .58/.38 runtime remains the merged `05c888a4` package. Candidate
-host .59/native .39 is qualified at package source
-`e90d2f64ea49df5af94365012548266e6829e3a1` but is not installed. Subsequent
-qualification documentation does not alter that package source identity; hosted
-checks and merge approval apply to the final PR head.
-This receipt incorporates the relevant .57 deployment and successful manual-player
-recovery facts from [PR #50](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/50)
-(`1bc32e3`). That documentation PR is still open and unmerged; PR #52 will supersede
-it after review.
+The deployment receipt is published on `codex/native-stance-deployment-20261001`
+in the bot-runtime worktree through [draft PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53).
+Its complete tip `ec1ad28` is now included in the combined
+[draft PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54),
+branch `codex/registry-backed-population` in the reused bot-integration checkout.
+PR #54 targets main and will supersede #53 after integration; both remain unmerged.
+The old `codex/queued-skill-deployment-20261001` branch was retired
+locally and remotely after ancestry checks. PR #50 was closed as superseded:
+its relevant .57 receipt facts are incorporated, but its branch is retained
+because its exact tip is not an ancestor of main.
 
-Host **0.3.58** / native **1.8.38** are installed from the qualified b38 package.
+Host **0.3.59** / native **1.8.39** are installed from the qualified b39 package.
 Both clients retain official **1.3.38.13** data. Installation verified 454 modules,
-9,567 preserved files, one DLL inventory change, five shortcuts and launch preflight.
-The obsolete .57 host and two exact guest payload binaries were inspected and
+9,568 preserved files, one DLL inventory change, five shortcuts and launch preflight.
+The obsolete .58 host and two exact old payload binaries were inspected and
 removed; settings, jobs and diagnostic records remain, with no retained rollback.
 The [deployment record](queued-skills-20261001.md) records exact hashes and checks.
 
-The .57 manual-player attack/list-removal/native-stop/later-SEEKING gate passed.
-Its NPC attacks queued but did not confirm cleanup under the former immediate
-retry policy. The installed .58 correction uses bounded same-owner settlement.
-The .58 bounded basic NPC queue/terminal-cleanup gate has now passed. The skill
-attempt remained UNCERTAIN with no queue evidence or followup attack. A later
-owner revocation preceded confirmed terminal cleanup; its trigger remains unknown.
-Active next item: PR #52 approval and hosted checks, then closed-client
-installation of the qualified .59/.39 correction and bounded skill acceptance. Owner guards and no-restart handling remain unchanged.
-No server-consumption success is claimed. Automatic retaliation remains disabled pending the separate
-authoritative server-character-session fence.
+The .59 bounded skill/attack/cleanup gate passed: SELF_POWER and the following
+ATTACK queued against the same NPC binding and owner, then NATIVE_STOPPED confirmed
+terminal cleanup. No owner or manual-list entry remained. Umbra/Wonderbane has
+saved basic policy with Shot to the Leg opener 563795161, revision 1, for the next
+PvE run. Earlier .58 basic-pass/skill-uncertain and .57 manual-player recovery
+results are historical; the earlier owner-revocation trigger remains unknown.
+The planned follow-through has not run: read-only preflight found persistent
+action state 2, and population observation rejected duplicate NPC identities.
+The user reports that the previously attacked NPC died and that no manual input
+was occurring. Separate passive evidence found its old heap object at zero health
+and a live replacement with the same key but a different token; a complete world
+registry census contained only the replacement. Engagement cannot transfer to it.
+Registry-backed population is implemented at `6eecda8`, independently reviewed,
+and passed 4,251 host tests plus 801 subtests with 36 skips. It remains
+uninstalled and outside main in PR #54. The reviewed outermost-update guard is
+also pushed at `8090c17`, and the host correction at `0e218bc`. Exact-source
+host .60/native .40 package `f0263c38ef36874da0e68e0aa5e0c8775550e618` is now
+qualified: 4,325 host tests, 788 subtests, and 204 native/72 movement IPC/85 combat
+IPC tests per profile passed, including original/prepared client .13 probes.
+All 60 package steps and 86 indexed artifacts were verified. Active next item:
+obtain PR #54 merge/install approval and a closed-client confirmation, then merge
+after hosted checks pass and install the qualified package. The source is not yet
+merged or installed. Bounded follow-through awaits installation. Neither the user
+report nor the passive snapshot proves player kill credit, skill consumption or snare application.
+Automatic retaliation remains disabled pending the separate authoritative
+server-character-session fence.
 
 Everything below is historical. Earlier current/candidate/next statements do not
 override the current source, installed runtime and active work above.

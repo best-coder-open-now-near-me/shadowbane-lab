@@ -1,16 +1,15 @@
 import json
 import struct
-import unittest
-from dataclasses import replace
+from dataclasses import asdict, replace
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from shadowbane_lab.client_observation import (
     NativePlayerActionObservation,
     NativeTargetActionCompatibilityError,
     NativeTargetActionObservation,
-    NativeTargetActionPhase,
-    NativeTargetActionProfile,
     NativeTargetActionReader,
     NativeTargetActionReadError,
     load_bundled_native_target_action_profile,
@@ -18,441 +17,245 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_action_reader,
 )
 
+ORIGINAL = "e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8"
+PREPARED = "0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d"
 
-def _profile() -> NativeTargetActionProfile:
-    return NativeTargetActionProfile(
-        profile_id="target-action-test",
-        executable_name="sb.exe",
-        executable_sha256="ab" * 32,
-        pointer_size=4,
-        player_pointer_rva=0x100,
-        selected_pointer_rva=0x104,
-        arc_character_vtable_rva=0x200,
-        arc_motion_vtable_rva=0x300,
-        current_motion_pointer_offset=0x988,
-        current_motion_id_offset=0x98C,
-        impact_frame_offset=0x9A8,
-        action_pending_offset=0x9BC,
-        target_of_target_pointer_offset=0xAF8,
-        actor_state_pointer_offset=0xAD0,
-        state_mode_offset=0x18,
-        state_action_offset=0x20,
-        idle_motion_ids=(21,),
-        observed_attack_motion_ids=(106, 107, 108),
-        no_impact_frame_sentinel=-1,
-        maximum_motion_id=4096,
-        maximum_impact_frame=4096,
-        minimum_user_address=0x10000,
-        maximum_user_address=0x7FFEFFFF,
-    )
+
+def _profile():
+    return replace(load_bundled_native_target_action_profile(),
+        profile_id="target-action-test", executable_sha256="ab" * 32,
+        player_pointer_rva=0x100, selected_pointer_rva=0x104,
+        arc_character_vtable_rva=0x200, arc_motion_vtable_rva=0x300)
 
 
 class FakeProcessMemory:
     pid = 41
     executable_name = "sb.exe"
     executable_path = Path("C:/Wonderbane/sb.exe")
-    executable_sha256 = "ab" * 32
+    executable_sha256 = ORIGINAL
     base_address = 0x400000
     pointer_size = 4
+    player, target, motion = 0x12300000, 0x12400000, 0x12500000
+    state, vector = 0x12600000, 0x12700000
 
-    player = 0x12300000
-    target = 0x12400000
-    motion = 0x12500000
-    player_motion = 0x12600000
-
-    def __init__(self, profile: NativeTargetActionProfile) -> None:
-        self.profile = profile
+    def __init__(self, profile=None):
+        self.profile = profile or _profile()
+        self.memory = {}
         self.closed = False
-        self.selected = self.target
-        self.motion_id = 21
-        self.pending = False
-        self.impact_frame = -1
-        self.target_of_target = self.player
-        self.player_motion_id = 21
-        self.player_pending = False
-        self.player_impact_frame = -1
-        self.player_action_target = self.target
-        self.state_pointer = 0x12800000
-        self.mode = 1
-        self.action_state = 1
-        self.selected_vtable = self.base_address + profile.arc_character_vtable_rva
-        self.player_vtable = self.selected_vtable
-        self.motion_vtable = self.base_address + profile.arc_motion_vtable_rva
-        self.read_sizes: list[int] = []
+        self.read_sizes = []
+        self.mutate = None
+        self.put(self.base_address + self.profile.player_pointer_rva, self.player)
+        self.put(self.base_address + self.profile.selected_pointer_rva, self.target)
+        self.put(self.motion, self.base_address + self.profile.arc_motion_vtable_rva)
+        for obj in (self.player, self.target):
+            self.put(obj, self.base_address + self.profile.arc_character_vtable_rva)
+            self.put(obj + 0x988, self.motion, 106)
+            self.put(obj + 0x9A8, 0xFFFFFFFF)
+            self.put(obj + 0x9BC, 17)
+            self.put(obj + 0xAF8, 0)
+            self.put(obj + 0xAD0, self.state)
+            self.put(obj + 0x65C, 0, 0, 0)
+        self.put(self.state + 0x10, 5)
+        self.put(self.state + 0x18, 1)
+        self.put(self.state + 0x20, 2)
 
-    def read(self, address: int, size: int) -> bytes:
+    def put(self, address, *values):
+        for offset, byte in enumerate(struct.pack("<" + "I" * len(values), *values)):
+            self.memory[address + offset] = byte
+
+    def protocol(self, ids):
+        self.put(self.vector, *ids)
+        self.put(self.player + 0x65C, self.vector, self.vector + 4 * len(ids),
+                 self.vector + 4 * len(ids))
+
+    def read(self, address, size):
+        assert 0 < size <= 64
         self.read_sizes.append(size)
-        if not 1 <= size <= 64:
-            raise AssertionError(f"native read exceeded backend bound: {size}")
-        if address == self.base_address + self.profile.selected_pointer_rva:
-            return struct.pack("<I", self.selected)
-        if address == self.base_address + self.profile.player_pointer_rva:
-            return struct.pack("<I", self.player)
-        if address == self.selected:
-            return struct.pack("<I", self.selected_vtable)
-        if address == self.player:
-            return struct.pack("<I", self.player_vtable)
-        if address == self.motion:
-            return struct.pack("<I", self.motion_vtable)
-        if address == self.player_motion:
-            return struct.pack("<I", self.motion_vtable)
-        if address == self.selected + self.profile.current_motion_pointer_offset:
-            if size != 8:
-                raise AssertionError(f"unexpected motion read size {size}")
-            return struct.pack("<II", self.motion, self.motion_id)
-        if address == self.selected + self.profile.impact_frame_offset:
-            return struct.pack("<i", self.impact_frame)
-        if address == self.selected + self.profile.action_pending_offset:
-            return struct.pack("<I", int(self.pending))
-        if address == self.selected + self.profile.target_of_target_pointer_offset:
-            return struct.pack("<I", self.target_of_target)
-        if address == self.player + self.profile.actor_state_pointer_offset:
-            return struct.pack("<I", self.state_pointer)
-        if address == self.state_pointer + self.profile.state_mode_offset:
-            return struct.pack("<I", self.mode)
-        if address == self.state_pointer + self.profile.state_action_offset:
-            return struct.pack("<I", self.action_state)
-        if address == self.player + self.profile.current_motion_pointer_offset:
-            if size != 8:
-                raise AssertionError(f"unexpected player motion read size {size}")
-            return struct.pack("<II", self.player_motion, self.player_motion_id)
-        if address == self.player + self.profile.impact_frame_offset:
-            return struct.pack("<i", self.player_impact_frame)
-        if address == self.player + self.profile.action_pending_offset:
-            return struct.pack("<I", int(self.player_pending))
-        if address == self.player + self.profile.target_of_target_pointer_offset:
-            return struct.pack("<I", self.player_action_target)
-        raise AssertionError(f"unexpected read at 0x{address:X} ({size} bytes)")
+        if self.mutate:
+            self.mutate(address, size)
+        return bytes(self.memory[address + offset] for offset in range(size))
 
-    def close(self) -> None:
+    def close(self):
         self.closed = True
 
 
-class NativeTargetActionReaderTests(unittest.TestCase):
-    def test_opens_the_guarded_process_explicitly(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        with patch(
-            "shadowbane_lab.client_observation.native_target_action."
-            "WindowsReadOnlyProcessMemory.open_for_process",
-            return_value=process,
-        ) as open_for_process:
-            reader = open_windows_native_target_action_reader(
-                profile,
-                process_id=4320,
-            )
+@pytest.mark.parametrize("digest", [ORIGINAL, PREPARED])
+def test_exact_reviewed_images(digest):
+    memory = FakeProcessMemory()
+    memory.executable_sha256 = digest
+    action = NativeTargetActionReader(memory.profile, memory).observe_player()
+    assert action.initiation_clear and action.action_state == 2
+    assert action.animation_event_index == 17
+    assert not hasattr(action, "phase") and not hasattr(action, "action_pending")
 
-        open_for_process.assert_called_once_with("sb.exe", 4320)
-        reader.close()
-        self.assertTrue(process.closed)
 
-    def test_absent_selection_has_no_action_state(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        process.selected = 0
+def test_unknown_image_rejected_before_memory():
+    memory = FakeProcessMemory()
+    memory.executable_sha256 = "ab" * 32
+    with pytest.raises(NativeTargetActionCompatibilityError):
+        NativeTargetActionReader(memory.profile, memory)
+    assert not memory.read_sizes
 
-        observation = NativeTargetActionReader(profile, process).observe()
 
-        self.assertEqual(NativeTargetActionObservation(target_present=False), observation)
-        self.assertFalse(observation.interrupt_opportunity)
+@pytest.mark.parametrize("index", [0, 1, 2, 19, 0xFFFFFFFF])
+def test_animation_event_index_never_implies_pending_or_new_action(index):
+    memory = FakeProcessMemory()
+    memory.put(memory.player + 0x9BC, index)
+    memory.put(memory.player + 0x9A8, 50)
+    action = NativeTargetActionReader(memory.profile, memory).observe_player()
+    assert action.animation_event_index == index and action.animation_frame == 50
+    assert action.initiation_clear
 
-    def test_observes_queued_windup_impact_and_next_action_sequence(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        reader = NativeTargetActionReader(profile, process)
 
-        idle = reader.observe()
-        process.pending = True
-        queued = reader.observe()
-        process.pending = False
-        process.motion_id = 107
-        windup = reader.observe()
-        process.impact_frame = 19
-        impact = reader.observe()
-        process.impact_frame = -1
-        process.motion_id = 21
-        idle_again = reader.observe()
-        process.pending = True
-        next_queued = reader.observe()
+@pytest.mark.parametrize("state,ids", [(6, ()), (5, (563795161,)), (5, (1, 1)), (6, (1, 2))])
+def test_initiation_state_or_multiset_is_pending_independently_of_action_or_animation(state, ids):
+    memory = FakeProcessMemory()
+    memory.put(memory.state + 0x10, state)
+    memory.put(memory.state + 0x20, 1)
+    memory.protocol(ids)
+    action = NativeTargetActionReader(memory.profile, memory).observe_player()
+    assert action.initiation_pending is True
+    assert action.power_protocol_ids == ids
 
-        self.assertEqual(NativeTargetActionPhase.IDLE, idle.phase)
-        self.assertEqual(0, idle.action_sequence)
-        self.assertEqual(NativeTargetActionPhase.QUEUED, queued.phase)
-        self.assertTrue(queued.targeting_player)
-        self.assertTrue(queued.interrupt_opportunity)
-        self.assertEqual(1, queued.action_sequence)
-        self.assertEqual(NativeTargetActionPhase.WINDUP, windup.phase)
-        self.assertTrue(windup.interrupt_opportunity)
-        self.assertEqual(1, windup.action_sequence)
-        self.assertEqual(NativeTargetActionPhase.IMPACT, impact.phase)
-        self.assertFalse(impact.interrupt_opportunity)
-        self.assertEqual(19, impact.impact_frame)
-        self.assertEqual(NativeTargetActionPhase.IDLE, idle_again.phase)
-        self.assertEqual(2, next_queued.action_sequence)
-        self.assertLessEqual(max(process.read_sizes), 64)
 
-    def test_other_target_is_not_an_interrupt_opportunity(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        process.pending = True
-        process.target_of_target = 0x12600000
+def test_full_multiset_reads_use_64_byte_blocks_and_preserve_duplicates():
+    memory = FakeProcessMemory()
+    ids = tuple(range(1, 129)) * 2
+    memory.protocol(ids)
+    action = NativeTargetActionReader(memory.profile, memory).observe_player()
+    assert action.power_protocol_ids == ids and max(memory.read_sizes) == 64
 
-        observation = NativeTargetActionReader(profile, process).observe()
 
-        self.assertEqual(NativeTargetActionPhase.QUEUED, observation.phase)
-        self.assertFalse(observation.targeting_player)
-        self.assertFalse(observation.interrupt_opportunity)
+@pytest.mark.parametrize("header", [(0, 4, 4), (0x12700000, 0x126FFFFC, 0x12700000),
+    (0x12700000, 0x12700002, 0x12700004), (0x12700000, 0x12700004, 0x12700404),
+    (0xFFFFFFF0, 0xFFFFFFF4, 0xFFFFFFF4)])
+def test_corrupt_protocol_geometry_is_unknown_never_clear(header):
+    memory = FakeProcessMemory()
+    memory.put(memory.player + 0x65C, *header)
+    with pytest.raises(NativeTargetActionReadError):
+        NativeTargetActionReader(memory.profile, memory).observe_player()
 
-    def test_new_queue_wins_over_lingering_impact_and_advances_sequence(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        reader = NativeTargetActionReader(profile, process)
-        process.impact_frame = 5
-        impact = reader.observe()
-        process.pending = True
 
-        queued = reader.observe()
+@pytest.mark.parametrize("field", ["payload", "state", "state_pointer", "header"])
+def test_changing_snapshot_cannot_authorize_admission(field):
+    memory = FakeProcessMemory()
+    memory.protocol((123,))
+    reads = 0
+    def mutate(address, size):
+        nonlocal reads
+        if address == memory.player:
+            reads += 1
+            if field == "payload":
+                memory.put(memory.vector, 123 + reads)
+            elif field == "state":
+                memory.put(memory.state + 0x10, 5 if reads % 2 else 6)
+            elif field == "state_pointer":
+                memory.put(memory.player + 0xAD0, memory.state if reads % 2 else 0)
+            else:
+                memory.put(memory.player + 0x65C, memory.vector,
+                           memory.vector + (4 if reads % 2 else 0), memory.vector + 4)
+    memory.mutate = mutate
+    with pytest.raises(NativeTargetActionReadError):
+        NativeTargetActionReader(memory.profile, memory).observe_player()
 
-        self.assertEqual(NativeTargetActionPhase.IMPACT, impact.phase)
-        self.assertEqual(1, impact.action_sequence)
-        self.assertEqual(NativeTargetActionPhase.QUEUED, queued.phase)
-        self.assertEqual(2, queued.action_sequence)
-        self.assertTrue(queued.interrupt_opportunity)
 
-    def test_observes_local_player_animation_sequence_and_selected_target(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        reader = NativeTargetActionReader(profile, process)
+@pytest.mark.parametrize("state", [0, 8, 0xFFFFFFFF])
+def test_unqualified_initiation_state_fails_closed(state):
+    memory = FakeProcessMemory()
+    memory.put(memory.state + 0x10, state)
+    with pytest.raises(NativeTargetActionReadError):
+        NativeTargetActionReader(memory.profile, memory).observe_player()
 
-        target_token = reader.observe().target_token
-        idle = reader.observe_player()
-        process.player_pending = True
-        queued = reader.observe_player()
-        process.player_pending = False
-        process.player_motion_id = 107
-        windup = reader.observe_player()
 
-        self.assertEqual(
-            NativePlayerActionObservation(
-                phase=NativeTargetActionPhase.IDLE,
-                targeting_selected=True,
-                motion_id=21,
-                action_pending=False,
-                impact_frame=None,
-                action_sequence=0,
-                motion_sequence=0,
-                selected_target_token=target_token,
-                action_target_token=target_token,
-                mode=1,
-                action_state=1,
-            ),
-            idle,
-        )
-        self.assertEqual(NativeTargetActionPhase.QUEUED, queued.phase)
-        self.assertTrue(queued.action_active)
-        self.assertEqual(1, queued.action_sequence)
-        self.assertEqual(NativeTargetActionPhase.WINDUP, windup.phase)
-        self.assertEqual(1, windup.action_sequence)
+def test_zero_protocol_id_fails_closed():
+    memory = FakeProcessMemory()
+    memory.protocol((0,))
+    with pytest.raises(NativeTargetActionReadError):
+        NativeTargetActionReader(memory.profile, memory).observe_player()
 
-    def test_player_action_keeps_its_target_after_deselection_and_retarget(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        reader = NativeTargetActionReader(profile, process)
-        target_token = reader.observe().target_token
-        process.player_pending = True
-        process.selected = 0
-        deselected = reader.observe_player()
-        self.assertTrue(deselected.action_active)
-        self.assertFalse(deselected.targeting_selected)
-        self.assertIsNone(deselected.selected_target_token)
-        self.assertEqual(target_token, deselected.action_target_token)
 
-        process.selected = 0x12700000
-        retargeted = reader.observe_player()
-        self.assertTrue(retargeted.action_active)
-        self.assertFalse(retargeted.targeting_selected)
-        self.assertIsNotNone(retargeted.selected_target_token)
-        self.assertNotEqual(target_token, retargeted.selected_target_token)
-        self.assertEqual(target_token, retargeted.action_target_token)
-        self.assertEqual(deselected.action_sequence, retargeted.action_sequence)
+def test_selected_and_bound_target_capture_same_honest_fields():
+    memory = FakeProcessMemory()
+    memory.put(memory.target + 0xAF8, memory.player)
+    reader = NativeTargetActionReader(memory.profile, memory)
+    action = reader.observe()
+    assert action == reader.observe_character(memory.target)
+    assert action.targeting_player and action.initiation_pending is False
+    memory.put(memory.base_address + memory.profile.selected_pointer_rva, 0)
+    assert reader.observe() == NativeTargetActionObservation(False)
+    assert reader.observe_character(memory.target) == action
 
-        process.player_action_target = 0
-        cast_without_target = reader.observe_player()
-        self.assertTrue(cast_without_target.action_active)
-        self.assertIsNone(cast_without_target.action_target_token)
-        self.assertFalse(cast_without_target.targeting_selected)
 
-    def test_native_action_idle_ignores_animation_impact_and_combat_stance(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        reader = NativeTargetActionReader(profile, process)
-        process.mode = 2
-        process.player_motion_id = 107
-        process.player_impact_frame = 8
-        action = reader.observe_player()
-        self.assertTrue(action.native_action_idle)
-        self.assertEqual(NativeTargetActionPhase.IMPACT, action.phase)
-        self.assertIsNotNone(action.action_target_token)
-        self.assertEqual(2, action.mode)
-        self.assertEqual(1, action.action_state)
+def test_ui_selection_changes_are_diagnostic_and_do_not_invalidate_player():
+    memory = FakeProcessMemory()
+    count = 0
+    def mutate(address, size):
+        nonlocal count
+        if address == memory.base_address + memory.profile.selected_pointer_rva:
+            count += 1
+            memory.put(address, memory.target if count % 2 else 0)
+    memory.mutate = mutate
+    action = NativeTargetActionReader(memory.profile, memory).observe_player()
+    assert not action.selection_observed and action.initiation_clear
 
-        # An idle-looking animation and null AF8 cannot clear a busy native cast.
-        process.player_action_target = 0
-        process.player_motion_id = 21
-        process.player_impact_frame = -1
-        process.action_state = 4
-        cast = reader.observe_player()
-        self.assertEqual(NativeTargetActionPhase.IDLE, cast.phase)
-        self.assertFalse(cast.action_active)
-        self.assertFalse(cast.native_action_idle)
-        process.action_state = 1
-        process.player_pending = True
-        self.assertFalse(reader.observe_player().native_action_idle)
-        process.player_pending = False
-        self.assertTrue(reader.observe_player().native_action_idle)
-        self.assertFalse(replace(action, mode=None, action_state=None).native_action_idle)
 
-    def test_native_state_pointer_and_values_must_be_stable(self) -> None:
-        for changed in ("state_pointer", "mode", "action_state"):
-            with self.subTest(changed=changed):
-                profile = _profile()
-                process = FakeProcessMemory(profile)
-                original_read = process.read
-                reads = 0
+def test_missing_initiation_observation_is_unknown():
+    action = NativePlayerActionObservation(False, 21, 0, None, None, None)
+    assert action.initiation_pending is None and not action.initiation_clear
+    with pytest.raises(ValueError):
+        replace(action, initiation_state=5)
 
-                def changing_read(
-                    address, size, *, process=process, profile=profile,
-                    changed=changed, original_read=original_read,
-                ):
-                    nonlocal reads
-                    if address == process.player + profile.actor_state_pointer_offset:
-                        reads += 1
-                        values = (0x12800000, 0x12900000) if changed == "state_pointer" else (1, 2)
-                        setattr(process, changed, values[reads % 2])
-                    return original_read(address, size)
 
-                process.read = changing_read
-                with self.assertRaisesRegex(NativeTargetActionReadError, "every stable-read"):
-                    NativeTargetActionReader(profile, process).observe_player()
+def test_profile_schema_roundtrip_and_rejects_false_boolean_profile():
+    profile = load_bundled_native_target_action_profile()
+    assert load_native_target_action_profile_text(json.dumps(asdict(profile))) == profile
+    data = asdict(profile)
+    data["schema_version"] = 2
+    with pytest.raises(ValueError):
+        load_native_target_action_profile_text(json.dumps(data))
 
-    def test_native_state_pointer_and_dto_values_fail_closed(self) -> None:
-        profile = _profile()
-        for pointer in (0, 4, 0x12800001, 0x7FFFFFFF, 0xFFFFFFFF):
-            with self.subTest(pointer=pointer):
-                process = FakeProcessMemory(profile)
-                process.state_pointer = pointer
-                with self.assertRaisesRegex(NativeTargetActionReadError, "state pointer"):
-                    NativeTargetActionReader(profile, process).observe_player()
-        action = NativeTargetActionReader(profile, FakeProcessMemory(profile)).observe_player()
-        for values in ({"mode": None}, {"action_state": None}, {"mode": True},
-                       {"action_state": -1}, {"action_state": 0x100000000}):
-            with self.subTest(values=values), self.assertRaises(ValueError):
-                replace(action, **values)
-        self.assertFalse(replace(action, action_state=0xFFFFFFFF).native_action_idle)
 
-    def test_player_action_target_must_be_stable_across_both_reads(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        original = process.read
-        reads = 0
-
-        def unstable(address: int, size: int) -> bytes:
-            nonlocal reads
-            if address == process.player + profile.target_of_target_pointer_offset:
-                reads += 1
-                process.player_action_target = process.target if reads % 2 else 0x12700000
-            return original(address, size)
-
-        with patch.object(process, "read", side_effect=unstable):
-            with self.assertRaisesRegex(NativeTargetActionReadError, "stable-read"):
-                NativeTargetActionReader(profile, process).observe_player()
-        self.assertEqual(6, reads)
-
-    def test_player_action_tokens_cannot_claim_a_different_selected_target(self) -> None:
-        profile = _profile()
-        action = NativeTargetActionReader(profile, FakeProcessMemory(profile)).observe_player()
-        with self.assertRaisesRegex(ValueError, "agree"):
-            replace(action, action_target_token="another-target")
-        with self.assertRaisesRegex(ValueError, "agree"):
-            replace(action, selected_target_token=None)
-        with self.assertRaisesRegex(ValueError, "non-empty"):
-            replace(action, selected_target_token=" ")
-
-    def test_unknown_targeted_player_motion_still_advances_observed_sequence(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        reader = NativeTargetActionReader(profile, process)
+def test_explicit_process_open_and_close():
+    memory = FakeProcessMemory()
+    with patch("shadowbane_lab.client_observation.native_target_action."
+               "WindowsReadOnlyProcessMemory.open_for_process", return_value=memory) as opener:
+        reader = open_windows_native_target_action_reader(memory.profile, process_id=41)
+    opener.assert_called_once_with("sb.exe", 41)
+    reader.close()
+    assert memory.closed
+    with pytest.raises(NativeTargetActionReadError):
         reader.observe_player()
 
-        process.player_motion_id = 777
-        unknown_motion = reader.observe_player()
-        process.player_motion_id = 21
-        idle_again = reader.observe_player()
 
-        self.assertEqual(NativeTargetActionPhase.OTHER_MOTION, unknown_motion.phase)
-        self.assertEqual(0, unknown_motion.action_sequence)
-        self.assertEqual(1, unknown_motion.motion_sequence)
-        self.assertFalse(unknown_motion.action_active)
-        self.assertEqual(0, idle_again.action_sequence)
-        self.assertEqual(2, idle_again.motion_sequence)
-
-    def test_wrong_selected_type_fails_closed(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        process.selected_vtable += 4
-
-        with self.assertRaisesRegex(NativeTargetActionReadError, "ArcCharacter"):
-            NativeTargetActionReader(profile, process).observe()
-
-    def test_wrong_motion_type_fails_closed(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        process.motion_vtable += 4
-
-        with self.assertRaisesRegex(NativeTargetActionReadError, "current-motion"):
-            NativeTargetActionReader(profile, process).observe()
-
-    def test_executable_hash_mismatch_fails_before_reads(self) -> None:
-        profile = _profile()
-        process = FakeProcessMemory(profile)
-        process.executable_sha256 = "cd" * 32
-
-        with self.assertRaisesRegex(NativeTargetActionCompatibilityError, "SHA-256"):
-            NativeTargetActionReader(profile, process)
+@pytest.mark.parametrize("address,value", [
+    (FakeProcessMemory.player, 0), (FakeProcessMemory.motion, 0),
+    (FakeProcessMemory.player + 0x988, 3),
+    (FakeProcessMemory.player + 0x98C, 5000),
+    (FakeProcessMemory.player + 0x9A8, 5000),
+    (FakeProcessMemory.player + 0xAF8, 7),
+    (FakeProcessMemory.player + 0xAD0, 0),
+])
+def test_invalid_native_pointer_type_or_telemetry_is_not_admission(address, value):
+    memory = FakeProcessMemory()
+    memory.put(address, value)
+    with pytest.raises(NativeTargetActionReadError):
+        NativeTargetActionReader(memory.profile, memory).observe_player()
 
 
-class NativeTargetActionProfileTests(unittest.TestCase):
-    def test_bundled_profile_contains_live_validated_offsets(self) -> None:
-        profile = load_bundled_native_target_action_profile()
-
-        self.assertEqual("sb.exe", profile.executable_name)
-        self.assertEqual(0x16A2D98, profile.player_pointer_rva)
-        self.assertEqual(0x16A2DA4, profile.selected_pointer_rva)
-        self.assertEqual(0x114165C, profile.arc_character_vtable_rva)
-        self.assertEqual(0x1149ADC, profile.arc_motion_vtable_rva)
-        self.assertEqual(0x988, profile.current_motion_pointer_offset)
-        self.assertEqual(0x98C, profile.current_motion_id_offset)
-        self.assertEqual(0x9A8, profile.impact_frame_offset)
-        self.assertEqual(0x9BC, profile.action_pending_offset)
-        self.assertEqual(0xAF8, profile.target_of_target_pointer_offset)
-        self.assertEqual(0xAD0, profile.actor_state_pointer_offset)
-        self.assertEqual(0x18, profile.state_mode_offset)
-        self.assertEqual(0x20, profile.state_action_offset)
-        self.assertEqual((106, 107, 108), profile.observed_attack_motion_ids)
-
-    def test_unknown_profile_field_fails_closed(self) -> None:
-        profile = _profile()
-        payload = {
-            field: getattr(profile, field)
-            for field in NativeTargetActionProfile.__dataclass_fields__
-        }
-        payload["idle_motion_ids"] = list(payload["idle_motion_ids"])
-        payload["observed_attack_motion_ids"] = list(payload["observed_attack_motion_ids"])
-        payload["surprise"] = True
-
-        with self.assertRaisesRegex(ValueError, "unknown fields"):
-            load_native_target_action_profile_text(json.dumps(payload))
+def test_protocol_header_change_during_chunked_read_fails_closed():
+    memory = FakeProcessMemory()
+    memory.protocol(tuple(range(1, 33)))
+    def mutate(address, size):
+        if address == memory.vector + 64:
+            memory.put(memory.player + 0x660, memory.vector + 4)
+    memory.mutate = mutate
+    with pytest.raises(NativeTargetActionReadError, match="storage changed"):
+        NativeTargetActionReader(memory.profile, memory).observe_player()
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_partial_backend_read_is_not_admission():
+    memory = FakeProcessMemory()
+    read = memory.read
+    memory.read = lambda address, size: read(address, size)[:-1]
+    with pytest.raises(NativeTargetActionReadError, match="partial"):
+        NativeTargetActionReader(memory.profile, memory).observe_player()

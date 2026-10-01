@@ -73,7 +73,9 @@ def test_deferred_self_power_retries_same_recipient_and_id_without_consuming_ope
     assert retry.proposal_id != opening.proposal_id
     assert not controller._last_power_at
     ack(controller, retry, now=2)
-    assert controller.step(observe(3, busy=True)).combat_proposal is None
+    followup = controller.step(observe(3, busy=True)).combat_proposal
+    assert followup.kind is PvECombatKind.ATTACK
+    ack(controller, followup, PvECombatDisposition.DEFERRED, now=3, entered=False)
     assert controller.step(observe(4)).combat_proposal.kind is PvECombatKind.ATTACK
 
 
@@ -246,3 +248,66 @@ def test_public_runner_enqueues_self_power_then_attack_under_one_engagement(coor
     assert [s.decision.now_ms for s in trace if s.native_combat is not None] == [0, 100]
     assert trace[0].decision.intent is None  # generic native ability needs no legacy descriptor
     session.pause.assert_not_called()
+
+
+@pytest.mark.parametrize("ids", [(123,), (123, 123), (123, 999)])
+def test_owned_queued_self_followup_is_only_a_native_admission_proposal(ids):
+    controller = PvEController(PvEControllerConfig(
+        opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR)))
+    opening = controller.step(observe()).combat_proposal
+    ack(controller, opening)
+    pending = observe(1, busy=True)
+    pending = replace(pending, player_action=replace(pending.player_action,
+                      power_protocol_ids=ids))
+    followup = controller.step(pending).combat_proposal
+    assert followup.kind is PvECombatKind.ATTACK
+    assert followup.target_key == opening.target_key
+    # Unqualified definitions/protocol mixtures are decided natively, not bypassed.
+    ack(controller, followup, PvECombatDisposition.DEFERRED, now=1, entered=False)
+    retry = controller.step(replace(pending, now_ms=2)).combat_proposal
+    assert retry.kind is PvECombatKind.ATTACK
+    ack(controller, retry, PvECombatDisposition.UNCERTAIN, now=2, entered=None)
+    assert controller.step(replace(pending, now_ms=3)).combat_proposal is None
+    assert controller.pending_combat_proposal is retry
+
+
+def test_owned_followup_never_reconstructs_missing_initiation_observation():
+    controller = PvEController(PvEControllerConfig(
+        opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR)))
+    ack(controller, controller.step(observe()).combat_proposal)
+    unknown = observe(1)
+    unknown = replace(unknown, player_action=replace(unknown.player_action,
+                      initiation_state=None, power_protocol_ids=None))
+    assert controller.step(unknown).combat_proposal is None
+    assert controller.pending_cleanup is None
+
+
+@pytest.mark.parametrize("terminal", [False, True])
+def test_followup_provenance_is_revoked_on_cleanup_or_terminal_stop(terminal):
+    controller = PvEController(PvEControllerConfig(
+        opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR)))
+    ack(controller, controller.step(observe()).combat_proposal)
+    assert controller._queued_self_followup is not None
+    if terminal:
+        controller.stop("owner_revoked", now_ms=1)
+    else:
+        controller.request_final_cleanup()
+    assert controller._queued_self_followup is None
+
+
+def test_direct_cast_queue_does_not_authorize_busy_followup_attack():
+    controller = PvEController(PvEControllerConfig(
+        opening_ability=PvEAbility(123, PvEAbilityRecipient.ENGAGEMENT_TARGET)))
+    ack(controller, controller.step(observe()).combat_proposal)
+    assert controller.step(observe(1, busy=True)).combat_proposal is None
+    assert controller._queued_self_followup is None
+
+
+def test_queued_attack_consumes_self_followup_permission():
+    controller = PvEController(PvEControllerConfig(
+        opening_ability=PvEAbility(123, PvEAbilityRecipient.ACTOR)))
+    ack(controller, controller.step(observe()).combat_proposal)
+    attack = controller.step(observe(1, busy=True)).combat_proposal
+    ack(controller, attack, now=1)
+    assert controller._queued_self_followup is None
+    assert controller.step(observe(2, busy=True)).combat_proposal is None
