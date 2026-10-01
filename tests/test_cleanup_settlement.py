@@ -182,3 +182,16 @@ def test_context_settlement_requires_registered_exact_owner_and_positive_proof()
     with pytest.raises(ValueError):
         cleanup.continue_owner(owner, pending)
     assert owner.deadline == 3 and not owner.released
+
+
+def test_exact_never_bound_context_can_release_child_without_closing_parent():
+    from dataclasses import replace
+
+    from shadowbane_lab.client_extension.actor_action_wire import Closure
+
+    cleanup, _ = fake_cleanup()
+    grant, command, receipt = actor_context_cleanup()
+    owner = cleanup.register(grant)
+    cleanup.begin_context(owner, command)
+    cleanup.continue_owner(owner, replace(receipt, closure=Closure.NEVER_BOUND))
+    assert not owner.released and owner.context_command is None and owner.deadline is None
