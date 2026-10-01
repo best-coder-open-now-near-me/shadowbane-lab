@@ -84,8 +84,14 @@ not passed: the private explicit stop was set before recovery, without a retaine
 observation exception identifying why. No action-boundary rejection or watchdog
 occurred. The original evidence remains unchanged.
 
-Active next item: correct private post-death observer handling and retain stop
-diagnostics, then repeat bounded recovery. The first NPC permits four total
+The subsequent lifecycle run captured a native read-consistency exception before
+production death confirmation and again confirmed cleanup. Its partial zero-health
+sample does not establish a completed death frame. The private recorder stopped
+on the first read failure, preventing production bounded observation retry.
+
+Active next item: preserve typed canonical read failures as rejected-frame
+diagnostics and use the existing production bounded retry, then repeat recovery.
+The first NPC permits four total
 positively queued attacks, including the initial attack, under its original owner,
 engagement and 20-second deadline; the second stops after its first queued attack.
 No death or engagement may transfer to a same-key replacement. Publish these

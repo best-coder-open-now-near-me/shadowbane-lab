@@ -464,6 +464,38 @@ actor-owned effect interface and update-message paths. The decoded vector is not
 yet qualified as a persistent gameplay-effect inventory; the buff-stat transition
 does not identify an effect, its source, or an expiry reason.
 
+## .60 lifecycle retry: rejected native read
+
+The private lifecycle correction passed 160 offline tests, including independent
+review of 44 lifecycle cases. Run
+`npc-recovery-lifecycle-b84417b56b1349d2baa48416bf7618ca` nevertheless remains
+**not_passed**. It used fresh full resource fractions and queued the skill and
+attack against NPC `[23887, 37]`. The population sample at 1,687 ms showed zero
+health, but a subsequent bound-detail recorder check rejected the frame; there
+was no production death confirmation, recovery, or second encounter.
+
+The retained exception is `NativeCharacterPopulationReadError`, reason
+`local actor changed during registry verification`, at `detail_bound_object`
+after trace 9. This comes from the recorder's address-resolution verification,
+whose final tuple includes actor token, key and AF8 action target. The changed
+component is unknown; it establishes an incoherent read, not actor replacement
+or corpse disappearance. The rejected frame's partial zero-health sample cannot
+qualify death or enable post-death handling.
+
+STOP request 3 confirmed NATIVE_STOPPED at trace 11. No owner or attack-list entry
+remained; no action-boundary rejection, watchdog or reported runtime error
+occurred. The bounded diagnostic now exposes the recorder exception that the
+previous run lost. Exact acceptance/preflight/trace hashes are retained privately.
+
+Production already retries at most three consecutive ordinary observation failures.
+The private recorder's immediate stop prevented that policy from operating. The
+next correction will record and rethrow typed canonical read failures to that
+existing retry loop. A later complete, strictly checked production frame must
+resolve each retry before full recovery acceptance can pass. Session revocation,
+confirmed actor/target/Grant changes, unresolved failures and diagnostic overflow
+remain fatal. No rejected frame may authorize an action or fabricate death.
+Installed source and the 20-second action deadline remain unchanged.
+
 ## Historical .57 live evidence
 
 Installed .57/.37 source `1d107a25` passed manual-player attack, list removal,
@@ -498,8 +530,10 @@ its offline and real-process qualification is distinct from live acceptance.
   separate supplementary evidence review.
 - Complete: correct the private renewal bound; the retry observed native death
   and confirmed cleanup but stopped before recovery. Both failed runs are preserved.
-- Active: correct the private observer lifecycle and preserve stop diagnostics,
-  then repeat bounded .60 recovery with exact cleanup and a later SEEKING frame.
+- Complete: correct post-death observer handling and retain exact stop diagnostics;
+  the next run exposed a rejected native read before death confirmation.
+- Active: let typed canonical read failures use production bounded frame retry,
+  then repeat recovery with complete evidence, exact cleanup and later SEEKING.
   No runtime source change is planned.
 - Complete: publish this installation receipt through draft PR #55; its merge
   remains pending. PR #53's included tip is already merged.

@@ -18,8 +18,9 @@ without retaining rollback copies. After Umbra login, the .60 follow-through
 queued the skill and attack, observed the exact NPC at zero health, and confirmed
 native cleanup. A subsequent recovery attempt stopped safely when the private
 harness rejected a same-target attack renewal. A corrected retry observed native
-death and cleanup but stopped before recovery; private observer lifecycle handling
-and stop diagnostics are the next check. Recovery across encounters remains open.
+death and cleanup but stopped before recovery. A later lifecycle run captured a
+rejected native read; preserving production bounded frame retry is the next check.
+Recovery across encounters remains open.
 The installed source is unchanged.
 The installation receipt is published on `codex/native-initiation-deployment-20261001`
 through [draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55),
