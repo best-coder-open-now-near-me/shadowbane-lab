@@ -9,13 +9,14 @@ correctly polled the same request and cleaned up at its five-second bound. The
 user reported a reuse wait message; that report is supporting evidence, not bot
 action authority. The original acceptance remains not passed.
 
-Candidate host 0.3.61/native 1.8.41 checks native reuse availability before stance
+Installed host 0.3.61/native 1.8.41 checks native reuse availability before stance
 or power mutation. A positively reuse-blocked optional opener may yield to normal
 ATTACK on a fresh frame, retaining the exact engagement, owner and target. Global
 recovery remains DEFERRED. Unknown data, generic busy states and already-entered
 uncertainty never authorize this fallback. Passing the reuse checks does not prove
 all native power prerequisites; the normal native entry still makes final checks.
-The implementation and local package qualification are complete; it is not installed.
+The implementation, package qualification and installation are complete. The new
+live recovery gate remains not passed, as recorded below.
 
 ## Qualified exact-client boundary
 
@@ -78,11 +79,14 @@ safe no-entry skip. A pending skill must not be replaced with another submission
 
 ## Qualification and delivery
 
-Active branch `codex/native-power-readiness-20261001` includes receipt tip
-`37e0e1e` from [draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55).
-The combined integration review is
-[draft PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56),
-which targets main. Installed source `f0263c3` remains unchanged.
+Approved [PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56)
+head `a1557938a695ef4d3a82ed6b67bb19a709975e95` passed all 15 hosted checks and merged
+at `88af7953461cc6311c0bcc79b8fb0162013cfd54` on October 1, 19:24:23 UTC.
+Included [PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55)
+was marked merged at 19:24:25 UTC. The completed readiness and initiation receipt
+branches were retired after their tips were verified in main. The new receipt
+branch is `codex/native-readiness-deployment-20261001`; unfinished owner-liveness
+work is isolated on `codex/native-owner-liveness-20261001`, both targeting main.
 
 Host and native independent source reviews found no actionable issue. The actual
 two-encounter runner regression covers native death, cleanup, later SEEKING, and
@@ -105,8 +109,8 @@ Git archive, wheel RECORD/source, native version resources and exact client imag
 | Each native profile | 205 passed; all 105 required native gates passed |
 | Each profile's real movement/combat IPC | 72 / 86 passed, no skips |
 | Readiness probes | 22 cases on each original/prepared image, for both profiles |
-| Private acceptance recorder | 83 offline tests and independent source review passed |
-| Private deployment helpers | 11 offline tests plus ownership/path/retirement checks passed |
+| Private acceptance recorder | 90 offline tests and independent source review passed |
+| Private deployment helpers | 12 offline tests plus ownership/path/retirement checks passed |
 
 The three native tests requiring private images skip in the generic CTest run and
 pass in the separate exact-image steps. The two previously deferred renderer
@@ -120,9 +124,43 @@ and are not readiness or combat gate passes.
 | Full DLL | `311207009781f206dcecc33cb3ee52e820d707c40db2115e03e90465d59108cc` |
 | Host wheel | `1a0b6509adc0482be0144053a3baa18a78bda7adb9f13aa6796b7c01a44506c9` |
 
-Active: separate PR #56 merge/install approval after its hosted checks pass.
-Pending: closed-client installation and fresh Umbra identity verification, then
-bounded two-encounter acceptance. The revised recorder reports a skipped opener
-as skipped; entered uncertainty can have proven cleanup without passing the full
-acceptance. Prior failed runs and the successful first-recovery assessment remain
-preserved. Automatic retaliation and server-effect claims remain outside this gate.
+Installation verified 455 host modules, 9,570 preserved files and exactly one DLL
+inventory change. Manager PID 7092 was healthy. Five shortcuts and startup preflight
+passed. Launch at 19:29:46.9919521 UTC verified PID 9224, creation FILETIME
+`134353565789124161`, HWND `7209758`, and the qualified DLL above. Both clients'
+executables and official data remained unchanged. Compact installation and launch
+receipts are retained privately under `artifacts/bot-deploy/20261001-b41/receipts`,
+with independent `package-verification.json` alongside them.
+
+Retirement verified the .60 host's 2,100 files (47,660,291 bytes) against installed
+RECORD/source and scaffold ownership. That host and two exact .40 guest payload
+files totaled 50,349,138 bytes removed. Four exact obsolete host/share staging
+binaries totaled 5,377,694 bytes, recorded in `obsolete-staging-removal.json`.
+Settings, jobs, dependency wheels and failed-run diagnostic evidence remain in
+place; no rollback copies were created or retained.
+
+### Live result and remaining work
+
+Run `npc-recovery-readiness-e622dab2634a4d9ca042a7c3dbdc3cdf` is **not passed**.
+SELF_POWER request 1 queued for NPC key `(23887,37)` under engagement 1 and Grant
+3/scene 1. ATTACK request 2 never entered and had no outbound receipt. Native owner
+replacement to generation 4/NONE stopped the host; exact STOP request 3 subsequently
+confirmed CLOSED/NATIVE_STOPPED with mode 1, action state 1 and no combat target.
+No combat owner or manual-list entry remained. There was no watchdog, helper error,
+proposal rejection, second encounter or demonstrated live reuse fallback.
+
+Passive schema-3 `owner-loss-passive-9224.jsonl` retained the actual revocation:
+`stalled` reason 8, tick 302842953, interval 297 ms, generation 3 to 4/NONE, scene 1,
+keys 0 and gates 247. The user reported no interaction. The native update-gap branch
+exceeded the 250 ms movement discontinuity threshold; this evidence does not prove
+what caused the delayed client update. The prior `existing_action` diagnostic alone
+is not evidence of a new cooldown or initiation failure.
+
+Active next work is a durable owner-liveness correction that distinguishes exact
+current leased service work from stale movement while preserving actual lease,
+scene, focus, UI and manual-input invalidation. It is not yet completed or installed.
+After qualification, fresh identity/readiness and bounded live acceptance remain
+required. The revised recorder reports skipped openers separately; this run did
+not exercise that fallback. Prior failed runs and the successful first-recovery
+assessment remain preserved. Automatic retaliation and server-effect claims remain
+outside this gate.
