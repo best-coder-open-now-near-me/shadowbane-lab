@@ -45,8 +45,10 @@ and a live replacement with the same key but a different token; a complete world
 registry census contained only the replacement. Engagement cannot transfer to it.
 Registry-backed population is implemented at `6eecda8`, independently reviewed,
 and passed 4,251 host tests plus 801 subtests with 36 skips. It remains
-uninstalled and outside main in PR #54. Active next item: qualify and correct
-persistent action admission before repeating bounded follow-through. Neither the
+uninstalled and outside main in PR #54. The reviewed outermost-update guard is
+also pushed at `8090c17`, with six focused native tests passing. Active next item:
+qualify pending-initiation observation and native request provenance before
+packaging and repeating bounded follow-through. Neither the
 user report nor the passive snapshot proves player kill credit, skill consumption or snare application.
 Automatic retaliation remains disabled pending the separate authoritative
 server-character-session fence.

@@ -251,6 +251,28 @@ findings require a coherent observation/admission correction, not a wider guesse
 idle predicate. Installed .59/.39 remains unchanged and no follow-through action
 has run.
 
+## Native initiation correction in review
+
+The native update guard is committed at `8090c176fd33a027c503afaabc50bb0112b0a2a7`
+and pushed in PR #54. Native service runs only at the outermost update; nested
+callbacks still forward to the client. The boundary spans the original callback
+and restores thread-local state on SEH and C++ unwinds. Independent review and
+six focused native tests passed.
+
+The active host/native correction preserves pending initiation using stable
+native state `+0x10` and the bounded power-protocol ID vector. Animation frame,
+animation-event index, and action state remain telemetry. Clear initiation does
+not prove that effects or projectiles have finished, or replace action-specific
+native legality. No fixed recovery or animation delay is intended.
+
+The queued actor-skill follow-up also needs native request provenance. An exact
+queued receipt and matching later ID multiplicity alone cannot distinguish the
+original vector entry from a remove/re-add between updates. Review identified
+this gap before qualification; the ID-only allowance is not accepted for release.
+Mutation/lifetime ownership must preserve or invalidate that allowance explicitly.
+The source under implementation is unqualified and uninstalled. No further
+live attack has run.
+
 ## Historical .57 live evidence
 
 Installed .57/.37 source `1d107a25` passed manual-player attack, list removal,
@@ -277,8 +299,10 @@ its offline and real-process qualification is distinct from live acceptance.
   Umbra/Wonderbane basic Shot to the Leg opener, revision 1.
 - Complete: registry-backed population source checkpoint and independent/full
   host validation; included in draft PR #54, not installed.
-- Active: qualify and correct persistent action admission before repeating
-  bounded one-NPC follow-through; no gameplay repeat has run.
+- Complete: outermost native update guard checkpoint and independent focused
+  validation, pushed at `8090c17` in draft PR #54.
+- Active: qualify pending-initiation observation and native request provenance
+  before the combined release; no gameplay repeat has run.
 - Pending: bounded follow-through with exact native health/death observation and
   cleanup, without player kill-credit or skill-consumption inference.
 - Pending: qualify and integrate the combined PR #54 source and deployment
