@@ -292,8 +292,39 @@ combat observer; other features retain their own image qualification.
 Independent host/native reviews passed. Host checkpoint `0e218bc` passed 4,304
 tests with 788 subtests and 36 skips. Native focused tests and the original and
 prepared .13 initiation probes passed; each initiation probe executes 23 cases.
-The candidate versions are host .60/native .40. Exact-source full packaging is
-the next active step; the candidate is uninstalled. No further live attack ran.
+The candidate versions are host .60/native .40. Exact-source package qualification
+is complete below; the candidate is uninstalled. No further live attack ran.
+
+## Qualified .60/.40 candidate, not installed
+
+Exact package source `f0263c38ef36874da0e68e0aa5e0c8775550e618` is published in
+PR #54. Package `artifacts/b40/b1c83d60` passed **4,325 host tests**, **788 subtests**
+and Ruff, with 35 explicit environment skips. Each native profile passed **204
+native tests**, **72 movement IPC tests** and **85 combat IPC tests**. Three
+generic image skips per profile are covered by explicit private image gates.
+The five image-admission cases require rejection of unqualified .12 images and
+admission of prepared .13 for the new combat semantics.
+
+Both original and prepared .13 images passed the 23-case native INITTIME/protocol
+probe in each profile. The expanded native power observer, 48-case combat-mode
+predicate and 2,048-case melee probes also passed. Package verification checked
+all 60 steps, 104 required native gates, 86 indexed artifact hashes, exact Git
+source, wheel source/RECORD, both DLL versions, IPC execution and all seven
+unchanged prepared-client writes. The two known optional renderer-transparency
+failures per profile remain recorded separately from required acceptance gates.
+
+- Archive SHA-256: `3bedee0961e994e0c0e1f8c34f76788fa6a2c1ae0f8edb2c55ce44f7a0afd1c5`.
+- Receipt SHA-256: `eb8ec69dcd71e1a299fa6dea8275b64dd8aa97b1cda34767e7c20bca8b4e6cb6`.
+- Full DLL SHA-256: `7d3a7b139abb84912370300b8eaeb45155c7fef1a77e58021ddefa2a9528e364`.
+- Wheel SHA-256: `cc2854313d10d7cf57cf37a56e18906371cf9dc41730900103c406648af53ed4`.
+
+Independent source, completed-package and private deployment-helper reviews passed.
+The updated bounded NPC harness passed 80 offline tests. Installation still needs
+new PR #54 approval and a fresh closed-client preflight; the existing .59/.39
+runtime remains installed. The no-rollback policy and preservation of settings,
+jobs and saves apply. PR #53 is included in #54 and will be superseded only after
+integration. The next live gate is one queued actor skill, one same-engagement
+NPC attack, exact-object health/death observation and confirmed native cleanup.
 
 ## Historical .57 live evidence
 
@@ -325,11 +356,13 @@ its offline and real-process qualification is distinct from live acceptance.
   validation, pushed at `8090c17` in draft PR #54.
 - Complete: host/native initiation and request-provenance correction with
   independent review and focused validation; not installed.
-- Active: qualify the exact-source .60/.40 package for combined PR #54;
-  no gameplay repeat has run.
+- Complete: exact-source .60/.40 package qualification at `f0263c3`, both native
+  profiles and original/prepared image gates; no gameplay repeat has run.
+- Active: obtain PR #54 merge/install approval and a closed-client confirmation;
+  merge after hosted checks pass, then install and verify the qualified package.
 - Pending: bounded follow-through with exact native health/death observation and
   cleanup, without player kill-credit or skill-consumption inference.
-- Pending: qualify and integrate the combined PR #54 source and deployment
-  receipt, then supersede documentation PR #53.
+- Pending: publish the new deployment receipt and supersede included PR #53
+  after verified PR #54 integration.
 - Pending: qualified server-effect evidence and the authoritative
   server-character-session fence required for automatic retaliation.

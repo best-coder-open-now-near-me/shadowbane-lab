@@ -46,11 +46,15 @@ registry census contained only the replacement. Engagement cannot transfer to it
 Registry-backed population is implemented at `6eecda8`, independently reviewed,
 and passed 4,251 host tests plus 801 subtests with 36 skips. It remains
 uninstalled and outside main in PR #54. The reviewed outermost-update guard is
-also pushed at `8090c17`, with six focused native tests passing. Active next item:
-qualify the exact-source host .60/native .40 package. The host correction is
-pushed at `0e218bc`; native provenance and callback guards passed independent
-review and focused validation. Bounded follow-through still awaits installation. Neither the
-user report nor the passive snapshot proves player kill credit, skill consumption or snare application.
+also pushed at `8090c17`, and the host correction at `0e218bc`. Exact-source
+host .60/native .40 package `f0263c38ef36874da0e68e0aa5e0c8775550e618` is now
+qualified: 4,325 host tests, 788 subtests, and 204 native/72 movement IPC/85 combat
+IPC tests per profile passed, including original/prepared client .13 probes.
+All 60 package steps and 86 indexed artifacts were verified. Active next item:
+obtain PR #54 merge/install approval and a closed-client confirmation, then merge
+after hosted checks pass and install the qualified package. The source is not yet
+merged or installed. Bounded follow-through awaits installation. Neither the user
+report nor the passive snapshot proves player kill credit, skill consumption or snare application.
 Automatic retaliation remains disabled pending the separate authoritative
 server-character-session fence.
 
