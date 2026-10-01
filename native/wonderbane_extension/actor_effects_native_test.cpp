@@ -4,9 +4,25 @@
 #include <thread>
 #include <atomic>
 
+// Explicit unit seams: this arena is not a qualified executable. Exact-image
+// qualification remains the independent private-image probe's responsibility.
+namespace bootstrap_fixture {
+bool identity_ready = false, image_valid = true;
+std::uintptr_t verified_image{};
+unsigned image_checks{};
+}
 namespace wonderbane::extension {
-bool GraphicsExecutableSha256Matches(const char*) noexcept { return false; }
-namespace movement { bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { return false; } }
+bool GraphicsExecutableSha256Matches(const char* digest) noexcept {
+    return bootstrap_fixture::identity_ready && digest
+        && std::strcmp(digest,"0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d")==0;
+}
+namespace movement {
+bool VerifyNativeMovementImage(std::uintptr_t& verified) noexcept {
+    ++bootstrap_fixture::image_checks;
+    verified=bootstrap_fixture::verified_image;
+    return bootstrap_fixture::image_valid;
+}
+}
 }
 namespace e = wonderbane::extension::actor_effects;
 namespace {
@@ -98,7 +114,39 @@ int main(int argc,char** argv) {
     auto* nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(image+0x80);nt->OptionalHeader.DataDirectory[9].Size=1;
     Check(!e::StartupCurrent(context.image,context.image+0x1140e9e),"nonempty TLS rejects startup qualification");nt->OptionalHeader.DataDirectory[9].Size=0;
     const bool partial=argc==2 && std::strcmp(argv[1],"partial")==0;
-    Check(e::StartBound(context.image,partial?Partial:e::InstallSite)!=partial,"installation result");
+    bootstrap_fixture::verified_image=context.image;
+    const auto pristine=[&] {
+        bool same=!e::attempted && !e::handler && !e::Ready();
+        for(const auto& site:e::sites){same=same && !site.owned
+            && std::memcmp(image+site.rva,site.bytes.data(),site.bytes.size())==0;}
+        for(const auto& slot:e::slots){same=same && !slot.owned
+            && e::Word(context.image+slot.rva,static_cast<std::uint32_t>(context.image+slot.original_rva));}
+        return same;
+    };
+    SetLastError(2468);
+    Check(!e::StartAtBootstrap(context.image,context.image+0x1140e9e)
+        && GetLastError()==2468 && pristine() && bootstrap_fixture::image_checks==0,
+        "cold identity rejects public startup before verification or hook mutation");
+    bootstrap_fixture::identity_ready=true;
+    Check(!e::StartAtBootstrap(context.image,context.image+0x1140e9d)
+        && GetLastError()==2468 && pristine() && bootstrap_fixture::image_checks==0,
+        "initialized identity cannot authorize late caller");
+    bootstrap_fixture::image_valid=false;
+    Check(!e::StartAtBootstrap(context.image,context.image+0x1140e9e)
+        && GetLastError()==2468 && pristine(),"failed image qualification leaves hooks pristine");
+    bootstrap_fixture::image_valid=true;
+    bootstrap_fixture::verified_image=context.image+4;
+    Check(!e::StartAtBootstrap(context.image,context.image+0x1140e9e)
+        && GetLastError()==2468 && pristine(),"different verified image leaves hooks pristine");
+    bootstrap_fixture::verified_image=context.image;
+    const bool started=partial ? e::StartBound(context.image,Partial)
+        : e::StartAtBootstrap(context.image,context.image+0x1140e9e);
+    Check(started!=partial,"installation result through public bootstrap except fault-injection mode");
+    if(!partial){
+        Check(GetLastError()==2468 && e::Ready(),"public startup preserves LastError and installs all hooks");
+        Check(!e::StartAtBootstrap(context.image,context.image+0x1140e9d) && e::Ready()
+            && GetLastError()==2468,"installed observer does not authorize a late caller");
+    }
     if(partial){Check(!e::Ready() && e::sites[0].owned && !e::sites[2].owned,"partial install retains ownership without readiness");TestTrap(e::sites[0]);return failures?1:0;}
     e::original_add=reinterpret_cast<e::OneArg>(&OriginalAdd);e::original_remove=reinterpret_cast<e::TwoArgs>(&OriginalRemove);
     e::original_incoming=reinterpret_cast<e::NoArgs>(&OriginalNoArgs);e::original_rebuild=reinterpret_cast<e::NoArgs>(&OriginalNoArgs);

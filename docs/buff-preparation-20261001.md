@@ -453,3 +453,30 @@ its later preparation-only phase. The original failure made one extra read-only
 registration in that phase; it sent no gameplay action. The revised helper and
 readiness tests passed 69 cases. Existing staged helper hashes were left intact;
 a revised live helper must be reviewed and pinned separately before use.
+
+## .64/.44 cold-start repair candidate
+
+The source audit identified a deterministic initialization dependency failure.
+`actor_effects::StartAtBootstrap` requires `GraphicsExecutableSha256Matches`, but
+Initialize called it before `StartGraphicsStatusPublication` populated the hash.
+The observer therefore rejected cold startup. Later graphics initialization could
+not establish effect history retroactively. Passive inspection of PID 8616
+confirmed all nine mutation CALL sites and all three effect virtual slots still
+contained their original client values; the prepared entrypoint matched and all
+20 observed effect records passed the diagnostic layout predicates. This matches
+the startup defect; it is not native absence authority.
+
+The candidate starts graphics publication before the observer, while the same
+synchronous prepared entrypoint still holds the original initializer return
+address. The diagnostics worker does not run native actor/effect code. Graphics
+failure skips observer installation, and late initialization retains its existing
+unavailable behavior. No hash, original-caller or native observation gate is
+weakened. The exported-initializer regression models an initially empty identity
+cache, verifies dependency order, duplicate initialization and failed-start retry.
+The separate synthetic effect fixture exercises the real public bootstrap entry:
+cold identity, late caller, failed image verification and mismatched verified base
+leave all hook sites pristine; initialized identity installs before entry. It does
+not substitute for private exact-image qualification. Focused startup/effect
+checks and 481 package-contract tests passed before the source checkpoint.
+Host 0.3.64 / native 1.8.44 remain source candidates until exact-source package
+qualification and separate merge/install approval. Installed .63/.43 is unchanged.

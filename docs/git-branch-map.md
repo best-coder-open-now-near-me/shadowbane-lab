@@ -41,7 +41,8 @@ The merged buff feature branch was retired locally and remotely after its tip wa
 verified reachable from main and its checkout was free. The active integration
 worktree remains in use for acceptance and diagnostic tools.
 
-**Active next item:** diagnose and repair native effect-observation failure. The
+**Active next item:** qualify the .64/.44 effect-observer startup repair on
+`codex/buff-deployment-20261001` (PR #60). Installed runtime remains .63/.43. The
 bounded run `actor-preparation-ce616a3df0e044c4859d64f888b6f8b4` issued four read-only
 REGISTER_SELECTORS requests with the same immutable request 2; all returned
 UNAVAILABLE. No OPEN_OWNER, ATTACH_CONTEXT or SUBMIT was issued. STOP_OWNER request
@@ -49,6 +50,9 @@ UNAVAILABLE. No OPEN_OWNER, ATTACH_CONTEXT or SUBMIT was issued. STOP_OWNER requ
 cleanup pending. Passive inspection of the existing publication found UNKNOWN=2
 (effect capture), revision 1/sequence 8. This is historical diagnostic evidence,
 not current buff authority. See the [acceptance record](buff-preparation-20261001.md).
+Passive hook inspection and the source dependency audit identified the graphics
+hash cache being read before initialization. The repair starts that required
+service first, still inside the original synchronous client bootstrap.
 Automatic retaliation remains disabled. Any shared-source/runtime repair requires
 its own review and delivery gate before another live buff/NPC acceptance.
 
