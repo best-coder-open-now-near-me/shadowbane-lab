@@ -1,12 +1,14 @@
 # Native movement and camera controls
 
 Native controls, transport and automation ownership are merged in main and
-installed as host **0.3.58** / native **1.8.38**, source `05c888a4`. The earlier
-.57 manual-player cancellation/recovery gate passed. The .58 bounded settlement
-fix is qualified and installed. The .58 basic NPC queue/cleanup gate passed;
-the skill attempt remained unconfirmed, with terminal native cleanup confirmed.
-Device, movement and isolation checks below remain separate wherever no result
-is recorded. See the [deployment record](queued-skills-20261001.md).
+installed as host **0.3.59** / native **1.8.39**, exact package source `e90d2f64`.
+PR #52 merged at `72f13d5f` after all 15 hosted checks passed. The .59 bounded
+skill-request, same-NPC attack and terminal-cleanup gate passed; its final explicit
+stop was intentional and no native dispatcher interruption was reported. Earlier
+.57 manual-player recovery and .58 basic-NPC results remain historical. Queue and
+cleanup receipts do not prove skill consumption, snare or server damage. Device,
+movement and isolation checks below remain separate wherever no result is
+recorded. See the [deployment record](queued-skills-20261001.md).
 
 ## Settings
 
@@ -163,8 +165,8 @@ failure remain stops; there is no reacquisition or automatic restart after them.
 See the [combat contract](native-combat-v2-contract.md) and the
 [live update receipt](client-update-20260930-late.md) for validation and deployment
 status. The .57 manual-player gate confirmed native cleanup followed by a later
-PvE SEEKING frame. Installed .58/.38 also gives combat cleanup one shared,
-absolute three-second settlement budget. Parent cancellation immediately prevents
+PvE SEEKING frame. The installed implementation, extended in .58/.38, gives combat
+cleanup one shared, absolute three-second settlement budget. Parent cancellation immediately prevents
 new work but preserves the exact pending owner's guarded heartbeat until closure,
 safety failure or expiry. PAUSE, combat STOP_ENGAGEMENT and fence revocation/closure
 use the remaining budget; an expired deadline leaves cleanup unconfirmed. The
