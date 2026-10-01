@@ -20,9 +20,10 @@ that main merge plus the documentation commits through `cab8b029` from
 PR #47 is closed as superseded, with its full tip retained in combined draft
 [PR #48](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/48).
 The source checkpoint `e6c7a28f229043540d3f93181900072ded58752c` is pushed;
-exact-source packaging and hosted validation are underway. These changes remain
-outside main. Next integration step: finish qualification and obtain PR #48 merge
-approval; prior approval covered PR #46.
+exact-source package `artifacts/b36/d86bc533` is qualified, with both native
+profiles and all 78 artifact hashes verified. Hosted validation and merge approval
+remain pending. These changes remain outside main. Next integration step: obtain
+PR #48 merge approval after checks; prior approval covered PR #46.
 
 Vendor Test now has source-stamped host 0.3.55 / native 1.8.35 from that exact
 PR head. Package `artifacts/b35/3ca9481d` is acceptance eligible: 52 recorded
@@ -51,8 +52,9 @@ or kill credit.
 A second official September 30 patch supplies client **1.3.38.13** plus new
 configuration/object data. The [late client update review](client-update-20260930-late.md)
 records exact binary proof and candidate host **0.3.56** / native **1.8.36**.
-Neither installed client has received that update yet. Next: qualify the candidate,
-complete review and deployment, then obtain fresh character readiness for bounded
+Neither installed client has received that update yet. The candidate and deployment
+helpers passed review. Next: merge after approval/checks and deploy once the game
+is closed, then obtain fresh character readiness for bounded
 NPC and manual-list acceptance. Verified installation and launch are not combat
 acceptance. Automatic retaliation remains disabled pending an
 authoritative server character-session fence. Other active validation worktrees

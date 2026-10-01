@@ -68,10 +68,37 @@ and 801 passing subtests. Independent host/native review found no actionable
 issues. Sixteen focused native tests and ten actual-image probes pass, including
 registry, melee, power and scene checks against both images, original tree
 behavior and paired original/prepared image authentication. Exact-source
-packaging and hosted checks remain pending.
+packaging is qualified as recorded below; hosted checks remain pending.
 
 Next: complete qualification and obtain the combined PR #48 merge approval,
 then install and verify the update with the game closed. Supervised object-based
 attack/cast/cancel/PvE recovery remains pending fresh user readiness. UI selection,
 hotkeys and system-message text are not combat authority. Automatic retaliation
 remains disabled pending an authoritative server character-session fence.
+
+## Exact-source package qualification
+
+Package `artifacts/b36/d86bc533` is acceptance eligible at source
+`e6c7a28f229043540d3f93181900072ded58752c`. All 78 recorded file hashes and
+archive members match. Both full and diagnostics-only profiles passed 202 required
+native tests and all 83 host/native combat IPC cases without skips. Three
+image-dependent tests skipped by generic CTest were qualified separately, along
+with the actual original/prepared registry, melee and power probes. Installed-wheel
+entry points and source identity passed. Archived-source host tests passed 4,058
+cases, with 34 explicit skips and 801 subtests (the normal checkout passed 4,059).
+Two existing optional renderer-transparency diagnostics per profile still fail
+and are recorded separately; no required gate failed or rendering fix is claimed.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Acceptance archive | `b6dc81f9f538a920161fabcf1567e48cfd6e4b5024f8794d03940bc11553e4cc` |
+| Receipt | `2f55952646890bf8beb4ca285e97487d1147a438135bbd06a49fc9b527aae2e6` |
+| Full DLL | `df3f177b517c3b59ae117edf32a8928045fd0ce1f25a5e69c38d5c528b3cdd13` |
+| Host wheel | `e514db4fa968de179a5833d5c7ad056b1534a93fc6a31b6d125171d5806889c0` |
+
+Private deployment helpers passed independent review and ten offline tests; all
+Python and PowerShell helpers parsed. Qualified release pins exist, but no payload
+has been staged or applied. The latest read-only inspection at October 1 01:27 UTC
+still found the old game running and the manager healthy/unbound. A running-client
+snapshot cannot pass deployment preparation. Fresh closure, installation and live
+combat acceptance remain unfinished. PR #48 merge approval is also pending.
