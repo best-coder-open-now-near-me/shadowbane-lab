@@ -298,7 +298,11 @@ void Controls::Tick(const Input& input) noexcept {
             Inhibit(StopReason::stalled); return;
         }
     }
-    if (!RetryStop()) { return; }
+    const bool cleanup_ready = RetryStop();
+    // Pending automation still observes fresh manual intent through the same
+    // configured keyboard/controller/drag interpretation below. It cannot send
+    // camera or movement writes, but an old failed stop cannot hide takeover.
+    if (!cleanup_ready && grant_.owner != Owner::automation) { return; }
     if (discontinuity && grant_.owner != Owner::automation) {
         // A delayed owning update is not a focus/UI/lifetime transition. Retire
         // its stale manual destination, then use this fresh admitted sample.
@@ -364,6 +368,7 @@ void Controls::Tick(const Input& input) noexcept {
             == ControllerAction::cancel_movement) { cancel = true; }
     }
     if (connected && controller_armed_ && cancel) {
+        if (!cleanup_ready) { Inhibit(StopReason::takeover); return; }
         // Deliberate cancel is one native manual takeover, including native click
         // intent when no prior controls owner exists. Held cancel never repeats.
         (void)Retire(StopReason::takeover, Owner::manual);
@@ -371,7 +376,7 @@ void Controls::Tick(const Input& input) noexcept {
         drag_pending_ = drag_active_ = previous_drag_down_ = false;
         return;
     }
-    if (connected && controller_armed_ && !input.camera_blocked && !camera_faulted_ && seconds > 0 && Nonzero(camera)) {
+    if (cleanup_ready && connected && controller_armed_ && !input.camera_blocked && !camera_faulted_ && seconds > 0 && Nonzero(camera)) {
         const float scale = settings_.camera_radians_per_second * seconds;
         bool accepted = false;
         { const ActuationGuard guard(actuating_);
@@ -390,13 +395,13 @@ void Controls::Tick(const Input& input) noexcept {
     const bool drag_down = settings_.drag && !text_owned_ && input.keys[settings_.drag_button];
     if (!drag_down && !text_owned_) { drag_armed_ = true; }
     if (drag_down && !previous_drag_down_ && drag_armed_) {
-        drag_pending_ = input.pointer_in_world && input.ground_valid && Finite(input.ground)
+        drag_pending_ = input.pointer_in_world && (!cleanup_ready || (input.ground_valid && Finite(input.ground)))
             && std::isfinite(input.pointer_x) && std::isfinite(input.pointer_y);
         drag_origin_x_ = input.pointer_x;
         drag_origin_y_ = input.pointer_y;
         if (input.press_origin) {
             drag_origin_x_ = input.press_origin->x; drag_origin_y_ = input.press_origin->y;
-            drag_pending_ = input.press_origin->ground_valid && input.pointer_in_world
+            drag_pending_ = (!cleanup_ready || input.press_origin->ground_valid) && input.pointer_in_world
                 && std::isfinite(drag_origin_x_) && std::isfinite(drag_origin_y_);
         }
     }
@@ -419,6 +424,13 @@ void Controls::Tick(const Input& input) noexcept {
     const bool destination = !Nonzero(direction) && drag_active_
         && input.ground_valid && Finite(input.ground);
     const bool directional = Nonzero(direction) && Basis(input);
+    if (!cleanup_ready) {
+        // Native basis/terrain queries themselves require Ready. Recognize the
+        // configured physical intent before those actuation-only prerequisites;
+        // captured drag still requires its ordinary UI/capture/threshold gates.
+        if (Nonzero(direction) || drag_active_) { Inhibit(StopReason::takeover); }
+        return;
+    }
     if (directional || destination) {
         if (grant_.owner != Owner::manual &&
             !Retire(StopReason::takeover, Owner::manual)) { return; }

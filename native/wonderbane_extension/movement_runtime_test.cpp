@@ -354,6 +354,57 @@ int main(int argc, char** argv) {
             auto next = make(wm::wire::Verb::acquire, rt.controls.Current(), 90); run(next);
             expected_grant = rt.controls.Current(); begin_action = true; step(); begin_action = false;
             Check(owner_result == wm::Result::accepted, "new operation can acquire only after cleanup");
+            for (const auto input_gap : {16U, 297U}) {
+                stop_ok = false;
+                const auto pending_owner = rt.controls.Current();
+                auto pending_pause = make(wm::wire::Verb::pause, pending_owner,
+                    static_cast<unsigned char>(input_gap == 16 ? 91 : 93));
+                run(pending_pause);
+                Check(rt.controls.CleanupPending() && !rt.controls.CapturesKey('W'),
+                    "pending service stops interception without disabling physical input observation");
+                const auto pending_moves = f.moves;
+                physical_keys['W'] = static_cast<SHORT>(0x8000);
+                clock_tick += input_gap; step();
+                Check((rt.sampled_diagnostic.keys & 1U) != 0
+                    && rt.controls.Current().owner == wm::Owner::none
+                    && rt.controls.AuthorizesNativeStop(pending_owner)
+                    && !rt.controls.CleanupPending() && f.moves == pending_moves,
+                    "fresh production physical key revokes pending automation without replacing its writer");
+                stop_ok = true; step();
+                Check(rt.controls.Current().owner == wm::Owner::none && f.moves == pending_moves,
+                    "cleanup acknowledgment does not resume held physical input");
+                physical_keys['W'] = 0; step();
+                auto replacement = make(wm::wire::Verb::acquire, rt.controls.Current(),
+                    static_cast<unsigned char>(input_gap == 16 ? 92 : 94));
+                run(replacement);
+                expected_grant = rt.controls.Current(); begin_action = true; step(); begin_action = false;
+                Check(owner_result == wm::Result::accepted,
+                    "new service owner requires completed cleanup and a fresh acquisition");
+            }
+            stop_ok = false;
+            const auto drag_owner = rt.controls.Current();
+            auto drag_pause = make(wm::wire::Verb::pause, drag_owner, 95); run(drag_pause);
+            const auto drag_moves = f.moves;
+            pointer = {0, 0};
+            SendMessageW(f.window, WM_XBUTTONDOWN, MAKEWPARAM(MK_XBUTTON1, XBUTTON1), MAKELPARAM(0, 0));
+            Check(GetCapture() == f.window, "pending exact owner can capture an eligible physical world gesture");
+            clock_tick += 297; step();
+            Check(rt.controls.Current() == drag_owner && rt.controls.CleanupPending() && f.moves == drag_moves,
+                "pending captured press alone neither takes over nor dispatches terrain movement");
+            pointer = {20, 0};
+            SendMessageW(f.window, WM_MOUSEMOVE, MK_XBUTTON1, MAKELPARAM(20, 0));
+            clock_tick += 297; step();
+            Check(rt.controls.Current().owner == wm::Owner::none
+                && rt.controls.AuthorizesNativeStop(drag_owner) && f.moves == drag_moves,
+                "real captured threshold crossing retires pending owner without a native terrain write");
+            stop_ok = true; step();
+            Check(rt.controls.Current().owner == wm::Owner::none && f.moves == drag_moves,
+                "acknowledged cleanup cannot turn a held takeover gesture into movement");
+            SendMessageW(f.window, WM_XBUTTONUP, MAKEWPARAM(0, XBUTTON1), MAKELPARAM(20, 0));
+            step();
+            auto after_drag = make(wm::wire::Verb::acquire, rt.controls.Current(), 96); run(after_drag);
+            expected_grant = rt.controls.Current(); begin_action = true; step(); begin_action = false;
+            Check(owner_result == wm::Result::accepted, "drag takeover leaves old cleanup complete before new acquisition");
             lease_current = false; const auto before_lease_stop = stops; clock_tick += 297; step();
             Check(!action_gate && stops == before_lease_stop + 1 && rt.controls.Current().owner == wm::Owner::none,
                 "lease loss cancels native service work even without a movement command");

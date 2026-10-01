@@ -39,10 +39,20 @@ DLL compilation passed. The new mandatory cross-process case exercises 297 ms
 updates with live producer heartbeats during active service and pending cleanup;
 missing/skipped/failed/duplicate execution is rejected by the package gate.
 
-Independent review identified an additional pending-cleanup input case: a fresh
-player takeover must revoke continuation even when the native stop has not yet
-acknowledged. That correction and its regression review are active. Then run the
-complete exact-source package qualification for both native profiles. Merge and
-installation require their own approval after qualification; earlier approval
+Independent review found and corrected a pending-cleanup takeover case. Pending
+automation still observes configured keyboard, controller/cancel and drag intent
+through the common input interpretation. Qualified player intent revokes the bot
+while preserving its original unresolved cleanup; it issues no camera or movement
+write and does not resume held input after cleanup. New regressions cover ordinary
+and delayed updates, remapping/modifiers, opposing keys and camera-only input.
+Production input sampling is covered as well: pending cleanup does not hide
+physical keys, and captured world drags retain focus/UI/capture/threshold guards.
+Revoking automation from input intent requires neither a camera basis nor a
+terrain pick; those remain prerequisites for actual native movement.
+
+Independent source review is complete. Active: complete exact-source package
+qualification for both native profiles. The combined review is
+[draft PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58).
+Merge and installation require approval after qualification; earlier approval
 covered PR #56. Fresh identity/readiness and bounded live acceptance follow an
 approved installation. Automatic retaliation remains disabled.

@@ -43,15 +43,19 @@ was delayed. Prior failures remain preserved.
 The completed `codex/native-power-readiness-20261001` and
 `codex/native-initiation-deployment-20261001` branches were retired locally and
 remotely after main-ancestry verification. Bot-integration owns
-`codex/native-readiness-deployment-20261001` for this receipt, targeting main and
-not yet published. Bot-runtime now owns `codex/native-owner-liveness-20261001`
+`codex/native-readiness-deployment-20261001` for this receipt, published at
+`22c0baf` through draft PR #57. Bot-runtime owns
+`codex/native-owner-liveness-20261001`
 from `88af795` for the unfinished correction: distinguish positively current,
 leased native service work from stale movement across a client update gap.
 Root owns Git, release and live actions; no other lane should switch these active
 checkouts. PR #50 remains closed as superseded; its branch is retained because
 its exact tip is not an ancestor of main.
 
-Active next item: finish the [owner-liveness correction](native-owner-liveness-20261001.md) and its independent review,
+The combined [draft PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58)
+includes the full receipt tip `22c0baf` from PR #57.
+
+Active next item: qualify the [owner-liveness correction](native-owner-liveness-20261001.md),
 then repeat bounded acceptance with fresh identity/readiness. Native reuse fallback
 is qualified offline but remains untested live. Automatic retaliation remains disabled.
 

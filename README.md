@@ -25,7 +25,10 @@ proves first-NPC death, cleanup and later SEEKING, without changing the original
 not-passed overall result.
 
 Bot-integration owns `codex/native-readiness-deployment-20261001` for the current
-receipt. Bot-runtime owns `codex/native-owner-liveness-20261001` for a [candidate correction](docs/native-owner-liveness-20261001.md) separating current leased service work from stale movement across an
+receipt, included in [draft PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58).
+Bot-runtime owns `codex/native-owner-liveness-20261001` for the
+[candidate correction](docs/native-owner-liveness-20261001.md), separating current
+leased service work from stale movement across an
 update gap. Both target main; the correction is not yet qualified or installed.
 The completed readiness and initiation deployment branches were retired after
 main-ancestry checks.
