@@ -15,7 +15,7 @@ ATTACK on a fresh frame, retaining the exact engagement, owner and target. Globa
 recovery remains DEFERRED. Unknown data, generic busy states and already-entered
 uncertainty never authorize this fallback. Passing the reuse checks does not prove
 all native power prerequisites; the normal native entry still makes final checks.
-The implementation is complete and undergoing qualification; it is not installed.
+The implementation and local package qualification are complete; it is not installed.
 
 ## Qualified exact-client boundary
 
@@ -94,9 +94,35 @@ reuse-blocked replay/status without re-entry, same-binding ATTACK, denial of new
 actions after capability loss, and STOP plus retained closed action history.
 This test performs no game effects; native power legality is covered separately.
 
-Active: qualify the combined committed source and package. Pending: full
-host checks, both native profiles, cross-process wire/history tests, required
-original/prepared readiness probes, exact-source packaging, and separate merge
-and installation approval. The acceptance recorder must report a skipped opener
-as skipped, rather than claiming that two skills queued. Prior failed runs and
-the separate successful first-recovery assessment remain preserved.
+Exact package source is `29c9728abf6ef13cf90eb7dcba9a73c19d634ce7`, in private
+`artifacts/b41/2d632561`. Later receipt-only commits do not change that source stamp.
+The independent verifier checked 64 build steps and 90 artifact hashes against the
+Git archive, wheel RECORD/source, native version resources and exact client images.
+
+| Qualification | Result |
+| --- | --- |
+| Complete host suite | 4,383 passed, 788 subtests passed, 36 skipped; Ruff passed |
+| Each native profile | 205 passed; all 105 required native gates passed |
+| Each profile's real movement/combat IPC | 72 / 86 passed, no skips |
+| Readiness probes | 22 cases on each original/prepared image, for both profiles |
+| Private acceptance recorder | 83 offline tests and independent source review passed |
+| Private deployment helpers | 11 offline tests plus ownership/path/retirement checks passed |
+
+The three native tests requiring private images skip in the generic CTest run and
+pass in the separate exact-image steps. The two previously deferred renderer
+transparency diagnostics still fail in each profile; their findings remain recorded
+and are not readiness or combat gate passes.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Package | `1e268aec3c391a442a6243f188cae90adb9047211195de308c62ca3fce82d168` |
+| Receipt | `ab7552393f85f19542406430ca1627070310b0cc4d2157e9a21e3f34126d19d4` |
+| Full DLL | `311207009781f206dcecc33cb3ee52e820d707c40db2115e03e90465d59108cc` |
+| Host wheel | `1a0b6509adc0482be0144053a3baa18a78bda7adb9f13aa6796b7c01a44506c9` |
+
+Active: separate PR #56 merge/install approval after its hosted checks pass.
+Pending: closed-client installation and fresh Umbra identity verification, then
+bounded two-encounter acceptance. The revised recorder reports a skipped opener
+as skipped; entered uncertainty can have proven cleanup without passing the full
+acceptance. Prior failed runs and the successful first-recovery assessment remain
+preserved. Automatic retaliation and server-effect claims remain outside this gate.

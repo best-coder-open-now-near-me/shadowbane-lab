@@ -9,7 +9,9 @@ Installation, manager activation, five shortcuts and startup preflight passed.
 The exact loaded-DLL launch check passed. After Umbra login, bounded follow-through
 queued the skill and attack, observed the exact NPC at zero health, and confirmed
 native cleanup. The original partial harness result and supplementary review are
-kept separately below. Recovery across encounters remains open.
+kept separately below. A later run proved first-NPC death, cleanup, subsequent
+SEEKING and second-NPC admission; the second skill stayed uncertain. Full
+two-encounter acceptance remains open.
 
 The normal checkout is on that main merge. The reused bot-integration worktree is
 on `codex/native-initiation-deployment-20261001` for this installation receipt;
@@ -19,8 +21,10 @@ is included in #54, and GitHub marked #53 merged at 17:41:38 UTC. PR #50 remains
 closed as superseded; its relevant historical facts are incorporated while its
 branch is retained because its exact tip is not an ancestor of main. The completed
 registry-backed-population and native-stance-deployment branches were retired
-locally and remotely after tip ancestry checks. The bot-runtime worktree is clean
-and detached at `origin/main@89f58cd`, available for reuse.
+locally and remotely after tip ancestry checks. The bot-runtime worktree owns
+`codex/native-power-readiness-20261001`, including the full PR #55 tip through
+[draft PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56).
+Its [qualified .61/.41 candidate](native-power-readiness-20261001.md) is not installed.
 
 The earlier .59 bounded gate passed one Shot to the Leg SELF_POWER request,
 one same-engagement NPC ATTACK and confirmed NATIVE_STOPPED cleanup. It proves
@@ -577,10 +581,14 @@ its offline and real-process qualification is distinct from live acceptance.
   the next run exposed a rejected native read before death confirmation.
 - Complete: retain bounded native read retries and verify first-NPC death, native
   cleanup, strictly later SEEKING and distinct second-NPC admission on .60.
-- Active: qualify native skill reuse availability and implement an optional-opener
-  fallback before native entry. Preserve uncertain-request polling and cleanup;
-  the full two-encounter skill/attack acceptance remains incomplete.
-- Complete: publish this installation receipt through draft PR #55; its merge
-  remains pending. PR #53's included tip is already merged.
+- Complete: native reuse availability and optional-opener fallback before entry,
+  independent review, real command-channel history/cleanup regression, and exact
+  source .61/.41 package qualification at `29c9728`.
+- Active: obtain separate PR #56 merge/install approval after hosted checks.
+- Pending: install after the client closes, then run qualified two-encounter
+  acceptance that reports a reuse-blocked opener as skipped. Entered uncertainty
+  remains unresolved by elapsed time or system messages.
+- Complete: publish this installation receipt through draft PR #55; its full tip
+  is included in PR #56 for combined integration. PR #53 is already merged.
 - Pending: qualified server-effect evidence and the authoritative
   server-character-session fence required for automatic retaliation.

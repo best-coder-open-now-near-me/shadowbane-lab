@@ -25,8 +25,9 @@ targets main and remains unmerged at published tip
 `codex/native-power-readiness-20261001` starts from that full tip and targets main,
 so it retains the installed-source ancestry and all current receipt/audit work.
 Its [draft PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56)
-adds [native skill-reuse availability and optional-opener fallback](native-power-readiness-20261001.md); qualification,
-review and separate merge/install approval remain pending. Root owns Git,
+adds [native skill-reuse availability and optional-opener fallback](native-power-readiness-20261001.md).
+Independent review and exact-source .61/.41 qualification at `29c9728` passed;
+separate merge/install approval and live acceptance remain pending. Root owns Git,
 versions, packaging and live actions; parallel lanes own host behavior, native
 readiness, and the isolated image probe. The completed
 `codex/registry-backed-population` and
