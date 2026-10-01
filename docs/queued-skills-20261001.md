@@ -387,6 +387,50 @@ and identity confirmation for the already authorized player, Day. Automatic
 retaliation still needs the separate authoritative server session/attribution
 contract and cannot be enabled merely by passing another live test.
 
+## .60 recovery attempt and passive buff-stat transition
+
+Run `daa891ed86f24f3e9c8192a847b333e0` remains **not_passed**. SELF_POWER request 1
+queued for the first bound NPC. ATTACK request 2 was definitively DEFERRED with
+NEVER_ENTERED; the next ATTACK request 3 queued. Native health fell from 400 to
+61.6008, without an observed death. At frame timestamp 7,187 ms, the NPC crossed
+the controller's 20-unit close-range threshold, from distance 26.45 to 4.59.
+Production proposed an attack renewal against the same engagement, but the private
+one-attack acceptance boundary rejected it before native entry. Its summary count
+of two combines one actual rejection with the failure latch; it does not mean
+two additional action attempts reached the native service.
+
+There was no second NPC, later SEEKING or recovery proof. STOP request 4 confirmed
+native cleanup; no owner or attack-list entry remained, the error field was null,
+and the watchdog did not fire. Preserve the original not-passed result. This is a
+private acceptance-scope mismatch, not evidence that the installed runtime needs
+a behavior change. The planned private correction permits at most four positively
+queued ATTACK requests, including the first, for the exact first NPC; one SELF_POWER,
+the same engagement
+and owner, and the original 20-second deadline. The second NPC still stops after
+its first queued attack. Uncertain requests retain their identity. Retrying an
+unaccepted command requires definitive no-entry evidence; an ordinary renewed
+attack can follow a positively acknowledged attack on the same engagement.
+
+After the failed run, the user reported buff loss. A passive native-vitals read
+at **18:04:05 UTC** confirmed the following maximum-stat changes; all three current
+resources were full at the later observation:
+
+| Native maximum | Earlier | Later |
+| --- | ---: | ---: |
+| Health | 3,957.6018 | 3,260.2568 |
+| Mana | 480.185 | 312.16 |
+| Stamina | 839.272 | 693.852 |
+
+Private `artifacts/bot-deploy/20261001-b40/buff-transition-vitals.json` retains the
+observation. No effect identity, expiry mechanism, or causal link to the skill,
+attack or cleanup is established. Fresh stats must be used for the next bounded
+run. Installed host .60/native .40 source `f0263c3` is unchanged.
+
+The [offline retaliation session-boundary audit](retaliation-session-boundary-20261001.md)
+records reviewed client connection/login paths and the remaining authoritative
+session and attribution gaps. The user has no server source or protocol docs;
+the client-only findings do not enable automatic retaliation.
+
 ## Historical .57 live evidence
 
 Installed .57/.37 source `1d107a25` passed manual-player attack, list removal,
@@ -419,8 +463,9 @@ its offline and real-process qualification is distinct from live acceptance.
 - Complete: .60 skill/attack queue sequence, exact-object zero-health observation
   and confirmed native cleanup, with original partial result preserved and a
   separate supplementary evidence review.
-- Active: validate bounded .60 recovery across encounters and a later SEEKING frame;
-  the completed one-kill run intentionally did not exercise that transition.
+- Active: correct the private renewal bound and repeat bounded .60 recovery with
+  fresh stats, exact first-NPC cleanup and a later SEEKING frame. The first recovery
+  attempt remains not passed; no runtime source change is planned.
 - Complete: publish this installation receipt through draft PR #55; its merge
   remains pending. PR #53's included tip is already merged.
 - Pending: qualified server-effect evidence and the authoritative

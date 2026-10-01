@@ -69,10 +69,23 @@ remained. The deployment export verified 12 compact receipts and seven installed
 file hashes. Four additional obsolete .59/.39 staging binaries were removed by
 exact hash, totaling 5,361,484 bytes; user records remain in place.
 
-Active next item: validate bounded recovery across encounters on .60; the one-kill
-follow-through intentionally ended COMPLETE and cannot prove later SEEKING. Publish
-this deployment receipt through draft PR #55. Automatic retaliation
-remains disabled pending the separate authoritative server-character-session fence.
+The subsequent two-encounter recovery attempt `daa891ed86f24f3e9c8192a847b333e0`
+remains not passed. The first NPC fell from health 400 to 61.6008, but the private
+one-attack boundary rejected a production same-target attack renewal when the NPC
+crossed the 20-unit close-range threshold. No death, second NPC or recovery was
+observed. Native cleanup was confirmed; no owner or list entry remained and no
+error or watchdog fired. The rejection summary counted one actual rejection twice.
+Afterward the user reported buff loss; passive native vitals confirmed lower
+maximum health, mana and stamina, all full. Effect identity and causation are
+unknown. Installed source `f0263c3` remains unchanged.
+
+Active next item: correct the private acceptance boundary to allow at most four
+positively queued attack renewals for the first exact NPC under the same owner,
+engagement and original 20-second deadline, then repeat bounded recovery with fresh
+stats. The second encounter still stops after its first queued attack. Publish
+these receipts through draft PR #55, currently unmerged. Automatic retaliation
+remains disabled; the [offline session-boundary findings](retaliation-session-boundary-20261001.md)
+identify missing guarantees without enabling a client-connection shortcut.
 
 Everything below is historical. Earlier current/candidate/next statements do not
 override the current source, installed runtime and active work above.

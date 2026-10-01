@@ -16,7 +16,9 @@ Installation, manager activation, five shortcuts, startup preflight and the
 loaded-DLL launch check passed. The inspected obsolete .59 runtime was removed
 without retaining rollback copies. After Umbra login, the .60 follow-through
 queued the skill and attack, observed the exact NPC at zero health, and confirmed
-native cleanup. Recovery across encounters and server-effect evidence remain open.
+native cleanup. A subsequent recovery attempt stopped safely when the private
+harness rejected a same-target attack renewal; recovery across encounters remains
+open. The installed source is unchanged.
 The installation receipt is published on `codex/native-initiation-deployment-20261001`
 through [draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55),
 with main as its integration destination.
@@ -24,7 +26,8 @@ with main as its integration destination.
 Read the [branch map](docs/git-branch-map.md) before selecting a development base,
 the [current bot qualification and live-test todos](docs/queued-skills-20261001.md),
 and the [contributor workflow](CONTRIBUTING.md) before starting a new task.
-Automatic retaliation remains disabled pending the authoritative server session contract.
+Automatic retaliation remains disabled; the [offline session-boundary audit](docs/retaliation-session-boundary-20261001.md)
+records the remaining attribution and session guarantees.
 Earlier integration history and retained lanes are recorded in the
 [integration inventory](docs/integration-status-20260923.md).
 
