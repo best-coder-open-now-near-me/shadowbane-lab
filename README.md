@@ -17,8 +17,9 @@ loaded-DLL launch check passed. The inspected obsolete .59 runtime was removed
 without retaining rollback copies. After Umbra login, the .60 follow-through
 queued the skill and attack, observed the exact NPC at zero health, and confirmed
 native cleanup. Recovery across encounters and server-effect evidence remain open.
-The installation receipt is being
-prepared on `codex/native-initiation-deployment-20261001` for the next PR to main.
+The installation receipt is published on `codex/native-initiation-deployment-20261001`
+through [draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55),
+with main as its integration destination.
 
 Read the [branch map](docs/git-branch-map.md) before selecting a development base,
 the [current bot qualification and live-test todos](docs/queued-skills-20261001.md),

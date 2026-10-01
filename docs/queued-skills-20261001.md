@@ -13,7 +13,8 @@ kept separately below. Recovery across encounters remains open.
 
 The normal checkout is on that main merge. The reused bot-integration worktree is
 on `codex/native-initiation-deployment-20261001` for this installation receipt;
-the next documentation PR to main has not yet been created. PR #53's complete tip
+[draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55)
+targets main and remains unmerged. PR #53's complete tip
 is included in #54, and GitHub marked #53 merged at 17:41:38 UTC. PR #50 remains
 closed as superseded; its relevant historical facts are incorporated while its
 branch is retained because its exact tip is not an ancestor of main. The completed
@@ -420,7 +421,7 @@ its offline and real-process qualification is distinct from live acceptance.
   separate supplementary evidence review.
 - Active: validate bounded .60 recovery across encounters and a later SEEKING frame;
   the completed one-kill run intentionally did not exercise that transition.
-- Pending: publish this installation receipt through the next documentation PR;
-  PR #53's included tip is already merged.
+- Complete: publish this installation receipt through draft PR #55; its merge
+  remains pending. PR #53's included tip is already merged.
 - Pending: qualified server-effect evidence and the authoritative
   server-character-session fence required for automatic retaliation.

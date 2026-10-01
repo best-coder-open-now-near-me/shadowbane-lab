@@ -19,7 +19,8 @@ corrections plus PR #53's full documentation tip. GitHub marked
 [PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53)
 merged at 17:41:38 UTC. The reused bot-integration checkout is now on
 `codex/native-initiation-deployment-20261001` for the installation receipt; its
-next PR targets main and has not yet been created. The completed
+[draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55)
+targets main and remains unmerged. The completed
 `codex/registry-backed-population` and
 `codex/native-stance-deployment-20261001` branches were retired locally and remotely
 after tip ancestry checks. The bot-runtime worktree is clean and detached at
@@ -70,7 +71,7 @@ exact hash, totaling 5,361,484 bytes; user records remain in place.
 
 Active next item: validate bounded recovery across encounters on .60; the one-kill
 follow-through intentionally ended COMPLETE and cannot prove later SEEKING. Publish
-this deployment receipt through the next documentation PR. Automatic retaliation
+this deployment receipt through draft PR #55. Automatic retaliation
 remains disabled pending the separate authoritative server-character-session fence.
 
 Everything below is historical. Earlier current/candidate/next statements do not
