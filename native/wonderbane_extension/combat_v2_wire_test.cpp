@@ -107,6 +107,22 @@ int wmain(int argc,wchar_t** argv) {
     receipt.flags=w::cleanup_required|w::outbound_queued;
     assert(w::Correlated(command,w::Verb::submit,receipt) && receipt.target_key[0]==200);
     receipt.action=w::Action::cast; assert(!w::Correlated(command,w::Verb::submit,receipt));
+    for(const auto action:{w::Action::cast,w::Action::self_power}) {
+        command.action=action;
+        auto ready=w::Reply(command,w::Verb::submit,w::Outcome::power_reuse_blocked);
+        ready.phase=w::Phase::bound;ready.flags=w::cleanup_required;ready.entry=w::Entry::never_entered;
+        assert(w::Valid(ready));
+        for(const auto phase:{w::Phase::stopping,w::Phase::blocked}) { ready.phase=phase;assert(w::Valid(ready)); }
+        ready.phase=w::Phase::closed;ready.closure=w::Closure::native_stopped;ready.flags=0;assert(w::Valid(ready));
+        ready.phase=w::Phase::retired;ready.closure=w::Closure::scene_retired;assert(w::Valid(ready));
+        ready.verb=w::Verb::cancel_action;assert(!w::Valid(ready));ready.verb=w::Verb::action_status;
+        ready.entry=w::Entry::entered;assert(!w::Valid(ready));ready.entry=w::Entry::never_entered;
+        ready.flags=w::uncertain_history;assert(!w::Valid(ready));ready.flags=0;
+        ready.phase=w::Phase::closed;ready.closure=w::Closure::never_bound;assert(!w::Valid(ready));
+        ready.phase=w::Phase::unknown;ready.closure=w::Closure::none;assert(!w::Valid(ready));
+        ready.phase=w::Phase::bound;ready.flags=w::cleanup_required;ready.action=w::Action::attack;ready.power_id=0;
+        assert(!w::Valid(ready));
+    }
     command.action=static_cast<w::Action>(4); assert(!w::BindingFor(command,binding.client_pid,binding.client_creation,decoded));
     const auto name=f::Name(binding); assert(!name.empty());
     auto other=binding; ++other.movement_generation; assert(f::Name(other)!=name);

@@ -27,12 +27,14 @@ constexpr std::uint32_t kNativeActionDispatchCapability = 1U << 1U;
 constexpr std::uint32_t kLearnedPowerDispatchCapability = 1U << 2U;
 constexpr std::uint32_t kNativeCombatCapability = 1U << 4U;
 constexpr std::uint32_t kNativeSelfPowerCapability = 1U << 5U;
+constexpr std::uint32_t kNativePowerReadinessCapability = 1U << 6U;
 constexpr std::uint32_t kKnownClientActionCapabilities =
     kClientActionTransportCapability
     | kNativeActionDispatchCapability
     | kLearnedPowerDispatchCapability
     | kNativeCombatCapability
-    | kNativeSelfPowerCapability;
+    | kNativeSelfPowerCapability
+    | kNativePowerReadinessCapability;
 
 struct ClientActionRequest {
     std::uint64_t command_id;

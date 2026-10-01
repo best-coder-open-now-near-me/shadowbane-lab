@@ -282,6 +282,12 @@ bool Scope::Current() const noexcept {
     return active == this && active_ && !blocked_
         && Ready() && MatchesBinding(context_) && context_.current(context_.owner);
 }
+bool Scope::AdmitAvailability(Availability value, std::uint64_t epoch) noexcept {
+    if (!epoch || !CanEnter() || Epoch()!=epoch) { return false; }
+    receipt_.availability = value; receipt_.availability_epoch=epoch;
+    detail::Observer::Publish(*this);
+    return value == Availability::ready;
+}
 bool Scope::Enter(std::uintptr_t definition, std::uint32_t rank) noexcept {
     if (!definition || !rank || rank > 9999 || !CanEnter()) { detail::Observer::Block(*this); return false; }
     AdvanceEpoch(); // The extension bridge bypasses the four ordinary UI callers.
@@ -292,6 +298,10 @@ bool Scope::Enter(std::uintptr_t definition, std::uint32_t rank) noexcept {
 }
 Receipt Scope::Finish() noexcept {
     if (active_) {
+        if(!receipt_.native_entered && (!receipt_.availability_epoch || !Current()
+            || Epoch()!=receipt_.availability_epoch)) {
+            receipt_.availability=Availability::unknown; receipt_.availability_epoch=0;
+        }
         if (active == this) { active = previous_; }
         else {
             for (auto* child = active; child; child = child->previous_) {

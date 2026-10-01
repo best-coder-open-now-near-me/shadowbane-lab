@@ -25,7 +25,8 @@ Installed source is unchanged.
 The installation receipt is published on `codex/native-initiation-deployment-20261001`
 through [draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55),
 with main as its integration destination.
-Active native reuse handling is on `codex/native-power-readiness-20261001`,
+Active [native reuse handling](docs/native-power-readiness-20261001.md) is on
+`codex/native-power-readiness-20261001` through [draft PR #56](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/56),
 based on the full published receipt tip `37e0e1e`. It remains under development
 and has not changed the installed runtime.
 

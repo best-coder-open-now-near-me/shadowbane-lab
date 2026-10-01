@@ -13,7 +13,13 @@ bool Read(void* out, std::uintptr_t at, std::size_t size) noexcept {
 using Definition = void*(__cdecl*)(std::uint32_t);
 using Rank = int(__thiscall*)(void*, std::uint32_t);
 using Use = bool(__cdecl*)(std::uint32_t, int, void*, void*, const float*, Key);
-struct Calls { Definition definition; Rank rank; Use use; stance::Calls stance; };
+using AvailabilityReader = Availability(*)(std::uintptr_t,std::uintptr_t,std::uint32_t) noexcept;
+struct Calls { Definition definition; Rank rank; Use use; stance::Calls stance; AvailabilityReader availability; };
+Availability NativeAvailability(std::uintptr_t image,std::uintptr_t actor,std::uint32_t id) noexcept {
+    return readiness::Observe(image,actor,id,[](std::uintptr_t at,auto& value) noexcept {
+        return Read(&value,at,sizeof(value));
+    });
+}
 struct Invocation {
     Use function;
     std::uint32_t id, rank;
@@ -91,6 +97,11 @@ bool InvokeBound(Scope& scope, const Calls& calls) {
     } else if (c.target_mode != TargetMode::engagement_object
         || target_mode == 2 || target_mode == 3 || delivery == 2) { return false; }
     const auto rank = static_cast<std::uint32_t>(std::min(learned, 9999));
+    // Qualified refusal before ANY stance/Use effects. Later native refusal stays
+    // entered uncertainty; neither a return bool nor a timer guesses no entry.
+    const auto availability_epoch=InitiationEpoch();
+    if (!calls.availability || !scope.AdmitAvailability(
+            calls.availability(c.image,c.actor,c.power_id),availability_epoch)) { return false; }
     // Native PreparePower4e0be..4e133 uses +1f0: 1 requires signed mode>=2,
     // 2 requires mode<=1, 3 permits either. Only the first requires combat stance;
     // category0/self also includes unrelated buffs and is not a stance classifier.
@@ -134,6 +145,6 @@ bool Invoke(Scope& scope) {
     const auto image = scope.Binding().image;
     return InvokeBound(scope, {reinterpret_cast<Definition>(image + 0x16d8a0),
         reinterpret_cast<Rank>(image + 0x9b400), reinterpret_cast<Use>(image + 0x9bbf0),
-        stance::Native(image)});
+        stance::Native(image),NativeAvailability});
 }
 }

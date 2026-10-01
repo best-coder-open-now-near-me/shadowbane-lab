@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
         v::wire::Receipt receipt{}; std::memcpy(&receipt, &last_result().movement, sizeof(receipt)); return receipt;
     };
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
-    assert(!(storage.header.capability_flags & (kNativeCombatCapability|kNativeSelfPowerCapability)));
+    assert(!(storage.header.capability_flags & (kNativeCombatCapability|kNativeSelfPowerCapability|kNativePowerReadinessCapability)));
     publish(v::wire::Verb::submit);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
     assert(!v::Take() && last_result().stage == static_cast<unsigned>(ClientActionResultStage::failed));
@@ -86,6 +86,7 @@ int main(int argc, char** argv) {
     publish(v::wire::Verb::submit);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
     assert(storage.header.capability_flags & kNativeCombatCapability);
+    assert(kNativePowerReadinessCapability==64U && (storage.header.capability_flags&kNativePowerReadinessCapability));
     assert(kNativeCombatCapability==16U && kNativeSelfPowerCapability==32U
         && (storage.header.capability_flags&kNativeSelfPowerCapability) && !(storage.header.capability_flags&8U));
     assert(runtime.combat_pending && !runtime.pending && storage.header.command_read_sequence == 1);
@@ -108,7 +109,7 @@ int main(int argc, char** argv) {
     outer::test_ready = false;
     publish(v::wire::Verb::cancel_action);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
-    assert(!(storage.header.capability_flags & (kNativeCombatCapability|kNativeSelfPowerCapability)));
+    assert(!(storage.header.capability_flags & (kNativeCombatCapability|kNativeSelfPowerCapability|kNativePowerReadinessCapability)));
     command = v::Take(); assert(command && command->verb == v::wire::Verb::cancel_action);
     receipt = v::wire::Reply(command->command, command->verb, v::wire::Outcome::pending);
     receipt.flags = v::wire::cleanup_required; receipt.phase = v::wire::Phase::stopping;

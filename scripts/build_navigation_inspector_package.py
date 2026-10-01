@@ -75,6 +75,7 @@ REQUIRED_TARGETED_ACTION_TESTS = frozenset({
 
 REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_combat_initiation",
+    "wonderbane_extension_combat_power_readiness",
     "wonderbane_extension_movement_boundary_outermost_service",
     "wonderbane_extension_combat_submission",
     "wonderbane_extension_combat_submission_install_failure",
@@ -142,29 +143,41 @@ def validate_native_results(path: Path, required: set[str], *, diagnostic: bool,
         raise RuntimeError("native command exit does not match recorded gate failures")
     return failures
 
-def validate_combat_power_initiation_steps(steps, *, reviewed_client):
+def _validate_combat_power_probe_steps(steps, *, reviewed_client, feature):
     """Certify executed original/prepared conformance for both package profiles."""
     if not reviewed_client:
         return False
     for profile in ("full", "diagnostics-only"):
         images = []
         for suffix in ("binding", "prepared-binding"):
-            name = f"{profile}-combat-power-initiation-{suffix}"
+            name = f"{profile}-combat-power-{feature}-{suffix}"
             matches = [step for step in steps if step.get("name") == name]
             if len(matches) != 1 or matches[0].get("exit_code") != 0:
-                raise RuntimeError(f"required combat power initiation gate did not pass: {name}")
+                raise RuntimeError(f"required combat power {feature} gate did not pass: {name}")
             command = matches[0].get("command")
             if (not isinstance(command, list) or len(command) != 2
                     or not all(isinstance(item, str) and item for item in command)
                     or Path(command[0]).name !=
-                    "wonderbane_extension_combat_power_initiation_probe.exe"):
-                raise RuntimeError(f"incorrect combat power initiation probe command: {name}")
+                    f"wonderbane_extension_combat_power_{feature}_probe.exe"):
+                raise RuntimeError(f"incorrect combat power {feature} probe command: {name}")
             images.append(command[1])
         if images[0] == images[1]:
             raise RuntimeError(
-                f"{profile}: initiation probe must exercise original and prepared images"
+                f"{profile}: {feature} probe must exercise original and prepared images"
             )
     return True
+
+
+def validate_combat_power_initiation_steps(steps, *, reviewed_client):
+    return _validate_combat_power_probe_steps(
+        steps, reviewed_client=reviewed_client, feature="initiation",
+    )
+
+
+def validate_combat_power_readiness_steps(steps, *, reviewed_client):
+    return _validate_combat_power_probe_steps(
+        steps, reviewed_client=reviewed_client, feature="readiness",
+    )
 
 
 REQUIRED_MOVEMENT_IPC_TESTS = frozenset({
@@ -383,6 +396,8 @@ def main() -> int:
                                  "combat_melee_entry_test.cpp", "combat_power_entry_test.cpp",
                                  "combat_power_probe.cpp", "combat_power_mode_probe.cpp",
                                  "combat_power_initiation_probe.cpp", "combat_initiation_test.cpp",
+                                 "combat_power_readiness_probe.cpp",
+                                 "combat_power_readiness_test.cpp",
                                  "combat_power_image_test_stub.cpp",
                                  "targeted_action_trace_test.cpp"):
             if included_sources.count(developer_source) != 0:
@@ -553,7 +568,8 @@ def main() -> int:
                  "wonderbane_extension_combat_melee_probe",
                  "wonderbane_extension_combat_power_probe",
                  "wonderbane_extension_combat_power_mode_probe",
-                 "wonderbane_extension_combat_power_initiation_probe"],
+                 "wonderbane_extension_combat_power_initiation_probe",
+                 "wonderbane_extension_combat_power_readiness_probe"],
             )
             run(
                 f"{profile}-combat-registry-binding",
@@ -578,6 +594,11 @@ def main() -> int:
             run(
                 f"{profile}-combat-power-initiation-binding",
                 [build / "Release/wonderbane_extension_combat_power_initiation_probe.exe",
+                 arguments.reviewed_client.resolve()],
+            )
+            run(
+                f"{profile}-combat-power-readiness-binding",
+                [build / "Release/wonderbane_extension_combat_power_readiness_probe.exe",
                  arguments.reviewed_client.resolve()],
             )
             run(
@@ -639,6 +660,11 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             run(
                 f"{profile}-combat-power-initiation-prepared-binding",
                 [build / "Release/wonderbane_extension_combat_power_initiation_probe.exe",
+                 prepared_client],
+            )
+            run(
+                f"{profile}-combat-power-readiness-prepared-binding",
+                [build / "Release/wonderbane_extension_combat_power_readiness_probe.exe",
                  prepared_client],
             )
             for test in ("sky_binding", "sky_render"):
@@ -976,6 +1002,9 @@ else:
         "combat_power_entry_verified": bool(arguments.reviewed_client),
         "combat_power_mode_verified": bool(arguments.reviewed_client),
         "combat_power_initiation_verified": validate_combat_power_initiation_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client),
+        ),
+        "combat_power_readiness_verified": validate_combat_power_readiness_steps(
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
         "source_identity": metadata,

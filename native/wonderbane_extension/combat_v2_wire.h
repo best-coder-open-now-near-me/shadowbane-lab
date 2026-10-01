@@ -13,7 +13,7 @@ enum class Action : std::uint32_t { none, attack, cast, self_power };
 enum class Outcome : std::uint32_t {
     observed, client_outbound_queued, stale, unavailable, invalid, pending,
     uncertain, exhausted, engagement_closed, native_rejected, bound,
-    action_cancelled, deferred, history_expired
+    action_cancelled, deferred, history_expired, power_reuse_blocked
 };
 enum class Phase : std::uint32_t { unknown, bound, stopping, closed, retired, blocked };
 enum class Entry : std::uint32_t { unknown, never_entered, entered };
@@ -102,7 +102,7 @@ inline bool Valid(const Receipt& r) noexcept {
         || (r.phase == Phase::unknown && r.closure == Closure::history_expired && r.outcome == Outcome::history_expired)
         || (r.phase != Phase::closed && r.phase != Phase::retired && r.closure == Closure::none);
     return r.signature == receipt_signature && r.version == 2 && Valid(r.authority)
-        && Valid(r.action, r.power_id, r.verb) && r.outcome <= Outcome::history_expired
+        && Valid(r.action, r.power_id, r.verb) && r.outcome <= Outcome::power_reuse_blocked
         && r.phase <= Phase::blocked && r.entry <= Entry::entered && !(r.flags & ~7U)
         && r.combat_target_present <= 1 && movement::wire::Valid(r.host)
         && r.window && r.window <= UINT32_MAX && movement::wire::Decode(r.grant, grant)
@@ -124,6 +124,12 @@ inline bool Valid(const Receipt& r) noexcept {
             && !(r.flags & (outbound_queued|uncertain_history))
             && (r.action != Action::none || (r.verb == Verb::bind && r.phase == Phase::closed
                 && r.closure == Closure::never_bound))))
+        && (r.outcome != Outcome::power_reuse_blocked || (
+            (r.action == Action::cast || r.action == Action::self_power) && r.entry == Entry::never_entered
+            && (r.verb == Verb::submit || r.verb == Verb::action_status)
+            && ((owned && r.closure == Closure::none && r.flags == cleanup_required)
+                || (r.phase == Phase::closed && r.closure == Closure::native_stopped && !r.flags)
+                || (r.phase == Phase::retired && r.closure == Closure::scene_retired && !r.flags))))
         && (r.outcome != Outcome::history_expired || (r.entry == Entry::unknown && !r.flags
             && r.phase == Phase::unknown && r.closure == Closure::history_expired));
 }

@@ -15,7 +15,7 @@ bool live=true,admitted=true,throw_attack=false,seh_attack=false,reject_cancel=f
 unsigned attacks{},casts{},stops{},lookups{},restores{},lookup_mode{};
 double initiation_seconds{};
 std::uint32_t learned_rank=20, definition_generation=1;
-bool definition_available=true;
+bool definition_available=true; unsigned availability_change{};
 std::uint64_t epoch=1;
 bool mutate_after_definition=false, mutate_on_current=false;
 bool native_in_flight=false, mutate_before_entry=false, mutate_after_entry=false;
@@ -40,7 +40,7 @@ void Reset() {
     for(const auto& [object,count]:references) { (void)object; assert(!count); }
     std::memset(reinterpret_cast<void*>(base),0,0x10000); references.clear(); lookup_mode=0;
     mutate_after_definition=mutate_on_current=false; native_in_flight=mutate_before_entry=mutate_after_entry=false; epoch=1; initiation_seconds=0; learned_rank=20; definition_generation=1; definition_available=true;
-    live=admitted=true; throw_attack=seh_attack=reject_cancel=false; attacks=casts=stops=lookups=0;
+    availability_change=0; live=admitted=true; throw_attack=seh_attack=reject_cancel=false; attacks=casts=stops=lookups=0;
     melee_receipt={s::Result::queued,true,true,true}; power_receipt={p::Result::queued,true,true,true,true,1};
     scene={}; scene.epoch=1; scene.actor=base+0x2000; scene.window=base+0x1000;
     scene.world=base+0x6000; scene.parent=0; scene.identity={100,53};
@@ -107,6 +107,11 @@ bool ReadSelfInitiation(std::uintptr_t,std::uintptr_t,std::uint32_t,InitiationDe
 bool Invoke(Scope& scope) {
     ++casts; assert(scope.Binding().power_id==428918601);
     if(power_context.receipt) { *power_context.receipt=power_receipt; }
+    if(!power_receipt.native_entered) {
+        if(availability_change==1) { admitted=false; }
+        if(availability_change==2) { mutate_on_current=true; }
+        return false;
+    }
     Put(scene.actor+0x9bc,std::uint32_t{12}); Put(base+0xc020,std::uint32_t{4});
     Put(base+0xc010,std::uint32_t{6}); Protocol({scope.Binding().power_id});
     assert(power_context.current(power_context.owner)); // Native entry may legitimately become busy.
@@ -197,6 +202,31 @@ int main() {
         command.request.back()=3;
         assert(target.Execute(command).outcome==O::deferred && attacks==1); // Allowance consumed once.
         assert(target.Clear());
+    }
+    for(const auto reason:{p::Availability::reuse_blocked,p::Availability::global_recovery,p::Availability::unknown}) {
+        Reset();auto command=Command(true);c::NativeTarget target;c::NativeTargetTestAccess::Bind(target);
+        assert(target.Prepare(scene,command,Current,Current,nullptr).outcome==O::bound);
+        command.action=c::wire::Action::self_power;command.power_id=428918601;
+        power_receipt={};power_receipt.availability=reason;power_receipt.availability_epoch=epoch;
+        const auto reply=target.Execute(command);
+        assert(reply.entry==c::wire::Entry::never_entered&&!reply.history&&!attacks&&!stops);
+        assert(reply.outcome==(reason==p::Availability::reuse_blocked?O::power_reuse_blocked:
+            reason==p::Availability::global_recovery?O::deferred:O::unavailable));
+        // No-entry refusal preserves engagement for an exact new basic attack.
+        command.request.back()=2;command.action=c::wire::Action::attack;command.power_id=0;
+        assert(target.Execute(command).outcome==O::client_outbound_queued&&attacks==1&&lookups==1);
+        assert(target.Clear());
+    }
+    for(unsigned change=1;change<=2;++change) {
+        Reset();auto command=Command(true);c::NativeTarget target;c::NativeTargetTestAccess::Bind(target);
+        assert(target.Prepare(scene,command,Current,Current,nullptr).outcome==O::bound);
+        command.action=c::wire::Action::self_power;command.power_id=428918601;
+        power_receipt={};power_receipt.availability=p::Availability::reuse_blocked;
+        power_receipt.availability_epoch=epoch;availability_change=change;
+        const auto reply=target.Execute(command);
+        assert(reply.outcome==(change==1?O::stale:O::deferred)
+            &&reply.entry==c::wire::Entry::never_entered&&!reply.history);
+        assert(!attacks&&!stops);assert(target.Clear());
     }
     for(unsigned scenario=0;scenario<15;++scenario) {
         Reset(); auto command=Command(true); c::NativeTarget target; c::NativeTargetTestAccess::Bind(target);

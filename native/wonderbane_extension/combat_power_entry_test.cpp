@@ -119,9 +119,11 @@ void Nested() {
         && outer_receipt->send_observed==before.send_observed && outer_receipt->append_observed==before.append_observed
         && outer_receipt->followup_entered==before.followup_entered,"nested same/different power leaves outer receipt unchanged");
 }
+pw::Availability availability = pw::Availability::ready;
+pw::Availability ReadAvailability(std::uintptr_t,std::uintptr_t,std::uint32_t) noexcept { return availability; }
 void Run(const pw::Context& c) { pw::Scope scope(c); (void)pw::InvokeBound(scope, {Definition,reinterpret_cast<pw::Rank>(&Rank),native_use,
     {reinterpret_cast<wonderbane::extension::combat::stance::Getter>(&Mode),
-     reinterpret_cast<wonderbane::extension::combat::stance::Toggle>(&Toggle)}}); }
+     reinterpret_cast<wonderbane::extension::combat::stance::Toggle>(&Toggle)},ReadAvailability}); }
 bool Guarded(const pw::Context& c) {
     pw::Boundary boundary;
     __try { __try { Run(c); } __finally { boundary.Restore(); } }
@@ -210,7 +212,7 @@ int main(int argc, char** argv) {
     Check(pw::StartBound(base,sender_call,Followup),"atomic interception install");
     pw::Receipt receipt{};outer_receipt=&receipt;
     pw::Context context{base,reinterpret_cast<std::uintptr_t>(actor.data()),reinterpret_cast<std::uintptr_t>(target.data()),base+0x1600000,base+0x1600100,local,victim,428918601,Current,QueueCurrent,nullptr,&receipt};
-    const auto reset=[&] { references=2;current_message=message.data(); message={};message[0]=static_cast<std::uint32_t>(base+0x1155fd8);message[0x80/4]=context.power_id;message[0xa4/4]=1;message[0x88/4]=local[0];message[0x8c/4]=local[1];message[0x90/4]=context.RecipientKey()[0];message[0x94/4]=context.RecipientKey()[1];current=true;queue_current=true;fault_send=false;fault_followup=false;seh_send=false;seh_followup=false;corrupt_key=false;revoke_during_use=false;receipt={};actor_mode=1;stance_reads=stance_toggles=0;deny_stance=revoke_stance=revoke_mode_read=fault_stance=seh_stance=false;replaced_target_key=nullptr; };
+    const auto reset=[&] { references=2;current_message=message.data(); message={};message[0]=static_cast<std::uint32_t>(base+0x1155fd8);message[0x80/4]=context.power_id;message[0xa4/4]=1;message[0x88/4]=local[0];message[0x8c/4]=local[1];message[0x90/4]=context.RecipientKey()[0];message[0x94/4]=context.RecipientKey()[1];current=true;queue_current=true;fault_send=false;fault_followup=false;seh_send=false;seh_followup=false;corrupt_key=false;revoke_during_use=false;receipt={};actor_mode=1;stance_reads=stance_toggles=0;deny_stance=revoke_stance=revoke_mode_read=fault_stance=seh_stance=false;replaced_target_key=nullptr;availability=pw::Availability::ready; };
     reset(); Check(Guarded(context),"normal power invocation");Check(receipt.result==pw::Result::queued && receipt.native_entered && receipt.send_observed && receipt.append_observed && receipt.followup_entered,"queued receipt preserves all boundaries");
     Check(receipt.initiation_epoch && receipt.initiation_epoch==pw::InitiationEpoch(),"ordinary owned followup captures mutation provenance");
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
@@ -220,6 +222,29 @@ int main(int argc, char** argv) {
         reset();unrelated_power=nested_id;reenter_send=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"sender reentry preserves scoped submission");Check(!receipt.initiation_epoch,"nested native work invalidates instant followup provenance");
         reset();unrelated_power=nested_id;reenter_followup=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"followup reentry preserves scoped submission");Check(!receipt.initiation_epoch,"nested native work invalidates instant followup provenance");
     }
+    // Positive readiness refusal cannot call stance, native Use, sender or followup.
+    definition[0x1f0/4]=1;
+    for(auto reason:{pw::Availability::reuse_blocked,pw::Availability::global_recovery,pw::Availability::unknown}) {
+        reset();availability=reason;const auto before_uses=uses,before_send=sends,before_followup=followups;
+        Check(Guarded(context)&&!receipt.native_entered&&!receipt.append_observed
+            &&receipt.availability==reason&&uses==before_uses&&sends==before_send
+            &&followups==before_followup&&!stance_reads&&!stance_toggles,"readiness refusal is side-effect free");
+    }
+    for(unsigned change=0;change<2;++change) {
+        reset();pw::Scope scope(context);
+        Check(!scope.AdmitAvailability(pw::Availability::reuse_blocked,pw::InitiationEpoch()),"refusal never enters");
+        if(change==0) { current=false; } else { pw::AdvanceEpoch(); }
+        const auto refused=scope.Finish();
+        Check(refused.availability==pw::Availability::unknown&&!refused.native_entered
+            &&!refused.availability_epoch,"late authority/epoch loss cannot publish actionable refusal");
+    }
+    reset();
+    {
+        pw::Scope scope(context);const auto before=pw::InitiationEpoch();pw::AdvanceEpoch();
+        Check(!scope.AdmitAvailability(pw::Availability::reuse_blocked,before)
+            &&scope.Finish().availability==pw::Availability::unknown,"capture epoch never refreshed after native callback");
+    }
+    definition[0x1f0/4]=0;reset();
     const auto total=uses;
     for(auto category:{2U,5U,99U}) {reset();definition[0x204/4]=category;Check(Guarded(context)&&!receipt.native_entered,"unsupported category rejects before entry");}definition[0x204/4]=0;
     for(auto mode:{2U,3U}) {reset();definition[0x1a8/4]=mode;Check(Guarded(context)&&!receipt.native_entered,"self redirect rejects object action");}definition[0x1a8/4]=1;
