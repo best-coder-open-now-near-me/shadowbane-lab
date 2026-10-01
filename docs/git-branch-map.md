@@ -15,8 +15,8 @@ retained in main. Later documentation commits do not change the package stamp.
 
 The reused bot-runtime worktree is on `codex/native-stance-deployment-20261001`,
 based on that main merge, for this documentation-only deployment receipt. Its
-integration destination is main through the next draft PR; that PR is not yet
-created. The old `codex/queued-skill-deployment-20261001` branch was retired
+integration destination is main through [draft PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53).
+The old `codex/queued-skill-deployment-20261001` branch was retired
 locally and remotely after ancestry checks. PR #50 was closed as superseded:
 its relevant .57 receipt facts are incorporated, but its branch is retained
 because its exact tip is not an ancestor of main.

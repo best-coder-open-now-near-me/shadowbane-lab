@@ -14,7 +14,8 @@ validated for the next run. The earlier .58 and .57 results remain historical.
 
 The normal checkout is on the PR #52 main merge. The reused worktree is on
 `codex/native-stance-deployment-20261001` for this documentation-only receipt,
-with main as its integration destination through the next draft PR. The merged
+with main as its integration destination through
+[draft PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53). The merged
 PR #52 feature branch is retired. PR #50 is closed as superseded; its relevant
 historical receipt facts are incorporated, while its branch is retained because
 its exact tip is not an ancestor of main.
