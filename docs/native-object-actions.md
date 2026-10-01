@@ -1,15 +1,16 @@
 # Native object-target actions
 
-Installed host **0.3.58** / native **1.8.38** use exact qualified source
-`05c888a4ff1e1443163ef3cb2ea6e2432672c372` with official client **1.3.38.13**.
-[PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
-merged at `214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` on October 1,
-04:14:59 UTC after all 15 hosted checks passed. Qualification, installation,
-manager activation and loaded-DLL identity passed. The bounded .58 basic NPC
-attack/cleanup gate passed after login. The skill-opener attempt did not pass:
-SELF_POWER remained UNCERTAIN without queue evidence or a followup attack, while
-terminal native cleanup was confirmed. The earlier .57 manual-player recovery
-pass and unconfirmed NPC cleanup attempts remain separate historical evidence.
+Installed host **0.3.59** / native **1.8.39** use exact qualified package source
+`e90d2f64ea49df5af94365012548266e6829e3a1` with official client **1.3.38.13**.
+[PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52)
+merged at `72f13d5f64f896a5b646838ed3bd5c268fac7773` on October 1,
+15:53:29 UTC after all 15 hosted checks passed at the approved final head.
+Installation, activation and loaded-DLL identity passed. The bounded .59 gate
+passed: Shot to the Leg SELF_POWER queued, then ATTACK queued against the same
+NPC and owner, followed by confirmed NATIVE_STOPPED cleanup. This proves local
+queue admission and cleanup, not server consumption, snare or damage attribution.
+Umbra/Wonderbane now has basic policy with saved opener 563795161 at revision 1,
+validated for the next run. The earlier .58 and .57 results remain historical.
 See the [deployment record](queued-skills-20261001.md) for evidence and limits.
 
 Host and native ship together. Legacy verbs 34-36 are rejected; there is no
@@ -104,18 +105,17 @@ positive skill enqueue advances to the same engagement's attack without a fixed
 power-tracking vector nor queue acknowledgement proves server consumption or
 skill application. Existing CAST semantics remain unchanged.
 
-The .58 skill attempt exposed a combat-mode prerequisite gap: ordinary attack
-entry establishes combat mode, while the installed power route does not. A native
-correction is qualified in .59/.39 on draft PR #52, outside main and the
-installed package. Passive exact-session inspection
-confirmed Shot's native stance requirement 1 while the actor was in mode 1.
-Mode preparation must remain inside the same owned native action, preserving
-entry/correlation evidence and rechecking the Grant/fence after callbacks. Host
-policy must not emulate it with a hotkey, an extra configuration flag or a delay.
-The failed skill receipt alone does not establish the cause; a later owner
-revocation was also recorded and its trigger is unknown. Existing owner guards
-and no-automatic-restart handling remain unchanged. The [live evidence record](queued-skills-20261001.md) distinguishes
-this uncertainty from the passed basic NPC queue/cleanup gate.
+The historical .58 skill attempt exposed a combat-mode prerequisite gap.
+Installed .59/.39 establishes the prerequisite inside the native power entry:
+only native definition requirement 1 triggers the ordinary peace-mode transition,
+then the signed mode predicate is rechecked. Entry is recorded before mutation;
+actor, Grant and fence are revalidated after callbacks. Other stance requirements
+keep their existing native behavior. The host adds no hotkey, flag or delay.
+Passive inspection had confirmed Shot's requirement 1 with actor mode 1. The .59
+bounded skill/attack/cleanup gate passed after installation. The earlier .58 owner
+revocation remains a separate unexplained event; guards and no-restart handling
+are unchanged. The [live evidence record](queued-skills-20261001.md) preserves
+both outcomes without claiming server consumption or effects.
 
 Power send and followup interception uses reviewed instruction sites and an
 explicit invocation bridge. Native frame provenance prevents a nested unrelated
@@ -178,14 +178,14 @@ cover typed acknowledgement accounting, exact pending-action polling, shared
 listed/NPC ownership, public-runner cleanup and fresh-frame recovery. These checks
 do not replace final whole-candidate validation.
 
-The original PR #46/48 validation is historical. Current .58/.38 qualification
+The original PR #46/48 validation is historical. Current .59/.39 qualification
 passed 4,203 host tests and 801 subtests; both native profiles passed 202 generic
-native cases, all 85 combat IPC and 72 movement IPC cases, plus explicit image
-gates. All 15 hosted checks passed before approved PR #51 merge. Installation and
-loaded-DLL checks passed. The bounded .58 basic NPC queue/cleanup gate passed;
-skill/attack acceptance did not pass and awaits qualification of the native
-prerequisite correction and a bounded repeat. The [deployment record](queued-skills-20261001.md) preserves the
-earlier .57 manual pass and unconfirmed NPC cleanup attempts separately. Automatic retaliation
-remains blocked on the authoritative server-character-session contract. Private
-client binaries and captures remain outside source delivery; no rollback copies
-are retained.
+native cases, 85 combat IPC and 72 movement IPC cases, plus explicit image gates
+including the new required-mode probe. All 15 hosted checks passed before the
+approved PR #52 merge. Installation, loaded-DLL identity and the bounded skill /
+same-NPC attack / native-cleanup gate passed. The [deployment record](queued-skills-20261001.md)
+preserves earlier outcomes separately and records Umbra's saved basic opener.
+Next is bounded native health/death follow-through, not inferred player kill
+credit or skill consumption. Automatic retaliation remains blocked on the
+authoritative server-character-session contract. Private client binaries and
+captures remain outside source delivery; no rollback copies are retained.
