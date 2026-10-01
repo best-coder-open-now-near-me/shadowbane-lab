@@ -11,6 +11,7 @@ struct Receipt {
     Result result = Result::denied;
     bool native_entered = false, send_observed = false, append_observed = false;
     bool followup_entered = false;
+    std::uint64_t initiation_epoch = 0;
 };
 struct Context {
     std::uintptr_t image{}, actor{}, target{}, writer{}, container{};
@@ -52,6 +53,7 @@ private:
     std::uintptr_t definition_{}, ticket_{};
     std::uintptr_t native_frame_{}, native_return_{};
     std::uint32_t rank_{};
+    std::uint64_t preparation_epoch_{};
     bool active_ = false, blocked_ = false, send_seen_ = false, append_seen_ = false;
 };
 class Boundary final {
@@ -64,6 +66,10 @@ private:
 // Process-pinned exact callsite hooks. Never unload while native code can call them.
 bool Start(std::uintptr_t image) noexcept;
 bool Ready() noexcept;
+// Zero means unavailable/exhausted. Any observed native protocol mutation or
+// power preparation invalidates earlier epochs, including foreign actors.
+std::uint64_t InitiationEpoch() noexcept;
+bool NativeUseInFlight() noexcept;
 bool NormalizeOwnedCode(std::uintptr_t image, std::uint32_t text_rva,
     std::span<std::uint8_t> code, std::span<const std::uint8_t> disk) noexcept;
 }

@@ -13,6 +13,18 @@ std::uintptr_t base{};
 Send original_send{};
 Followup original_followup{};
 thread_local Scope* active{};
+thread_local bool native_use_in_flight{};
+using OrdinaryUse = bool(__cdecl*)(std::uint32_t,int,void*,void*,const float*,Key);
+bool __cdecl OrdinaryUseHook(std::uint32_t id,int rank,void* actor,void* target,const float* position,Key key) {
+    const bool previous=native_use_in_flight;
+    native_use_in_flight=true;
+    bool result=false;
+    // No synthetic native return address: this remains foreign, unscoped entry.
+    // Preserve the original return/LastError and restore nesting even on SEH.
+    __try { result=reinterpret_cast<OrdinaryUse>(base+0x1082a)(id,rank,actor,target,position,key); }
+    __finally { native_use_in_flight=previous; }
+    return result;
+}
 SRWLOCK install_lock = SRWLOCK_INIT;
 volatile LONG installed{};
 bool attempted{};
@@ -23,8 +35,37 @@ struct Site {
     bool owned = false, protection_pending = false, flush_pending = false;
     DWORD protection{};
 };
-std::array<Site, 2> sites{{{0x9d3d4, {0xe8,0x8c,0x86,0xf6,0xff}},
-    {0x9d3e0, {0xe8,0x74,0x92,0xf6,0xff}}}};
+// Original .13 native caller census: all ordinary Use callers, both followup
+// callers, incoming init append and all four first-match remover calls. The
+// epoch deliberately invalidates on unrelated actors too; it is not a response ID.
+std::array<Site, 12> sites{{
+    {0x9d3d4,{0xe8,0x8c,0x86,0xf6,0xff}},
+    {0x9d3e0,{0xe8,0x74,0x92,0xf6,0xff}},
+    {0x48191d,{0xe8,0x08,0xef,0xb8,0xff}},
+    {0x4bcbc4,{0xe8,0x61,0x3c,0xb5,0xff}},
+    {0x7d2708,{0xe8,0x1d,0xe1,0x83,0xff}},
+    {0x7d286a,{0xe8,0xbb,0xdf,0x83,0xff}},
+    {0x9c25d,{0xe8,0xf7,0xa3,0xf6,0xff}},
+    {0x384451,{0xe8,0xf6,0x10,0xc8,0xff}},
+    {0x37e8ca,{0xe8,0xe8,0xe7,0xc8,0xff}},
+    {0x384617,{0xe8,0x9b,0x8a,0xc8,0xff}},
+    {0x384f2b,{0xe8,0x87,0x81,0xc8,0xff}},
+    {0x385761,{0xe8,0x51,0x79,0xc8,0xff}}
+}};
+alignas(8) volatile LONG64 initiation_epoch = 1;
+std::uint64_t Epoch() noexcept {
+    const auto value=InterlockedCompareExchange64(&initiation_epoch,0,0);
+    return value>0 && value<MAXLONGLONG ? static_cast<std::uint64_t>(value) : 0;
+}
+void AdvanceEpoch() noexcept {
+    auto prior=InterlockedCompareExchange64(&initiation_epoch,0,0);
+    while(prior>0 && prior<MAXLONGLONG) {
+        const auto observed=InterlockedCompareExchange64(&initiation_epoch,prior+1,prior);
+        if(observed==prior) { return; }
+        prior=observed;
+    }
+}
+
 bool Copy(void* out, std::uintptr_t at, std::size_t size) noexcept {
     __try { std::memcpy(out, reinterpret_cast<const void*>(at), size); return true; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
@@ -114,12 +155,18 @@ struct Observer {
             && MatchesBinding(s->context_) && s->context_.current(s->context_.owner);
         if (!allowed) { Block(*s); SetLastError(error); return; }
         s->receipt_.followup_entered = true; s->receipt_.result = Result::uncertain; Publish(*s);
+        const auto epoch=Epoch();
         SetLastError(error);
         try { original_followup(actor, target, definition, rank); }
         catch (...) { Block(*s); throw; }
         const DWORD after = GetLastError();
         if (!Ready() || !MatchesBinding(s->context_) || !s->context_.current(s->context_.owner)) { Block(*s); }
-        else { s->receipt_.result = Result::queued; Publish(*s); }
+        else {
+            s->receipt_.result = Result::queued;
+            s->receipt_.initiation_epoch=epoch && s->preparation_epoch_
+                && epoch==s->preparation_epoch_+1 && Epoch()==epoch ? epoch : 0;
+            Publish(*s);
+        }
         SetLastError(after);
     }
     static submission::AppendClaim Claim(void* container, void* message, std::uintptr_t caller) noexcept {
@@ -168,6 +215,13 @@ LONG CALLBACK Trap(EXCEPTION_POINTERS* exception) noexcept {
         __try { *reinterpret_cast<DWORD*>(context.Esp - sizeof(DWORD)) = static_cast<DWORD>(address + 5); }
         __except(EXCEPTION_EXECUTE_HANDLER) { SetLastError(error); return EXCEPTION_CONTINUE_SEARCH; }
         context.Esp -= sizeof(DWORD);
+        if(i != 0) { AdvanceEpoch(); }
+        if(i >= 2) {
+            std::int32_t displacement{}; std::memcpy(&displacement,site.bytes.data()+1,4);
+            context.Eip=static_cast<DWORD>(i>=2 && i<=5
+                ? reinterpret_cast<std::uintptr_t>(&OrdinaryUseHook) : address+5+displacement);
+            SetLastError(error); return EXCEPTION_CONTINUE_EXECUTION;
+        }
         if (!detail::Observer::OwnsFrame(context.Ebp)) {
             context.Eip = static_cast<DWORD>(i == 0
                 ? reinterpret_cast<std::uintptr_t>(original_send)
@@ -230,6 +284,8 @@ bool Scope::Current() const noexcept {
 }
 bool Scope::Enter(std::uintptr_t definition, std::uint32_t rank) noexcept {
     if (!definition || !rank || rank > 9999 || !CanEnter()) { detail::Observer::Block(*this); return false; }
+    AdvanceEpoch(); // The extension bridge bypasses the four ordinary UI callers.
+    preparation_epoch_=Epoch();
     definition_ = definition; rank_ = rank;
     receipt_.native_entered = true; receipt_.result = Result::uncertain;
     detail::Observer::Publish(*this); return true;
@@ -253,12 +309,13 @@ Receipt Scope::Finish() noexcept {
 }
 Boundary::Boundary() noexcept : previous_(active) {}
 void Boundary::Restore() noexcept { active = previous_; }
+bool NativeUseInFlight() noexcept { return native_use_in_flight; }
+std::uint64_t InitiationEpoch() noexcept { return Ready() ? Epoch() : 0; }
 bool Ready() noexcept { return InterlockedCompareExchange(&installed, 0, 0) != 0 && SitesCurrent(); }
 bool Start(std::uintptr_t image) noexcept {
     const DWORD error = GetLastError(); std::uintptr_t verified{};
     const bool ok = image
-        && (GraphicsExecutableSha256Matches("2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289")
-            || GraphicsExecutableSha256Matches("0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d"))
+        && GraphicsExecutableSha256Matches("0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d")
         && movement::VerifyNativeMovementImage(verified) && verified == image
         && StartBound(image, reinterpret_cast<Send>(image + 0x7f4da0),
             reinterpret_cast<Followup>(image + 0x9d7b0));

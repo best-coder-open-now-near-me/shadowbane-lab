@@ -47,8 +47,9 @@ Registry-backed population is implemented at `6eecda8`, independently reviewed,
 and passed 4,251 host tests plus 801 subtests with 36 skips. It remains
 uninstalled and outside main in PR #54. The reviewed outermost-update guard is
 also pushed at `8090c17`, with six focused native tests passing. Active next item:
-qualify pending-initiation observation and native request provenance before
-packaging and repeating bounded follow-through. Neither the
+qualify the exact-source host .60/native .40 package. The host correction is
+pushed at `0e218bc`; native provenance and callback guards passed independent
+review and focused validation. Bounded follow-through still awaits installation. Neither the
 user report nor the passive snapshot proves player kill credit, skill consumption or snare application.
 Automatic retaliation remains disabled pending the separate authoritative
 server-character-session fence.

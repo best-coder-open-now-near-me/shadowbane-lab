@@ -269,9 +269,31 @@ The queued actor-skill follow-up also needs native request provenance. An exact
 queued receipt and matching later ID multiplicity alone cannot distinguish the
 original vector entry from a remove/re-add between updates. Review identified
 this gap before qualification; the ID-only allowance is not accepted for release.
-Mutation/lifetime ownership must preserve or invalidate that allowance explicitly.
-The source under implementation is unqualified and uninstalled. No further
-live attack has run.
+The implemented correction captures an epoch through the positively queued native
+follow-up and preserves that exact epoch until attack entry. Reviewed ordinary
+power entry, local follow-up, incoming protocol append and removal invalidate
+older epochs. A same-ID remove/re-add cannot restore the earlier allowance.
+Counter exhaustion disables the allowance. This global epoch conservatively
+invalidates on other actors' observed power events too.
+
+Ordinary native Use calls retain a thread-local in-flight guard through their
+original call and restore it on SEH/C++ unwind. Nested automation admission and
+cleanup defer before the native call publishes initiation state. The outermost
+update guard also spans the original client callback. Native cleanup requires
+mode 1, no combat target, and clear initiation; action state 1 is not required.
+Cleanup does not imply that projectiles or server effects have ended.
+
+The exact .13 mutation census includes constructor/destructor storage changes,
+which are excluded while the same native actor reference and lifetime are held.
+The contract covers the reviewed client and supported native entry paths, not
+arbitrary injected memory writers. Prepared .12 is explicitly rejected by this
+combat observer; other features retain their own image qualification.
+
+Independent host/native reviews passed. Host checkpoint `0e218bc` passed 4,304
+tests with 788 subtests and 36 skips. Native focused tests and the original and
+prepared .13 initiation probes passed; each initiation probe executes 23 cases.
+The candidate versions are host .60/native .40. Exact-source full packaging is
+the next active step; the candidate is uninstalled. No further live attack ran.
 
 ## Historical .57 live evidence
 
@@ -301,8 +323,10 @@ its offline and real-process qualification is distinct from live acceptance.
   host validation; included in draft PR #54, not installed.
 - Complete: outermost native update guard checkpoint and independent focused
   validation, pushed at `8090c17` in draft PR #54.
-- Active: qualify pending-initiation observation and native request provenance
-  before the combined release; no gameplay repeat has run.
+- Complete: host/native initiation and request-provenance correction with
+  independent review and focused validation; not installed.
+- Active: qualify the exact-source .60/.40 package for combined PR #54;
+  no gameplay repeat has run.
 - Pending: bounded follow-through with exact native health/death observation and
   cleanup, without player kill-credit or skill-consumption inference.
 - Pending: qualify and integrate the combined PR #54 source and deployment

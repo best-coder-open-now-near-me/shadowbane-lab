@@ -1,5 +1,6 @@
 #pragma once
 #include "combat_party.h"
+#include "combat_initiation.h"
 
 #include "combat_v2_controller.h"
 #include "combat_target_policy.h"
@@ -12,9 +13,10 @@ class NativeTarget final {
 public:
     using Admission = bool (*)(void*) noexcept;
     struct Observation {
-        std::uint32_t mode = 0, action = 0, pending = 0;
+        std::uint32_t mode = 0, action = 0, animation_event_index = 0;
         std::uintptr_t target = 0;
-        bool Idle() const noexcept { return action == 1 && !pending; }
+        initiation::Snapshot initiation{};
+        bool ClearInitiation() const noexcept { return initiation.Clear(); }
         bool operator==(const Observation&) const = default;
     };
     bool Bind(HWND) noexcept;
@@ -37,6 +39,7 @@ private:
         void (__thiscall* release)(void**, void*) = nullptr;
         decltype(&melee::Invoke) attack = nullptr;
         decltype(&power::Invoke) cast = nullptr;
+        decltype(&power::ReadSelfInitiation) self_initiation = nullptr;
         bool (__cdecl* dispatch)(const void*, void*) = nullptr;
     } calls_{};
     bool Owner() const noexcept;
@@ -64,6 +67,13 @@ private:
     party::Snapshot party_{};
     submission::Receipt submission_receipt_{};
     power::Receipt power_receipt_{};
+    // One positively observed request in this retained engagement. Never rebuilt
+    // from a matching protocol ID or host receipt; cleared on entry/cleanup.
+    std::uint32_t instant_self_id_{};
+    std::uint64_t instant_self_epoch_{};
+    std::uint64_t pre_entry_epoch_{};
+    std::uint32_t pre_entry_self_id_{};
+    power::InitiationDefinition instant_self_definition_{};
     const char* stage_ = "none";
     Admission current_ = nullptr, append_current_ = nullptr;
     void* context_ = nullptr;

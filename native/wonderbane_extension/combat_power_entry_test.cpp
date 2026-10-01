@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
+#include <vector>
+#include <thread>
 namespace pw = wonderbane::extension::combat::power;
 namespace sb = wonderbane::extension::combat::submission;
 namespace {
@@ -47,6 +49,27 @@ bool unrelated{}, reenter_send{}, reenter_followup{}, revoke_during_use{};
 std::uint32_t unrelated_power=428918601;
 pw::Receipt* outer_receipt{};
 void* last_actor{};void* last_target{};
+unsigned ordinary_calls{}; bool ordinary_nested=false,ordinary_fault=false,ordinary_throw=false;
+bool __cdecl OrdinaryFixture(std::uint32_t id,int rank,void* actor_arg,void* target_arg,const float* position,pw::Key key) {
+    ++ordinary_calls;
+    Check(pw::NativeUseInFlight(),"ordinary Use is protected before state/vector publication");
+    Check(id==123&&rank==40&&actor_arg==reinterpret_cast<void*>(16)&&target_arg==reinterpret_cast<void*>(32)
+        &&position==nullptr&&key==pw::Key{7,8},"ordinary Use exact cdecl arguments preserved");
+    if(ordinary_nested) {
+        ordinary_nested=false;
+        Check(pw::OrdinaryUseHook(id,rank,actor_arg,target_arg,position,key),"nested ordinary Use forwards");
+        Check(pw::NativeUseInFlight(),"nested return preserves parent in-flight state");
+    }
+    if(ordinary_fault) { RaiseException(0xe0424243,0,0,nullptr); }
+    if(ordinary_throw) { throw 42; }
+    SetLastError(4321);return true;
+}
+bool OrdinaryCall() { return pw::OrdinaryUseHook(123,40,reinterpret_cast<void*>(16),reinterpret_cast<void*>(32),nullptr,pw::Key{7,8}); }
+bool OrdinarySeh() {
+    __try { (void)OrdinaryCall(); }
+    __except(GetExceptionCode()==0xe0424243?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH) { return true; }
+    return false;
+}
 void Nested();
 bool Current(void*) noexcept { return current; }
 bool QueueCurrent(void*) noexcept { return queue_current; }
@@ -139,6 +162,7 @@ int main(int argc, char** argv) {
     const auto imm=[](unsigned char*& at,std::uintptr_t v){std::memcpy(at,&v,4);at+=4;};
     const auto byte=[](unsigned char*& at,std::initializer_list<unsigned char> bytes){for(auto v:bytes){*at++=v;}};
     const auto jump=[&](unsigned char*& at,std::uintptr_t target){*at++=0xe9;imm(at,target-reinterpret_cast<std::uintptr_t>(at)-4);};
+    auto* ordinary=image+0x1082a;jump(ordinary,reinterpret_cast<std::uintptr_t>(&OrdinaryFixture));
     auto* at=image+0x6659;jump(at,reinterpret_cast<std::uintptr_t>(&Followup));
     at=image+0x9bbf0;
     byte(at,{0x55,0x8b,0xec});
@@ -188,12 +212,13 @@ int main(int argc, char** argv) {
     pw::Context context{base,reinterpret_cast<std::uintptr_t>(actor.data()),reinterpret_cast<std::uintptr_t>(target.data()),base+0x1600000,base+0x1600100,local,victim,428918601,Current,QueueCurrent,nullptr,&receipt};
     const auto reset=[&] { references=2;current_message=message.data(); message={};message[0]=static_cast<std::uint32_t>(base+0x1155fd8);message[0x80/4]=context.power_id;message[0xa4/4]=1;message[0x88/4]=local[0];message[0x8c/4]=local[1];message[0x90/4]=context.RecipientKey()[0];message[0x94/4]=context.RecipientKey()[1];current=true;queue_current=true;fault_send=false;fault_followup=false;seh_send=false;seh_followup=false;corrupt_key=false;revoke_during_use=false;receipt={};actor_mode=1;stance_reads=stance_toggles=0;deny_stance=revoke_stance=revoke_mode_read=fault_stance=seh_stance=false;replaced_target_key=nullptr; };
     reset(); Check(Guarded(context),"normal power invocation");Check(receipt.result==pw::Result::queued && receipt.native_entered && receipt.send_observed && receipt.append_observed && receipt.followup_entered,"queued receipt preserves all boundaries");
+    Check(receipt.initiation_epoch && receipt.initiation_epoch==pw::InitiationEpoch(),"ordinary owned followup captures mutation provenance");
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
     Check(references==1,"real native sender preserves exactly one caller-owned reference");
 #endif
     for(auto nested_id:{428918601U,428918602U}) {
-        reset();unrelated_power=nested_id;reenter_send=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"sender reentry preserves scoped submission");
-        reset();unrelated_power=nested_id;reenter_followup=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"followup reentry preserves scoped submission");
+        reset();unrelated_power=nested_id;reenter_send=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"sender reentry preserves scoped submission");Check(!receipt.initiation_epoch,"nested native work invalidates instant followup provenance");
+        reset();unrelated_power=nested_id;reenter_followup=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"followup reentry preserves scoped submission");Check(!receipt.initiation_epoch,"nested native work invalidates instant followup provenance");
     }
     const auto total=uses;
     for(auto category:{2U,5U,99U}) {reset();definition[0x204/4]=category;Check(Guarded(context)&&!receipt.native_entered,"unsupported category rejects before entry");}definition[0x204/4]=0;
@@ -217,8 +242,8 @@ int main(int argc, char** argv) {
     Check(Guarded(context)&&receipt.native_entered&&!receipt.append_observed&&followups==self_effects,"self power revoked append suppresses followup");
     reset();seh_followup=true;Check(!Guarded(context)&&receipt.append_observed&&receipt.result==pw::Result::uncertain&&!pw::active,"self power SEH retains queue history and restores TLS");
     for(auto nested_id:{428918601U,428918602U}) {
-        reset();unrelated_power=nested_id;reenter_send=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"self sender reentry retains exact frame");
-        reset();unrelated_power=nested_id;reenter_followup=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"self followup reentry retains exact frame");
+        reset();unrelated_power=nested_id;reenter_send=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"self sender reentry retains exact frame");Check(!receipt.initiation_epoch,"nested native work invalidates instant followup provenance");
+        reset();unrelated_power=nested_id;reenter_followup=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"self followup reentry retains exact frame");Check(!receipt.initiation_epoch,"nested native work invalidates instant followup provenance");
     }
     // Native definition +1f0, not category/self, owns the stance prerequisite.
     definition[0x1f0/4]=1;
@@ -288,15 +313,42 @@ int main(int argc, char** argv) {
     }
     reset();{pw::Scope outer(context);pw::Scope inner(context);(void)outer.Finish();Check(!inner.CanEnter(),"out of order scope finish revokes descendants");}Check(!pw::active,"out of order scopes unlink");
     reset();std::array<std::uint8_t,5> disk=pw::sites[0].bytes,code=disk;code[0]=0xcc;
-    // A truncated span cannot authorize only one of two owned callsites.
+    // A truncated span cannot authorize only one of the owned callsites.
     Check(!pw::NormalizeOwnedCode(base,0x9d3d4,code,disk),"normalization rejects incomplete owned image");
-    std::array<std::uint8_t,0x11> whole_disk{},whole_code{};
-    std::copy(pw::sites[0].bytes.begin(),pw::sites[0].bytes.end(),whole_disk.begin());
-    std::copy(pw::sites[1].bytes.begin(),pw::sites[1].bytes.end(),whole_disk.begin()+0xc);
-    whole_code=whole_disk;whole_code[0]=0xcc;whole_code[0xc]=0xcc;
-    Check(pw::NormalizeOwnedCode(base,0x9d3d4,whole_code,whole_disk)&&whole_code==whole_disk,"normalization accepts only owned exact sites");
-    whole_code=whole_disk;whole_code[0]=0xcc;whole_code[0xc]=0xcc;whole_code[1]^=1;
-    Check(!pw::NormalizeOwnedCode(base,0x9d3d4,whole_code,whole_disk),"normalization rejects foreign displacement");
+    const auto first=pw::sites[6].rva; // Lowest observed callsite.
+    const auto last=pw::sites[5].rva+5;
+    std::vector<std::uint8_t> whole_disk(last-first),whole_code;
+    for(const auto& site:pw::sites) { std::copy(site.bytes.begin(),site.bytes.end(),whole_disk.begin()+site.rva-first); }
+    const auto patched=[&] { whole_code=whole_disk; for(const auto& site:pw::sites) { whole_code[site.rva-first]=0xcc; } };
+    patched();Check(pw::NormalizeOwnedCode(base,first,whole_code,whole_disk)&&whole_code==whole_disk,"normalization accepts all owned exact sites");
+    patched();whole_code[pw::sites[0].rva-first+1]^=1;
+    Check(!pw::NormalizeOwnedCode(base,first,whole_code,whole_disk),"normalization rejects foreign displacement");
+    // Every added site preserves CALL machine state and advances provenance; ordinary Use enters its qualified wrapper.
+    for(std::size_t i=2;i<pw::sites.size();++i) {
+        DWORD stack[4]{};CONTEXT c{};EXCEPTION_RECORD r{};EXCEPTION_POINTERS e{&r,&c};
+        const auto& site=pw::sites[i];r.ExceptionCode=EXCEPTION_BREAKPOINT;r.ExceptionAddress=image+site.rva;
+        c.Eip=static_cast<DWORD>(base+site.rva);c.Esp=reinterpret_cast<DWORD>(stack+2);
+        c.Eax=11;c.Ebx=22;c.Ecx=33;c.Edx=44;c.Ebp=55;c.Esi=66;c.Edi=77;c.EFlags=0x246;
+        const auto epoch_before=pw::InitiationEpoch();SetLastError(1234);
+        Check(pw::Trap(&e)==EXCEPTION_CONTINUE_EXECUTION,"qualified protocol CALL handled");
+        std::int32_t displacement{};std::memcpy(&displacement,site.bytes.data()+1,4);
+        Check(c.Eip==(i<=5?reinterpret_cast<DWORD>(&pw::OrdinaryUseHook):base+site.rva+5+displacement) && c.Esp==reinterpret_cast<DWORD>(stack+1)
+            && stack[1]==base+site.rva+5 && c.Eax==11&&c.Ebx==22&&c.Ecx==33&&c.Edx==44
+            &&c.Ebp==55&&c.Esi==66&&c.Edi==77&&c.EFlags==0x246&&GetLastError()==1234,
+            "protocol CALL preserves register flags LastError and native return");
+        Check(pw::InitiationEpoch()==epoch_before+1,"foreign protocol event invalidates prior provenance");
+    }
+    SetLastError(1234);ordinary_nested=true;
+    Check(OrdinaryCall()&&!pw::NativeUseInFlight()&&GetLastError()==4321,"ordinary wrapper preserves return and native LastError");
+    ordinary_fault=true;Check(OrdinarySeh()&&!pw::NativeUseInFlight(),"ordinary SEH restores in-flight state");ordinary_fault=false;
+    ordinary_throw=true;bool caught=false;try{(void)OrdinaryCall();}catch(int value){caught=value==42;}
+    Check(caught&&!pw::NativeUseInFlight(),"ordinary C++ unwind restores in-flight state");ordinary_throw=false;
+    pw::native_use_in_flight=true;
+    std::thread independent([] { Check(!pw::NativeUseInFlight()&&OrdinaryCall()&&!pw::NativeUseInFlight(),"ordinary in-flight is thread-local"); });independent.join();
+    Check(pw::NativeUseInFlight(),"other thread preserves parent in-flight state");pw::native_use_in_flight=false;
+    InterlockedExchange64(&pw::initiation_epoch,MAXLONGLONG-1);pw::AdvanceEpoch();
+    Check(!pw::InitiationEpoch(),"epoch saturation disables allowance");pw::AdvanceEpoch();
+    Check(!pw::InitiationEpoch(),"saturated epoch never wraps into an old request");
     CONTEXT machine{};EXCEPTION_RECORD record{};EXCEPTION_POINTERS exception{&record,&machine};record.ExceptionCode=EXCEPTION_BREAKPOINT;record.ExceptionAddress=image+0x9d3d4;machine.Eip=static_cast<DWORD>(base+0x9d3d6);Check(pw::Trap(&exception)==EXCEPTION_CONTINUE_SEARCH,"foreign EIP is not swallowed");
     std::printf("Power entry/observer failures: %d\n",failures);
     // Installed hooks and handler intentionally live until process exit.

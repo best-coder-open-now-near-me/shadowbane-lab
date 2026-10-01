@@ -60,6 +60,14 @@ bool Prepare(int argc,char** argv,unsigned char* image) {
             {0xa4520,0x3e},{0x94920,0x3e},{0x1117e0,0x15},{0x1119d0,1},
             {0x7f4da0,0x8e},{0x9d3d4,0x11},{0x9bbf0,3},{0x9c710,3},{0x9bf04,5},{0x1c431,5},{0x9c906,0x1b}}};
         for(const auto& s:segments){std::memcpy(image+s[0],bytes.data()+s[0],s[1]);}
+        // Validate every provenance callsite against the supplied reviewed file,
+        // rather than accepting only the source fixture's synthetic bytes.
+        for(const auto& site:pw::sites) {
+            if(std::memcmp(bytes.data()+site.rva,site.bytes.data(),site.bytes.size())) {
+                throw std::runtime_error("protocol provenance CALL bytes differ");
+            }
+            std::memcpy(image+site.rva,bytes.data()+site.rva,site.bytes.size());
+        }
         // A separate probe entry executes the exact native target-mode redirect.
         // Its destination returns the derived target; no admission or gameplay runs.
         image[0x9c921]=0x8b; image[0x9c922]=0xc3; image[0x9c923]=0xc3;
