@@ -127,7 +127,7 @@ class SelectionIndependentObservationTests(unittest.TestCase):
         detail = population.observe_character_detail(crab.token, crab.object_key, action)
         self.assertEqual(crab.token, detail.action.target_token)
         self.assertTrue(detail.action.targeting_player)
-        self.assertEqual(1, process.find_calls)
+        self.assertEqual(0, process.find_calls)
         # Repeated stable action observations do not invent a fresh transition.
         self.assertEqual(detail.action.action_sequence,
                          population.observe_character_detail(crab.token, crab.object_key,
@@ -142,12 +142,13 @@ class SelectionIndependentObservationTests(unittest.TestCase):
                     c for c in frame.characters if c.object_key == NativeObjectKey(2001, 37)
                 )
                 if replacement is None:
+                    process.set_registry(process.player, process.trainer)
                     del process.memory[process.crab]
                 else:
                     set_key(process, process.crab, replacement)
                 self.assertIsNone(population.observe_character_detail(crab.token, crab.object_key,
                                                                    action))
-                self.assertEqual(1, process.find_calls)
+                self.assertEqual(0, process.find_calls)
 
     def test_bound_action_never_reads_unknown_token_or_wrong_process(self):
         process, population, action = readers()
@@ -200,7 +201,7 @@ class SelectionIndependentObservationTests(unittest.TestCase):
         self.assertEqual(crab.object_key, result.tracked_target_action.object_key)
         self.assertEqual(crab.token, result.tracked_target_action.action.target_token)
         self.assertNotEqual(result.player_action.selected_target_token, crab.token)
-        self.assertEqual(1, process.find_calls)
+        self.assertEqual(0, process.find_calls)
 
     def test_frame_rejects_actor_replacement_even_when_selection_is_unchanged(self):
         process, population, action = readers()
@@ -324,4 +325,4 @@ class SelectionIndependentObservationTests(unittest.TestCase):
         self.assertIs(dispatcher.proposals[0].kind, PvECombatKind.BIND)
         self.assertEqual(NativeObjectKey(2001, 37), dispatcher.proposals[0].target_key)
         self.assertTrue(dispatcher.proposals[0].adopted_existing_action)
-        self.assertEqual(1, process.find_calls)
+        self.assertEqual(0, process.find_calls)

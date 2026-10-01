@@ -5,8 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import struct
-import time
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from importlib.resources import files
@@ -18,19 +17,23 @@ from shadowbane_lab.client_observation.build_compatibility import (
     native_layout_is_compatible,
 )
 from shadowbane_lab.client_observation.native_health import (
+    BlockReadOnlyProcessMemory,
     WindowsReadOnlyProcessMemory,
 )
-from shadowbane_lab.client_observation.native_message_hud import (
-    ScanningReadOnlyProcessMemory,
-)
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
+from shadowbane_lab.client_observation.native_registry import (
+    NativeObjectRegistryProfile,
+    NativeObjectRegistryReader,
+    NativeObjectRegistryReadError,
+    NativeRegistrySnapshot,
+)
 from shadowbane_lab.client_observation.native_target_action import (
     NativeTargetActionObservation,
     NativeTargetActionReader,
     NativeTargetActionReadError,
 )
 
-NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION = 3
+NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION = 4
 _BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-character-population.json"
 
 
@@ -81,9 +84,7 @@ class NativeCharacterPopulationProfile:
     descriptor_key_offset: int
     sparse_value_pointer_offset: int
     maximum_sparse_table_bits: int
-    scan_memory_type: int
-    scan_protection: int
-    maximum_scan_address: int
+    registry_profile: NativeObjectRegistryProfile
     maximum_candidate_characters: int
     minimum_user_address: int
     maximum_user_address: int
@@ -127,9 +128,6 @@ class NativeCharacterPopulationProfile:
             (self.descriptor_key_offset, "descriptor_key_offset"),
             (self.sparse_value_pointer_offset, "sparse_value_pointer_offset"),
             (self.maximum_sparse_table_bits, "maximum_sparse_table_bits"),
-            (self.scan_memory_type, "scan_memory_type"),
-            (self.scan_protection, "scan_protection"),
-            (self.maximum_scan_address, "maximum_scan_address"),
             (self.maximum_candidate_characters, "maximum_candidate_characters"),
             (self.minimum_user_address, "minimum_user_address"),
             (self.maximum_user_address, "maximum_user_address"),
@@ -150,8 +148,13 @@ class NativeCharacterPopulationProfile:
             raise ValueError("player and NPC object UUID classes must differ")
         if self.minimum_user_address < 0x10000:
             raise ValueError("minimum_user_address must exclude the null-allocation region")
-        if not self.minimum_user_address < self.maximum_scan_address <= self.maximum_user_address:
-            raise ValueError("maximum_scan_address must lie inside the calibrated user range")
+        if (not isinstance(self.registry_profile, NativeObjectRegistryProfile)
+                or self.registry_profile.executable_name != self.executable_name
+                or self.registry_profile.pointer_size != self.pointer_size
+                or self.registry_profile.object_key_offset != self.object_type_offset
+                or self.registry_profile.minimum_user_address != self.minimum_user_address
+                or self.registry_profile.maximum_user_address != self.maximum_user_address):
+            raise ValueError("population and registry profile geometry must agree")
         if self.maximum_user_address > 0xFFFFFFFF:
             raise ValueError("maximum_user_address must fit a 32-bit pointer")
         if not self.minimum_world_coordinate < self.maximum_world_coordinate:
@@ -274,6 +277,7 @@ class NativeCharacterPopulationObservation:
     characters: tuple[NativeCharacterObservation, ...]
     selected_target_token: str | None
     player_action_target_token: str | None
+    # Successful registry-backed observation revision; not an engine lifetime/generation.
     scan_generation: int
     rejected_candidates: int
     local_player_object_key: NativeObjectKey | None = None
@@ -334,27 +338,17 @@ class NativeCharacterDetailObservation:
 
 
 class NativeCharacterPopulationReader:
-    """Enumerates ArcCharacter objects and then refreshes their exact native fields."""
+    """Reads registry-owned ArcCharacters and refreshes their exact native fields."""
 
     def __init__(
         self,
         profile: NativeCharacterPopulationProfile,
-        process: ScanningReadOnlyProcessMemory,
-        *,
-        rescan_interval_seconds: float = 15.0,
-        clock: Callable[[], float] = time.monotonic,
+        process: BlockReadOnlyProcessMemory,
     ) -> None:
         if not isinstance(profile, NativeCharacterPopulationProfile):
             raise ValueError("profile must be NativeCharacterPopulationProfile")
-        if not isinstance(process, ScanningReadOnlyProcessMemory):
-            raise ValueError("process must support guarded native scans")
-        if (
-            isinstance(rescan_interval_seconds, bool)
-            or not isinstance(rescan_interval_seconds, (int, float))
-            or not isfinite(rescan_interval_seconds)
-            or rescan_interval_seconds <= 0
-        ):
-            raise ValueError("rescan_interval_seconds must be positive and finite")
+        if not isinstance(process, BlockReadOnlyProcessMemory):
+            raise ValueError("process must support guarded native reads")
         if process.executable_name.casefold() != profile.executable_name.casefold():
             raise NativeCharacterPopulationCompatibilityError(
                 f"expected {profile.executable_name}, found {process.executable_name}"
@@ -375,10 +369,10 @@ class NativeCharacterPopulationReader:
         self._player_slot = process.base_address + profile.player_pointer_rva
         self._selected_slot = process.base_address + profile.selected_pointer_rva
         self._character_vtable = process.base_address + profile.arc_character_vtable_rva
-        self._rescan_interval_seconds = float(rescan_interval_seconds)
-        self._clock = clock
-        self._candidate_addresses: tuple[int, ...] = ()
-        self._last_scan_at: float | None = None
+        try:
+            self._registry = NativeObjectRegistryReader(profile.registry_profile, process)
+        except NativeObjectRegistryReadError as exc:
+            raise NativeCharacterPopulationCompatibilityError(str(exc)) from exc
         self._scan_generation = 0
         self._closed = False
         self._descriptor_keys = {
@@ -408,9 +402,7 @@ class NativeCharacterPopulationReader:
     def observe(self) -> NativeCharacterPopulationObservation:
         if self._closed:
             raise NativeCharacterPopulationReadError("native population reader is closed")
-        now = self._clock()
-        if self._last_scan_at is None or now - self._last_scan_at >= self._rescan_interval_seconds:
-            self._scan_candidates(now)
+        registry = self._capture_registry()
         player = self._read_pointer(self._player_slot, "local player")
         try:
             selected = self._read_pointer(self._selected_slot, "selected target")
@@ -433,16 +425,24 @@ class NativeCharacterPopulationReader:
                 player_action_target, self._profile.pointer_size, "local player action target"
             )
         player_object_key = self._read_object_key(player_block, "local player")
+        self._require_registered_actor(registry, player, player_object_key)
         characters: list[NativeCharacterObservation] = []
         rejected = 0
-        for address in self._candidate_addresses:
-            if address == player:
+        for entry in registry.objects:
+            self._check_registry_budget(registry)
+            address = entry.address
+            if entry.vtable != self._character_vtable or address == player:
                 continue
             try:
                 character = self._read_character(address)
+                if character.object_key != entry.key:
+                    raise NativeCharacterPopulationReadError(
+                        "registered character identity changed"
+                    )
             except NativeCharacterPopulationReadError:
                 rejected += 1
                 continue
+            self._check_registry_budget(registry)
             characters.append(character)
         character_keys = tuple(character.object_key for character in characters)
         if len(character_keys) != len(set(character_keys)):
@@ -479,6 +479,16 @@ class NativeCharacterPopulationReader:
             raise NativeCharacterPopulationReadError(
                 "local player action target changed during population read"
             )
+        self._verify_registry(registry)
+        if self.observe_actor_identity() != (
+            self._token(player), player_object_key,
+            self._token(player_action_target) if player_action_target else None,
+        ):
+            raise NativeCharacterPopulationReadError(
+                "local actor changed during registry verification"
+            )
+        self._check_registry_budget(registry)
+        self._scan_generation += 1
         characters.sort(key=lambda character: character.token)
         return NativeCharacterPopulationObservation(
             characters=tuple(characters),
@@ -521,7 +531,7 @@ class NativeCharacterPopulationReader:
     ) -> tuple[int, int]:
         """Return fresh comparison hints for the exact canonical actor/target.
 
-        Tokens stay opaque. Only addresses already owned by this reader's scan
+        Tokens stay opaque. Only freshly verified registry members
         may resolve; the native receiver independently resolves and retains the
         keys, then compares these hints without dereferencing them.
         """
@@ -530,13 +540,16 @@ class NativeCharacterPopulationReader:
                 or not isinstance(target_token, str) or not target_token
                 or local_key.is_null or target_key.is_null or local_key == target_key):
             raise ValueError("combat address resolution requires distinct exact object identities")
+        registry = self._capture_registry()
         actor_before = self.observe_actor_identity()
         actor_address = self._read_pointer(self._player_slot, "local player")
         if (actor_before[1] != local_key or local_key.object_uuid != 53
                 or self._token(actor_address) != actor_before[0]):
             raise NativeCharacterPopulationReadError("combat actor identity is no longer current")
-        matches = [address for address in self._candidate_addresses
-                   if self._token(address) == target_token]
+        self._require_registered_actor(registry, actor_address, local_key)
+        matches = [entry.address for entry in registry.objects
+                   if entry.vtable == self._character_vtable and entry.key == target_key
+                   and self._token(entry.address) == target_token]
         if len(matches) != 1 or matches[0] == actor_address:
             raise NativeCharacterPopulationReadError("combat target is not a canonical candidate")
         target_address = matches[0]
@@ -548,12 +561,18 @@ class NativeCharacterPopulationReader:
         if (actor_after[:2] != actor_before[:2]
                 or self._read_pointer(self._player_slot, "local player") != actor_address):
             raise NativeCharacterPopulationReadError("combat actor changed during resolution")
+        self._verify_registry(registry)
+        if self.observe_actor_identity() != actor_before:
+            raise NativeCharacterPopulationReadError(
+                "local actor changed during registry verification"
+            )
+        self._check_registry_budget(registry)
         return actor_address, target_address
 
     def observe_character_detail(
         self, token: str, object_key: NativeObjectKey, reader: NativeTargetActionReader,
     ) -> NativeCharacterDetailObservation | None:
-        """Refresh an exact known object, without decoding tokens or scanning again.
+        """Refresh an exact registry member, without decoding tokens or reading selection.
 
         Addresses remain owned here. The action reader receives an address only
         inside a key-checked read transaction; replacement or disappearance yields
@@ -563,8 +582,15 @@ class NativeCharacterPopulationReader:
             raise ValueError("bound action reader must use the population process")
         if not isinstance(token, str) or not token or not isinstance(object_key, NativeObjectKey):
             raise ValueError("bound action requires an exact token and object key")
+        registry = self._capture_registry()
         actor_before = self.observe_actor_identity()
-        address = next((a for a in self._candidate_addresses if self._token(a) == token), None)
+        actor_address = self._read_pointer(self._player_slot, "local player")
+        self._require_registered_actor(registry, actor_address, actor_before[1])
+        if self._token(actor_address) != actor_before[0]:
+            raise NativeCharacterPopulationReadError("local actor changed before bound action read")
+        address = next((entry.address for entry in registry.objects
+                        if entry.vtable == self._character_vtable and entry.key == object_key
+                        and self._token(entry.address) == token), None)
         if address is None:
             return None
         try:
@@ -584,6 +610,12 @@ class NativeCharacterPopulationReader:
             return None
         if self.observe_actor_identity() != actor_before:
             raise NativeCharacterPopulationReadError("local actor changed during bound action read")
+        self._verify_registry(registry)
+        if self.observe_actor_identity() != actor_before:
+            raise NativeCharacterPopulationReadError(
+                "local actor changed during registry verification"
+            )
+        self._check_registry_budget(registry)
         return NativeCharacterDetailObservation(after, action)
 
     def close(self) -> None:
@@ -597,28 +629,37 @@ class NativeCharacterPopulationReader:
     def __exit__(self, *_: object) -> None:
         self.close()
 
-    def _scan_candidates(self, now: float) -> None:
-        needle = struct.pack("<I", self._character_vtable)
-        hits = self._process.find_all(
-            (needle,),
-            memory_type=self._profile.scan_memory_type,
-            protection=self._profile.scan_protection,
-            maximum_results_per_needle=self._profile.maximum_candidate_characters,
-            maximum_address=self._profile.maximum_scan_address,
-        )[needle]
-        candidates = tuple(
-            address
-            for address in hits
-            if address % self._profile.pointer_size == 0
-            and self._profile.minimum_user_address <= address < self._profile.maximum_user_address
-        )
-        if len(candidates) > self._profile.maximum_candidate_characters:
-            raise NativeCharacterPopulationReadError(
-                "native character candidate limit was exceeded"
-            )
-        self._candidate_addresses = candidates
-        self._last_scan_at = now
-        self._scan_generation += 1
+    def _capture_registry(self) -> NativeRegistrySnapshot:
+        if self._closed:
+            raise NativeCharacterPopulationReadError("native population reader is closed")
+        try:
+            snapshot = self._registry.capture()
+        except NativeObjectRegistryReadError as exc:
+            raise NativeCharacterPopulationReadError(str(exc)) from exc
+        if sum(entry.vtable == self._character_vtable for entry in snapshot.objects) > (
+            self._profile.maximum_candidate_characters
+        ):
+            raise NativeCharacterPopulationReadError("registered character limit was exceeded")
+        return snapshot
+
+    def _verify_registry(self, snapshot: NativeRegistrySnapshot) -> None:
+        try:
+            self._registry.verify(snapshot)
+        except NativeObjectRegistryReadError as exc:
+            raise NativeCharacterPopulationReadError(str(exc)) from exc
+
+    def _check_registry_budget(self, snapshot: NativeRegistrySnapshot) -> None:
+        try:
+            self._registry.check_budget(snapshot)
+        except NativeObjectRegistryReadError as exc:
+            raise NativeCharacterPopulationReadError(str(exc)) from exc
+
+    def _require_registered_actor(
+        self, snapshot: NativeRegistrySnapshot, address: int, key: NativeObjectKey,
+    ) -> None:
+        if not any(entry.address == address and entry.key == key
+                   and entry.vtable == self._character_vtable for entry in snapshot.objects):
+            raise NativeCharacterPopulationReadError("local actor is not an exact registry member")
 
     def _read_character(self, address: int) -> NativeCharacterObservation:
         profile = self._profile
@@ -795,7 +836,8 @@ class NativeCharacterPopulationReader:
 
     def _read_exact(self, address: int, size: int, label: str) -> bytes:
         try:
-            value = self._process.read(address, size)
+            read = self._process.read if size <= 64 else self._process.read_block
+            value = read(address, size)
         except Exception as exc:
             raise NativeCharacterPopulationReadError(
                 f"could not read {label}: {type(exc).__name__}"
@@ -835,7 +877,7 @@ def open_windows_native_character_population_reader(
     try:
         return NativeCharacterPopulationReader(
             profile,
-            cast(ScanningReadOnlyProcessMemory, process),
+            process,
         )
     except Exception:
         process.close()
@@ -878,6 +920,15 @@ def load_native_character_population_profile_text(
             f"native character-population profile is missing fields: {', '.join(sorted(missing))}"
         )
     try:
-        return NativeCharacterPopulationProfile(**cast(dict[str, Any], dict(raw)))
+        values = dict(raw)
+        registry = values["registry_profile"]
+        if not isinstance(registry, dict):
+            raise ValueError("registry_profile must be an object")
+        registry = dict(registry)
+        if not isinstance(registry.get("executable_sha256s"), list):
+            raise ValueError("registry executable_sha256s must be an array")
+        registry["executable_sha256s"] = tuple(registry["executable_sha256s"])
+        values["registry_profile"] = NativeObjectRegistryProfile(**registry)
+        return NativeCharacterPopulationProfile(**cast(dict[str, Any], values))
     except (TypeError, ValueError) as exc:
         raise NativeCharacterPopulationProfileLoadError(str(exc)) from exc

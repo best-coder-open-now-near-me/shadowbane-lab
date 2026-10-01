@@ -13,6 +13,7 @@ from shadowbane_lab.client_observation import (
     load_bundled_native_character_population_profile,
 )
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
+from shadowbane_lab.client_observation.native_registry import NativeObjectRegistryProfile
 
 
 def _profile() -> NativeCharacterPopulationProfile:
@@ -44,9 +45,12 @@ def _profile() -> NativeCharacterPopulationProfile:
         descriptor_key_offset=4,
         sparse_value_pointer_offset=4,
         maximum_sparse_table_bits=4,
-        scan_memory_type=0x20000,
-        scan_protection=4,
-        maximum_scan_address=0x70000000,
+        registry_profile=NativeObjectRegistryProfile(
+            executable_name="sb.exe", executable_sha256s=("a" * 64,), pointer_size=4,
+            world_pointer_rva=0x108, registry_pointer_offset=0x94, buckets_pointer_offset=4,
+            exponent_offset=8, object_key_offset=0x10, maximum_table_bits=4, maximum_objects=32,
+            minimum_user_address=0x10000, maximum_user_address=0x7FFF0000,
+        ),
         maximum_candidate_characters=32,
         minimum_user_address=0x10000,
         maximum_user_address=0x7FFF0000,
@@ -70,6 +74,7 @@ class FakeScanningProcess:
         self.memory: dict[int, bytes] = {}
         self.closed = False
         self.find_calls = 0
+        self.block_sizes: list[int] = []
         self.identity_changes: dict[int, tuple[int, int]] = {}
         self.action_target_changes: dict[int, int] = {}
         self.block_reads: dict[int, int] = {}
@@ -119,6 +124,15 @@ class FakeScanningProcess:
         self._write(0x50000, struct.pack("<II", 14, 0x51000))
         self._write(0x51004, struct.pack("<I", 0x52000))
         self._write(0x52000, b"\x01")
+        self.world, self.registry, self.buckets = 0x80000, 0x81000, 0x82000
+        self._write(self.base_address + profile.registry_profile.world_pointer_rva,
+                    struct.pack("<I", self.world))
+        self._write(self.world + 0x94, struct.pack("<I", self.registry))
+        self._write(self.registry + 4, struct.pack("<II", self.buckets, 2))
+        self.set_registry(self.player, self.crab, self.trainer)
+
+    def set_registry(self, *addresses):
+        self._write(self.buckets, struct.pack("<IIII", *addresses, *([0] * (4-len(addresses)))))
 
     def _character(
         self,
@@ -150,9 +164,16 @@ class FakeScanningProcess:
         self.memory[address] = payload
 
     def read(self, address: int, size: int) -> bytes:
+        if not 0 < size <= 64:
+            raise ValueError("production small read bound is 64 bytes")
         return self._read(address, size)
 
     def read_block(self, address: int, size: int) -> bytes:
+        if not 0 < size <= 1024 * 1024:
+            raise ValueError("production block read bound is 1MiB")
+        self.block_sizes.append(size)
+        if size != self.profile.object_read_size:
+            return self._read(address, size)
         self.block_reads[address] = self.block_reads.get(address, 0) + 1
         if self.block_reads[address] == 2:
             block = bytearray(self._read(address, size))
@@ -215,7 +236,7 @@ class NativeCharacterPopulationTests(unittest.TestCase):
                 process = self._pet_process(owner)
                 observation = NativeCharacterPopulationReader(process.profile, process).observe()
                 self.assertEqual(1, len(observation.characters))
-                self.assertEqual(2, observation.rejected_candidates)
+                self.assertEqual(1, observation.rejected_candidates)
 
     def test_unsigned_pet_and_owner_identity_are_preserved(self) -> None:
         process = self._pet_process((0xFFFFFF30, 53))
@@ -264,7 +285,7 @@ class NativeCharacterPopulationTests(unittest.TestCase):
         for resummoned_pet in (True, False):
             with self.subTest(resummoned_pet=resummoned_pet):
                 process = self._pet_process()
-                reader = NativeCharacterPopulationReader(process.profile, process, clock=lambda: 0)
+                reader = NativeCharacterPopulationReader(process.profile, process)
                 first = reader.observe()
                 original = next(
                     c for c in first.characters if c.character_kind == NativeCharacterKind.PET
@@ -275,6 +296,7 @@ class NativeCharacterPopulationTests(unittest.TestCase):
                 process.memory[process.base_address + process.profile.selected_pointer_rva] = (
                     struct.pack("<I", 0)
                 )
+                process.set_registry(process.player, process.trainer)
                 dismissed = reader.observe()
                 self.assertIsNone(dismissed.selected_target_token)
                 self.assertNotIn(original.object_key, [c.object_key for c in dismissed.characters])
@@ -285,13 +307,14 @@ class NativeCharacterPopulationTests(unittest.TestCase):
                     position=(108, 5, -206),
                     sparse=(16, 0x53000) if resummoned_pet else None,
                 )
+                process.set_registry(process.player, process.crab, process.trainer)
                 refreshed = reader.observe()
                 current = next(
                     c for c in refreshed.characters if c.object_key == NativeObjectKey(2003, 37)
                 )
                 self.assertEqual(original.token, current.token)
                 self.assertNotEqual(original.object_key, current.object_key)
-                self.assertEqual(1, process.find_calls)
+                self.assertEqual(0, process.find_calls)
                 if resummoned_pet:
                     self.assertEqual(original.owner_object_key, current.owner_object_key)
                     self.assertFalse(current.attack_eligible)
@@ -303,12 +326,9 @@ class NativeCharacterPopulationTests(unittest.TestCase):
     def test_observes_loaded_characters_without_changing_selection(self) -> None:
         profile = _profile()
         process = FakeScanningProcess(profile)
-        now = [0.0]
         reader = NativeCharacterPopulationReader(
             profile,
             process,
-            rescan_interval_seconds=15,
-            clock=lambda: now[0],
         )
 
         observation = reader.observe()
@@ -333,28 +353,19 @@ class NativeCharacterPopulationTests(unittest.TestCase):
         )
         self.assertEqual((2001, 37), (crab.object_key.object_type, crab.object_key.object_uuid))
         self.assertEqual(NativeCharacterKind.NPC, crab.character_kind)
-        self.assertEqual(1, observation.rejected_candidates)
+        self.assertEqual(0, observation.rejected_candidates)
         self.assertEqual(1, observation.scan_generation)
 
-    def test_reuses_candidate_pool_until_rescan_interval(self) -> None:
-        profile = _profile()
-        process = FakeScanningProcess(profile)
-        now = [0.0]
-        reader = NativeCharacterPopulationReader(
-            profile,
-            process,
-            rescan_interval_seconds=15,
-            clock=lambda: now[0],
-        )
-
-        reader.observe()
-        now[0] = 14.9
-        reader.observe()
-        self.assertEqual(1, process.find_calls)
-        now[0] = 15.0
-        observation = reader.observe()
-        self.assertEqual(2, process.find_calls)
-        self.assertEqual(2, observation.scan_generation)
+    def test_registry_membership_is_refreshed_without_heap_scans(self) -> None:
+        process = FakeScanningProcess(_profile())
+        reader = NativeCharacterPopulationReader(process.profile, process)
+        first = reader.observe()
+        process.set_registry(process.player, process.trainer)
+        second = reader.observe()
+        self.assertEqual(2, len(first.characters))
+        self.assertEqual(1, len(second.characters))
+        self.assertEqual(0, process.find_calls)
+        self.assertEqual(2, second.scan_generation)
 
     def test_local_action_target_must_stay_stable_through_population_scan(self) -> None:
         for changed_target in (0, 0x22000):
@@ -373,7 +384,7 @@ class NativeCharacterPopulationTests(unittest.TestCase):
         observation = NativeCharacterPopulationReader(process.profile, process).observe()
         self.assertEqual(1, len(observation.characters))
         self.assertEqual(NativeObjectKey(2002, 37), observation.characters[0].object_key)
-        self.assertEqual(2, observation.rejected_candidates)
+        self.assertEqual(1, observation.rejected_candidates)
 
     def test_local_action_target_rejects_unaligned_or_out_of_range_pointer(self) -> None:
         for pointer in (4, 0x20001, 0x7FFF0000, 0xFFFFFFFF):
@@ -413,7 +424,7 @@ class NativeCharacterPopulationTests(unittest.TestCase):
                 if character.object_key is not None
             ),
         )
-        self.assertEqual(2, observation.rejected_candidates)
+        self.assertEqual(1, observation.rejected_candidates)
 
     def test_rejects_zero_identity_without_exposing_unknown_as_permission(self) -> None:
         profile = _profile()
@@ -423,7 +434,7 @@ class NativeCharacterPopulationTests(unittest.TestCase):
 
         observation = reader.observe()
 
-        self.assertEqual(2, observation.rejected_candidates)
+        self.assertEqual(1, observation.rejected_candidates)
 
     def test_duplicate_native_keys_fail_the_coherent_snapshot(self) -> None:
         profile = _profile()
