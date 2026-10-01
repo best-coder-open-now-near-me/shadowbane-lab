@@ -260,7 +260,7 @@ bool StartBound(std::uintptr_t image, Send send, Followup followup,
         ok = ok && Copy(bytes.data(), base + site.rva, bytes.size()) && bytes == site.bytes;
     }
     if (ok) { handler = AddVectoredExceptionHandler(1, Trap); ok = handler != nullptr; }
-    if (ok) { ok = submission::RegisterPowerAppendObserver({detail::Observer::Claim, detail::Observer::Complete}); }
+    if (ok) { ok = submission::RegisterAppendObserver(submission::AppendObserverKind::power, {detail::Observer::Claim, detail::Observer::Complete}); }
     for (auto& site : sites) { if (ok) { ok = install(site); } }
     if (ok) { InterlockedExchange(&installed, 1); }
     ReleaseSRWLockExclusive(&install_lock); return ok && Ready();

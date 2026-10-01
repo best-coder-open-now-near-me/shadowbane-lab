@@ -31,6 +31,21 @@ void PowerComplete(void* owner, cs::AppendResult result) noexcept {
     ++power_completions; power_result = result; SetLastError(996);
 }
 void OtherPowerComplete(void*, cs::AppendResult) noexcept {}
+void* item_ticket = nullptr;
+void* item_owner = nullptr;
+cs::AppendDecision item_decision = cs::AppendDecision::allow;
+cs::AppendResult item_result = cs::AppendResult::fault;
+unsigned item_completions = 0;
+cs::AppendClaim ItemClaim(void*, void* value, std::uintptr_t caller) noexcept {
+    Check(caller == cs::append_return, "item callback receives exact native caller RVA");
+    SetLastError(995);
+    return value == item_ticket ? cs::AppendClaim{item_decision, item_owner} : cs::AppendClaim{};
+}
+void ItemComplete(void* owner, cs::AppendResult result) noexcept {
+    Check(owner == item_owner, "item completion retains originating owner");
+    ++item_completions; item_result = result; SetLastError(994);
+}
+
 
 std::array<std::uint32_t, 0x80 / 4> message{};
 void Check(bool ok, const char* label) { if (!ok) { ++failures; std::cerr << label << '\n'; } }
@@ -436,13 +451,13 @@ int main(int argc, char** argv) {
             "unknown route cannot bypass selected or explicit admission");
     }
     reset();
-    cs::PowerAppendObserver power_callbacks{&PowerClaim, &PowerComplete};
+    cs::AppendObserver power_callbacks{&PowerClaim, &PowerComplete};
     SetLastError(42);
-    Check(!cs::RegisterPowerAppendObserver({}), "incomplete power callback registration rejected");
-    Check(cs::RegisterPowerAppendObserver(power_callbacks) && GetLastError() == 42,
+    Check(!cs::RegisterAppendObserver(cs::AppendObserverKind::power, {}), "incomplete power callback registration rejected");
+    Check(cs::RegisterAppendObserver(cs::AppendObserverKind::power, power_callbacks) && GetLastError() == 42,
         "complete power observer registers without altering LastError");
-    Check(cs::RegisterPowerAppendObserver(power_callbacks), "same power registration is idempotent");
-    Check(!cs::RegisterPowerAppendObserver({&PowerClaim, &OtherPowerComplete}),
+    Check(cs::RegisterAppendObserver(cs::AppendObserverKind::power, power_callbacks), "same power registration is idempotent");
+    Check(!cs::RegisterAppendObserver(cs::AppendObserverKind::power, {&PowerClaim, &OtherPowerComplete}),
         "registered power callbacks cannot be replaced");
     int retained_power_owner{};
     power_owner = &retained_power_owner; power_ticket = message.data(); ticket = power_ticket;
@@ -485,6 +500,74 @@ int main(int argc, char** argv) {
             "unrelated power observer leaves scoped melee ownership unchanged");
     }
     Check(power_claims >= 5, "power routing exercised at shared append boundary");
+    Check(!cs::RegisterAppendObserver(static_cast<cs::AppendObserverKind>(77), power_callbacks),
+        "unknown observer kind cannot register");
+    const cs::AppendObserver item_callbacks{&ItemClaim, &ItemComplete};
+    SetLastError(42);
+    Check(cs::RegisterAppendObserver(cs::AppendObserverKind::item, item_callbacks) && GetLastError() == 42,
+        "item observer registers independently without changing LastError");
+    Check(cs::RegisterAppendObserver(cs::AppendObserverKind::item, item_callbacks),
+        "same item registration is idempotent");
+    Check(!cs::RegisterAppendObserver(cs::AppendObserverKind::item, power_callbacks),
+        "registered item callbacks cannot be replaced");
+    power_ticket = nullptr;
+    int retained_item_owner{};
+    item_owner = &retained_item_owner; item_ticket = message.data(); ticket = item_ticket;
+    {
+        const auto before = appends, completed = item_completions, power_completed = power_completions;
+        queue();
+        Check(appends == before + 1 && item_completions == completed + 1
+            && item_result == cs::AppendResult::queued && power_completions == power_completed
+            && GetLastError() == 45, "sole item claim queues once and preserves native LastError");
+    }
+    {
+        item_decision = cs::AppendDecision::deny;
+        const auto before = appends, consumed = releases, completed = item_completions;
+        queue();
+        Check(appends == before && releases == consumed + 1 && item_completions == completed + 1
+            && item_result == cs::AppendResult::denied, "denied item consumes exactly the transferred reference");
+        item_decision = cs::AppendDecision::allow;
+    }
+    {
+        item_owner = nullptr;
+        const auto before = appends, consumed = releases, completed = item_completions;
+        queue();
+        Check(appends == before && releases == consumed + 1 && item_completions == completed,
+            "ownerless item claim cannot append or complete an unknown owner");
+        item_owner = &retained_item_owner;
+    }
+    {
+        power_ticket = item_ticket;
+        const auto before = appends, consumed = releases, completed = item_completions, power_completed = power_completions;
+        queue();
+        Check(appends == before && releases == consumed + 1 && item_completions == completed + 1
+            && power_completions == power_completed + 1 && item_result == cs::AppendResult::denied
+            && power_result == cs::AppendResult::denied,
+            "power/item collision denies both owners and consumes only one reference");
+        power_ticket = nullptr;
+    }
+    {
+        cs::Scope scope(explicit_context); ticket = nullptr; make_explicit(scope);
+        const auto before = appends, consumed = releases;
+        queue();
+        Check(appends == before && releases == consumed + 1 && item_result == cs::AppendResult::denied
+            && scope.Finish().result == cs::Result::uncertain,
+            "item/melee collision denies both owners without an extra native append");
+    }
+    {
+        throw_append = true; bool caught = false;
+        try { queue(); } catch (const std::runtime_error&) { caught = true; }
+        Check(caught && item_result == cs::AppendResult::fault,
+            "native item append fault completes original owner and propagates");
+        throw_append = false;
+    }
+    {
+        item_ticket = nullptr; power_ticket = nullptr; reset(); ticket = message.data();
+        const auto before = appends, completed = item_completions, power_completed = power_completions;
+        queue();
+        Check(appends == before + 1 && item_completions == completed && power_completions == power_completed,
+            "unclaimed ordinary native traffic forwards unchanged with both observers installed");
+    }
     // Hooks are process-lifetime objects. The synthetic image is intentionally
     // left mapped until this test process exits, matching production no-unload.
     return failures;

@@ -14,7 +14,7 @@ std::uintptr_t verified_image{};
 unsigned verification_calls{};
 int references = 2;
 void Check(bool ok, const char* label) { if (!ok) { ++failures; std::fprintf(stderr, "%s\n", label); } }
-sb::PowerAppendObserver registered{};
+sb::AppendObserver registered{};
 unsigned sends{}, appends{}, followups{}, releases{}, uses{}, lookups{};
 bool current = true, queue_current = true, fault_send = false, fault_followup = false;
 bool seh_send = false, seh_followup = false, corrupt_key = false;
@@ -135,7 +135,7 @@ namespace wonderbane::extension {
 bool GraphicsExecutableSha256Matches(const char* digest) noexcept { return std::strcmp(digest,image_digest)==0; }
 namespace movement { bool VerifyNativeMovementImage(std::uintptr_t& output) noexcept { ++verification_calls; output=verified_image; return output!=0; } }
 namespace combat::submission {
-bool RegisterPowerAppendObserver(const PowerAppendObserver& observer) noexcept { registered = observer; return true; }
+bool RegisterAppendObserver(AppendObserverKind kind, const AppendObserver& observer) noexcept { if(kind != AppendObserverKind::power) { return false; } registered = observer; return true; }
 }
 }
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
