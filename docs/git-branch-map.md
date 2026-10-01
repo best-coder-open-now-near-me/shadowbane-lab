@@ -38,11 +38,11 @@ no rollback copies were retained. Twelve compact receipts and seven installed-fi
 hashes were verified under private `artifacts/bot-deploy/20261001-b42/receipts`.
 
 Bot-integration owns `codex/native-buff-preparation-20261001`, published at
-`79b14df` before this receipt update through
+`cd1e4ed` before the native observer checkpoint through
 [draft PR #59](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/59).
 It now targets main and includes the PR #58 merge. The
-[buff preparation contract](buff-preparation-20261001.md) remains design/native
-qualification work, not an implemented or installed buff module. The merged
+[buff preparation contract](buff-preparation-20261001.md) now includes shared submission and pure policy with native observer/item primitives
+in progress; the buff module is not installed or fully integrated. The merged
 `codex/native-owner-liveness-20261001` and
 `codex/native-readiness-deployment-20261001` branch tips were verified in
 `origin/main` and both branches were deleted locally and remotely. The clean runtime
@@ -51,7 +51,7 @@ buff branch. Do not switch an actively owned checkout. PR #50 remains closed
 as superseded; its branch is retained because its exact tip is not an ancestor
 of main.
 
-**Active next item:** buff effect/item/actor-authority qualification. The .62 run
+**Active next item:** canonical buff observation and shared actor-owner integration. The .62 run
 `npc-recovery-readiness-171aeadcf4c44bd19a38876e94c87ef4` independently proves the
 bounded recovery and native reuse fallback gate. It does not prove second-NPC
 death, server kill credit, skill consumption or snare application. Automatic

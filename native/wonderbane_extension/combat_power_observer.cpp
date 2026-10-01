@@ -76,10 +76,19 @@ bool Word(std::uintptr_t at, std::uintptr_t expected) noexcept {
 bool KeyAt(std::uintptr_t at, const Key& key) noexcept {
     Key value{}; return Copy(value.data(), at, sizeof(value)) && value == key;
 }
+bool AuthorityValid(const Context& c) noexcept {
+    if (c.authority == Authority::actor) {
+        return c.target_mode == TargetMode::self && !c.target && c.target_key == Key{}
+            && c.actor_key[0] && c.actor_key[1] == 53;
+    }
+    return c.authority == Authority::engagement && c.target && c.target != c.actor
+        && c.target_key[0] && (c.target_key[1] == 37 || c.target_key[1] == 53)
+        && c.target_key != c.actor_key;
+}
 bool MatchesBinding(const Context& c) noexcept {
-    return c.image == base && Word(base + 0x16a2d98, c.actor)
+    return AuthorityValid(c) && c.image == base && Word(base + 0x16a2d98, c.actor)
         && Word(c.actor, base + 0x114165c) && KeyAt(c.actor + 0x18, c.actor_key)
-        && KeyAt(c.target + 0x18, c.target_key)
+        && (c.authority == Authority::actor || KeyAt(c.target + 0x18, c.target_key))
         && Word(base + 0x16ab88c, c.writer) && Word(c.writer, base + 0x116036c)
         && Word(c.writer + 0x44, c.container) && Word(c.container, base + 0x114ce9c);
 }
@@ -268,7 +277,7 @@ bool StartBound(std::uintptr_t image, Send send, Followup followup,
 }
 Scope::Scope(const Context& c) noexcept : context_(c), previous_(active) {
     const DWORD error = GetLastError(); active = this; active_ = true;
-    if (!Ready() || c.image != base || !c.actor || !c.target || !c.writer || !c.container
+    if (!Ready() || c.image != base || !c.actor || !AuthorityValid(c) || !c.writer || !c.container
         || !c.power_id || !c.current || !c.append_current || !c.receipt
         || (c.target_mode != TargetMode::engagement_object && c.target_mode != TargetMode::self)) { detail::Observer::Block(*this); }
     else { detail::Observer::Publish(*this); }

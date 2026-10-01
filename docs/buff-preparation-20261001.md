@@ -2,10 +2,10 @@
 
 ## Scope and source status
 
-The user authorized automatic application and refresh of missing concentration
-potion, Precision, Beorc Rune, Transform and Defensive Stance effects. This record
+The user authorized automatic application and refresh of missing Greater Concoction
+Potion, Precision, Beorc Rune, Transform and Defensive Stance effects. This record
 captures requirements, native read-only findings and the intended production
-boundaries. **The buff module is not implemented or live-qualified.**
+boundaries. **The buff module is partially implemented and not live-qualified.** Shared native submission and pure preparation policy are published; actor-owner, canonical observation and runner integration remain in progress.
 
 The focused branch is `codex/native-buff-preparation-20261001`. Its dependency,
 [PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58),
@@ -22,7 +22,7 @@ installation remain separate delivery gates recorded in the [branch map](git-bra
 
 - Apply missing configured buffs and refresh them from qualified native evidence.
   Do not repeatedly cast an already active effect.
-- The user reports that a concentration potion applies after roughly ten seconds.
+- The user reports that Greater Concoction Potion applies after roughly ten seconds.
   This is an application delay, not an effect duration or a required wait before
   other buffs. Keep its pending application separate from active effect presence;
   permit other native-ready buffs during that delay. Elapsed time alone never
@@ -55,8 +55,7 @@ mode 2, delivery 0: actor-directed powers. These are character observations,
 not universal learned-rank defaults. Resolve and validate the current exact
 character's definitions and positive learned ranks at run admission. The form
 alternatives also require their exact supported native definition and effect
-mapping before activation. No concentration-potion item identity is qualified by
-this table.
+mapping before activation. Potion identity was qualified separately below.
 
 A fresh read-only capture from the verified .62 process resolved these coverage
 candidates through native action definitions:
@@ -77,7 +76,7 @@ Defensive Stance buff. The diagnostic captured 20 effect records, with none of
 these five markers, but it explicitly does **not** authorize an absence or expiry
 claim. Descriptor retention flags and mutation-safe publication remain to qualify.
 The inventory component rejected an identity mismatch and remains unknown; this
-is not evidence of an empty inventory or a missing concentration potion. No buff
+is not evidence of an empty inventory or a missing Greater Concoction Potion. No buff
 or item action was sent by that capture.
 
 The effect audit distinguishes the primary descriptor identity from the
@@ -113,6 +112,45 @@ changes do not prove delayed effect application.
 Actual concentration-potion template metadata, branch eligibility and its effect
 mapping still require evidence. The qualified generic lookup and sender paths do
 not by themselves authorize an unidentified item.
+
+## Implemented primitives and exact-image checks
+
+Shared append ownership is published at `1756737`; item/power collisions reject
+all claimants and consume one transferred native message reference. The pure
+preparation policy is published at `cd1e4ed` with 43 tests. It separates local
+settlement from remote application, retains possible-entry history, permits
+other ready groups while a potion is pending, and treats partial coverage as
+insufficient permission to consume another potion.
+
+The native effect observer installs only from the synchronous reviewed client
+bootstrap, before original entry. Its global mutation depth/epoch covers local
+add/remove, full incoming effect rebuild, all three rebuild call sites and all
+six equipment-prune call sites. Four isolated fault/exception/install/exhaustion
+modes passed, and both exact client .13 images passed 43 conformance checks.
+These probes instrument lookup, allocation, notification and UI dependencies;
+they do not establish live server application or elapsed effect lifetime.
+
+Item entry binds the exact owned inventory object and template address as well
+as keys. It is restricted to the reviewed type 8 / flags 0xA branch, retains and
+rechecks membership, and quarantines uncertain reference ownership. Both exact
+images passed 10 conformance cases over 48 reviewed native primitives. The
+shared power observer now distinguishes explicit actor-only authority from
+engagement authority; actor-only authority cannot carry a target or invoke a
+targeted power. Focused power tests and both native image probes passed.
+
+After the user's manual potion activation, native observation identified
+**Greater Concoction Potion**, item key `[5802955,30]`, template `[980066,0]`,
+quantity 3. The nine added effect descriptors match source power `429021400`
+(`POT-016`): `294901960`, `495999176`, `496031944`, `496064712`, `496097480`,
+`496163016`, `496195784`, `496228552`, `496326856`. Each descriptor's local
+retention flag +4C was zero. Potion template and coverage-source power remain
+separate configured facts; no static template-to-power linkage is inferred.
+These passive captures did not establish absence, expiry or exact application delay.
+
+The installed runtime remains .62/.42. These source checkpoints are not an
+installed buff implementation. Next: canonical retained observation, one actor
+owner with target contexts, versioned wire/fences, runner integration, complete
+qualification and a new merge/install approval.
 
 ## Production integration contract
 

@@ -2,6 +2,8 @@
 #include "movement_bootstrap_patches.h"
 #include "terrain_mask_refresh.h"
 #include "combat_power_observer.h"
+#include "combat_item_entry.h"
+#include "actor_effects_native.h"
 #include <Windows.h>
 #include <bcrypt.h>
 #include <array>
@@ -112,6 +114,10 @@ bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base) {
     if (!NormalizeOwnedTerrainMaskRefreshCode(base, text.VirtualAddress, loaded,
         std::span<const unsigned char>(bytes.data() + text.PointerToRawData, loaded.size()))) { return false; }
     if (!combat::power::NormalizeOwnedCode(base, text.VirtualAddress, loaded,
+        std::span<const unsigned char>(bytes.data() + text.PointerToRawData, loaded.size()))) { return false; }
+    if (!combat::item::NormalizeOwnedCode(base, text.VirtualAddress, loaded,
+        std::span<const unsigned char>(bytes.data() + text.PointerToRawData, loaded.size()))) { return false; }
+    if (!actor_effects::NormalizeOwnedCode(base, text.VirtualAddress, loaded,
         std::span<const unsigned char>(bytes.data() + text.PointerToRawData, loaded.size()))) { return false; }
     if (std::memcmp(loaded.data(), bytes.data() + text.PointerToRawData, loaded.size()) != 0) { return false; }
     return true;
