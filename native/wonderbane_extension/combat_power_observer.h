@@ -37,6 +37,9 @@ public:
     Scope& operator=(const Scope&) = delete;
     // Called after learned-rank/category qualification and before mutating native entry.
     bool CanEnter() const noexcept;
+    // Same binding/current gate after an admitted native prerequisite. This does
+    // not provide the private bridge frame required by sender/append observers.
+    bool Current() const noexcept;
     bool Enter(std::uintptr_t definition, std::uint32_t native_rank) noexcept;
     Receipt Finish() noexcept;
     const Context& Binding() const noexcept { return context_; }

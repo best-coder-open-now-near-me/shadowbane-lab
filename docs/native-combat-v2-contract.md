@@ -5,9 +5,11 @@ Installed host **0.3.58** / native **1.8.38** use exact qualified source
 [PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
 merged at `214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` on October 1,
 04:14:59 UTC after all 15 hosted checks passed. Qualification, installation,
-manager activation and loaded-DLL identity passed. The current live gate awaits
-Umbra login: no .58 NPC or skill combat has run. The earlier .57 manual-player
-attack/cancel/recovery gate passed; its NPC cleanup attempts remained unconfirmed.
+manager activation and loaded-DLL identity passed. The bounded .58 basic NPC
+attack/cleanup gate passed after login. The skill-opener attempt did not pass:
+SELF_POWER remained UNCERTAIN without queue evidence or a followup attack, while
+terminal native cleanup was confirmed. The earlier .57 manual-player recovery
+pass and unconfirmed NPC cleanup attempts remain separate historical evidence.
 See the [deployment record](queued-skills-20261001.md) for evidence and limits.
 
 Host and native ship together. Legacy verbs 34-36 remain rejected; there is no
@@ -32,7 +34,7 @@ PAUSE and fence revocation/closure. Terminal cancellation blocks new actions
 immediately while preserving only the exact pending cleanup owner's heartbeat;
 expiry never proves closure. Subsequent terminal movement-owner STOP has its own
 bounded session transport timeout and may retry once with the same request
-identity. The .58 NPC/skill live gate remains pending.
+identity. The .58 basic NPC queue/cleanup gate passed; skill acceptance remains pending.
 
 ## Ownership and identities
 

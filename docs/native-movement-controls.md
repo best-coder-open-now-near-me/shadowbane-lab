@@ -3,7 +3,8 @@
 Native controls, transport and automation ownership are merged in main and
 installed as host **0.3.58** / native **1.8.38**, source `05c888a4`. The earlier
 .57 manual-player cancellation/recovery gate passed. The .58 bounded settlement
-fix is qualified and installed; its NPC/skill live acceptance awaits login.
+fix is qualified and installed. The .58 basic NPC queue/cleanup gate passed;
+the skill attempt remained unconfirmed, with terminal native cleanup confirmed.
 Device, movement and isolation checks below remain separate wherever no result
 is recorded. See the [deployment record](queued-skills-20261001.md).
 

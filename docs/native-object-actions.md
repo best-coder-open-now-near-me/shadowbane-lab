@@ -5,9 +5,11 @@ Installed host **0.3.58** / native **1.8.38** use exact qualified source
 [PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
 merged at `214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` on October 1,
 04:14:59 UTC after all 15 hosted checks passed. Qualification, installation,
-manager activation and loaded-DLL identity passed. The current live gate awaits
-Umbra login: no .58 NPC or skill combat has run. The earlier .57 manual-player
-attack/cancel/recovery gate passed; its NPC cleanup attempts remained unconfirmed.
+manager activation and loaded-DLL identity passed. The bounded .58 basic NPC
+attack/cleanup gate passed after login. The skill-opener attempt did not pass:
+SELF_POWER remained UNCERTAIN without queue evidence or a followup attack, while
+terminal native cleanup was confirmed. The earlier .57 manual-player recovery
+pass and unconfirmed NPC cleanup attempts remain separate historical evidence.
 See the [deployment record](queued-skills-20261001.md) for evidence and limits.
 
 Host and native ship together. Legacy verbs 34-36 are rejected; there is no
@@ -102,6 +104,19 @@ positive skill enqueue advances to the same engagement's attack without a fixed
 power-tracking vector nor queue acknowledgement proves server consumption or
 skill application. Existing CAST semantics remain unchanged.
 
+The .58 skill attempt exposed a combat-mode prerequisite gap: ordinary attack
+entry establishes combat mode, while the current power route does not. A native
+correction is implemented in candidate .59/.39 on draft PR #52, outside main
+and the installed package, pending qualification. Passive exact-session inspection
+confirmed Shot's native stance requirement 1 while the actor was in mode 1.
+Mode preparation must remain inside the same owned native action, preserving
+entry/correlation evidence and rechecking the Grant/fence after callbacks. Host
+policy must not emulate it with a hotkey, an extra configuration flag or a delay.
+The failed skill receipt alone does not establish the cause; a later owner
+revocation was also recorded and its trigger is unknown. Existing owner guards
+and no-automatic-restart handling remain unchanged. The [live evidence record](queued-skills-20261001.md) distinguishes
+this uncertainty from the passed basic NPC queue/cleanup gate.
+
 Power send and followup interception uses reviewed instruction sites and an
 explicit invocation bridge. Native frame provenance prevents a nested unrelated
 invocation, even one with matching power and target, from borrowing an outer
@@ -167,9 +182,10 @@ The original PR #46/48 validation is historical. Current .58/.38 qualification
 passed 4,203 host tests and 801 subtests; both native profiles passed 202 generic
 native cases, all 85 combat IPC and 72 movement IPC cases, plus explicit image
 gates. All 15 hosted checks passed before approved PR #51 merge. Installation and
-loaded-DLL checks passed, while .58 NPC/skill live acceptance awaits login. The
-[deployment record](queued-skills-20261001.md) preserves the earlier .57 manual
-pass and unconfirmed NPC cleanup attempts separately. Automatic retaliation
+loaded-DLL checks passed. The bounded .58 basic NPC queue/cleanup gate passed;
+skill/attack acceptance did not pass and awaits qualification of the native
+prerequisite correction and a bounded repeat. The [deployment record](queued-skills-20261001.md) preserves the
+earlier .57 manual pass and unconfirmed NPC cleanup attempts separately. Automatic retaliation
 remains blocked on the authoritative server-character-session contract. Private
 client binaries and captures remain outside source delivery; no rollback copies
 are retained.

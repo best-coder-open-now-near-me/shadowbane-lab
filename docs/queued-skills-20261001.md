@@ -5,12 +5,14 @@ Installed host **0.3.58** / native **1.8.38** use exact qualified source
 [PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
 merged at `214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` on October 1,
 04:14:59 UTC after all 15 hosted checks passed. Qualification, installation,
-manager activation and loaded-DLL identity passed. The current live gate awaits
-Umbra login: no .58 NPC or skill combat has run. The earlier .57 manual-player
-attack/cancel/recovery gate passed; its NPC cleanup attempts remained unconfirmed.
+manager activation and loaded-DLL identity passed. The bounded .58 basic NPC
+attack/cleanup gate passed after login. The skill-opener attempt did not pass:
+SELF_POWER remained UNCERTAIN without queue evidence or a followup attack, while
+terminal native cleanup was confirmed. The earlier .57 manual-player recovery
+pass and unconfirmed NPC cleanup attempts remain separate historical evidence.
 The qualification and deployment evidence is recorded below.
 
-The normal checkout is on the PR #51 main merge. The deployment documentation
+The normal checkout is on the PR #51 main merge. The deployment and combat-mode correction
 worktree uses `codex/queued-skill-deployment-20261001`, targeting main through
 [draft PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52). The merged
 feature branch is retired. This record incorporates the relevant historical
@@ -74,7 +76,8 @@ one client DLL inventory change, five shortcuts and launch preflight. Manager
 activation was healthy and unbound at observed PID 2908. Launch at
 04:17:51.4923419 UTC verified the qualified DLL in PID 460, creation FILETIME
 `134353018625847816`, HWND `5243554`. These are recorded observations, not
-continuing authorization. Passive readiness was not ready while awaiting login.
+continuing authorization. Initial passive readiness awaited login; the later
+bounded results below were collected after fresh readiness.
 
 The inspected obsolete .57 host contained 2,090 files and 47,557,363 bytes;
 inventory SHA-256 was
@@ -85,7 +88,52 @@ and diagnostic evidence remain in place. Twelve compact receipts and seven
 installed-file hashes were verified under private
 `artifacts/bot-deploy/20261001-b38/receipts`; private captures are not published.
 
-## Historical .57 live evidence and active todos
+## Live .58 NPC results and combat-mode prerequisite
+
+The bounded basic NPC gate passed on exact installed source `05c888a4`. The
+production-selected NPC was validated by native key/token within the unchanged
+120-unit camp boundary. One ATTACK had a correlated CLIENT_OUTBOUND_QUEUED receipt,
+then terminal cleanup returned CLOSED with NATIVE_STOPPED, mode 1, action state 1
+and no combat target. No combat owner remained, final manual-list membership was
+zero and the watchdog did not fire. The explicit harness stop followed the queued
+attack. This proves local queue admission and cleanup, not a server hit or later
+PvE recovery. The compact private result is
+`artifacts/bot-deploy/20261001-b38/npc-basic-result.json`.
+
+The queued-skill gate did **not pass**. Shot to the Leg resolved from Umbra's
+current learned definition as power 563795161, rank 40, actor recipient. Its
+SELF_POWER submission reported native entry but UNCERTAIN outcome and no outbound
+queue evidence. Subsequent updates queried the same action; no followup ATTACK
+was submitted. Cleanup ultimately returned NATIVE_STOPPED and retained no owner;
+list membership was zero and the watchdog did not fire. The diagnostic also
+recorded native owner revocation: expected Grant generation 7, sampled generation
+8 with no owner. Private `npc-skill-result.json` is retained beside the basic
+result. No skill consumption, snare application or server acceptance is claimed.
+
+The user clarified that weapon skills require combat mode before activation.
+Source review confirms the attack entry enters combat mode, while the installed
+power entry does not establish that prerequisite. A later exact-session passive
+read at 15:28:51 UTC confirmed Shot's native definition field `+0x1F0 = 1`, with
+actor mode 1 and action state 1. The reviewed classifier requires combat mode for
+requirement 1. The read invoked no native function or input and acquired no lease;
+its private receipt is `skill-stance-result.json`, definition SHA-256
+`7c70f270975fd819291090f887e8e9487c20156f1c0539525e8f507b5b161f1f`.
+This confirms the definition/prerequisite mismatch at that observation; it does
+not retrospectively establish the sole cause of the earlier failed attempt.
+Candidate host **0.3.59** / native **1.8.39** contains the correction on the
+existing PR #52 branch and awaits qualification. Installed .58/.38 is unchanged.
+Owner revocation was a distinct later
+event; the sampled generation/no-owner state does not identify its trigger.
+Existing fail-closed handling stays in place, with no automatic restart.
+
+Combat-mode preparation belongs inside the native power invocation under the
+same actor, Grant, engagement and fence. Host policy continues to propose the
+configured numeric skill; only its correlated queue acknowledgement can advance
+the attack. UNCERTAIN retains the exact command for status/cleanup. Native
+callbacks must revalidate ownership after any mode transition and preserve entry
+history. No new hotkey, configuration flag or arbitrary host delay is required.
+
+## Historical .57 live evidence
 
 Installed .57/.37 source `1d107a25` passed manual-player attack, list removal,
 correlated native stop and a strictly later PvE SEEKING frame. The final list was
@@ -101,12 +149,19 @@ as the cause. Later passive idle snapshots do not retroactively pass cleanup.
 The .58 settlement fix preserves the exact owner while awaiting the native reply;
 its offline and real-process qualification is distinct from live acceptance.
 
+## Active todos
+
 - Complete: generic actor-directed opener, learned-skill resolver and character
   settings; bounded cleanup settlement and independent source reviews.
 - Complete: exact-source package qualification, all hosted checks, approved PR #51
   merge, installation, activation, launch identity and obsolete-runtime retirement.
-- Active: fresh Umbra login/readiness for bounded NPC attack/cleanup acceptance.
-- Pending: queued skill then attack acceptance; no .58 live combat has run yet.
-- Pending: receipt PR review/integration, then supersede the still-open PR #50.
+- Complete: .58 bounded basic NPC queue/terminal-cleanup gate; no server-hit or
+  PvE-recovery claim.
+- Active: qualify candidate .59/.39's native combat-mode prerequisite correction
+  for the unconfirmed skill attempt, on draft PR #52 outside main. The later revocation's trigger remains
+  unknown from the retained evidence; it does not justify relaxing owner guards.
+- Pending: qualify/review the corrected source, approved deployment and bounded
+  queued-skill/attack acceptance.
+- Pending: expanded PR #52 review/integration, then supersede the still-open PR #50.
 - Pending: server-consumption/impact proof and the authoritative
   server-character-session fence required for automatic retaliation.

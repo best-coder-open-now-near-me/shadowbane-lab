@@ -222,7 +222,10 @@ Scope::Scope(const Context& c) noexcept : context_(c), previous_(active) {
 }
 Scope::~Scope() { (void)Finish(); }
 bool Scope::CanEnter() const noexcept {
-    return active == this && active_ && !blocked_ && !receipt_.native_entered
+    return !receipt_.native_entered && Current();
+}
+bool Scope::Current() const noexcept {
+    return active == this && active_ && !blocked_
         && Ready() && MatchesBinding(context_) && context_.current(context_.owner);
 }
 bool Scope::Enter(std::uintptr_t definition, std::uint32_t rank) noexcept {

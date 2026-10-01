@@ -14,10 +14,12 @@ The old `codex/queued-weapon-skill-opener` branch was retired locally and remote
 after ancestry and checkout checks.
 
 The reused bot-runtime worktree is on `codex/queued-skill-deployment-20261001`,
-based on that main merge. Its only pending work is this deployment documentation,
-with main as the integration destination through
-[draft PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52);
-no runtime source is outside main.
+based on that main merge. Deployment documentation and the pending native
+combat-mode prerequisite correction are outside main, with main as the integration
+destination through [draft PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52).
+The installed .58/.38 runtime remains the merged `05c888a4` package. Candidate
+host .59/native .39 carries the combat-mode prerequisite correction and awaits
+qualification; it is not installed.
 This receipt incorporates the relevant .57 deployment and successful manual-player
 recovery facts from [PR #50](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/50)
 (`1bc32e3`). That documentation PR is still open and unmerged; PR #52 will supersede
@@ -33,9 +35,12 @@ The [deployment record](queued-skills-20261001.md) records exact hashes and chec
 The .57 manual-player attack/list-removal/native-stop/later-SEEKING gate passed.
 Its NPC attacks queued but did not confirm cleanup under the former immediate
 retry policy. The installed .58 correction uses bounded same-owner settlement.
-Active next item: fresh Umbra login/readiness, then bounded NPC attack/cleanup and
-generic queued-skill/attack acceptance. No .58 live combat or server-consumption
-success is claimed. Automatic retaliation remains disabled pending the separate
+The .58 bounded basic NPC queue/terminal-cleanup gate has now passed. The skill
+attempt remained UNCERTAIN with no queue evidence or followup attack; cleanup was
+confirmed and later owner revocation was also recorded, with its trigger unknown.
+Active next item: qualify the native combat-mode prerequisite correction and repeat
+bounded skill acceptance. Owner guards and no-restart handling remain unchanged.
+No server-consumption success is claimed. Automatic retaliation remains disabled pending the separate
 authoritative server-character-session fence.
 
 Everything below is historical. Earlier current/candidate/next statements do not
