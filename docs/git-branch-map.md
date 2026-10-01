@@ -59,7 +59,8 @@ The [owner-liveness correction](native-owner-liveness-20261001.md) passed comple
 exact-source .62/.42 qualification at `7f37ff5`. Active next item: separate
 merge/install approval after hosted checks, then bounded acceptance with fresh
 identity/readiness. Bot-integration now owns `codex/native-buff-preparation-20261001`
-from `7f37ff5` for automatic buff preparation; the receipt branch remains published
+from the qualified PR #58 source plus receipt updates for
+[automatic buff preparation](buff-preparation-20261001.md); the receipt branch remains published
 at `22c0baf` and included in PR #58. Buff runtime work is not yet qualified. Native reuse fallback
 is qualified offline but remains untested live. Automatic retaliation remains disabled.
 
