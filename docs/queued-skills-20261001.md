@@ -431,6 +431,39 @@ records reviewed client connection/login paths and the remaining authoritative
 session and attribution gaps. The user has no server source or protocol docs;
 the client-only findings do not enable automatic retaliation.
 
+## .60 renewal retry and observer lifecycle boundary
+
+Run `npc-recovery-renewal-a4844073bacf46e5a187331889c4f043` remains
+**not_passed**. The corrected private action boundary allowed four total positively
+queued attacks for the first exact NPC, including the initial attack. Its fresh
+preflight used the post-transition resource maxima, with all resources full.
+SELF_POWER request 1 queued, ATTACK request 2 was definitively deferred without
+entry, and ATTACK request 3 queued on the same engagement. Both canonical population
+and bound detail recorded the original NPC at zero health at frame 1,672 ms;
+production entered POST_KILL.
+
+At 1,906 ms, the explicit stop event was set before the normal post-kill delay
+completed. Native cleanup then confirmed NATIVE_STOPPED, with no retained owner
+or attack-list entry. No action-boundary rejection, watchdog, hotkey stop or
+reported runtime error occurred. The production interruption was
+`parent_operation_cancelled`; the sampled Grant still matched. There was no later
+SEEKING frame or second encounter.
+
+The private population decorator can set this event after an observation or
+identity-validation exception. Its original retry path did not retain the exact
+exception, so the reason cannot be recovered from this run. A dead object's
+registry disappearance is a hypothesis, not a demonstrated cause. Preserve the
+original failed result and trace. The next private recorder must retain bounded
+failure diagnostics and allow an already positively observed dead object to leave
+the registry without fabricating a sample or transferring its engagement to a
+replacement. Native cleanup and a strictly later production SEEKING frame remain
+required before a distinct second encounter. Installed runtime is unchanged.
+
+The [native combat-effects audit](native-combat-effects-20261001.md) records the
+actor-owned effect interface and update-message paths. The decoded vector is not
+yet qualified as a persistent gameplay-effect inventory; the buff-stat transition
+does not identify an effect, its source, or an expiry reason.
+
 ## Historical .57 live evidence
 
 Installed .57/.37 source `1d107a25` passed manual-player attack, list removal,
@@ -463,9 +496,11 @@ its offline and real-process qualification is distinct from live acceptance.
 - Complete: .60 skill/attack queue sequence, exact-object zero-health observation
   and confirmed native cleanup, with original partial result preserved and a
   separate supplementary evidence review.
-- Active: correct the private renewal bound and repeat bounded .60 recovery with
-  fresh stats, exact first-NPC cleanup and a later SEEKING frame. The first recovery
-  attempt remains not passed; no runtime source change is planned.
+- Complete: correct the private renewal bound; the retry observed native death
+  and confirmed cleanup but stopped before recovery. Both failed runs are preserved.
+- Active: correct the private observer lifecycle and preserve stop diagnostics,
+  then repeat bounded .60 recovery with exact cleanup and a later SEEKING frame.
+  No runtime source change is planned.
 - Complete: publish this installation receipt through draft PR #55; its merge
   remains pending. PR #53's included tip is already merged.
 - Pending: qualified server-effect evidence and the authoritative

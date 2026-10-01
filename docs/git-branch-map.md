@@ -79,13 +79,21 @@ Afterward the user reported buff loss; passive native vitals confirmed lower
 maximum health, mana and stamina, all full. Effect identity and causation are
 unknown. Installed source `f0263c3` remains unchanged.
 
-Active next item: correct the private acceptance boundary to allow at most four
-positively queued attack renewals for the first exact NPC under the same owner,
-engagement and original 20-second deadline, then repeat bounded recovery with fresh
-stats. The second encounter still stops after its first queued attack. Publish
-these receipts through draft PR #55, currently unmerged. Automatic retaliation
-remains disabled; the [offline session-boundary findings](retaliation-session-boundary-20261001.md)
+The renewal retry observed exact native death and confirmed cleanup but remains
+not passed: the private explicit stop was set before recovery, without a retained
+observation exception identifying why. No action-boundary rejection or watchdog
+occurred. The original evidence remains unchanged.
+
+Active next item: correct private post-death observer handling and retain stop
+diagnostics, then repeat bounded recovery. The first NPC permits four total
+positively queued attacks, including the initial attack, under its original owner,
+engagement and 20-second deadline; the second stops after its first queued attack.
+No death or engagement may transfer to a same-key replacement. Publish these
+receipts through draft PR #55, currently unmerged. Automatic retaliation remains
+disabled; the [offline session-boundary findings](retaliation-session-boundary-20261001.md)
 identify missing guarantees without enabling a client-connection shortcut.
+The [native effects audit](native-combat-effects-20261001.md) identifies concrete
+actor-owned paths but does not yet qualify an active-buff inventory.
 
 Everything below is historical. Earlier current/candidate/next statements do not
 override the current source, installed runtime and active work above.
