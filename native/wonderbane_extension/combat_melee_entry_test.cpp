@@ -142,8 +142,10 @@ void LoadOriginal(const wchar_t* path) {
     Check(static_cast<bool>(file.read(reinterpret_cast<char*>(bytes.data()), length)), "short client read");
     const auto digest = Digest(bytes);
     Check(digest == "3891fcab09dac06d858ac55911046448e75f3519e2f58e1d7c2ccc954aa410b7"
-        || digest == "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289",
-        "unreviewed client: exact original/prepared1.3.38.12 required");
+        || digest == "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289"
+        || digest == "e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8"
+        || digest == "0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d",
+        "unreviewed client: exact original/prepared1.3.38.12 or1.3.38.13 required");
     // Private image control-flow oracle. Only ordinary1551 is copied. Its native
     // helper ABI boundaries are instrumented identically for both executions;
     // no actual stance, action, request, message, UI or network effect occurs.

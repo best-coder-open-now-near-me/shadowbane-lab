@@ -40,7 +40,7 @@ bool Invoke(std::uintptr_t image, void* actor, void* target, submission::Scope& 
     if (!image || !actor || !target || !current || request || transfer || !current(context)) {
         return false;
     }
-    // Exact 1.3.38.12 ordinary1551 guard sequence (7d3c10..7d3e85).
+    // Exact 1.3.38.12/13 ordinary1551 guard sequence (7d3c10..7d3e85).
     // Only its two selected-global reads become this independently held target.
     // Keep native mask, stance, actor-state and peace/property semantics intact.
     const auto mask = Function<Mask>(image, 0xc9c80);

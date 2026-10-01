@@ -175,8 +175,10 @@ int Run(int argc, wchar_t** argv) {
         Require(static_cast<bool>(file.read(reinterpret_cast<char*>(bytes.data()), size)), "short read");
         const auto digest = Digest(bytes.data(), bytes.size());
         Require(digest == "3891fcab09dac06d858ac55911046448e75f3519e2f58e1d7c2ccc954aa410b7"
-            || digest == "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289",
-            "unsupported executable: require exact reviewed original/prepared 1.3.38.12");
+            || digest == "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289"
+        || digest == "e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8"
+        || digest == "0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d",
+            "unsupported executable: require exact reviewed original/prepared 1.3.38.12 or 1.3.38.13");
         struct Segment { std::size_t offset, size; const char* sha256; };
         constexpr std::array segments{
             Segment{0x2923, 5, "77cce6d31669d1c69469ee7dbd3ddcd2515bc17296beeac33df555030c5c5f2d"},

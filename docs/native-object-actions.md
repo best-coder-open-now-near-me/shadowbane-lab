@@ -1,12 +1,12 @@
 # Native object-target actions
 
-Source architecture as of September 30, 2026, on
-`codex/combat-target-query-20260930` in draft
-[PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46).
-The candidate is not merged or installed. Focused source tests and independent
-reviews are complete for the components described below; final integrated checks,
-exact-image package qualification and supervised gameplay acceptance remain open.
-The installed baseline is host 0.3.54 / native 1.8.34 from PR #45.
+Source architecture as of September 30, 2026, merged through
+[PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46)
+at `7f250c6166b66459a6fba4de527743e5f7363c90`. Qualified source
+`6f101f61a7a2f093b0360baef2b628bead057220` is installed as host 0.3.55 /
+native 1.8.35. Both-profile package qualification, hosted checks, installation
+and loaded-DLL verification passed. Supervised gameplay acceptance remains
+pending login; see the [deployment receipt](bot-deployment-20260930.md).
 
 ## Ownership and composition
 
@@ -141,10 +141,10 @@ listed/NPC ownership, public-runner cleanup and fresh-frame recovery. These chec
 do not replace final whole-candidate validation.
 
 The integrated host suite passed 4,041 tests with 33 explicit skips and 801
-subtests; repository Ruff passed. Next delivery steps are both native profiles and
-required private-image package gates at the final source head, exact-head CI/review and
-PR #46 merge authorization. Installation and bounded attack/cast/cancel/PvE
-recovery acceptance follow a qualified package. Automatic retaliation remains
+subtests; repository Ruff passed. Both native profiles, required original/prepared-image
+package gates and all 15 hosted checks passed at the approved source head. PR #46
+is merged and its qualified package is installed. Bounded attack/cast/cancel/PvE
+recovery acceptance remains open pending the ready live characters. Automatic retaliation remains
 blocked on the separate authoritative server-character-session contract. Private
 client binaries and diagnostic captures remain outside source delivery; no
 retained deployment rollback artifacts are created.

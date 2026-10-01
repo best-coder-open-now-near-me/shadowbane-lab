@@ -6,73 +6,60 @@ records in place. Historical backup/rollback requirements below are superseded.
 
 ## Current shared source and deployment - September 30
 
-Start new development from freshly fetched `origin/main`. PRs #38-45 are merged;
-the bot integration, current client support, dashboard correction, combat
-diagnostics and standalone PvE startup ordering are included in shared history.
-[PR #43](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/43)
-merged at `d3389d4eff992074f7a63394c735f5b4cfd1d993`, followed by
-[PR #44](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/44)
-at `5945a00fd160097c5f43e49bbf3386337beabc4f`.
-[PR #45](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/45)
-merged at `79b374da0a446cce913238543ee737cc01ad3e78` after all 15 hosted checks
-passed on `ab5e043a84808eea776b2e463e7d6e3d2cf63116` and merge authorization.
-The normal checkout is clean on main at that merge.
+Start new development from freshly fetched `origin/main`. PRs #38-46 are merged.
+[PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46)
+merged at `7f250c6166b66459a6fba4de527743e5f7363c90` on September 30 at
+18:39:06 UTC, after all 15 hosted checks passed and the user approved the merge.
+Its qualified source head is `6f101f61a7a2f093b0360baef2b628bead057220`.
+The normal checkout is clean on main at that merge. The merged local and remote
+`codex/combat-target-query-20260930` branch was retired after verifying its exact
+tip is retained in `origin/main`.
+The bot-runtime worktree is on `codex/client-update-20260930-late`, based on
+that main merge plus the documentation commits through `cab8b029` from
+[PR #47](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/47).
+PR #47 is closed as superseded, with its full tip retained in combined draft
+[PR #48](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/48).
+The source checkpoint `e6c7a28f229043540d3f93181900072ded58752c` is pushed;
+exact-source package `artifacts/b36/d86bc533` is qualified, with both native
+profiles and all 78 artifact hashes verified. Hosted validation and merge approval
+remain pending. These changes remain outside main. Next integration step: obtain
+PR #48 merge approval after checks; prior approval covered PR #46.
 
-Vendor Test now has source-stamped host 0.3.54 / native 1.8.34 from the exact
-PR #45 head, qualified by `artifacts/b34/1be8a982`. Client 1.3.38.12 and its
-prepared executable are unchanged. The [September 30 official data patch](client-update-20260930.md)
-updated Config.wpak and CObjects.cache in both client installations, verified
-9,557 preserved files and passed launch preflight without starting the game. The update verified preservation, five
-shortcuts, launch preflight, manager startup and the loaded DLL. Obsolete host
-0.3.53 and its two superseded guest payload binaries were verified and removed;
-no rollback copies were retained. Follow [the deployment receipt](bot-deployment-20260929.md)
-for exact artifact identities and evidence.
+Vendor Test now has source-stamped host 0.3.55 / native 1.8.35 from that exact
+PR head. Package `artifacts/b35/3ca9481d` is acceptance eligible: 52 recorded
+steps, 78 verified files, 83 host/native IPC tests and 195 required native tests
+for each profile. Client 1.3.38.12 and its prepared executable are unchanged;
+the [September 30 official data patch](client-update-20260930.md) is preserved.
+The update verified 9,564 preserved files, 450 installed module files, five
+shortcuts, launch preflight, manager health and the loaded DLL. The obsolete
+host 0.3.54 and its two superseded guest payload binaries were inspected and
+removed. No rollback copies were retained; user settings and records remain.
+See the [September 30 deployment receipt](bot-deployment-20260930.md) for exact
+artifact identities, observed process lifetimes and remaining acceptance work.
 
-Live manual-list combat acceptance remains open. The fresh bounded attempt
-`85193158420e4802af16fffdde28f706` was rejected at `query_match` as stale, before
-native dispatcher/factory/queue/followup entry. It recorded no queued attack,
-confirmed cleanup and a strictly later PvE SEEKING step. The test-owned entry
-was removed, leaving the original empty list at revision 6. This does not prove
-an attack or cancellation caused by manual removal.
+The [native object-action architecture](native-object-actions.md) and
+[v2 command / v3 engagement contract](native-combat-v2-contract.md) are merged
+and installed. Ordinary NPC and saved manual-player policy share one exact
+owner, retained engagement and cleanup boundary. Explicit object melee and
+numeric-power casting are independent of UI selection, hotbar/CFG files and
+HUD/log control. Typed positive acknowledgements drive action accounting;
+session-owned ordinals preserve replay and old-owner cleanup. Capability `0x10`
+authorizes the complete service; legacy combat verbs and capability `0x08`
+cannot activate it. Existing eligible native action adoption performs no blanket
+startup stop. Selection loss and projectile timing do not manufacture cleanup
+or kill credit.
 
-`codex/bot-deployment-20260929` at `ab5e043` is retained in main. The bot-runtime
-worktree is now on `codex/combat-target-query-20260930`, based on main, published
-through draft [PR #46](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/46).
-Checkpoint `8cd2bd2` replaces the spatial query with the reviewed native exact-key
-registry resolver and adds original/prepared-client ABI qualification. Checkpoint `a34df57`
-separates UI selection from the ongoing retained combat target and
-exports coherent selected/action tokens; object lifetime remains token plus key.
-Host checkpoint `2d175cc` replaces HUD/log-message control with exact object
-tracking, adopts existing native actions without a startup stop, distinguishes
-local action completion from projectile effects, and correlates required cleanup.
-The [native object-action architecture](native-object-actions.md) now describes
-explicit object melee and numeric-power casting, independent of UI selection,
-hotbar/CFG files and HUD/log control. Checkpoints `15f6425` and `83b5b2e` qualify
-power entry and native NPC policy; `a0cf022` freezes v2 commands/v3 engagements,
-`a4eab63` supplies host tickets and native character identity, and `7d195cb` adds
-the bounded native ledger with reentrant callback pinning and conservative cleanup.
-
-The shared host coordinator is pushed at `e32b7a2`; native runtime activation and
-required cross-process package gates are pushed at `a53d4a2`. Ordinary NPC and
-saved manual-player policy share one exact owner, retained engagement and cleanup
-boundary. Typed positive acknowledgements drive action accounting; session-owned
-ordinals preserve immutable replay and old-owner cleanup. Capability `0x10`
-authorizes the complete service; legacy combat verbs and capability `0x08` cannot
-activate the new path. Existing eligible native action adoption performs no
-blanket startup stop. Selection loss and projectile timing do not manufacture
-cleanup or kill credit.
-
-PR #46 remains draft, unmerged and uninstalled. Focused component tests and
-independent reviews passed. The full host run passed 4,041 tests with 33 explicit
-skips and 801 subtests; repository Ruff passed. The full native profile passed 195 required tests with three private-image skips.
-The restored real host/native authorization suite passed 83 tests with no skips;
-179 package-gate tests also passed. Both-profile final-source package qualification
-and exact-head hosted CI remain pending. Next: finish those checks, obtain PR #46 merge authorization, then install the
-qualified package and complete bounded attack/cast/cancel/recovery acceptance.
-Other active validation worktrees remain available.
-Automatic retaliation remains disabled pending an authoritative server
-character-session fence. Historical unrelated renderer/town branches and
-cancelled carpenter drafts have not been silently integrated or deleted.
+A second official September 30 patch supplies client **1.3.38.13** plus new
+configuration/object data. The [late client update review](client-update-20260930-late.md)
+records exact binary proof and candidate host **0.3.56** / native **1.8.36**.
+Neither installed client has received that update yet. The candidate and deployment
+helpers passed review. Next: merge after approval/checks and deploy once the game
+is closed, then obtain fresh character readiness for bounded
+NPC and manual-list acceptance. Verified installation and launch are not combat
+acceptance. Automatic retaliation remains disabled pending an
+authoritative server character-session fence. Other active validation worktrees
+remain available; historical unrelated renderer/town branches and cancelled
+carpenter drafts have not been silently integrated or deleted.
 
 Everything below is a dated historical snapshot. Earlier pending/draft/active
 statements do not override the merged source and current handoff above.

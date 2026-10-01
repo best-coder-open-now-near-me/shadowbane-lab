@@ -34,6 +34,9 @@ bool ReviewedDigest(const std::vector<unsigned char>& bytes) noexcept {
     constexpr std::array<unsigned char, 32> september26{
         0x38,0x91,0xfc,0xab,0x09,0xda,0xc0,0x6d,0x85,0x8a,0xc5,0x59,0x11,0x04,0x64,0x48,
         0xe7,0x5f,0x35,0x19,0xe2,0xf5,0x8e,0x1d,0x7c,0x2c,0xcc,0x95,0x4a,0xa4,0x10,0xb7};
+    constexpr std::array<unsigned char, 32> september30{
+        0xe5,0xbb,0x74,0xe1,0x59,0xa9,0xac,0xd8,0x52,0x96,0x52,0xeb,0x5b,0x0c,0x07,0x76,
+        0x6c,0xed,0x7f,0xfd,0x70,0xc0,0x3c,0x96,0x0c,0xcd,0xbc,0xef,0xca,0x83,0xc6,0xe8};
     BCRYPT_ALG_HANDLE algorithm{}; BCRYPT_HASH_HANDLE hash{};
     std::array<unsigned char, 32> digest{};
     const bool ok = BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) >= 0
@@ -43,7 +46,7 @@ bool ReviewedDigest(const std::vector<unsigned char>& bytes) noexcept {
     if (hash) { BCryptDestroyHash(hash); }
     if (algorithm) { BCryptCloseAlgorithmProvider(algorithm, 0); }
     return ok && (digest == expected || digest == september15 || digest == september19
-        || digest == september22 || digest == september24 || digest == september26);
+        || digest == september22 || digest == september24 || digest == september26 || digest == september30);
 }
 template<class T> bool FileValue(const std::vector<unsigned char>& bytes, std::size_t offset, T& output) {
     if (offset > bytes.size() || sizeof(T) > bytes.size() - offset) { return false; }
