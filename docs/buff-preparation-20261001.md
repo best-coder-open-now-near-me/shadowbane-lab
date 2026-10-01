@@ -4,8 +4,12 @@
 
 The user authorized automatic application and refresh of missing Greater Concoction
 Potion, Precision, Beorc Rune, Transform and Defensive Stance effects. This record
-captures requirements, native read-only findings and the intended production
-boundaries. **The buff module is partially implemented and not live-qualified.** Shared native submission and pure preparation policy are published; actor-owner, canonical observation and runner integration remain in progress.
+captures requirements, native read-only findings and the production ownership
+boundaries. **The complete native/host slice is implemented but not installed or
+live-qualified.** Shared actor ownership, canonical native observations, automatic
+preparation, saved intent and both NPC/manual-player runners are integrated.
+Independent review and focused checks passed; final regression and exact-source
+package qualification are the active delivery gate.
 
 The focused branch is `codex/native-buff-preparation-20261001`. Its dependency,
 [PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58),
@@ -38,7 +42,12 @@ installation remain separate delivery gates recorded in the [branch map](git-bra
 - Preserve legitimate actions already in flight. No fixed cast sleeps, hotkeys,
   UI selection, system-message parsing or simulated effects may drive this path.
 
-## Native observations and remaining qualification
+## Initial passive observations and remaining live qualification
+
+These initial captures preceded the retained native observer implementation. Their
+limitations remain attached to the captures; the later source checkpoints below
+record resolver, mutation-boundary and publication qualification. Live expiry and
+application still require acceptance of the new installed runtime.
 
 Passive learned-power observations for Umbra on Wonderbane identified:
 
@@ -200,8 +209,8 @@ pending applications. For the qualified immediate item branch, exact append plus
 normal return and owned-reference cleanup can settle local responsibility while
 its remote application remains pending. A subsequent ready power needs no potion
 wait. Attach combat target authority to the same parent owner without inserting
-`StopActive` between preparation actions. Current bind already avoids a blanket
-pause; its single target-bound runtime/context is the limitation being migrated.
+`StopActive` between preparation actions. The shared actor runtime avoids a blanket pause and retains optional target
+contexts beneath its actor parent.
 Native action-specific continuation checks still govern handoff. Empty initiation
 signals or an effect observation alone are not universal local-release proof.
 Terminal cancellation revokes future actions across all child contexts before
@@ -234,8 +243,8 @@ encounter kills, optional opener skips and server-effect claims.
 
 The shared migration touches Python `client_extension` wire/fence/channel/session
 and cleanup ownership, `pve/native_combat.py`, model/runner/settings, the new
-preparation policy and common CLI composition. Native counterparts are the v2
-controller/runtime/entry/queue and v3 fence, channel dispatch, power observer,
+preparation policy and common CLI composition. Production native counterparts are the actor v3
+controller/runtime/entry/queue and v4 parent/context fences, channel dispatch, power observer,
 qualified item entry and canonical effect publication. Existing NPC/manual-player
 admission, lifecycle commands after capability loss, old-owner cleanup and
 uncertain immutable-request behavior must remain covered during migration.
@@ -249,23 +258,19 @@ Cross-language wire fixtures, native owner-thread tests and real channel tests
 must cover actor-only actions without an NPC. Settings migration/CAS and direct,
 listener and manager composition must use the same policy and observations.
 
-## Finite next steps
+## Delivery checklist
 
-1. **Active:** obtain actual concentration-potion metadata/effect mapping and
-   qualify native observation mutation/rebuild publication. Finish actor-only
-   authority and action-specific continuation/cleanup proof against those facts;
-   these evidence dependencies currently block implementation and live use.
-2. Implement one complete native/host preparation slice: canonical observations,
-   shared owner and receipts, policy, saved settings, runner and status output.
-3. Validate potion overlap without duplicate use; either-form coverage and native
-   readiness selection; changing/unknown snapshots; uncertain request replay;
-   foreign casts; actor/Grant/scene replacement; cleanup/handoff; settings migration
-   and direct/managed parity. Use production paths with controlled native fixtures,
-   not simulated live-effect success.
-4. Complete review and exact-source package gates, then bounded live acceptance
-   with current character/item/effect evidence. Claim each buff only when its
-   qualified native effect is observed; retain unresolved outcomes honestly.
-
+1. Complete: qualify potion metadata, retained inventory, native effect mutation
+   boundaries, canonical publication and actor/context ownership contracts.
+2. Complete: integrate the shared native runtime, host coordinator, preparation
+   policy, settings migration and NPC/manual-player runner/status paths.
+3. **Active:** finish independent review, complete regression suites, publish the
+   integrated checkpoint and qualify an exact committed .63/.43 package.
+4. Await concrete user approval to merge PR #59 and install that qualified package.
+5. Run bounded live acceptance against fresh character/item/effect evidence:
+   potion overlap without repeat consumption, ready independent buffs, either-form
+   coverage, expiry/refresh and target cleanup. Only qualified native effect
+   observations prove application; retain unresolved outcomes honestly.
 
 ## Reviewed actor observation and ownership checkpoint
 
@@ -293,3 +298,42 @@ and both original/prepared native probes. Independent reviews found no remaining
 actionable issues in these frozen slices. These are source checkpoints: canonical
 publication, shared runtime/coordinator integration and complete package validation
 remain in progress. No new runtime version is installed.
+
+## Integrated production path
+
+One actor owner now spans buff preparation and optional NPC/manual-player target
+contexts. The command channel exposes actor protocol v3; old v2 mutation is not
+advertised or dispatched in the production DLL. Old protocol unit fixtures remain
+as regression evidence. Actor/context v4 fences bind the actual process, producer,
+Grant and immutable selector manifest. Manual attack-list schema 6 migrates saved
+content while revoking target authority before changes; actor-only ownership is
+preserved independently.
+
+Every preparation observation requests a fresh native capture before reading the
+publication. Failed capture invalidates old authority, while unavailable buffs do
+not prevent ordinary combat. Immutable pending commands retain their original
+publication through owner-open latency. Exact application history is projected
+back into receipts without settling unrelated local actions. Target continuation
+checks retained identity, party/protection and native combat state each update,
+including after a locally settled ATTACK. Unconfirmed child cleanup blocks all new
+native entry, including actor-only buffs; reads, history and cleanup remain usable.
+
+Host fixtures cover delayed potion application followed by another buff and NPC
+or listed combat under the same parent. Positive child cleanup preserves pending
+potion history and actor-only local obligations. Foreign/adopted actions cannot be
+discharged merely by an unproven LOCAL_RELEASED receipt. No timers, system-message
+text, UI selection or configurable hotkeys serve as buff/combat authority.
+
+The package and hosted gates now require the production runtime fixture, native
+actor adapters, effects/inventory/resolver probes, shared wire fixtures and real
+Windows cross-process parent/child and publication tests. Original and prepared
+client images are probed for both DLL profiles. These source and fixture checks
+do not claim live buff success. The installed runtime remains .62/.42.
+
+Integration validation: the complete host suite passed 4,789 tests and 788
+subtests, with 39 environment-dependent skips. The full native build passed
+219 tests with three client-image checks deferred to exact-source packaging.
+The production runtime fixture exercises 189 assertions, including the unresolved
+child cleanup gate, positive closure and immutable replay. Host source/package
+lint passed. Independent host, native adapter, runtime and CI reviews are complete.
+The candidate versions are host 0.3.63 and native 1.8.43.

@@ -667,6 +667,7 @@ class PvERunner(_BasePvERunner):
         movement_dispatcher: TravelDecisionDispatcher | None = None,
         listed_combat=None,
         combat_cleanup=None,
+        actor_preparation=None,
         stop_signal: StopSignal,
         poll_interval_ms: int = 100,
         maximum_consecutive_observation_failures: int = 3,
@@ -737,6 +738,7 @@ class PvERunner(_BasePvERunner):
             movement_dispatcher=movement_dispatcher,
             listed_combat=listed_combat,
             combat_cleanup=combat_cleanup,
+            actor_preparation=actor_preparation,
             stop_signal=stop_signal,
             poll_interval_ms=poll_interval_ms,
             maximum_consecutive_observation_failures=(

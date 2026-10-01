@@ -215,6 +215,7 @@ class AttackListSnapshot:
     # Mutation-only receipt; never persisted as membership or cancellation proof.
     entered_admissions: tuple[str, ...] = dataclass_field(default=(), compare=False)
     fenced: bool = dataclass_field(default=False, compare=False)
+    actor_fenced: bool = dataclass_field(default=False, compare=False)
 
 
 class AttackListStore:
@@ -245,7 +246,7 @@ class AttackListStore:
             raise ValueError("invalid attack-list record")
         if (
             type(raw["schema"]) is not int
-            or raw["schema"] not in (1, 2, 3, 4, 5)
+            or raw["schema"] not in (1, 2, 3, 4, 5, 6)
             or raw["owner"] != [self.owner.server, self.owner.character]
         ):
             raise ValueError("attack-list schema or owner mismatch")
@@ -278,7 +279,7 @@ class AttackListStore:
         if len({entry.entry_id for entry in entries}) != len(entries):
             raise ValueError("duplicate attack-list identity")
         return AttackListSnapshot(revision, tuple(sorted(entries, key=lambda e: e.entry_id)),
-                                  fenced=raw["schema"] == 5)
+                                  fenced=raw["schema"] >= 5, actor_fenced=raw["schema"] == 6)
 
     def snapshot(self) -> AttackListSnapshot:
         with exclusive_record_lock(self.path.with_suffix(".lock")):
@@ -309,6 +310,8 @@ class AttackListStore:
         operation = operation_digest(grant)
         with exclusive_record_lock(self.path.with_suffix(".lock")):
             snapshot = self._read()
+            if snapshot.actor_fenced:
+                raise ValueError("actor-context records cannot publish legacy engagement authority")
             entry = next((item for item in snapshot.entries if item.entry_id == entry_id), None)
             if (snapshot.revision != expected_revision or entry is None
                     or entry.source != "manual" or entry.player_identity is None):
@@ -331,6 +334,43 @@ class AttackListStore:
                 publish_atomic_record(self.path, self._encode(replace(snapshot, fenced=True)),
                                       temporary_label="attack-list")
             return registry.register(binding), binding
+
+    def register_actor_context(self, entry_id, *, expected_revision, parent,
+                               context_id, target_hint):
+        """Publish a child fence under the same durable manual-list transaction."""
+        from shadowbane_lab.client_extension.actor_action_fence import (
+            ActorBinding,
+            Authority,
+            ContextBinding,
+        )
+        from shadowbane_lab.client_extension.combat_wire_v2 import identity_digest
+        from shadowbane_lab.pve.attack_list_fence import ActorRegistry
+
+        if (not isinstance(parent, ActorBinding)
+                or parent.owner != bytes.fromhex(self.owner.storage_key)
+                or parent.local_name != identity_digest(self.owner.character)
+                or parent.server != identity_digest(self.owner.server)
+                or type(expected_revision) is not int or expected_revision <= 0):
+            raise ValueError("context parent differs from exact saved-list owner")
+        with exclusive_record_lock(self.path.with_suffix(".lock")):
+            snapshot = self._read()
+            entry = next((x for x in snapshot.entries if x.entry_id == entry_id), None)
+            if (snapshot.revision != expected_revision or entry is None
+                    or entry.source != "manual" or entry.player_identity is None):
+                raise ValueError("context requires current manual player intent")
+            registry = ActorRegistry(self.path, self.owner.storage_key)
+            registry.require_legacy_retired()
+            key = entry.player_identity.object_key
+            binding = ContextBinding(parent.digest, context_id, Authority.MANUAL_PLAYER,
+                target_hint, (key.object_type, key.object_uuid), snapshot.revision,
+                registry.store, bytes.fromhex(entry.entry_id),
+                identity_digest(entry.player_identity.name))
+            binding.require_parent(parent)
+            if not snapshot.actor_fenced:
+                registry.revoke()
+                publish_atomic_record(self.path, self._encode(replace(snapshot,
+                    fenced=True, actor_fenced=True)), temporary_label="attack-list")
+            return registry.register(parent, binding), binding
 
     def add(
         self, entry: AttackListEntry, *, expected_revision: int | None = None
@@ -387,18 +427,20 @@ class AttackListStore:
             ordered = tuple(sorted(entries.values(), key=lambda e: e.entry_id))
             if ordered == previous.entries:
                 return previous
-            result = AttackListSnapshot(previous.revision + 1, ordered, fenced=True)
+            result = AttackListSnapshot(previous.revision + 1, ordered, fenced=True,
+                                        actor_fenced=previous.actor_fenced)
             payload = self._encode(result)
-            from shadowbane_lab.pve.attack_list_fence import Registry
+            from shadowbane_lab.pve.attack_list_fence import ActorRegistry, Registry
 
-            entered = Registry(self.path, self.owner.storage_key).revoke()
+            entered = (*Registry(self.path, self.owner.storage_key).revoke(),
+                       *ActorRegistry(self.path, self.owner.storage_key).revoke())
             publish_atomic_record(self.path, payload, temporary_label="attack-list")
             return replace(result, entered_admissions=entered)
 
 
     def _encode(self, snapshot: AttackListSnapshot) -> bytes:
         payload = json.dumps(
-            {"schema": 5 if snapshot.fenced else 3,
+            {"schema": 6 if snapshot.actor_fenced else 5 if snapshot.fenced else 3,
              "owner": [self.owner.server, self.owner.character],
              "revision": snapshot.revision,
              "entries": [item.as_dict() for item in snapshot.entries]},

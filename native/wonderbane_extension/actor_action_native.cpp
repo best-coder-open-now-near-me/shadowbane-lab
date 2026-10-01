@@ -362,6 +362,12 @@ bool NativeActor::ReadState(Observation& out) const noexcept {
 bool NativeActor::CombatTargetCurrent() const noexcept {
     Observation state{};return child_bound_&&target_&&ReadState(state)&&state.target==reinterpret_cast<std::uintptr_t>(target_);
 }
+bool NativeActor::ContinueContext() noexcept {
+    if(running_||faulted_||!child_bound_){return false;}
+    running_=true;stage_="continue_context";
+    const auto result=Guarded(8);running_=false;
+    return !faulted_&&result.outcome==O::observed;
+}
 NativeActor::Operation NativeActor::StopImpl(bool owner,Admission stop_current,void* context){
     if(!stop_current||!stop_current(context)||!SceneCurrent()||power::NativeUseInFlight()){return Result(O::pending,E::unknown,L::pending);}
     Observation state{};if(!ReadState(state)){return Result(O::pending,E::unknown,L::pending);}
@@ -402,6 +408,12 @@ NativeActor::Operation NativeActor::RunCxx(unsigned operation,Admission gate,voi
         case 4:return StopImpl(false,gate,context);case 5:return StopImpl(true,gate,context);
         case 6:if(!ReleaseTarget()){faulted_=true;}return Result(O::observed);
         case 7:if(!ReleaseMessages()){faulted_=true;}return Result(O::observed);
+        case 8:{
+            Observation before{},after{};
+            if(!Current(true)||!ReadState(before)||!Current(true)||!ReadState(after)||before!=after
+                ||(after.target&&after.target!=reinterpret_cast<std::uintptr_t>(target_))){return Result(O::stale);}
+            return Result(O::observed);
+        }
         default:return Result(O::invalid);}
     }catch(...){faulted_=true;return Result(O::uncertain,E::unknown,L::pending);}
 }

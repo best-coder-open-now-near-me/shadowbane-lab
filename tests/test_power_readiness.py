@@ -11,15 +11,24 @@ from test_native_combat_coordinator import setup as coordinator_fixture
 from test_pve_native_proposals import observe
 
 from shadowbane_lab.client_extension import action_channel as channel
-from shadowbane_lab.client_extension.combat_wire_v2 import (
-    CLEANUP_REQUIRED,
+from shadowbane_lab.client_extension import combat_wire_v2 as legacy
+from shadowbane_lab.client_extension.actor_action_wire import (
+    CONTEXT_CLEANUP,
+    OWNER_CLEANUP,
     Action,
-    ClosureProof,
-    EntryState,
+    ClosureScope,
+    LocalSettlement,
     Outcome,
     Phase,
+    Reason,
     Receipt,
     Verb,
+)
+from shadowbane_lab.client_extension.actor_action_wire import (
+    Closure as ClosureProof,
+)
+from shadowbane_lab.client_extension.actor_action_wire import (
+    Entry as EntryState,
 )
 from shadowbane_lab.pve.model import (
     PvEAbility,
@@ -40,16 +49,29 @@ def owner(monkeypatch):
 
 
 @pytest.fixture
-def setup(monkeypatch):
-    return coordinator_fixture.__wrapped__(monkeypatch)
+def setup():
+    return coordinator_fixture.__wrapped__()
 
 
-def blocked(c=None, verb=Verb.SUBMIT):
+def blocked(c, verb=Verb.SUBMIT):
+    if c.action is Action.NONE:
+        return answer(c, verb)
+    return replace(
+        answer(c, verb),
+        outcome=Outcome.POWER_REUSE_BLOCKED,
+        entry=EntryState.NEVER_ENTERED,
+        local_settlement=LocalSettlement.SETTLED,
+        reason=Reason.POWER_REUSE,
+        flags=OWNER_CLEANUP | CONTEXT_CLEANUP,
+    )
+
+
+def legacy_blocked(c=None, verb=legacy.Verb.SUBMIT):
     return replace(
         receipt(c, verb),
-        outcome=Outcome.POWER_REUSE_BLOCKED,
-        entry_state=EntryState.NEVER_ENTERED,
-        flags=CLEANUP_REQUIRED,
+        outcome=legacy.Outcome.POWER_REUSE_BLOCKED,
+        entry_state=legacy.EntryState.NEVER_ENTERED,
+        flags=legacy.CLEANUP_REQUIRED,
     )
 
 
@@ -59,41 +81,41 @@ def not_ready():
     )
 
 
-@pytest.mark.parametrize("action", [Action.CAST, Action.SELF_POWER])
+@pytest.mark.parametrize("action", [legacy.Action.CAST, legacy.Action.SELF_POWER])
 def test_power_reuse_wire_retains_geometry_and_exact_action_correlation(action):
     c = command(action=action)
-    r = blocked(c)
+    r = legacy_blocked(c)
     assert len(r.encode()) == 384 and len(c.encode()) == 576
-    assert Receipt.decode(r.encode()) == r
-    r.require_command(c, Verb.SUBMIT)
+    assert legacy.Receipt.decode(r.encode()) == r
+    r.require_command(c, legacy.Verb.SUBMIT)
     with pytest.raises(ValueError):
-        r.require_command(replace(c, power_id=c.power_id + 1), Verb.SUBMIT)
+        r.require_command(replace(c, power_id=c.power_id + 1), legacy.Verb.SUBMIT)
 
 
 @pytest.mark.parametrize(
     "change",
     [
-        dict(action=Action.ATTACK, power_id=0),
-        dict(action=Action.NONE, power_id=0, verb=Verb.BIND_ENGAGEMENT),
-        dict(entry_state=EntryState.ENTERED),
-        dict(entry_state=EntryState.UNKNOWN),
+        dict(action=legacy.Action.ATTACK, power_id=0),
+        dict(action=legacy.Action.NONE, power_id=0, verb=legacy.Verb.BIND_ENGAGEMENT),
+        dict(entry_state=legacy.EntryState.ENTERED),
+        dict(entry_state=legacy.EntryState.UNKNOWN),
         dict(flags=3),
         dict(flags=5),
         dict(flags=0),
-        dict(verb=Verb.CANCEL_ACTION),
-        dict(phase=Phase.CLOSED, closure=ClosureProof.NEVER_BOUND, flags=0),
+        dict(verb=legacy.Verb.CANCEL_ACTION),
+        dict(phase=legacy.Phase.CLOSED, closure=legacy.ClosureProof.NEVER_BOUND, flags=0),
     ],
 )
 def test_power_reuse_wire_rejects_ambiguous_or_unowned_claim(change):
     with pytest.raises(ValueError):
-        replace(blocked(), **change).encode()
+        replace(legacy_blocked(), **change).encode()
 
 
 def test_unknown_wire_outcome_never_becomes_not_ready():
-    data = bytearray(blocked().encode())
+    data = bytearray(legacy_blocked().encode())
     data[40:44] = (999).to_bytes(4, "little")
     with pytest.raises(ValueError):
-        Receipt.decode(bytes(data))
+        legacy.Receipt.decode(bytes(data))
 
 
 @pytest.mark.parametrize(
@@ -151,17 +173,19 @@ def test_not_ready_nonopener_cannot_automatically_attack():
 def test_coordinator_invalid_reuse_receipt_remains_uncertain(setup, bad):
     combat, session, tickets, observation, proposal = setup
 
-    def response(g, v, c):
+    def response(g, v, c, **kwargs):
+        if c.action is Action.NONE:
+            return SimpleNamespace(receipt=answer(c, v), native_detail=None)
         r = blocked(c, v)
         if bad == "entry":
-            r = replace(r, entry_state=EntryState.ENTERED)
+            r = replace(r, entry=EntryState.ENTERED)
         if bad == "key":
-            r = replace(r, target_key=(999, 37))
+            r = replace(r, command_digest=bytes([99]) * 32)
         if bad == "reason_only":
             r = answer(c, v, outcome=Outcome.UNCERTAIN, queued=False)
         return SimpleNamespace(receipt=r, native_detail="power_reuse")
 
-    session.combat.side_effect = response
+    session.actor_action.side_effect = response
     update = combat.advance(proposal, observation)
     assert update.acknowledgement.disposition is PvECombatDisposition.UNCERTAIN
     assert update.acknowledgement.not_ready_reason is None and combat.pending == proposal
@@ -169,27 +193,28 @@ def test_coordinator_invalid_reuse_receipt_remains_uncertain(setup, bad):
 
 def test_coordinator_reuse_result_resolves_action_only_and_attack_keeps_engagement(setup):
     combat, session, tickets, observation, proposal = setup
-    session.combat.side_effect = lambda g, v, c: SimpleNamespace(
+    session.actor_action.side_effect = lambda g, v, c, **kw: SimpleNamespace(
         receipt=blocked(c, v), native_detail=None
     )
     update = combat.advance(proposal, observation)
-    original = session.combat.call_args.args[2]
+    original = session.actor_action.call_args.args[2]
     assert update.acknowledgement == not_ready() and combat.pending is None and combat.active
     assert (
         update.as_dict()["not_ready_reason"] == "power_reuse"
         and not update.as_dict()["outbound_queued"]
     )
-    session.combat.side_effect = lambda g, v, c: SimpleNamespace(
+    session.actor_action.side_effect = lambda g, v, c, **kw: SimpleNamespace(
         receipt=answer(c, v), native_detail=None
     )
     combat.advance(
         replace(proposal, proposal_id=2, kind=PvECombatKind.ATTACK, power_id=0), observation
     )
-    follow = session.combat.call_args.args[2]
+    follow = session.actor_action.call_args.args[2]
     assert (
-        follow.binding == original.binding
+        follow.parent_id == original.parent_id
+        and follow.context_id == original.context_id
         and follow.request != original.request
-        and len(tickets) == 1
+        and len(tickets) == 2
     )
     tickets[0].close.assert_not_called()
     session.pause.assert_not_called()
@@ -205,10 +230,10 @@ def test_readiness_cap_missing_blocks_preflight_and_submit_but_not_old_status(ow
     with pytest.raises(channel.NativeActionChannelUnavailable, match="readiness"):
         session.require_combat_available(grant, power_readiness=True)
     with pytest.raises(channel.NativeActionChannelUnavailable, match="readiness"):
-        session.combat(grant, Verb.SUBMIT, c)
+        session.combat(grant, legacy.Verb.SUBMIT, c)
     assert not transport.commands
-    session.combat(grant, Verb.ACTION_STATUS, c)
-    assert transport.commands[-1].kind is Verb.ACTION_STATUS
+    session.combat(grant, legacy.Verb.ACTION_STATUS, c)
+    assert transport.commands[-1].kind is legacy.Verb.ACTION_STATUS
 
 
 def test_readiness_preflight_has_no_native_side_effect(owner):
@@ -220,33 +245,51 @@ def test_readiness_preflight_has_no_native_side_effect(owner):
 @pytest.mark.parametrize(
     "phase,closure,flags",
     [
-        (Phase.STOPPING, ClosureProof.NONE, CLEANUP_REQUIRED),
-        (Phase.BLOCKED, ClosureProof.NONE, CLEANUP_REQUIRED),
-        (Phase.CLOSED, ClosureProof.NATIVE_STOPPED, 0),
+        (Phase.STOPPING, ClosureProof.NONE, OWNER_CLEANUP | CONTEXT_CLEANUP),
+        (Phase.BLOCKED, ClosureProof.NONE, OWNER_CLEANUP | CONTEXT_CLEANUP),
+        (Phase.CLOSED, ClosureProof.NATIVE_STOPPED, OWNER_CLEANUP),
         (Phase.RETIRED, ClosureProof.SCENE_RETIRED, 0),
     ],
 )
 def test_historical_reuse_receipt_preserved_without_policy_fallback(setup, phase, closure, flags):
     combat, session, tickets, observation, proposal = setup
-    session.combat.side_effect = TimeoutError()
-    combat.advance(proposal, observation)
-    original = session.combat.call_args.args[2]
 
-    def response(g, v, c):
-        r = replace(blocked(c, v), phase=phase, closure=closure, flags=flags)
+    def uncertain(g, v, c, **kw):
+        if v is Verb.SUBMIT:
+            raise TimeoutError()
+        return SimpleNamespace(receipt=answer(c, v), native_detail=None)
+
+    session.actor_action.side_effect = uncertain
+    combat.advance(proposal, observation)
+    original = session.actor_action.call_args.args[2]
+
+    def response(g, v, c, **kwargs):
+        r = replace(
+            blocked(c, v),
+            context_phase=phase,
+            closure=closure,
+            flags=flags,
+            owner_phase=Phase.RETIRED if phase is Phase.RETIRED else Phase.BOUND,
+            closure_scope=ClosureScope.OWNER
+            if phase is Phase.RETIRED
+            else ClosureScope.CONTEXT
+            if phase is Phase.CLOSED
+            else ClosureScope.NONE,
+            mode=1,
+        )
         assert Receipt.decode(r.encode()) == r
         return SimpleNamespace(receipt=r, native_detail=None)
 
-    session.combat.side_effect = response
+    session.actor_action.side_effect = response
     update = combat.advance(proposal, observation)
-    assert session.combat.call_args.args[1] is Verb.ACTION_STATUS
-    assert session.combat.call_args.args[2] is original
+    assert session.actor_action.call_args.args[1] is Verb.ACTION_STATUS
+    assert session.actor_action.call_args.args[2] is original
     assert update.acknowledgement.disposition is PvECombatDisposition.REJECTED
     assert update.acknowledgement.not_ready_reason is None
-    assert combat.active == (phase in (Phase.STOPPING, Phase.BLOCKED))
-    assert update.acknowledgement.cleanup_required == combat.active
-    if not combat.active:
-        tickets[0].close.assert_called_once()
+    assert update.acknowledgement.cleanup_required == (phase in (Phase.STOPPING, Phase.BLOCKED))
+    assert combat.active  # Historical action receipt does not close the actor context handle.
+    tickets[0].close.assert_not_called()
+    tickets[1].close.assert_not_called()
 
 
 def test_skip_is_per_encounter_and_does_not_disable_next_opener():
@@ -295,7 +338,6 @@ def test_target_replacement_after_not_ready_requires_cleanup_not_fallback():
 def test_public_runner_recovery_skips_reuse_blocked_second_opener(setup, monkeypatch):
     from test_pve_native_proposals import character
 
-    from shadowbane_lab.client_extension import combat_fence_windows as fences
     from shadowbane_lab.client_input import EventEmergencyStop
     from shadowbane_lab.client_observation import NativeGroupObservation
     from shadowbane_lab.client_observation.native_object import NativeObjectKey
@@ -322,23 +364,10 @@ def test_public_runner_recovery_skips_reuse_blocked_second_opener(setup, monkeyp
     def source(field):
         return SimpleNamespace(process_id=1234, observe=lambda: getattr(current(), field))
 
-    # The test transport echoes the actual admitted registry identity on both encounters.
-    original_factory = fences.create_npc_engagement
-
-    def create_ticket(**kwargs):
-        ticket, binding = original_factory(**kwargs)
-        return ticket, replace(
-            binding,
-            target_key=(kwargs["target_key"].object_type, kwargs["target_key"].object_uuid),
-            actor_address_hint=kwargs["actor_address_hint"],
-            target_address_hint=kwargs["target_address_hint"],
-        )
-
-    monkeypatch.setattr(fences, "create_npc_engagement", create_ticket)
-
-    def response(grant, verb, c):
+    # The real actor coordinator builds each exact child binding directly.
+    def response(grant, verb, c, **kwargs):
         nonlocal first_attack_queued
-        if verb is Verb.STOP_ENGAGEMENT:
+        if verb is Verb.STOP_CONTEXT:
             value = answer(
                 c,
                 verb,
@@ -347,18 +376,18 @@ def test_public_runner_recovery_skips_reuse_blocked_second_opener(setup, monkeyp
                 closure=ClosureProof.NATIVE_STOPPED,
                 queued=False,
             )
-        elif c.action is Action.SELF_POWER and c.binding.target_key == (9876, 37):
+        elif c.action is Action.SELF_POWER and combat.owner.context.target_key == (9876, 37):
             value = blocked(c, verb)
         else:
             value = answer(c, verb)
             if c.action is Action.ATTACK:
-                if c.binding.target_key == (9876, 37):
+                if combat.owner.context.target_key == (9876, 37):
                     stop.trip()
                 else:
                     first_attack_queued = True
         return SimpleNamespace(receipt=value, native_detail=None)
 
-    session.combat.side_effect = response
+    session.actor_action.side_effect = response
     trace = []
 
     def sleep(seconds):
@@ -391,21 +420,25 @@ def test_public_runner_recovery_skips_reuse_blocked_second_opener(setup, monkeyp
         trace_sink=trace.append,
     )
     result = runner.run()
-    calls = session.combat.call_args_list
+    calls = [
+        x
+        for x in session.actor_action.call_args_list
+        if x.args[1] not in (Verb.OPEN_OWNER, Verb.ATTACH_CONTEXT)
+    ]
     assert [(x.args[1], x.args[2].action) for x in calls] == [
         (Verb.SUBMIT, Action.SELF_POWER),
         (Verb.SUBMIT, Action.ATTACK),
-        (Verb.STOP_ENGAGEMENT, Action.NONE),
+        (Verb.STOP_CONTEXT, Action.NONE),
         (Verb.SUBMIT, Action.SELF_POWER),
         (Verb.SUBMIT, Action.ATTACK),
-        (Verb.STOP_ENGAGEMENT, Action.NONE),
+        (Verb.STOP_CONTEXT, Action.NONE),
     ]
     commands = [x.args[2] for x in calls]
-    assert commands[0].binding == commands[1].binding == commands[2].binding
-    assert commands[3].binding == commands[4].binding == commands[5].binding
-    assert commands[0].binding.engagement != commands[3].binding.engagement
-    assert commands[0].binding.target_key != commands[3].binding.target_key
-    assert all(x.args[0] == combat.grant for x in calls) and len(tickets) == 2
+    assert commands[0].context_id == commands[1].context_id == commands[2].context_id
+    assert commands[3].context_id == commands[4].context_id == commands[5].context_id
+    assert commands[0].context_id != commands[3].context_id
+    assert first.object_key != second.object_key
+    assert all(x.args[0] == combat.owner.grant for x in calls) and len(tickets) == 3
     death = next(i for i, s in enumerate(trace) if s.decision.kill_confirmation is not None)
     cleanup = next(
         i
@@ -422,7 +455,7 @@ def test_public_runner_recovery_skips_reuse_blocked_second_opener(setup, monkeyp
         and s.native_combat.acknowledgement.disposition is PvECombatDisposition.NOT_READY
     )
     assert death < cleanup < seeking < refused
-    assert trace[refused].native_combat.receipt.entry_state is EntryState.NEVER_ENTERED
+    assert trace[refused].native_combat.receipt.entry is EntryState.NEVER_ENTERED
     assert trace[refused + 1].decision.opening_skill_skipped
     assert trace[refused + 1].decision.now_ms > trace[refused].decision.now_ms
     assert trace[refused + 1].native_combat.receipt.action is Action.ATTACK

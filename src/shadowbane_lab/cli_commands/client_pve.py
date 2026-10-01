@@ -86,6 +86,7 @@ from shadowbane_lab.pve.attack_list import (
 )
 from shadowbane_lab.pve.listed_combat import ListedCombatCoordinator
 from shadowbane_lab.pve.model import PvEAbility, PvEAbilityRecipient
+from shadowbane_lab.pve.native_actor import NativeActorCoordinator
 from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
 from shadowbane_lab.pve.settings import load_pve_settings
 from shadowbane_lab.travel import (
@@ -521,16 +522,14 @@ def _run_pve(
                 combat_owner = native_operation
                 movement_dispatcher = native_operation.dispatcher
                 active_stop_signal = native_operation
-            configured_opener = controller_config.resolved_opening_ability
-            if configured_opener is not None:
-                combat_owner.session.require_combat_available(combat_owner.grant,
-                    self_power=configured_opener.recipient is PvEAbilityRecipient.ACTOR,
-                    power_readiness=True)
-            combat = stack.enter_context(NativeCombatCoordinator(
+            actor_owner = stack.enter_context(NativeActorCoordinator(
                 session=combat_owner.session, grant=combat_owner.grant,
                 population=population_reader, character_session=character_session,
                 store=attack_list,
             ))
+            if saved_settings.buffs.enabled:
+                actor_owner.configure_preparation(saved_settings.buffs)
+            combat = stack.enter_context(NativeCombatCoordinator(owner=actor_owner))
             listed_combat = ListedCombatCoordinator(
                 store=attack_list, combat=combat,
                 require_current=character_session.require_current,
@@ -555,6 +554,7 @@ def _run_pve(
                 movement_dispatcher=movement_dispatcher,
                 listed_combat=listed_combat,
                 combat_cleanup=combat,
+                actor_preparation=actor_owner if saved_settings.buffs.enabled else None,
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
                 maximum_retained_trace_steps=(retained_trace_steps if continuous else None),

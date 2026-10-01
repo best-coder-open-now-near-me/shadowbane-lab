@@ -22,12 +22,13 @@ bool definition_available=true; unsigned availability_change{};
 std::uint64_t epoch=1;
 bool mutate_after_definition=false, mutate_on_current=false;
 bool native_in_flight=false, mutate_before_entry=false, mutate_after_entry=false;
+std::function<void()> current_callback;
 std::map<void*,unsigned> references;
 s::Context melee_context{}; p::Context power_context{};
 s::Receipt melee_receipt{s::Result::queued,true,true,true};
 p::Receipt power_receipt{p::Result::queued,true,true,true,true};
 template<class T> void Put(std::uintptr_t at,T value) { std::memcpy(reinterpret_cast<void*>(at),&value,sizeof(value)); }
-bool Current(void*) noexcept { if(mutate_on_current) { ++epoch; mutate_on_current=false; } return admitted; }
+bool Current(void*) noexcept { if(current_callback){auto callback=std::exchange(current_callback,{});callback();} if(mutate_on_current) { ++epoch; mutate_on_current=false; } return admitted; }
 void Protocol(std::initializer_list<std::uint32_t> ids) {
     const auto storage=base+0xf000;
     std::size_t i=0; for(auto id:ids) { Put(storage+i++*4,id); }
@@ -235,7 +236,7 @@ struct NativeActorTestAccess {
 };
 }
 namespace {
-void ActorReset(){Reset();items=publications=0;publication_current=true;item_fault=publication_fault=release_fault=false;publication_callback={};}
+void ActorReset(){Reset();current_callback={};items=publications=0;publication_current=true;item_fault=publication_fault=release_fault=false;publication_callback={};}
 void Publish(a::NativeActor& actor,bool item){
     wonderbane::extension::actor_buffs::Request request{};request.count=1;
     request.actions[0].coverage_power_id=428918601;
@@ -370,6 +371,36 @@ int main(){
         const auto before=restores;const auto result=actor.Submit(command);
         assert(result.outcome==AO::uncertain&&result.entry==AE::entered&&(result.history&a::wire::outbound_queued)&&result.local_settlement==AL::pending&&restores==before+2);
         assert(!actor.Available());live=false;assert(!actor.ReleaseScene());a::NativeActorTestAccess::Dispose(actor);
+    }
+    for(unsigned changed=0;changed<6;++changed){
+        ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();
+        assert(actor.ValidateParent(parent,Gates()));const auto child=Child(parent);assert(actor.Attach(child,Gates()).outcome==AO::bound);
+        assert(actor.Submit(Typed(parent,&child,a::wire::Action::attack)).local_settlement==AL::settled);
+        assert(actor.ContinueContext());const auto attack_count=attacks,stop_count=stops;
+        if(changed==0){Put(base+0x4018,std::uint32_t{201});}
+        if(changed==1){
+            Put(base+0x8100,base+0x8200);Put(base+0x8104,base+0x8200);
+            Put(base+0x8200,base+0x8100);Put(base+0x8204,base+0x8100);Put(base+0x8208,base+0x8300);
+            Put(base+0x8310,std::array<std::uint32_t,2>{200,37});
+        }
+        if(changed==2){Put(scene.actor+0xaf8,base+0x5000);}
+        if(changed==3){Put(base+0x45cc,0.0f);}
+        if(changed==4){Put(base+0x4034,base+0x8500);Put(base+0x8500,std::uint32_t{1});Put(base+0x8504,base+0x8600);
+            Put(base+0x8604,base+0x8700);Put(base+0x8700,std::uint8_t{1});}
+        if(changed==5){Put(scene.actor+0xad0,std::uintptr_t{0});}
+        assert(!actor.ContinueContext()&&actor.Available()&&attacks==attack_count&&stops==stop_count);
+        CloseScene(actor);
+    }
+    {
+        ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();
+        assert(actor.ValidateParent(parent,Gates()));const auto child=Child(parent);assert(actor.Attach(child,Gates()).outcome==AO::bound);
+        initiation_seconds=1;assert(actor.Submit(Typed(parent,&child,a::wire::Action::cast)).local_settlement==AL::pending);
+        assert(actor.ContinueContext()&&!stops&&casts==1); // Busy cast with null AF8 remains owned.
+        current_callback=[&]{assert(!actor.ContinueContext());assert(actor.StopContext(child,Current,nullptr).closure==a::wire::Closure::none);};
+        assert(actor.ContinueContext()&&!current_callback&&!stops);
+        current_callback=[] {RaiseException(0xe0008888,0,0,nullptr);};
+        assert(!actor.ContinueContext()&&!actor.Available()&&!stops);
+        assert(!actor.ContinueContext());a::NativeActorTestAccess::Dispose(actor);
     }
     ActorReset();DestroyWindow(window);VirtualFree(reinterpret_cast<void*>(base),0,MEM_RELEASE);return 0;
 }

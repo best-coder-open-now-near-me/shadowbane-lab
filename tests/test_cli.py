@@ -1346,6 +1346,9 @@ class ClientCliTests(unittest.TestCase):
             policy=None, saved_opening="Shot to the Leg", suppress_opening_skill=True,
         )
 
+    def test_pve_saved_buffs_use_same_actor_owner_and_cleanup_order(self):
+        self._assert_pve_process_binding(policy="basic", saved_buffs=True, check_preparation=True)
+
     def test_pve_unknown_skill_fails_before_authority(self):
         self._assert_pve_process_binding(policy=None, opening_skill="missing", skill_failure=True)
 
@@ -1359,16 +1362,21 @@ class ClientCliTests(unittest.TestCase):
     def _assert_pve_process_binding(
         self, *, policy: str | None, native_movement: bool = False,
         opening_skill: str | None = None, suppress_opening_skill: bool = False,
-        saved_opening: str | None = None, skill_failure: bool = False,
+        saved_opening: str | None = None, skill_failure: bool = False, saved_buffs: bool = False,
         captured_creation: int | None = None,
         check_preparation: bool = False, preparation_failure: str | None = None,
     ) -> None:
         import struct
 
         from shadowbane_lab.client_observation.native_ability import NativeAbilityDefinition
+        from shadowbane_lab.pve.buff_intent import BuffAction, BuffGroup, BuffSettings
         from shadowbane_lab.pve.model import PvEAbilityRecipient
+        from shadowbane_lab.pve.preparation import PreparationAction
         from shadowbane_lab.pve.settings import PvESettings
 
+        buffs = (BuffSettings(True, (BuffGroup("precision", (
+            BuffAction(PreparationAction("precision", 429545819), 429545819),)),))
+            if saved_buffs else BuffSettings())
         skill = NativeAbilityDefinition(563795161, "Shot to the Leg", "BOW-007N", 2, 0, 0, 40)
 
         from shadowbane_lab.client_observation.native_character_config import (
@@ -1520,7 +1528,7 @@ class ClientCliTests(unittest.TestCase):
                 with (
                     patch("shadowbane_lab.cli.load_calibration", return_value=profile),
                     patch("shadowbane_lab.cli_commands.client_pve.load_pve_settings",
-                          return_value=PvESettings(opening_skill=saved_opening)),
+                          return_value=PvESettings(opening_skill=saved_opening, buffs=buffs)),
                     patch("shadowbane_lab.cli_commands.client_pve.resolve_learned_ability",
                           return_value=skill,
                           side_effect=(RuntimeError("skill unavailable")
@@ -1578,6 +1586,7 @@ class ClientCliTests(unittest.TestCase):
                 patch("shadowbane_lab.cli.PvETraceJournal", side_effect=prepare_journal),
                 patch("shadowbane_lab.cli.PvERunner") as pve_runner,
                 patch("shadowbane_lab.cli_commands.client_pve.NativeCombatCoordinator") as combat,
+                patch("shadowbane_lab.cli_commands.client_pve.NativeActorCoordinator") as actor,
                 patch(
                     "shadowbane_lab.cli_commands.client_pve.native_party.load_bundled_native_group_profile",
                     return_value=group_profile,
@@ -1622,6 +1631,9 @@ class ClientCliTests(unittest.TestCase):
                 )
                 combat.return_value.__exit__.side_effect = (
                     lambda *_: preparation_events.append("combat_closed")
+                )
+                actor.return_value.__exit__.side_effect = (
+                    lambda *_: preparation_events.append("actor_closed")
                 )
                 def run_pve_fixture():
                     character_session.require_current()
@@ -1688,7 +1700,7 @@ class ClientCliTests(unittest.TestCase):
                     self.assertEqual(
                         ["journal", "observer"]
                         + ([] if native_movement else ["acquire"])
-                        + ["combat_closed"]
+                        + ["combat_closed", "actor_closed"]
                         + ([] if native_movement else ["owner_closed"])
                         + ["observer_closed", "journal_closed"],
                         preparation_events,
@@ -1722,24 +1734,31 @@ class ClientCliTests(unittest.TestCase):
                     self.assertEqual(skill.power_id, ability.power_id)
                     self.assertIs(ability.recipient, PvEAbilityRecipient.ACTOR)
                     self.assertEqual(skill.as_dict(), saved_evidence["opening_skill"])
-                    owner.session.require_combat_available.assert_called_once_with(
-                        owner.grant, self_power=True, power_readiness=True,
-                    )
+                    owner.session.require_combat_available.assert_not_called()
                 else:
                     resolve_skill.assert_not_called()
                     self.assertIsNone(saved_evidence["opening_skill"])
-                combat.assert_called_once_with(
+                actor.assert_called_once_with(
                     session=owner.session, grant=owner.grant, population=readers[7],
-                    character_session=character_session, store=combat.call_args.kwargs["store"],
+                    character_session=character_session, store=actor.call_args.kwargs["store"],
                 )
+                shared_actor = actor.return_value.__enter__.return_value
+                combat.assert_called_once_with(owner=shared_actor)
+                if saved_buffs:
+                    shared_actor.configure_preparation.assert_called_once_with(buffs)
+                    self.assertIs(pve_runner.call_args.kwargs["actor_preparation"], shared_actor)
+                else:
+                    shared_actor.configure_preparation.assert_not_called()
+                    self.assertIsNone(pve_runner.call_args.kwargs["actor_preparation"])
+                actor.return_value.__exit__.assert_called_once()
                 shared_combat = combat.return_value.__enter__.return_value
                 self.assertIs(pve_runner.call_args.kwargs["dispatcher"], shared_combat)
                 self.assertIs(pve_runner.call_args.kwargs["combat_cleanup"], shared_combat)
                 self.assertIs(listed_coordinator.call_args.kwargs["combat"], shared_combat)
                 self.assertIs(listed_coordinator.call_args.kwargs["store"],
-                              combat.call_args.kwargs["store"])
+                              actor.call_args.kwargs["store"])
                 self.assertNotIn("combat_log_reader", pve_runner.call_args.kwargs)
-                self.assertEqual(combat.call_args.kwargs["store"].owner.character, "testercle")
+                self.assertEqual(actor.call_args.kwargs["store"].owner.character, "testercle")
                 self.assertIs(pve_runner.call_args.kwargs["listed_combat"],
                               listed_coordinator.return_value)
                 combat.return_value.__exit__.assert_called_once()

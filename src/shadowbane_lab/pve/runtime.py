@@ -8,7 +8,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
-from shadowbane_lab.client_extension.combat_wire_v2 import Phase as NativeCombatPhase
+from shadowbane_lab.client_extension.actor_action_wire import Phase as NativeCombatPhase
 from shadowbane_lab.client_input import ClientInputAdapter, StopSignal
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationObservation,
@@ -146,6 +146,7 @@ class PvERunner:
         movement_dispatcher: TravelDecisionDispatcher | None = None,
         listed_combat: ListedCombatCoordinator | None = None,
         combat_cleanup: PvECombatCleanup | None = None,
+        actor_preparation=None,
         stop_signal: StopSignal,
         poll_interval_ms: int = 100,
         maximum_consecutive_observation_failures: int = 3,
@@ -246,6 +247,7 @@ class PvERunner:
         self._target_identity_reader = target_identity_reader
         self._population_reader = population_reader
         self._combat_cleanup = combat_cleanup
+        self._actor_preparation = actor_preparation
         self._cleanup_failed = False
         self._cleanup_result: PvECombatCleanupResult | None = None
         self._dispatcher = dispatcher
@@ -409,6 +411,12 @@ class PvERunner:
                         break
                     if update.recovered:
                         self._controller.resume_after_external_combat(observation)
+                    elif (self._actor_preparation is not None
+                          and listed.preparation_allowed):
+                        preparation = self._actor_preparation.preparation_step()
+                        if preparation is not None:
+                            record(replace(self._trace(decision, observation=observation),
+                                           preparation=preparation))
                     self._sleeper(self._poll_interval_seconds)
                     continue
                 decision = self._controller.step(observation)
@@ -429,6 +437,14 @@ class PvERunner:
                     self._sleeper(self._poll_interval_seconds)
                     continue
                 proposal = self._controller.pending_combat_proposal
+                if self._actor_preparation is not None and not decision.terminal:
+                    preparation = self._actor_preparation.preparation_step(proposal)
+                    if preparation is not None:
+                        record(replace(self._trace(decision, observation=observation),
+                                       preparation=preparation))
+                        consecutive_observation_failures = 0
+                        self._sleeper(self._poll_interval_seconds)
+                        continue
                 if proposal is not None:
                     update = self._dispatcher.advance(proposal, observation)
                     if not isinstance(update, NativeCombatUpdate):
@@ -445,7 +461,7 @@ class PvERunner:
                         native_combat=update))
                     consecutive_observation_failures = 0
                     if (update.receipt is not None
-                            and update.receipt.phase is NativeCombatPhase.RETIRED):
+                            and update.receipt.context_phase is NativeCombatPhase.RETIRED):
                         terminal = self._controller.stop("native_scene_retired", now_ms=now_ms)
                         record(self._trace(terminal, observation=observation))
                         break

@@ -30,6 +30,15 @@ int effects_stops = 0, navigation_stops = 0, status_stops = 0, control_stops = 0
 DWORD telemetry_result = ERROR_ACCESS_DENIED, trace_result = ERROR_SUCCESS;
 int trace_stops = 0, targeted_starts = 0, targeted_stops = 0;
 DWORD targeted_result = ERROR_SUCCESS;
+namespace actor_effects {
+int starts = 0;
+bool StartAtBootstrap(std::uintptr_t image,std::uintptr_t initializer_return) noexcept {
+    assert(image==reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr)));
+    assert(initializer_return && starts==targeted_starts);
+    ++starts;
+    return false; // Unsupported early observation cannot prevent ordinary startup.
+}
+}
 DWORD StartTargetedActionTrace(const ProcessIdentity& identity) noexcept {
     assert(identity.process_id == GetCurrentProcessId() && identity.creation_filetime_utc);
     ++targeted_starts; return targeted_result;
@@ -105,8 +114,9 @@ int main() {
     assert(renderer_starts == 1 && telemetry_starts == 0 && renderer_stops == 0);
     assert(movement::starts == 1 && targeted_starts == 1 && targeted_stops == 0);
     assert(condemn::starts == 1 && condemn::stops == 0);
-    assert(combat::starts == 1);
+    assert(combat::starts == 1 && actor_effects::starts == 1);
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS && movement::starts == 1);
+    assert(actor_effects::starts == 1);
     assert(DeleteFileW(g_heartbeat_path));
     InterlockedExchange(&g_state, static_cast<LONG>(WonderBaneExtensionState::uninitialized));
     targeted_result = ERROR_NOT_SUPPORTED; condemn::result = ERROR_NOT_SUPPORTED;
@@ -126,7 +136,7 @@ int main() {
     assert(condemn::starts == 3 && condemn::stops == 1);
     assert(renderer_stops == 1 && telemetry_stops == 1 && effects_stops == 1 && trace_stops == 2);
     assert(movement::starts == 2); // Failed shared startup did not register a consumer.
-    assert(combat::starts == 2);
+    assert(combat::starts == 2 && actor_effects::starts == 3);
     assert(navigation_stops == 1 && status_stops == 1 && control_stops == 1 && event_stops == 1);
     // Failed initialization cannot start a replacement generation implicitly.
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED && renderer_starts == 3);

@@ -80,7 +80,8 @@ class CleanupSettlement:
             receipt.require_command(command, Verb.STOP_CONTEXT)
             if (receipt.owner_phase is not Phase.BOUND or receipt.context_phase is not Phase.CLOSED
                     or receipt.closure_scope is not ClosureScope.CONTEXT
-                    or receipt.closure not in (Closure.NATIVE_STOPPED, Closure.LOCAL_RELEASED, Closure.NEVER_BOUND)
+                    or receipt.closure not in (
+                        Closure.NATIVE_STOPPED, Closure.LOCAL_RELEASED, Closure.NEVER_BOUND)
                     or receipt.flags != OWNER_CLEANUP):
                 raise ValueError("receipt does not prove child closure under the retained parent")
             if grant in self._terminal or grant in self._aborted:

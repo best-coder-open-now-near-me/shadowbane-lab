@@ -2,31 +2,35 @@
 
 from dataclasses import replace
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
+from test_actor_action_wire import fixture
 from test_combat_fence import LOCAL, OWNER, TARGET, entry, store_at
-from test_combat_wire_v2 import command as fixture
+from test_native_actor_coordinator import reply as actor_reply
 
-from shadowbane_lab.client_extension import combat_fence_windows as fences
 from shadowbane_lab.client_extension.action_channel import (
     NativeActionChannelTimeout,
     NativeActionChannelUnavailable,
     NativeClientProcessIdentity,
 )
-from shadowbane_lab.client_extension.cleanup_settlement import CleanupSettlement
-from shadowbane_lab.client_extension.combat_fence_v3 import Authority, Ordinals
-from shadowbane_lab.client_extension.combat_wire_v2 import (
-    CLEANUP_REQUIRED,
+from shadowbane_lab.client_extension.actor_action_fence import Authority, ContextBinding, Ordinals
+from shadowbane_lab.client_extension.actor_action_wire import (
+    CONTEXT_CLEANUP,
     OUTBOUND_QUEUED,
+    OWNER_CLEANUP,
     Action,
-    ClosureProof,
-    EntryState,
+    Closure,
+    ClosureScope,
+    Entry,
+    LocalSettlement,
     Outcome,
     Phase,
-    Receipt,
     Verb,
 )
-from shadowbane_lab.client_extension.movement_session import NativeCombatResult, NativeMovementGrant
+from shadowbane_lab.client_extension.cleanup_settlement import CleanupSettlement
+from shadowbane_lab.client_extension.combat_wire_v2 import identity_digest
+from shadowbane_lab.client_extension.movement_session import NativeMovementGrant
 from shadowbane_lab.client_input import EventEmergencyStop
 from shadowbane_lab.client_observation import (
     NativePlayerActionObservation,
@@ -55,7 +59,8 @@ from shadowbane_lab.pve.listed_combat import (
 )
 from shadowbane_lab.pve.listed_target import listed_targets
 from shadowbane_lab.pve.model import PvECampLease, PvEObservation, PvEPhase
-from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
+from shadowbane_lab.pve.native_actor import NativeActorCoordinator
+from shadowbane_lab.pve.native_combat import NativeCombatCoordinator, context_cleanup_confirmed
 
 
 def frame(now=0, *, dead=False, absent=False, party=False, lt=5, local=LOCAL):
@@ -135,15 +140,15 @@ def frame(now=0, *, dead=False, absent=False, party=False, lt=5, local=LOCAL):
 @pytest.fixture
 def encounter(tmp_path, monkeypatch):
     store = store_at(tmp_path)
-    template = fixture(action=Action.ATTACK)
+    actor_binding, _, template, _ = fixture()
     grant = NativeMovementGrant(
-        NativeClientProcessIdentity(template.binding.client_pid, template.binding.client_creation),
+        NativeClientProcessIdentity(actor_binding.client_pid, actor_binding.client_creation),
         template.window,
         template.grant,
         template.host,
         "acquisition",
     )
-    events, calls, commands, tickets = [], [], [], []
+    events, calls, commands, tickets, bindings = [], [], [], [], {}
     state = SimpleNamespace(
         failure=None,
         register_failure=None,
@@ -156,8 +161,12 @@ def encounter(tmp_path, monkeypatch):
         close_on_status=False,
     )
     current = SimpleNamespace(failure=False)
+    clock = SimpleNamespace(now=0.0)
 
     class Ticket:
+        def arm(self, **kwargs):
+            pass
+
         def revoke(self, **kwargs):
             events.append("revoke")
 
@@ -169,30 +178,36 @@ def encounter(tmp_path, monkeypatch):
             raise state.register_failure
         assert entry_id == entry().entry_id
         assert kwargs["expected_revision"] == store.snapshot().revision
-        assert kwargs["grant"] is grant.ownership and kwargs["local_key"] == LOCAL
+        parent = kwargs["parent"]
+        assert parent.actor_key == (LOCAL.object_type, LOCAL.object_uuid)
         ticket = Ticket()
         tickets.append(ticket)
         events.append("register")
-        binding = replace(
-            template.binding, revision=store.snapshot().revision, engagement=kwargs["engagement"]
+        binding = ContextBinding(
+            parent.digest,
+            kwargs["context_id"],
+            Authority.MANUAL_PLAYER,
+            kwargs["target_hint"],
+            (TARGET.object_type, TARGET.object_uuid),
+            store.snapshot().revision,
+            b"s" * 32,
+            bytes.fromhex(entry_id),
+            identity_digest("Enemy"),
         )
+        bindings[binding.context_id] = binding
         return ticket, binding
 
-    monkeypatch.setattr(store, "register_combat_engagement", register)
+    monkeypatch.setattr(store, "register_actor_context", register)
+    parent_ticket = Mock()
 
-    def register_npc(**kwargs):
+    def factory(binding, **kwargs):
+        if not isinstance(binding, ContextBinding):
+            return parent_ticket
         ticket = Ticket()
         tickets.append(ticket)
+        bindings[binding.context_id] = binding
         events.append("register_npc")
-        binding = replace(
-            fixture(Authority.NPC).binding,
-            engagement=kwargs["engagement"],
-            target_key=(kwargs["target_key"].object_type, kwargs["target_key"].object_uuid),
-            owner=kwargs["owner_digest"],
-        )
-        return ticket, binding
-
-    monkeypatch.setattr(fences, "create_npc_engagement", register_npc)
+        return ticket
 
     def require_current():
         if current.failure:
@@ -201,77 +216,69 @@ def encounter(tmp_path, monkeypatch):
     def require_available(owner):
         assert owner is grant
         if state.unavailable:
-            raise NativeActionChannelUnavailable("object combat capability absent")
+            raise NativeActionChannelUnavailable("actor action capability absent")
 
     def reply(command, verb):
-        mode = state.response
+        result = actor_reply(command, verb)
+        mode = state.response if verb not in (Verb.OPEN_OWNER, Verb.ATTACH_CONTEXT) else None
         if (
             state.close_on_status
-            and verb is Verb.ENGAGEMENT_STATUS
-            and command.binding.authority is Authority.MANUAL_PLAYER
+            and verb is Verb.CONTEXT_STATUS
+            and bindings[command.context_id].authority is Authority.MANUAL_PLAYER
         ):
             mode = "closed"
         control = command.action is Action.NONE
-        phase, closure = Phase.BOUND, ClosureProof.NONE
-        outcome = Outcome.OBSERVED if control else Outcome.CLIENT_OUTBOUND_QUEUED
-        entered = EntryState.UNKNOWN if control else EntryState.ENTERED
-        flags = CLEANUP_REQUIRED | (0 if control else OUTBOUND_QUEUED)
-        if mode == "blocked" or (verb is Verb.STOP_ENGAGEMENT and state.stop_pending):
-            phase, outcome = Phase.BLOCKED, Outcome.UNAVAILABLE
-            entered, flags = EntryState.UNKNOWN, CLEANUP_REQUIRED
-        elif mode in ("closed", "retired") or verb is Verb.STOP_ENGAGEMENT:
-            phase = Phase.RETIRED if mode == "retired" else Phase.CLOSED
-            closure = (
-                ClosureProof.SCENE_RETIRED if mode == "retired" else ClosureProof.NATIVE_STOPPED
+        if mode == "blocked" or (verb is Verb.STOP_CONTEXT and state.stop_pending):
+            result.receipt = replace(
+                result.receipt,
+                outcome=Outcome.UNAVAILABLE,
+                owner_phase=Phase.BOUND,
+                context_phase=Phase.BLOCKED,
+                closure=Closure.NONE,
+                closure_scope=ClosureScope.NONE,
+                entry=Entry.UNKNOWN,
+                local_settlement=(LocalSettlement.UNKNOWN if control else LocalSettlement.PENDING),
+                flags=OWNER_CLEANUP | CONTEXT_CLEANUP,
             )
-            flags = 0 if control else OUTBOUND_QUEUED
-            outcome = Outcome.ENGAGEMENT_CLOSED if control else Outcome.CLIENT_OUTBOUND_QUEUED
-        binding = command.binding
-        result = Receipt(
-            command.request,
-            command.host,
-            command.window,
-            outcome,
-            flags,
-            command.grant,
-            binding.revision,
-            binding.local_key,
-            binding.target_key,
-            phase,
-            state.mode,
-            state.action_state,
-            phase is Phase.BOUND,
-            binding.digest,
-            binding.authority,
-            command.action,
-            command.power_id,
-            binding.engagement,
-            entered,
-            verb,
-            closure,
-        )
-        result.encode()
+        elif mode in ("closed", "retired"):
+            retired = mode == "retired"
+            result.receipt = replace(
+                result.receipt,
+                owner_phase=Phase.RETIRED if retired else Phase.BOUND,
+                context_phase=Phase.RETIRED if retired else Phase.CLOSED,
+                closure=Closure.SCENE_RETIRED if retired else Closure.NATIVE_STOPPED,
+                closure_scope=ClosureScope.OWNER if retired else ClosureScope.CONTEXT,
+                outcome=Outcome.ENGAGEMENT_CLOSED if control else Outcome.CLIENT_OUTBOUND_QUEUED,
+                flags=(0 if retired else OWNER_CLEANUP) | (0 if control else OUTBOUND_QUEUED),
+                mode=1,
+                combat_target_present=False,
+            )
+        result.receipt.require_command(command, verb)
+        result.native_detail = state.native_detail
         return result
 
-    def combat(owner, verb, command):
+    def actor_action(owner, verb, command, **kwargs):
         assert owner is grant
         calls.append(verb)
         commands.append(command)
         events.append(verb.name.lower())
-        if state.failure:
+        if state.failure and verb not in (Verb.OPEN_OWNER, Verb.ATTACH_CONTEXT):
             raise state.failure
-        return NativeCombatResult(reply(command, verb), state.native_detail)
+        return reply(command, verb)
 
     def pause(*args):
         raise AssertionError("listed admission must not pause an otherwise idle actor")
 
-    ordinals = Ordinals()
+    ids = Ordinals()
     session = SimpleNamespace(
-        cleanup=CleanupSettlement(),
-        combat=combat,
+        cleanup=CleanupSettlement(
+            clock=lambda: clock.now,
+            sleeper=lambda seconds: setattr(clock, "now", clock.now + seconds),
+        ),
+        actor_action=actor_action,
         pause=pause,
-        require_combat_available=require_available,
-        combat_ordinals=lambda owner: ordinals,
+        require_actor_actions=require_available,
+        actor_ordinals=lambda owner: ids,
     )
     character_session = SimpleNamespace(
         require_current=require_current,
@@ -281,18 +288,19 @@ def encounter(tmp_path, monkeypatch):
         ),
     )
     population = SimpleNamespace(
-        resolve_combat_addresses=lambda **kwargs: (
-            template.binding.actor_address_hint,
-            template.binding.target_address_hint,
-        )
+        observe_actor_identity=lambda: ("actor-token", LOCAL, None),
+        resolve_actor_address=lambda **kwargs: actor_binding.actor_hint,
+        resolve_combat_addresses=lambda **kwargs: (actor_binding.actor_hint, 0x12400000),
     )
-    shared = NativeCombatCoordinator(
+    owner = NativeActorCoordinator(
         session=session,
         grant=grant,
         population=population,
         character_session=character_session,
         store=store,
+        ticket_factory=factory,
     )
+    shared = NativeCombatCoordinator(owner=owner)
     coordinator = ListedCombatCoordinator(
         store=store, combat=shared, require_current=require_current
     )
@@ -300,6 +308,7 @@ def encounter(tmp_path, monkeypatch):
         store=store,
         coordinator=coordinator,
         combat=shared,
+        owner=owner,
         session=session,
         state=state,
         current=current,
@@ -307,6 +316,8 @@ def encounter(tmp_path, monkeypatch):
         commands=commands,
         events=events,
         tickets=tickets,
+        parent_ticket=parent_ticket,
+        bindings=bindings,
         command=template,
     )
 
@@ -401,25 +412,33 @@ def test_exact_key_candidate_does_not_interpret_opaque_token_or_use_observed_nam
 
 def test_initial_listed_action_is_one_explicit_submit_without_pause(encounter):
     update = start(encounter)
-    assert encounter.calls == [Verb.SUBMIT]
-    assert encounter.events == ["register", "submit"]
+    assert encounter.calls == [Verb.OPEN_OWNER, Verb.ATTACH_CONTEXT, Verb.SUBMIT]
+    assert encounter.events == ["open_owner", "register", "attach_context", "submit"]
     assert update.receipt.flags & OUTBOUND_QUEUED
-    assert encounter.commands[0].binding.target_key == (TARGET.object_type, TARGET.object_uuid)
+    assert encounter.bindings[encounter.commands[-1].context_id].target_key == (
+        TARGET.object_type,
+        TARGET.object_uuid,
+    )
 
 
 def test_unknown_submission_polls_exact_action_without_resubmission(encounter):
     encounter.state.failure = NativeActionChannelTimeout("unknown native entry")
     assert not start(encounter).recovered
-    original = encounter.commands[0]
+    original = encounter.commands[-1]
     encounter.state.failure = None
     assert encounter.coordinator.prepare(frame(100), None)
     update = encounter.coordinator.advance(frame(100))
     assert update.receipt.flags & OUTBOUND_QUEUED
-    assert encounter.calls == [Verb.SUBMIT, Verb.ACTION_STATUS]
-    assert encounter.commands[1] is original and len(encounter.tickets) == 1
+    assert encounter.calls == [
+        Verb.OPEN_OWNER,
+        Verb.ATTACH_CONTEXT,
+        Verb.SUBMIT,
+        Verb.ACTION_STATUS,
+    ]
+    assert encounter.commands[-1] is original and len(encounter.tickets) == 1
     assert encounter.coordinator.finish("operator stop").recovered
-    assert encounter.calls[-1] is Verb.STOP_ENGAGEMENT
-    assert encounter.events[-3:] == ["revoke", "stop_engagement", "close"]
+    assert encounter.calls[-1] is Verb.STOP_CONTEXT
+    assert encounter.events[-3:] == ["revoke", "stop_context", "close"]
 
 
 @pytest.mark.parametrize(
@@ -445,7 +464,7 @@ def test_invalidation_revokes_shared_ticket_before_cleanup(encounter, invalidati
     update = encounter.coordinator.advance(observation)
     assert not update.recovered and encounter.coordinator.active
     assert "close" not in encounter.events
-    assert encounter.events[-2:] == ["revoke", "stop_engagement"]
+    assert encounter.events[-2:] == ["revoke", "stop_context"]
     encounter.state.stop_pending = False
     assert encounter.coordinator.finish("stop").recovered
     assert not encounter.combat.active and not encounter.coordinator.active
@@ -489,7 +508,7 @@ def test_admission_failure_preserves_bounded_error_and_requires_shared_cleanup(e
     assert caught.value.stage == "native_admission"
     assert caught.value.cause_type == "ValueError"
     assert "\n" not in str(caught.value) and len(caught.value.cause_detail) == 160
-    assert not encounter.commands and not encounter.tickets
+    assert encounter.calls == [Verb.OPEN_OWNER] and not encounter.tickets
     assert encounter.coordinator.finish("admission failure").recovered
 
 
@@ -498,7 +517,7 @@ def test_diagnostic_text_cannot_override_correlated_state(encounter, detail):
     encounter.state.native_detail = detail
     update = start(encounter)
     assert update.native_detail == detail and not update.recovered
-    assert update.receipt.phase is Phase.BOUND
+    assert update.receipt.context_phase is Phase.BOUND
     encounter.state.response = "blocked"
     stopped = encounter.coordinator.finish("stop")
     assert stopped.terminal_reason == "listed_combat_cleanup_unconfirmed"
@@ -523,7 +542,7 @@ def test_ticket_release_failure_preserves_native_closure_but_not_local_recovery(
 
     encounter.tickets[0].close = failed_close
     update = encounter.coordinator.finish("stop")
-    assert update.receipt.cleanup_confirmed
+    assert context_cleanup_confirmed(update.receipt)
     assert not update.recovered and encounter.coordinator.active
     assert update.terminal_reason == "listed_combat_cleanup_unconfirmed"
 
@@ -531,11 +550,11 @@ def test_ticket_release_failure_preserves_native_closure_but_not_local_recovery(
 def test_unavailable_capability_fails_before_authority_registration(encounter):
     encounter.state.unavailable = True
     with pytest.raises(NativeActionChannelUnavailable):
-        NativeCombatCoordinator(
+        NativeActorCoordinator(
             session=encounter.session,
-            grant=encounter.combat.grant,
-            population=encounter.combat.population,
-            character_session=encounter.combat.character_session,
+            grant=encounter.owner.grant,
+            population=encounter.owner.population,
+            character_session=encounter.owner.character_session,
             store=encounter.store,
         )
     assert not encounter.tickets and not encounter.commands
@@ -651,11 +670,11 @@ def test_public_runner_terminal_cleanup_uses_shared_owner(encounter, cause):
     result = runner.run()
     assert result.final_phase is PvEPhase.STOPPED
     assert result.kills == 0
-    assert encounter.calls == [Verb.SUBMIT, Verb.STOP_ENGAGEMENT]
-    assert encounter.events[-3:] == ["revoke", "stop_engagement", "close"]
+    assert encounter.calls == [Verb.OPEN_OWNER, Verb.ATTACH_CONTEXT, Verb.SUBMIT, Verb.STOP_CONTEXT]
+    assert encounter.events[-3:] == ["revoke", "stop_context", "close"]
     assert not encounter.combat.active and not encounter.coordinator.active
     assert result.trace[-1].listed_combat.recovered
-    assert result.trace[-1].listed_combat.receipt.cleanup_confirmed
+    assert context_cleanup_confirmed(result.trace[-1].listed_combat.receipt)
 
 
 def test_public_runner_keyboard_interrupt_cleans_before_outer_session_exit(encounter):
@@ -668,7 +687,7 @@ def test_public_runner_keyboard_interrupt_cleans_before_outer_session_exit(encou
             runner.run()
         finally:
             encounter.events.append("outer_session_exit")
-    assert encounter.events[-4:] == ["revoke", "stop_engagement", "close", "outer_session_exit"]
+    assert encounter.events[-4:] == ["revoke", "stop_context", "close", "outer_session_exit"]
     assert not encounter.combat.active and not encounter.coordinator.active
 
 
@@ -715,9 +734,9 @@ def test_public_recovery_waits_for_fresh_resources_before_native_npc_action(enco
         c for c, v in zip(encounter.commands, encounter.calls, strict=True) if v is Verb.SUBMIT
     ]
     assert len(submits) == 2, result.terminal_reason
-    assert submits[0].binding.authority is Authority.MANUAL_PLAYER
-    assert submits[1].binding.authority is Authority.NPC
-    assert submits[0].binding.engagement < submits[1].binding.engagement
+    assert encounter.bindings[submits[0].context_id].authority is Authority.MANUAL_PLAYER
+    assert encounter.bindings[submits[1].context_id].authority is Authority.NPC
+    assert submits[0].context_id < submits[1].context_id
     assert encounter.events.index("close") < encounter.events.index("register_npc")
     ordinary = [step for step in journal if step.native_combat is not None]
     assert ordinary and ordinary[0].decision.now_ms >= 600
@@ -733,11 +752,11 @@ def test_public_journal_preserves_queued_history_and_confirmed_closure(encounter
     runner, _ = public_runner(encounter, journal=journal)
     runner.run()
     first = next(step.listed_combat for step in journal if step.listed_combat is not None)
-    assert first.receipt.phase is Phase.CLOSED
+    assert first.receipt.context_phase is Phase.CLOSED
     assert first.receipt.flags & OUTBOUND_QUEUED
     assert first.as_dict()["outbound_queued"] is True
     assert any(step.listed_combat and step.listed_combat.recovered for step in journal)
-    assert encounter.calls == [Verb.SUBMIT]
+    assert encounter.calls == [Verb.OPEN_OWNER, Verb.ATTACH_CONTEXT, Verb.SUBMIT, Verb.STOP_CONTEXT]
     assert not encounter.combat.active
 
 
@@ -747,5 +766,5 @@ def test_public_admission_failure_is_terminal_without_ordinary_native_action(enc
     result = runner.run()
     assert result.final_phase is PvEPhase.STOPPED
     assert "ListedCombatInterruptionError" in result.terminal_reason
-    assert not encounter.commands
+    assert encounter.calls == [Verb.OPEN_OWNER]
     assert not encounter.combat.active and not encounter.coordinator.active

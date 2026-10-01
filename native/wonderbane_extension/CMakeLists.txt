@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.42 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.43 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -44,12 +44,15 @@ add_library(
   actor_effects_native.cpp
   combat_item_entry.cpp
   combat_submission.cpp
-  combat_v2_native.cpp
+  actor_inventory_native.cpp
+  actor_buff_observation.cpp
+  actor_action_native.cpp
+  actor_publication.cpp
   combat_melee_entry.cpp
   combat_target_policy.cpp
   combat_power_entry.cpp
   combat_power_observer.cpp
-  combat_v2_runtime.cpp
+  actor_action_runtime.cpp
   vendor_navigation_native.cpp
   movement_settings.cpp
   movement_native_image.cpp
@@ -1441,7 +1444,7 @@ if(BUILD_TESTING)
   target_compile_definitions(wonderbane_extension_combat_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_combat_channel_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_combat_channel_test PRIVATE bcrypt)
-  add_test(NAME wonderbane_extension_combat_channel COMMAND wonderbane_extension_combat_channel_test "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/combat_command_v2.hex")
+  add_test(NAME wonderbane_extension_combat_channel COMMAND wonderbane_extension_combat_channel_test "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/actor_command_v3.hex")
   set_tests_properties(wonderbane_extension_combat_channel PROPERTIES TIMEOUT 15)
   foreach(kind city_window movement guard_upgrade guard_funding condemn event vendor_navigation vendor vendor_menu)
     target_link_libraries(wonderbane_extension_${kind}_channel_test PRIVATE bcrypt)
@@ -1738,4 +1741,14 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_actor_publication_test PRIVATE bcrypt advapi32)
   add_test(NAME wonderbane_extension_actor_publication COMMAND wonderbane_extension_actor_publication_test)
   set_tests_properties(wonderbane_extension_actor_publication PROPERTIES TIMEOUT 15)
+endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_actor_action_runtime_test actor_action_runtime_test.cpp)
+  target_compile_features(wonderbane_extension_actor_action_runtime_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_actor_action_runtime_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_actor_action_runtime_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_actor_action_runtime_test PRIVATE bcrypt advapi32)
+  add_test(NAME wonderbane_extension_actor_action_runtime COMMAND wonderbane_extension_actor_action_runtime_test)
+  set_tests_properties(wonderbane_extension_actor_action_runtime PROPERTIES TIMEOUT 15)
 endif()

@@ -164,6 +164,9 @@ class Controller final {
         a.result=result;return true;
     }
 public:
+    bool ContextAllowsEntry() const noexcept {
+        return !context_||(context_->state.phase==P::bound&&!context_->stop_requested);
+    }
     bool Busy() const noexcept {return parent_||context_||calling_||PendingLocal();}
     const wire::Command* ActiveOwner() const noexcept {return parent_?&parent_->binding:nullptr;}
     const wire::Command* ActiveContext() const noexcept {return context_?&context_->binding:nullptr;}
@@ -171,6 +174,16 @@ public:
     bool UpdateAction(const wire::Command& c,const Operation& result) noexcept {
         auto* a=ActionRecord(c);if(!a||std::memcmp(&a->command,&c,sizeof(c))){return false;}
         return Record(*a,result);
+    }
+    // Native journal projection only. Observed remote effects never discharge
+    // local responsibility, and evicted command history is never reconstructed.
+    bool ObserveApplication(const wire::Digest& digest) noexcept {
+        for(auto& action:actions_){
+            wire::Digest exact{};
+            if(!wire::HashCommand(action.command,exact)||exact!=digest){continue;}
+            if(action.result.application==wire::Application::none){return false;}
+            action.result.application=wire::Application::observed;return true;
+        }return false;
     }
     bool UpdateScope(const wire::Command& c,const State& state,bool owner) noexcept {
         auto* s=owner?ParentRecord(c.parent_id):ContextRecord(c);
@@ -250,7 +263,7 @@ public:
         try{actions_.push_back({c});action=&actions_.back();}catch(...){return Reply(c,v,O::exhausted,p,x);}
         action->result.outcome=O::deferred;
         if(v==wire::Verb::cancel_action){action->result.outcome=O::cancelled;}
-        else if(live&&p==parent_&&p->state.phase==P::bound&&(!x||(x==context_&&x->state.phase==P::bound))&&!PendingLocal()){
+        else if(live&&p==parent_&&p->state.phase==P::bound&&(!x||(x==context_&&x->state.phase==P::bound))&&ContextAllowsEntry()&&!PendingLocal()){
             action->result.entry=E::unknown;action->result.local=L::pending;action->result.outcome=O::uncertain;
             calling_=true;auto result=invoker.Submit(c);calling_=false;
             if(Terminal(p->state)||(x&&Terminal(x->state))){result.local=L::settled;}

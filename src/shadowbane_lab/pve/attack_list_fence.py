@@ -115,3 +115,108 @@ class Registry:
             finally:
                 ticket.close(revoke=False)
         return tuple(entered)
+
+
+class ActorRegistry:
+    """V4 child fences; revoking a saved target never revokes its parent actor."""
+
+    def __init__(self, path: Path, owner: str):
+        self.legacy = Registry(path, owner)
+        self.path = path.with_suffix(".actor-contexts.json")
+        self.owner, self.store = self.legacy.owner, self.legacy.store
+
+    def require_legacy_retired(self):
+        for binding in self.legacy._read():
+            api = Windows()
+            if (api.mapping_exists(binding.name)
+                    and api.alive(binding.client_pid, binding.client_creation)):
+                raise FenceError("live legacy engagement must retire before context migration")
+
+    def _read(self):
+        from shadowbane_lab.client_extension.actor_action_fence import (
+            ActorBinding,
+            ContextBinding,
+        )
+        from shadowbane_lab.client_extension.actor_action_fence import (
+            State as ActorState,
+        )
+
+        try:
+            raw = json.loads(read_record_bytes(self.path, 256 * 1024))
+        except FileNotFoundError:
+            return []
+        if (not isinstance(raw, dict) or set(raw) != {"schema", "store", "contexts"}
+                or type(raw["schema"]) is not int or raw["schema"] != 1
+                or raw["store"] != self.store.hex() or type(raw["contexts"]) is not list
+                or len(raw["contexts"]) > CAPACITY):
+            raise FenceError("invalid actor context registry")
+        result = []
+        for pair in raw["contexts"]:
+            if (type(pair) is not list or len(pair) != 2
+                    or any(type(x) is not str or len(x) != 640 for x in pair)):
+                raise FenceError("invalid registered actor context")
+            parent, pstate = ActorBinding.decode(bytes.fromhex(pair[0]))
+            context, cstate = ContextBinding.decode(bytes.fromhex(pair[1]))
+            context.require_parent(parent)
+            if (pstate is not ActorState.REGISTERING or cstate is not ActorState.REGISTERING
+                    or parent.owner != self.owner or context.store != self.store):
+                raise FenceError("registered actor context owner mismatch")
+            result.append((parent, context))
+        if len({c.digest for _, c in result}) != len(result):
+            raise FenceError("duplicate actor context registration")
+        return result
+
+    def _write(self, values):
+        payload = json.dumps({"schema": 1, "store": self.store.hex(),
+            "contexts": [[p.encode().hex(), c.encode().hex()] for p, c in values]},
+            sort_keys=True).encode()
+        publish_atomic_record(self.path, payload, temporary_label="actor-contexts")
+
+    def register(self, parent, context):
+        from shadowbane_lab.client_extension.actor_action_fence import Ticket as ActorTicket
+
+        context.require_parent(parent)
+        if context.store != self.store or parent.owner != self.owner:
+            raise FenceError("wrong actor context store")
+        retained = []
+        for p, c in self._read():
+            try:
+                ticket = ActorTicket(c, parent=p)
+            except FileNotFoundError:
+                continue
+            try:
+                ticket.state()
+                retained.append((p, c))
+            finally:
+                ticket.close(revoke=False)
+        if len(retained) >= CAPACITY:
+            raise FenceError("actor context registry full; close retired consumers")
+        ticket = ActorTicket(context, parent=parent, create=True)
+        try:
+            self._write([*retained, (parent, context)])
+            ticket.arm()
+            return ticket
+        except BaseException:
+            ticket.close()
+            raise
+
+    def revoke(self):
+        from shadowbane_lab.client_extension.actor_action_fence import (
+            State as ActorState,
+        )
+        from shadowbane_lab.client_extension.actor_action_fence import (
+            Ticket as ActorTicket,
+        )
+
+        entered = []
+        for parent, context in self._read():
+            try:
+                ticket = ActorTicket(context, parent=parent)
+            except FileNotFoundError:
+                continue
+            try:
+                if ticket.revoke() is ActorState.ENTERED_REVOKED:
+                    entered.append(context.digest.hex())
+            finally:
+                ticket.close(revoke=False)
+        return tuple(entered)

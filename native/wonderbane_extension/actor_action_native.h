@@ -53,6 +53,9 @@ public:
     bool PendingCommand(wire::Command&) const noexcept;
     bool ReadState(Observation&) const noexcept;
     bool CombatTargetCurrent() const noexcept;
+    // Read-only continuation of the retained child: no UI selection requirement.
+    // Null AF8 is valid for a pending cast; a non-null foreign AF8 is not.
+    bool ContinueContext() noexcept;
     // Cleanup gates are separately supplied: revoked admission is not a reason
     // to abandon exact owned cleanup. These never clear the application journal.
     Operation StopContext(const fence::ContextBinding&, Admission, void*) noexcept;

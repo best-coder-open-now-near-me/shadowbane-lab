@@ -37,10 +37,16 @@ binaries totaled 5,386,564 bytes. Settings, jobs and diagnostic evidence remain;
 no rollback copies were retained. Twelve compact receipts and seven installed-file
 hashes were verified under private `artifacts/bot-deploy/20261001-b42/receipts`.
 
-Bot-integration owns `codex/native-buff-preparation-20261001`, published through native observer `f6db8dd` and saved-intent `adc7866` checkpoints in
-[draft PR #59](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/59).
-It now targets main and includes the PR #58 merge. The
-[buff preparation contract](buff-preparation-20261001.md) includes shared submission, pure policy, durable settings and native observer/item primitives. The next checkpoint adds reviewed actor/context wire authority, retained inventory and buff coverage facts, semantic selector manifests, the application journal and scoped cleanup settlement. The buff module is not installed or fully integrated. The merged
+Bot-integration owns `codex/native-buff-preparation-20261001`, published in
+[draft PR #59](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/59)
+against main. Checkpoints `c752abe` and `4d133df` deliver retained native inventory,
+effect resolution, actor/context wire authority, semantic selector manifests,
+application history, lifecycle controller and canonical publication. The integrated
+source adds the production runtime, shared host owner, automatic buff refresh,
+NPC/manual-player runner composition and required package/hosted gates. The
+[buff preparation contract](buff-preparation-20261001.md) records behavior and
+remaining qualification. No buff runtime has been installed; PR #59 is not merged.
+The merged
 `codex/native-owner-liveness-20261001` and
 `codex/native-readiness-deployment-20261001` branch tips were verified in
 `origin/main` and both branches were deleted locally and remotely. The clean runtime
@@ -49,11 +55,13 @@ buff branch. Do not switch an actively owned checkout. PR #50 remains closed
 as superseded; its branch is retained because its exact tip is not an ancestor
 of main.
 
-**Active next item:** canonical buff observation and shared actor-owner integration. The .62 run
-`npc-recovery-readiness-171aeadcf4c44bd19a38876e94c87ef4` independently proves the
-bounded recovery and native reuse fallback gate. It does not prove second-NPC
-death, server kill credit, skill consumption or snare application. Automatic
-retaliation remains disabled.
+**Active next item:** complete regression and exact-source package qualification
+for the integrated buff slice, then request approval for the concrete PR #59
+candidate before merge/install. Live buff acceptance follows installation. The
+.62 run `npc-recovery-readiness-171aeadcf4c44bd19a38876e94c87ef4` already proves the
+bounded combat recovery and reuse fallback gate; repeating it is not a prerequisite
+for source work. It does not prove buff application, second-NPC death, server kill
+credit or snare application. Automatic retaliation remains disabled.
 
 ## Previous .61/.41 live evidence
 
