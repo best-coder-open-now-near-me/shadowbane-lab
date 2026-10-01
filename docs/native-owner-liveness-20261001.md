@@ -33,26 +33,44 @@ It includes the full receipt tip `22c0baf` from
 [draft PR #57](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/57).
 Main remains `88af795`; the installed .61/.41 runtime is unchanged.
 
-Initial qualification passed 40 native controls/runtime tests, all eight actual
-Windows movement-session IPC tests, 263 package-gate tests and Ruff. Production
-DLL compilation passed. The new mandatory cross-process case exercises 297 ms
-updates with live producer heartbeats during active service and pending cleanup;
-missing/skipped/failed/duplicate execution is rejected by the package gate.
+Independent reviews passed. The production input regressions cover ordinary and
+delayed updates, physical keyboard and captured world drag, configured remapping,
+modifiers, opposing keys, camera-only input and neutral rearming. Native intent
+recognition can revoke pending automation without admitting camera or movement
+writes or requiring the basis/terrain queries that pending cleanup blocks.
 
-Independent review found and corrected a pending-cleanup takeover case. Pending
-automation still observes configured keyboard, controller/cancel and drag intent
-through the common input interpretation. Qualified player intent revokes the bot
-while preserving its original unresolved cleanup; it issues no camera or movement
-write and does not resume held input after cleanup. New regressions cover ordinary
-and delayed updates, remapping/modifiers, opposing keys and camera-only input.
-Production input sampling is covered as well: pending cleanup does not hide
-physical keys, and captured world drags retain focus/UI/capture/threshold guards.
-Revoking automation from input intent requires neither a camera basis nor a
-terrain pick; those remain prerequisites for actual native movement.
+Exact package source is `7f37ff53e181288ce1ae695f2e2699ecf2bb8ff2`, in private
+`artifacts/b42/d87717cd`. Later documentation commits do not change that stamp.
+The earlier `c85a17d` qualification was stopped after review added mandatory native
+owner-service and mouse gates; its partial logs remain, and it was not qualified.
 
-Independent source review is complete. Active: complete exact-source package
-qualification for both native profiles. The combined review is
-[draft PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58).
-Merge and installation require approval after qualification; earlier approval
-covered PR #56. Fresh identity/readiness and bounded live acceptance follow an
-approved installation. Automatic retaliation remains disabled.
+| Qualification | Result |
+| --- | --- |
+| Complete host suite | 4,397 passed, 788 subtests passed, 37 skipped; Ruff passed |
+| Each native profile | 205 passed; all 107 required native gates passed |
+| Each profile's real movement/combat IPC | 73 / 86 passed, no skips |
+| Power-readiness image probes | 22 cases on each original/prepared image in each profile |
+| Package verification | 64 steps and 90 indexed artifacts verified against Git archive, ZIP and wheel |
+| Private acceptance/deployment helpers | 90 / 12 offline tests passed; PowerShell/path checks passed |
+
+The three native private-image cases skip in the generic suite and pass through
+separate exact-image steps. Both previously deferred renderer transparency
+findings remain recorded per profile; they are not combat gate passes.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Package | `ee9d05db8475637512499918e10755d294815ff41e3153d27fe2bbb102086e4c` |
+| Receipt | `0bc6084f3913c30f39bdb4cb7c21ebc1a9abb5eebac5fc097e5f87877a02a6aa` |
+| Full DLL | `4a7fce6cd64cd3619fc937d30eee1291052e5f0f9f8054eee39c43f7b4d40dd2` |
+| Host wheel | `d17461b1c232a252e9cba95618263194bdb3875b17b7925606da2e763320ff22` |
+
+The combined [draft PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58)
+includes all of PR #57. Active: merge/install approval after hosted checks pass,
+then closed-client installation and fresh identity/readiness before bounded live
+acceptance. Earlier approval covered PR #56. The installed .61/.41 remains
+unchanged. Automatic retaliation remains disabled.
+
+Parallel automatic buff preparation is isolated on
+`codex/native-buff-preparation-20261001`, based on this source tip. Its native
+actor/effect/item authority is under qualification; no automatic buff action or
+new runtime deployment has been performed by that lane.

@@ -42,8 +42,8 @@ was delayed. Prior failures remain preserved.
 
 The completed `codex/native-power-readiness-20261001` and
 `codex/native-initiation-deployment-20261001` branches were retired locally and
-remotely after main-ancestry verification. Bot-integration owns
-`codex/native-readiness-deployment-20261001` for this receipt, published at
+remotely after main-ancestry verification. The completed receipt remains on
+`codex/native-readiness-deployment-20261001`, published at
 `22c0baf` through draft PR #57. Bot-runtime owns
 `codex/native-owner-liveness-20261001`
 from `88af795` for the unfinished correction: distinguish positively current,
@@ -55,8 +55,12 @@ its exact tip is not an ancestor of main.
 The combined [draft PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58)
 includes the full receipt tip `22c0baf` from PR #57.
 
-Active next item: qualify the [owner-liveness correction](native-owner-liveness-20261001.md),
-then repeat bounded acceptance with fresh identity/readiness. Native reuse fallback
+The [owner-liveness correction](native-owner-liveness-20261001.md) passed complete
+exact-source .62/.42 qualification at `7f37ff5`. Active next item: separate
+merge/install approval after hosted checks, then bounded acceptance with fresh
+identity/readiness. Bot-integration now owns `codex/native-buff-preparation-20261001`
+from `7f37ff5` for automatic buff preparation; the receipt branch remains published
+at `22c0baf` and included in PR #58. Buff runtime work is not yet qualified. Native reuse fallback
 is qualified offline but remains untested live. Automatic retaliation remains disabled.
 
 ## Previous .60/.40 deployment and live evidence

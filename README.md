@@ -29,7 +29,10 @@ receipt, included in [draft PR #58](https://github.com/best-coder-open-now-near-
 Bot-runtime owns `codex/native-owner-liveness-20261001` for the
 [candidate correction](docs/native-owner-liveness-20261001.md), separating current
 leased service work from stale movement across an
-update gap. Both target main; the correction is not yet qualified or installed.
+update gap. The .62/.42 candidate passed exact-source qualification at `7f37ff5`;
+PR #58 targets main, with merge/install approval and live acceptance pending.
+Automatic buff preparation is a separate lane on
+`codex/native-buff-preparation-20261001`; it has not changed the installed runtime.
 The completed readiness and initiation deployment branches were retired after
 main-ancestry checks.
 
