@@ -128,6 +128,8 @@ class NativeMovementSession:
         self._revoked: set[NativeMovementGrant] = set()
         self._stops: dict[NativeMovementGrant, str] = {}
         self._closed = False
+        from .cleanup_settlement import CleanupSettlement
+        self.cleanup = CleanupSettlement()
         self._session_lock = threading.RLock()
 
     def snapshot(self) -> Snapshot:
@@ -161,7 +163,7 @@ class NativeMovementSession:
         ):
             raise ValueError("snapshot belongs to another client")
 
-    def _submit(self, verb: Verb, payload: Command) -> Receipt:
+    def _submit(self, verb: Verb, payload: Command, *, timeout_ms: int | None = None) -> Receipt:
         transport = self._transport
         if transport is None or self._closed:
             raise channel.NativeActionChannelUnavailable("session is closed")
@@ -169,7 +171,7 @@ class NativeMovementSession:
         payload.encode(verb)
         result = transport.submit(
             channel.NativeMovementCommand(next(self._ids), verb, payload),
-            timeout_ms=self.timeout_ms,
+            timeout_ms=self.timeout_ms if timeout_ms is None else timeout_ms,
         )
         if not result.movement_payload or not any(result.movement_payload):
             raise NativeMovementError(Outcome.UNAVAILABLE)
@@ -218,6 +220,8 @@ class NativeMovementSession:
             raise NativeMovementError(Outcome.STALE)
 
     def _require_new_work_ready(self, grant: NativeMovementGrant) -> None:
+        if self.cleanup.blocked(grant):
+            raise NativeMovementError(Outcome.INHIBITED)
         snapshot = self.snapshot()
         self._expected(snapshot)
         if snapshot.grant != grant.ownership or not owner_maintenance_available(snapshot.flags):
@@ -231,7 +235,7 @@ class NativeMovementSession:
     ) -> Receipt:
         with self._session_lock:
             self._check_grant(grant)
-            if grant in self._stops:
+            if grant in self._stops or self.cleanup.blocked(grant):
                 raise NativeMovementError(Outcome.INHIBITED)
             self._require_new_work_ready(grant)
             try:
@@ -265,7 +269,8 @@ class NativeMovementSession:
             self._check_grant(grant)
             try:
                 receipt = self._submit(
-                    Verb.PAUSE, Command(grant.host, grant.window, grant.ownership, request_key)
+                    Verb.PAUSE, Command(grant.host, grant.window, grant.ownership, request_key),
+                    timeout_ms=self.cleanup.timeout_ms(grant, self.timeout_ms),
                 )
             except NativeMovementError as exc:
                 # A correlated failed cleanup can retain the same owner. It is
@@ -353,7 +358,7 @@ class NativeMovementSession:
         """Read-only admission for object actions; legacy services cannot qualify."""
         with self._session_lock:
             self._check_grant(grant)
-            if grant in self._stops:
+            if grant in self._stops or self.cleanup.blocked(grant):
                 raise NativeMovementError(Outcome.INHIBITED)
             transport = self._combat_transport(grant)
             if self_power and not transport.header.capability_flags & channel.SELF_POWER_CAPABILITY:
@@ -382,7 +387,7 @@ class NativeMovementSession:
             admission = verb in (CombatVerb.BIND_ENGAGEMENT, CombatVerb.SUBMIT)
             if admission:
                 self._check_grant(grant)
-                if grant in self._stops:
+                if grant in self._stops or self.cleanup.blocked(grant):
                     raise NativeMovementError(Outcome.INHIBITED)
                 self._require_new_work_ready(grant)
             # STATUS/CANCEL remain callable for the immutable old owner after native
@@ -392,7 +397,9 @@ class NativeMovementSession:
                     and not transport.header.capability_flags & channel.SELF_POWER_CAPABILITY):
                 raise channel.NativeActionChannelUnavailable("self-directed power is unavailable")
             result = transport.submit(
-                NativeCombatCommand(next(self._ids), verb, command), timeout_ms=self.timeout_ms,
+                NativeCombatCommand(next(self._ids), verb, command),
+                timeout_ms=(self.cleanup.timeout_ms(grant, self.timeout_ms)
+                            if verb is CombatVerb.STOP_ENGAGEMENT else self.timeout_ms),
             )
             if not result.movement_payload or not any(result.movement_payload):
                 raise channel.NativeActionChannelUnavailable("combat receipt is unavailable")

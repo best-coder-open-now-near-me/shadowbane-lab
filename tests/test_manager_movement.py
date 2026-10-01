@@ -3,6 +3,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 from shadowbane_lab.client_extension.action_channel import NativeActionChannelTimeout
+from shadowbane_lab.client_extension.cleanup_settlement import CleanupSettlement
 from shadowbane_lab.client_extension.movement_session import NativeMovementError
 from shadowbane_lab.client_extension.movement_wire import Outcome, Owner
 from shadowbane_lab.manager.movement import OperationMovement
@@ -11,6 +12,7 @@ from tests.test_native_movement_dispatcher import setup
 
 def context():
     session, dispatcher, decision = setup()
+    session.cleanup = CleanupSettlement()
     grant = dispatcher.grant
     session.acquire_calls = []
     session.stop_calls = []
@@ -320,3 +322,34 @@ def test_operation_context_uses_real_native_interprocess_movement():
         if process.poll() is None:
             process.kill()
             process.communicate()
+
+
+
+def test_parent_cancel_keeps_only_same_cleanup_owner_until_release():
+    movement, session, _ = context()
+    assert movement.acquire()
+    grant = movement.dispatcher.grant
+    owner = session.cleanup.register(grant)
+    movement.parent.set()
+    movement.maintain()
+    assert movement.is_set() and session.cleanup.blocked(grant)
+    assert session.renew_calls == [grant] and not session.stop_calls
+    session.cleanup.release(owner)
+    movement.maintain()
+    assert session.renew_calls == [grant]
+    assert movement.finish() is None
+    assert len(session.stop_calls) == 1
+
+
+def test_changed_native_owner_cannot_renew_after_parent_cancel():
+    movement, session, _ = context()
+    assert movement.acquire()
+    grant = movement.dispatcher.grant
+    owner = session.cleanup.register(grant)
+    movement.parent.set()
+    session.observed = replace(
+        session.observed, generation=grant.ownership.generation+1, owner=Owner.MANUAL)
+    movement.maintain()
+    assert not session.renew_calls and not session.cleanup.maintain(grant)
+    assert not owner.released
+    movement.finish()

@@ -7,6 +7,7 @@ from test_combat_wire_v2 import command as wire_command
 
 from shadowbane_lab.client_extension import combat_fence_windows as fences
 from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
+from shadowbane_lab.client_extension.cleanup_settlement import CleanupSettlement
 from shadowbane_lab.client_extension.combat_fence_v3 import Authority, Ordinals
 from shadowbane_lab.client_extension.combat_wire_v2 import (
     CLEANUP_REQUIRED,
@@ -46,6 +47,7 @@ def answer(c, verb, *, outcome=Outcome.CLIENT_OUTBOUND_QUEUED, phase=Phase.BOUND
 def setup(monkeypatch):
     c = wire_command(Authority.NPC)
     session = Mock()
+    session.cleanup = CleanupSettlement()
     session.combat_ordinals.return_value = Ordinals()
     grant = NativeMovementGrant(NativeClientProcessIdentity(c.binding.client_pid,
                                 c.binding.client_creation), c.window, c.grant, c.host, "owned")
@@ -197,3 +199,96 @@ def test_shared_session_old_engagement_can_allocate_stop_after_new_coordinator(s
     coordinator.stop("old-owner stop")
     assert session.combat.call_args.args[1] is Verb.STOP_ENGAGEMENT
     assert session.combat.call_args.args[2].binding.engagement == first
+
+
+def test_cleanup_waits_for_delayed_exact_closure_using_same_stop_identity(setup):
+    from shadowbane_lab.pve.model import PvECombatCleanupRequest
+    coordinator, session, tickets, observation, proposal = setup
+    clock = SimpleNamespace(now=0.0)
+    def sleep(seconds):
+        clock.now += seconds
+    session.cleanup = CleanupSettlement(clock=lambda: clock.now, sleeper=sleep)
+    coordinator.advance(proposal,observation)
+    commands=[]
+    def reply(grant,verb,command):
+        commands.append(command)
+        closed=len(commands)==4
+        return SimpleNamespace(receipt=answer(command,verb,
+            outcome=Outcome.ENGAGEMENT_CLOSED if closed else Outcome.PENDING,
+            phase=Phase.CLOSED if closed else Phase.STOPPING,
+            closure=ClosureProof.NATIVE_STOPPED if closed else ClosureProof.NONE,queued=False),
+            native_detail=None)
+    session.combat.side_effect=reply
+    request=PvECombatCleanupRequest(1,proposal.target_token,proposal.target_key,'terminal')
+    result=coordinator.cleanup(request)
+    assert result.confirmed and not coordinator.active
+    assert clock.now == pytest.approx(.3)
+    assert len(commands)==4 and all(value is commands[0] for value in commands)
+    tickets[0].close.assert_called_once()
+
+
+def test_cleanup_timeout_keeps_correlated_receipt_and_finish_cannot_reset_deadline(setup):
+    from shadowbane_lab.pve.model import PvECombatCleanupRequest
+    coordinator, session, tickets, observation, proposal = setup
+    clock=SimpleNamespace(now=0.0)
+    def sleep(seconds):
+        clock.now += seconds
+    session.cleanup=CleanupSettlement(clock=lambda:clock.now,sleeper=sleep)
+    coordinator.advance(proposal,observation)
+    session.combat.side_effect=lambda g,v,c: SimpleNamespace(receipt=answer(c,v,
+        outcome=Outcome.PENDING,phase=Phase.STOPPING,queued=False),native_detail='native_pending')
+    request=PvECombatCleanupRequest(1,proposal.target_token,proposal.target_key,'terminal')
+    result=coordinator.cleanup(request)
+    assert not result.confirmed and coordinator.active and clock.now == 3
+    count=session.combat.call_count
+    assert not coordinator.finish('scope_exit')[0]
+    assert session.combat.call_count == count
+    assert coordinator._last_receipt.phase is Phase.STOPPING
+    tickets[0].close.assert_not_called()
+
+
+@pytest.mark.parametrize("remaining,close_fails", [(0.05, False), (0.0, False), (0.05, True)])
+def test_final_ticket_closure_uses_remaining_budget_and_retains_failed_owner(
+    setup, remaining, close_fails,
+):
+    coordinator, session, tickets, observation, proposal = setup
+    clock = SimpleNamespace(now=0.0)
+    session.cleanup = CleanupSettlement(clock=lambda: clock.now)
+    coordinator.advance(proposal, observation)
+    obligation = coordinator._cleanup_obligation
+    ticket = tickets[0]
+    if close_fails:
+        ticket.close.side_effect = TimeoutError("fence mutex unavailable")
+
+    def reply(grant, verb, command):
+        # The final native STOP response consumes nearly/all of the original budget.
+        clock.now = 3.0 - remaining
+        return SimpleNamespace(
+            receipt=answer(command, verb, outcome=Outcome.ENGAGEMENT_CLOSED,
+                           phase=Phase.CLOSED, closure=ClosureProof.NATIVE_STOPPED,
+                           queued=False),
+            native_detail=None,
+        )
+
+    session.combat.side_effect = reply
+    confirmed, receipt, detail = coordinator.stop("terminal")
+    assert receipt.cleanup_confirmed  # Native evidence remains independently truthful.
+    assert obligation.deadline == 3.0
+    if remaining:
+        ticket.close.assert_called_once()
+        assert 49 <= ticket.close.call_args.kwargs["timeout_ms"] <= 50
+    else:
+        ticket.close.assert_not_called()
+    if remaining and not close_fails:
+        assert confirmed and detail is None and not coordinator.active
+        assert obligation.released and coordinator._cleanup_obligation is None
+    else:
+        assert not confirmed and "TimeoutError" in detail
+        assert coordinator.active and coordinator._ticket is ticket
+        assert coordinator._cleanup_obligation is obligation and not obligation.released
+        # A later scope exit cannot reset the deadline or discard the retained handles.
+        clock.now = 3.0
+        before = session.combat.call_count
+        assert not coordinator.finish("scope exit")[0]
+        assert session.combat.call_count == before
+        assert coordinator._ticket is ticket and not obligation.released

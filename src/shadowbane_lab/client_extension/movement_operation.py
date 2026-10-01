@@ -15,8 +15,12 @@ from .action_channel import (
     NativeClientProcessIdentity,
 )
 from .movement_dispatcher import NativeMovementTravelDispatcher
-from .movement_session import NativeMovementError, NativeMovementSession
-from .movement_wire import Outcome
+from .movement_session import (
+    NativeMovementCleanupPending,
+    NativeMovementError,
+    NativeMovementSession,
+)
+from .movement_wire import CLEANUP_PENDING, Outcome
 
 
 class NativeMovementOperation:
@@ -40,6 +44,8 @@ class NativeMovementOperation:
         self._stopped = False
         self._cleanup_error = None
         self._operation = str(uuid.uuid4())
+        self._cleanup_pause_done = False
+        self._cleanup_pause_key = str(uuid.uuid5(uuid.UUID(self._operation), "cleanup-pause"))
         self._stop_key = str(uuid.uuid5(uuid.UUID(self._operation), "terminal-stop"))
 
     @property
@@ -119,6 +125,8 @@ class NativeMovementOperation:
             return True
         try:
             if self.parent.is_set():
+                if self._native is not None:
+                    self._session.cleanup.request_terminal(self._native.grant)
                 self._interrupt("parent_operation_cancelled")
             else:
                 self._check_window()
@@ -131,14 +139,49 @@ class NativeMovementOperation:
     def _maintain(self):
         while not self._wake.wait(0.25):
             if self.is_set():
-                self._terminal_stop()
-                return
+                if not self._maintain_cleanup():
+                    self._terminal_stop()
+                    return
+                continue
             try:
                 self._session.renew(self._native.grant)
             except (RuntimeError, ValueError, OSError) as exc:
                 self._interrupt(f"native_movement_renew:{type(exc).__name__}")
                 self._terminal_stop()
                 return
+
+    def _maintain_cleanup(self):
+        grant = self._native.grant
+        if (self._reason not in ("parent_operation_cancelled", "operation_closed")
+                or not self._session.cleanup.maintain(grant)):
+            return False
+        try:
+            # Parent cancellation stops work; it never disables real safety checks.
+            self._check_window()
+            if self._native.is_set():
+                raise NativeActionChannelError("cleanup owner is no longer current")
+            if not self._cleanup_pause_done:
+                snapshot = self._session.snapshot()
+                if not snapshot.flags & CLEANUP_PENDING:
+                    try:
+                        self._session.pause(grant, self._cleanup_pause_key)
+                    except NativeMovementCleanupPending:
+                        pass
+                    except NativeActionChannelTimeout:
+                        # Retry only this PAUSE; still renew the exact owner below.
+                        if not self._session.cleanup.maintain(grant):
+                            return False
+                        self._session.renew(grant)
+                        return True
+                self._cleanup_pause_done = True
+            if not self._session.cleanup.maintain(grant):
+                return False
+            self._session.renew(grant)
+            return True
+        except (RuntimeError, ValueError, OSError) as exc:
+            self._cleanup_error = exc
+            self._session.cleanup.abort(grant)
+            return False
 
     def _terminal_stop(self):
         with self._stop_lock:
@@ -178,6 +221,10 @@ class NativeMovementOperation:
 
     def close(self):
         self._interrupt("operation_closed")
+        if self._native is not None:
+            self._session.cleanup.request_terminal(self._native.grant)
+            if self._thread is not None and self._thread.is_alive():
+                self._session.cleanup.wait_for_terminal(self._native.grant)
         self._wake.set()
         if self._thread is not None:
             self._thread.join()  # Native session calls have bounded timeouts.

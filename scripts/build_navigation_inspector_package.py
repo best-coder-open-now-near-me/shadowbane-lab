@@ -139,6 +139,7 @@ def validate_native_results(path: Path, required: set[str], *, diagnostic: bool,
     return failures
 
 REQUIRED_MOVEMENT_IPC_TESTS = frozenset({
+    "test_real_parent_cancel_preserves_pending_native_owner_until_cleanup_ack",
     "test_real_cleanup_pending_preserves_owner_until_native_ack",
     "test_native_input_publisher_reader_interoperability",
     "test_native_lifetime_publisher_reader_interoperability",
