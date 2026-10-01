@@ -51,7 +51,7 @@ Root owns Git, release and live actions; no other lane should switch these activ
 checkouts. PR #50 remains closed as superseded; its branch is retained because
 its exact tip is not an ancestor of main.
 
-Active next item: implement and qualify that narrow owner-liveness correction,
+Active next item: finish the [owner-liveness correction](native-owner-liveness-20261001.md) and its independent review,
 then repeat bounded acceptance with fresh identity/readiness. Native reuse fallback
 is qualified offline but remains untested live. Automatic retaliation remains disabled.
 
