@@ -10,6 +10,20 @@ stop; an earlier operation emergency stop prevented later SEEKING recovery.
 Full recovery and NPC/cast acceptance remain open. Host and native ship together;
 legacy verbs 34-36 are rejected and there is no keyboard/hotbar fallback.
 
+## Same-owner cleanup status
+
+The 0.3.57 / 1.8.37 candidate distinguishes movement request readiness from
+owner lifetime during native cancellation. Movement status `CLEANUP_PENDING`
+(`0x40`) describes only cleanup still owned by the exact current automation
+Grant, under valid native bindings, scene and input/safety conditions. READY
+stays clear. The host may retain that owner, renew its lease and poll or finish
+cleanup; it must not acquire a replacement or submit new movement/combat work.
+When native cleanup completes, the same owner can return to READY and ordinary
+PvE seeking. Pending cleanup does not count as completed cleanup or server proof.
+Changed Grant/scene, terminal/fault or focus/UI invalidation remain permanent
+stops. Missing READY without this explicit valid pending state is still rejected.
+The host and native changes must be qualified and installed together.
+
 ## Ownership and identities
 
 One existing producer lease and exact movement Grant own one active engagement

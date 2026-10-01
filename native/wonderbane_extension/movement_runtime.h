@@ -13,6 +13,7 @@ struct RuntimeSnapshot {
     std::uint64_t settings_revision = 0;
     bool bindings_available = false;
     bool ready = false;
+    bool cleanup_pending = false;
     bool camera_available = false;
     bool terminal = false;
     bool controller_api_available = false;

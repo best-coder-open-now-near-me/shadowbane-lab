@@ -20,6 +20,25 @@ from .controller_profile import (
 )
 
 SCHEMA = 3
+BINDINGS, READY, TERMINAL, CLEANUP_PENDING = 1, 2, 8, 64
+KNOWN_STATUS_FLAGS = 127
+
+
+def owner_maintenance_available(flags: int) -> bool:
+    """Decoded status permits maintaining an existing owner, never new work."""
+    return (not flags & ~KNOWN_STATUS_FLAGS and bool(flags & BINDINGS)
+            and not flags & TERMINAL and bool(flags & (READY | CLEANUP_PENDING)))
+
+
+def _validate_status_flags(flags: int, grant: Grant) -> None:
+    if flags & ~KNOWN_STATUS_FLAGS:
+        raise ValueError("unknown status flags")
+    if flags & CLEANUP_PENDING and (
+        not flags & BINDINGS or flags & (READY | TERMINAL)
+        or grant.owner is not Owner.AUTOMATION or not grant.scene
+    ):
+        raise ValueError("cleanup pending requires a bound, non-ready automation owner")
+
 COMMAND_SIZE, RESULT_SIZE, STATUS_SIZE = 768, 512, 512
 COMMAND_PREFIX, RESULT_PREFIX = 192, 128
 _HOST = struct.Struct("<IIQ")
@@ -298,8 +317,7 @@ class Receipt:
     flags: int
 
     def encode(self) -> bytes:
-        if self.flags & ~63:
-            raise ValueError("unknown status flags")
+        _validate_status_flags(self.flags, self.grant)
         return _RECEIPT.pack(
             self.grant.encode(),
             request_bytes(self.request_key),
@@ -346,7 +364,8 @@ class Snapshot:
     tick: int
 
     def encode(self) -> bytes:
-        if self.sequence & 1 or self.flags & ~63:
+        _validate_status_flags(self.flags, self.grant)
+        if self.sequence & 1:
             raise ValueError("snapshot is unpublished/in progress or has unknown flags")
         return _STATUS.pack(
             _uint(self.sequence, 63, "snapshot sequence", 2),

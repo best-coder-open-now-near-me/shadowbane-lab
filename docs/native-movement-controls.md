@@ -148,3 +148,15 @@ Collect failures with expected/observed behavior and package identity in the sha
 record. Developer native tests already cover delayed processing and 20/30/60/144/240
 Hz camera integration; during acceptance compare available frame-rate conditions
 without changing the accepted source or introducing alternate movement writers.
+
+## Automation cleanup readiness
+
+Candidate host 0.3.57 / native 1.8.37 adds explicit same-owner cleanup-pending
+status for deferred native cancellation. A temporary pending stop blocks new
+movement/combat requests but does not by itself revoke the unchanged operation
+Grant or its heartbeat. The native owner must still satisfy bindings, scene and
+input/safety checks. True takeover, focus/UI invalidation, scene loss and terminal
+failure remain stops; there is no reacquisition or automatic restart after them.
+See the [combat contract](native-combat-v2-contract.md) and the
+[live update receipt](client-update-20260930-late.md) for validation and deployment
+status. Current installed host 0.3.56 / native 1.8.36 does not yet contain this fix.

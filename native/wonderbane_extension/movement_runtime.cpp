@@ -202,13 +202,18 @@ public:
         }
         return std::nullopt;
     }
+    bool BindingsAvailable() const noexcept {
+        return !terminal && !destroyed && initialized && native.Available() && ui.Available()
+            && input.Available() && NativeMovementLifetimeCurrent(scene);
+    }
     wire::Receipt Receipt(const QueuedCommand& command, Result result) const noexcept {
         wire::Receipt value{}; value.grant = wire::Encode(controls.Current());
         value.request = command.command.request; value.host = command.command.host;
         value.window = reinterpret_cast<std::uintptr_t>(window); value.revision = revision;
         value.settings = wire::Encode(settings); value.outcome = static_cast<std::uint32_t>(result);
         value.flags = (native.Available() ? wire::bindings : 0) | (controls.Ready() ? wire::ready : 0)
-            | (controls.CameraReady() ? wire::camera : 0) | (terminal || destroyed ? wire::terminal : 0);
+            | (controls.CameraReady() ? wire::camera : 0) | (terminal || destroyed ? wire::terminal : 0)
+            | (BindingsAvailable() && controls.CleanupPending() ? wire::cleanup_pending : 0);
         return value;
     }
     void Commands(bool phase) noexcept {
@@ -283,9 +288,9 @@ public:
     void Publish() noexcept {
         RuntimeSnapshot next{}; next.process = process; next.window = window; next.settings = settings;
         next.grant = controls.Current(); next.settings_revision = revision; next.terminal = terminal || destroyed;
-        next.bindings_available = !next.terminal && initialized && native.Available() && ui.Available()
-            && input.Available() && NativeMovementLifetimeCurrent(scene);
+        next.bindings_available = BindingsAvailable();
         next.ready = next.bindings_available && controls.Ready();
+        next.cleanup_pending = next.bindings_available && controls.CleanupPending();
         next.camera_available = next.bindings_available && controls.CameraReady();
         next.controller_api_available = input.ControllerApiAvailable(); next.controller_connected = input.ControllerConnected();
         AcquireSRWLockExclusive(&publication_lock); published = next; ReleaseSRWLockExclusive(&publication_lock);
@@ -295,7 +300,8 @@ public:
         status.flags = (next.bindings_available ? wire::bindings : 0) | (next.ready ? wire::ready : 0)
             | (next.camera_available ? wire::camera : 0) | (next.terminal ? wire::terminal : 0)
             | (next.controller_api_available ? wire::controller_api : 0)
-            | (next.controller_connected ? wire::controller_connected : 0);
+            | (next.controller_connected ? wire::controller_connected : 0)
+            | (next.cleanup_pending ? wire::cleanup_pending : 0);
         PublishMovementCommandStatus(status);
     }
     void FinishDestroyed() noexcept {

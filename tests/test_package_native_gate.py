@@ -71,9 +71,12 @@ def test_required_runtime_failures_cannot_be_waived(tmp_path, name, diagnostic):
         builder.validate_native_results(path, required, diagnostic=diagnostic, exit_code=8)
 
 
+@pytest.mark.parametrize("profile_name", [
+    "test_profile_configuration_crosses_real_native_channel_atomically",
+    "test_real_cleanup_pending_preserves_owner_until_native_ack",
+])
 @pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "error", "duplicate"])
-def test_profile_ipc_must_execute_once_and_pass(tmp_path, outcome):
-    profile_name = "test_profile_configuration_crosses_real_native_channel_atomically"
+def test_profile_ipc_must_execute_once_and_pass(tmp_path, outcome, profile_name):
     assert profile_name in builder.REQUIRED_MOVEMENT_IPC_TESTS
     suite = ET.Element("testsuite")
     for name in builder.REQUIRED_MOVEMENT_IPC_TESTS:

@@ -285,12 +285,13 @@ void Controls::Tick(const Input& input) noexcept {
     }
     foreground_ = true;
     if (!ContinueInput()) { return; }
+    if (discontinuity && grant_.owner == Owner::automation) {
+        // Pending cleanup must not hide an actual owner-update stall. Preserve
+        // its old stop obligation, but revoke continuation under the same policy.
+        Inhibit(StopReason::stalled); return;
+    }
     if (!RetryStop()) { return; }
     if (discontinuity) {
-        if (grant_.owner == Owner::automation) {
-            // Delayed automation retains no authority to resume an old route.
-            Inhibit(StopReason::stalled); return;
-        }
         // A delayed owning update is not a focus/UI/lifetime transition. Retire
         // its stale manual destination, then use this fresh admitted sample.
         // Keep existing arm state (including any prior safety disarm), never

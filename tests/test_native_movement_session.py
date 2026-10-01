@@ -358,3 +358,79 @@ def test_profile_configuration_crosses_real_native_channel_atomically():
         if process.poll() is None:
             process.kill()
             process.communicate()
+
+
+def test_real_cleanup_pending_preserves_owner_until_native_ack():
+    import time
+
+    from shadowbane_lab.client_extension.movement_dispatcher import NativeMovementTravelDispatcher
+    from shadowbane_lab.client_extension.movement_session import NativeMovementCleanupPending
+    from shadowbane_lab.client_extension.movement_wire import CLEANUP_PENDING, READY
+
+    configured = os.environ.get("WONDERBANE_MOVEMENT_RUNTIME_TEST")
+    if not configured:
+        pytest.skip("set WONDERBANE_MOVEMENT_RUNTIME_TEST to the built native runtime fixture")
+    binary = Path(configured)
+    assert binary.is_file(), "required native IPC fixture is missing"
+    process = subprocess.Popen(
+        [str(binary), "ipc-cleanup"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    session = None
+    try:
+        assert process.stdout is not None and process.stdin is not None
+        pid, creation, window = map(int, process.stdout.readline().split())
+        session = NativeMovementSession(
+            channel.NativeClientProcessIdentity(pid, creation), window, timeout_ms=1500
+        )
+        grant = session.acquire(session.snapshot(), "cleanup-test", "retained", str(uuid.uuid4()))
+        dispatcher = NativeMovementTravelDispatcher(session, grant)
+        deadline = time.monotonic() + 2
+        while not session.snapshot().flags & CLEANUP_PENDING:
+            assert time.monotonic() < deadline, "native cleanup did not become pending"
+            time.sleep(0.01)
+        # Remain pending across a full lease interval. The owner callback cannot
+        # acknowledge cleanup until the explicit release handshake below.
+        deadline = time.monotonic() + 1.2
+        renewals = 0
+        while time.monotonic() < deadline:
+            snapshot = session.snapshot()
+            assert snapshot.grant == grant.ownership
+            assert snapshot.flags & CLEANUP_PENDING and not snapshot.flags & READY
+            assert not dispatcher.is_set() and dispatcher.interruption_reason is None
+            session.renew(grant)
+            renewals += 1
+            time.sleep(0.05)
+        assert renewals > 1
+        with pytest.raises(NativeMovementCleanupPending):
+            session.move(grant, (30.0, 0.0, -40.0), str(uuid.uuid4()))
+        assert not dispatcher.is_set()
+        process.stdin.write("release\n")
+        process.stdin.flush()
+        deadline = time.monotonic() + 2
+        while True:
+            snapshot = session.snapshot()
+            assert snapshot.grant == grant.ownership
+            if snapshot.flags & READY:
+                break
+            assert snapshot.flags & CLEANUP_PENDING
+            assert time.monotonic() < deadline, "native cleanup acknowledgement did not arrive"
+            session.renew(grant)
+            time.sleep(0.01)
+        assert not snapshot.flags & CLEANUP_PENDING
+        assert not dispatcher.is_set() and dispatcher.interruption_reason is None
+        session.renew(grant)
+        session.stop(grant, str(uuid.uuid4()))
+        session.close()
+        output, error = process.communicate(timeout=5)
+        assert process.returncode == 0, output + error
+    finally:
+        if session is not None:
+            session.close()
+        if process.poll() is None:
+            process.kill()
+            process.communicate()

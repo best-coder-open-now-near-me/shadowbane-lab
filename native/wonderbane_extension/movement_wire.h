@@ -50,7 +50,9 @@ static_assert(offsetof(Command, requested) == 380 && offsetof(Receipt, host) == 
 static_assert(offsetof(Status, grant) == 32 && offsetof(Status, revision) == 352);
 // Status flags describe observations only; none confers a command lease.
 constexpr std::uint32_t bindings = 1, ready = 2, camera = 4, terminal = 8,
-    controller_api = 16, controller_connected = 32, known_flags = 63;
+    controller_api = 16, controller_connected = 32, cleanup_pending = 64, known_flags = 127;
+// cleanup_pending requires bindings, an unchanged automation Grant and no
+// ready/terminal claim. It permits owner renewal/status/cleanup, never new input.
 inline bool Zero(const void* bytes, std::size_t count) noexcept {
     const auto* p = static_cast<const unsigned char*>(bytes);
     return std::all_of(p, p + count, [](unsigned char c) { return c == 0; });

@@ -141,5 +141,31 @@ entry was removed and the final list was empty. Terminal cleanup confirmed
 the runner reported `emergency_stop` at 907 ms before cleanup and never reached a
 strictly later SEEKING frame; the 12-second watchdog did not fire. This is a
 partial result, not completed attack/cancel/recovery acceptance or proof of a
-server-accepted hit. Next: capture the operation's first interruption reason,
-resolve that cause, and repeat bounded recovery acceptance before NPC/cast work.
+server-accepted hit. The second attempt below captures the interruption cause; bounded recovery and
+NPC/cast acceptance remain open.
+
+## Recovery contract correction in progress
+
+The diagnostic repeat (`e3d20050df4d458a9d2ffd6bbc746b2d`) again queued the
+manual attack and confirmed terminal native cleanup with an empty final list.
+Before cleanup, it recorded `native_movement_unavailable`, no explicit/hotkey
+stop, status flags `21`, and the exact original movement Grant still present.
+In the installed implementation the camera bit proves `available_` was true,
+while absence of READY proves `pending_stop_` was true. Native list revocation
+had begun cancellation without retiring that owner; the host incorrectly treated
+this temporary cleanup state as lifetime loss, including in lease renewal.
+
+Candidate host **0.3.57** / native **1.8.37** makes cleanup-pending an explicit
+status under the same exact automation owner. It must permit status, heartbeat
+and cleanup completion while continuing to block new movement/combat actions.
+Actual owner/scene changes, terminal status, focus/UI invalidation and other
+safety failures still terminate the operation. No startup wait, input fallback
+or arbitrary latency relaxation is introduced. Independent review and focused validation passed: 146 host tests and 15
+subtests without skips, 40 native tests, 185 package-gate tests and Ruff. The real
+host/native process regression holds the unchanged owner through 1.2 seconds of
+unacknowledged cleanup, blocks MOVE and restores READY after the native callback
+acknowledges completion. That test is mandatory in exact-source packaging.
+Both-profile package qualification is next on `codex/client-deployment-20261001`;
+the installed package remains
+0.3.56 / 1.8.36. Next: qualify the complete fix, publish it for review/approval,
+then repeat bounded recovery acceptance before NPC/cast work.

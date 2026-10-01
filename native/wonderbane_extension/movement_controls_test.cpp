@@ -540,6 +540,40 @@ void OwnerServiceStopResponsibility() {
       Check(f.actuator.Count('s') == before + 1 && f.controls.Current().owner == Owner::none,
           "stalled owner update cleans service work with no movement"); }
 }
+void RetainedCleanupStatus() {
+    for (unsigned failure = 0; failure != 7; ++failure) {
+        Fixture f; const auto grant = f.Automate();
+        f.actuator.stop_ok = false;
+        Check(f.controls.PauseAutomation(grant) == Result::stop_failed
+            && f.controls.Current() == grant && f.controls.CleanupPending()
+            && !f.controls.Ready() && f.controls.CameraReady(),
+            "deferred native cleanup is distinct from revoked automation");
+        const auto destinations = f.actuator.Count('p');
+        Check(f.controls.AutomationDestination(grant, {1, 0, 2}) == Result::stop_failed
+            && f.controls.BeginAutomationNativeAction(grant) == Result::stop_failed
+            && f.actuator.Count('p') == destinations,
+            "pending cleanup excludes both new movement and combat");
+        if (failure == 0) {
+            f.Step();
+            Check(f.controls.CleanupPending() && f.controls.Current() == grant,
+                "cleanup continuation retains immutable owner over later ticks");
+            f.actuator.stop_ok = true; f.Step();
+            Check(!f.controls.CleanupPending() && f.controls.Ready() && f.controls.Current() == grant,
+                "confirmed cleanup restores readiness without reacquiring owner");
+            Check(f.controls.AutomationDestination(grant, {1, 0, 2}) == Result::accepted,
+                "same owner can recover only after cleanup completes");
+        } else {
+            if (failure == 1) { f.input.exact_foreground = false; }
+            if (failure == 2) { f.input.text_owns_input = true; }
+            if (failure == 3) { f.input.native_available = false; }
+            if (failure == 4) { ++f.input.scene; }
+            if (failure == 5) { f.controls.Shutdown(); }
+            f.Step(failure == 6 ? 251 : 16);
+            Check(!f.controls.CleanupPending(),
+                "focus text binding scene shutdown or stalled owner cannot borrow cleanup continuation");
+        }
+    }
+}
 void FrameRatesAndSettings() {
     for (const int hz : {20, 30, 60, 144, 240}) {
         Fixture f; f.input.right_stick = {1, 0};
@@ -563,6 +597,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
+    RetainedCleanupStatus(); ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

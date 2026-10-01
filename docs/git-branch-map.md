@@ -15,9 +15,10 @@ The normal checkout is clean on that main merge. The merged late-update and
 PR #47 documentation branches were retired after verifying ancestry.
 
 The bot-runtime worktree now uses `codex/client-deployment-20261001` for the
-installation receipt and continuing live acceptance. Its documentation changes
-remain outside main; integration destination is main through the next review.
-Runtime source is already merged. See the [late client update receipt](client-update-20260930-late.md).
+installation receipt and the recovery correction found during live acceptance.
+Candidate host 0.3.57 / native 1.8.37 and its receipt updates remain outside main;
+integration destination is main through the next review. Installed .56/.36 source
+is already merged. See the [late client update receipt](client-update-20260930-late.md).
 
 Both installed client copies have official **1.3.38.13** data. Vendor Test uses
 host **0.3.56** / native **1.8.36**, exact source
@@ -35,8 +36,10 @@ are not combat authority. In the first ready live attempt, the client queued a
 native attack against Day while Umbra remained selected. Test list removal and exact native
 stop were confirmed, but an emergency stop preceded cleanup and prevented the
 required later PvE SEEKING frame. The list is empty; full recovery acceptance is
-not yet passed. Next active item: capture the first operation interruption cause
-and resolve it, then complete bounded recovery and NPC/cast acceptance. Automatic
+not yet passed. A diagnostic repeat identified native cleanup pending under the
+same exact owner; the host treated absent movement readiness as permanent owner
+loss. Next active item: qualify the explicit cleanup-pending contract correction,
+then complete bounded recovery and NPC/cast acceptance. Automatic
 retaliation remains disabled pending the authoritative server-character-session
 fence. Other worktrees remain available; unrelated renderer/town branches and
 cancelled carpenter drafts were not silently integrated or deleted.
