@@ -1006,7 +1006,7 @@ class _ExactWorkerEngineExecutor:
             recovery_timeout_seconds=self._pve_recovery_timeout_seconds,
             wait_for_client_seconds=0,
             poll_ms=self._pve_poll_ms,
-            policy="proc-assassin",
+            policy=None,  # Resolve saved policy for this exact current character.
             live=True,
             as_json=True,
             evidence_output_path=evidence_output,

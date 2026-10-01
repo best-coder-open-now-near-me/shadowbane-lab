@@ -971,11 +971,19 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument(
         "--policy",
         choices=("basic", "proc-assassin"),
-        default="basic",
+        default=None,
         help=(
             "control policy; proc-assassin accepts auto-targets and uses "
             "Shadow Touch to interrupt a native queued attack"
         ),
+    )
+    opener = run_pve.add_mutually_exclusive_group()
+    opener.add_argument(
+        "--opening-skill", help="native learned skill name or ID to use before each encounter",
+    )
+    opener.add_argument(
+        "--no-opening-skill", action="store_true",
+        help="disable the saved opening skill for this run",
     )
     run_pve.add_argument(
         "--live",
@@ -983,6 +991,16 @@ def _parser() -> argparse.ArgumentParser:
         help="required in addition to a profile with live_input_enabled=true",
     )
     run_pve.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    pve_settings = client_commands.add_parser(
+        "pve-settings", help="view or configure this character's native PvE skills",
+    )
+    pve_settings.add_argument("--process-id", type=int, required=True)
+    pve_settings.add_argument("--policy", choices=("basic", "proc-assassin"))
+    settings_opener = pve_settings.add_mutually_exclusive_group()
+    settings_opener.add_argument("--opening-skill", help="exact learned native name or ID")
+    settings_opener.add_argument("--clear-opening-skill", action="store_true")
+    pve_settings.add_argument("--json", action="store_true")
 
     calibrate_pve = client_commands.add_parser(
         "calibrate-pve",

@@ -684,7 +684,7 @@ def _listen_for_go_commands(
                             recovery_timeout_seconds=pve_recovery_timeout_seconds,
                             wait_for_client_seconds=0,
                             poll_ms=pve_poll_ms,
-                            policy="proc-assassin",
+                            policy=None,  # Resolve saved policy for this exact current character.
                             live=live,
                             as_json=as_json,
                             evidence_output_path=evidence_output,

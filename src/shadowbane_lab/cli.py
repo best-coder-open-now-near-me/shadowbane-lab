@@ -771,6 +771,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.output,
             as_json=arguments.json,
         )
+    if arguments.command == "client" and arguments.client_command == "pve-settings":
+        from shadowbane_lab.cli_commands.client_pve_settings import _configure_pve_settings
+
+        return _configure_pve_settings(
+            process_id=arguments.process_id, policy=arguments.policy,
+            opening_skill=arguments.opening_skill,
+            clear_opening_skill=arguments.clear_opening_skill, as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "run-pve":
         return _run_pve(
             client_profile_path=arguments.client_profile,
@@ -798,6 +806,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             wait_for_client_seconds=arguments.wait_for_client_seconds,
             poll_ms=arguments.poll_ms,
             policy=arguments.policy,
+            opening_skill=arguments.opening_skill,
+            suppress_opening_skill=arguments.no_opening_skill,
             live=arguments.live,
             as_json=arguments.json,
             evidence_output_path=arguments.evidence_output,

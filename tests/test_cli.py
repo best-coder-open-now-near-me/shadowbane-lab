@@ -610,7 +610,7 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual(0, result)
         self.assertEqual(4320, captured["client_process_id"])
         self.assertEqual(3, captured["max_kills"])
-        self.assertEqual("proc-assassin", captured["policy"])
+        self.assertIsNone(captured["policy"])
         self.assertEqual("state", captured["combat_source"])
         self.assertTrue(captured["continuous"])
         self.assertEqual(140.0, captured["camp_radius"])
@@ -1333,12 +1333,43 @@ class ClientCliTests(unittest.TestCase):
                     policy="basic", check_preparation=True, preparation_failure=failure,
                 )
 
+    def test_pve_resolves_saved_native_opener_before_acquiring_authority(self):
+        self._assert_pve_process_binding(policy=None, saved_opening="Shot to the Leg")
+
+    def test_pve_explicit_opener_overrides_saved_choice(self):
+        self._assert_pve_process_binding(
+            policy="basic", opening_skill="563795161", saved_opening="other",
+        )
+
+    def test_pve_can_suppress_saved_opener(self):
+        self._assert_pve_process_binding(
+            policy=None, saved_opening="Shot to the Leg", suppress_opening_skill=True,
+        )
+
+    def test_pve_unknown_skill_fails_before_authority(self):
+        self._assert_pve_process_binding(policy=None, opening_skill="missing", skill_failure=True)
+
+    def test_pve_cli_forwards_native_opener(self):
+        with patch("shadowbane_lab.cli._run_pve", return_value=0) as run:
+            self.assertEqual(0, main(("client", "run-pve", "--client-profile", "pve.json",
+                                      "--opening-skill", "Shot to the Leg", "--live")))
+        self.assertEqual("Shot to the Leg", run.call_args.kwargs["opening_skill"])
+        self.assertIsNone(run.call_args.kwargs["policy"])
+
     def _assert_pve_process_binding(
-        self, *, policy: str, native_movement: bool = False,
+        self, *, policy: str | None, native_movement: bool = False,
+        opening_skill: str | None = None, suppress_opening_skill: bool = False,
+        saved_opening: str | None = None, skill_failure: bool = False,
         captured_creation: int | None = None,
         check_preparation: bool = False, preparation_failure: str | None = None,
     ) -> None:
         import struct
+
+        from shadowbane_lab.client_observation.native_ability import NativeAbilityDefinition
+        from shadowbane_lab.pve.model import PvEAbilityRecipient
+        from shadowbane_lab.pve.settings import PvESettings
+
+        skill = NativeAbilityDefinition(563795161, "Shot to the Leg", "BOW-007N", 2, 0, 0, 40)
 
         from shadowbane_lab.client_observation.native_character_config import (
             REVIEWED_CHARACTER_CONFIG_LAYOUTS,
@@ -1484,8 +1515,21 @@ class ClientCliTests(unittest.TestCase):
                 finally:
                     preparation_events.append("observer_closed")
 
+            @contextmanager
+            def prepare_skill_config():
+                with (
+                    patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+                    patch("shadowbane_lab.cli_commands.client_pve.load_pve_settings",
+                          return_value=PvESettings(opening_skill=saved_opening)),
+                    patch("shadowbane_lab.cli_commands.client_pve.resolve_learned_ability",
+                          return_value=skill,
+                          side_effect=(RuntimeError("skill unavailable")
+                                       if skill_failure else None)) as resolver,
+                ):
+                    yield resolver
+
             with (
-                patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+                prepare_skill_config() as resolve_skill,
                 patch(
                     "shadowbane_lab.cli.WindowsForegroundWindowInspector",
                     return_value=inspector,
@@ -1599,6 +1643,7 @@ class ClientCliTests(unittest.TestCase):
                     wait_for_client_seconds=0,
                     poll_ms=100,
                     policy=policy,
+                    opening_skill=opening_skill, suppress_opening_skill=suppress_opening_skill,
                     live=True,
                     as_json=True,
                     evidence_output_path=evidence_output,
@@ -1607,6 +1652,14 @@ class ClientCliTests(unittest.TestCase):
                     movement_dispatcher=movement_dispatcher,
                     continuous=check_preparation,
                 )
+                if skill_failure:
+                    self.assertEqual(2, result, output.getvalue())
+                    self.assertIn("skill unavailable", output.getvalue())
+                    open_health.assert_not_called()
+                    native_operation.assert_not_called()
+                    pve_runner.assert_not_called()
+                    self.assertTrue(character_memory.closed)
+                    return
                 if captured_creation is not None:
                     self.assertEqual(2, result, output.getvalue())
                     self.assertIn("client lifetime changed", output.getvalue())
@@ -1660,6 +1713,21 @@ class ClientCliTests(unittest.TestCase):
                 gui_backend.assert_not_called()
                 owner = (movement_dispatcher if native_movement else
                          native_operation.return_value.__enter__.return_value)
+                expected_selector = (
+                    None if suppress_opening_skill else opening_skill or saved_opening
+                )
+                if expected_selector is not None:
+                    resolve_skill.assert_called_once_with(character_session, expected_selector)
+                    ability = pve_runner.call_args.kwargs["controller"]._config.opening_ability
+                    self.assertEqual(skill.power_id, ability.power_id)
+                    self.assertIs(ability.recipient, PvEAbilityRecipient.ACTOR)
+                    self.assertEqual(skill.as_dict(), saved_evidence["opening_skill"])
+                    owner.session.require_combat_available.assert_called_once_with(
+                        owner.grant, self_power=True,
+                    )
+                else:
+                    resolve_skill.assert_not_called()
+                    self.assertIsNone(saved_evidence["opening_skill"])
                 combat.assert_called_once_with(
                     session=owner.session, grant=owner.grant, population=readers[7],
                     character_session=character_session, store=combat.call_args.kwargs["store"],
