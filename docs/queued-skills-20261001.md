@@ -1,11 +1,22 @@
 # Queued native skills and delayed-stop settlement
 
-Integration destination: main through draft PR #51, branch
-`codex/queued-weapon-skill-opener`, based on main `18e65bba` (merged PR #49).
-Reviewed checkpoints: `b1d1fb4` native actor-directed skills, `962bca5` typed
-controller opener and immediate attack followup, `44b660b` native learned-skill
-resolution, `21e866b` saved settings/CLI, and `28c5ccf` bounded cleanup.
-Source delivery does not imply installation or live acceptance.
+Installed host **0.3.58** / native **1.8.38** use exact qualified source
+`05c888a4ff1e1443163ef3cb2ea6e2432672c372` with official client **1.3.38.13**.
+[PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
+merged at `214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` on October 1,
+04:14:59 UTC after all 15 hosted checks passed. Qualification, installation,
+manager activation and loaded-DLL identity passed. The bounded .58 basic NPC
+attack/cleanup gate passed after login. The skill-opener attempt did not pass:
+SELF_POWER remained UNCERTAIN without queue evidence or a followup attack, while
+terminal native cleanup was confirmed. The earlier .57 manual-player recovery
+pass and unconfirmed NPC cleanup attempts remain separate historical evidence.
+The qualification and deployment evidence is recorded below.
+
+The normal checkout is on the PR #51 main merge. The deployment and combat-mode correction
+worktree uses `codex/queued-skill-deployment-20261001`, targeting main through
+[draft PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52). The merged
+feature branch is retired. This record incorporates the relevant historical
+PR #50 facts; #50 remains open until the replacement receipt PR is reviewed.
 
 ## Ownership and behavior
 
@@ -34,34 +45,152 @@ The delayed-stop correction preserves only cleanup under the same exact owner.
 Terminal cancellation blocks new work immediately and initiates native stop while
 maintaining the existing lease for a bounded settlement. Normal engagement cleanup
 can release its obligation and allow another encounter on the same owner. An
-absolute three-second budget is shared across cleanup and close; expiration never
-means cleanup succeeded. Existing focus, lifetime, scene and owner guards remain.
+absolute three-second combat settlement budget covers STOP_ENGAGEMENT, PAUSE
+and fence revocation/closure; expiration never means cleanup succeeded. The
+subsequent terminal movement-owner STOP is separately bounded by the session
+transport timeout and may retry once with the same request identity. Existing
+focus, lifetime, scene and owner guards remain.
 
-## Evidence and active todos
+## Qualified package and verified deployment
 
-Installed .57/.37 passed manual-player attack, list removal, native stop and a
-later PvE seeking frame. Two NPC attack attempts queued successfully but cleanup
-was not positively confirmed within the old host's immediate retry window. The
-repeat also failed after the user reported possible concurrent Track input, so
-Track is not established as the cause. Later passive snapshots showed idle native
-action state and no retained owner. Those do not retroactively pass exact cleanup.
+Package `artifacts/b38/ab7c1a59` is acceptance eligible at source `05c888a4`.
+Independent verification checked 78 artifact hashes, all 52 build steps, exact
+Git source, wheel contents/source stamp, both DLL versions and all seven unchanged
+prepared-client writes. Archived host tests passed **4,203 cases**, with 35 explicit
+skips and 801 passing subtests. Each native profile passed **202 native cases**,
+**85 combat IPC cases** and **72 movement IPC cases**, including the mandatory
+parent-cancellation test that retains the exact owner through delayed cleanup.
+Three generic CTest image skips were covered by explicit original/prepared image
+gates. Required gates passed; the two known optional renderer-transparency
+failures per profile remain recorded separately.
 
-- Complete: reviewed native/host opener and passive resolver source checkpoints.
-- Complete: saved settings/CLI and bounded cleanup implementation, focused tests
-  and independent reviews. Real IPC verifies delayed parent-cancel cleanup.
-- Active: qualify candidate host .58/native .38 from committed source.
-- Pending: exact-source package and hosted checks, merge authorization, installation,
-  then bounded NPC attack/cleanup and queued-skill/attack live acceptance.
-- Pending: server-consumption/impact observation proof and authoritative
-  server-character-session fence for automatic retaliation.
+| Artifact | SHA-256 |
+| --- | --- |
+| Acceptance archive | `a05d6c37e5fd73c0bd39587cb7980a138aa215a34708022c324489f417fe6b78` |
+| Receipt | `3147b87d86986bc42a0b089c9d581eb8e159495d34da493a108da36e10a5a930` |
+| Full DLL | `b139b5ce17584e65cda1acd82bb58d65a7004f785fea5d69a6d45ba19a5a3e17` |
+| Host wheel | `2aab077414fbf99368c2a5b58ec5bff239e6bc0ca7641410841374d57b6a3d40` |
 
-PR #50's deployment receipt is outside this source branch and awaits separate
-approval. Preserve private diagnostic evidence and user records; retain no
-rollback deployment copies. Rebuild committed source when recovery is needed.
+Installation verified 454 module files, 9,567 retained settings/record files,
+one client DLL inventory change, five shortcuts and launch preflight. Manager
+activation was healthy and unbound at observed PID 2908. Launch at
+04:17:51.4923419 UTC verified the qualified DLL in PID 460, creation FILETIME
+`134353018625847816`, HWND `5243554`. These are recorded observations, not
+continuing authorization. Initial passive readiness awaited login; the later
+bounded results below were collected after fresh readiness.
 
-Validation before packaging: 4,192 host cases and 801 subtests passed; the one
-version-surface mismatch was repaired and all five version/graphics-target tests
-then passed. Thirty-five native/platform cases require their qualified environments.
-The final ticket-close deadline regressions also passed in a 55-test focused run.
-Packaging requires a fresh full host run and both native profiles, including the
-new mandatory delayed parent-cancel IPC test.
+The inspected obsolete .57 host contained 2,090 files and 47,557,363 bytes;
+inventory SHA-256 was
+`7fb2c3caddce9084623d7c3f8fc2dd7aa249bf7d2a6883e5f794db45494e9508`.
+It and two exact old guest payload binaries were removed, totaling 50,226,673
+bytes. No rollback runtime or payload copies were retained. User settings, jobs
+and diagnostic evidence remain in place. Twelve compact receipts and seven
+installed-file hashes were verified under private
+`artifacts/bot-deploy/20261001-b38/receipts`; private captures are not published.
+
+## Live .58 NPC results and combat-mode prerequisite
+
+The bounded basic NPC gate passed on exact installed source `05c888a4`. The
+production-selected NPC was validated by native key/token within the unchanged
+120-unit camp boundary. One ATTACK had a correlated CLIENT_OUTBOUND_QUEUED receipt,
+then terminal cleanup returned CLOSED with NATIVE_STOPPED, mode 1, action state 1
+and no combat target. No combat owner remained, final manual-list membership was
+zero and the watchdog did not fire. The explicit harness stop followed the queued
+attack. This proves local queue admission and cleanup, not a server hit or later
+PvE recovery. The compact private result is
+`artifacts/bot-deploy/20261001-b38/npc-basic-result.json`.
+
+The queued-skill gate did **not pass**. Shot to the Leg resolved from Umbra's
+current learned definition as power 563795161, rank 40, actor recipient. Its
+SELF_POWER submission reported native entry but UNCERTAIN outcome and no outbound
+queue evidence. Subsequent updates queried the same action; no followup ATTACK
+was submitted. Cleanup ultimately returned NATIVE_STOPPED and retained no owner;
+list membership was zero and the watchdog did not fire. The diagnostic also
+recorded native owner revocation: expected Grant generation 7, sampled generation
+8 with no owner. Private `npc-skill-result.json` is retained beside the basic
+result. No skill consumption, snare application or server acceptance is claimed.
+
+The user clarified that weapon skills require combat mode before activation.
+Source review confirms the attack entry enters combat mode, while the installed
+power entry does not establish that prerequisite. A later exact-session passive
+read at 15:28:51 UTC confirmed Shot's native definition field `+0x1F0 = 1`, with
+actor mode 1 and action state 1. The reviewed classifier requires combat mode for
+requirement 1. The read invoked no native function or input and acquired no lease;
+its private receipt is `skill-stance-result.json`, definition SHA-256
+`7c70f270975fd819291090f887e8e9487c20156f1c0539525e8f507b5b161f1f`.
+This confirms the definition/prerequisite mismatch at that observation; it does
+not retrospectively establish the sole cause of the earlier failed attempt.
+Candidate host **0.3.59** / native **1.8.39** contains the correction on the
+existing PR #52 branch and passed exact-source qualification below. Installed
+.58/.38 is unchanged.
+Owner revocation was a distinct later
+event; the sampled generation/no-owner state does not identify its trigger.
+Existing fail-closed handling stays in place, with no automatic restart.
+
+Combat-mode preparation belongs inside the native power invocation under the
+same actor, Grant, engagement and fence. Host policy continues to propose the
+configured numeric skill; only its correlated queue acknowledgement can advance
+the attack. UNCERTAIN retains the exact command for status/cleanup. Native
+callbacks must revalidate ownership after any mode transition and preserve entry
+history. No new hotkey, configuration flag or arbitrary host delay is required.
+
+## Qualified .59/.39 candidate
+
+Exact package source `e90d2f64ea49df5af94365012548266e6829e3a1` is pushed on
+`codex/queued-skill-deployment-20261001` and included in PR #52. Subsequent
+qualification documentation does not change that package source identity.
+Package `artifacts/b39/e2bdddda` passed 4,203 host tests with 35 explicit environment
+skips and 801 subtests. Both native profiles passed 202 native tests, 72 movement
+IPC tests and 85 combat IPC tests, including delayed parent-cancel cleanup.
+The three generic image skips were covered by explicit private image gates.
+
+The new required-mode probe executes the native predicate in 48 cases against
+both original and prepared client 13 for each profile. It proves signed mode
+eligibility, not native synchronization or all power admission. Existing power
+entry probes and 2,048-case melee control-flow probes also passed both images.
+Independent review accepted the native change, probes and deployment procedure.
+All 56 package steps and 82 indexed artifact hashes were verified. The two known
+optional renderer transparency diagnostics remain recorded separately.
+
+- Archive SHA-256: `776822bd98f7a4da2afaab90e7726a8e90610732881cc57e51460efb075df3fe`.
+- Receipt SHA-256: `cbc3b1850d3e0493e8075799ab2d041e28b1be0c5cd74fe4beefc64c27406c05`.
+- Full DLL SHA-256: `a53afdffb2e756f349ae065c03c000563eb765632f4a0e88db2b970163f860c2`.
+- Wheel SHA-256: `479f0510919181f2bc776529d955ade9cd4972d2cb910145ba0937688c302812`.
+
+No .59/.39 deployment or live acceptance is claimed. The next steps are approval
+and exact-head hosted checks for PR #52, closed-client installation, then bounded
+skill/attack acceptance. The installed .58/.38 DLL was still loaded in Vendor Test
+at the fresh deployment inspection; existing settings and jobs remain in place.
+
+## Historical .57 live evidence
+
+Installed .57/.37 source `1d107a25` passed manual-player attack, list removal,
+correlated native stop and a strictly later PvE SEEKING frame. The final list was
+empty, ordinary NPC submissions were zero, the watchdog did not fire and the
+dispatcher had no interruption. The harness's final explicit stop occurred after
+recovery. Its loop timestamps are not exact native latency measurements, and the
+queue/cleanup evidence does not prove a server-accepted hit.
+
+Two .57 NPC attack attempts queued successfully but cleanup was not positively
+confirmed within the old host's immediate retry window. A repeat also failed
+after the user reported possible concurrent Track input; Track is not established
+as the cause. Later passive idle snapshots do not retroactively pass cleanup.
+The .58 settlement fix preserves the exact owner while awaiting the native reply;
+its offline and real-process qualification is distinct from live acceptance.
+
+## Active todos
+
+- Complete: generic actor-directed opener, learned-skill resolver and character
+  settings; bounded cleanup settlement and independent source reviews.
+- Complete: exact-source package qualification, all hosted checks, approved PR #51
+  merge, installation, activation, launch identity and obsolete-runtime retirement.
+- Complete: .58 bounded basic NPC queue/terminal-cleanup gate; no server-hit or
+  PvE-recovery claim.
+- Complete: native combat-mode prerequisite correction, independent review and
+  exact-source .59/.39 package qualification. The earlier revocation trigger remains
+  unknown; owner guards remain intact.
+- Active: PR #52 merge/deployment approval and exact-head hosted checks.
+- Pending: closed-client installation and bounded queued-skill/attack acceptance.
+- Pending: expanded PR #52 review/integration, then supersede the still-open PR #50.
+- Pending: server-consumption/impact proof and the authoritative
+  server-character-session fence required for automatic retaliation.

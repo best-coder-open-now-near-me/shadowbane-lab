@@ -352,7 +352,8 @@ def main() -> int:
                                  "combat_v2_runtime_test.cpp", "movement_tree_probe.cpp",
                                  "combat_registry_probe.cpp",
                                  "combat_melee_entry_test.cpp", "combat_power_entry_test.cpp",
-                                 "combat_power_probe.cpp", "combat_power_image_test_stub.cpp",
+                                 "combat_power_probe.cpp", "combat_power_mode_probe.cpp",
+                                 "combat_power_image_test_stub.cpp",
                                  "targeted_action_trace_test.cpp"):
             if included_sources.count(developer_source) != 0:
                 raise RuntimeError(
@@ -520,7 +521,8 @@ def main() -> int:
                 [cmake, "--build", build, "--config", "Release", "--target",
                  "wonderbane_extension_combat_registry_probe",
                  "wonderbane_extension_combat_melee_probe",
-                 "wonderbane_extension_combat_power_probe"],
+                 "wonderbane_extension_combat_power_probe",
+                 "wonderbane_extension_combat_power_mode_probe"],
             )
             run(
                 f"{profile}-combat-registry-binding",
@@ -535,6 +537,11 @@ def main() -> int:
             run(
                 f"{profile}-combat-power-binding",
                 [build / "Release/wonderbane_extension_combat_power_probe.exe",
+                 arguments.reviewed_client.resolve()],
+            )
+            run(
+                f"{profile}-combat-power-mode-binding",
+                [build / "Release/wonderbane_extension_combat_power_mode_probe.exe",
                  arguments.reviewed_client.resolve()],
             )
             run(
@@ -587,6 +594,11 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             run(
                 f"{profile}-combat-power-prepared-binding",
                 [build / "Release/wonderbane_extension_combat_power_probe.exe", prepared_client],
+            )
+            run(
+                f"{profile}-combat-power-mode-prepared-binding",
+                [build / "Release/wonderbane_extension_combat_power_mode_probe.exe",
+                 prepared_client],
             )
             for test in ("sky_binding", "sky_render"):
                 run(
@@ -921,6 +933,7 @@ else:
         "combat_registry_binding_verified": bool(arguments.reviewed_client),
         "combat_melee_control_flow_verified": bool(arguments.reviewed_client),
         "combat_power_entry_verified": bool(arguments.reviewed_client),
+        "combat_power_mode_verified": bool(arguments.reviewed_client),
         "source_identity": metadata,
         "steps": steps,
         "files": [

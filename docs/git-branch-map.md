@@ -4,26 +4,51 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active queued-skill work - October 1
-
-The shared base is `origin/main@18e65bba0229771895bcf159eea96977a43ecc99`,
-including merged PR #49. The normal project checkout is on that main revision.
-The bot-runtime worktree uses `codex/queued-weapon-skill-opener`, delivered through
-[draft PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
-to main. Native self-skill dispatch, typed opener ordering and learned-skill
-resolution are pushed at `44b660b`; saved settings and CLI integration are
-`21e866b`, and bounded delayed-stop settlement is `28c5ccf`. Host .58/native .38
-are prepared for exact-source package qualification. See
-[the current work record](queued-skills-20261001.md) for validation and remaining work.
-
-Installed host .57/native .37 are built from `1d107a25`. The manual-player
-attack/cancel/recovery gate passed; NPC cleanup confirmation remains open.
-Documentation-only [PR #50](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/50)
-at `1bc32e3` records that deployment and is outside this branch, awaiting merge
-approval. The following older deployment section is historical until that receipt
-is integrated; it does not describe the current checkout or installed runtime.
-
 ## Current shared source and deployment - October 1
+
+Start new development from freshly fetched `origin/main`, now
+`214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` (merged PR #51). The normal project
+checkout is clean on that main revision. PR #49 is also merged. The exact .58/.38
+package source `05c888a4ff1e1443163ef3cb2ea6e2432672c372` is retained in main.
+The old `codex/queued-weapon-skill-opener` branch was retired locally and remotely
+after ancestry and checkout checks.
+
+The reused bot-runtime worktree is on `codex/queued-skill-deployment-20261001`,
+based on that main merge. Deployment documentation and the pending native
+combat-mode prerequisite correction are outside main, with main as the integration
+destination through [draft PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52).
+The installed .58/.38 runtime remains the merged `05c888a4` package. Candidate
+host .59/native .39 is qualified at package source
+`e90d2f64ea49df5af94365012548266e6829e3a1` but is not installed. Subsequent
+qualification documentation does not alter that package source identity; hosted
+checks and merge approval apply to the final PR head.
+This receipt incorporates the relevant .57 deployment and successful manual-player
+recovery facts from [PR #50](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/50)
+(`1bc32e3`). That documentation PR is still open and unmerged; PR #52 will supersede
+it after review.
+
+Host **0.3.58** / native **1.8.38** are installed from the qualified b38 package.
+Both clients retain official **1.3.38.13** data. Installation verified 454 modules,
+9,567 preserved files, one DLL inventory change, five shortcuts and launch preflight.
+The obsolete .57 host and two exact guest payload binaries were inspected and
+removed; settings, jobs and diagnostic records remain, with no retained rollback.
+The [deployment record](queued-skills-20261001.md) records exact hashes and checks.
+
+The .57 manual-player attack/list-removal/native-stop/later-SEEKING gate passed.
+Its NPC attacks queued but did not confirm cleanup under the former immediate
+retry policy. The installed .58 correction uses bounded same-owner settlement.
+The .58 bounded basic NPC queue/terminal-cleanup gate has now passed. The skill
+attempt remained UNCERTAIN with no queue evidence or followup attack. A later
+owner revocation preceded confirmed terminal cleanup; its trigger remains unknown.
+Active next item: PR #52 approval and hosted checks, then closed-client
+installation of the qualified .59/.39 correction and bounded skill acceptance. Owner guards and no-restart handling remain unchanged.
+No server-consumption success is claimed. Automatic retaliation remains disabled pending the separate
+authoritative server-character-session fence.
+
+Everything below is historical. Earlier current/candidate/next statements do not
+override the current source, installed runtime and active work above.
+
+## Historical .56/.36 deployment snapshot - October 1
 
 Start new development from freshly fetched `origin/main`. PRs #38-46 and
 [PR #48](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/48)

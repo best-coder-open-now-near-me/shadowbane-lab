@@ -1,10 +1,12 @@
 # Native movement and camera controls
 
-Native controls, transport, manager and standalone automation ownership are integrated
-through `codex/native-lifecycle-hardening`. This document describes their settings
-and behavior. The integration owner verifies the exact combined package and supplies
-its acceptance record. Connected movement behavior remains pending that focused
-acceptance; source tests and installed control checks do not establish live success.
+Native controls, transport and automation ownership are merged in main and
+installed as host **0.3.58** / native **1.8.38**, source `05c888a4`. The earlier
+.57 manual-player cancellation/recovery gate passed. The .58 bounded settlement
+fix is qualified and installed. The .58 basic NPC queue/cleanup gate passed;
+the skill attempt remained unconfirmed, with terminal native cleanup confirmed.
+Device, movement and isolation checks below remain separate wherever no result
+is recorded. See the [deployment record](queued-skills-20261001.md).
 
 ## Settings
 
@@ -151,7 +153,8 @@ without changing the accepted source or introducing alternate movement writers.
 
 ## Automation cleanup readiness
 
-Candidate host 0.3.57 / native 1.8.37 adds explicit same-owner cleanup-pending
+The installed implementation, introduced in host 0.3.57 / native 1.8.37, adds
+explicit same-owner cleanup-pending
 status for deferred native cancellation. A temporary pending stop blocks new
 movement/combat requests but does not by itself revoke the unchanged operation
 Grant or its heartbeat. The native owner must still satisfy bindings, scene and
@@ -159,4 +162,12 @@ input/safety checks. True takeover, focus/UI invalidation, scene loss and termin
 failure remain stops; there is no reacquisition or automatic restart after them.
 See the [combat contract](native-combat-v2-contract.md) and the
 [live update receipt](client-update-20260930-late.md) for validation and deployment
-status. Current installed host 0.3.56 / native 1.8.36 does not yet contain this fix.
+status. The .57 manual-player gate confirmed native cleanup followed by a later
+PvE SEEKING frame. Installed .58/.38 also gives combat cleanup one shared,
+absolute three-second settlement budget. Parent cancellation immediately prevents
+new work but preserves the exact pending owner's guarded heartbeat until closure,
+safety failure or expiry. PAUSE, combat STOP_ENGAGEMENT and fence revocation/closure
+use the remaining budget; an expired deadline leaves cleanup unconfirmed. The
+subsequent terminal movement-owner STOP is separately bounded by the session
+transport timeout and may retry once with the same request identity. This does
+not weaken native focus/UI/scene/owner checks or create a startup delay.

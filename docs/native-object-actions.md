@@ -1,14 +1,19 @@
 # Native object-target actions
 
-The shared native combat implementation from PR #46 is installed with the
-[client 1.3.38.13 update](client-update-20260930-late.md), merged through PR #48
-at `35fce4ba273a399b31e577d6d487a68b08dc34e3`. Installed host 0.3.56 / native
-1.8.36 is exact qualified source `e6c7a28f229043540d3f93181900072ded58752c`.
-Package, hosted, installation and loaded-DLL checks passed. The first live
-manual attack queued independently of selection and cleanup confirmed native
-stop; an earlier operation emergency stop prevented later SEEKING recovery.
-Full recovery and NPC/cast acceptance remain open. Host and native ship together;
-legacy verbs 34-36 are rejected and there is no keyboard/hotbar fallback.
+Installed host **0.3.58** / native **1.8.38** use exact qualified source
+`05c888a4ff1e1443163ef3cb2ea6e2432672c372` with official client **1.3.38.13**.
+[PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
+merged at `214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` on October 1,
+04:14:59 UTC after all 15 hosted checks passed. Qualification, installation,
+manager activation and loaded-DLL identity passed. The bounded .58 basic NPC
+attack/cleanup gate passed after login. The skill-opener attempt did not pass:
+SELF_POWER remained UNCERTAIN without queue evidence or a followup attack, while
+terminal native cleanup was confirmed. The earlier .57 manual-player recovery
+pass and unconfirmed NPC cleanup attempts remain separate historical evidence.
+See the [deployment record](queued-skills-20261001.md) for evidence and limits.
+
+Host and native ship together. Legacy verbs 34-36 are rejected; there is no
+keyboard/hotbar fallback.
 
 ## Ownership and composition
 
@@ -28,8 +33,8 @@ native NPC identity and eligibility. Neither policy fabricates authority records
 for the other. The [v2 command/v3 fence contract](native-combat-v2-contract.md)
 defines their distinct immutable evidence.
 
-The controller ranks loaded native objects and proposes BIND, ATTACK or CAST
-against an exact key and token. CAST carries a numeric power identity. The runtime
+The controller ranks loaded native objects and proposes BIND, ATTACK, CAST or SELF_POWER
+against an exact key and token. CAST and SELF_POWER carry numeric learned-power identities. The runtime
 passes that immutable proposal to the shared coordinator, then returns a typed
 acknowledgement to the controller. BOUND acknowledges retained engagement;
 QUEUED requires positively observed native outbound admission. Cooldowns, opener
@@ -89,6 +94,29 @@ key mapping substitutes for those checks. Shadow Touch uses numeric ID 428918601
 its object-target definition was separately inspected read-only in the current
 official client data. Definitions are not cached as retained ArcObjects.
 
+SELF_POWER is the actor-directed variant: the NPC remains the bound engagement
+target, while native entry derives the actor recipient. New submissions require
+capability `0x20`, a supported learned definition and native admission. Generic
+saved opening-skill settings are scoped to native server/character identity; the
+manager/listener default to basic combat instead of assuming an assassin. A
+positive skill enqueue advances to the same engagement's attack without a fixed
+250 ms delay, subject to actual native busy/deferred state. Neither a native
+power-tracking vector nor queue acknowledgement proves server consumption or
+skill application. Existing CAST semantics remain unchanged.
+
+The .58 skill attempt exposed a combat-mode prerequisite gap: ordinary attack
+entry establishes combat mode, while the installed power route does not. A native
+correction is qualified in .59/.39 on draft PR #52, outside main and the
+installed package. Passive exact-session inspection
+confirmed Shot's native stance requirement 1 while the actor was in mode 1.
+Mode preparation must remain inside the same owned native action, preserving
+entry/correlation evidence and rechecking the Grant/fence after callbacks. Host
+policy must not emulate it with a hotkey, an extra configuration flag or a delay.
+The failed skill receipt alone does not establish the cause; a later owner
+revocation was also recorded and its trigger is unknown. Existing owner guards
+and no-automatic-restart handling remain unchanged. The [live evidence record](queued-skills-20261001.md) distinguishes
+this uncertainty from the passed basic NPC queue/cleanup gate.
+
 Power send and followup interception uses reviewed instruction sites and an
 explicit invocation bridge. Native frame provenance prevents a nested unrelated
 invocation, even one with matching power and target, from borrowing an outer
@@ -120,6 +148,14 @@ no pending action and no combat target. Lost UI selection alone does not interru
 an engagement. After confirmed abandonment, ordinary policy takes a fresh frame
 through resource and camp recovery before proposing another target.
 
+Combat settlement uses an absolute three-second deadline shared by
+STOP_ENGAGEMENT polling, PAUSE and fence revocation/closure. Parent cancellation
+blocks new actions but retains only the exact pending owner's guarded lease until
+closure, safety failure or expiry. Expiry keeps the last correlated evidence and
+unresolved obligation; it never becomes a successful cleanup result. Subsequent
+terminal movement-owner STOP is separately bounded by the session transport
+timeout and may retry once with the same request identity.
+
 Native action and engagement ledgers retain bounded history and monotonic floors.
 Records stay pinned through synchronous Bind, Submit and Stop callbacks, including
 reentrant cancellation/retirement and cache pressure. UNKNOWN cannot erase an
@@ -142,12 +178,14 @@ cover typed acknowledgement accounting, exact pending-action polling, shared
 listed/NPC ownership, public-runner cleanup and fresh-frame recovery. These checks
 do not replace final whole-candidate validation.
 
-The integrated host suite passed 4,041 tests with 33 explicit skips and 801
-subtests; repository Ruff passed. Both native profiles, required original/prepared-image
-package gates and all 15 hosted checks passed at the approved source head. PR #46
-is merged; PR #48 subsequently qualified and installed client 1.3.38.13.
-Current bounded acceptance results and the unresolved interruption are recorded
-in the late client update receipt above. Automatic retaliation remains
-blocked on the separate authoritative server-character-session contract. Private
-client binaries and diagnostic captures remain outside source delivery; no
-retained deployment rollback artifacts are created.
+The original PR #46/48 validation is historical. Current .58/.38 qualification
+passed 4,203 host tests and 801 subtests; both native profiles passed 202 generic
+native cases, all 85 combat IPC and 72 movement IPC cases, plus explicit image
+gates. All 15 hosted checks passed before approved PR #51 merge. Installation and
+loaded-DLL checks passed. The bounded .58 basic NPC queue/cleanup gate passed;
+skill/attack acceptance did not pass and awaits qualification of the native
+prerequisite correction and a bounded repeat. The [deployment record](queued-skills-20261001.md) preserves the
+earlier .57 manual pass and unconfirmed NPC cleanup attempts separately. Automatic retaliation
+remains blocked on the authoritative server-character-session contract. Private
+client binaries and captures remain outside source delivery; no rollback copies
+are retained.

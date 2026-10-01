@@ -1,4 +1,5 @@
 #include "combat_melee_entry.h"
+#include "combat_stance.h"
 #include <array>
 #include <stdexcept>
 
@@ -18,7 +19,6 @@ template<class F> F Function(std::uintptr_t image, std::uintptr_t rva) {
 using Getter = std::uint32_t (__thiscall*)(void*);
 using Predicate = bool (__thiscall*)(void*);
 using Mask = bool (__thiscall*)(void*, std::uint32_t);
-using Toggle = void (__thiscall*)(void*, bool, bool);
 using Iterator = std::array<std::uintptr_t, 3>;
 using End = Iterator* (__thiscall*)(void*, Iterator*);
 using Find = Iterator* (__thiscall*)(void*, Iterator*, const std::uint32_t*);
@@ -44,13 +44,10 @@ bool Invoke(std::uintptr_t image, void* actor, void* target, submission::Scope& 
     // Only its two selected-global reads become this independently held target.
     // Keep native mask, stance, actor-state and peace/property semantics intact.
     const auto mask = Function<Mask>(image, 0xc9c80);
-    const auto mode = Function<Getter>(image, 0x613c0);
     if (mask(VirtualBase(target, 0xc), 0x20) || !current(context)) { return false; }
-    if (mode(actor) == 1) {
-        if (!current(context)) { return false; }
-        Function<Toggle>(image, 0x4f100)(actor, true, true);
-    }
-    if (!current(context) || mode(actor) != 2 || At<std::uintptr_t>(actor, 0xb04)
+    std::uint32_t mode{};
+    if (!stance::Prepare(actor, stance::Native(image), current, context, mode)
+        || mode != 2 || At<std::uintptr_t>(actor, 0xb04)
         || Function<Getter>(image, 0x611d0)(actor) == 1 || !current(context)
         || !mask(VirtualBase(target, 0xc), 0x2000)) { return false; }
     if (mask(VirtualBase(target, 0xc), 0x10)) {

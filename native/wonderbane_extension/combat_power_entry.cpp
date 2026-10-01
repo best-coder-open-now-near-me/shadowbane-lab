@@ -1,4 +1,5 @@
 #include "combat_power_entry.h"
+#include "combat_stance.h"
 #include <Windows.h>
 #include <algorithm>
 #include <cstring>
@@ -11,7 +12,7 @@ bool Read(void* out, std::uintptr_t at, std::size_t size) noexcept {
 using Definition = void*(__cdecl*)(std::uint32_t);
 using Rank = int(__thiscall*)(void*, std::uint32_t);
 using Use = bool(__cdecl*)(std::uint32_t, int, void*, void*, const float*, Key);
-struct Calls { Definition definition; Rank rank; Use use; };
+struct Calls { Definition definition; Rank rank; Use use; stance::Calls stance; };
 struct Invocation {
     Use function;
     std::uint32_t id, rank;
@@ -69,6 +70,7 @@ struct Entry {
 };
 }
 namespace {
+bool CurrentScope(void* scope) noexcept { return static_cast<Scope*>(scope)->Current(); }
 bool InvokeBound(Scope& scope, const Calls& calls) {
     const auto& c = scope.Binding();
     if (!scope.CanEnter()) { return false; }
@@ -76,18 +78,30 @@ bool InvokeBound(Scope& scope, const Calls& calls) {
     // owner callback; never retain them as ArcObjects or cache learned records.
     const auto definition = reinterpret_cast<std::uintptr_t>(calls.definition(c.power_id));
     const int learned = calls.rank(reinterpret_cast<void*>(c.actor), c.power_id);
-    std::uint32_t id{}, category{}, target_mode{}, delivery{};
+    std::uint32_t id{}, category{}, target_mode{}, delivery{}, required_mode{};
     if (!definition || learned <= 0
         || !Read(&id, definition + 0x138, sizeof(id)) || id != c.power_id
         || !Read(&category, definition + 0x204, sizeof(category)) || category > 1
         || !Read(&target_mode, definition + 0x1a8, sizeof(target_mode))
-        || !Read(&delivery, definition + 0x1b4, sizeof(delivery))) { return false; }
+        || !Read(&delivery, definition + 0x1b4, sizeof(delivery))
+        || !Read(&required_mode, definition + 0x1f0, sizeof(required_mode))) { return false; }
     if (c.target_mode == TargetMode::self) {
         if (target_mode != 2 || delivery != 0) { return false; }
     } else if (c.target_mode != TargetMode::engagement_object
         || target_mode == 2 || target_mode == 3 || delivery == 2) { return false; }
     const auto rank = static_cast<std::uint32_t>(std::min(learned, 9999));
+    // Native PreparePower4e0be..4e133 uses +1f0: 1 requires signed mode>=2,
+    // 2 requires mode<=1, 3 permits either. Only the first requires combat stance;
+    // category0/self also includes unrelated buffs and is not a stance classifier.
+    // Record entry BEFORE the native toggle, which can mutate and reenter even if
+    // later power admission fails. No-entry retry must never hide that mutation.
     if (!scope.Enter(definition, rank)) { return false; }
+    if (required_mode == 1) {
+        std::uint32_t mode{};
+        if (!stance::Prepare(reinterpret_cast<void*>(c.actor), calls.stance,
+                CurrentScope, &scope, mode) || static_cast<std::int32_t>(mode) < 2) { return false; }
+    }
+    if (!scope.Current()) { return false; }
     // Ordinary object caller supplies zero cursor position and a native zero key.
     // Key(0) is exactly {0,0}; its reviewed destructor is a no-op. A nonzero
     // key here would skip native target validation, so never prefill target_key.
@@ -98,6 +112,7 @@ bool InvokeBound(Scope& scope, const Calls& calls) {
 bool Invoke(Scope& scope) {
     const auto image = scope.Binding().image;
     return InvokeBound(scope, {reinterpret_cast<Definition>(image + 0x16d8a0),
-        reinterpret_cast<Rank>(image + 0x9b400), reinterpret_cast<Use>(image + 0x9bbf0)});
+        reinterpret_cast<Rank>(image + 0x9b400), reinterpret_cast<Use>(image + 0x9bbf0),
+        stance::Native(image)});
 }
 }

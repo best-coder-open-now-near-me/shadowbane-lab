@@ -1,18 +1,24 @@
 # Native combat command v2 and engagement fence v3
 
-The shared native combat implementation from PR #46 is installed with the
-[client 1.3.38.13 update](client-update-20260930-late.md), merged through PR #48
-at `35fce4ba273a399b31e577d6d487a68b08dc34e3`. Installed host 0.3.56 / native
-1.8.36 is exact qualified source `e6c7a28f229043540d3f93181900072ded58752c`.
-Package, hosted, installation and loaded-DLL checks passed. The first live
-manual attack queued independently of selection and cleanup confirmed native
-stop; an earlier operation emergency stop prevented later SEEKING recovery.
-Full recovery and NPC/cast acceptance remain open. Host and native ship together;
-legacy verbs 34-36 are rejected and there is no keyboard/hotbar fallback.
+Installed host **0.3.58** / native **1.8.38** use exact qualified source
+`05c888a4ff1e1443163ef3cb2ea6e2432672c372` with official client **1.3.38.13**.
+[PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
+merged at `214bcdede95b8ef4f51cb1b13bdd64a31378dcb1` on October 1,
+04:14:59 UTC after all 15 hosted checks passed. Qualification, installation,
+manager activation and loaded-DLL identity passed. The bounded .58 basic NPC
+attack/cleanup gate passed after login. The skill-opener attempt did not pass:
+SELF_POWER remained UNCERTAIN without queue evidence or a followup attack, while
+terminal native cleanup was confirmed. The earlier .57 manual-player recovery
+pass and unconfirmed NPC cleanup attempts remain separate historical evidence.
+See the [deployment record](queued-skills-20261001.md) for evidence and limits.
+
+Host and native ship together. Legacy verbs 34-36 remain rejected; there is no
+keyboard/hotbar fallback. The wire remains version 2 with SELF_POWER action 3.
 
 ## Same-owner cleanup status
 
-The 0.3.57 / 1.8.37 candidate distinguishes movement request readiness from
+The installed implementation, introduced in 0.3.57 / 1.8.37, distinguishes
+movement request readiness from
 owner lifetime during native cancellation. Movement status `CLEANUP_PENDING`
 (`0x40`) describes only cleanup still owned by the exact current automation
 Grant, under valid native bindings, scene and input/safety conditions. READY
@@ -22,7 +28,13 @@ When native cleanup completes, the same owner can return to READY and ordinary
 PvE seeking. Pending cleanup does not count as completed cleanup or server proof.
 Changed Grant/scene, terminal/fault or focus/UI invalidation remain permanent
 stops. Missing READY without this explicit valid pending state is still rejected.
-The host and native changes must be qualified and installed together.
+The .57 manual-player cleanup/recovery gate passed. Installed .58/.38 additionally
+shares one absolute three-second combat settlement deadline across STOP_ENGAGEMENT,
+PAUSE and fence revocation/closure. Terminal cancellation blocks new actions
+immediately while preserving only the exact pending cleanup owner's heartbeat;
+expiry never proves closure. Subsequent terminal movement-owner STOP has its own
+bounded session transport timeout and may retry once with the same request
+identity. The .58 basic NPC queue/cleanup gate passed; skill acceptance remains pending.
 
 ## Ownership and identities
 
@@ -70,8 +82,8 @@ The previous 40 reserved bytes at 536 become:
 | --- | --- | --- |
 | 536 | uint32 | version, exactly 2 |
 | 540 | uint32 | authority: MANUAL_PLAYER=1, NPC=2 |
-| 544 | uint32 | action: NONE=0, ATTACK=1, CAST=2 |
-| 548 | uint32 | power_id; nonzero only for CAST |
+| 544 | uint32 | action: NONE=0, ATTACK=1, CAST=2, SELF_POWER=3 |
+| 548 | uint32 | power_id; nonzero for CAST or SELF_POWER |
 | 552 | uint32 | actor_address_hint |
 | 556 | uint32 | target_address_hint |
 | 560 | byte[16] | engagement_id |
@@ -97,14 +109,22 @@ rank and manager-owned power definition during the owner callback and validates
 the supported target/delivery semantics. It does not cache or ArcObject-retain
 the definition or temporary learned-rank lookup.
 
+SELF_POWER keeps the immutable actor/NPC engagement binding, but native entry
+uses the actor as the effective skill recipient. It requires a positive learned
+rank, supported category 0/1, target mode 2 and delivery 0. Capability `0x20` is
+required for new SELF_POWER submission; its absence cannot block exact old-owner
+status or cleanup. CAST retains its engagement-target semantics. A positively
+correlated power-request enqueue permits the policy's attack followup without a
+fixed delay; it does not prove skill consumption, impact or a server-applied buff.
+
 ## Verbs and replay
 
 | Verb | Value | Action field | Effect |
 | --- | --- | --- | --- |
 | BIND_ENGAGEMENT | 37 | NONE | Admit and retain the exact engagement without combat input |
-| SUBMIT | 38 | ATTACK or CAST | Attempt this immutable action; atomically bind if absent |
-| ACTION_STATUS | 39 | ATTACK or CAST | Return this exact action history plus current engagement state |
-| CANCEL_ACTION | 40 | ATTACK or CAST | Tombstone a never-entered action; entered action requests engagement stop |
+| SUBMIT | 38 | ATTACK, CAST or SELF_POWER | Attempt this immutable action; atomically bind if absent |
+| ACTION_STATUS | 39 | ATTACK, CAST or SELF_POWER | Return this exact action history plus current engagement state |
+| CANCEL_ACTION | 40 | ATTACK, CAST or SELF_POWER | Tombstone a never-entered action; entered action requests engagement stop |
 | ENGAGEMENT_STATUS | 41 | NONE | Observe engagement state without creating or acquiring it |
 | STOP_ENGAGEMENT | 42 | NONE | Tombstone the engagement before stopping any owned activity |
 

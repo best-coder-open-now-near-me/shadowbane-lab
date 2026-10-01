@@ -17,6 +17,26 @@ unsigned sends{}, appends{}, followups{}, releases{}, uses{}, lookups{};
 bool current = true, queue_current = true, fault_send = false, fault_followup = false;
 bool seh_send = false, seh_followup = false, corrupt_key = false;
 int learned_rank = 20;
+std::uint32_t actor_mode = 1;
+unsigned stance_reads{}, stance_toggles{};
+bool deny_stance{}, revoke_stance{}, revoke_mode_read{}, fault_stance{}, seh_stance{};
+std::uint32_t* replaced_target_key{};
+std::uint32_t __fastcall Mode(void*, void*) {
+    ++stance_reads;
+    if (revoke_mode_read) { current=false; }
+    return actor_mode;
+}
+void __fastcall Toggle(void*, void*, bool combat, bool force) {
+    ++stance_toggles;
+    Check(combat && force, "stance uses ordinary forced combat ABI");
+    Check(pw::active && pw::active->Binding().receipt->native_entered,
+        "stance side effects are recorded before native entry");
+    if (seh_stance) { RaiseException(0xe0420201,0,0,nullptr); }
+    if (fault_stance) { throw std::runtime_error("stance"); }
+    if (!deny_stance) { actor_mode=2; }
+    if (revoke_stance) { current=false; }
+    if (replaced_target_key) { ++*replaced_target_key; }
+}
 unsigned installation_steps{};
 bool PartialInstall(pw::Site& site) noexcept { return ++installation_steps==1 && pw::InstallByte(site); }
 std::array<std::uint32_t,0xb0/4> message{};
@@ -76,7 +96,9 @@ void Nested() {
         && outer_receipt->send_observed==before.send_observed && outer_receipt->append_observed==before.append_observed
         && outer_receipt->followup_entered==before.followup_entered,"nested same/different power leaves outer receipt unchanged");
 }
-void Run(const pw::Context& c) { pw::Scope scope(c); (void)pw::InvokeBound(scope, {Definition,reinterpret_cast<pw::Rank>(&Rank),native_use}); }
+void Run(const pw::Context& c) { pw::Scope scope(c); (void)pw::InvokeBound(scope, {Definition,reinterpret_cast<pw::Rank>(&Rank),native_use,
+    {reinterpret_cast<wonderbane::extension::combat::stance::Getter>(&Mode),
+     reinterpret_cast<wonderbane::extension::combat::stance::Toggle>(&Toggle)}}); }
 bool Guarded(const pw::Context& c) {
     pw::Boundary boundary;
     __try { __try { Run(c); } __finally { boundary.Restore(); } }
@@ -164,7 +186,7 @@ int main(int argc, char** argv) {
     Check(pw::StartBound(base,sender_call,Followup),"atomic interception install");
     pw::Receipt receipt{};outer_receipt=&receipt;
     pw::Context context{base,reinterpret_cast<std::uintptr_t>(actor.data()),reinterpret_cast<std::uintptr_t>(target.data()),base+0x1600000,base+0x1600100,local,victim,428918601,Current,QueueCurrent,nullptr,&receipt};
-    const auto reset=[&] { references=2;current_message=message.data(); message={};message[0]=static_cast<std::uint32_t>(base+0x1155fd8);message[0x80/4]=context.power_id;message[0xa4/4]=1;message[0x88/4]=local[0];message[0x8c/4]=local[1];message[0x90/4]=context.RecipientKey()[0];message[0x94/4]=context.RecipientKey()[1];current=true;queue_current=true;fault_send=false;fault_followup=false;seh_send=false;seh_followup=false;corrupt_key=false;revoke_during_use=false;receipt={}; };
+    const auto reset=[&] { references=2;current_message=message.data(); message={};message[0]=static_cast<std::uint32_t>(base+0x1155fd8);message[0x80/4]=context.power_id;message[0xa4/4]=1;message[0x88/4]=local[0];message[0x8c/4]=local[1];message[0x90/4]=context.RecipientKey()[0];message[0x94/4]=context.RecipientKey()[1];current=true;queue_current=true;fault_send=false;fault_followup=false;seh_send=false;seh_followup=false;corrupt_key=false;revoke_during_use=false;receipt={};actor_mode=1;stance_reads=stance_toggles=0;deny_stance=revoke_stance=revoke_mode_read=fault_stance=seh_stance=false;replaced_target_key=nullptr; };
     reset(); Check(Guarded(context),"normal power invocation");Check(receipt.result==pw::Result::queued && receipt.native_entered && receipt.send_observed && receipt.append_observed && receipt.followup_entered,"queued receipt preserves all boundaries");
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
     Check(references==1,"real native sender preserves exactly one caller-owned reference");
@@ -198,6 +220,49 @@ int main(int argc, char** argv) {
         reset();unrelated_power=nested_id;reenter_send=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"self sender reentry retains exact frame");
         reset();unrelated_power=nested_id;reenter_followup=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"self followup reentry retains exact frame");
     }
+    // Native definition +1f0, not category/self, owns the stance prerequisite.
+    definition[0x1f0/4]=1;
+    reset();auto stance_uses=uses;
+    Check(Guarded(context)&&receipt.result==pw::Result::queued&&stance_toggles==1
+        &&actor_mode==2&&uses==stance_uses+1,"peace mode enters combat before one self power");
+    for(auto mode:{2U,3U,0x7fffffffU}) {
+        reset();actor_mode=mode;stance_uses=uses;
+        Check(Guarded(context)&&receipt.result==pw::Result::queued&&stance_toggles==0
+            &&actor_mode==mode&&uses==stance_uses+1,"eligible signed native modes never toggle");
+    }
+    for(auto mode:{0U,0xffffffffU,0x80000000U}) {
+        reset();actor_mode=mode;stance_uses=uses;
+        Check(Guarded(context)&&receipt.native_entered&&!receipt.append_observed
+            &&stance_toggles==0&&uses==stance_uses,"ineligible signed mode never invokes power");
+    }
+    for(auto required:{2U,3U}) {
+        definition[0x1f0/4]=required;reset();stance_uses=uses;
+        Check(Guarded(context)&&receipt.result==pw::Result::queued&&stance_reads==0
+            &&stance_toggles==0&&actor_mode==1&&uses==stance_uses+1,
+            "peace-only and either-mode powers preserve ordinary native behavior");
+    }
+    definition[0x1f0/4]=1;
+    reset();deny_stance=true;stance_uses=uses;
+    Check(Guarded(context)&&receipt.native_entered&&receipt.result==pw::Result::uncertain
+        &&!receipt.append_observed&&uses==stance_uses&&stance_toggles==1,
+        "rejected native stance cannot queue or claim no entry");
+    reset();revoke_mode_read=true;stance_uses=uses;
+    Check(Guarded(context)&&receipt.native_entered&&!receipt.append_observed
+        &&uses==stance_uses&&stance_toggles==0,"current guard wins before stance mutation");
+    reset();revoke_stance=true;stance_uses=uses;
+    Check(Guarded(context)&&receipt.native_entered&&!receipt.append_observed
+        &&uses==stance_uses&&stance_toggles==1,"reentrant owner revoke stops after stance");
+    reset();replaced_target_key=&target[6];stance_uses=uses;
+    Check(Guarded(context)&&receipt.native_entered&&!receipt.append_observed
+        &&uses==stance_uses,"self stance cannot bypass retained NPC identity");--target[6];
+    reset();seh_stance=true;stance_uses=uses;
+    Check(!Guarded(context)&&receipt.native_entered&&!receipt.append_observed
+        &&uses==stance_uses&&!pw::active,"stance SEH preserves entry and restores scope");
+    reset();fault_stance=true;stance_uses=uses;
+    try{Run(context);Check(false,"stance C++ fault expected");}catch(const std::runtime_error&){}
+    Check(receipt.native_entered&&!receipt.append_observed&&uses==stance_uses&&!pw::active,
+        "stance C++ fault retains native entry and unlinks scope");
+    definition[0x1f0/4]=0;
     context.target_mode=pw::TargetMode::engagement_object;definition[0x1a8/4]=1;
     reset();queue_current=false;auto before=followups;Check(Guarded(context)&&receipt.result==pw::Result::uncertain&&!receipt.append_observed&&followups==before,"denied append suppresses effects and preserves entry");
     reset();corrupt_key=true;before=sends;Check(Guarded(context)&&sends==before&&!receipt.append_observed,"wrong native target key consumed before send");
