@@ -434,3 +434,124 @@ def test_real_cleanup_pending_preserves_owner_until_native_ack():
         if process.poll() is None:
             process.kill()
             process.communicate()
+
+
+
+def test_real_service_only_update_gap_preserves_exact_owner_and_cleanup():
+    """A live producer survives native service gaps; pending cleanup grants no work."""
+    import queue
+    import threading
+    import time
+
+    from shadowbane_lab.client_extension.movement_dispatcher import NativeMovementTravelDispatcher
+    from shadowbane_lab.client_extension.movement_session import NativeMovementCleanupPending
+    from shadowbane_lab.client_extension.movement_wire import CLEANUP_PENDING, READY
+
+    configured = os.environ.get("WONDERBANE_MOVEMENT_RUNTIME_TEST")
+    if not configured:
+        pytest.skip("set WONDERBANE_MOVEMENT_RUNTIME_TEST to the built native runtime fixture")
+    binary = Path(configured)
+    assert binary.is_file(), "required native IPC fixture is missing"
+    process = subprocess.Popen(
+        [str(binary), "ipc-service-gap"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE, text=True, creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    messages = queue.Queue()
+    heartbeat_done = threading.Event()
+    heartbeat_errors = []
+    renewals = []
+    session = heartbeat = None
+    assert process.stdout is not None and process.stdin is not None
+
+    def read_messages():
+        for line in process.stdout:
+            messages.put(line.strip())
+
+    reader = threading.Thread(target=read_messages, daemon=True)
+    reader.start()
+
+    def message(expected=None):
+        try:
+            value = messages.get(timeout=3)
+        except queue.Empty:
+            pytest.fail("native service-gap fixture did not acknowledge its bounded handshake")
+        if expected is not None:
+            assert value == expected
+        return value
+
+    def send(value):
+        process.stdin.write(value + "\n")
+        process.stdin.flush()
+
+    try:
+        pid, creation, window = map(int, message().split())
+        session = NativeMovementSession(
+            channel.NativeClientProcessIdentity(pid, creation), window, timeout_ms=1500
+        )
+        grant = session.acquire(
+            session.snapshot(), "service-gap-test", "retained", str(uuid.uuid4())
+        )
+        dispatcher = NativeMovementTravelDispatcher(session, grant)
+
+        def renew():
+            while not heartbeat_done.wait(0.05):
+                try:
+                    session.renew(grant)
+                    renewals.append(time.monotonic())
+                except BaseException as exc:
+                    heartbeat_errors.append(exc)
+                    return
+
+        heartbeat = threading.Thread(target=renew, daemon=True)
+        heartbeat.start()
+        message("service")
+        for pending in (False, True):
+            before = session.snapshot()
+            assert before.grant == grant.ownership
+            send("gap")
+            message("gap")  # Native fixture checks a real >250ms owning-update gap.
+            after = session.snapshot()
+            assert after.sequence > before.sequence and after.grant == grant.ownership
+            assert bool(after.flags & CLEANUP_PENDING) is pending
+            assert bool(after.flags & READY) is not pending
+            assert not dispatcher.is_set() and dispatcher.interruption_reason is None
+            assert not heartbeat_errors
+            if not pending:
+                with pytest.raises(NativeMovementCleanupPending):
+                    session.pause(grant, str(uuid.uuid4()))
+            else:
+                with pytest.raises(NativeMovementCleanupPending):
+                    session.move(grant, (30.0, 0.0, -40.0), str(uuid.uuid4()))
+                assert not dispatcher.is_set()
+        assert len(renewals) >= 4
+        send("release")
+        deadline = time.monotonic() + 2
+        while True:
+            snapshot = session.snapshot()
+            assert snapshot.grant == grant.ownership
+            if snapshot.flags & READY:
+                break
+            assert snapshot.flags & CLEANUP_PENDING
+            assert time.monotonic() < deadline, "native stop acknowledgement did not arrive"
+            time.sleep(0.01)
+        assert not snapshot.flags & CLEANUP_PENDING
+        assert not dispatcher.is_set() and not heartbeat_errors
+        heartbeat_done.set()
+        heartbeat.join(timeout=2)
+        assert not heartbeat.is_alive()
+        session.stop(grant, str(uuid.uuid4()))
+        session.close()
+        process.wait(timeout=5)
+        reader.join(timeout=1)
+        assert process.stderr is not None
+        assert process.returncode == 0, process.stderr.read()
+    finally:
+        heartbeat_done.set()
+        if heartbeat is not None:
+            heartbeat.join(timeout=2)
+        if session is not None:
+            session.close()
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+        reader.join(timeout=1)

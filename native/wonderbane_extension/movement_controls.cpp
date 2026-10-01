@@ -78,7 +78,7 @@ bool Controls::RetryStop() noexcept {
     if (!pending_stop_) { return true; }
     { const ActuationGuard guard(actuating_);
       if (!actuator_.Stop(pending_grant_, pending_reason_)) { return false; } }
-    pending_stop_ = false;
+    pending_stop_ = pending_service_only_ = false;
     return true;
 }
 bool Controls::StopActive(StopReason reason) noexcept {
@@ -86,11 +86,13 @@ bool Controls::StopActive(StopReason reason) noexcept {
     // Native click/follow intent may exist before this controller has submitted
     // a move. Admission must retire it before publishing a replacement owner.
     if (!moving_ && !native_activity_ && reason != StopReason::takeover) { return true; }
+    const bool service_only = native_activity_ && !moving_;
     moving_ = native_activity_ = false;
     { const ActuationGuard guard(actuating_);
       if (actuator_.Stop(grant_, reason)) { return true; } }
     pending_grant_ = grant_;
     pending_reason_ = reason;
+    pending_service_only_ = service_only;
     pending_stop_ = true;
     return false;
 }
@@ -229,7 +231,7 @@ void Controls::ObserveScene(std::uint64_t scene) noexcept {
         const auto old = grant_;
         { const ActuationGuard guard(actuating_); actuator_.SceneRetired(old.scene); }
         // Never invoke an old actor's stop on a replacement actor or reused pointer.
-        moving_ = native_activity_ = pending_stop_ = false;
+        moving_ = native_activity_ = pending_stop_ = pending_service_only_ = false;
         (void)Retire(StopReason::scene_changed, Owner::none, {}, scene);
         Inhibit(StopReason::scene_changed);
         has_tick_ = false;
@@ -250,7 +252,7 @@ bool Controls::ObserveParentScene(std::uint64_t scene, bool manual_admitted, std
     { const ActuationGuard guard(actuating_); actuator_.SceneRetired(old.scene); }
     // Old targets cannot stop this epoch. Pending old cleanup forbids continuity;
     // a fresh stop below must independently retire this same actor's native work.
-    moving_ = native_activity_ = pending_stop_ = false;
+    moving_ = native_activity_ = pending_stop_ = pending_service_only_ = false;
     const bool retired = Retire(StopReason::scene_changed, preserve ? Owner::manual : Owner::none, {}, scene);
     has_tick_ = false;
     if (!preserve) { Inhibit(StopReason::scene_changed); }
@@ -286,12 +288,18 @@ void Controls::Tick(const Input& input) noexcept {
     foreground_ = true;
     if (!ContinueInput()) { return; }
     if (discontinuity && grant_.owner == Owner::automation) {
-        // Pending cleanup must not hide an actual owner-update stall. Preserve
-        // its old stop obligation, but revoke continuation under the same policy.
-        Inhibit(StopReason::stalled); return;
+        // A delayed frame is not a dead producer. Only a known service-only
+        // obligation may continue, under a fresh exact-owner lease proof. A
+        // stale route or unknown owner still retires; failed stop provenance
+        // must not become service-only merely because moving_ was cleared.
+        const bool service_only = !text_owned_ && !moving_ && (native_activity_
+            || (pending_stop_ && pending_service_only_ && pending_grant_ == grant_));
+        if (!service_only || !actuator_.AutomationLeaseCurrent(grant_)) {
+            Inhibit(StopReason::stalled); return;
+        }
     }
     if (!RetryStop()) { return; }
-    if (discontinuity) {
+    if (discontinuity && grant_.owner != Owner::automation) {
         // A delayed owning update is not a focus/UI/lifetime transition. Retire
         // its stale manual destination, then use this fresh admitted sample.
         // Keep existing arm state (including any prior safety disarm), never

@@ -17,6 +17,11 @@ struct Actuator final : NativeActuator {
     bool stop_ok = true;
     bool move_ok = true;
     bool camera_ok = true;
+    bool lease_current = false;
+    Grant lease_grant{};
+    bool AutomationLeaseCurrent(const Grant& grant) const noexcept override {
+        return lease_current && lease_grant == grant;
+    }
     Controls* reenter_controls = nullptr;
     Grant reenter_grant{};
     Result reenter_result = Result::accepted;
@@ -540,6 +545,62 @@ void OwnerServiceStopResponsibility() {
       Check(f.actuator.Count('s') == before + 1 && f.controls.Current().owner == Owner::none,
           "stalled owner update cleans service work with no movement"); }
 }
+void ServiceUpdateGaps() {
+    const auto acquire = [](Fixture& f) {
+        Grant grant{};
+        Check(f.controls.AcquireAutomation(f.controls.Current().generation, Identity("service"), grant)
+            == Result::accepted, "service gap owner acquired");
+        f.actuator.lease_current = true; f.actuator.lease_grant = grant;
+        Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted, "service obligation pinned");
+        return grant;
+    };
+    { Fixture f; const auto grant = acquire(f); const auto stops = f.actuator.Count('s');
+      f.input.right_stick = {1, 0}; f.Step(297);
+      Check(f.controls.Current() == grant && f.controls.Ready() && f.actuator.Count('s') == stops
+          && f.actuator.Count('c') == 0, "live service survives delayed frame without cancellation or camera integration");
+      Check(f.controls.BeginAutomationNativeAction(grant) == Result::accepted,
+          "same owner admits subsequent work without reacquisition"); }
+    { Fixture f; const auto grant = acquire(f); f.actuator.stop_ok = false;
+      Check(f.controls.PauseAutomation(grant) == Result::stop_failed, "service cleanup remains unresolved");
+      f.Step(297);
+      Check(f.controls.Current() == grant && f.controls.CleanupPending() && !f.controls.Ready()
+          && f.controls.BeginAutomationNativeAction(grant) == Result::stop_failed
+          && f.controls.AutomationDestination(grant, {1,0,2}) == Result::stop_failed,
+          "delayed pending service retains only cleanup authority");
+      f.actuator.stop_ok = true; f.Step(297);
+      Check(f.controls.Current() == grant && f.controls.Ready() && !f.controls.CleanupPending(),
+          "confirmed service cleanup restores same owner after delayed update");
+      f.Step(297);
+      Check(f.controls.Current().owner == Owner::none,
+          "completed service does not leave a reusable gap exemption"); }
+    for (unsigned failure = 0; failure != 9; ++failure) {
+        Fixture f; const auto grant = acquire(f);
+        if (failure == 0) { f.actuator.lease_current = false; }
+        if (failure == 1) { ++f.actuator.lease_grant.generation; }
+        if (failure == 2) { f.input.exact_foreground = false; }
+        if (failure == 3) { f.input.text_owns_input = true; }
+        if (failure == 4) { f.input.ui_owns_input = true; }
+        if (failure == 5) { f.input.native_available = false; }
+        if (failure == 6) { ++f.input.scene; }
+        if (failure == 7) { f.input.tick_ms = 0; f.controls.Tick(f.input); }
+        else { if (failure == 8) { f.input.keys['W'] = true; } f.Step(297); }
+        Check(f.controls.Current() != grant && f.controls.Current().owner
+            == (failure == 8 ? Owner::manual : Owner::none),
+            "lease clock scene UI focus binding loss or manual takeover still retires service owner");
+    }
+    for (const bool pending : {false, true}) {
+        Fixture f; const auto grant = acquire(f);
+        Check(f.controls.AutomationDestination(grant, {1,0,2}) == Result::accepted, "route shares service owner");
+        if (pending) { f.actuator.stop_ok = false; (void)f.controls.PauseAutomation(grant); }
+        f.Step(297);
+        Check(f.controls.Current().owner == Owner::none && f.controls.Current() != grant,
+            "active or pending movement route cannot become service-only after moving flag clears");
+    }
+    { Fixture f; const auto grant = acquire(f); f.actuator.stop_ok = false;
+      (void)f.controls.PauseAutomation(grant); f.actuator.lease_current = false; f.Step(297);
+      Check(f.controls.Current() != grant && !f.controls.CleanupPending()
+          && f.controls.AuthorizesNativeStop(grant), "expired service lease retains old cleanup obligation but loses owner"); }
+}
 void RetainedCleanupStatus() {
     for (unsigned failure = 0; failure != 7; ++failure) {
         Fixture f; const auto grant = f.Automate();
@@ -597,6 +658,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    RetainedCleanupStatus(); ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
+    ServiceUpdateGaps(); RetainedCleanupStatus(); ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

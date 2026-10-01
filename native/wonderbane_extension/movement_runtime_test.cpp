@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
     Check(rt.controls.Configure(rt.settings) == wm::Result::accepted && rt.input.Configure(rt.settings), "consumer settings configured");
     const auto step = [&] { rt.Update(f.game_window.data()); };
     step(); step();
-    if (mode == "ipc" || mode == "ipc-profile" || mode == "ipc-cleanup") {
+    if (mode == "ipc" || mode == "ipc-profile" || mode == "ipc-cleanup" || mode == "ipc-service-gap") {
         FILETIME created{}, exited{}, kernel{}, user{};
         Check(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) != FALSE, "IPC client lifetime");
         rt.process = {GetCurrentProcessId(), (static_cast<std::uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime};
@@ -132,8 +132,9 @@ int main(int argc, char** argv) {
         Check(rt.controls.Configure(rt.settings) == wm::Result::accepted && rt.input.Configure(rt.settings),
             "manual disabled retains native automation readiness");
         Check(wonderbane::extension::StartClientActionCommandChannel(rt.process) == ERROR_SUCCESS, "IPC production channel");
-        static bool cleanup_started = false, cleanup_allowed = false;
-        if (mode == "ipc-cleanup") {
+        static bool cleanup_started = false, cleanup_allowed = false, service_gap = false;
+        service_gap = mode == "ipc-service-gap";
+        if (mode == "ipc-cleanup" || service_gap) {
             wonderbane::extension::combat_owner_stop.store(+[](const wm::NativeScene& scene,
                     const wm::Grant& grant, wm::StopReason) noexcept {
                 return cleanup_allowed && wm::NativeOwnerStopCurrent(scene, grant);
@@ -147,19 +148,23 @@ int main(int argc, char** argv) {
                 if (wm::BeginNativeOwnerAction(observed, grant, owner_runtime.automation_lease->host)
                         != wm::Result::accepted) { return; }
                 cleanup_started = true;
-                Check(wm::PauseNativeOwnerAction(observed, grant) == wm::Result::stop_failed,
-                    "IPC cleanup starts an unconfirmed native cancellation under the acquired owner");
+                if (service_gap) { std::printf("service\n"); std::fflush(stdout); }
+                else {
+                    Check(wm::PauseNativeOwnerAction(observed, grant) == wm::Result::stop_failed,
+                        "IPC cleanup starts an unconfirmed native cancellation under the acquired owner");
+                }
             });
         }
         step(); step(); rt.Publish();
         std::printf("%lu %llu %llu\n", static_cast<unsigned long>(rt.process.process_id),
             static_cast<unsigned long long>(rt.process.creation_filetime_utc),
             static_cast<unsigned long long>(reinterpret_cast<std::uintptr_t>(f.window))); std::fflush(stdout);
-        const auto expected_receipts = mode == "ipc-profile" ? 4 : mode == "ipc-cleanup" ? 2 : 6;
+        const auto expected_receipts = mode == "ipc-profile" ? 4 : service_gap ? 3 : mode == "ipc-cleanup" ? 2 : 6;
         const auto until = GetTickCount64() + 10000;
         auto* storage = wonderbane::extension::command_channel_detail::g_runtime.storage;
         while (GetTickCount64() < until && InterlockedCompareExchange64(&storage->header.result_read_sequence, 0, 0) < expected_receipts) {
-            if (mode == "ipc-cleanup" && !cleanup_allowed) {
+            bool delayed = false;
+            if ((mode == "ipc-cleanup" || service_gap) && !cleanup_allowed) {
                 // Anonymous stdin pipe handshake: no blocking reader thread or
                 // wall-clock auto-completion can manufacture a native stop ack.
                 DWORD available = 0;
@@ -168,12 +173,16 @@ int main(int argc, char** argv) {
                     char bytes[32]{}; DWORD read = 0;
                     if (ReadFile(input_pipe, bytes, (std::min)(available, DWORD{32}), &read, nullptr)) {
                         cleanup_allowed = std::find(bytes, bytes + read, 'r') != bytes + read;
+                        delayed = service_gap && std::find(bytes, bytes + read, 'g') != bytes + read;
                     }
                 }
             }
-            step(); Sleep(5);
+            if (delayed) { Sleep(297); }
+            step();
+            if (delayed) { std::printf("gap\n"); std::fflush(stdout); }
+            Sleep(5);
         }
-        if (mode == "ipc-cleanup") {
+        if (mode == "ipc-cleanup" || service_gap) {
             Check(cleanup_started && cleanup_allowed, "Python acknowledged the retained cleanup fixture");
             wonderbane::extension::combat_owner_service.store(nullptr);
             wonderbane::extension::combat_owner_stop.store(nullptr);
@@ -278,6 +287,9 @@ int main(int argc, char** argv) {
                 "deferred owner cleanup publishes exact-grant continuation through real IPC");
             Check((rejected_baseline->receipt.flags & wm::wire::cleanup_pending) != 0,
                 "failed pause receipt also distinguishes retained cleanup");
+            clock_tick += 297; step();
+            Check(rt.controls.Current() == owned && rt.controls.CleanupPending() && !rt.controls.Ready(),
+                "live pinned service cleanup survives a delayed native frame without new action authority");
             auto blocked_move = make(wm::wire::Verb::destination, owned, 89);
             blocked_move->command.destination = {1, 0, 2}; const auto moves_before = f.moves;
             run(blocked_move); step();
@@ -300,6 +312,27 @@ int main(int argc, char** argv) {
             Check(action_gate && owner_result == wm::Result::accepted
                 && !(rt.controls.DiagnosticState() & 8U), "owner activity is admitted without movement claim");
             begin_action = false;
+            const auto stops_before_gap = stops; clock_tick += 297; step();
+            Check(rt.controls.Current() == owned && action_gate && rt.controls.Ready()
+                && stops == stops_before_gap, "exact leased service survives delayed update without stop or reacquire");
+            // Exercise runtime proof itself without dispatching another command.
+            rt.busy = true;
+            Check(rt.AutomationLeaseCurrent(owned), "fresh pinned service supplies continuation proof");
+            auto wrong_owner = owned; ++wrong_owner.generation;
+            Check(!rt.AutomationLeaseCurrent(wrong_owner), "replacement grant cannot borrow service proof");
+            const auto held_lease = rt.automation_lease; rt.automation_lease.reset();
+            Check(!rt.AutomationLeaseCurrent(owned), "missing producer lease is not continuation proof");
+            rt.automation_lease = held_lease;
+            ++rt.automation_grant.generation;
+            Check(!rt.AutomationLeaseCurrent(owned), "mismatched producer grant is not continuation proof");
+            --rt.automation_grant.generation;
+            const auto process_handle = lease->process;
+            lease->process = CreateEventW(nullptr, TRUE, TRUE, nullptr);
+            Check(!rt.AutomationLeaseCurrent(owned), "signalled producer handle denies continuation");
+            CloseHandle(lease->process); lease->process = process_handle;
+            const auto retained_stop = rt.owner_activity_stop; rt.owner_activity_stop = nullptr;
+            Check(!rt.AutomationLeaseCurrent(owned), "unqualified service hold is not continuation proof");
+            rt.owner_activity_stop = retained_stop; rt.busy = false;
             ++expected_host.generation; step();
             Check(!action_gate, "owner service rejects another producer generation");
             --expected_host.generation;
@@ -321,7 +354,7 @@ int main(int argc, char** argv) {
             auto next = make(wm::wire::Verb::acquire, rt.controls.Current(), 90); run(next);
             expected_grant = rt.controls.Current(); begin_action = true; step(); begin_action = false;
             Check(owner_result == wm::Result::accepted, "new operation can acquire only after cleanup");
-            lease_current = false; const auto before_lease_stop = stops; step();
+            lease_current = false; const auto before_lease_stop = stops; clock_tick += 297; step();
             Check(!action_gate && stops == before_lease_stop + 1 && rt.controls.Current().owner == wm::Owner::none,
                 "lease loss cancels native service work even without a movement command");
             const auto before_retire = retirements; ++observed.epoch; step();

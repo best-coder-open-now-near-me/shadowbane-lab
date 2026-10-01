@@ -75,6 +75,7 @@ def test_required_runtime_failures_cannot_be_waived(tmp_path, name, diagnostic):
     "test_profile_configuration_crosses_real_native_channel_atomically",
     "test_real_cleanup_pending_preserves_owner_until_native_ack",
     "test_real_parent_cancel_preserves_pending_native_owner_until_cleanup_ack",
+    "test_real_service_only_update_gap_preserves_exact_owner_and_cleanup",
 ])
 @pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "error", "duplicate"])
 def test_profile_ipc_must_execute_once_and_pass(tmp_path, outcome, profile_name):

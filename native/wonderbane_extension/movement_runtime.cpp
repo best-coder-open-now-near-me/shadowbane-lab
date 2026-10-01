@@ -202,6 +202,16 @@ public:
         }
         return std::nullopt;
     }
+    bool AutomationLeaseCurrent(const Grant& grant) const noexcept override {
+        // Tick calls this before owner services run. Do not borrow action-phase
+        // admission or MovementAdmission's deliberately permissive cleanup path.
+        return busy && initialized && !terminal && !destroyed && !interrupted
+            && GetCurrentThreadId() == thread && grant.owner == Owner::automation
+            && controls.Current() == grant && automation_grant == grant
+            && owner_activity_grant == grant && owner_activity_stop && owner_activity_retire
+            && automation_lease && automation_lease->Current(clock())
+            && grant.scene == scene.epoch && NativeMovementLifetimeCurrent(scene);
+    }
     bool BindingsAvailable() const noexcept {
         return !terminal && !destroyed && initialized && native.Available() && ui.Available()
             && input.Available() && NativeMovementLifetimeCurrent(scene);
