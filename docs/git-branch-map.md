@@ -37,12 +37,10 @@ binaries totaled 5,386,564 bytes. Settings, jobs and diagnostic evidence remain;
 no rollback copies were retained. Twelve compact receipts and seven installed-file
 hashes were verified under private `artifacts/bot-deploy/20261001-b42/receipts`.
 
-Bot-integration owns `codex/native-buff-preparation-20261001`, published at
-`cd1e4ed` before the native observer checkpoint through
+Bot-integration owns `codex/native-buff-preparation-20261001`, published through native observer `f6db8dd` and saved-intent `adc7866` checkpoints in
 [draft PR #59](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/59).
 It now targets main and includes the PR #58 merge. The
-[buff preparation contract](buff-preparation-20261001.md) now includes shared submission and pure policy with native observer/item primitives
-in progress; the buff module is not installed or fully integrated. The merged
+[buff preparation contract](buff-preparation-20261001.md) includes shared submission, pure policy, durable settings and native observer/item primitives. The next checkpoint adds reviewed actor/context wire authority, retained inventory and buff coverage facts, semantic selector manifests, the application journal and scoped cleanup settlement. The buff module is not installed or fully integrated. The merged
 `codex/native-owner-liveness-20261001` and
 `codex/native-readiness-deployment-20261001` branch tips were verified in
 `origin/main` and both branches were deleted locally and remotely. The clean runtime

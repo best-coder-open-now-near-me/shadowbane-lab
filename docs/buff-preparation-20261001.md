@@ -265,3 +265,31 @@ listener and manager composition must use the same policy and observations.
 4. Complete review and exact-source package gates, then bounded live acceptance
    with current character/item/effect evidence. Claim each buff only when its
    qualified native effect is observed; retain unresolved outcomes honestly.
+
+
+## Reviewed actor observation and ownership checkpoint
+
+The shared actor/context protocol now has native/host golden fixtures and a real
+Windows cross-process fence consumer. Actor authority is independent of optional
+target context authority. Child cleanup requires an exact positive closure receipt
+and keeps the aggregate parent cleanup obligation registered; its next cleanup
+operation receives a fresh budget only after that proof.
+
+The native resolver reports qualified effect coverage, learned rank and readiness
+from retained native objects. Owned inventory lookup retains exact item/template
+references and revalidates them before use. Numeric selector manifests distinguish
+explicit item templates from configured effect-source powers. Semantic group
+hashes survive ordering, display-name and Grant changes. The native application
+journal preserves possible application across target and parent transitions;
+only later complete native presence resolves pending application. Local native
+settlement remains independent, so a locally finished potion can permit another
+buff while its remote application is pending.
+
+Validation: five focused native CTest targets passed; 65 host checks passed,
+including the Windows x86 native fence consumer and scoped cleanup negatives.
+Resolver qualification passed 57 unit checks and 17 checks on each exact original
+and prepared official client image. Inventory qualification passed 105 unit checks
+and both original/prepared native probes. Independent reviews found no remaining
+actionable issues in these frozen slices. These are source checkpoints: canonical
+publication, shared runtime/coordinator integration and complete package validation
+remain in progress. No new runtime version is installed.

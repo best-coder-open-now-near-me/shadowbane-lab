@@ -122,7 +122,7 @@ EXCEPTION_DISPOSITION __cdecl NativeFault(EXCEPTION_RECORD*,void*,CONTEXT*,void*
     std::fprintf(stderr,"native fault\n");std::fflush(stderr);TerminateProcess(GetCurrentProcess(),3);return ExceptionContinueSearch;
 }
 void* __cdecl Allocate(std::size_t size){
-    
+
     Require(size==0x88 && packet[1]==0,"unexpected/reentrant message allocation");++allocations;packet={};return packet.data();
 }
 double __cdecl Clock(){return 123.0;}
@@ -159,9 +159,9 @@ void Test(unsigned container,std::uint32_t uuid,bool deny){
     Membership(container,true);gate=append_gate=true;deny_at_network=deny;
     const auto before_alloc=allocations,before_free=finalizations,before_append=appends,before_lock=locks;
     it::State state;it::Receipt receipt;
-    
+
     const auto result=it::Invoke(binding,state,receipt);
-    
+
     Require(result.native_entered && result.send_observed && result.append_observed==!deny
         && !result.ownership_quarantined,"native item callthrough result");
     Require(result.result==(deny?it::Result::uncertain:it::Result::queued),"native queue result");
@@ -181,7 +181,7 @@ int Run(int argc,char** argv){
         const auto size=file.tellg();Require(file.good()&&size>0&&size<=64*1024*1024,"invalid executable");
         std::vector<unsigned char> bytes(static_cast<std::size_t>(size));file.seekg(0);
         Require(static_cast<bool>(file.read(reinterpret_cast<char*>(bytes.data()),size)),"short image read");
-        
+
         const auto hash=Digest(bytes.data(),bytes.size());
         Require(hash=="e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8"
             ||hash=="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d","unreviewed executable");
@@ -194,7 +194,7 @@ int Run(int argc,char** argv){
                 &&Digest(bytes.data()+segment.rva,segment.size)==segment.sha,"primitive hash mismatch");
             std::memcpy(image+segment.rva,bytes.data()+segment.rva,segment.size);
         }
-        
+
         for(const auto offset:relocations){std::uint32_t value{};std::memcpy(&value,image+offset,4);
             value+=static_cast<std::uint32_t>(arena_base)-0x400000U;std::memcpy(image+offset,&value,4);}
         // The original switch table is data embedded after AE810's code body.
@@ -207,7 +207,7 @@ int Run(int argc,char** argv){
         Jump(image+0x7bee,reinterpret_cast<std::uintptr_t>(&Lock));Jump(image+0x26eb3,reinterpret_cast<std::uintptr_t>(&Unlock));
         Jump(image+0x7a09,reinterpret_cast<std::uintptr_t>(&Transport));Jump(image+0x14128,reinterpret_cast<std::uintptr_t>(&Network));
         Put(arena_base+0x16b0254,reinterpret_cast<std::uintptr_t>(&Increment));Put(arena_base+0x16b0258,reinterpret_cast<std::uintptr_t>(&Decrement));
-        
+
         binding={arena_base,reinterpret_cast<std::uintptr_t>(actor.data()),arena_base+0x1600100,arena_base+0x1600000,
             reinterpret_cast<std::uintptr_t>(object.data()),reinterpret_cast<std::uintptr_t>(definition.data()),
             {4050960,53},{5802955,30},{980066,0},8,10,Current,AppendCurrent,nullptr};
@@ -223,18 +223,18 @@ int Run(int argc,char** argv){
         object[0x10/4]=980066;object[0x68c/4]=Ptr(definition.data());definition[0]=static_cast<std::uint32_t>(arena_base+0x11428f0);
         definition[0xf4/4]=8;definition[0x11c/4]=10;
         Put(arena_base+0x1155684,reinterpret_cast<std::uintptr_t>(&Finalize));Put(arena_base+0x1155688,arena_base+0x1311b0);
-        
+
         DWORD prior{};Require(VirtualProtect(image,0x1000000,PAGE_EXECUTE_READ,&prior)!=FALSE,"executable primitive arena");
         FlushInstructionCache(GetCurrentProcess(),image,0x1000000);
         Require(it::StartBound(arena_base,reinterpret_cast<it::Send>(image+0x7f4da0)),"item observer install");
-        
+
         for(unsigned container:{0U,1U}){for(auto uuid:{30U,40U}){Test(container,uuid,false);Test(container,uuid,true);}}
         for(unsigned container:{0U,1U}){
             Membership(container,false);gate=append_gate=true;deny_at_network=false;
             const auto before=allocations;it::State state;it::Receipt receipt;
-            
+
     const auto result=it::Invoke(binding,state,receipt);
-    
+
             Require(!result.native_entered&&!result.append_observed&&!result.ownership_quarantined
                 &&allocations==before&&object[0x7c4/4]==1,"missing item does not enter or retain");++cases;
         }
