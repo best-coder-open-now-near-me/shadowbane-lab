@@ -37,16 +37,20 @@ profiles, real movement/combat/actor IPC and original/prepared image probes.
 No live buff success is claimed yet. The active source receipt and acceptance lane
 uses `codex/buff-deployment-20261001` in the existing bot-integration worktree.
 Canonical `E:\Projects\shadowbane` is clean on main `1517a61`.
-The merged buff feature branch is retained until the active lane handoff is
-complete; no worktree needs archiving while live qualification uses its build tools.
+The merged buff feature branch was retired locally and remotely after its tip was
+verified reachable from main and its checkout was free. The active integration
+worktree remains in use for acceptance and diagnostic tools.
 
-**Active next item:** finish independent acceptance-helper review, then run the
-bounded native buff/NPC test on a freshly revalidated Umbra session. The user has
-approved automatic buffs, NPC attacks, and PR #59 merge/install, and reported the
-restarted character ready by NPCs. Read-only readiness passed; no .63 buff or attack
-has been issued yet. Automatic retaliation remains disabled. Shared-source or
-native-runtime fixes found during acceptance require their own source review and
-runtime delivery gate.
+**Active next item:** diagnose and repair native effect-observation failure. The
+bounded run `actor-preparation-ce616a3df0e044c4859d64f888b6f8b4` issued four read-only
+REGISTER_SELECTORS requests with the same immutable request 2; all returned
+UNAVAILABLE. No OPEN_OWNER, ATTACH_CONTEXT or SUBMIT was issued. STOP_OWNER request
+3 confirmed NEVER_BOUND/CLOSED, and fresh readiness showed owner NONE with no
+cleanup pending. Passive inspection of the existing publication found UNKNOWN=2
+(effect capture), revision 1/sequence 8. This is historical diagnostic evidence,
+not current buff authority. See the [acceptance record](buff-preparation-20261001.md).
+Automatic retaliation remains disabled. Any shared-source/runtime repair requires
+its own review and delivery gate before another live buff/NPC acceptance.
 
 ## Previous .62/.42 live evidence
 

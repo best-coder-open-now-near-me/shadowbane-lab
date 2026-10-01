@@ -382,15 +382,17 @@ target context, local settlement and remote application. Old v2 acceptance helpe
 cannot be used with version-only edits. Source-only helper preparation was initially blocked by automatic review. The
 user explicitly approved that preparation and reported the game closed, so helper
 migration can proceed. Package generation and read-only receipt inspection
-completed independently. No VM files or live settings have been changed.
+completed independently. At that qualification checkpoint, no VM files or live
+settings had been changed. The subsequent installation is recorded below.
 
 A private Umbra intent JSON is schema/CLI/manifest validated under
 `artifacts/bot-buffs/20261001/umbra-buff-intent.json`, SHA-256
 `db8810268cf75acf6d55fb95eac9d9655868b019dde3ddcf02aa6fc7252946ea`.
 It enables five groups/six actions and preserves existing Shot to the Leg settings
 when applied through the buff-only settings option. It has not been saved to the
-live character. Installed .62/.42 remains in place; automatic retaliation remains
-disabled. Merge, installation and live buff acceptance are still outstanding.
+live character. At that checkpoint .62/.42 remained installed; subsequent merge
+and installation are recorded below. Live buff acceptance remains outstanding,
+and automatic retaliation remains disabled.
 
 ## Installed .63/.43 and restarted-client boundary
 
@@ -418,3 +420,36 @@ hashes. Initial exported launch/readiness receipts retain PID 5328 deliberately;
 they must not authorize the restarted PID 8616. The active bounded test will record
 its own exact identity and distinguish entry, local settlement, pending remote
 application, native effect presence, child closure and final parent closure.
+
+## First bounded .63/.43 acceptance: effect observation unavailable
+
+The approved run `actor-preparation-ce616a3df0e044c4859d64f888b6f8b4` revalidated
+Umbra in PID 8616 with the installed exact DLL and fresh idle scene. It did not
+pass: four REGISTER_SELECTORS reads reused request 2 and manifest digest
+`10862bd07353869c4178648d02da1e0108959d9d929f4d68b217fa5299fd45f2`; each returned
+UNAVAILABLE. There was no OPEN_OWNER, ATTACH_CONTEXT or SUBMIT. STOP_OWNER request
+3 confirmed owner CLOSED / NEVER_BOUND. The watchdog and unexpected-operation-stop
+flags were false; subsequent passive readiness confirmed owner NONE and no
+cleanup pending. No potion use, buff entry or NPC attack is claimed.
+
+A passive read of the existing native publication, without a new registration or
+producer, found revision 1, sequence 8, UNKNOWN=2 (effect capture), complete=false
+and zero factual/action/application counts. Its sampled tick 316601125 belongs to
+the failed requests; its age is not current buff authority. This separates the
+failure from selector mapping/open failure. The underlying effect-capture branch
+still needs diagnosis before another gameplay test. User-reported potion expiry
+is recorded as context, not as native coverage evidence.
+
+Private evidence remains under
+`artifacts/bot-deploy/20261001-b43/failed-registration-evidence`:
+
+| File | SHA-256 |
+| --- | --- |
+| acceptance.json | `b9aa5cd44014f3d4875d6cc27ea5e1d79df9ca8e28aa1738b65fcd542c671624` |
+| events.jsonl | `0f072495b1da0f09449242da2304717e1e7e9167681f2cef0aefcf9fbf92a918` |
+
+The private acceptance helper was corrected so a failed NPC runner cannot enter
+its later preparation-only phase. The original failure made one extra read-only
+registration in that phase; it sent no gameplay action. The revised helper and
+readiness tests passed 69 cases. Existing staged helper hashes were left intact;
+a revised live helper must be reviewed and pinned separately before use.

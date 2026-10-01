@@ -21,9 +21,11 @@ healthy manager activation, five shortcuts and startup preflight. The obsolete
 Settings, jobs and diagnostic evidence remain in place. The desktop Vendor Test
 and Modded Client shortcuts use the updated launcher; dashboard shortcuts use .63.
 
-**Active next item:** bounded live buff/combat acceptance on the fresh Umbra
-session. Source/package qualification and installation do not prove live buff
-application or expiry. Automatic retaliation remains disabled. The earlier .62
+**Active next item:** repair the native effect-observation failure found by the
+first bounded buff/combat test. Registration returned unavailable before any
+buff or attack submission; exact cleanup and subsequent idle readiness passed.
+Source/package qualification and installation do not prove live buff application
+or expiry. Automatic retaliation remains disabled. The earlier .62
 [bounded combat recovery acceptance](docs/native-owner-liveness-20261001.md)
 remains a separate result and need not be repeated as buff acceptance.
 
