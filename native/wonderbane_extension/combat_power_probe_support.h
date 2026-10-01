@@ -55,11 +55,14 @@ bool Prepare(int argc,char** argv,unsigned char* image) {
             throw std::runtime_error("unreviewed executable");}
         // In these reviewed files raw text offsets equal RVAs. Copy only the
         // closed, audited primitives; execute no native initialization or imports.
-        constexpr std::array<std::array<std::size_t,2>,14> segments{{
+        constexpr std::array<std::array<std::size_t,2>,15> segments{{
             {0x9b400,0x71},{0x9b100,0x71},{0x1db29,5},{0xcba8,5},
             {0xa4520,0x3e},{0x94920,0x3e},{0x1117e0,0x15},{0x1119d0,1},
-            {0x7f4da0,0x8e},{0x9d3d4,0x11},{0x9bbf0,3},{0x9c710,3},{0x9bf04,5},{0x1c431,5}}};
+            {0x7f4da0,0x8e},{0x9d3d4,0x11},{0x9bbf0,3},{0x9c710,3},{0x9bf04,5},{0x1c431,5},{0x9c906,0x1b}}};
         for(const auto& s:segments){std::memcpy(image+s[0],bytes.data()+s[0],s[1]);}
+        // A separate probe entry executes the exact native target-mode redirect.
+        // Its destination returns the derived target; no admission or gameplay runs.
+        image[0x9c921]=0x8b; image[0x9c922]=0xc3; image[0x9c923]=0xc3;
         // Keep the real CALL instruction bytes and exact native sender ownership.
         // The fixture terminates at the ordinary call return; no native cast runs.
         // Keep the fixture epilogue after the exact native calls; the real
@@ -71,7 +74,34 @@ bool Prepare(int argc,char** argv,unsigned char* image) {
         return true;
     }catch(const std::exception& error){std::fprintf(stderr,"%s\n",error.what());return false;}
 }
+__declspec(naked) void* __cdecl Recipient(void*,void*,void*,void*) {
+    __asm {
+        push ebp
+        mov ebp, esp
+        push esi
+        push edi
+        push ebx
+        mov esi, dword ptr [ebp+12]
+        mov ebx, dword ptr [ebp+16]
+        mov edi, dword ptr [ebp+20]
+        call dword ptr [ebp+8]
+        pop ebx
+        pop edi
+        pop esi
+        pop ebp
+        ret
+    }
+}
 void Learned(unsigned char* image) {
+    std::array<std::uint32_t,0x208/4> power{};
+    int actor_object{}, engagement_object{};
+    for(auto mode:{0U,1U,2U,3U,10U}) {
+        power[0x1a8/4]=mode;
+        Check(Recipient(image+0x9c906,&actor_object,&engagement_object,power.data())
+            ==(mode==2||mode==3?static_cast<void*>(&actor_object):static_cast<void*>(&engagement_object)),
+            "real native target-mode branch derives actor recipient for self powers");
+    }
+
     using Lookup=int(__thiscall*)(void*,std::uint32_t);
     using Member=void*(__thiscall*)(void*,std::uint32_t);
     using Constructor=void*(__thiscall*)(void*,std::uint32_t);

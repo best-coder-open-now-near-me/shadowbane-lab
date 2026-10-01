@@ -559,8 +559,9 @@ inline void RefreshCombatCapability(ClientActionChannelStorage& storage) noexcep
     // current readiness; transport availability alone never promises execution.
     auto* flags = reinterpret_cast<volatile LONG*>(&storage.header.capability_flags);
     InterlockedAnd(flags, ~static_cast<LONG>(1U << 3U)); // Retired v1 receiver is never advertised.
-    if (NativeCombatReady()) { InterlockedOr(flags, static_cast<LONG>(kNativeCombatCapability)); }
-    else { InterlockedAnd(flags, ~static_cast<LONG>(kNativeCombatCapability)); }
+    constexpr auto supported = kNativeCombatCapability | kNativeSelfPowerCapability;
+    if (NativeCombatReady()) { InterlockedOr(flags, static_cast<LONG>(supported)); }
+    else { InterlockedAnd(flags, ~static_cast<LONG>(supported)); }
 }
 inline bool CombatReceiptMatches(const combat::v2::wire::Command& command,
     combat::v2::wire::Verb verb, const combat::v2::wire::Receipt& receipt) noexcept {

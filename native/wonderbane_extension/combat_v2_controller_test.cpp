@@ -12,7 +12,7 @@ w::Command Command(unsigned engagement,unsigned request,w::Action action=w::Acti
     strcpy_s(result.grant.token.worker,"worker"); strcpy_s(result.grant.token.operation,"operation");
     result.local_key[0]=100; result.local_key[1]=53; result.target_key[0]=200; result.target_key[1]=37;
     result.binding_digest.fill(1); result.request=Id(request); result.engagement=Id(engagement);
-    result.action=action; result.power_id=action==w::Action::cast?428918601:0;
+    result.action=action; result.power_id=(action==w::Action::cast||action==w::Action::self_power)?428918601:0;
     return result;
 }
 struct Backend final:c::Invoker {
@@ -65,6 +65,24 @@ w::Receipt Execute(c::Controller& controller,Backend& backend,w::Verb verb,const
     assert(w::Correlated(command,verb,result)); return result;
 }
 int main() {
+    {
+        c::Controller sequence; Backend owner; owner.controller=&sequence;
+        auto binding=Command(1,1,w::Action::none);
+        assert(Execute(sequence,owner,w::Verb::bind,binding).outcome==w::Outcome::bound);
+        const auto skill=Command(1,2,w::Action::self_power), attack=Command(1,3);
+        const auto submitted=Execute(sequence,owner,w::Verb::submit,skill);
+        assert(submitted.action==w::Action::self_power && submitted.flags&w::outbound_queued);
+        assert(submitted.target_key[0]==200 && submitted.entry==w::Entry::entered);
+        assert(Execute(sequence,owner,w::Verb::submit,attack).outcome==w::Outcome::client_outbound_queued);
+        assert(owner.binds==1 && owner.submits==2 && !owner.stops);
+        (void)Execute(sequence,owner,w::Verb::submit,skill); // Replay never rearms the power.
+        assert(owner.submits==2);
+        auto collision=skill; collision.action=w::Action::cast;
+        assert(Execute(sequence,owner,w::Verb::submit,collision).outcome==w::Outcome::invalid);
+        assert(Execute(sequence,owner,w::Verb::stop,binding).closure==w::Closure::native_stopped);
+        const auto history=Execute(sequence,owner,w::Verb::action_status,skill,false,false);
+        assert(history.flags&w::outbound_queued && history.closure==w::Closure::native_stopped);
+    }
     c::Controller controller; Backend backend; backend.controller=&controller;
     auto control=Command(1,1,w::Action::none);
     auto result=Execute(controller,backend,w::Verb::bind,control);

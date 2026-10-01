@@ -9,7 +9,7 @@ using Digest = std::array<std::uint8_t, 32>;
 using Id = std::array<std::uint8_t, 16>;
 enum class Verb : std::uint32_t { bind = 37, submit, action_status, cancel_action, engagement_status, stop };
 enum class Authority : std::uint32_t { manual_player = 1, npc = 2 };
-enum class Action : std::uint32_t { none, attack, cast };
+enum class Action : std::uint32_t { none, attack, cast, self_power };
 enum class Outcome : std::uint32_t {
     observed, client_outbound_queued, stale, unavailable, invalid, pending,
     uncertain, exhausted, engagement_closed, native_rejected, bound,
@@ -79,7 +79,7 @@ inline bool Valid(Authority authority) noexcept {
 }
 inline bool Valid(Action action, std::uint32_t power, Verb verb) noexcept {
     return Valid(verb) && (ActionVerb(verb)
-        ? ((action == Action::attack && !power) || (action == Action::cast && power))
+        ? ((action == Action::attack && !power) || ((action == Action::cast || action == Action::self_power) && power))
         : action == Action::none && !power);
 }
 inline Receipt Reply(const Command& command, Verb verb, Outcome outcome) noexcept {
@@ -232,8 +232,8 @@ inline bool ActorIdentityMatches(const Command& c, Text local_name, Text server)
 inline bool BindingFor(const Command& c, std::uint32_t client_pid,
     std::uint64_t client_creation, fence::Binding& out) noexcept {
     movement::Grant grant{}; Digest operation{}, digest{};
-    if (c.version != 2 || !Valid(c.authority) || c.action > Action::cast
-        || ((c.action == Action::cast) != (c.power_id != 0))
+    if (c.version != 2 || !Valid(c.authority) || c.action > Action::self_power
+        || ((c.action == Action::cast || c.action == Action::self_power) != (c.power_id != 0))
         || !movement::wire::Valid(c.host) || !c.window || c.window > UINT32_MAX
         || !movement::wire::Decode(c.grant,grant) || grant.owner != movement::Owner::automation
         || movement::wire::Zero(c.request.data(),c.request.size())

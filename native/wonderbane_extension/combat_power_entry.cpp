@@ -63,7 +63,7 @@ struct Entry {
     static bool Call(Scope& scope, Use use, std::uint32_t rank, const float* position) {
         const auto& c = scope.context_;
         const Invocation invocation{use,c.power_id,rank,reinterpret_cast<void*>(c.actor),
-            reinterpret_cast<void*>(c.target),position,Key{},&scope.native_frame_,&scope.native_return_};
+            reinterpret_cast<void*>(c.Recipient()),position,Key{},&scope.native_frame_,&scope.native_return_};
         return Bridge(&invocation);
     }
 };
@@ -81,8 +81,11 @@ bool InvokeBound(Scope& scope, const Calls& calls) {
         || !Read(&id, definition + 0x138, sizeof(id)) || id != c.power_id
         || !Read(&category, definition + 0x204, sizeof(category)) || category > 1
         || !Read(&target_mode, definition + 0x1a8, sizeof(target_mode))
-        || target_mode == 2 || target_mode == 3
-        || !Read(&delivery, definition + 0x1b4, sizeof(delivery)) || delivery == 2) { return false; }
+        || !Read(&delivery, definition + 0x1b4, sizeof(delivery))) { return false; }
+    if (c.target_mode == TargetMode::self) {
+        if (target_mode != 2 || delivery != 0) { return false; }
+    } else if (c.target_mode != TargetMode::engagement_object
+        || target_mode == 2 || target_mode == 3 || delivery == 2) { return false; }
     const auto rank = static_cast<std::uint32_t>(std::min(learned, 9999));
     if (!scope.Enter(definition, rank)) { return false; }
     // Ordinary object caller supplies zero cursor position and a native zero key.

@@ -26,6 +26,9 @@ int main(int argc, char** argv) {
     }
     f::Binding prototype_binding{};
     assert(v::wire::BindingFor(prototype, 1234, 0x1020304050607080ULL, prototype_binding));
+    // Exercise the new action through the same correlated transport and the
+    // readiness-loss lifecycle paths; the golden CAST remains codec coverage.
+    prototype.action=v::wire::Action::self_power;
     FILETIME created{}, exited{}, kernel{}, user{};
     assert(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user));
     ProcessIdentity identity{GetCurrentProcessId(),
@@ -70,7 +73,7 @@ int main(int argc, char** argv) {
         v::wire::Receipt receipt{}; std::memcpy(&receipt, &last_result().movement, sizeof(receipt)); return receipt;
     };
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
-    assert(!(storage.header.capability_flags & kNativeCombatCapability));
+    assert(!(storage.header.capability_flags & (kNativeCombatCapability|kNativeSelfPowerCapability)));
     publish(v::wire::Verb::submit);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
     assert(!v::Take() && last_result().stage == static_cast<unsigned>(ClientActionResultStage::failed));
@@ -83,7 +86,8 @@ int main(int argc, char** argv) {
     publish(v::wire::Verb::submit);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
     assert(storage.header.capability_flags & kNativeCombatCapability);
-    assert(kNativeCombatCapability==16U && !(storage.header.capability_flags&8U));
+    assert(kNativeCombatCapability==16U && kNativeSelfPowerCapability==32U
+        && (storage.header.capability_flags&kNativeSelfPowerCapability) && !(storage.header.capability_flags&8U));
     assert(runtime.combat_pending && !runtime.pending && storage.header.command_read_sequence == 1);
     auto command = v::Take(); assert(command && command->lease->Current(now));
     assert(!v::Take());
@@ -104,7 +108,7 @@ int main(int argc, char** argv) {
     outer::test_ready = false;
     publish(v::wire::Verb::cancel_action);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
-    assert(!(storage.header.capability_flags & kNativeCombatCapability));
+    assert(!(storage.header.capability_flags & (kNativeCombatCapability|kNativeSelfPowerCapability)));
     command = v::Take(); assert(command && command->verb == v::wire::Verb::cancel_action);
     receipt = v::wire::Reply(command->command, command->verb, v::wire::Outcome::pending);
     receipt.flags = v::wire::cleanup_required; receipt.phase = v::wire::Phase::stopping;
