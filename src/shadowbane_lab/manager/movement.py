@@ -11,10 +11,11 @@ from shadowbane_lab.client_extension.action_channel import (
 )
 from shadowbane_lab.client_extension.movement_dispatcher import NativeMovementTravelDispatcher
 from shadowbane_lab.client_extension.movement_session import (
+    NativeMovementCleanupPending,
     NativeMovementError,
     NativeMovementSession,
 )
-from shadowbane_lab.client_extension.movement_wire import Outcome
+from shadowbane_lab.client_extension.movement_wire import CLEANUP_PENDING, Outcome
 from shadowbane_lab.client_input import StopSignal
 
 from .operation import WorkerOperation
@@ -37,6 +38,8 @@ class OperationMovement:
         self.parent = stop_signal
         self.request_key = str(uuid.uuid4())
         self.stop_key = str(uuid.uuid5(uuid.UUID(self.request_key), "terminal-stop"))
+        self._cleanup_pause_done = False
+        self._cleanup_pause_key = str(uuid.uuid5(uuid.UUID(self.request_key), "cleanup-pause"))
         self.dispatcher: NativeMovementTravelDispatcher | None = None
         self.reason: str | None = None
         self._interrupted = threading.Event()
@@ -53,6 +56,8 @@ class OperationMovement:
         if self._interrupted.is_set():
             return True
         if self.parent.is_set():
+            if self.dispatcher is not None:
+                self.session.cleanup.request_terminal(self.dispatcher.grant)
             self.interrupt("worker dispatch permission revoked")
         dispatcher = self.dispatcher
         try:
@@ -89,17 +94,43 @@ class OperationMovement:
         if not self._lock.acquire(blocking=False):
             return
         try:
-            if self._closed or self.dispatcher is None or self.is_set():
+            if self._closed or self.dispatcher is None:
+                return
+            cancelled = self.is_set()
+            grant = self.dispatcher.grant
+            if cancelled and not self.session.cleanup.maintain(grant):
                 return
             try:
-                self.session.renew(self.dispatcher.grant)
+                if cancelled:
+                    # Worker safety/ownership remains authoritative after the parent
+                    # stop; only the original pending cleanup receives renewal.
+                    if self.dispatcher.is_set():
+                        raise NativeActionChannelError("cleanup owner is no longer current")
+                    if not self._cleanup_pause_done:
+                        if not self.session.snapshot().flags & CLEANUP_PENDING:
+                            try:
+                                self.session.pause(grant, self._cleanup_pause_key)
+                            except NativeMovementCleanupPending:
+                                pass
+                            except NativeActionChannelTimeout:
+                                if self.session.cleanup.maintain(grant):
+                                    self.session.renew(grant)
+                                return
+                        self._cleanup_pause_done = True
+                    if not self.session.cleanup.maintain(grant):
+                        return
+                self.session.renew(grant)
             except (NativeActionChannelError, OSError, ValueError) as exc:
+                self.session.cleanup.abort(grant)
                 self.interrupt(f"native movement renewal failed: {type(exc).__name__}")
         finally:
             self._lock.release()
 
     def finish(self) -> str | None:
         """Stop only our immutable grant, even when the strategy's gate is closed."""
+        if self.dispatcher is not None:
+            self.session.cleanup.request_terminal(self.dispatcher.grant)
+            self.session.cleanup.wait_for_terminal(self.dispatcher.grant)
         with self._lock:
             if self._closed:
                 return None

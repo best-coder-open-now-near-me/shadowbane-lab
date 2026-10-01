@@ -13,6 +13,7 @@ from shadowbane_lab.pve.authority import (
 )
 from shadowbane_lab.pve.controller import PvEController as _BasePvEController
 from shadowbane_lab.pve.model import (
+    PvEAbility,
     PvEControllerConfig,
     PvEControllerDecision,
     PvEIntent,
@@ -304,6 +305,7 @@ class PvEController(_BasePvEController):
         now_ms: int,
         intent: PvEIntent | None = None,
         *,
+        ability: PvEAbility | None = None,
         terminal_reason: str | None = None,
         kill_confirmation: PvEKillConfirmation | None = None,
         reposition_requested: bool = False,
@@ -312,6 +314,7 @@ class PvEController(_BasePvEController):
         decision = super()._emit(
             now_ms,
             intent,
+            ability=ability,
             terminal_reason=terminal_reason,
             kill_confirmation=kill_confirmation,
             reposition_requested=reposition_requested,

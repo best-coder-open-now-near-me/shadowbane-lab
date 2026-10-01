@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from contextlib import ExitStack
+from dataclasses import replace
 from pathlib import Path
 
 from shadowbane_lab.client_extension.movement_operation import NativeMovementOperation
@@ -57,6 +58,7 @@ from shadowbane_lab.client_observation import (
     open_windows_native_target_position_reader,
 )
 from shadowbane_lab.client_observation import native_group as native_party
+from shadowbane_lab.client_observation.native_ability import resolve_learned_ability
 from shadowbane_lab.client_observation.native_character_session import open_native_character_session
 from shadowbane_lab.navigation_inspector.session import (
     ObservedPositionSource,
@@ -83,7 +85,9 @@ from shadowbane_lab.pve.attack_list import (
     default_attack_list_root,
 )
 from shadowbane_lab.pve.listed_combat import ListedCombatCoordinator
+from shadowbane_lab.pve.model import PvEAbility, PvEAbilityRecipient
 from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
+from shadowbane_lab.pve.settings import load_pve_settings
 from shadowbane_lab.travel import (
     SparseNavigationMap,
     TravelDecisionDispatcher,
@@ -113,9 +117,11 @@ def _run_pve(
     max_seconds: float,
     wait_for_client_seconds: float,
     poll_ms: int,
-    policy: str,
+    policy: str | None,
     live: bool,
     as_json: bool,
+    opening_skill: str | None = None,
+    suppress_opening_skill: bool = False,
     evidence_output_path: Path | None = None,
     combat_source: str | None = None,
     native_message_hud_profile_path: Path | None = None,
@@ -180,8 +186,16 @@ def _run_pve(
         return _error("wait-for-client-seconds must be in [0, 300]", as_json=as_json)
     if isinstance(poll_ms, bool) or not 50 <= poll_ms <= 1_000:
         return _error("poll-ms must be in [50, 1000]", as_json=as_json)
-    if policy not in ("basic", "proc-assassin"):
+    if policy not in (None, "basic", "proc-assassin"):
         return _error("policy must be basic or proc-assassin", as_json=as_json)
+    if opening_skill is not None and (
+        not isinstance(opening_skill, str) or not opening_skill.strip()
+    ):
+        return _error("opening-skill must be a nonempty native skill name or ID", as_json=as_json)
+    if type(suppress_opening_skill) is not bool or (
+        suppress_opening_skill and opening_skill is not None
+    ):
+        return _error("opening-skill and no-opening-skill are mutually exclusive", as_json=as_json)
     if hotbar_config_path is not None:
         return _error(
             "native PvE does not use --hotbar-config; remove this option", as_json=as_json
@@ -206,32 +220,6 @@ def _run_pve(
         client_profile = load_calibration(client_profile_path)
         if not client_profile.live_input_enabled:
             raise ValueError("client profile is not enabled for live input")
-        controller = PvEController(
-            PvEControllerConfig(
-                maximum_kills=max_kills,
-                maximum_session_ms=round(max_seconds * 1000),
-                engagement_timeout_ms=round(max_encounter_seconds * 1000),
-                recovery_timeout_ms=round(recovery_timeout_seconds * 1000),
-                minimum_recovery_health_fraction=recovery_health_fraction,
-                minimum_recovery_mana_fraction=recovery_mana_fraction,
-                minimum_recovery_stamina_fraction=recovery_stamina_fraction,
-                accept_automatic_targets=policy == "proc-assassin",
-                interrupt_intent=(
-                    PvEIntent.CAST_SHADOW_TOUCH if policy == "proc-assassin" else None
-                ),
-                interrupt_mana_cost=55.0 if policy == "proc-assassin" else 0.0,
-                interrupt_cooldown_ms=2_000 if policy == "proc-assassin" else 0,
-                maximum_interrupts_per_target=1 if policy == "proc-assassin" else 0,
-                automatic_attack_expected=policy == "proc-assassin",
-                automatic_target_requires_active_action=policy == "proc-assassin",
-                require_target_identity=True,
-                maximum_stalled_retargets=4 if policy == "proc-assassin" else 0,
-                nearest_target_sample_count=1,
-                target_sample_interval_ms=350,
-                continuous=continuous,
-                camp_radius=camp_radius if continuous else None,
-            )
-        )
         health_profile = (
             load_native_health_profile(native_health_profile_path)
             if native_health_profile_path is not None
@@ -318,6 +306,43 @@ def _run_pve(
                 raise ValueError("client lifetime changed before PvE initialization")
             character_session.require_current()
             native_character_payload = binding.as_dict()
+            saved_settings = load_pve_settings(binding.identity)
+            policy = saved_settings.policy if policy is None else policy
+            opening_skill = (None if suppress_opening_skill else
+                             opening_skill if opening_skill is not None
+                             else saved_settings.opening_skill)
+            opening_definition = (None if opening_skill is None else
+                                  resolve_learned_ability(character_session, opening_skill))
+            opening_payload = None if opening_definition is None else opening_definition.as_dict()
+            controller_config = PvEControllerConfig(
+                maximum_kills=max_kills,
+                maximum_session_ms=round(max_seconds * 1000),
+                engagement_timeout_ms=round(max_encounter_seconds * 1000),
+                recovery_timeout_ms=round(recovery_timeout_seconds * 1000),
+                minimum_recovery_health_fraction=recovery_health_fraction,
+                minimum_recovery_mana_fraction=recovery_mana_fraction,
+                minimum_recovery_stamina_fraction=recovery_stamina_fraction,
+                accept_automatic_targets=policy == "proc-assassin",
+                interrupt_intent=(
+                    PvEIntent.CAST_SHADOW_TOUCH if policy == "proc-assassin" else None
+                ),
+                interrupt_mana_cost=55.0 if policy == "proc-assassin" else 0.0,
+                interrupt_cooldown_ms=2_000 if policy == "proc-assassin" else 0,
+                maximum_interrupts_per_target=1 if policy == "proc-assassin" else 0,
+                automatic_attack_expected=policy == "proc-assassin",
+                automatic_target_requires_active_action=policy == "proc-assassin",
+                require_target_identity=True,
+                maximum_stalled_retargets=4 if policy == "proc-assassin" else 0,
+                nearest_target_sample_count=1,
+                target_sample_interval_ms=350,
+                continuous=continuous,
+                camp_radius=camp_radius if continuous else None,
+            )
+            if opening_definition is not None:
+                controller_config = replace(controller_config, opening_ability=PvEAbility(
+                    opening_definition.power_id, PvEAbilityRecipient(opening_definition.recipient),
+                ))
+            controller = PvEController(controller_config)
             guard = ForegroundWindowGuard(
                 client_profile,
                 inspector,
@@ -461,6 +486,7 @@ def _run_pve(
                         {
                             "run_mode": "continuous",
                             "policy": policy,
+                            "opening_skill": opening_payload,
                             "process_id": process_id,
                             "executable_sha256": health_profile.executable_sha256,
                             "camp_radius": camp_radius,
@@ -495,6 +521,8 @@ def _run_pve(
                 combat_owner = native_operation
                 movement_dispatcher = native_operation.dispatcher
                 active_stop_signal = native_operation
+            if opening_definition is not None and opening_definition.recipient == "actor":
+                combat_owner.session.require_combat_available(combat_owner.grant, self_power=True)
             combat = stack.enter_context(NativeCombatCoordinator(
                 session=combat_owner.session, grant=combat_owner.grant,
                 population=population_reader, character_session=character_session,
@@ -586,6 +614,7 @@ def _run_pve(
         "terminal_reason": result.terminal_reason,
         "run_mode": "continuous" if continuous else "bounded",
         "policy": policy,
+        "opening_skill": opening_payload,
         "kills": result.kills,
         "steps": len(result.trace),
         "total_steps": total_steps,

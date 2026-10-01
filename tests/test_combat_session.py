@@ -53,9 +53,12 @@ def owner(monkeypatch):
             self.error = 0
             self.detail = ""
             self.closed = False
+            self.expected_timeout = 127
+            self.timeouts = []
 
         def submit(self, wire, *, timeout_ms):
-            assert timeout_ms == 127
+            assert timeout_ms == self.expected_timeout
+            self.timeouts.append(timeout_ms)
             self.commands.append(wire)
             if self.failure:
                 raise self.failure
@@ -304,3 +307,70 @@ def test_combat_ordinal_allocator_survives_coordinator_recreation(owner):
     second = session.combat_ordinals(grant)
     assert second is first
     assert second.next_engagement().value > engagement.value
+
+
+def test_self_power_requires_new_capability_but_lifecycle_does_not(owner):
+    session, grant, original, transport, opened = owner
+    command = replace(original, action=Action.SELF_POWER, power_id=563795161)
+    transport.payload = receipt(command).encode()
+    with pytest.raises(channel.NativeActionChannelUnavailable, match="self-directed"):
+        session.require_combat_available(grant, self_power=True)
+    with pytest.raises(channel.NativeActionChannelUnavailable, match="self-directed"):
+        session.combat(grant, Verb.SUBMIT, command)
+    assert transport.commands == []
+    transport.header = replace(transport.header,
+        capability_flags=transport.header.capability_flags | channel.SELF_POWER_CAPABILITY)
+    session.require_combat_available(grant, self_power=True)
+    result = session.combat(grant, Verb.SUBMIT, command)
+    assert result.receipt.action is Action.SELF_POWER
+    transport.header = replace(transport.header, capability_flags=1)
+    for verb in (Verb.ACTION_STATUS, Verb.CANCEL_ACTION):
+        assert session.combat(grant, verb, command).receipt.action is Action.SELF_POWER
+    assert all(wire.payload is command for wire in transport.commands)
+    assert opened == [transport]
+
+
+def test_self_power_receipt_cannot_be_substituted_for_targeted_cast(owner):
+    session, grant, command, transport, _ = owner
+    transport.payload = receipt(replace(command, action=Action.SELF_POWER)).encode()
+    with pytest.raises(ValueError):
+        session.combat(grant, Verb.SUBMIT, command)
+
+
+def test_terminal_cleanup_blocks_new_input_but_keeps_correlated_status(owner):
+    session,grant,command,transport,_=owner
+    obligation=session.cleanup.register(grant)
+    session.cleanup.request_terminal(grant)
+    for call in (lambda:session.require_combat_available(grant),
+                 lambda:session.combat(grant,Verb.SUBMIT,command),
+                 lambda:session.move(grant,(1,0,-2),str(uuid.uuid4()))):
+        with pytest.raises(NativeMovementError) as error:
+            call()
+        assert error.value.outcome is movement.Outcome.INHIBITED
+    assert not transport.commands
+    session.combat(grant,Verb.ACTION_STATUS,command)
+    assert transport.commands[-1].kind is Verb.ACTION_STATUS
+    session.cleanup.release(obligation)
+    with pytest.raises(NativeMovementError):
+        session.combat(grant,Verb.SUBMIT,command)
+
+
+
+def test_cleanup_pause_clamps_remaining_budget_and_expiry_does_not_publish(owner):
+    from types import SimpleNamespace
+
+    from shadowbane_lab.client_extension.cleanup_settlement import CleanupSettlement
+    session,grant,_,transport,_=owner
+    clock=SimpleNamespace(now=0.0)
+    session.cleanup=CleanupSettlement(clock=lambda:clock.now)
+    obligation=session.cleanup.register(grant)
+    session.cleanup.begin(obligation)
+    clock.now=2.95
+    transport.expected_timeout=session.cleanup.timeout_ms(grant,127)
+    session.pause(grant,str(uuid.uuid4()))
+    assert 49 <= transport.timeouts[-1] <= 50
+    count=len(transport.commands)
+    clock.now=3
+    with pytest.raises(TimeoutError,match='deadline expired'):
+        session.pause(grant,str(uuid.uuid4()))
+    assert len(transport.commands)==count and not obligation.released

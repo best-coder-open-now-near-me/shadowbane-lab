@@ -46,7 +46,8 @@ def command(authority=Authority.MANUAL_PLAYER, action=Action.CAST):
         bytes(32) if npc else identity_digest("Enemy"), authority, 0x12300000, 0x12400000,
     )
     return Command(Host(5678, 7, 0x1122334455667788), 123, grant, binding,
-                   RequestId(2), action, 428918601 if action is Action.CAST else 0,
+                   RequestId(2), action,
+                   428918601 if action in (Action.CAST, Action.SELF_POWER) else 0,
                    identity_digest("Local"), identity_digest("Server"))
 
 

@@ -48,10 +48,10 @@ int wmain(int argc,wchar_t** argv) {
     f::Binding decoded{};
     assert(w::BindingFor(command,binding.client_pid,binding.client_creation,decoded) && f::Same(binding,decoded));
     for (auto verb : {w::Verb::bind,w::Verb::submit,w::Verb::action_status,w::Verb::cancel_action,w::Verb::engagement_status,w::Verb::stop}) {
-        for (auto action : {w::Action::none,w::Action::attack,w::Action::cast}) {
+        for (auto action : {w::Action::none,w::Action::attack,w::Action::cast,w::Action::self_power,static_cast<w::Action>(4)}) {
             for (unsigned power : {0U,428918601U}) {
                 const bool expected=w::ActionVerb(verb)
-                    ? (action==w::Action::attack&&!power)||(action==w::Action::cast&&power)
+                    ? (action==w::Action::attack&&!power)||((action==w::Action::cast||action==w::Action::self_power)&&power)
                     : action==w::Action::none&&!power;
                 assert(w::Valid(action,power,verb)==expected);
             }
@@ -100,6 +100,14 @@ int wmain(int argc,wchar_t** argv) {
     receipt.engagement[15]=2; assert(!w::Correlated(command,w::Verb::submit,receipt));
     auto changed=command; ++changed.request[15]; changed.action=w::Action::attack; changed.power_id=0;
     assert(w::SameEngagement(command,changed)); ++changed.target_hint; assert(!w::SameEngagement(command,changed));
+    command.action=w::Action::self_power;
+    assert(static_cast<unsigned>(command.action)==3 && w::BindingFor(command,binding.client_pid,binding.client_creation,decoded));
+    receipt=w::Reply(command,w::Verb::submit,w::Outcome::client_outbound_queued);
+    receipt.phase=w::Phase::bound; receipt.entry=w::Entry::entered;
+    receipt.flags=w::cleanup_required|w::outbound_queued;
+    assert(w::Correlated(command,w::Verb::submit,receipt) && receipt.target_key[0]==200);
+    receipt.action=w::Action::cast; assert(!w::Correlated(command,w::Verb::submit,receipt));
+    command.action=static_cast<w::Action>(4); assert(!w::BindingFor(command,binding.client_pid,binding.client_creation,decoded));
     const auto name=f::Name(binding); assert(!name.empty());
     auto other=binding; ++other.movement_generation; assert(f::Name(other)!=name);
     other=binding; ++other.client_creation; assert(f::Name(other)!=name);

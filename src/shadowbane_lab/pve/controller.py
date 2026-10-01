@@ -6,6 +6,8 @@ from math import hypot
 
 from shadowbane_lab.client_observation.native_population import NativeCharacterKind
 from shadowbane_lab.pve.model import (
+    PvEAbility,
+    PvEAbilityRecipient,
     PvECampLease,
     PvECombatAcknowledgement,
     PvECombatCleanupRequest,
@@ -60,7 +62,7 @@ class PvEController:
         self._stalled_retargets = 0
         self._failed_target_tokens: dict[str, int] = {}
         self._require_different_target = False
-        self._last_power_at: dict[PvEIntent, int] = {}
+        self._last_power_at: dict[int, int] = {}
         self._last_interrupt_action_sequence: int | None = None
         self._interrupts_for_target = 0
         self._best_approach_distance: float | None = None
@@ -101,7 +103,7 @@ class PvEController:
 
     @property
     def requires_target_action(self) -> bool:
-        return self._config.interrupt_intent is not None
+        return self._config.resolved_interrupt_ability is not None
 
     @property
     def requires_target_identity(self) -> bool:
@@ -182,7 +184,7 @@ class PvEController:
                 self._last_attack_at = now_ms
                 self._player_attack_animation_observed = False
             else:
-                self._last_power_at[PvEIntent.CAST_SHADOW_TOUCH] = now_ms
+                self._last_power_at[proposal.power_id] = now_ms
                 if self._phase is PvEPhase.OPENING and self._pending_cleanup is None:
                     self._opening_queued_at = now_ms
                     self._phase_entered_at = now_ms
@@ -336,9 +338,13 @@ class PvEController:
                 return interrupt if interrupt is not None else self._emit(now)
             self._proposal_interrupt_sequence = retry.interrupt_sequence
             self._adoption_bind_pending = retry.kind is PvECombatKind.BIND
-            intent = (None if retry.kind is PvECombatKind.BIND else
-                      PvEIntent.CAST_SHADOW_TOUCH if retry.kind is PvECombatKind.CAST else
-                      PvEIntent.ATTACK_SELECTED_TARGET)
+            if retry.kind in (PvECombatKind.CAST, PvECombatKind.SELF_POWER):
+                recipient = (PvEAbilityRecipient.ACTOR
+                    if retry.kind is PvECombatKind.SELF_POWER
+                    else PvEAbilityRecipient.ENGAGEMENT_TARGET)
+                ability = PvEAbility(retry.power_id, recipient)
+                return self._emit(now, self._config.opening_intent, ability=ability)
+            intent = None if retry.kind is PvECombatKind.BIND else PvEIntent.ATTACK_SELECTED_TARGET
             return self._emit(now, intent)
         if self._phase is PvEPhase.OPENING:
             return self._open(observation)
@@ -557,10 +563,10 @@ class PvEController:
             self._enter(PvEPhase.ENGAGED, now)
             self._observe_player_action(observation)
             return self._emit(now)
-        opener = self._config.opening_intent
+        opener = self._config.resolved_opening_ability
         if opener is not None and observation.player.current_mana >= self._config.opening_mana_cost:
             self._enter(PvEPhase.OPENING, now)
-            return self._emit(now, opener)
+            return self._emit(now, self._config.opening_intent, ability=opener)
         self._enter(PvEPhase.ENGAGED, now)
         if attack_already_active and (self._outside_melee or self._best_approach_distance is None):
             return self._emit(now)
@@ -568,6 +574,7 @@ class PvEController:
 
     def _interrupt(self, observation: PvEObservation) -> PvEControllerDecision | None:
         intent = self._config.interrupt_intent
+        ability = self._config.resolved_interrupt_ability
         bound = observation.tracked_target_action
         if (bound is not None and bound.token == self._engaged_target_token
                 and bound.object_key == self._engaged_object_key):
@@ -576,7 +583,7 @@ class PvEController:
             action = observation.target_action
             if observation.target.target_token != self._engaged_target_token:
                 return None
-        if intent is None or action is None or not action.interrupt_opportunity:
+        if ability is None or action is None or not action.interrupt_opportunity:
             return None
         assert action.action_sequence is not None
         if action.action_sequence == self._last_interrupt_action_sequence:
@@ -585,14 +592,14 @@ class PvEController:
             return None
         if observation.player.current_mana < self._config.interrupt_mana_cost:
             return None
-        last_power_at = self._last_power_at.get(intent)
+        last_power_at = self._last_power_at.get(ability.power_id)
         if (
             last_power_at is not None
             and observation.now_ms - last_power_at < self._config.interrupt_cooldown_ms
         ):
             return None
         self._proposal_interrupt_sequence = action.action_sequence
-        return self._emit(observation.now_ms, intent)
+        return self._emit(observation.now_ms, intent, ability=ability)
 
     def _open(
         self,
@@ -965,6 +972,7 @@ class PvEController:
         now_ms: int,
         intent: PvEIntent | None = None,
         *,
+        ability: PvEAbility | None = None,
         terminal_reason: str | None = None,
         kill_confirmation: PvEKillConfirmation | None = None,
         reposition_requested: bool = False,
@@ -981,6 +989,7 @@ class PvEController:
         if self._pending_combat is not None:
             native_action_pending = True
         if native_action_pending:
+            ability = None
             intent, reposition_requested, return_to_camp = None, False, False
         if self._pending_cleanup is not None:
             intent, reposition_requested, return_to_camp = None, False, False
@@ -988,11 +997,11 @@ class PvEController:
               and tracked is not None and tracked.available):
             kind = (PvECombatKind.BIND if self._adoption_bind_pending else
                     PvECombatKind.ATTACK if intent is PvEIntent.ATTACK_SELECTED_TARGET else
-                    PvECombatKind.CAST if intent is PvEIntent.CAST_SHADOW_TOUCH else None)
+                    ability.kind if ability is not None else None)
             if kind is not None:
                 proposal = PvECombatProposal(
                     self._decision_id, tracked.token, tracked.object_key, kind,
-                    power_id=428918601 if kind is PvECombatKind.CAST else 0,
+                    power_id=ability.power_id if ability is not None else 0,
                     adopted_existing_action=kind is PvECombatKind.BIND,
                     interrupt_sequence=self._proposal_interrupt_sequence,
                 )

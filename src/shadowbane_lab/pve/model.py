@@ -49,6 +49,40 @@ class PvECombatKind(StrEnum):
     BIND = "bind"
     ATTACK = "attack"
     CAST = "cast"
+    SELF_POWER = "self_power"
+
+
+class PvEAbilityRecipient(StrEnum):
+    ACTOR = "actor"
+    ENGAGEMENT_TARGET = "engagement_target"
+
+
+@dataclass(frozen=True, slots=True)
+class PvEAbility:
+    """Configured native power identity and recipient, independent of class/hotbar."""
+
+    power_id: int
+    recipient: PvEAbilityRecipient
+
+    def __post_init__(self) -> None:
+        if type(self.power_id) is not int or not 0 < self.power_id < 2**32:
+            raise ValueError("ability power_id must be a positive uint32")
+        if not isinstance(self.recipient, PvEAbilityRecipient):
+            raise ValueError("ability recipient must be typed")
+
+    @property
+    def kind(self) -> PvECombatKind:
+        return (PvECombatKind.SELF_POWER if self.recipient is PvEAbilityRecipient.ACTOR
+                else PvECombatKind.CAST)
+
+    def as_dict(self) -> dict[str, object]:
+        return {"power_id": self.power_id, "recipient": self.recipient.value}
+
+
+# Compatibility is confined to configuration; native proposals always carry IDs.
+_LEGACY_ABILITIES = {
+    PvEIntent.CAST_SHADOW_TOUCH: PvEAbility(428918601, PvEAbilityRecipient.ENGAGEMENT_TARGET),
+}
 
 
 class PvECombatDisposition(StrEnum):
@@ -81,8 +115,8 @@ class PvECombatProposal:
             raise ValueError("combat proposal requires a semantic kind")
         if type(self.power_id) is not int or not 0 <= self.power_id < 2**32:
             raise ValueError("power_id must be uint32")
-        if (self.kind is PvECombatKind.CAST) != (self.power_id != 0):
-            raise ValueError("only CAST requires a numeric power ID")
+        if (self.kind in (PvECombatKind.CAST, PvECombatKind.SELF_POWER)) != (self.power_id != 0):
+            raise ValueError("only power actions require a numeric power ID")
         if type(self.adopted_existing_action) is not bool:
             raise ValueError("adopted_existing_action must be boolean")
         if self.adopted_existing_action and self.kind is not PvECombatKind.BIND:
@@ -330,9 +364,11 @@ class PvEControllerConfig:
     minimum_recovery_stamina_fraction: float = 0.0
     accept_automatic_targets: bool = False
     opening_intent: PvEIntent | None = None
+    opening_ability: PvEAbility | None = None
     opening_mana_cost: float = 0.0
-    opening_followup_delay_ms: int = 250
+    opening_followup_delay_ms: int = 0
     interrupt_intent: PvEIntent | None = None
+    interrupt_ability: PvEAbility | None = None
     interrupt_mana_cost: float = 0.0
     interrupt_cooldown_ms: int = 0
     maximum_interrupts_per_target: int = 0
@@ -370,7 +406,6 @@ class PvEControllerConfig:
             (self.selection_loss_grace_ms, "selection_loss_grace_ms"),
             (self.post_kill_delay_ms, "post_kill_delay_ms"),
             (self.recovery_timeout_ms, "recovery_timeout_ms"),
-            (self.opening_followup_delay_ms, "opening_followup_delay_ms"),
             (self.camp_idle_ms, "camp_idle_ms"),
             (self.camp_return_retry_ms, "camp_return_retry_ms"),
             (self.failed_target_cooldown_ms, "failed_target_cooldown_ms"),
@@ -382,6 +417,7 @@ class PvEControllerConfig:
             self.maximum_combat_repositions,
             "maximum_combat_repositions",
         )
+        _non_negative_integer(self.opening_followup_delay_ms, "opening_followup_delay_ms")
         _non_negative_integer(self.interrupt_cooldown_ms, "interrupt_cooldown_ms")
         _non_negative_integer(
             self.maximum_interrupts_per_target,
@@ -473,6 +509,15 @@ class PvEControllerConfig:
             raise ValueError(
                 "camp_return_trigger_radius must be above camp_return_radius and below camp_radius"
             )
+        for role in ("opening", "interrupt"):
+            ability, intent = getattr(self, role + "_ability"), getattr(self, role + "_intent")
+            if ability is not None and not isinstance(ability, PvEAbility):
+                raise ValueError(f"{role}_ability must be PvEAbility")
+            if ability is not None and intent is not None:
+                raise ValueError(f"{role} requires ability or legacy intent, not both")
+        if (self.interrupt_ability is not None
+                and self.interrupt_ability.recipient is not PvEAbilityRecipient.ENGAGEMENT_TARGET):
+            raise ValueError("interrupt ability must target the engagement")
         if self.opening_intent is not None and not isinstance(self.opening_intent, PvEIntent):
             raise ValueError("opening_intent must be PvEIntent when present")
         if self.opening_intent in (
@@ -488,7 +533,7 @@ class PvEControllerConfig:
             or self.opening_mana_cost < 0
         ):
             raise ValueError("opening_mana_cost must be a non-negative number")
-        if self.opening_intent is None and self.opening_mana_cost != 0:
+        if self.resolved_opening_ability is None and self.opening_mana_cost != 0:
             raise ValueError("opening_mana_cost requires an opening_intent")
         if self.interrupt_intent is not None and not isinstance(self.interrupt_intent, PvEIntent):
             raise ValueError("interrupt_intent must be PvEIntent when present")
@@ -505,7 +550,7 @@ class PvEControllerConfig:
             or self.interrupt_mana_cost < 0
         ):
             raise ValueError("interrupt_mana_cost must be a non-negative number")
-        if self.interrupt_intent is None and any(
+        if self.resolved_interrupt_ability is None and any(
             (
                 self.interrupt_mana_cost != 0,
                 self.interrupt_cooldown_ms != 0,
@@ -513,7 +558,7 @@ class PvEControllerConfig:
             )
         ):
             raise ValueError("interrupt limits require an interrupt_intent")
-        if self.interrupt_intent is not None and self.maximum_interrupts_per_target == 0:
+        if self.resolved_interrupt_ability is not None and self.maximum_interrupts_per_target == 0:
             raise ValueError("interrupt_intent requires a positive per-target limit")
         for value, field_name in (
             (self.melee_approach_radius, "melee_approach_radius"),
@@ -526,6 +571,15 @@ class PvEControllerConfig:
                 or value <= 0
             ):
                 raise ValueError(f"{field_name} must be positive")
+
+
+    @property
+    def resolved_opening_ability(self) -> PvEAbility | None:
+        return self.opening_ability or _LEGACY_ABILITIES.get(self.opening_intent)
+
+    @property
+    def resolved_interrupt_ability(self) -> PvEAbility | None:
+        return self.interrupt_ability or _LEGACY_ABILITIES.get(self.interrupt_intent)
 
 
 @dataclass(frozen=True, slots=True)

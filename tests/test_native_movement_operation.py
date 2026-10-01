@@ -11,6 +11,7 @@ from shadowbane_lab.client_extension.action_channel import (
     NativeActionChannelTimeout,
     NativeClientProcessIdentity,
 )
+from shadowbane_lab.client_extension.cleanup_settlement import CleanupSettlement
 from shadowbane_lab.client_extension.movement_session import (
     NativeMovementError,
     NativeMovementGrant,
@@ -30,6 +31,7 @@ def setup(monkeypatch):
         str(uuid.uuid4()),
     )
     session = MagicMock()
+    session.cleanup = CleanupSettlement()
     session.snapshot.return_value = SimpleNamespace(grant=grant.ownership, flags=3)
     session.acquire.return_value = grant
     factory = MagicMock(return_value=session)
@@ -246,3 +248,101 @@ def test_failed_maintenance_thread_start_still_stops_and_closes(setup, monkeypat
         operation.__enter__()
     session.stop.assert_called_once()
     session.close.assert_called_once()
+
+
+def test_parent_stop_retains_only_cleanup_owner_until_exact_release(setup):
+    operation, session, _, parent, decision, _ = setup
+    renewed, stopped = threading.Event(), threading.Event()
+    session.renew.side_effect = lambda grant: renewed.set()
+    session.stop.side_effect = lambda *args: stopped.set()
+    with operation:
+        obligation = session.cleanup.register(operation.grant)
+        parent.set()
+        assert operation.is_set() and not operation.dispatch(decision).accepted
+        assert renewed.wait(2)
+        assert session.cleanup.blocked(operation.grant)
+        session.stop.assert_not_called()
+        session.pause.assert_called_once()
+        session.cleanup.release(obligation)
+        assert stopped.wait(2)
+    session.acquire.assert_called_once()
+    session.move.assert_not_called()
+
+
+@pytest.mark.parametrize('cause', ['focus', 'owner', 'unavailable', 'renew'])
+def test_cleanup_heartbeat_stops_on_real_safety_failure(setup, cause):
+    operation, session, guard, parent, _, _ = setup
+    stopped = threading.Event()
+    session.stop.side_effect = lambda *args: stopped.set()
+    with pytest.raises(NativeActionChannelError, match='stop was not confirmed'):
+        with operation:
+            obligation = session.cleanup.register(operation.grant)
+            parent.set()
+            assert operation.is_set()
+            if cause == 'focus':
+                guard.require_target.side_effect = RuntimeError('focus lost')
+            elif cause == 'owner':
+                session.snapshot.return_value.grant = Grant(11,20,Owner.MANUAL)
+            elif cause == 'unavailable':
+                session.snapshot.return_value.flags = 0
+            else:
+                session.renew.side_effect = NativeActionChannelError('lease failed')
+            assert stopped.wait(2)
+            assert not session.cleanup.maintain(operation.grant)
+            assert not obligation.released
+    session.acquire.assert_called_once()
+
+
+def test_real_parent_cancel_preserves_pending_native_owner_until_cleanup_ack():
+    import os
+    import subprocess
+    import time
+    from pathlib import Path
+
+    from shadowbane_lab.client_extension.movement_wire import CLEANUP_PENDING, READY
+
+    configured = os.environ.get('WONDERBANE_MOVEMENT_RUNTIME_TEST')
+    if not configured:
+        pytest.skip('set WONDERBANE_MOVEMENT_RUNTIME_TEST to native runtime fixture')
+    process = subprocess.Popen([str(Path(configured)), 'ipc-cleanup'], stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW)
+    try:
+        pid, creation, window = map(int, process.stdout.readline().split())
+        guard = MagicMock()
+        guard.require_target.return_value = SimpleNamespace(process_id=pid,
+            process_started_at_100ns=creation, window_handle=window)
+        parent = threading.Event()
+        with module.NativeMovementOperation(guard,parent) as operation:
+            grant = operation.grant
+            obligation = operation.session.cleanup.register(grant)
+            parent.set()
+            assert operation.is_set()
+            until = time.monotonic()+1.2
+            while time.monotonic() < until:
+                snapshot = operation.session.snapshot()
+                assert snapshot.grant == grant.ownership
+                assert snapshot.flags & CLEANUP_PENDING and not snapshot.flags & READY
+                assert operation.session.cleanup.maintain(grant)
+                time.sleep(.04)
+            assert operation.session.cleanup.blocked(grant)
+            with pytest.raises(NativeMovementError,match='INHIBITED|inhibited'):
+                operation.session.move(grant,(30,0,-40),str(uuid.uuid4()))
+            process.stdin.write('release\n')
+            process.stdin.flush()
+            until=time.monotonic()+1
+            while True:
+                snapshot=operation.session.snapshot()
+                assert snapshot.grant == grant.ownership
+                if snapshot.flags & READY:
+                    break
+                assert time.monotonic() < until
+                time.sleep(.01)
+            # The fixture's real native owner callback has now acknowledged stop.
+            operation.session.cleanup.release(obligation)
+        output,error=process.communicate(timeout=5)
+        assert process.returncode == 0, output+error
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate()

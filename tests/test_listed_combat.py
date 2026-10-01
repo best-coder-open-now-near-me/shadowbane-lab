@@ -13,6 +13,7 @@ from shadowbane_lab.client_extension.action_channel import (
     NativeActionChannelUnavailable,
     NativeClientProcessIdentity,
 )
+from shadowbane_lab.client_extension.cleanup_settlement import CleanupSettlement
 from shadowbane_lab.client_extension.combat_fence_v3 import Authority, Ordinals
 from shadowbane_lab.client_extension.combat_wire_v2 import (
     CLEANUP_REQUIRED,
@@ -268,6 +269,7 @@ def encounter(tmp_path, monkeypatch):
 
     ordinals = Ordinals()
     session = SimpleNamespace(
+        cleanup=CleanupSettlement(),
         combat=combat,
         pause=pause,
         require_combat_available=require_available,

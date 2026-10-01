@@ -7,6 +7,7 @@ from test_combat_wire_v2 import command as wire_command
 from test_native_combat_coordinator import answer
 
 from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
+from shadowbane_lab.client_extension.cleanup_settlement import CleanupSettlement
 from shadowbane_lab.client_extension.combat_fence_v3 import Authority, Ordinals
 from shadowbane_lab.client_extension.combat_wire_v2 import (
     Action,
@@ -131,6 +132,7 @@ class SmartPvEClientReplayTests(unittest.TestCase):
     def test_replays_native_kill_cleanup_next_opener_and_stall_through_coordinator(self) -> None:
         command = wire_command(Authority.NPC)
         session = Mock()
+        session.cleanup = CleanupSettlement()
         session.combat_ordinals.return_value = Ordinals()
         grant = NativeMovementGrant(NativeClientProcessIdentity(
             command.binding.client_pid, command.binding.client_creation),

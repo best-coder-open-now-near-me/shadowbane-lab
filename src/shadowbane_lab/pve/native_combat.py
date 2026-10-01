@@ -70,6 +70,8 @@ class NativeCombatCoordinator:
         self._proposal = self._verb = self._stop_command = None
         self._target_token = self._target_key = None
         self._last_receipt = None
+        self._cleanup_obligation = None
+        self._last_stop_result = (False, None, "native cleanup not confirmed")
         self._adopted = False
         self._pause_key = None
         self._stopping = False
@@ -152,6 +154,11 @@ class NativeCombatCoordinator:
                 self._stopping = True
                 return self.advance(proposal, observation, listed=listed)
             return self.poll_pending()
+        if proposal.kind is PvECombatKind.SELF_POWER:
+            self.session.require_combat_available(self.grant, self_power=True)
+        if self._cleanup_obligation is None:
+            self._cleanup_obligation = self.session.cleanup.register(self.grant)
+            self._last_stop_result = (False, None, "native cleanup not confirmed")
         # Adoption creates a cleanup obligation before its BIND can be acknowledged.
         if proposal.adopted_existing_action:
             if self.active and (proposal.target_token, proposal.target_key) != (
@@ -161,7 +168,13 @@ class NativeCombatCoordinator:
             self._target_token, self._target_key = proposal.target_token, proposal.target_key
             self._adopted = True
         if self._binding is None:
-            self._bind(proposal, observation, listed)
+            try:
+                self._bind(proposal, observation, listed)
+            except BaseException:
+                if not self.active:
+                    self.session.cleanup.release(self._cleanup_obligation)
+                    self._cleanup_obligation = None
+                raise
         else:
             if (proposal.target_token != self._target_token
                     or (proposal.target_key.object_type, proposal.target_key.object_uuid)
@@ -176,7 +189,8 @@ class NativeCombatCoordinator:
                                    self._binding.target_address_hint):
                 raise ValueError("combat object address changed")
         kind = {PvECombatKind.BIND: Action.NONE, PvECombatKind.ATTACK: Action.ATTACK,
-                PvECombatKind.CAST: Action.CAST}[proposal.kind]
+                PvECombatKind.CAST: Action.CAST,
+                PvECombatKind.SELF_POWER: Action.SELF_POWER}[proposal.kind]
         identity = self.character_session.binding.identity
         command = Command(
             self.grant.host, self.grant.window, self.grant.ownership, self._binding,
@@ -236,11 +250,14 @@ class NativeCombatCoordinator:
 
     def _release(self):
         if self._ticket is not None:
-            self._ticket.close(timeout_ms=750)
+            self._ticket.close(timeout_ms=self.session.cleanup.timeout_ms(self.grant, 750))
         self._ticket = self._binding = self._command = self._proposal = None
         self._verb = self._stop_command = self._target_token = self._target_key = None
         self._adopted = self._stopping = False
         self._pause_key = None
+        if self._cleanup_obligation is not None:
+            self.session.cleanup.release(self._cleanup_obligation)
+            self._cleanup_obligation = None
 
     def observe(self):
         if self._binding is None:
@@ -260,12 +277,18 @@ class NativeCombatCoordinator:
             return None, f"native engagement status unavailable:{type(exc).__name__}"
 
     def stop(self, reason):
+        if self._cleanup_obligation is not None:
+            self.session.cleanup.begin(self._cleanup_obligation)
+        self._last_stop_result = self._stop_once(reason)
+        return self._last_stop_result
+
+    def _stop_once(self, reason):
         if not self.active:
             return True, self._last_receipt, None
         self._stopping = True
         try:
             if self._ticket is not None:
-                self._ticket.revoke(timeout_ms=750)
+                self._ticket.revoke(timeout_ms=self.session.cleanup.timeout_ms(self.grant, 750))
             if self._binding is not None:
                 if self._stop_command is None:
                     identity = self.character_session.binding.identity
@@ -306,18 +329,18 @@ class NativeCombatCoordinator:
             self._target_token, self._target_key,
         ):
             raise ValueError("cleanup target differs from owned engagement")
-        confirmed, receipt, detail = self.stop(request.reason)
+        confirmed, receipt, detail = self.finish(request.reason)
         key = str(uuid4()) if receipt is None else receipt.engagement.encode().hex()
         return PvECombatCleanupResult(
             request, confirmed, key, None if confirmed else (detail or "native cleanup pending")
         )
 
     def finish(self, reason):
-        for _ in range(3):
-            result = self.stop(reason)
-            if result[0]:
-                return result
-        return result
+        obligation = self._cleanup_obligation
+        if obligation is None:
+            return self.stop(reason)
+        return self.session.cleanup.settle(obligation, lambda: self.stop(reason),
+                                           self._last_stop_result)
 
     def __enter__(self):
         return self

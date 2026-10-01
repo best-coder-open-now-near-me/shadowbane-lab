@@ -189,6 +189,8 @@ Operation NativeTarget::Run() {
     power::Context context{};
     context.image=base_; context.actor=scene_.actor; context.target=reinterpret_cast<std::uintptr_t>(target_);
     context.writer=writer; context.container=container; context.power_id=command_.power_id;
+    context.target_mode=command_.action==wire::Action::self_power
+        ? power::TargetMode::self : power::TargetMode::engagement_object;
     std::memcpy(context.actor_key.data(),command_.local_key,8); std::memcpy(context.target_key.data(),command_.target_key,8);
     context.current=Gate; context.append_current=AppendGate; context.owner=this; context.receipt=&power_receipt_;
     power::Scope scope(context);

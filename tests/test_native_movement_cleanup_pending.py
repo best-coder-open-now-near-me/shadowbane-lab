@@ -189,7 +189,8 @@ def test_correlated_stop_failure_during_command_retains_owner_for_cleanup(
     )
     calls = []
 
-    def submit(verb, payload):
+    def submit(verb, payload, *, timeout_ms=None):
+        assert timeout_ms == (session.timeout_ms if method == "pause" else None)
         calls.append((verb, payload))
         if len(calls) == 1:
             raise NativeMovementError(movement.Outcome.STOP_FAILED, failed)

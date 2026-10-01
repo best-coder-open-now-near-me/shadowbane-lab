@@ -151,6 +151,22 @@ int main() {
         assert(target.Execute(command).outcome==O::client_outbound_queued && casts==1 && lookups==1);
         assert(target.Prepared() && !stops && target.Clear());
     }
+    {
+        Reset(); auto command=Command(true); c::NativeTarget target; c::NativeTargetTestAccess::Bind(target);
+        assert(target.Prepare(scene,command,Current,Current,nullptr).outcome==O::bound);
+        command.action=c::wire::Action::self_power; command.power_id=428918601;
+        const auto receipt=target.Execute(command);
+        assert(receipt.outcome==O::client_outbound_queued && receipt.history&c::wire::outbound_queued);
+        assert(power_context.target_mode==p::TargetMode::self && power_context.Recipient()==scene.actor);
+        assert(power_context.target==base+0x4000 && power_context.target_key[0]==200);
+        assert(power_context.RecipientKey()[0]==100 && command.target_key[0]==200);
+        assert(references[reinterpret_cast<void*>(scene.actor)]==1 && references[reinterpret_cast<void*>(base+0x4000)]==1);
+        command.request.back()=2; command.action=c::wire::Action::attack; command.power_id=0;
+        assert(target.Execute(command).outcome==O::deferred && attacks==0); // Preserve native busy state.
+        Put(base+0xc020,std::uint32_t{1}); Put(scene.actor+0x9bc,std::uint32_t{0});
+        assert(target.Execute(command).outcome==O::client_outbound_queued && attacks==1 && casts==1);
+        assert(target.Clear());
+    }
     for(unsigned scenario=0;scenario<4;++scenario) {
         Reset(); auto command=Command(true); c::NativeTarget target; c::NativeTargetTestAccess::Bind(target);
         Put(base+0xc020,std::uint32_t{4}); Put(scene.actor+0x9bc,std::uint32_t{1});

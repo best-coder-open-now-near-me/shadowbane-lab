@@ -23,7 +23,7 @@ std::array<std::uint32_t,0xb0/4> message{};
 std::array<std::uint32_t,0x300/4> definition{};
 void* queue{};
 std::uint32_t* current_message=message.data();
-bool unrelated{}, reenter_send{}, reenter_followup{};
+bool unrelated{}, reenter_send{}, reenter_followup{}, revoke_during_use{};
 std::uint32_t unrelated_power=428918601;
 pw::Receipt* outer_receipt{};
 void* last_actor{};void* last_target{};
@@ -60,6 +60,7 @@ bool __cdecl Use(std::uint32_t id, int rank, void* actor, void* target, const fl
     current_message[0x80/4]=id;
     current_message[0x84/4] = static_cast<std::uint32_t>(rank);
     if (corrupt_key) { ++current_message[0x90/4]; }
+    if (revoke_during_use) { current=false; }
     return true;
 }
 void Nested() {
@@ -163,7 +164,7 @@ int main(int argc, char** argv) {
     Check(pw::StartBound(base,sender_call,Followup),"atomic interception install");
     pw::Receipt receipt{};outer_receipt=&receipt;
     pw::Context context{base,reinterpret_cast<std::uintptr_t>(actor.data()),reinterpret_cast<std::uintptr_t>(target.data()),base+0x1600000,base+0x1600100,local,victim,428918601,Current,QueueCurrent,nullptr,&receipt};
-    const auto reset=[&] { references=2;current_message=message.data(); message={};message[0]=static_cast<std::uint32_t>(base+0x1155fd8);message[0x80/4]=context.power_id;message[0xa4/4]=1;message[0x88/4]=local[0];message[0x8c/4]=local[1];message[0x90/4]=victim[0];message[0x94/4]=victim[1];current=true;queue_current=true;fault_send=false;fault_followup=false;seh_send=false;seh_followup=false;corrupt_key=false;receipt={}; };
+    const auto reset=[&] { references=2;current_message=message.data(); message={};message[0]=static_cast<std::uint32_t>(base+0x1155fd8);message[0x80/4]=context.power_id;message[0xa4/4]=1;message[0x88/4]=local[0];message[0x8c/4]=local[1];message[0x90/4]=context.RecipientKey()[0];message[0x94/4]=context.RecipientKey()[1];current=true;queue_current=true;fault_send=false;fault_followup=false;seh_send=false;seh_followup=false;corrupt_key=false;revoke_during_use=false;receipt={}; };
     reset(); Check(Guarded(context),"normal power invocation");Check(receipt.result==pw::Result::queued && receipt.native_entered && receipt.send_observed && receipt.append_observed && receipt.followup_entered,"queued receipt preserves all boundaries");
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
     Check(references==1,"real native sender preserves exactly one caller-owned reference");
@@ -177,6 +178,27 @@ int main(int argc, char** argv) {
     for(auto mode:{2U,3U}) {reset();definition[0x1a8/4]=mode;Check(Guarded(context)&&!receipt.native_entered,"self redirect rejects object action");}definition[0x1a8/4]=1;
     reset();learned_rank=0;Check(Guarded(context)&&!receipt.native_entered,"unlearned rejects before entry");learned_rank=20;
     Check(uses==total,"rejected native categories never invoke mutating path");
+    context.target_mode=pw::TargetMode::self;definition[0x1a8/4]=2;
+    reset();Check(Guarded(context)&&receipt.result==pw::Result::queued,"self power queues through qualified native route");
+    Check(last_actor==actor.data()&&last_target==actor.data()&&context.target==reinterpret_cast<std::uintptr_t>(target.data()),"actor recipient does not replace engagement target");
+    for(auto mode:{0U,1U,3U,10U}) {reset();definition[0x1a8/4]=mode;Check(Guarded(context)&&!receipt.native_entered,"self action rejects other target modes before entry");}
+    definition[0x1a8/4]=2;
+    for(auto delivery:{1U,2U,99U}) {reset();definition[0x1b4/4]=delivery;Check(Guarded(context)&&!receipt.native_entered,"self action rejects unqualified delivery");}
+    definition[0x1b4/4]=0;
+    reset();message[0x90/4]=victim[0];message[0x94/4]=victim[1];auto self_sends=sends;
+    Check(Guarded(context)&&sends==self_sends&&!receipt.append_observed,"self power rejects engagement recipient in native ticket");
+    reset();revoke_during_use=true;self_sends=sends;
+    Check(Guarded(context)&&sends==self_sends&&receipt.native_entered&&!receipt.append_observed,"self power still checks engagement authority after native entry");
+    reset();++target[6];self_sends=sends;
+    Check(Guarded(context)&&sends==self_sends&&!receipt.append_observed,"self recipient cannot hide engagement object replacement");--target[6];
+    reset();queue_current=false;auto self_effects=followups;
+    Check(Guarded(context)&&receipt.native_entered&&!receipt.append_observed&&followups==self_effects,"self power revoked append suppresses followup");
+    reset();seh_followup=true;Check(!Guarded(context)&&receipt.append_observed&&receipt.result==pw::Result::uncertain&&!pw::active,"self power SEH retains queue history and restores TLS");
+    for(auto nested_id:{428918601U,428918602U}) {
+        reset();unrelated_power=nested_id;reenter_send=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"self sender reentry retains exact frame");
+        reset();unrelated_power=nested_id;reenter_followup=true;Check(Guarded(context)&&receipt.result==pw::Result::queued,"self followup reentry retains exact frame");
+    }
+    context.target_mode=pw::TargetMode::engagement_object;definition[0x1a8/4]=1;
     reset();queue_current=false;auto before=followups;Check(Guarded(context)&&receipt.result==pw::Result::uncertain&&!receipt.append_observed&&followups==before,"denied append suppresses effects and preserves entry");
     reset();corrupt_key=true;before=sends;Check(Guarded(context)&&sends==before&&!receipt.append_observed,"wrong native target key consumed before send");
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)

@@ -78,7 +78,7 @@ struct Observer {
         const auto p = reinterpret_cast<std::uintptr_t>(message);
         return p && Word(p, base + 0x1155fd8) && Word(p + 0x80, s.context_.power_id)
             && Word(p + 0x84, s.rank_) && KeyAt(p + 0x88, s.context_.actor_key)
-            && KeyAt(p + 0x90, s.context_.target_key)
+            && KeyAt(p + 0x90, s.context_.RecipientKey())
             && Word(p + 0x98, 0) && Word(p + 0x9c, 0) && Word(p + 0xa0, 0)
             && Word(p + 0xa4, 1);
     }
@@ -108,7 +108,7 @@ struct Observer {
         const bool allowed = s->active_ && !s->blocked_ && s->receipt_.append_observed
             && !s->receipt_.followup_entered && Ready()
             && actor == reinterpret_cast<void*>(s->context_.actor)
-            && target == reinterpret_cast<void*>(s->context_.target)
+            && target == reinterpret_cast<void*>(s->context_.Recipient())
             && definition == reinterpret_cast<void*>(s->definition_)
             && rank > 0 && static_cast<std::uint32_t>(rank) == s->rank_
             && MatchesBinding(s->context_) && s->context_.current(s->context_.owner);
@@ -215,7 +215,8 @@ bool StartBound(std::uintptr_t image, Send send, Followup followup,
 Scope::Scope(const Context& c) noexcept : context_(c), previous_(active) {
     const DWORD error = GetLastError(); active = this; active_ = true;
     if (!Ready() || c.image != base || !c.actor || !c.target || !c.writer || !c.container
-        || !c.power_id || !c.current || !c.append_current || !c.receipt) { detail::Observer::Block(*this); }
+        || !c.power_id || !c.current || !c.append_current || !c.receipt
+        || (c.target_mode != TargetMode::engagement_object && c.target_mode != TargetMode::self)) { detail::Observer::Block(*this); }
     else { detail::Observer::Publish(*this); }
     SetLastError(error);
 }
