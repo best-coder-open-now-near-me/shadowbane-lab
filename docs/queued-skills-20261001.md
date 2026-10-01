@@ -202,6 +202,34 @@ action. Private `opener-settings-result.json` records the change. Subsequent PvE
 runs load this generic opener and recheck current native eligibility; no Shadow
 Touch or assassin policy is implied.
 
+## Follow-through blocked before gameplay
+
+The user reports that the previously attacked NPC died and that no manual input
+was occurring. This is a user observation, separate from the bounded gate's queue
+and cleanup receipts. The planned follow-through itself has **not run** and sent
+no gameplay action: its read-only preflight observed native action state 2.
+Subsequent passive samples under the same exact Umbra process lifetime confirmed
+mode 1/action state 2, pending false, no AF8 combat target and no automation owner.
+Those fields do not identify a cast, prove idle, or attribute a later action.
+
+The production heap-scanned population reader also rejected duplicate native
+object identities on two reads. Private `population-duplicates-result.json`
+records the prior NPC key `[23885,37]` with the original token and health zero,
+plus a different-token object with that same key and health 400. A separate,
+complete passive world-registry census in `duplicate-registry-result.json`
+contained only the new live object; the old dead heap object was absent. Both
+receipts are under `artifacts/bot-deploy/20261001-b39`. This establishes stale
+heap-scan membership alongside a registered replacement consistent with respawn;
+it does not show two currently registered targets. A matching key cannot transfer the old engagement to a replacement token.
+The passive census does not retain a native reference or authorize any action.
+
+The active source correction is registry-backed population plus qualification of
+persistent action admission before a bounded repeat. It is being implemented in
+the reused bot-integration checkout on `codex/registry-backed-population`, based
+on main `72f13d5f`, outside main pending a new PR. Documentation PR #53 remains
+separate. Installed .59/.39 and the earlier queue/cleanup pass are unchanged;
+no skill-consumption, snare or player kill-credit claim follows from these reads.
+
 ## Historical .57 live evidence
 
 Installed .57/.37 source `1d107a25` passed manual-player attack, list removal,
@@ -226,8 +254,10 @@ its offline and real-process qualification is distinct from live acceptance.
   PR #52 merge, installation, activation, launch and obsolete-runtime retirement.
 - Complete: bounded .59 skill-request/attack/native-cleanup gate and saved
   Umbra/Wonderbane basic Shot to the Leg opener, revision 1.
-- Active: bounded one-NPC follow-through with exact native health/death observation
-  and cleanup; no player kill-credit or skill-consumption inference.
+- Active: fix registry-backed population and qualify persistent action admission
+  before repeating bounded one-NPC follow-through; no gameplay repeat has run.
+- Pending: bounded follow-through with exact native health/death observation and
+  cleanup, without player kill-credit or skill-consumption inference.
 - Pending: review/integrate this documentation-only deployment receipt.
 - Pending: qualified server-effect evidence and the authoritative
   server-character-session fence required for automatic retaliation.

@@ -34,8 +34,18 @@ terminal cleanup. No owner or manual-list entry remained. Umbra/Wonderbane has
 saved basic policy with Shot to the Leg opener 563795161, revision 1, for the next
 PvE run. Earlier .58 basic-pass/skill-uncertain and .57 manual-player recovery
 results are historical; the earlier owner-revocation trigger remains unknown.
-Active next item: bounded one-NPC follow-through to observe exact native health
-or death and cleanup. This is not player kill credit or proof of skill consumption.
+The planned follow-through has not run: read-only preflight found persistent
+action state 2, and population observation rejected duplicate NPC identities.
+The user reports that the previously attacked NPC died and that no manual input
+was occurring. Separate passive evidence found its old heap object at zero health
+and a live replacement with the same key but a different token; a complete world
+registry census contained only the replacement. Engagement cannot transfer to it.
+Active next item: implement registry-backed population and qualify persistent
+action admission before repeating bounded follow-through. The code lane uses the
+reused bot-integration checkout on `codex/registry-backed-population`, based on
+main `72f13d5f`; it remains outside main pending a new PR. This source lane is
+separate from documentation PR #53. Neither the user report nor the passive
+snapshot proves player kill credit, skill consumption or snare application.
 Automatic retaliation remains disabled pending the separate authoritative
 server-character-session fence.
 
