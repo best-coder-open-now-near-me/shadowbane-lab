@@ -304,3 +304,31 @@ def test_combat_ordinal_allocator_survives_coordinator_recreation(owner):
     second = session.combat_ordinals(grant)
     assert second is first
     assert second.next_engagement().value > engagement.value
+
+
+def test_self_power_requires_new_capability_but_lifecycle_does_not(owner):
+    session, grant, original, transport, opened = owner
+    command = replace(original, action=Action.SELF_POWER, power_id=563795161)
+    transport.payload = receipt(command).encode()
+    with pytest.raises(channel.NativeActionChannelUnavailable, match="self-directed"):
+        session.require_combat_available(grant, self_power=True)
+    with pytest.raises(channel.NativeActionChannelUnavailable, match="self-directed"):
+        session.combat(grant, Verb.SUBMIT, command)
+    assert transport.commands == []
+    transport.header = replace(transport.header,
+        capability_flags=transport.header.capability_flags | channel.SELF_POWER_CAPABILITY)
+    session.require_combat_available(grant, self_power=True)
+    result = session.combat(grant, Verb.SUBMIT, command)
+    assert result.receipt.action is Action.SELF_POWER
+    transport.header = replace(transport.header, capability_flags=1)
+    for verb in (Verb.ACTION_STATUS, Verb.CANCEL_ACTION):
+        assert session.combat(grant, verb, command).receipt.action is Action.SELF_POWER
+    assert all(wire.payload is command for wire in transport.commands)
+    assert opened == [transport]
+
+
+def test_self_power_receipt_cannot_be_substituted_for_targeted_cast(owner):
+    session, grant, command, transport, _ = owner
+    transport.payload = receipt(replace(command, action=Action.SELF_POWER)).encode()
+    with pytest.raises(ValueError):
+        session.combat(grant, Verb.SUBMIT, command)

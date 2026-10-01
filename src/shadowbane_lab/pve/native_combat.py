@@ -152,6 +152,8 @@ class NativeCombatCoordinator:
                 self._stopping = True
                 return self.advance(proposal, observation, listed=listed)
             return self.poll_pending()
+        if proposal.kind is PvECombatKind.SELF_POWER:
+            self.session.require_combat_available(self.grant, self_power=True)
         # Adoption creates a cleanup obligation before its BIND can be acknowledged.
         if proposal.adopted_existing_action:
             if self.active and (proposal.target_token, proposal.target_key) != (
@@ -176,7 +178,8 @@ class NativeCombatCoordinator:
                                    self._binding.target_address_hint):
                 raise ValueError("combat object address changed")
         kind = {PvECombatKind.BIND: Action.NONE, PvECombatKind.ATTACK: Action.ATTACK,
-                PvECombatKind.CAST: Action.CAST}[proposal.kind]
+                PvECombatKind.CAST: Action.CAST,
+                PvECombatKind.SELF_POWER: Action.SELF_POWER}[proposal.kind]
         identity = self.character_session.binding.identity
         command = Command(
             self.grant.host, self.grant.window, self.grant.ownership, self._binding,

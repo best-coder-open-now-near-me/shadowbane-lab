@@ -347,13 +347,17 @@ class NativeMovementSession:
             self._combat_transport(grant)
             return self._combat_ordinals
 
-    def require_combat_available(self, grant: NativeMovementGrant) -> None:
+    def require_combat_available(
+        self, grant: NativeMovementGrant, *, self_power: bool = False,
+    ) -> None:
         """Read-only admission for object actions; legacy services cannot qualify."""
         with self._session_lock:
             self._check_grant(grant)
             if grant in self._stops:
                 raise NativeMovementError(Outcome.INHIBITED)
-            self._combat_transport(grant)
+            transport = self._combat_transport(grant)
+            if self_power and not transport.header.capability_flags & channel.SELF_POWER_CAPABILITY:
+                raise channel.NativeActionChannelUnavailable("self-directed power is unavailable")
 
     def combat(self, grant: NativeMovementGrant, verb, command) -> NativeCombatResult:
         """Use the existing producer lease and exact Grant; never acquire another owner.
@@ -362,6 +366,7 @@ class NativeMovementSession:
         it; they must not allocate another action as a transport retry.
         """
         from .combat_channel import NativeCombatCommand
+        from .combat_wire_v2 import Action as CombatAction
         from .combat_wire_v2 import Receipt as CombatReceipt
         from .combat_wire_v2 import Verb as CombatVerb
 
@@ -383,6 +388,9 @@ class NativeMovementSession:
             # STATUS/CANCEL remain callable for the immutable old owner after native
             # revocation. Native correlates its retired transaction, never a replacement.
             transport = self._combat_transport(grant, require_capability=admission)
+            if (verb is CombatVerb.SUBMIT and command.action is CombatAction.SELF_POWER
+                    and not transport.header.capability_flags & channel.SELF_POWER_CAPABILITY):
+                raise channel.NativeActionChannelUnavailable("self-directed power is unavailable")
             result = transport.submit(
                 NativeCombatCommand(next(self._ids), verb, command), timeout_ms=self.timeout_ms,
             )

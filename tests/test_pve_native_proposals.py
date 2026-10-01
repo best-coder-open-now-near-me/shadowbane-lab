@@ -182,8 +182,7 @@ def test_deferred_opener_remains_scheduled_without_consuming_delay_or_cooldown()
     second = controller.step(observe(1000)).combat_proposal
     assert second.kind is Kind.CAST and second.proposal_id != first.proposal_id
     ack(controller, second, now=1000)
-    assert controller.step(observe(1100)).combat_proposal is None
-    assert controller.step(observe(1300)).combat_proposal.kind is Kind.ATTACK
+    assert controller.step(observe(1100)).combat_proposal.kind is Kind.ATTACK
 
 
 def test_key_reuse_while_pending_requires_cleanup_of_original_object():

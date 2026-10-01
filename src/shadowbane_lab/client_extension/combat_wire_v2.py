@@ -33,6 +33,7 @@ class Action(IntEnum):
     NONE = 0
     ATTACK = 1
     CAST = 2
+    SELF_POWER = 3
 
 
 class Outcome(IntEnum):
@@ -97,7 +98,8 @@ def operation_digest(grant: Grant) -> bytes:
 
 def _action_power(action: Action, power_id: int) -> None:
     if (not isinstance(action, Action) or type(power_id) is not int
-            or not 0 <= power_id < 2**32 or (power_id != 0) != (action is Action.CAST)):
+            or not 0 <= power_id < 2**32
+            or (power_id != 0) != (action in (Action.CAST, Action.SELF_POWER))):
         raise ValueError("action and power ID disagree")
 
 
