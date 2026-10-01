@@ -14,12 +14,13 @@ Its qualified source head is `6f101f61a7a2f093b0360baef2b628bead057220`.
 The normal checkout is clean on main at that merge. The merged local and remote
 `codex/combat-target-query-20260930` branch was retired after verifying its exact
 tip is retained in `origin/main`.
-The bot-runtime worktree is on `codex/object-combat-deployment-20260930`, based
-on that main merge, for the deployment receipt and subsequent acceptance work.
-Its receipt updates are pushed through draft
-[PR #47](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/47)
-and remain outside main. Next integration step: complete the acceptance handoff,
-review the documentation update and merge it through the normal approval process.
+The bot-runtime worktree is on `codex/client-update-20260930-late`, based on
+that main merge plus the documentation commits through `cab8b029` from draft
+[PR #47](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/47).
+Those deployment receipts remain outside main and are included in this combined
+client-update candidate; PR #47 needs no separate merge if this candidate is
+integrated. Next integration step: qualify and publish the combined update PR,
+then obtain its merge approval after exact-source and hosted validation.
 
 Vendor Test now has source-stamped host 0.3.55 / native 1.8.35 from that exact
 PR head. Package `artifacts/b35/3ca9481d` is acceptance eligible: 52 recorded
@@ -45,10 +46,13 @@ cannot activate it. Existing eligible native action adoption performs no blanket
 startup stop. Selection loss and projectile timing do not manufacture cleanup
 or kill credit.
 
-Supervised live attack/cast/cancel/recovery acceptance remains pending login;
-verified installation and launch are not combat acceptance. Next: obtain the
-ready character state, run bounded NPC and manual-list acceptance, and record
-the resulting evidence. Automatic retaliation remains disabled pending an
+A second official September 30 patch supplies client **1.3.38.13** plus new
+configuration/object data. The [late client update review](client-update-20260930-late.md)
+records exact binary proof and candidate host **0.3.56** / native **1.8.36**.
+Neither installed client has received that update yet. Next: qualify the candidate,
+complete review and deployment, then obtain fresh character readiness for bounded
+NPC and manual-list acceptance. Verified installation and launch are not combat
+acceptance. Automatic retaliation remains disabled pending an
 authoritative server character-session fence. Other active validation worktrees
 remain available; historical unrelated renderer/town branches and cancelled
 carpenter drafts have not been silently integrated or deleted.

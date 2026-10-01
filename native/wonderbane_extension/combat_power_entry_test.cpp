@@ -7,6 +7,9 @@ namespace pw = wonderbane::extension::combat::power;
 namespace sb = wonderbane::extension::combat::submission;
 namespace {
 int failures{};
+const char* image_digest="";
+std::uintptr_t verified_image{};
+unsigned verification_calls{};
 int references = 2;
 void Check(bool ok, const char* label) { if (!ok) { ++failures; std::fprintf(stderr, "%s\n", label); } }
 sb::PowerAppendObserver registered{};
@@ -81,8 +84,8 @@ bool Guarded(const pw::Context& c) {
 }
 }
 namespace wonderbane::extension {
-bool GraphicsExecutableSha256Matches(const char*) noexcept { return false; }
-namespace movement { bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { return false; } }
+bool GraphicsExecutableSha256Matches(const char* digest) noexcept { return std::strcmp(digest,image_digest)==0; }
+namespace movement { bool VerifyNativeMovementImage(std::uintptr_t& output) noexcept { ++verification_calls; output=verified_image; return output!=0; } }
 namespace combat::submission {
 bool RegisterPowerAppendObserver(const PowerAppendObserver& observer) noexcept { registered = observer; return true; }
 }
@@ -138,6 +141,19 @@ int main(int argc, char** argv) {
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
     probe::Learned(image);
 #endif
+    if(argc==4 && std::strcmp(argv[1],"image-admission")==0) {
+        image_digest=argv[2]; verified_image=base;
+        const bool allowed=std::strcmp(argv[3],"allow")==0;
+        SetLastError(42);
+        Check(pw::Start(base)==allowed,"exact power image admission");
+        Check(GetLastError()==42,"power startup preserves caller LastError");
+        Check(pw::Ready()==allowed,"only admitted power image publishes readiness");
+        Check(verification_calls==(allowed?1U:0U),"unknown power image rejected before loaded-image verification");
+        if(!allowed) {
+            Check(image[0x9d3d4]==0xe8 && image[0x9d3e0]==0xe8,"denied power image never installs hooks");
+        }
+        return failures?1:0;
+    }
     if(argc==2 && std::strcmp(argv[1],"partial-install")==0) {
         Check(!pw::StartBound(base,sender_call,Followup,PartialInstall)&&!pw::Ready(),"partial install never ready");
         const auto prior=sends;const float point[3]{};native_use(428918601,20,actor.data(),target.data(),point,pw::Key{});Check(sends==prior+1,"partial owned site retains pinned passthrough handler");

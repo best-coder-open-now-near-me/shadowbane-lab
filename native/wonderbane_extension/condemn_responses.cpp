@@ -274,7 +274,8 @@ DWORD Start(const ProcessIdentity& identity) noexcept {
     if ((!GraphicsExecutableSha256Matches("e277e5a4e1e4e1df048a32c07bdbac6fec0591c7d01588b984577251cf475891")
         && !GraphicsExecutableSha256Matches("761f375e422332cac2512398bb935af38b30267b9b3a7a5cede9f87e98982442")
         && !GraphicsExecutableSha256Matches("7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f")
-        && !GraphicsExecutableSha256Matches("2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289"))
+        && !GraphicsExecutableSha256Matches("2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289")
+            && !GraphicsExecutableSha256Matches("0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d"))
         || !movement::VerifyNativeMovementImage(base)) { return ERROR_NOT_SUPPORTED; }
     std::array<std::uint32_t*, 3> slots{};
     std::array<std::uint32_t, 3> targets{};
