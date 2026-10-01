@@ -15,11 +15,13 @@ after ancestry and checkout checks.
 
 The reused bot-runtime worktree is on `codex/queued-skill-deployment-20261001`,
 based on that main merge. Its only pending work is this deployment documentation,
-with main as the integration destination; no runtime source is outside main.
+with main as the integration destination through
+[draft PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52);
+no runtime source is outside main.
 This receipt incorporates the relevant .57 deployment and successful manual-player
 recovery facts from [PR #50](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/50)
-(`1bc32e3`). That documentation PR is still open and unmerged; the planned receipt
-PR will supersede it, but neither closure nor a new PR is claimed yet.
+(`1bc32e3`). That documentation PR is still open and unmerged; PR #52 will supersede
+it after review.
 
 Host **0.3.58** / native **1.8.38** are installed from the qualified b38 package.
 Both clients retain official **1.3.38.13** data. Installation verified 454 modules,

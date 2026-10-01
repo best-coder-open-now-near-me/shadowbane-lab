@@ -11,7 +11,8 @@ attack/cancel/recovery gate passed; its NPC cleanup attempts remained unconfirme
 The qualification and deployment evidence is recorded below.
 
 The normal checkout is on the PR #51 main merge. The deployment documentation
-worktree uses `codex/queued-skill-deployment-20261001`, targeting main. The merged
+worktree uses `codex/queued-skill-deployment-20261001`, targeting main through
+[draft PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52). The merged
 feature branch is retired. This record incorporates the relevant historical
 PR #50 facts; #50 remains open until the replacement receipt PR is reviewed.
 
