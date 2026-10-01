@@ -1,27 +1,32 @@
 # Queued native skills and delayed-stop settlement
 
-Installed host **0.3.59** / native **1.8.39** use exact qualified package source
-`e90d2f64ea49df5af94365012548266e6829e3a1` with official client **1.3.38.13**.
-[PR #52](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/52)
-merged at `72f13d5f64f896a5b646838ed3bd5c268fac7773` on October 1,
-15:53:29 UTC after all 15 hosted checks passed at the approved final head.
-Installation, activation and loaded-DLL identity passed. The bounded .59 gate
-passed: Shot to the Leg SELF_POWER queued, then ATTACK queued against the same
-NPC and owner, followed by confirmed NATIVE_STOPPED cleanup. This proves local
-queue admission and cleanup, not server consumption, snare or damage attribution.
-Umbra/Wonderbane now has basic policy with saved opener 563795161 at revision 1,
-validated for the next run. The earlier .58 and .57 results remain historical.
+Installed host **0.3.60** / native **1.8.40** use exact qualified package source
+`f0263c38ef36874da0e68e0aa5e0c8775550e618` with official client **1.3.38.13**.
+[PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54)
+merged at `89f58cdbb50c2ef8bc8d80f0583897ac982f80f4` on October 1,
+17:41:37 UTC after all 15 hosted checks passed at approved head `3b5e628`.
+Installation, manager activation, five shortcuts and startup preflight passed.
+The exact loaded-DLL launch check passed. After Umbra login, bounded follow-through
+queued the skill and attack, observed the exact NPC at zero health, and confirmed
+native cleanup. The original partial harness result and supplementary review are
+kept separately below. Recovery across encounters remains open.
 
-The normal checkout is on the PR #52 main merge. The reused worktree is on
-`codex/native-stance-deployment-20261001` for this documentation-only receipt,
-with main as its integration destination through
-[draft PR #53](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/53).
-That documentation tip `ec1ad28` is also included in the combined
-[draft PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54);
-#54 will supersede #53 after integration. The merged
-PR #52 feature branch is retired. PR #50 is closed as superseded; its relevant
-historical receipt facts are incorporated, while its branch is retained because
-its exact tip is not an ancestor of main.
+The normal checkout is on that main merge. The reused bot-integration worktree is
+on `codex/native-initiation-deployment-20261001` for this installation receipt;
+the next documentation PR to main has not yet been created. PR #53's complete tip
+is included in #54, and GitHub marked #53 merged at 17:41:38 UTC. PR #50 remains
+closed as superseded; its relevant historical facts are incorporated while its
+branch is retained because its exact tip is not an ancestor of main. The completed
+registry-backed-population and native-stance-deployment branches were retired
+locally and remotely after tip ancestry checks. The bot-runtime worktree is clean
+and detached at `origin/main@89f58cd`, available for reuse.
+
+The earlier .59 bounded gate passed one Shot to the Leg SELF_POWER request,
+one same-engagement NPC ATTACK and confirmed NATIVE_STOPPED cleanup. It proves
+local queue admission and cleanup, not server consumption, snare or damage
+attribution. Umbra/Wonderbane retains basic policy with opener 563795161 at
+revision 1. The .60 follow-through used fresh login and identity checks;
+earlier .59, .58 and .57 observations are historical evidence.
 
 ## Ownership and behavior
 
@@ -125,8 +130,8 @@ its private receipt is `skill-stance-result.json`, definition SHA-256
 `7c70f270975fd819291090f887e8e9487c20156f1c0539525e8f507b5b161f1f`.
 This confirms the definition/prerequisite mismatch at that observation; it does
 not retrospectively establish the sole cause of the earlier failed attempt.
-Host **0.3.59** / native **1.8.39** now contains the merged and installed
-correction, with qualification and live results below.
+Host **0.3.59** / native **1.8.39** introduced the merged combat-mode
+correction, with its historical qualification and live results below.
 Owner revocation was a distinct later
 event; the sampled generation/no-owner state does not identify its trigger.
 Existing fail-closed handling stays in place, with no automatic restart.
@@ -138,7 +143,7 @@ the attack. UNCERTAIN retains the exact command for status/cleanup. Native
 callbacks must revalidate ownership after any mode transition and preserve entry
 history. No new hotkey, configuration flag or arbitrary host delay is required.
 
-## Qualified and installed .59/.39
+## Historical .59/.39 qualification and installation
 
 Exact package source `e90d2f64ea49df5af94365012548266e6829e3a1` is retained
 in the PR #52 main merge. Subsequent qualification and deployment documentation
@@ -236,30 +241,31 @@ reference on the owner thread. Duplicate registry identities, observed churn,
 and budget expiry reject the observation. Same-key respawn cannot transfer an
 old engagement or manufacture death/kill credit. Independent review, 87 focused
 and 79 consumer/health tests, repository Ruff, and the full host suite passed:
-4,251 tests, 801 subtests, and 36 skips. This source is not installed.
-PR #54 contains this correction and the full PR #53 documentation tip, targeting
-main as one integration review.
+4,251 tests, 801 subtests, and 36 skips. PR #54 subsequently merged this
+correction and the full PR #53 documentation tip. The correction is installed
+in .60/.40 after the combined qualification below.
 
-Persistent-action qualification remains active. Exact client code identifies
+The subsequent persistent-action audit established the following correction.
+Exact client code identifies
 `actor+0x9BC` as an animation-event index rather than the boolean pending-action
-field used by the current reader. Native state updates can set mode and action
+field previously used by the reader. Native state updates can set mode and action
 independently; action state 2 alone is not proof of casting. The actor's `AE4`
 task pointer can survive task destruction and is not ownership evidence. Native
 power recovery uses `actor+0x67C` and the client's own clock, but elapsed recovery
 alone is not yet qualified as permission to interrupt an existing cast. These
-findings require a coherent observation/admission correction, not a wider guessed
-idle predicate. Installed .59/.39 remains unchanged and no follow-through action
-has run.
+findings led to the coherent observation/admission correction below. No
+follow-through action ran on .59/.39 after the blocked passive preflight.
 
-## Native initiation correction in review
+## Merged native initiation correction
 
 The native update guard is committed at `8090c176fd33a027c503afaabc50bb0112b0a2a7`
-and pushed in PR #54. Native service runs only at the outermost update; nested
+and included in merged PR #54. Native service runs only at the outermost update;
+nested
 callbacks still forward to the client. The boundary spans the original callback
 and restores thread-local state on SEH and C++ unwinds. Independent review and
 six focused native tests passed.
 
-The active host/native correction preserves pending initiation using stable
+The installed host/native correction preserves pending initiation using stable
 native state `+0x10` and the bounded power-protocol ID vector. Animation frame,
 animation-event index, and action state remain telemetry. Clear initiation does
 not prove that effects or projectiles have finished, or replace action-specific
@@ -292,13 +298,14 @@ combat observer; other features retain their own image qualification.
 Independent host/native reviews passed. Host checkpoint `0e218bc` passed 4,304
 tests with 788 subtests and 36 skips. Native focused tests and the original and
 prepared .13 initiation probes passed; each initiation probe executes 23 cases.
-The candidate versions are host .60/native .40. Exact-source package qualification
-is complete below; the candidate is uninstalled. No further live attack ran.
+Host .60/native .40 contain the correction. Exact-source qualification and
+installation and bounded live follow-through are recorded below.
 
-## Qualified .60/.40 candidate, not installed
+## Qualified and installed .60/.40
 
-Exact package source `f0263c38ef36874da0e68e0aa5e0c8775550e618` is published in
-PR #54. Package `artifacts/b40/b1c83d60` passed **4,325 host tests**, **788 subtests**
+Exact package source `f0263c38ef36874da0e68e0aa5e0c8775550e618` is retained in
+the PR #54 main merge. Package `artifacts/b40/b1c83d60` passed **4,325 host tests**,
+**788 subtests**
 and Ruff, with 35 explicit environment skips. Each native profile passed **204
 native tests**, **72 movement IPC tests** and **85 combat IPC tests**. Three
 generic image skips per profile are covered by explicit private image gates.
@@ -319,12 +326,65 @@ failures per profile remain recorded separately from required acceptance gates.
 - Wheel SHA-256: `cc2854313d10d7cf57cf37a56e18906371cf9dc41730900103c406648af53ed4`.
 
 Independent source, completed-package and private deployment-helper reviews passed.
-The updated bounded NPC harness passed 80 offline tests. Installation still needs
-new PR #54 approval and a fresh closed-client preflight; the existing .59/.39
-runtime remains installed. The no-rollback policy and preservation of settings,
-jobs and saves apply. PR #53 is included in #54 and will be superseded only after
-integration. The next live gate is one queued actor skill, one same-engagement
-NPC attack, exact-object health/death observation and confirmed native cleanup.
+The updated bounded NPC harness passed 80 offline tests. After explicit user
+merge/install approval and a fresh closed-client check, all 15 hosted checks
+passed and PR #54 merged. Installation verified **455 modules**, **9,569 preserved
+files** and **one client DLL inventory change**. Manager PID **3900** was healthy
+and unbound; all five shortcuts and startup preflight passed.
+
+The inspected obsolete .59 host contained **2,098 files**, totaling **47,646,848
+bytes**, with inventory SHA-256
+`3561c4961fe42c1bb874c875870873fa493b1375000ffa42b4f2dbe6edc2912e`.
+It and the exact old .59 wheel and .39 DLL payloads were removed, totaling
+**50,327,590 bytes**. Actual settings, jobs, saves and diagnostic evidence remain
+in place. No runtime or payload rollback copies were retained.
+
+Launch at **17:45:09.8119540 UTC** verified the exact qualified DLL in PID **1836**,
+creation FILETIME `134353503028775811`, HWND `3736294`. Passive readiness reported
+login/loading and sent no action. These process values are recorded evidence,
+not continuing authorization. After fresh Umbra login, bounded follow-through
+ran as recorded below. Twelve compact deployment receipts and seven independent
+installed-file hashes were exported and verified. Four additional obsolete .59/.39
+staging binaries were removed by exact hash, totaling 5,361,484 bytes. Actual user
+data and diagnostic evidence remain in place.
+
+## Live .60 follow-through and supplementary evidence review
+
+Run `f005467068ad49e1970090b037c26ce6` queued one SELF_POWER for Shot to the Leg
+563795161 and one ATTACK against NPC key `[23885,37]`, token
+`27b214e91d69bf94569114dd`, under the same engagement, binding digest and exact
+Grant. Production trace step 10 observed health 400; step 11 recorded the same
+available tracked object at health zero, maximum 400, with
+`kill_confirmation = native_health_zero`. The controller ended COMPLETE with
+`kill_limit_reached`. The trace's 1,734 ms value is the frame timestamp, not an
+exact damage or server-event time. Terminal cleanup returned NATIVE_STOPPED for
+the same NPC. No owner or manual-list entry remained; no error or watchdog fired.
+
+The original `acceptance.json` remains **partial**. Its wrapper logged
+`population.observe()` before the production frame refreshed the bound object
+through `observe_character_detail()`, so its private health list still showed
+400. That later native detail replaces the tracked character before controller
+policy and trace serialization. Independent supplementary review checked the
+registered key/address/token transaction, canonical address-derived token,
+exact serialized request/engagement/Grant correlations, and the later zero-health
+trace with confirmed cleanup. Missing or replaced objects are not treated as
+death. The native engagement retains the target reference until cleanup; passive
+registry rereads alone are not a universal ABA or cross-thread ownership proof.
+
+This existing evidence establishes observed native-object death and cleanup;
+another fight is not needed to manufacture the missing logger sample. Original
+partial evidence is preserved beside `supplemental-review.json` in the private
+run directory. The private logger correction now captures canonical detail
+observations and passed 87 offline tests; the installed runtime did not change.
+No player kill credit, skill consumption, snare application, or server-effect
+attribution is claimed. The one-kill run intentionally ended COMPLETE, so it does
+not establish subsequent recovery or another encounter on .60. The next bounded
+recovery check uses the existing nearby-NPC authorization, at most two distinct
+NPCs and a 20-second watchdog, without UI input or movement. Historical .57
+manual-player-to-PvE recovery passed; a .60 repeat would require fresh presence
+and identity confirmation for the already authorized player, Day. Automatic
+retaliation still needs the separate authoritative server session/attribution
+contract and cannot be enabled merely by passing another live test.
 
 ## Historical .57 live evidence
 
@@ -346,23 +406,21 @@ its offline and real-process qualification is distinct from live acceptance.
 
 - Complete: generic opener, native learned-skill resolver, character settings,
   bounded same-owner cleanup and native combat-mode prerequisite correction.
-- Complete: exact-source .59/.39 qualification, all 15 hosted checks, approved
-  PR #52 merge, installation, activation, launch and obsolete-runtime retirement.
-- Complete: bounded .59 skill-request/attack/native-cleanup gate and saved
+- Complete: historical .59 skill-request/attack/native-cleanup gate and saved
   Umbra/Wonderbane basic Shot to the Leg opener, revision 1.
-- Complete: registry-backed population source checkpoint and independent/full
-  host validation; included in draft PR #54, not installed.
-- Complete: outermost native update guard checkpoint and independent focused
-  validation, pushed at `8090c17` in draft PR #54.
-- Complete: host/native initiation and request-provenance correction with
-  independent review and focused validation; not installed.
-- Complete: exact-source .60/.40 package qualification at `f0263c3`, both native
-  profiles and original/prepared image gates; no gameplay repeat has run.
-- Active: obtain PR #54 merge/install approval and a closed-client confirmation;
-  merge after hosted checks pass, then install and verify the qualified package.
-- Pending: bounded follow-through with exact native health/death observation and
-  cleanup, without player kill-credit or skill-consumption inference.
-- Pending: publish the new deployment receipt and supersede included PR #53
-  after verified PR #54 integration.
+- Complete: registry-backed population, outermost native update guard, host/native
+  initiation and request-provenance correction, with independent validation.
+- Complete: exact-source .60/.40 qualification at `f0263c3`, both native profiles,
+  original/prepared image gates, all 15 hosted checks and approved PR #54 merge.
+- Complete: .60/.40 installation, manager activation, shortcuts/startup preflight,
+  exact DLL launch verification and obsolete-runtime retirement; user data preserved
+  without rollback copies.
+- Complete: .60 skill/attack queue sequence, exact-object zero-health observation
+  and confirmed native cleanup, with original partial result preserved and a
+  separate supplementary evidence review.
+- Active: validate bounded .60 recovery across encounters and a later SEEKING frame;
+  the completed one-kill run intentionally did not exercise that transition.
+- Pending: publish this installation receipt through the next documentation PR;
+  PR #53's included tip is already merged.
 - Pending: qualified server-effect evidence and the authoritative
   server-character-session fence required for automatic retaliation.

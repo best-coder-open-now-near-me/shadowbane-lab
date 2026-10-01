@@ -4,17 +4,21 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`, currently the PR #52 merge
-`72f13d5f64f896a5b646838ed3bd5c268fac7773`. The installed bot uses host .59/native
-.39 from qualified source `e90d2f6` with official client 1.3.38.13.
+Start new work from freshly fetched `origin/main`, currently the PR #54 merge
+`89f58cdbb50c2ef8bc8d80f0583897ac982f80f4`. The installed bot uses host **0.3.60** /
+native **1.8.40** from qualified source `f0263c3` with official client **1.3.38.13**.
 
-The reviewed .60/.40 candidate is published on `codex/registry-backed-population`
-through [draft PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54),
-with main as its integration destination. Exact package source `f0263c3` passed
-host, native, cross-process and original/prepared client qualification. It adds
-registered object membership, native initiation observation, and guarded skill-to-attack
-request provenance. It remains unmerged and uninstalled pending new approval.
-PR #54 includes the full PR #53 deployment receipt and will supersede it after integration.
+[PR #54](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/54)
+merged after all 15 hosted checks passed at approved head `3b5e628`. It includes
+registered object membership, native initiation observation, and guarded
+skill-to-attack request provenance. PR #53's included documentation is also merged.
+Installation, manager activation, five shortcuts, startup preflight and the
+loaded-DLL launch check passed. The inspected obsolete .59 runtime was removed
+without retaining rollback copies. After Umbra login, the .60 follow-through
+queued the skill and attack, observed the exact NPC at zero health, and confirmed
+native cleanup. Recovery across encounters and server-effect evidence remain open.
+The installation receipt is being
+prepared on `codex/native-initiation-deployment-20261001` for the next PR to main.
 
 Read the [branch map](docs/git-branch-map.md) before selecting a development base,
 the [current bot qualification and live-test todos](docs/queued-skills-20261001.md),
