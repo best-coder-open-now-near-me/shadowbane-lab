@@ -4,6 +4,25 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Active queued-skill work - October 1
+
+The shared base is `origin/main@18e65bba0229771895bcf159eea96977a43ecc99`,
+including merged PR #49. The normal project checkout is on that main revision.
+The bot-runtime worktree uses `codex/queued-weapon-skill-opener`, delivered through
+[draft PR #51](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/51)
+to main. Native self-skill dispatch, typed opener ordering and learned-skill
+resolution are pushed at `44b660b`; saved settings and CLI integration are
+`21e866b`, and bounded delayed-stop settlement is `28c5ccf`. Host .58/native .38
+are prepared for exact-source package qualification. See
+[the current work record](queued-skills-20261001.md) for validation and remaining work.
+
+Installed host .57/native .37 are built from `1d107a25`. The manual-player
+attack/cancel/recovery gate passed; NPC cleanup confirmation remains open.
+Documentation-only [PR #50](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/50)
+at `1bc32e3` records that deployment and is outside this branch, awaiting merge
+approval. The following older deployment section is historical until that receipt
+is integrated; it does not describe the current checkout or installed runtime.
+
 ## Current shared source and deployment - October 1
 
 Start new development from freshly fetched `origin/main`. PRs #38-46 and
