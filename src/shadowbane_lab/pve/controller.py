@@ -54,16 +54,12 @@ class PvEController:
         self._melee_entered_at: int | None = None
         self._last_reposition_at: int | None = None
         self._combat_repositions = 0
-        self._engagement_player_action_sequence: int | None = None
-        self._engagement_player_motion_sequence: int | None = None
-        self._player_attack_animation_observed = False
         self._selection_lost_at: int | None = None
         self._reengage_attempts = 0
         self._stalled_retargets = 0
         self._failed_target_tokens: dict[str, int] = {}
         self._require_different_target = False
         self._last_power_at: dict[int, int] = {}
-        self._last_interrupt_action_sequence: int | None = None
         self._interrupts_for_target = 0
         self._best_approach_distance: float | None = None
         self._outside_melee = False
@@ -82,6 +78,7 @@ class PvEController:
         self._external_return_pending = False
         self._pending_combat: PvECombatProposal | None = None
         self._last_combat_ack = None
+        self._queued_self_followup = None
         self._retry_proposal: PvECombatProposal | None = None
         self._combat_ack_at: int | None = None
         self._adoption_bind_pending = False
@@ -182,15 +179,16 @@ class PvEController:
         if disposition is PvECombatDisposition.QUEUED:
             if proposal.kind is PvECombatKind.ATTACK:
                 self._last_attack_at = now_ms
-                self._player_attack_animation_observed = False
+                self._queued_self_followup = None
             else:
                 self._last_power_at[proposal.power_id] = now_ms
+                if (proposal.kind is PvECombatKind.SELF_POWER
+                        and self._pending_cleanup is None and result.cleanup_required):
+                    self._queued_self_followup = (
+                        proposal.target_token, proposal.target_key, proposal.power_id)
                 if self._phase is PvEPhase.OPENING and self._pending_cleanup is None:
                     self._opening_queued_at = now_ms
                     self._phase_entered_at = now_ms
-                if proposal.interrupt_sequence is not None:
-                    self._last_interrupt_action_sequence = proposal.interrupt_sequence
-                    self._interrupts_for_target += 1
             if self._proposal_reengage:
                 self._reengage_attempts += 1
                 self._last_progress_at = now_ms
@@ -216,7 +214,7 @@ class PvEController:
     def can_start_external_combat(self, observation: PvEObservation) -> bool:
         action = observation.player_action
         if self._engaged_target_token is None and (
-            action is None or not action.native_action_idle
+            action is None or not action.initiation_clear
             or action.action_target_token is not None
         ):
             return False
@@ -300,7 +298,7 @@ class PvEController:
                 return self._bind_engagement(observation, current.character,
                                             attack_already_active=True, adopt_existing_action=True)
             action = observation.player_action
-            if (action is None or not action.native_action_idle
+            if (action is None or not action.initiation_clear
                     or action.action_target_token is not None):
                 self._enter(PvEPhase.OBSERVING_ACTION, now)
                 return self._emit(now)
@@ -328,7 +326,9 @@ class PvEController:
             action = observation.player_action
             retry = self._retry_proposal
             if retry.kind is not PvECombatKind.BIND and (
-                action is None or not action.native_action_idle
+                action is None or (not action.initiation_clear and not (
+                    retry.kind is PvECombatKind.ATTACK
+                    and self._self_followup_matches(observation)))
             ):
                 return self._emit(now)
             self._retry_proposal = None
@@ -446,9 +446,8 @@ class PvEController:
             self._last_player_health_loss_at = now
         self._last_health = target.current_health
         self._last_player_health = observation.player.current_health
-        self._observe_player_action(observation)
         player_action = observation.player_action
-        if player_action is None or not player_action.native_action_idle:
+        if player_action is None or not player_action.initiation_clear:
             if self._phase_elapsed(now) >= self._config.engagement_timeout_ms:
                 return self.stop("engagement_timeout", now_ms=now)
             return self._emit(now)
@@ -473,8 +472,6 @@ class PvEController:
             )
         ):
             quiet_timeout = self._config.quiet_melee_timeout_ms
-            if player_action is not None and not self._player_attack_animation_observed:
-                quiet_timeout = self._config.missing_attack_animation_timeout_ms
             if now - self._last_attack_at >= quiet_timeout:
                 return self._abandon_stalled_target(observation)
 
@@ -534,18 +531,10 @@ class PvEController:
         self._melee_entered_at = None
         self._last_reposition_at = None
         self._combat_repositions = 0
-        self._engagement_player_action_sequence = (
-            None if observation.player_action is None else observation.player_action.action_sequence
-        )
-        self._engagement_player_motion_sequence = (
-            None if observation.player_action is None else observation.player_action.motion_sequence
-        )
-        self._player_attack_animation_observed = False
         self._last_acquire_at = None
         self._reengage_attempts = 0
         self._selection_lost_at = None
         self._require_different_target = False
-        self._last_interrupt_action_sequence = None
         self._interrupts_for_target = 0
         self._best_approach_distance = self.tracked_target(observation).planar_distance(observation)
         self._outside_melee = bool(
@@ -561,7 +550,6 @@ class PvEController:
         if adopt_existing_action:
             self._adoption_bind_pending = True
             self._enter(PvEPhase.ENGAGED, now)
-            self._observe_player_action(observation)
             return self._emit(now)
         opener = self._config.resolved_opening_ability
         if opener is not None and observation.player.current_mana >= self._config.opening_mana_cost:
@@ -573,33 +561,18 @@ class PvEController:
         return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
 
     def _interrupt(self, observation: PvEObservation) -> PvEControllerDecision | None:
-        intent = self._config.interrupt_intent
-        ability = self._config.resolved_interrupt_ability
-        bound = observation.tracked_target_action
-        if (bound is not None and bound.token == self._engaged_target_token
-                and bound.object_key == self._engaged_object_key):
-            action = bound.action
-        else:
-            action = observation.target_action
-            if observation.target.target_token != self._engaged_target_token:
-                return None
-        if ability is None or action is None or not action.interrupt_opportunity:
-            return None
-        assert action.action_sequence is not None
-        if action.action_sequence == self._last_interrupt_action_sequence:
-            return None
-        if self._interrupts_for_target >= self._config.maximum_interrupts_per_target:
-            return None
-        if observation.player.current_mana < self._config.interrupt_mana_cost:
-            return None
-        last_power_at = self._last_power_at.get(ability.power_id)
-        if (
-            last_power_at is not None
-            and observation.now_ms - last_power_at < self._config.interrupt_cooldown_ms
-        ):
-            return None
-        self._proposal_interrupt_sequence = action.action_sequence
-        return self._emit(observation.now_ms, intent, ability=ability)
+        # AF8 and animation telemetry do not identify a cast or its target.
+        # No interrupt request is authorized without that missing provenance.
+        return None
+
+    def _self_followup_matches(self, observation: PvEObservation) -> bool:
+        queued = self._queued_self_followup
+        action = observation.player_action
+        tracked = self.tracked_target(observation)
+        return bool(queued is not None and action is not None
+                    and action.initiation_pending is not None
+                    and tracked is not None and tracked.available
+                    and queued[:2] == (tracked.token, tracked.object_key))
 
     def _open(
         self,
@@ -634,8 +607,9 @@ class PvEController:
             self._last_player_health_loss_at = now
         self._last_health = target.current_health
         self._last_player_health = observation.player.current_health
-        self._observe_player_action(observation)
-        if observation.player_action is None or not observation.player_action.native_action_idle:
+        if (observation.player_action is None or (
+                not observation.player_action.initiation_clear
+                and not self._self_followup_matches(observation))):
             if self._phase_elapsed(now) >= self._config.engagement_timeout_ms:
                 return self.stop("engagement_timeout", now_ms=now)
             return self._emit(now)
@@ -654,40 +628,6 @@ class PvEController:
         ):
             return self._emit(now)
         return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
-
-    def _observe_player_action(self, observation: PvEObservation) -> None:
-        player_action = observation.player_action
-        tracked = self.tracked_target(observation)
-        if player_action is None or tracked is None or not tracked.available:
-            return
-        previous_sequence = self._engagement_player_action_sequence
-        previous_motion_sequence = self._engagement_player_motion_sequence
-        if (
-            self._last_attack_at is not None
-            and player_action.action_target_token == self._engaged_target_token
-            and player_action.action_active
-        ):
-            self._player_attack_animation_observed = True
-        elif (
-            previous_sequence is not None
-            and player_action.action_target_token == self._engaged_target_token
-            and player_action.action_sequence > previous_sequence
-        ):
-            self._player_attack_animation_observed = True
-        elif (
-            previous_motion_sequence is not None
-            and player_action.action_target_token == self._engaged_target_token
-            and player_action.motion_sequence > previous_motion_sequence
-        ):
-            self._player_attack_animation_observed = True
-        self._engagement_player_action_sequence = max(
-            player_action.action_sequence,
-            previous_sequence or 0,
-        )
-        self._engagement_player_motion_sequence = max(
-            player_action.motion_sequence,
-            previous_motion_sequence or 0,
-        )
 
     def _record_kill(
         self,
@@ -757,6 +697,7 @@ class PvEController:
         return self._pending_cleanup
 
     def _request_cleanup(self, reason: str, now_ms: int) -> None:
+        self._queued_self_followup = None
         if self._engaged_target_token is None:
             return
         assert self._engaged_object_key is not None
@@ -922,6 +863,7 @@ class PvEController:
         }
 
     def _clear_engagement(self) -> None:
+        self._queued_self_followup = None
         self._engaged_target_token = None
         self._engaged_object_key = None
         self._pending_combat = None
@@ -939,12 +881,8 @@ class PvEController:
         self._melee_entered_at = None
         self._last_reposition_at = None
         self._combat_repositions = 0
-        self._engagement_player_action_sequence = None
-        self._engagement_player_motion_sequence = None
-        self._player_attack_animation_observed = False
         self._selection_lost_at = None
         self._reengage_attempts = 0
-        self._last_interrupt_action_sequence = None
         self._interrupts_for_target = 0
         self._best_approach_distance = None
         self._outside_melee = False
@@ -983,7 +921,10 @@ class PvEController:
         action = None if observation is None else observation.player_action
         native_action_pending = bool(
             self._phase is PvEPhase.OBSERVING_ACTION
-            or (not self.terminal and (action is None or not action.native_action_idle))
+            or (not self.terminal and (action is None or (not action.initiation_clear
+                and not (intent is PvEIntent.ATTACK_SELECTED_TARGET
+                         and observation is not None
+                         and self._self_followup_matches(observation)))))
         )
         proposal = None
         if self._pending_combat is not None:

@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "profile_id": "wonderbane-ef43784b-native-target-action",
   "executable_name": "sb.exe",
   "executable_sha256": "ef43784ba6ffa0de6c0c16c76569f864393ad1530e7149395bb560e5cca30f13",
@@ -10,17 +10,18 @@
   "arc_motion_vtable_rva": 18127580,
   "current_motion_pointer_offset": 2440,
   "current_motion_id_offset": 2444,
-  "impact_frame_offset": 2472,
-  "action_pending_offset": 2492,
   "target_of_target_pointer_offset": 2808,
   "actor_state_pointer_offset": 2768,
   "state_mode_offset": 24,
   "state_action_offset": 32,
-  "idle_motion_ids": [21],
-  "observed_attack_motion_ids": [106, 107, 108],
-  "no_impact_frame_sentinel": -1,
   "maximum_motion_id": 4096,
-  "maximum_impact_frame": 4096,
   "minimum_user_address": 65536,
-  "maximum_user_address": 2147418111
+  "maximum_user_address": 2147418111,
+  "animation_frame_offset": 2472,
+  "animation_event_index_offset": 2492,
+  "no_animation_frame_sentinel": -1,
+  "maximum_animation_frame": 4096,
+  "state_initiation_offset": 16,
+  "power_protocol_vector_offset": 1628,
+  "maximum_power_protocol_ids": 256
 }

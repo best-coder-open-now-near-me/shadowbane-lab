@@ -13,7 +13,6 @@ from shadowbane_lab.client_observation import (
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetActionObservation,
-    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetIdentityObservation,
     NativeTargetIdentityReadError,
@@ -119,52 +118,27 @@ def _target_position(
     )
 
 
-def _target_action(
-    token: str | None,
-    *,
-    phase: NativeTargetActionPhase = NativeTargetActionPhase.IDLE,
-    sequence: int = 0,
-    targeting_player: bool = True,
-) -> NativeTargetActionObservation:
+def _target_action(token, *, initiation_state=5, event_index=0,
+                   animation_frame=None, targeting_player=True):
     if token is None:
         return NativeTargetActionObservation(target_present=False)
     return NativeTargetActionObservation(
-        target_present=True,
-        phase=phase,
-        target_token=token,
-        targeting_player=targeting_player,
-        motion_id=21 if phase is NativeTargetActionPhase.IDLE else 106,
-        action_pending=phase is NativeTargetActionPhase.QUEUED,
-        impact_frame=19 if phase is NativeTargetActionPhase.IMPACT else None,
-        action_sequence=sequence,
-    )
+        target_present=True, target_token=token, targeting_player=targeting_player,
+        motion_id=106, animation_event_index=event_index, animation_frame=animation_frame,
+        initiation_state=initiation_state, power_protocol_ids=(), mode=2, action_state=2)
 
 
-def _player_action(
-    *,
-    phase: NativeTargetActionPhase = NativeTargetActionPhase.IDLE,
-    sequence: int = 0,
-    motion_sequence: int = 0,
-    targeting_selected: bool | None = None,
-    token: str | None = "mob",
-    mode: int | None = 1,
-    action_state: int | None = 1,
-) -> NativePlayerActionObservation:
+def _player_action(*, initiation_state=5, event_index=0, animation_frame=None,
+                   targeting_selected=None, token="mob", mode=1, action_state=1,
+                   power_protocol_ids=()):
     if targeting_selected is None:
-        targeting_selected = token is not None and phase is not NativeTargetActionPhase.IDLE
+        targeting_selected = False
     return NativePlayerActionObservation(
-        phase=phase,
-        targeting_selected=targeting_selected,
-        selected_target_token=token,
-        action_target_token=token if targeting_selected else None,
-        motion_id=21 if phase is NativeTargetActionPhase.IDLE else 106,
-        action_pending=phase is NativeTargetActionPhase.QUEUED,
-        impact_frame=19 if phase is NativeTargetActionPhase.IMPACT else None,
-        action_sequence=sequence,
-        motion_sequence=motion_sequence,
-        mode=mode,
-        action_state=action_state,
-    )
+        targeting_selected=targeting_selected, selected_target_token=token,
+        action_target_token=token if targeting_selected else None, motion_id=106,
+        animation_event_index=event_index, animation_frame=animation_frame,
+        initiation_state=initiation_state, power_protocol_ids=power_protocol_ids,
+        mode=mode, action_state=action_state)
 
 
 def _target_identity(
@@ -972,13 +946,12 @@ class PvEControllerTests(unittest.TestCase):
             self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, attack.intent)
 
 
-    def test_missing_attack_animation_fast_cycles_a_quiet_melee_target(self) -> None:
+    def test_animation_absence_does_not_shorten_native_health_progress_timeout(self) -> None:
         controller = PvEController(
             PvEControllerConfig(
                 automatic_attack_expected=True,
                 maximum_stalled_retargets=1,
                 quiet_melee_timeout_ms=2_500,
-                missing_attack_animation_timeout_ms=1_500,
             )
         )
         _accepted_step(controller,
@@ -1000,7 +973,7 @@ class PvEControllerTests(unittest.TestCase):
         )
         waiting = _accepted_step(controller,
             _observation(
-                1_599,
+                2_599,
                 _target("quiet-crab"),
                 player_action=_player_action(),
                 player_position=_player_position(),
@@ -1009,7 +982,7 @@ class PvEControllerTests(unittest.TestCase):
         )
         cycle = _accepted_step(controller,
             _observation(
-                1_600,
+                2_600,
                 _target("quiet-crab"),
                 player_action=_player_action(),
                 player_position=_player_position(),
@@ -1028,7 +1001,6 @@ class PvEControllerTests(unittest.TestCase):
                 automatic_attack_expected=True,
                 maximum_stalled_retargets=1,
                 quiet_melee_timeout_ms=2_500,
-                missing_attack_animation_timeout_ms=1_500,
             )
         )
         _accepted_step(controller,
@@ -1043,7 +1015,7 @@ class PvEControllerTests(unittest.TestCase):
             _observation(
                 100,
                 _target("animated-crab"),
-                player_action=_player_action(token="animated-crab", sequence=8),
+                player_action=_player_action(token="animated-crab", event_index=8),
                 player_position=_player_position(),
                 target_position=_target_position("animated-crab", 106.0, 200.0),
             )
@@ -1053,9 +1025,8 @@ class PvEControllerTests(unittest.TestCase):
                 200,
                 _target("animated-crab"),
                 player_action=_player_action(token="animated-crab",
-                    phase=NativeTargetActionPhase.IMPACT,
-                    sequence=8,
-                    motion_sequence=1,
+                    animation_frame=19,
+                    event_index=8,
                 ),
                 player_position=_player_position(),
                 target_position=_target_position("animated-crab", 106.0, 200.0),
@@ -1065,7 +1036,7 @@ class PvEControllerTests(unittest.TestCase):
             _observation(
                 1_600,
                 _target("animated-crab"),
-                player_action=_player_action(token="animated-crab", sequence=8, motion_sequence=1),
+                player_action=_player_action(token="animated-crab", event_index=8,),
                 player_position=_player_position(),
                 target_position=_target_position("animated-crab", 106.0, 200.0),
             )
@@ -1074,7 +1045,7 @@ class PvEControllerTests(unittest.TestCase):
             _observation(
                 2_600,
                 _target("animated-crab"),
-                player_action=_player_action(token="animated-crab", sequence=8, motion_sequence=1),
+                player_action=_player_action(token="animated-crab", event_index=8,),
                 player_position=_player_position(),
                 target_position=_target_position("animated-crab", 106.0, 200.0),
             )
@@ -1188,7 +1159,7 @@ class PvEControllerTests(unittest.TestCase):
             _observation(
                 100,
                 _target("busy-player"),
-                player_action=_player_action(sequence=3),
+                player_action=_player_action(event_index=3),
                 player_position=_player_position(),
                 target_position=_target_position("busy-player", 106.0, 200.0),
             )
@@ -1199,8 +1170,7 @@ class PvEControllerTests(unittest.TestCase):
                 _target("busy-player"),
                 player=_player(current_health=90.0),
                 player_action=_player_action(
-                    phase=NativeTargetActionPhase.WINDUP,
-                    sequence=4,
+                    event_index=4,
                 ),
                 player_position=_player_position(),
                 target_position=_target_position("busy-player", 106.0, 200.0),
@@ -1290,7 +1260,7 @@ class PvEControllerTests(unittest.TestCase):
     def test_unknown_busy_action_ignores_hit_text_and_waits_for_native_completion(self):
         controller = PvEController(PvEControllerConfig(
             opening_intent=PvEIntent.CAST_SHADOW_TOUCH))
-        busy = _player_action(phase=NativeTargetActionPhase.QUEUED, targeting_selected=False)
+        busy = _player_action(initiation_state=6, targeting_selected=False)
         waiting = _accepted_step(controller, _observation(0, _target("mob"), player_action=busy))
         still_waiting = _accepted_step(controller, _observation(100, _target("mob"),
             _event(NativeCombatEventKind.PLAYER_HIT_TARGET), player_action=busy))
@@ -1305,7 +1275,7 @@ class PvEControllerTests(unittest.TestCase):
     def test_existing_native_target_is_adopted_without_opener_or_selection_cycle(self):
         controller = PvEController(PvEControllerConfig(
             opening_intent=PvEIntent.CAST_SHADOW_TOUCH))
-        busy = _player_action(phase=NativeTargetActionPhase.QUEUED)
+        busy = _player_action(initiation_state=6, targeting_selected=True)
         adopted = _accepted_step(controller, _observation(0, _target("mob"), player_action=busy))
         self.assertEqual(PvECombatKind.BIND, adopted.combat_proposal.kind)
         self.assertTrue(adopted.combat_proposal.adopted_existing_action)
@@ -1358,8 +1328,8 @@ class PvEControllerTests(unittest.TestCase):
                 player=player,
                 target_action=_target_action(
                     "mob",
-                    phase=NativeTargetActionPhase.QUEUED,
-                    sequence=1,
+                    initiation_state=6,
+                    event_index=1,
                 ),
             )
         )
@@ -1370,8 +1340,7 @@ class PvEControllerTests(unittest.TestCase):
                 player=player,
                 target_action=_target_action(
                     "mob",
-                    phase=NativeTargetActionPhase.WINDUP,
-                    sequence=1,
+                    event_index=1,
                 ),
             )
         )
@@ -1382,13 +1351,13 @@ class PvEControllerTests(unittest.TestCase):
                 player=player,
                 target_action=_target_action(
                     "mob",
-                    phase=NativeTargetActionPhase.QUEUED,
-                    sequence=2,
+                    initiation_state=6,
+                    event_index=2,
                 ),
             )
         )
 
-        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, interrupt.intent)
+        self.assertIsNone(interrupt.intent)
         self.assertIsNone(same_attack.intent)
         self.assertIsNone(next_attack.intent)
 
@@ -1407,8 +1376,8 @@ class PvEControllerTests(unittest.TestCase):
         _accepted_step(controller, _observation(0, _target("mob"), player=low_mana))
         action = _target_action(
             "mob",
-            phase=NativeTargetActionPhase.QUEUED,
-            sequence=1,
+            initiation_state=6,
+            event_index=1,
         )
 
         waiting = _accepted_step(controller,
@@ -1419,7 +1388,7 @@ class PvEControllerTests(unittest.TestCase):
         )
 
         self.assertIsNone(waiting.intent)
-        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, interrupt.intent)
+        self.assertIsNone(interrupt.intent)
 
     def test_interrupt_ignores_attack_aimed_at_another_actor(self) -> None:
         controller = PvEController(
@@ -1438,8 +1407,8 @@ class PvEControllerTests(unittest.TestCase):
                 _target("mob"),
                 target_action=_target_action(
                     "mob",
-                    phase=NativeTargetActionPhase.QUEUED,
-                    sequence=1,
+                    initiation_state=6,
+                    event_index=1,
                     targeting_player=False,
                 ),
             )
@@ -1464,15 +1433,15 @@ class PvEControllerTests(unittest.TestCase):
                 _target("mob"),
                 target_action=_target_action(
                     "mob",
-                    phase=NativeTargetActionPhase.QUEUED,
-                    sequence=1,
+                    initiation_state=6,
+                    event_index=1,
                 ),
             )
         )
         second_action = _target_action(
             "mob",
-            phase=NativeTargetActionPhase.QUEUED,
-            sequence=2,
+            initiation_state=6,
+            event_index=2,
         )
 
         cooling_down = _accepted_step(controller,
@@ -1481,9 +1450,9 @@ class PvEControllerTests(unittest.TestCase):
         ready = _accepted_step(controller,
             _observation(2_100, _target("mob"), target_action=second_action))
 
-        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, first.intent)
+        self.assertIsNone(first.intent)
         self.assertIsNone(cooling_down.intent)
-        self.assertEqual(PvEIntent.CAST_SHADOW_TOUCH, ready.intent)
+        self.assertIsNone(ready.intent)
 
     def test_proc_assassin_opens_automatic_replacement_after_confirmed_kill(self) -> None:
         controller = PvEController(PvEControllerConfig(maximum_kills=2,
@@ -2013,10 +1982,9 @@ class PvERunnerTests(unittest.TestCase):
             player_action_reader=SequencePlayerActionSource(
                 (
                     _player_action(token=None),
-                    _player_action(sequence=4),
+                    _player_action(event_index=4),
                     _player_action(
-                        phase=NativeTargetActionPhase.WINDUP,
-                        sequence=5,
+                        event_index=5,
                     ),
                 )
             ),
@@ -2032,9 +2000,9 @@ class PvERunnerTests(unittest.TestCase):
 
         acquired_action = result.trace[1].as_dict()["player"]["action"]
         combat_action = result.trace[2].as_dict()["player"]["action"]
-        self.assertEqual(4, acquired_action["action_sequence"])
-        self.assertEqual("windup", combat_action["phase"])
-        self.assertTrue(combat_action["action_active"])
+        self.assertEqual(4, acquired_action["animation_event_index"])
+        self.assertEqual(5, combat_action["animation_event_index"])
+        self.assertNotIn("phase", combat_action)
 
     def test_runner_cycles_protected_identity_and_traces_valid_target(self) -> None:
         clock = AdvancingClock()
@@ -2310,8 +2278,7 @@ class PvERunnerTests(unittest.TestCase):
                 (
                     _target_action(
                         "mob",
-                        phase=NativeTargetActionPhase.WINDUP,
-                        sequence=1,
+                        event_index=1,
                     ),
                     _target_action("mob"),
                 )
@@ -2341,7 +2308,7 @@ class PvERunnerTests(unittest.TestCase):
         trace_payload = hit_step.as_dict()
         self.assertEqual(5.0, trace_payload["target"]["planar_distance"])
         self.assertEqual([], trace_payload["combat_events"])
-        self.assertEqual("windup", trace_payload["target"]["action"]["phase"])
+        self.assertEqual(1, trace_payload["target"]["action"]["animation_event_index"])
         self.assertEqual(
             PvEKillConfirmation.NATIVE_HEALTH_ZERO,
             result.trace[-1].decision.kill_confirmation,

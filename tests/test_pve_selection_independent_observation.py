@@ -20,6 +20,7 @@ from shadowbane_lab.pve.guarded_runtime import (
 from shadowbane_lab.pve.model import PvECombatKind, PvETrackedTarget
 from tests.test_native_character_population import FakeScanningProcess
 from tests.test_native_character_population import _profile as population_profile
+from tests.test_native_target_action import ORIGINAL
 from tests.test_native_target_action import _profile as action_profile
 from tests.test_pve_controller import ConfirmedCleanup, RecordingPvEDispatcher
 from tests.test_pve_observation_boundary import (
@@ -35,16 +36,20 @@ from tests.test_pve_observation_boundary import (
 def readers():
     profile = replace(population_profile(), action_target_pointer_offset=0xAF8,
                       sparse_data_offset=0xB00)
+    profile = replace(profile, executable_sha256=ORIGINAL,
+                      registry_profile=replace(profile.registry_profile,
+                                               executable_sha256s=(ORIGINAL,)))
     process = FakeScanningProcess(profile)
-    action_layout = replace(action_profile(), executable_sha256="a" * 64,
+    process.executable_sha256 = ORIGINAL
+    action_layout = replace(action_profile(), executable_sha256=ORIGINAL,
                             arc_character_vtable_rva=profile.arc_character_vtable_rva)
     for index, address in enumerate((process.player, process.crab, process.trainer)):
         block = bytearray(process.memory[address])
         motion = 0x60000 + index * 0x100
         state = 0x70000 + index * 0x100
         struct.pack_into("<II", block, action_layout.current_motion_pointer_offset, motion, 107)
-        struct.pack_into("<i", block, action_layout.impact_frame_offset, -1)
-        struct.pack_into("<I", block, action_layout.action_pending_offset, 0)
+        struct.pack_into("<i", block, action_layout.animation_frame_offset, -1)
+        struct.pack_into("<I", block, action_layout.animation_event_index_offset, 0)
         struct.pack_into("<I", block, action_layout.actor_state_pointer_offset, state)
         if address == process.crab:
             struct.pack_into("<I", block, action_layout.target_of_target_pointer_offset,
@@ -52,6 +57,7 @@ def readers():
         process.memory[address] = bytes(block)
         process.memory[motion] = struct.pack("<I", process.base_address + 0x300)
         state_block = bytearray(0x24)
+        struct.pack_into("<I", state_block, 0x10, 6)
         struct.pack_into("<I", state_block, 0x18, 2)
         struct.pack_into("<I", state_block, 0x20, 4)
         process.memory[state] = bytes(state_block)
@@ -110,7 +116,7 @@ class SelectionIndependentObservationTests(unittest.TestCase):
                 self.assertIsNone(frame.selected_target_token)
                 self.assertIsNotNone(frame.action_target_token)
                 self.assertEqual(4, frame.action_state)
-                self.assertFalse(frame.native_action_idle)
+                self.assertFalse(frame.initiation_clear)
 
     def test_bound_action_uses_existing_population_without_reading_selection_or_rescanning(self):
         process, population, action = readers()
@@ -129,9 +135,9 @@ class SelectionIndependentObservationTests(unittest.TestCase):
         self.assertTrue(detail.action.targeting_player)
         self.assertEqual(0, process.find_calls)
         # Repeated stable action observations do not invent a fresh transition.
-        self.assertEqual(detail.action.action_sequence,
+        self.assertEqual(detail.action,
                          population.observe_character_detail(crab.token, crab.object_key,
-                                                          action).action.action_sequence)
+                                                          action).action)
 
     def test_bound_action_rejects_pointer_reuse_and_disappearance(self):
         for replacement in (None, (9001, 37)):

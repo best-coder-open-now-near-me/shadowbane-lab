@@ -10,7 +10,6 @@ from shadowbane_lab.client_observation import (
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
     NativeTargetActionObservation,
-    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetPositionObservation,
 )
@@ -63,11 +62,10 @@ def observe(now=0, *, characters=None, selected=None, active=None, busy=False, i
                          NativeTargetPositionObservation(True, chosen.lt, chosen.lg,
                                                          chosen.altitude, chosen.token)),
         player_action=NativePlayerActionObservation(
-            phase=NativeTargetActionPhase.WINDUP if busy else NativeTargetActionPhase.IDLE,
             targeting_selected=active is not None and active == selected,
             selected_target_token=selected, action_target_token=active,
-            motion_id=1, action_pending=busy, impact_frame=None,
-            action_sequence=0, motion_sequence=0, mode=2 if busy else 1,
+            motion_id=1, animation_event_index=12, animation_frame=None,
+            initiation_state=6 if busy else 5, power_protocol_ids=(), mode=2 if busy else 1,
             action_state=6 if busy else 1,
         ),
         population=NativeCharacterPopulationObservation(
@@ -132,7 +130,7 @@ def test_proposal_does_not_consume_attack_time_and_pending_blocks_new_action():
     assert controller.pending_combat_proposal == first.combat_proposal
     ack(controller, first.combat_proposal, now=3000)
     assert controller.step(observe(3100)).cleanup_request is None
-    assert controller.step(observe(4600)).cleanup_request is not None
+    assert controller.step(observe(5600)).cleanup_request is not None
 
 
 def test_ack_identity_and_kind_cannot_be_rebound():
@@ -200,7 +198,7 @@ def test_unacknowledged_adoption_retains_cleanup_obligation():
     assert controller.request_final_cleanup().object_key == original.target_key
 
 
-def test_interrupt_budget_is_charged_only_once_on_correlated_queue():
+def test_target_initiation_does_not_authorize_unattributed_interrupt():
     controller = PvEController(PvEControllerConfig(
         interrupt_intent=PvEIntent.CAST_SHADOW_TOUCH, maximum_interrupts_per_target=1,
         interrupt_cooldown_ms=2000,
@@ -208,19 +206,17 @@ def test_interrupt_budget_is_charged_only_once_on_correlated_queue():
     first = controller.step(observe()).combat_proposal
     ack(controller, first)
     action = NativeTargetActionObservation(
-        target_present=True, phase=NativeTargetActionPhase.WINDUP, target_token="owned",
-        targeting_player=True, motion_id=106, action_pending=False, impact_frame=None,
-        action_sequence=8,
+        target_present=True, target_token="owned",
+        targeting_player=True, motion_id=106, animation_event_index=0, animation_frame=None,
+        initiation_state=6, power_protocol_ids=(123,),
     )
     bound = PvETrackedTargetAction("owned", character().object_key, action)
     interrupt = controller.step(observe(100, interrupt=bound)).combat_proposal
-    assert interrupt.kind is Kind.CAST and interrupt.interrupt_sequence == 8
-    ack(controller, interrupt, Disposition.DEFERRED, now=100, entered=False)
-    retry = controller.step(observe(200, interrupt=bound)).combat_proposal
-    assert retry.kind is Kind.CAST
-    ack(controller, retry, now=200)
-    later = replace(bound, action=replace(action, action_sequence=9))
+    assert interrupt is None
+    later = replace(bound, action=replace(action, animation_event_index=9))
     assert controller.step(observe(300, interrupt=later)).combat_proposal is None
+    assert controller._interrupts_for_target == 0
+
 
 
 def test_guarded_ranking_evaluates_candidate_object_not_selected_snapshot():
@@ -280,22 +276,22 @@ def test_queue_ack_during_stop_cannot_reopen_engagement():
     assert controller.pending_cleanup == stopped.cleanup_request
 
 
-def test_deferred_interrupt_rechecks_current_action_opportunity():
+def test_animation_event_advancement_cannot_create_interrupt_proposal():
     controller = PvEController(PvEControllerConfig(
         interrupt_intent=PvEIntent.CAST_SHADOW_TOUCH, maximum_interrupts_per_target=1,
     ))
     ack(controller, controller.step(observe()).combat_proposal)
     action = NativeTargetActionObservation(
-        target_present=True, phase=NativeTargetActionPhase.WINDUP, target_token="owned",
-        targeting_player=True, motion_id=106, action_pending=False, impact_frame=None,
-        action_sequence=8,
+        target_present=True, target_token="owned",
+        targeting_player=True, motion_id=106, animation_event_index=0, animation_frame=None,
+        initiation_state=6, power_protocol_ids=(123,),
     )
     bound = PvETrackedTargetAction("owned", character().object_key, action)
     interrupted = controller.step(observe(100, interrupt=bound)).combat_proposal
-    ack(controller, interrupted, Disposition.DEFERRED, now=100, entered=False)
-    assert controller.step(observe(200)).combat_proposal is None
-    fresh = replace(bound, action=replace(action, action_sequence=9))
-    assert controller.step(observe(300, interrupt=fresh)).combat_proposal.interrupt_sequence == 9
+    assert interrupted is None
+    fresh = replace(bound, action=replace(action, animation_event_index=9))
+    assert controller.step(observe(300, interrupt=fresh)).combat_proposal is None
+
 
 
 def test_trace_preserves_bind_and_later_pending_receipt_without_synthetic_intent():

@@ -26,7 +26,6 @@ from shadowbane_lab.client_observation import (
     NativePlayerActionObservation,
     NativePlayerPositionObservation,
     NativePlayerVitalsObservation,
-    NativeTargetActionPhase,
     NativeTargetHealthObservation,
     NativeTargetPositionObservation,
 )
@@ -80,12 +79,16 @@ def _observation(
         target_position=(NativeTargetPositionObservation(True, 100, 200, 10, selected)
                          if selected else NativeTargetPositionObservation(False)),
         player_action=NativePlayerActionObservation(
-            phase=NativeTargetActionPhase.WINDUP if action_target else NativeTargetActionPhase.IDLE,
             targeting_selected=selected is not None and selected == action_target,
-            motion_id=106 if action_target else 21, action_pending=False, impact_frame=None,
-            action_sequence=1 if action_target else 0, motion_sequence=0,
-            selected_target_token=selected, action_target_token=action_target,
-            mode=2 if action_target else 1, action_state=2 if action_target else 1,
+            motion_id=106 if action_target else 21,
+            animation_event_index=1 if action_target else 0,
+            animation_frame=None,
+            selected_target_token=selected,
+            action_target_token=action_target,
+            initiation_state=5,
+            power_protocol_ids=(),
+            mode=2 if action_target else 1,
+            action_state=2 if action_target else 1,
         ),
         population=NativeCharacterPopulationObservation(
             characters=characters, selected_target_token=selected,
@@ -110,7 +113,7 @@ class SmartPvEClientReplayTests(unittest.TestCase):
         )))
         busy_unknown = _observation(0, _target("mob-1"), *poison)
         busy_unknown = replace(busy_unknown, player_action=replace(
-            busy_unknown.player_action, action_state=4))
+            busy_unknown.player_action, initiation_state=None, power_protocol_ids=None))
         ignored = controller.step(busy_unknown)
         self.assertIsNone(ignored.tracked_target)
         self.assertIsNone(ignored.intent)
@@ -119,7 +122,7 @@ class SmartPvEClientReplayTests(unittest.TestCase):
         self.assertIsNone(other_action.tracked_target)
         busy = _observation(200, _target("mob-1"))
         busy = replace(busy, player_action=replace(
-            busy.player_action, phase=NativeTargetActionPhase.QUEUED, action_pending=True,
+            busy.player_action, initiation_state=6, power_protocol_ids=(),
         ))
         self.assertIsNone(controller.step(busy).tracked_target)
         confirmed = controller.step(_observation(300, _target("mob-2"),

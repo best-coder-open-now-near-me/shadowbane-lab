@@ -1,4 +1,4 @@
-"""Build-guarded, read-only access to selected-target action phases."""
+"""Exact-image native initiation signals and honest animation telemetry."""
 
 from __future__ import annotations
 
@@ -7,20 +7,20 @@ import json
 import struct
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, cast
 
-from shadowbane_lab.client_observation.build_compatibility import (
-    native_layout_is_compatible,
-)
 from shadowbane_lab.client_observation.native_health import (
     ReadOnlyProcessMemory,
     WindowsReadOnlyProcessMemory,
 )
 
-NATIVE_TARGET_ACTION_PROFILE_SCHEMA_VERSION = 2
+NATIVE_TARGET_ACTION_PROFILE_SCHEMA_VERSION = 3
+_REVIEWED_IMAGES = frozenset({
+    "e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8",
+    "0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d",
+})
 _BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-target-action.json"
 
 
@@ -40,16 +40,6 @@ class NativeTargetActionProfileLoadError(ValueError):
     """Raised when a native selected-target action profile is invalid."""
 
 
-class NativeTargetActionPhase(StrEnum):
-    """Observed phases of the selected character's current native action."""
-
-    IDLE = "idle"
-    QUEUED = "queued"
-    WINDUP = "windup"
-    IMPACT = "impact"
-    OTHER_MOTION = "other_motion"
-
-
 @dataclass(frozen=True, slots=True)
 class NativeTargetActionProfile:
     """Exact ArcCharacter action layout for one verified client build."""
@@ -64,17 +54,18 @@ class NativeTargetActionProfile:
     arc_motion_vtable_rva: int
     current_motion_pointer_offset: int
     current_motion_id_offset: int
-    impact_frame_offset: int
-    action_pending_offset: int
+    animation_frame_offset: int
+    animation_event_index_offset: int
     target_of_target_pointer_offset: int
     actor_state_pointer_offset: int
     state_mode_offset: int
     state_action_offset: int
-    idle_motion_ids: tuple[int, ...]
-    observed_attack_motion_ids: tuple[int, ...]
-    no_impact_frame_sentinel: int
+    state_initiation_offset: int
+    power_protocol_vector_offset: int
+    maximum_power_protocol_ids: int
+    no_animation_frame_sentinel: int
     maximum_motion_id: int
-    maximum_impact_frame: int
+    maximum_animation_frame: int
     minimum_user_address: int
     maximum_user_address: int
     schema_version: int = NATIVE_TARGET_ACTION_PROFILE_SCHEMA_VERSION
@@ -98,14 +89,14 @@ class NativeTargetActionProfile:
             (self.arc_motion_vtable_rva, "arc_motion_vtable_rva"),
             (self.current_motion_pointer_offset, "current_motion_pointer_offset"),
             (self.current_motion_id_offset, "current_motion_id_offset"),
-            (self.impact_frame_offset, "impact_frame_offset"),
-            (self.action_pending_offset, "action_pending_offset"),
+            (self.animation_frame_offset, "animation_frame_offset"),
+            (self.animation_event_index_offset, "animation_event_index_offset"),
             (self.target_of_target_pointer_offset, "target_of_target_pointer_offset"),
             (self.actor_state_pointer_offset, "actor_state_pointer_offset"),
             (self.state_mode_offset, "state_mode_offset"),
             (self.state_action_offset, "state_action_offset"),
             (self.maximum_motion_id, "maximum_motion_id"),
-            (self.maximum_impact_frame, "maximum_impact_frame"),
+            (self.maximum_animation_frame, "maximum_animation_frame"),
             (self.minimum_user_address, "minimum_user_address"),
             (self.maximum_user_address, "maximum_user_address"),
         ):
@@ -116,8 +107,8 @@ class NativeTargetActionProfile:
         offsets = (
             self.current_motion_pointer_offset,
             self.current_motion_id_offset,
-            self.impact_frame_offset,
-            self.action_pending_offset,
+            self.animation_frame_offset,
+            self.animation_event_index_offset,
             self.target_of_target_pointer_offset,
         )
         if tuple(sorted(offsets)) != offsets or len(set(offsets)) != len(offsets):
@@ -130,23 +121,12 @@ class NativeTargetActionProfile:
             > self.target_of_target_pointer_offset
         ):
             raise ValueError("native actor-state offsets do not match the calibrated layout")
-        for values, field_name in (
-            (self.idle_motion_ids, "idle_motion_ids"),
-            (self.observed_attack_motion_ids, "observed_attack_motion_ids"),
-        ):
-            if not values or len(set(values)) != len(values):
-                raise ValueError(f"{field_name} must contain unique values")
-            if any(
-                isinstance(value, bool)
-                or not isinstance(value, int)
-                or not 0 <= value <= self.maximum_motion_id
-                for value in values
-            ):
-                raise ValueError(f"{field_name} contains an invalid motion ID")
-        if set(self.idle_motion_ids) & set(self.observed_attack_motion_ids):
-            raise ValueError("idle and observed attack motion IDs must not overlap")
-        if self.no_impact_frame_sentinel >= 0:
-            raise ValueError("no_impact_frame_sentinel must be negative")
+        if (self.state_initiation_offset != 0x10
+                or self.power_protocol_vector_offset != 0x65C
+                or not 1 <= self.maximum_power_protocol_ids <= 256):
+            raise ValueError("unsupported initiation observation bounds")
+        if self.no_animation_frame_sentinel >= 0:
+            raise ValueError("no_animation_frame_sentinel must be negative")
         if self.minimum_user_address < 0x10000:
             raise ValueError("minimum_user_address must exclude the null-allocation region")
         if self.maximum_user_address > 0xFFFFFFFF:
@@ -157,150 +137,116 @@ class NativeTargetActionProfile:
             raise ValueError("unsupported native target-action profile version")
 
 
+def _validate_initiation(state: int | None, ids: tuple[int, ...] | None) -> None:
+    if (state is None) != (ids is None):
+        raise ValueError("initiation state and protocol IDs must be observed together")
+    if state is not None and (type(state) is not int or not 1 <= state <= 7):
+        raise ValueError("initiation state must be uint32")
+    if ids is not None and (not isinstance(ids, tuple) or len(ids) > 256
+            or any(type(value) is not int or not 0 < value <= 0xFFFFFFFF for value in ids)):
+        raise ValueError("protocol IDs must be a bounded tuple of positive uint32 values")
+
+
+def _validate_animation(motion: int, index: int, frame: int | None) -> None:
+    if type(motion) is not int or not 0 <= motion <= 0xFFFFFFFF:
+        raise ValueError("motion ID must be uint32")
+    if type(index) is not int or not 0 <= index <= 0xFFFFFFFF:
+        raise ValueError("animation event index must be uint32")
+    if frame is not None and (type(frame) is not int or not 0 <= frame <= 0x7FFFFFFF):
+        raise ValueError("animation frame must be nonnegative when observed")
+
+
 @dataclass(frozen=True, slots=True)
 class NativeTargetActionObservation:
-    """One coherent selected-target action snapshot."""
+    """Stable native initiation signals and animation telemetry; no cast attribution."""
 
     target_present: bool
-    phase: NativeTargetActionPhase | None = None
     target_token: str | None = None
     targeting_player: bool | None = None
     motion_id: int | None = None
-    action_pending: bool | None = None
-    impact_frame: int | None = None
-    action_sequence: int | None = None
+    animation_event_index: int | None = None
+    animation_frame: int | None = None
+    initiation_state: int | None = None
+    power_protocol_ids: tuple[int, ...] | None = None
+    mode: int | None = None
+    action_state: int | None = None
 
     def __post_init__(self) -> None:
-        if not isinstance(self.target_present, bool):
+        if type(self.target_present) is not bool:
             raise ValueError("target_present must be boolean")
-        values = (
-            self.phase,
-            self.target_token,
-            self.targeting_player,
-            self.motion_id,
-            self.action_pending,
-            self.impact_frame,
-            self.action_sequence,
-        )
         if not self.target_present:
-            if any(value is not None for value in values):
+            if any(getattr(self, field) is not None for field in self.__dataclass_fields__
+                   if field != "target_present"):
                 raise ValueError("an absent target cannot contain action values")
             return
-        if self.phase is None or not isinstance(self.phase, NativeTargetActionPhase):
-            raise ValueError("a present target requires a native action phase")
-        if self.target_token is None or not self.target_token.strip():
+        if not isinstance(self.target_token, str) or not self.target_token.strip():
             raise ValueError("a present target requires an opaque target token")
-        if not isinstance(self.targeting_player, bool):
-            raise ValueError("targeting_player must be boolean for a present target")
-        if isinstance(self.motion_id, bool) or not isinstance(self.motion_id, int):
-            raise ValueError("a present target requires an integer motion ID")
-        if not isinstance(self.action_pending, bool):
-            raise ValueError("action_pending must be boolean for a present target")
-        if self.impact_frame is not None and (
-            isinstance(self.impact_frame, bool) or not isinstance(self.impact_frame, int)
-        ):
-            raise ValueError("impact_frame must be an integer when present")
-        if (
-            isinstance(self.action_sequence, bool)
-            or not isinstance(self.action_sequence, int)
-            or self.action_sequence < 0
-        ):
-            raise ValueError("action_sequence must be non-negative for a present target")
+        if type(self.targeting_player) is not bool:
+            raise ValueError("targeting_player must be boolean")
+        _validate_animation(self.motion_id, self.animation_event_index, self.animation_frame)
+        _validate_initiation(self.initiation_state, self.power_protocol_ids)
+        _validate_state(self.mode, self.action_state)
 
     @property
-    def interrupt_opportunity(self) -> bool:
-        return bool(
-            self.target_present
-            and self.targeting_player
-            and self.phase in (NativeTargetActionPhase.QUEUED, NativeTargetActionPhase.WINDUP)
-        )
+    def initiation_pending(self) -> bool | None:
+        if self.initiation_state is None or self.power_protocol_ids is None:
+            return None
+        return self.initiation_state == 6 or bool(self.power_protocol_ids)
+
+
+def _validate_state(mode: int | None, action: int | None) -> None:
+    if (mode is None) != (action is None):
+        raise ValueError("mode and action state must be observed together")
+    if any(v is not None and (type(v) is not int or not 0 <= v <= 0xFFFFFFFF)
+           for v in (mode, action)):
+        raise ValueError("mode and action state must be uint32")
 
 
 @dataclass(frozen=True, slots=True)
 class NativePlayerActionObservation:
-    """One coherent local-player motion/action snapshot.
+    """Coherent initiation signals, AF8 identity and animation telemetry.
 
-    The action target is the observed AF8 combat pointer, independently of UI
-    selection. It does not identify every spell target or prove action cleanup.
+    Protocol IDs retain multiplicity, not a unique cast or effect identity.
+    Clear initiation signals are not universal action legality or cleanup proof.
+    AF8 does not identify every spell target.
     """
 
-    phase: NativeTargetActionPhase
     targeting_selected: bool
     motion_id: int
-    action_pending: bool
-    impact_frame: int | None
-    action_sequence: int
-    motion_sequence: int
+    animation_event_index: int
+    animation_frame: int | None
     selected_target_token: str | None
     action_target_token: str | None
+    initiation_state: int | None = None
+    power_protocol_ids: tuple[int, ...] | None = None
     mode: int | None = None
     action_state: int | None = None
     selection_observed: bool = True
 
     def __post_init__(self) -> None:
-        if not isinstance(self.selection_observed, bool):
-            raise ValueError("selection_observed must be boolean")
+        if type(self.selection_observed) is not bool or type(self.targeting_selected) is not bool:
+            raise ValueError("selection observations must be boolean")
         if not self.selection_observed and self.selected_target_token is not None:
             raise ValueError("unavailable selection cannot contain a token")
-        if not isinstance(self.phase, NativeTargetActionPhase):
-            raise ValueError("player action phase must be NativeTargetActionPhase")
-        if (self.mode is None) != (self.action_state is None):
-            raise ValueError("native mode and action state must be observed together")
-        for value, label in ((self.mode, "mode"), (self.action_state, "action_state")):
-            if value is not None and (type(value) is not int or not 0 <= value <= 0xFFFFFFFF):
-                raise ValueError(f"player {label} must be a uint32 when present")
-        if not isinstance(self.targeting_selected, bool):
-            raise ValueError("targeting_selected must be boolean")
-        for token, label in (
-            (self.selected_target_token, "selected_target_token"),
-            (self.action_target_token, "action_target_token"),
-        ):
+        for token in (self.selected_target_token, self.action_target_token):
             if token is not None and (not isinstance(token, str) or not token.strip()):
-                raise ValueError(f"{label} must be non-empty when present")
-        if self.targeting_selected != (
-            self.selected_target_token is not None
-            and self.action_target_token == self.selected_target_token
-        ):
-            raise ValueError("targeting_selected must agree with the observed target tokens")
-        if isinstance(self.motion_id, bool) or not isinstance(self.motion_id, int):
-            raise ValueError("player action requires an integer motion ID")
-        if not isinstance(self.action_pending, bool):
-            raise ValueError("player action_pending must be boolean")
-        if self.impact_frame is not None and (
-            isinstance(self.impact_frame, bool) or not isinstance(self.impact_frame, int)
-        ):
-            raise ValueError("player impact_frame must be an integer when present")
-        if (
-            isinstance(self.action_sequence, bool)
-            or not isinstance(self.action_sequence, int)
-            or self.action_sequence < 0
-        ):
-            raise ValueError("player action_sequence must be non-negative")
-        if (
-            isinstance(self.motion_sequence, bool)
-            or not isinstance(self.motion_sequence, int)
-            or self.motion_sequence < 0
-        ):
-            raise ValueError("player motion_sequence must be non-negative")
+                raise ValueError("target tokens must be nonempty when present")
+        if self.targeting_selected != (self.selected_target_token is not None
+                                      and self.action_target_token == self.selected_target_token):
+            raise ValueError("targeting_selected must agree with observed target tokens")
+        _validate_animation(self.motion_id, self.animation_event_index, self.animation_frame)
+        _validate_initiation(self.initiation_state, self.power_protocol_ids)
+        _validate_state(self.mode, self.action_state)
 
     @property
-    def native_action_idle(self) -> bool:
-        """Local action state is idle with no pending action.
-
-        Combat stance and a retained AF8 autoattack target can remain. This is
-        neither whole-combat idleness nor native cleanup confirmation, and it
-        does not wait for animation impact or a launched projectile to arrive.
-        Unavailable state never authorizes a new action.
-        """
-
-        return self.action_state == 1 and not self.action_pending
+    def initiation_pending(self) -> bool | None:
+        if self.initiation_state is None or self.power_protocol_ids is None:
+            return None
+        return self.initiation_state == 6 or bool(self.power_protocol_ids)
 
     @property
-    def action_active(self) -> bool:
-        return self.phase in (
-            NativeTargetActionPhase.QUEUED,
-            NativeTargetActionPhase.WINDUP,
-        )
+    def initiation_clear(self) -> bool:
+        return self.initiation_pending is False
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,12 +257,15 @@ class _RawTargetActionSnapshot:
     motion_pointer: int
     motion_vtable: int
     motion_id: int
-    impact_frame: int
-    action_pending: bool
+    animation_frame: int
+    animation_event_index: int
     target_of_target: int
-    state_pointer: int = 0
-    mode: int | None = None
-    action_state: int | None = None
+    state_pointer: int
+    mode: int
+    action_state: int
+    initiation_state: int
+    power_protocol_header: tuple[int, int, int]
+    power_protocol_ids: tuple[int, ...]
 
 
 class NativeTargetActionReader:
@@ -343,10 +292,7 @@ class NativeTargetActionReader:
             raise NativeTargetActionCompatibilityError(
                 f"expected {profile.executable_name}, found {process.executable_name}"
             )
-        if not native_layout_is_compatible(
-            profile.executable_sha256,
-            process.executable_sha256,
-        ):
+        if process.executable_sha256.lower() not in _REVIEWED_IMAGES:
             raise NativeTargetActionCompatibilityError(
                 "running Shadowbane executable does not match the calibrated SHA-256"
             )
@@ -374,16 +320,6 @@ class NativeTargetActionReader:
                 )
         self._stability_attempts = stability_attempts
         self._closed = False
-        self._last_target = 0
-        self._last_action_active = False
-        self._last_action_pending = False
-        self._action_sequence = 0
-        self._last_player_action_active = False
-        self._last_player_action_pending = False
-        self._last_player_motion_id: int | None = None
-        self._player_action_sequence = 0
-        self._player_motion_sequence = 0
-
     @property
     def profile(self) -> NativeTargetActionProfile:
         return self._profile
@@ -398,9 +334,6 @@ class NativeTargetActionReader:
         for _ in range(self._stability_attempts):
             selected = self._read_pointer(self._selected_pointer_slot, "selected target")
             if selected == 0:
-                self._last_target = 0
-                self._last_action_active = False
-                self._last_action_pending = False
                 return NativeTargetActionObservation(target_present=False)
             player = self._read_pointer(self._player_pointer_slot, "local player")
             try:
@@ -490,245 +423,88 @@ class NativeTargetActionReader:
 
     def _read_snapshot(self, selected: int, player: int) -> _RawTargetActionSnapshot:
         profile = self._profile
-        self._require_object_pointer(
-            selected,
-            profile.target_of_target_pointer_offset + profile.pointer_size,
-            "selected target",
-        )
-        self._require_object_pointer(player, profile.pointer_size, "local player")
-        selected_vtable = self._read_pointer(selected, "selected-target vtable")
-        if selected_vtable != self._character_vtable:
-            raise NativeTargetActionReadError(
-                "selected target is not the calibrated ArcCharacter type"
-            )
-        motion_pointer, motion_id = struct.unpack(
-            "<II",
-            self._read_exact(
-                selected + profile.current_motion_pointer_offset,
-                8,
-                "current motion and ID",
-            ),
-        )
-        impact_frame = struct.unpack(
-            "<i",
-            self._read_exact(
-                selected + profile.impact_frame_offset,
-                4,
-                "impact frame",
-            ),
-        )[0]
-        action_pending_raw = self._read_pointer(
-            selected + profile.action_pending_offset,
-            "action-pending flag",
-        )
-        target_of_target = self._read_pointer(
-            selected + profile.target_of_target_pointer_offset,
-            "target-of-target",
-        )
-        self._require_object_pointer(motion_pointer, profile.pointer_size, "current motion")
-        motion_vtable = self._read_pointer(motion_pointer, "current-motion vtable")
-        if motion_vtable != self._motion_vtable:
-            raise NativeTargetActionReadError(
-                "selected target uses an unsupported current-motion type"
-            )
-        if motion_id > profile.maximum_motion_id:
-            raise NativeTargetActionReadError("current motion ID exceeds calibrated bounds")
-        if action_pending_raw not in (0, 1):
-            raise NativeTargetActionReadError("action-pending flag is not boolean")
-        if not (
-            impact_frame == profile.no_impact_frame_sentinel
-            or 0 <= impact_frame <= profile.maximum_impact_frame
-        ):
-            raise NativeTargetActionReadError("impact frame is outside calibrated bounds")
-        if target_of_target != 0:
-            self._require_object_pointer(
-                target_of_target,
-                profile.pointer_size,
-                "target-of-target",
-            )
-        return _RawTargetActionSnapshot(
-            selected=selected,
-            player=player,
-            selected_vtable=selected_vtable,
-            motion_pointer=motion_pointer,
-            motion_vtable=motion_vtable,
-            motion_id=motion_id,
-            impact_frame=impact_frame,
-            action_pending=bool(action_pending_raw),
-            target_of_target=target_of_target,
-        )
+        self._require_object_pointer(selected, profile.target_of_target_pointer_offset + 4,
+                                     "character")
+        self._require_object_pointer(player, 4, "local player")
+        vtable = self._read_pointer(selected, "character vtable")
+        if vtable != self._character_vtable:
+            raise NativeTargetActionReadError("character type is not calibrated")
+        motion, motion_id = struct.unpack("<II", self._read_exact(
+            selected + profile.current_motion_pointer_offset, 8, "motion"))
+        self._require_object_pointer(motion, 4, "motion")
+        motion_vtable = self._read_pointer(motion, "motion vtable")
+        if motion_vtable != self._motion_vtable or motion_id > profile.maximum_motion_id:
+            raise NativeTargetActionReadError("motion is outside calibrated bounds")
+        frame = struct.unpack("<i", self._read_exact(
+            selected + profile.animation_frame_offset, 4, "animation frame"))[0]
+        if not (frame == profile.no_animation_frame_sentinel
+                or 0 <= frame <= profile.maximum_animation_frame):
+            raise NativeTargetActionReadError("animation frame is outside calibrated bounds")
+        index = self._read_pointer(selected + profile.animation_event_index_offset,
+                                   "animation event index")
+        target = self._read_pointer(selected + profile.target_of_target_pointer_offset, "AF8")
+        if target:
+            self._require_object_pointer(target, 4, "AF8")
+        state = self._read_pointer(selected + profile.actor_state_pointer_offset, "state")
+        self._require_object_pointer(state, profile.state_action_offset + 4, "state")
+        initiation = self._read_pointer(state + profile.state_initiation_offset, "initiation state")
+        if not 1 <= initiation <= 7:
+            raise NativeTargetActionReadError("unqualified native initiation state")
+        mode = self._read_pointer(state + profile.state_mode_offset, "mode")
+        action = self._read_pointer(state + profile.state_action_offset, "action state")
+        slot = selected + profile.power_protocol_vector_offset
+        header = struct.unpack("<III", self._read_exact(slot, 12, "power protocol header"))
+        begin, end, capacity = header
+        if header == (0, 0, 0):
+            ids = ()
+        else:
+            self._require_object_pointer(begin, 0, "protocol begin")
+            if (not begin <= end <= capacity or (end - begin) % 4 or (capacity - begin) % 4
+                    or capacity - begin > profile.maximum_power_protocol_ids * 4):
+                raise NativeTargetActionReadError("invalid power protocol bounds")
+            self._require_object_pointer(begin, capacity - begin, "protocol capacity")
+            data = b"".join(self._read_exact(begin + offset, min(64, end - begin - offset),
+                                           "power protocol IDs")
+                            for offset in range(0, end - begin, 64))
+            ids = struct.unpack(f"<{len(data) // 4}I", data)
+            if any(value == 0 for value in ids):
+                raise NativeTargetActionReadError("invalid zero power protocol ID")
+        if header != struct.unpack("<III", self._read_exact(slot, 12, "power protocol header")):
+            raise NativeTargetActionReadError("power protocol storage changed during read")
+        return _RawTargetActionSnapshot(selected, player, vtable, motion, motion_vtable,
+            motion_id, frame, index, target, state, mode, action, initiation, header, ids)
 
-    def _read_player_snapshot(
-        self,
-        player: int,
-        selected: int,
-    ) -> _RawTargetActionSnapshot:
-        profile = self._profile
-        if selected:
-            self._require_object_pointer(selected, profile.pointer_size, "selected target")
-        self._require_object_pointer(
-            player,
-            profile.target_of_target_pointer_offset + profile.pointer_size,
-            "local player",
-        )
-        player_vtable = self._read_pointer(player, "local-player vtable")
-        if player_vtable != self._character_vtable:
-            raise NativeTargetActionReadError(
-                "local player is not the calibrated ArcCharacter type"
-            )
-        motion_pointer, motion_id = struct.unpack(
-            "<II",
-            self._read_exact(
-                player + profile.current_motion_pointer_offset,
-                8,
-                "local-player current motion and ID",
-            ),
-        )
-        impact_frame = struct.unpack(
-            "<i",
-            self._read_exact(
-                player + profile.impact_frame_offset,
-                4,
-                "local-player impact frame",
-            ),
-        )[0]
-        action_pending_raw = self._read_pointer(
-            player + profile.action_pending_offset,
-            "local-player action-pending flag",
-        )
-        action_target = self._read_pointer(
-            player + profile.target_of_target_pointer_offset,
-            "local-player action target",
-        )
-        self._require_object_pointer(motion_pointer, profile.pointer_size, "current motion")
-        motion_vtable = self._read_pointer(motion_pointer, "current-motion vtable")
-        if motion_vtable != self._motion_vtable:
-            raise NativeTargetActionReadError(
-                "local player uses an unsupported current-motion type"
-            )
-        if motion_id > profile.maximum_motion_id:
-            raise NativeTargetActionReadError("player motion ID exceeds calibrated bounds")
-        if action_pending_raw not in (0, 1):
-            raise NativeTargetActionReadError("player action-pending flag is not boolean")
-        if not (
-            impact_frame == profile.no_impact_frame_sentinel
-            or 0 <= impact_frame <= profile.maximum_impact_frame
-        ):
-            raise NativeTargetActionReadError("player impact frame is outside calibrated bounds")
-        if action_target != 0:
-            self._require_object_pointer(
-                action_target,
-                profile.pointer_size,
-                "local-player action target",
-            )
-        # The same qualified actor-state fields used by native combat ReadState.
-        # Include the owning state pointer in both snapshots; animation phase and
-        # projectile impact are not authoritative for local action completion.
-        state_pointer = self._read_pointer(
-            player + profile.actor_state_pointer_offset, "local-player state",
-        )
-        self._require_object_pointer(
-            state_pointer, profile.state_action_offset + 4, "local-player state",
-        )
-        mode = self._read_pointer(state_pointer + profile.state_mode_offset, "native mode")
-        action_state = self._read_pointer(
-            state_pointer + profile.state_action_offset, "native action state",
-        )
-        return _RawTargetActionSnapshot(
-            selected=player,
-            player=selected,
-            selected_vtable=player_vtable,
-            motion_pointer=motion_pointer,
-            motion_vtable=motion_vtable,
-            motion_id=motion_id,
-            impact_frame=impact_frame,
-            action_pending=bool(action_pending_raw),
-            target_of_target=action_target,
-            state_pointer=state_pointer,
-            mode=mode,
-            action_state=action_state,
-        )
+    def _read_player_snapshot(self, player: int, selected: int) -> _RawTargetActionSnapshot:
+        return replace(self._read_snapshot(player, player), player=selected)
 
-    def _observation(
-        self,
-        snapshot: _RawTargetActionSnapshot,
-    ) -> NativeTargetActionObservation:
-        profile = self._profile
-        phase = _phase_for_snapshot(profile, snapshot)
-        action_active = phase in (
-            NativeTargetActionPhase.QUEUED,
-            NativeTargetActionPhase.WINDUP,
-            NativeTargetActionPhase.IMPACT,
-        )
-        if snapshot.selected != self._last_target:
-            self._last_target = snapshot.selected
-            self._last_action_active = False
-            self._last_action_pending = False
-        new_queue = snapshot.action_pending and not self._last_action_pending
-        if new_queue or (action_active and not self._last_action_active):
-            self._action_sequence += 1
-        self._last_action_active = action_active
-        self._last_action_pending = snapshot.action_pending
+    def _observation(self, snapshot: _RawTargetActionSnapshot) -> NativeTargetActionObservation:
         return NativeTargetActionObservation(
-            target_present=True,
-            phase=phase,
-            target_token=self._target_token(snapshot.selected),
+            target_present=True, target_token=self._target_token(snapshot.selected),
             targeting_player=snapshot.target_of_target == snapshot.player,
-            motion_id=snapshot.motion_id,
-            action_pending=snapshot.action_pending,
-            impact_frame=(
-                None
-                if snapshot.impact_frame == profile.no_impact_frame_sentinel
-                else snapshot.impact_frame
-            ),
-            action_sequence=self._action_sequence,
-        )
+            motion_id=snapshot.motion_id, animation_event_index=snapshot.animation_event_index,
+            animation_frame=(None
+                if snapshot.animation_frame == self._profile.no_animation_frame_sentinel
+                else snapshot.animation_frame),
+            mode=snapshot.mode, action_state=snapshot.action_state,
+            initiation_state=snapshot.initiation_state,
+            power_protocol_ids=snapshot.power_protocol_ids)
 
     def _player_observation(
-        self,
-        snapshot: _RawTargetActionSnapshot,
+        self, snapshot: _RawTargetActionSnapshot,
     ) -> NativePlayerActionObservation:
-        profile = self._profile
-        phase = _phase_for_snapshot(profile, snapshot)
-        action_active = phase in (
-            NativeTargetActionPhase.QUEUED,
-            NativeTargetActionPhase.WINDUP,
-            NativeTargetActionPhase.IMPACT,
-        )
-        new_queue = snapshot.action_pending and not self._last_player_action_pending
-        if new_queue or (action_active and not self._last_player_action_active):
-            self._player_action_sequence += 1
-        if (
-            self._last_player_motion_id is not None
-            and snapshot.motion_id != self._last_player_motion_id
-        ):
-            self._player_motion_sequence += 1
-        self._last_player_action_active = action_active
-        self._last_player_action_pending = snapshot.action_pending
-        self._last_player_motion_id = snapshot.motion_id
         return NativePlayerActionObservation(
-            phase=phase,
-            targeting_selected=(
-                snapshot.player != 0 and snapshot.target_of_target == snapshot.player
-            ),
-            motion_id=snapshot.motion_id,
-            action_pending=snapshot.action_pending,
-            impact_frame=(
-                None
-                if snapshot.impact_frame == profile.no_impact_frame_sentinel
-                else snapshot.impact_frame
-            ),
-            action_sequence=self._player_action_sequence,
-            motion_sequence=self._player_motion_sequence,
-            mode=snapshot.mode,
-            action_state=snapshot.action_state,
-            selected_target_token=(
-                self._target_token(snapshot.player) if snapshot.player else None
-            ),
-            action_target_token=(
-                self._target_token(snapshot.target_of_target) if snapshot.target_of_target else None
-            ),
-        )
+            targeting_selected=bool(
+                snapshot.player and snapshot.target_of_target == snapshot.player),
+            motion_id=snapshot.motion_id, animation_event_index=snapshot.animation_event_index,
+            animation_frame=(None
+                if snapshot.animation_frame == self._profile.no_animation_frame_sentinel
+                else snapshot.animation_frame),
+            mode=snapshot.mode, action_state=snapshot.action_state,
+            initiation_state=snapshot.initiation_state,
+            power_protocol_ids=snapshot.power_protocol_ids,
+            selected_target_token=self._target_token(snapshot.player) if snapshot.player else None,
+            action_target_token=self._target_token(snapshot.target_of_target)
+            if snapshot.target_of_target else None)
 
     def _read_pointer(self, address: int, label: str) -> int:
         return struct.unpack(
@@ -763,21 +539,6 @@ class NativeTargetActionReader:
         digest.update(self._profile.executable_sha256.encode("ascii"))
         digest.update(struct.pack("<II", self._process.pid, selected))
         return digest.hexdigest()
-
-
-def _phase_for_snapshot(
-    profile: NativeTargetActionProfile,
-    snapshot: _RawTargetActionSnapshot,
-) -> NativeTargetActionPhase:
-    if snapshot.action_pending:
-        return NativeTargetActionPhase.QUEUED
-    if snapshot.impact_frame != profile.no_impact_frame_sentinel:
-        return NativeTargetActionPhase.IMPACT
-    if snapshot.motion_id in profile.observed_attack_motion_ids:
-        return NativeTargetActionPhase.WINDUP
-    if snapshot.motion_id in profile.idle_motion_ids:
-        return NativeTargetActionPhase.IDLE
-    return NativeTargetActionPhase.OTHER_MOTION
 
 
 def open_windows_native_target_action_reader(
@@ -830,13 +591,10 @@ def load_native_target_action_profile_text(text: str) -> NativeTargetActionProfi
                 f"unknown fields: {', '.join(sorted(unknown))}"
             )
         strings = {"profile_id", "executable_name", "executable_sha256"}
-        tuples = {"idle_motion_ids", "observed_attack_motion_ids"}
         values = {
             key: (
                 _string(data, key)
                 if key in strings
-                else _integer_tuple(data, key)
-                if key in tuples
                 else _integer(data, key)
             )
             for key in expected
@@ -866,12 +624,3 @@ def _integer(data: Mapping[str, Any], key: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise NativeTargetActionProfileLoadError(f"{key} must be an integer")
     return value
-
-
-def _integer_tuple(data: Mapping[str, Any], key: str) -> tuple[int, ...]:
-    value = data[key]
-    if not isinstance(value, list) or any(
-        isinstance(item, bool) or not isinstance(item, int) for item in value
-    ):
-        raise NativeTargetActionProfileLoadError(f"{key} must be an integer array")
-    return tuple(value)
