@@ -32,6 +32,7 @@ MovementBoundaryTrace* trace = nullptr;
 HANDLE mapping = nullptr;
 std::uint32_t* installed_slot = nullptr;
 NativeMovementUpdate movement_update = nullptr;
+thread_local bool update_active = false;
 LONG64 input_sequence = 0, input_event_sequence = 0;
 volatile LONG movement_enabled = 0;
 bool movement_registered = false;
@@ -163,16 +164,24 @@ void PublishLifetime() noexcept {
     ReleaseSRWLockExclusive(&publication_lock);
 }
 std::uint32_t __fastcall TracedUpdate(void* receiver, void*, double delta) {
-    PublishLifetime();
-    Observe(receiver, delta, reinterpret_cast<std::uintptr_t>(_ReturnAddress()));
-    // Callback identity is immutable after publication and remains process-pinned.
-    // A consumer admitted before retirement may finish; retirement never destroys
-    // its state or the original call-through. The runtime handles native shutdown
-    // on this thread before requesting its own retirement.
-    if (InterlockedCompareExchange(&movement_enabled, 0, 0)) { movement_update(receiver, delta); }
-    PublishLifetime();
-    const auto result = original(receiver, delta);
-    PublishLifetime(); return result;
+    const bool outermost = !update_active;
+    const bool previous = update_active;
+    update_active = true;
+    std::uint32_t result = 0;
+    // Keep service admission closed through the original update as well as our
+    // callback. Native callbacks may synchronously reenter this vtable slot.
+    // SEH and C++ unwinds restore the prior thread-local boundary alike.
+    __try {
+        PublishLifetime();
+        Observe(receiver, delta, reinterpret_cast<std::uintptr_t>(_ReturnAddress()));
+        if (outermost && InterlockedCompareExchange(&movement_enabled, 0, 0)) {
+            movement_update(receiver, delta);
+        }
+        PublishLifetime();
+        result = original(receiver, delta);
+        PublishLifetime();
+    } __finally { update_active = previous; }
+    return result;
 }
 DWORD InstallUpdate(std::uint32_t* slot, Update target) noexcept {
     if (installed_slot) {

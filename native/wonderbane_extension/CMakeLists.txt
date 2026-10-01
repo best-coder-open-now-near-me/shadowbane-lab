@@ -1013,6 +1013,8 @@ if(BUILD_TESTING)
     COMMAND wonderbane_extension_movement_boundary_test shared-controls-first)
   add_test(NAME wonderbane_extension_movement_shared_held_control
     COMMAND wonderbane_extension_movement_boundary_test shared-held-control)
+  add_test(NAME wonderbane_extension_movement_boundary_outermost_service
+    COMMAND wonderbane_extension_movement_boundary_test outermost-service)
   add_test(NAME wonderbane_extension_movement_update_startup_failure
     COMMAND wonderbane_extension_movement_boundary_test movement-startup-failure)
   add_test(NAME wonderbane_extension_movement_shared_slot_replaced
