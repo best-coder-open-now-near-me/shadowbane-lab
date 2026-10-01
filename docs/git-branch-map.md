@@ -20,12 +20,19 @@ corrections plus PR #53's full documentation tip. GitHub marked
 merged at 17:41:38 UTC. The reused bot-integration checkout is now on
 `codex/native-initiation-deployment-20261001` for the installation receipt; its
 [draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55)
-targets main and remains unmerged. The completed
+targets main and remains unmerged at published tip
+`37e0e1e762b72e417be05939309fdd69b2b1b13d`. The active implementation branch
+`codex/native-power-readiness-20261001` starts from that full tip and targets main,
+so it retains the installed-source ancestry and all current receipt/audit work.
+It adds native skill-reuse availability and optional-opener fallback; qualification,
+review and separate merge/install approval remain pending. Root owns Git,
+versions, packaging and live actions; parallel lanes own host behavior, native
+readiness, and the isolated image probe. The completed
 `codex/registry-backed-population` and
 `codex/native-stance-deployment-20261001` branches were retired locally and remotely
-after tip ancestry checks. The bot-runtime worktree is clean and detached at
-`origin/main@89f58cd`, available for reuse; bot-integration remains active on the
-receipt branch. PR #50 is closed as superseded; its relevant .57 receipt facts are incorporated, but its branch is
+after tip ancestry checks. The bot-runtime worktree now owns the active
+`codex/native-power-readiness-20261001` implementation; bot-integration stays on
+the published receipt branch. No active checkout should be switched by another lane. PR #50 is closed as superseded; its relevant .57 receipt facts are incorporated, but its branch is
 retained because its exact tip is not an ancestor of main.
 
 Host **0.3.60** / native **1.8.40** are installed from qualified package
