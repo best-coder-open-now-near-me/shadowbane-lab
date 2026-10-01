@@ -521,8 +521,11 @@ def _run_pve(
                 combat_owner = native_operation
                 movement_dispatcher = native_operation.dispatcher
                 active_stop_signal = native_operation
-            if opening_definition is not None and opening_definition.recipient == "actor":
-                combat_owner.session.require_combat_available(combat_owner.grant, self_power=True)
+            configured_opener = controller_config.resolved_opening_ability
+            if configured_opener is not None:
+                combat_owner.session.require_combat_available(combat_owner.grant,
+                    self_power=configured_opener.recipient is PvEAbilityRecipient.ACTOR,
+                    power_readiness=True)
             combat = stack.enter_context(NativeCombatCoordinator(
                 session=combat_owner.session, grant=combat_owner.grant,
                 population=population_reader, character_session=character_session,

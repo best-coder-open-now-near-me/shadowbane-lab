@@ -22,6 +22,7 @@ from shadowbane_lab.pve.model import (
     PvECombatCleanupResult,
     PvECombatDisposition,
     PvECombatKind,
+    PvECombatNotReadyReason,
     PvECombatProposal,
 )
 
@@ -36,6 +37,8 @@ class NativeCombatUpdate:
         value = self.receipt
         return {
             "disposition": self.acknowledgement.disposition.value,
+            "not_ready_reason": (None if self.acknowledgement.not_ready_reason is None
+                                 else self.acknowledgement.not_ready_reason.value),
             "native_entered": self.acknowledgement.native_entered,
             "cleanup_required": self.acknowledgement.cleanup_required,
             "engagement": None if value is None else value.engagement.encode().hex(),
@@ -154,8 +157,9 @@ class NativeCombatCoordinator:
                 self._stopping = True
                 return self.advance(proposal, observation, listed=listed)
             return self.poll_pending()
-        if proposal.kind is PvECombatKind.SELF_POWER:
-            self.session.require_combat_available(self.grant, self_power=True)
+        if proposal.kind in (PvECombatKind.CAST, PvECombatKind.SELF_POWER):
+            self.session.require_combat_available(self.grant,
+                self_power=proposal.kind is PvECombatKind.SELF_POWER, power_readiness=True)
         if self._cleanup_obligation is None:
             self._cleanup_obligation = self.session.cleanup.register(self.grant)
             self._last_stop_result = (False, None, "native cleanup not confirmed")
@@ -228,7 +232,14 @@ class NativeCombatCoordinator:
                 disposition = PvECombatDisposition.BOUND
             elif receipt.flags & OUTBOUND_QUEUED:
                 disposition = PvECombatDisposition.QUEUED
-        if receipt.outcome is Outcome.DEFERRED:
+        not_ready_reason = None
+        if receipt.outcome is Outcome.POWER_REUSE_BLOCKED:
+            if receipt.phase is Phase.BOUND:
+                disposition = PvECombatDisposition.NOT_READY
+                not_ready_reason = PvECombatNotReadyReason.POWER_REUSE
+            else:
+                disposition = PvECombatDisposition.REJECTED
+        elif receipt.outcome is Outcome.DEFERRED:
             disposition = PvECombatDisposition.DEFERRED
         elif receipt.outcome in (Outcome.NATIVE_REJECTED, Outcome.STALE, Outcome.INVALID,
                                  Outcome.UNAVAILABLE, Outcome.EXHAUSTED,
@@ -243,7 +254,8 @@ class NativeCombatCoordinator:
                 self._release()
                 cleanup = False
                 disposition = PvECombatDisposition.REJECTED
-        acknowledgement = PvECombatAcknowledgement(disposition, receipt.native_entered, cleanup)
+        acknowledgement = PvECombatAcknowledgement(disposition, receipt.native_entered, cleanup,
+            not_ready_reason)
         if disposition is not PvECombatDisposition.UNCERTAIN:
             self._proposal = None
         return NativeCombatUpdate(acknowledgement, receipt, result.native_detail)

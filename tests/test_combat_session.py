@@ -44,7 +44,7 @@ def owner(monkeypatch):
             self.host_lease_generation = command.host.lease_generation
             self.header = channel.NativeActionChannelHeader(
                 identity, channel.CLIENT_ACTION_TRANSPORT_CAPABILITY
-                | channel.OBJECT_COMBAT_CAPABILITY,
+                | channel.OBJECT_COMBAT_CAPABILITY | channel.POWER_READINESS_CAPABILITY,
             )
             self.commands = []
             self.failure = None

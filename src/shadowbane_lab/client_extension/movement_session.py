@@ -354,6 +354,7 @@ class NativeMovementSession:
 
     def require_combat_available(
         self, grant: NativeMovementGrant, *, self_power: bool = False,
+        power_readiness: bool = False,
     ) -> None:
         """Read-only admission for object actions; legacy services cannot qualify."""
         with self._session_lock:
@@ -361,6 +362,9 @@ class NativeMovementSession:
             if grant in self._stops or self.cleanup.blocked(grant):
                 raise NativeMovementError(Outcome.INHIBITED)
             transport = self._combat_transport(grant)
+            if (power_readiness
+                    and not transport.header.capability_flags & channel.POWER_READINESS_CAPABILITY):
+                raise channel.NativeActionChannelUnavailable("native power readiness unavailable")
             if self_power and not transport.header.capability_flags & channel.SELF_POWER_CAPABILITY:
                 raise channel.NativeActionChannelUnavailable("self-directed power is unavailable")
 
@@ -396,6 +400,10 @@ class NativeMovementSession:
             if (verb is CombatVerb.SUBMIT and command.action is CombatAction.SELF_POWER
                     and not transport.header.capability_flags & channel.SELF_POWER_CAPABILITY):
                 raise channel.NativeActionChannelUnavailable("self-directed power is unavailable")
+            if (verb is CombatVerb.SUBMIT
+                    and command.action in (CombatAction.CAST, CombatAction.SELF_POWER)
+                    and not transport.header.capability_flags & channel.POWER_READINESS_CAPABILITY):
+                raise channel.NativeActionChannelUnavailable("native power readiness unavailable")
             result = transport.submit(
                 NativeCombatCommand(next(self._ids), verb, command),
                 timeout_ms=(self.cleanup.timeout_ms(grant, self.timeout_ms)

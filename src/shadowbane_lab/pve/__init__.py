@@ -56,6 +56,7 @@ from shadowbane_lab.pve.model import (
     PvECombatAcknowledgement,
     PvECombatDisposition,
     PvECombatKind,
+    PvECombatNotReadyReason,
     PvECombatProposal,
     PvEControllerConfig,
     PvEControllerDecision,
@@ -87,6 +88,7 @@ from shadowbane_lab.pve.target_authority import (
 __all__ = [
     "PvECombatAcknowledgement",
     "PvECombatDisposition",
+    "PvECombatNotReadyReason",
     "PvECombatKind",
     "PvECombatProposal",
     "ClientPvEIntentDispatcher",

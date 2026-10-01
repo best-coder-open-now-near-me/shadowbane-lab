@@ -89,8 +89,13 @@ class PvECombatDisposition(StrEnum):
     BOUND = "bound"
     QUEUED = "queued"
     DEFERRED = "deferred"
+    NOT_READY = "not_ready"
     REJECTED = "rejected"
     UNCERTAIN = "uncertain"
+
+
+class PvECombatNotReadyReason(StrEnum):
+    POWER_REUSE = "power_reuse"
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,6 +148,7 @@ class PvECombatAcknowledgement:
     disposition: PvECombatDisposition
     native_entered: bool | None
     cleanup_required: bool
+    not_ready_reason: PvECombatNotReadyReason | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.disposition, PvECombatDisposition):
@@ -151,6 +157,12 @@ class PvECombatAcknowledgement:
             raise ValueError("native entry must remain tri-state")
         if type(self.cleanup_required) is not bool:
             raise ValueError("cleanup_required must be boolean")
+        if self.disposition is PvECombatDisposition.NOT_READY:
+            if (self.not_ready_reason is not PvECombatNotReadyReason.POWER_REUSE
+                    or self.native_entered is not False or not self.cleanup_required):
+                raise ValueError("not-ready power requires no entry and retained ownership")
+        elif self.not_ready_reason is not None:
+            raise ValueError("readiness reason requires not-ready disposition")
         if self.disposition is PvECombatDisposition.QUEUED and self.native_entered is not True:
             raise ValueError("queued action must positively prove native entry")
         if self.disposition is PvECombatDisposition.DEFERRED and self.native_entered is True:
@@ -735,9 +747,17 @@ class PvEControllerDecision:
     cleanup_request: PvECombatCleanupRequest | None = None
     tracked_target: PvETrackedTarget | None = None
     native_action_pending: bool = False
+    opening_skill_skipped: bool = False
+    opening_skill_skip_reason: PvECombatNotReadyReason | None = None
     combat_proposal: PvECombatProposal | None = None
 
     def __post_init__(self) -> None:
+        if (type(self.opening_skill_skipped) is not bool
+                or (self.opening_skill_skipped
+                    and self.opening_skill_skip_reason is not PvECombatNotReadyReason.POWER_REUSE)
+                or (not self.opening_skill_skipped and self.opening_skill_skip_reason is not None)):
+            raise ValueError("opening skip requires typed power reuse proof")
+
         _non_negative_integer(self.decision_id, "decision_id")
         _non_negative_integer(self.now_ms, "now_ms")
         _non_negative_integer(self.kills, "kills")
@@ -951,6 +971,9 @@ class PvERunTraceStep:
             "combat_cleanup": (None if self.combat_cleanup is None
                                else self.combat_cleanup.as_dict()),
             "native_action_pending": self.decision.native_action_pending,
+            "opening_skill_skipped": self.decision.opening_skill_skipped,
+            "opening_skill_skip_reason": (None if self.decision.opening_skill_skip_reason is None
+                                          else self.decision.opening_skill_skip_reason.value),
             "cleanup_request": (None if self.decision.cleanup_request is None
                                 else self.decision.cleanup_request.as_dict()),
             "intent": None if self.decision.intent is None else self.decision.intent.value,
