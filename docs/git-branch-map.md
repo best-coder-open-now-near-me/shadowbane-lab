@@ -15,12 +15,14 @@ The normal checkout is clean on main at that merge. The merged local and remote
 `codex/combat-target-query-20260930` branch was retired after verifying its exact
 tip is retained in `origin/main`.
 The bot-runtime worktree is on `codex/client-update-20260930-late`, based on
-that main merge plus the documentation commits through `cab8b029` from draft
+that main merge plus the documentation commits through `cab8b029` from
 [PR #47](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/47).
-Those deployment receipts remain outside main and are included in this combined
-client-update candidate; PR #47 needs no separate merge if this candidate is
-integrated. Next integration step: qualify and publish the combined update PR,
-then obtain its merge approval after exact-source and hosted validation.
+PR #47 is closed as superseded, with its full tip retained in combined draft
+[PR #48](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/48).
+The source checkpoint `e6c7a28f229043540d3f93181900072ded58752c` is pushed;
+exact-source packaging and hosted validation are underway. These changes remain
+outside main. Next integration step: finish qualification and obtain PR #48 merge
+approval; prior approval covered PR #46.
 
 Vendor Test now has source-stamped host 0.3.55 / native 1.8.35 from that exact
 PR head. Package `artifacts/b35/3ca9481d` is acceptance eligible: 52 recorded

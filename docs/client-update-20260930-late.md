@@ -3,7 +3,10 @@
 Official client **1.3.38.13** changes the executable and two data files. Candidate
 host **0.3.56** / native **1.8.36** is on `codex/client-update-20260930-late`,
 targeting `main`. It includes merged object combat PR #46 and the deployment
-receipt commits through `cab8b029` from draft PR #47. The normal checkout remains
+receipt commits through `cab8b029` from PR #47, now closed as superseded by
+[draft PR #48](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/48).
+Exact package source is `e6c7a28f229043540d3f93181900072ded58752c`; later
+documentation does not change its runtime identity. The normal checkout remains
 on `main@7f250c6`. This candidate is not installed or merge-approved yet.
 
 ## Binary proof and admission scope
@@ -67,7 +70,7 @@ registry, melee, power and scene checks against both images, original tree
 behavior and paired original/prepared image authentication. Exact-source
 packaging and hosted checks remain pending.
 
-Next: complete qualification, publish the combined PR and obtain merge approval,
+Next: complete qualification and obtain the combined PR #48 merge approval,
 then install and verify the update with the game closed. Supervised object-based
 attack/cast/cancel/PvE recovery remains pending fresh user readiness. UI selection,
 hotkeys and system-message text are not combat authority. Automatic retaliation
