@@ -496,6 +496,49 @@ confirmed actor/target/Grant changes, unresolved failures and diagnostic overflo
 remain fatal. No rejected frame may authorize an action or fabricate death.
 Installed source and the 20-second action deadline remain unchanged.
 
+## .60 recovery observed; repeated opener remains unresolved
+
+The separate retry recorder passed 214 offline tests, including 54 independently
+reviewed cases. Fresh preflight observed four eligible NPCs; the live preflight
+observed three. Run `npc-recovery-retry-12c4a1b848de41e597644d95ee08af1b` proves
+the first recovery subgate, while its original overall result remains **not_passed**.
+There were no observation failures, watchdog event or retained combat owner;
+the final attack list was empty.
+
+First NPC `[23885, 37]`, token `27b214e91d69bf94569114dd`, retained the exact
+actor/target addresses. SELF_POWER request 1 and ATTACK request 2 queued in
+engagement 1. Native health changed from 400 to zero at trace 9 (1,515 ms), with
+`native_health_zero`. STOP request 3 confirmed NATIVE_STOPPED at trace 17
+(2,531 ms); trace 18 (2,781 ms) is a strictly later production SEEKING frame.
+The next encounter admitted distinct NPC `[23887, 37]`, token
+`754110438842085cea9c7c8d`, under the same actor and Grant with engagement 2.
+
+Second SELF_POWER request 4 entered the native call without an observed outbound
+append: UNCERTAIN, flags 5. There was exactly one SUBMIT and 19 ACTION_STATUS
+polls of that request, with no new skill submission or second ATTACK. The existing
+five-second pending-action bound then issued STOP request 5. Its raw native
+receipt proves CLOSED/NATIVE_STOPPED, flags zero, mode 1 and no AF8 target, with
+the original second binding, host, window and Grant. The helper subsequently
+reported `Cleanup trace lacks exact native stop proof` because its diagnostic
+matcher required a positively queued ATTACK anchor that this encounter lacked.
+This does not negate the independently verified native cleanup, nor does cleanup
+prove the second skill queued.
+
+Independent reviews decoded all four retained raw receipts and checked the trace
+ordering. Private `supplemental-recovery-review.json` preserves the narrow
+successful recovery conclusion separately from the unchanged failed overall run.
+Acceptance SHA-256 `395bf7196f6039a3e2a3d4947e757f97af2840aaa3b6a4b54e20142857d72dac`;
+trace `2a8d3243df69e61edd9c0dcff3b740e211bcce25a6adbb0b6f8c1b4134c0abfa`.
+These timestamps describe recorded frames, not exact server latency.
+
+The user reported “you must wait to use again,” supporting a reuse/cooldown
+explanation. The bot does not parse that message for authority. Native readiness
+qualification is now the active implementation boundary: a positively unavailable
+optional opener should yield to ordinary attack before skill entry, while generic
+busy states and already-entered uncertainty retain their current handling.
+Do not infer availability from elapsed time since the last queue receipt. Skill
+consumption, snare application and server kill credit remain unproven.
+
 ## Historical .57 live evidence
 
 Installed .57/.37 source `1d107a25` passed manual-player attack, list removal,
@@ -532,9 +575,11 @@ its offline and real-process qualification is distinct from live acceptance.
   and confirmed cleanup but stopped before recovery. Both failed runs are preserved.
 - Complete: correct post-death observer handling and retain exact stop diagnostics;
   the next run exposed a rejected native read before death confirmation.
-- Active: let typed canonical read failures use production bounded frame retry,
-  then repeat recovery with complete evidence, exact cleanup and later SEEKING.
-  No runtime source change is planned.
+- Complete: retain bounded native read retries and verify first-NPC death, native
+  cleanup, strictly later SEEKING and distinct second-NPC admission on .60.
+- Active: qualify native skill reuse availability and implement an optional-opener
+  fallback before native entry. Preserve uncertain-request polling and cleanup;
+  the full two-encounter skill/attack acceptance remains incomplete.
 - Complete: publish this installation receipt through draft PR #55; its merge
   remains pending. PR #53's included tip is already merged.
 - Pending: qualified server-effect evidence and the authoritative

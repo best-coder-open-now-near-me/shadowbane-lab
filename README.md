@@ -16,12 +16,12 @@ Installation, manager activation, five shortcuts, startup preflight and the
 loaded-DLL launch check passed. The inspected obsolete .59 runtime was removed
 without retaining rollback copies. After Umbra login, the .60 follow-through
 queued the skill and attack, observed the exact NPC at zero health, and confirmed
-native cleanup. A subsequent recovery attempt stopped safely when the private
-harness rejected a same-target attack renewal. A corrected retry observed native
-death and cleanup but stopped before recovery. A later lifecycle run captured a
-rejected native read; preserving production bounded frame retry is the next check.
-Recovery across encounters remains open.
-The installed source is unchanged.
+native cleanup. A later run verified first-NPC death, exact cleanup, a strictly
+later SEEKING frame and distinct second-NPC admission. The second opener entered
+without a positive outbound receipt; bounded polling ended in confirmed cleanup.
+The original full two-encounter result remains not passed. Native skill reuse
+availability and optional-opener fallback are the next implementation boundary.
+Installed source is unchanged.
 The installation receipt is published on `codex/native-initiation-deployment-20261001`
 through [draft PR #55](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/55),
 with main as its integration destination.

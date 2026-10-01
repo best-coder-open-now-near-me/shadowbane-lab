@@ -89,17 +89,25 @@ production death confirmation and again confirmed cleanup. Its partial zero-heal
 sample does not establish a completed death frame. The private recorder stopped
 on the first read failure, preventing production bounded observation retry.
 
-Active next item: preserve typed canonical read failures as rejected-frame
-diagnostics and use the existing production bounded retry, then repeat recovery.
-The first NPC permits four total
-positively queued attacks, including the initial attack, under its original owner,
-engagement and 20-second deadline; the second stops after its first queued attack.
-No death or engagement may transfer to a same-key replacement. Publish these
-receipts through draft PR #55, currently unmerged. Automatic retaliation remains
-disabled; the [offline session-boundary findings](retaliation-session-boundary-20261001.md)
-identify missing guarantees without enabling a client-connection shortcut.
-The [native effects audit](native-combat-effects-20261001.md) identifies concrete
-actor-owned paths but does not yet qualify an active-buff inventory.
+The subsequent bounded-retry run proves first-NPC native death at trace 9, exact
+cleanup at 17 and strictly later SEEKING at 18, followed by distinct second-NPC
+admission under the same Grant. The second skill entered but had no observed
+outbound queue receipt; one submission and 19 same-request status polls ended in
+confirmed native cleanup. Its helper incorrectly required a queued-attack anchor
+for that cleanup. A separate evidence review records the proven recovery subgate;
+the original overall not-passed result remains unchanged.
+
+Active next item: qualify native skill reuse availability and implement optional
+opener fallback before native entry. The user-reported reuse message supports the
+investigation but supplies no bot action authority. Already-entered uncertainty
+must retain original-request polling and cleanup. The first-NPC recovery proof
+needs no additional fight; full second-encounter skill/attack acceptance is open.
+The current receipts are published through draft PR #55 and remain outside main.
+Automatic retaliation remains disabled; the
+[offline session-boundary findings](retaliation-session-boundary-20261001.md)
+identify missing guarantees. The [native effects audit](native-combat-effects-20261001.md)
+qualifies persistent actor-owned storage and ordinary lifecycle paths, with effect
+identity, clock semantics and complete mutation coverage still unresolved.
 
 Everything below is historical. Earlier current/candidate/next statements do not
 override the current source, installed runtime and active work above.
