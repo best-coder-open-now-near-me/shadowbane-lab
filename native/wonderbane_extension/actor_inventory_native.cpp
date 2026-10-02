@@ -53,9 +53,22 @@ bool Item(std::uintptr_t image, std::uintptr_t item_address, const Key& key, Fac
         && Read(f.template_address+0xf4,f.type,budget) && Read(f.template_address+0x11c,f.flags,budget)
         && Read(item_address+0x744,f.quantity,budget);
 }
+// Exact original/prepared .13 RTTI: these primary tables have a nonvirtual
+// ArcItem base at offset zero (PMD 0,-1,0). Common +10 template/+18 instance
+// keys may be censused; derived classes are NEVER eligible native-use operands.
+struct CensusClass { std::uint32_t table, locator; const char* name; };
+constexpr std::array<CensusClass,5> kCensusClasses{{
+    {0x1142188,0x118c808,".?AVArcContainerObject@@"},
+    {0x1142468,0x118c9a8,".?AVArcDeed@@"},
+    {0x1142748,0x118cb58,".?AVArcItem@@"},
+    {0x1143278,0x118d8a0,".?AVArcRune@@"},
+    {0x1144154,0x118e3c8,".?AVArcKey@@"},
+}};
 struct Node {
     std::uintptr_t address{};
     std::array<std::uint32_t,6> words{}; // parent,left,right,key[2],item
+    std::uintptr_t table{};
+    Key key{}, template_key{};
     Facts facts{};
     bool operator==(const Node&) const = default;
 };
@@ -81,8 +94,17 @@ bool Walk(const Context& c,Census& census,std::uintptr_t at,std::uintptr_t paren
     const Key key{n.words[3],n.words[4]};
     if((parent ? n.words[0]!=parent : (n.words[0]!=0 && n.words[0]!=head))
         || !key[0] || !key[1] || (low && !Less(*low,key)) || (high && !Less(key,*high))) { return false; }
-    for(std::size_t i=0;i<census.count;++i) { if(census.nodes[i].facts.item_key==key){return false;} }
-    if(!Item(c.image,n.words[5],key,n.facts,budget)) { return false; }
+    for(std::size_t i=0;i<census.count;++i) { if(census.nodes[i].key==key){return false;} }
+    const auto member_address=n.words[5];
+    if(!Ptr(member_address) || !Read(member_address,n.table,budget)){return false;}
+    bool qualified=false;
+    for(const auto& type:kCensusClasses){if(n.table==c.image+type.table){qualified=true;break;}}
+    if(!qualified){return false;}
+    if(!Read(member_address+0x18,n.key,budget) || n.key!=key
+        || !Read(member_address+0x10,n.template_key,budget) || !n.template_key[0] || n.template_key[1]){return false;}
+    // Do not probe unrelated derived/template fields or retain unrelated objects.
+    if(n.table==c.image+0x1142748 && n.template_key==c.template_key
+        && !Item(c.image,member_address,key,n.facts,budget)){return false;}
     ++census.count;
     if(!Walk(c,census,n.words[1],at,head,low,&key,level+1,first,last,budget)) { return false; }
     if(!first){first=at;} last=at;
@@ -138,62 +160,64 @@ struct Access {
         return *slot && reinterpret_cast<std::uintptr_t>(*slot)==expected.item_address
             && Item(c.image,reinterpret_cast<std::uintptr_t>(*slot),expected.item_key,facts,budget) && facts==expected;
     }
-    static bool Run(const Context& c,State& s,Observation& out,const Calls& calls,bool revalidate) {
+    static Result Run(const Context& c,State& s,Observation& out,const Calls& calls,bool revalidate) {
         Budget budget;
-        if(!Ready() || !Current(c,budget)){return false;}
+        if(!Ready() || !Current(c,budget)){return Result::unknown;}
         Census first,second;
-        if(!Capture(c,first,budget)){return false;}
+        if(!Capture(c,first,budget)){return Result::unknown;}
         Observation found{};found.generation=s.generation_;
         for(std::size_t i=0;i<first.count;++i){
             const auto& facts=first.nodes[i].facts;
             if(!Eligible(c,facts)){continue;}
-            if(found.count==kMaxItems){return false;}
+            if(found.count==kMaxItems){return Result::unknown;}
             found.items[found.count++]=facts;
         }
-        if(!found.count || (revalidate && found!=s.observation_)){return false;}
+        found.result=found.count?Result::available:Result::no_eligible;
+        if(revalidate && found!=s.observation_){return Result::unknown;}
         for(std::size_t i=0;i<found.count;++i){
             if(revalidate){
                 if(reinterpret_cast<std::uintptr_t>(s.retained_[i])!=found.items[i].item_address
-                    || !LookupExact(c,s,&s.scratch_,found.items[i],calls,budget)){return false;}
-                if(!Drop(s,&s.scratch_)){return false;}
-            }else if(!LookupExact(c,s,&s.retained_[i],found.items[i],calls,budget)){return false;}
+                    || !LookupExact(c,s,&s.scratch_,found.items[i],calls,budget)){return Result::unknown;}
+                if(!Drop(s,&s.scratch_)){return Result::unknown;}
+            }else if(!LookupExact(c,s,&s.retained_[i],found.items[i],calls,budget)){return Result::unknown;}
         }
         // No unowned pointer is retained directly. The ordinary getter pins under
         // the native container lock; recapture detects changed discovery/facts.
         // Outermost owner-thread serialization is required; rereads do not claim
         // to defeat arbitrary foreign writes/ABA. Native lock waits cannot be
         // interrupted; an over-budget return simply cannot publish authority.
-        if(!Current(c,budget) || !Capture(c,second,budget) || first!=second || !Binding(c,budget)){return false;}
+        if(!Current(c,budget) || !Capture(c,second,budget) || first!=second || !Binding(c,budget)){return Result::unknown;}
         if(!revalidate){s.observation_=found;out=found;}
-        return true;
+        return found.result;
     }
-    static bool RunCxx(const Context& c,State& s,Observation& out,const Calls& calls,bool again) noexcept {
-        try{return Run(c,s,out,calls,again);}catch(...){Quarantine(s);return false;}
+    static Result RunCxx(const Context& c,State& s,Observation& out,const Calls& calls,bool again) noexcept {
+        try{return Run(c,s,out,calls,again);}catch(...){Quarantine(s);return Result::unknown;}
     }
-    static bool RunSafe(const Context& c,State& s,Observation& out,const Calls& calls,bool again) noexcept {
+    static Result RunSafe(const Context& c,State& s,Observation& out,const Calls& calls,bool again) noexcept {
         __try{return RunCxx(c,s,out,calls,again);}
-        __except(EXCEPTION_EXECUTE_HANDLER){Quarantine(s);return false;}
+        __except(EXCEPTION_EXECUTE_HANDLER){Quarantine(s);return Result::unknown;}
     }
-    static bool ObserveBound(const Context& c,State& s,Observation& out,const Calls& calls) noexcept {
+    static Result ObserveBound(const Context& c,State& s,Observation& out,const Calls& calls) noexcept {
         out={};
         if(s.occupied_ || s.quarantined_ || s.generation_==std::numeric_limits<std::uint64_t>::max()
-            || !calls.lookup || !calls.release){return false;}
+            || !calls.lookup || !calls.release){return Result::unknown;}
         ++s.generation_;s.occupied_=true;s.context_=c;s.release_=reinterpret_cast<std::uintptr_t>(calls.release);
-        if(RunSafe(c,s,out,calls,false)){return true;}
-        ReleaseSafe(s);return false;
+        const auto result=RunSafe(c,s,out,calls,false);
+        if(result!=Result::unknown){return result;}
+        ReleaseSafe(s);out={};return Result::unknown;
     }
     static bool RevalidateBound(const Context& c,State& s,const Observation& out,const Calls& calls) noexcept {
         if(!s.occupied_ || s.quarantined_ || c!=s.context_ || out!=s.observation_
-            || out.generation!=s.generation_ || !out.count){return false;}
+            || out.generation!=s.generation_ || out.result==Result::unknown){return false;}
         Observation ignored{};
-        const bool ok=RunSafe(c,s,ignored,calls,true);
+        const bool ok=RunSafe(c,s,ignored,calls,true)==out.result;
         // Failed revalidation invalidates the publication, but retains references
         // for explicit teardown. No later successful reread can resurrect it.
         if(!ok){s.observation_={};}
         return ok;
     }
 };
-bool Observe(const Context& c,State& s,Observation& out) noexcept {
+Result Observe(const Context& c,State& s,Observation& out) noexcept {
     return Access::ObserveBound(c,s,out,{reinterpret_cast<Lookup>(c.image+0x4b6f),
         reinterpret_cast<NativeRelease>(c.image+0x89bd0)});
 }

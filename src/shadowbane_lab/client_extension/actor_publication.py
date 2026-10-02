@@ -340,6 +340,8 @@ class Publication:
                         and not (r[12] == 2 and mode > 1),
                         "unsupported power cannot advertise ready",
                     )
+            elif r[14] == Readiness.UNKNOWN:
+                _require(not any(r[17:26]), "unknown item contains operand")
             elif any(r[21:24]):
                 _require(
                     r[17]

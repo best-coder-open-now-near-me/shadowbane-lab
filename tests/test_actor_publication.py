@@ -411,3 +411,59 @@ def test_same_admission_revision_allows_descriptor_detail_and_effect_epoch(monke
     second = r.read()
     assert second.eligibility_facts() == first.eligibility_facts()
     assert second.actions != first.actions and second.effect_epoch != first.effect_epoch
+
+
+def item_and_power_frame(readiness=p.Readiness.UNKNOWN, operand=None):
+    m = replace(
+        manifest(),
+        group_count=2,
+        selectors=(Selector(0, 0, 4, 0, 980066, 429021400, 0), Selector(1, 1, 3, 111, 0, 111, 0)),
+    )
+    data = bytearray(frame())
+    data[60:64] = (2).to_bytes(4, "little")
+    data[68:72] = (2).to_bytes(4, "little")
+    power = list(p._READY.unpack_from(data, 10496))
+    power[:8] = list(p._READY.unpack(m.selectors[1].encode() + bytes(96)))[:8]
+    power[15] = 1
+    data[10624:10752] = p._READY.pack(*power)
+    item = list(power)
+    item[:8] = list(p._READY.unpack(m.selectors[0].encode() + bytes(96)))[:8]
+    item[8:13] = [0] * 5
+    item[14:17] = [readiness, 0, 1]
+    item[17:26] = [0] * 9 if operand is None else operand
+    data[10496:10624] = p._READY.pack(*item)
+    data[18704:18720] = p._DESCRIPTOR.pack(223, 334, 0, 0, 0, bytes(2))
+    return p.Publication.decode(p.Header.decode(header(m)), bytes(data), m)
+
+
+@pytest.mark.parametrize("readiness", [p.Readiness.UNKNOWN, p.Readiness.ITEM_UNAVAILABLE])
+def test_empty_item_resource_does_not_discard_independent_power_facts(readiness):
+    result = item_and_power_frame(readiness)
+    assert result.complete
+    assert result.actions[0].readiness is readiness
+    assert result.actions[0].item_key == (0, 0) and result.actions[0].item_hint == 0
+    assert result.actions[0].coverage is p.Coverage.MISSING
+    assert result.actions[1].readiness is p.Readiness.READY
+
+
+@pytest.mark.parametrize("index", range(9))
+def test_unknown_item_cannot_retain_any_partial_operand(index):
+    operand = [0] * 9
+    operand[index] = 1
+    with pytest.raises(p.PublicationError, match="unknown item contains operand"):
+        item_and_power_frame(operand=operand)
+
+
+def test_unknown_item_cannot_retain_even_previously_valid_operand():
+    operand = [5802955, 30, 980066, 0, 0x12500000, 0x12600000, 3, 8, 10]
+    with pytest.raises(p.PublicationError, match="unknown item contains operand"):
+        item_and_power_frame(operand=operand)
+    result = item_and_power_frame(p.Readiness.READY, operand)
+    assert result.actions[0].item_key == (5802955, 30)
+
+
+def test_ready_item_requires_full_qualified_operand():
+    with pytest.raises(p.PublicationError, match="unavailable item"):
+        item_and_power_frame(p.Readiness.READY)
+    with pytest.raises(p.PublicationError, match="unqualified retained item"):
+        item_and_power_frame(p.Readiness.READY, [5802955, 30, 980066, 0, 0x12500000, 0, 3, 8, 10])

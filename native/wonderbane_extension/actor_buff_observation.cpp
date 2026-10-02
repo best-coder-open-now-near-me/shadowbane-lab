@@ -29,13 +29,23 @@ struct Access {
             const combat::inventory::Context context{c.image,c.actor,c.actor_key,intent.item_template,c.current,c.owner};
             auto& inventory=state.inventory_[i];auto& observation=state.observations_[i];
             auto& facts=out.actions[i];
+            using Result=combat::inventory::Result;
             if(revalidate){
-                if(observation.count && !combat::inventory::Revalidate(context,inventory,observation)){return Unknown::inventory;}
-            }else if(!combat::inventory::Observe(context,inventory,observation)){
-                if(inventory.Quarantined() || !combat::inventory::Release(inventory)){state.quarantined_=true;return Unknown::inventory;}
-                observation={};
+                if(observation.result!=Result::unknown
+                    && !combat::inventory::Revalidate(context,inventory,observation)){return Unknown::inventory;}
+            }else{
+                combat::inventory::Observe(context,inventory,observation);
+                if(observation.result==Result::unknown
+                    && (inventory.Quarantined() || !combat::inventory::Release(inventory))){
+                    state.quarantined_=true;return Unknown::inventory;
+                }
             }
-            if(!observation.count){facts.readiness=Readiness::item_unavailable;continue;}
+            if(observation.result==Result::unknown){facts.readiness=Readiness::unknown;continue;}
+            if(observation.result==Result::no_eligible){
+                if(observation.count){return Unknown::inventory;}
+                facts.readiness=Readiness::item_unavailable;continue;
+            }
+            if(!observation.count){return Unknown::inventory;}
             if(observation.count>combat::inventory::kMaxItems){return Unknown::inventory;}
             const auto& item=observation.items[0];
             if(item.template_key!=intent.item_template || !item.quantity || item.type!=8 || item.flags!=0x0a){return Unknown::inventory;}

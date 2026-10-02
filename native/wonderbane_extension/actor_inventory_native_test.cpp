@@ -11,7 +11,7 @@ std::array<std::array<std::uint32_t,8>,17> nodes{};
 iv::Context context{};
 unsigned failures{},cases{},lookups{},releases{},refs{},checks{};
 bool current=true,missing=false,wrong_output=false,fault_lookup=false,throw_lookup=false,fault_release=false;
-bool change_during_lookup=false,change_final_check=false;
+bool change_during_lookup=false,change_final_check=false,change_common_final=false;
 void* replacement{};
 std::uint32_t P(const void* p){return static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(p));}
 void Put(std::uintptr_t at,std::uintptr_t value){*reinterpret_cast<std::uintptr_t*>(at)=value;}
@@ -19,6 +19,7 @@ void Check(bool value,const char* label){++cases;if(!value){++failures;std::fpri
 bool Current(void*) noexcept {
     ++checks;
     if(change_final_check && checks==2){objects[0][0x744/4]++;}
+    if(change_common_final && checks==2){objects[0][0x10/4]++;}
     return current;
 }
 void* __fastcall Lookup(void* self,void*,void** out,const iv::Key* key){
@@ -39,12 +40,12 @@ void __fastcall Drop(void** out,void*,void* value){
     *out=nullptr;--refs;
 }
 iv::Calls Calls(){return {reinterpret_cast<iv::Lookup>(&Lookup),reinterpret_cast<iv::NativeRelease>(&Drop)};}
-bool Observe(iv::State& s,iv::Observation& o){return iv::Access::ObserveBound(context,s,o,Calls());}
+bool Observe(iv::State& s,iv::Observation& o){return iv::Access::ObserveBound(context,s,o,Calls())==iv::Result::available;}
 bool Revalidate(iv::State& s,const iv::Observation& o){return iv::Access::RevalidateBound(context,s,o,Calls());}
 void Reset(unsigned count=1,unsigned container=0){
     actor={};objects={};definition={};nodes={};heads[0]={};heads[1]={};
     lookups=releases=refs=checks=0;current=true;missing=wrong_output=fault_lookup=throw_lookup=fault_release=false;
-    change_during_lookup=change_final_check=false;replacement=nullptr;
+    change_during_lookup=change_final_check=change_common_final=false;replacement=nullptr;
     const auto b=iv::base;
     actor[0]=static_cast<std::uint32_t>(b+0x114165c);actor[2]=static_cast<std::uint32_t>(b+0x11417d4);
     actor[0x18/4]=4050960;actor[0x1c/4]=53;actor[0xea4/4]=static_cast<std::uint32_t>(b+0x1141570);
@@ -62,7 +63,13 @@ void Reset(unsigned count=1,unsigned container=0){
     context={b,reinterpret_cast<std::uintptr_t>(actor.data()),{4050960,53},{980066,0},Current,nullptr};
     Put(b+0x16a2d98,context.actor);
 }
-void Denied(const char* label){iv::State s;iv::Observation o;Check(!Observe(s,o)&&!o.count&&!s.Quarantined()&&refs==0,label);}
+void Denied(const char* label){iv::State s;iv::Observation o;Check(iv::Access::ObserveBound(context,s,o,Calls())==iv::Result::unknown&&o.result==iv::Result::unknown&&!o.count&&!s.Quarantined()&&refs==0,label);}
+void Unavailable(const char* label){iv::State s;iv::Observation o;
+    Check(iv::Access::ObserveBound(context,s,o,Calls())==iv::Result::no_eligible
+        &&o.result==iv::Result::no_eligible&&!o.count&&!refs&&!lookups,label);
+    Check(Revalidate(s,o)&&!lookups,"complete empty census remains revalidatable without native calls");
+    Check(iv::Release(s),"empty census explicit release");
+}
 }
 namespace wonderbane::extension {
 bool GraphicsExecutableSha256Matches(const char*) noexcept{return false;}
@@ -80,10 +87,28 @@ int main(){
         Check(Observe(s,o)&&o.generation!=old.generation&&!Revalidate(s,old),"old publication cannot revive after State reuse");
         Check(iv::Release(s),"reused state released");
     }
-    Reset(0);Denied("empty inventory unavailable, not absence");
-    Reset();definition[0xf4/4]=6;Denied("unknown route not eligible");
-    Reset();objects[0][0x744/4]=0;Denied("zero quantity unavailable");
-    Reset();objects[0][0x10/4]++;Denied("other template unavailable");
+    Reset(0);Unavailable("complete empty inventory no eligible candidate");
+    Reset();definition[0xf4/4]=6;Unavailable("known item route not eligible");
+    Reset();objects[0][0x744/4]=0;Unavailable("zero quantity no eligible");
+    Reset();objects[0][0x10/4]++;Unavailable("other template no eligible");
+    for(const auto& type:iv::kCensusClasses){
+        if(type.table==0x1142748){continue;}
+        Reset(2);objects[0][0]=static_cast<std::uint32_t>(iv::base+type.table);
+        objects[0][0x10/4]=111;objects[0][0x68c/4]=0; // unrelated derived fields must never be read
+        iv::State s;iv::Observation o;
+        Check(Observe(s,o)&&o.count==1&&o.items[0].item_key==iv::Key{5802956,30}
+            &&lookups==1&&refs==1,"heterogeneous census retains only exact qualified potion");
+        Check(Revalidate(s,o)&&iv::Release(s)&&!refs,"derived common keys recaptured; potion refs balance");
+        Reset();objects[0][0]=static_cast<std::uint32_t>(iv::base+type.table);
+        Unavailable("derived same-template object cannot become actionable potion");
+    }
+    Reset();objects[0][0]=static_cast<std::uint32_t>(iv::base+0x123456);Denied("unknown polymorphic class is unknown, never skipped");
+    Reset();objects[0][0]=static_cast<std::uint32_t>(iv::base+0x1143278);change_common_final=true;
+    Denied("changed derived common template invalidates complete absence");
+    Reset();objects[0][0x744/4]=0;{iv::State s;iv::Observation o;
+        Check(iv::Access::ObserveBound(context,s,o,Calls())==iv::Result::no_eligible,"noeligible baseline");
+        objects[0][0x744/4]=3;Check(!Revalidate(s,o),"new eligible candidate invalidates absence");
+        objects[0][0x744/4]=0;Check(!Revalidate(s,o),"failed absence cannot resurrect");Check(iv::Release(s),"invalidated absence releases");}
     Reset();objects[0][0x18/4]++;Denied("tree/object key mismatch");
     Reset();actor[0x6cc/4]=0;Denied("null root container rejects");
     Reset();nodes[0][3]=P(nodes[0].data());Denied("cycle rejected");
