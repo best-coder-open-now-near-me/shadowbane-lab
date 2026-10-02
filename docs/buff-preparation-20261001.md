@@ -478,5 +478,34 @@ cold identity, late caller, failed image verification and mismatched verified ba
 leave all hook sites pristine; initialized identity installs before entry. It does
 not substitute for private exact-image qualification. Focused startup/effect
 checks and 481 package-contract tests passed before the source checkpoint.
-Host 0.3.64 / native 1.8.44 remain source candidates until exact-source package
-qualification and separate merge/install approval. Installed .63/.43 is unchanged.
+Host 0.3.64 / native 1.8.44 completed the exact-source qualification below.
+Separate merge/install approval is still required. Installed .63/.43 is unchanged.
+
+## Qualified .64/.44 package awaiting approval
+
+Package `artifacts/b44/9282f541` was built from committed source
+`1bbd536c791136e3d485cb935b7bc4482d0b1f5c`. The full host suite passed 4,787 tests
+with 38 skips. Both native profiles passed 219 tests, with three private-image
+CTest placeholders covered by the explicit original/prepared image probes.
+Per-profile IPC passed 73 movement, 86 combat and 106 actor tests, with no IPC
+skips. Installed-wheel checks passed. All 82 package stages and 110 indexed
+artifact hashes were independently verified, including source archive identity,
+both version resources and the startup/public-bootstrap regressions. The two
+existing transparency diagnostics per profile retained their previously documented
+limitations; no new required gate failed.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Acceptance ZIP | `5d4d9b8ebdaf8795ee73135d0b0f614daf72caed1286a2df6bd0ce3bb2c1746f` |
+| Receipt | `ac09bcba3f9c20ce1ebcfb561ae937cf6f47ef27194df7d8b3b8fb9826238e7d` |
+| Full DLL | `94af80cd77835a8ea7efbeb892a880ee171f53e86c91d423064a942cec53b936` |
+| Host wheel | `de9e17d99bd04616f4bcb563f446c3f32c509239553ec02e86692becccf3866b` |
+
+Private deployment/acceptance helpers under `artifacts/bot-deploy/20261001-b44`
+were migrated from the installed .63/.43 baseline. Qualified pins and dependency
+hashes are fixed; 102 offline tests, 26 PowerShell parse checks and mocked exact-path
+retirement checks passed. No payload was applied or staged to the VM. Fresh read-only
+inspection at 23:53:27 UTC found game PID 8616, healthy idle manager 6480/parent500,
+and the exact .63/.43 installed identity. That running baseline is diagnostic;
+installation requires a fresh closed-client baseline and new approval. Settings,
+jobs and original client assets remain in place; no rollback artifacts were made.

@@ -41,8 +41,13 @@ The merged buff feature branch was retired locally and remotely after its tip wa
 verified reachable from main and its checkout was free. The active integration
 worktree remains in use for acceptance and diagnostic tools.
 
-**Active next item:** qualify the .64/.44 effect-observer startup repair on
-`codex/buff-deployment-20261001` (PR #60). Installed runtime remains .63/.43. The
+**Active next item:** obtain separate PR #60 merge/install approval for the
+qualified .64/.44 effect-observer startup repair on
+`codex/buff-deployment-20261001`. Package source is
+`1bbd536c791136e3d485cb935b7bc4482d0b1f5c`, with 82 verified stages and 110
+indexed artifacts. Installed runtime remains .63/.43; fresh VM inspection found
+PID 8616 still running and the current manager healthy/idle. Close the game and
+reinspect the exact baseline before installation. The
 bounded run `actor-preparation-ce616a3df0e044c4859d64f888b6f8b4` issued four read-only
 REGISTER_SELECTORS requests with the same immutable request 2; all returned
 UNAVAILABLE. No OPEN_OWNER, ATTACH_CONTEXT or SUBMIT was issued. STOP_OWNER request

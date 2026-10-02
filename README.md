@@ -21,8 +21,8 @@ healthy manager activation, five shortcuts and startup preflight. The obsolete
 Settings, jobs and diagnostic evidence remain in place. The desktop Vendor Test
 and Modded Client shortcuts use the updated launcher; dashboard shortcuts use .63.
 
-**Active next item:** qualify the .64/.44 repair for the native effect-observer
-startup ordering failure found by the first bounded buff/combat test. Registration returned unavailable before any
+**Active next item:** obtain merge/install approval for the qualified .64/.44
+effect-observer startup repair in PR #60, then close the client and install it. Registration returned unavailable before any
 buff or attack submission; exact cleanup and subsequent idle readiness passed.
 Source/package qualification and installation do not prove live buff application
 or expiry. Automatic retaliation remains disabled. The earlier .62
