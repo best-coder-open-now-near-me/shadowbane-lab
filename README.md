@@ -21,8 +21,8 @@ healthy manager activation, five shortcuts and startup preflight. The obsolete
 Settings, jobs and diagnostic evidence remain in place. The desktop Vendor Test
 and Modded Client shortcuts use the updated launcher; dashboard shortcuts use .64.
 
-**Active next item:** diagnose the post-combat buff admission/retry mismatch before
-another gameplay run. The second .64 acceptance remains **not passed**: canonical
+**Active next item:** qualify the reviewed host 0.3.65 / native 1.8.45 admission
+repair in draft PR #61 before requesting merge/install approval. The second .64 acceptance remains **not passed**: canonical
 native publication reported Greater Concoction Potion and Precision coverage
 PRESENT, one NPC attack queued, and child NATIVE_STOPPED cleanup completed. Beorc
 Rune then received 29 never-entered deferrals before the private helper's total

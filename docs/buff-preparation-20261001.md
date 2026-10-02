@@ -597,3 +597,35 @@ Compact evidence SHA-256:
 
 - `acceptance.json`: `77a4cfa1a43e2b6cc79b8c90edc9a384898eba469580017136309e99692bf1ca`
 - `events.jsonl`: `eb5be76f5cbb8315497ba508e94b50e32797a89f4e59a15bfebba4299b6d4fe1`
+
+## .65/.45 admission repair candidate
+
+The reviewed repair separates native entry eligibility from application-journal
+history. Publication schema v2 carries a monotonic admission revision and typed
+local blockers: initiation, an in-flight native invocation, retained local work,
+a foreign action target, or child cleanup. A shared native evaluator serves both
+publication and final entry. An owned encounter target remains eligible under
+its existing context; the foreign-target guard is unchanged. Locally settled
+potion application may remain remotely pending while other buffs proceed.
+
+The host suppresses a definitively refused action at the same admission revision.
+Journal-only updates cannot renew permission. A freshly observed eligibility
+transition permits reconsideration; uncertain entered requests remain tied to
+their original status/cleanup operation. New capability 0x100 and the v2 mapping
+are required for new admission. Existing lifecycle queries and cleanup remain
+routable. Typed blocker traces are informational and do not consume a combat
+scheduling iteration or impose an all-buffs barrier.
+
+Focused native suites and the production DLL build passed; independent native
+and combined source reviews found no outstanding issue. The full host suite
+passed 4,836 tests with 36 skips; focused host checks also exercised the real v2
+publication mapping and the production runner's no-barrier behavior. Exact-source
+package qualification is the active next item. This candidate is not merged or
+installed; the VM remains on qualified .64/.44. New merge/install authorization
+is required after package qualification.
+
+The next private acceptance helper uses one immutable NPC, native health-zero
+proof, correlated child cleanup and the same parent owner for remaining buffs.
+It retains bounded duration and action counts, optional Shot-to-the-Leg semantics,
+and no replay of uncertain attacks. Its source pins remain unqualified until the
+candidate package is verified. No gameplay success is claimed from offline tests.
