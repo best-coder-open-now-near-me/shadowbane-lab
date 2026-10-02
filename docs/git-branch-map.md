@@ -7,55 +7,50 @@ records in place. Historical backup/rollback requirements below are superseded.
 ## Current shared source and deployment - October 2
 
 Start new development from freshly fetched `origin/main`, now
-`1e7c26ff005cf53453842e4e5462a9091c9058c0` (PR #61 merge). Head
-`86d76b986f6459a349933b50eec8dea9e84430cc` passed all 15 hosted checks and merged
-at 13:17:17 UTC. Exact qualified package source
-`fc8b316781bba53605729a2bee3578a1ace3b10e` is retained in main; the later head
-changed only qualification documentation. The user gave standing approval for
-routine bot merge/install delivery after validation; see [AGENTS.md](../AGENTS.md).
+`a983384b2e95a6ab6cc3f46a750265b82ec0bae2` (PR #62 merge at 14:11:08 UTC).
+Exact qualified package head `9e1a77ae9e763a65bfc7f39587c30b3f46c39c4b`
+is integrated in main. The pending-action settlement repair, heterogeneous
+inventory census and typed item UNKNOWN/no-eligible distinction are delivered;
+they are no longer separate unfinished runtime work. Standing routine bot
+merge/install approval still requires validation; see [AGENTS.md](../AGENTS.md).
 
-Host **0.3.65** / native **1.8.45** are installed from `artifacts/b45/38619e76`.
-Official client **1.3.38.13**, settings and job data remain in place. Installation
-verified 463 modules, 9,575 retained files and one DLL inventory change. Manager
-9932 activated healthy; five shortcuts and startup preflight passed. Launch at
-13:23:19.4677569 UTC verified the DLL in PID 7336, creation FILETIME
-`134354209911431065`, HWND `3474162`. Later passive readiness observed an alive
-actor, owner NONE, no pending cleanup, scene 1 and capability flags 385 (0x181).
-These are historical observations, not permanent session authority.
+Host **0.3.66** / native **1.8.46** are installed from `artifacts/b46/948aa06b`.
+Official/prepared client **1.3.38.13**, settings and job data remain in place.
+Installation verified 463 modules, 9,576 retained files and one DLL inventory
+change. Manager 9900 activated healthy; five shortcuts and startup preflight
+passed. Launch at 17:53:00.5627234 UTC verified DLL SHA-256
+`b1393468817344be3722ff923bafe025c3b320e680a88e4a8e3751197e1ba674`
+in PID 7588, creation FILETIME `134354371726530142`, HWND `5702362`.
+Passive readiness was **not ready** at login/loading, with no gameplay action.
+These process facts are receipts, not permanent session authority.
 
-The obsolete .64 host (2,116 files) and two .44 guest payload files were removed
-after exact ownership checks, totaling 50,803,605 bytes. Four old host/share
-payload binaries totaled 5,617,156 bytes. Twelve compact receipts and seven
-installed-file hashes are retained under `artifacts/bot-deploy/20261002-b45/receipts`.
+The obsolete .65 host (2,116 files) and two .45 guest payloads were removed after
+exact ownership checks, totaling 50,825,499 bytes. Four old host/share staging
+binaries totaled 5,630,514 bytes. Twelve compact receipts and seven installed-file
+hashes are retained under `artifacts/bot-deploy/20261002-b46/receipts`.
 No rollback runtime copies were retained.
 
-The source and versions of the reviewed admission repair are now in main. The
-active delivery-record branch is `codex/buff-runtime-receipt-20261002` in the
-bot-integration worktree. Canonical `E:\Projects\shadowbane` is clean on main
-`1e7c26f`. The earlier admission and acceptance branch tips are retained in main; both
-completed branches were retired locally and remotely after checkout ownership
-was reconciled. The reused bot-runtime checkout now hosts
-`codex/native-preparation-settlement-20261002`, based on `1e7c26f`, for the pending
-preparation fix. Its work is not yet integrated into PR #62.
+The documentation-only delivery branch is `codex/buff-deployment-20261002` in
+bot-integration, based on `origin/main` at `a983384`. It targets main for
+receipt-only review; the runtime source changes are already integrated. Canonical
+`E:\Projects\shadowbane` is on main at that merge. The earlier
+`codex/buff-runtime-receipt-20261002` head `9e1a77a` and bot-runtime's
+`codex/native-preparation-settlement-20261002` head `5083f81` are included in
+main; those retained checkouts/branches need an ownership and cleanliness check
+before retirement or reuse. No unfinished runtime change is held only in this
+documentation branch.
 
-**Active next item:** fix legitimate pending-buff timeout handling and diagnose
-native potion inventory lookup before another live test. The .65 run
-`actor-full-encounter-9046c452a4d648dcb2bef68eb831fd69` remains **not passed**.
-Precision and Beorc effects were observed; Rat Shape queued and stayed locally
-pending in the captured state. Potion coverage was missing but the native item
-resolver reported ITEM_UNAVAILABLE with zero operands, so no item was submitted.
-No NPC context or ATTACK occurred; the closest observed NPC was just outside the
-80-unit test camp. STOP_OWNER preceded the reported ownership revocation and is
-consistent with the host's five-second pending preparation timeout. Retained
-native telemetry also records a 281 ms stalled-update loss, generation 3 to 4,
-with zero sampled key bits; its precise relation to the cleanup remains under
-review. Exact parent
-NATIVE_STOPPED cleanup completed and fresh readiness reported owner NONE.
-
-The current evidence is `artifacts/bot-deploy/20261002-b45/live-evidence`.
-Earlier partial .64 results are preserved separately. No full buff, expiry/refresh,
-potion overlap, NPC death or server kill-credit claim follows from these runs.
-Automatic retaliation remains disabled; see the [buff record](buff-preparation-20261001.md).
+**Active next item:** Umbra login, fresh native readiness, then the bounded
+one-NPC/buff acceptance. Seven qualified acceptance dependencies are staged in
+the separate `bot-actor-full-encounter-20261002-b46` directory. Both preflight and
+live wrappers use radius 120, with unchanged one-NPC, action and time bounds.
+The .66 live gate remains pending. Earlier .65 and .64 partial results remain
+separate; the .65 run observed Precision/Beorc, queued Rat without captured local
+settlement, and issued no potion or NPC attack. Its host pending timeout and
+separate 281 ms native owner-loss record are preserved in the
+[buff record](buff-preparation-20261001.md). No full buff, expiry/refresh, potion
+overlap or server kill-credit claim follows from these runs. Automatic retaliation
+remains disabled.
 
 ## Previous .62/.42 live evidence
 
