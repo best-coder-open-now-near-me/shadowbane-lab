@@ -1,4 +1,5 @@
 """Preparation policy tests use explicit boundary evidence, never a fake live observer."""
+
 from dataclasses import FrozenInstanceError, replace
 
 import pytest
@@ -37,25 +38,51 @@ GROUPS = (
 )
 
 
-def observe(epoch=1, *, groups=GROUPS, coverage=None, ready=None, pending=(), complete=True):
+def observe(
+    epoch=1,
+    *,
+    groups=GROUPS,
+    coverage=None,
+    ready=None,
+    pending=(),
+    complete=True,
+    admission=None,
+    blocks=0,
+):
     coverage = coverage or {}
     ready = ready or {}
     evidence = []
     for group in groups:
         for action in group.alternatives:
-            operand = (PowerOperand(action.power_id) if action.power_id else
-                       ItemOperand((88, 40), "native-item-a", action.item_template))
-            evidence.append(ReadinessEvidence(action.action_id,
-                ready.get(action.action_id, Readiness.READY), operand))
-    return PreparationObservation(ACTOR, epoch, complete,
-        tuple(CoverageEvidence(g.group_id, coverage.get(g.group_id, Coverage.MISSING))
-              for g in groups), tuple(evidence), frozenset(pending))
+            operand = (
+                PowerOperand(action.power_id)
+                if action.power_id
+                else ItemOperand((88, 40), "native-item-a", action.item_template)
+            )
+            evidence.append(
+                ReadinessEvidence(
+                    action.action_id, ready.get(action.action_id, Readiness.READY), operand
+                )
+            )
+    return PreparationObservation(
+        ACTOR,
+        epoch,
+        complete,
+        tuple(
+            CoverageEvidence(g.group_id, coverage.get(g.group_id, Coverage.MISSING)) for g in groups
+        ),
+        tuple(evidence),
+        epoch if admission is None else admission,
+        blocks,
+        frozenset(pending),
+    )
 
 
 def acknowledge(policy, proposal, disposition=Disposition.QUEUED, *, settled=True, entry=None):
     if entry is None:
-        entry = (EntryState.ENTERED if disposition is Disposition.QUEUED
-                 else EntryState.NEVER_ENTERED)
+        entry = (
+            EntryState.ENTERED if disposition is Disposition.QUEUED else EntryState.NEVER_ENTERED
+        )
     policy.acknowledge(PreparationAcknowledgement(proposal, disposition, entry, settled))
 
 
@@ -80,8 +107,13 @@ def test_either_form_coverage_never_replaces_the_active_form(active_form):
     groups = (GROUPS[3],)
     policy = PreparationPolicy(ACTOR, groups)
     # The canonical adapter qualifies either active_form as the same coverage group.
-    decision = policy.advance(observe(groups=groups, coverage={"transform": Coverage.PRESENT},
-                                     ready={active_form.action_id: Readiness.NOT_READY}))
+    decision = policy.advance(
+        observe(
+            groups=groups,
+            coverage={"transform": Coverage.PRESENT},
+            ready={active_form.action_id: Readiness.NOT_READY},
+        )
+    )
     assert decision.proposal is None and decision.reason == "covered"
 
 
@@ -94,15 +126,25 @@ def test_form_alternative_uses_positive_native_readiness_only(state):
 
 def test_all_alternatives_unknown_or_blocked_wait_without_submission():
     policy = PreparationPolicy(ACTOR, (GROUPS[3],))
-    assert policy.advance(observe(groups=(GROUPS[3],), ready={
-        "rat": Readiness.UNKNOWN, "skree": Readiness.NOT_READY})).proposal is None
+    assert (
+        policy.advance(
+            observe(
+                groups=(GROUPS[3],), ready={"rat": Readiness.UNKNOWN, "skree": Readiness.NOT_READY}
+            )
+        ).proposal
+        is None
+    )
 
 
 def test_partial_potion_effects_suppress_reapplication_through_staggered_expiry():
     policy = PreparationPolicy(ACTOR, (GROUPS[0],))
     for epoch, state in enumerate((Coverage.PRESENT, Coverage.PARTIAL, Coverage.PARTIAL), 1):
-        assert policy.advance(observe(epoch, groups=(GROUPS[0],),
-                                      coverage={"concentration": state})).proposal is None
+        assert (
+            policy.advance(
+                observe(epoch, groups=(GROUPS[0],), coverage={"concentration": state})
+            ).proposal
+            is None
+        )
     assert policy.advance(observe(4, groups=(GROUPS[0],))).proposal.action is POTION
 
 
@@ -121,8 +163,9 @@ def test_positive_fresh_effect_then_later_qualified_missing_allows_refresh():
     policy = PreparationPolicy(ACTOR, (GROUPS[0],))
     p = policy.advance(observe(groups=(GROUPS[0],))).proposal
     acknowledge(policy, p)
-    d = policy.advance(observe(2, groups=(GROUPS[0],),
-                              coverage={"concentration": Coverage.PRESENT}))
+    d = policy.advance(
+        observe(2, groups=(GROUPS[0],), coverage={"concentration": Coverage.PRESENT})
+    )
     assert not d.groups[0].application_pending and d.proposal is None
     new = policy.advance(observe(3, groups=(GROUPS[0],))).proposal
     assert new.sequence > p.sequence and new.operand == p.operand
@@ -131,18 +174,24 @@ def test_positive_fresh_effect_then_later_qualified_missing_allows_refresh():
 def test_native_pending_history_is_not_cleared_by_effect_presence():
     policy = PreparationPolicy(ACTOR, (GROUPS[0],))
     policy.advance(observe(groups=(GROUPS[0],), pending=("concentration",)))
-    d = policy.advance(observe(2, groups=(GROUPS[0],), pending=("concentration",),
-                              coverage={"concentration": Coverage.PRESENT}))
+    d = policy.advance(
+        observe(
+            2,
+            groups=(GROUPS[0],),
+            pending=("concentration",),
+            coverage={"concentration": Coverage.PRESENT},
+        )
+    )
     assert d.groups[0].application_pending
     assert policy.advance(observe(3, groups=(GROUPS[0],))).proposal is None
 
 
-@pytest.mark.parametrize("complete,coverage", [(False, Coverage.MISSING),
-                                                (True, Coverage.UNKNOWN)])
+@pytest.mark.parametrize("complete,coverage", [(False, Coverage.MISSING), (True, Coverage.UNKNOWN)])
 def test_incomplete_or_unknown_coverage_never_means_missing(complete, coverage):
     p = PreparationPolicy(ACTOR, (GROUPS[0],))
-    d = p.advance(observe(groups=(GROUPS[0],), complete=complete,
-                          coverage={"concentration": coverage}))
+    d = p.advance(
+        observe(groups=(GROUPS[0],), complete=complete, coverage={"concentration": coverage})
+    )
     assert d.proposal is None and d.groups[0].coverage is Coverage.UNKNOWN
 
 
@@ -168,29 +217,41 @@ def test_uncertainty_only_polls_exact_proposal_despite_new_item_or_epoch(entry):
     p = policy.advance(observe()).proposal
     acknowledge(policy, p, Disposition.UNCERTAIN, settled=False, entry=entry)
     obs = observe(1000)
-    obs = replace(obs, readiness=(replace(obs.readiness[0], operand=ItemOperand(
-        (99, 40), "another-item", (980066, 0))), *obs.readiness[1:]))
+    obs = replace(
+        obs,
+        readiness=(
+            replace(obs.readiness[0], operand=ItemOperand((99, 40), "another-item", (980066, 0))),
+            *obs.readiness[1:],
+        ),
+    )
     d = policy.advance(obs)
     assert d.proposal is p and d.proposal.operand.item_key == (88, 40) and d.poll_pending
 
 
-@pytest.mark.parametrize("disposition", [Disposition.NOT_READY, Disposition.DEFERRED,
-                                         Disposition.REJECTED])
+@pytest.mark.parametrize(
+    "disposition", [Disposition.NOT_READY, Disposition.DEFERRED, Disposition.REJECTED]
+)
 def test_definitive_no_entry_waits_for_fresh_publication_then_qualified_alternative(disposition):
     policy = PreparationPolicy(ACTOR, (GROUPS[3],))
     obs = observe(groups=(GROUPS[3],))
     p = policy.advance(obs).proposal
     acknowledge(policy, p, disposition)
     assert policy.advance(obs).proposal is None
-    new = policy.advance(observe(2, groups=(GROUPS[3],),
-                                 ready={"rat": Readiness.NOT_READY})).proposal
+    new = policy.advance(
+        observe(2, groups=(GROUPS[3],), ready={"rat": Readiness.NOT_READY})
+    ).proposal
     assert new.action is SKREE and new.sequence != p.sequence
 
 
-@pytest.mark.parametrize("actor", [replace(ACTOR, actor_key=(9, 53)),
-                                    replace(ACTOR, actor_token="replacement"),
-                                    replace(ACTOR, process_creation=201),
-                                    replace(ACTOR, scene=2)])
+@pytest.mark.parametrize(
+    "actor",
+    [
+        replace(ACTOR, actor_key=(9, 53)),
+        replace(ACTOR, actor_token="replacement"),
+        replace(ACTOR, process_creation=201),
+        replace(ACTOR, scene=2),
+    ],
+)
 def test_actor_replacement_latches_fault_and_retains_pending_for_owner_cleanup(actor):
     policy = PreparationPolicy(ACTOR, GROUPS)
     pending = policy.advance(observe()).proposal
@@ -209,11 +270,15 @@ def test_epoch_regression_or_same_epoch_changed_snapshot_is_rejected(changed):
         policy.advance(changed)
 
 
-@pytest.mark.parametrize("mutation", [lambda p: replace(p, sequence=p.sequence + 1),
-                                       lambda p: replace(p, actor=replace(ACTOR, scene=2)),
-                                       lambda p: replace(p, action=PRECISION),
-                                       lambda p: replace(p, operand=ItemOperand(
-                                           (99, 40), "wrong-instance", (980066, 0)))])
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda p: replace(p, sequence=p.sequence + 1),
+        lambda p: replace(p, actor=replace(ACTOR, scene=2)),
+        lambda p: replace(p, action=PRECISION),
+        lambda p: replace(p, operand=ItemOperand((99, 40), "wrong-instance", (980066, 0))),
+    ],
+)
 def test_mismatched_receipt_cannot_release_or_transfer_pending_proposal(mutation):
     policy = PreparationPolicy(ACTOR, GROUPS)
     p = policy.advance(observe()).proposal
@@ -233,15 +298,20 @@ def test_known_queue_cannot_be_downgraded_to_no_entry():
 def test_resolved_operand_cannot_change_configured_power_or_template():
     policy = PreparationPolicy(ACTOR, GROUPS)
     obs = observe()
-    obs = replace(obs, readiness=(replace(obs.readiness[0], operand=ItemOperand(
-        (88, 40), "item", (980067, 0))), *obs.readiness[1:]))
+    obs = replace(
+        obs,
+        readiness=(
+            replace(obs.readiness[0], operand=ItemOperand((88, 40), "item", (980067, 0))),
+            *obs.readiness[1:],
+        ),
+    )
     with pytest.raises(PreparationPolicyError, match="operand"):
         policy.advance(obs)
 
 
 def test_no_installed_default_groups_or_actions_and_immutable_inputs():
     policy = PreparationPolicy(ACTOR)
-    assert policy.advance(PreparationObservation(ACTOR, 1, True, (), ())).proposal is None
+    assert policy.advance(PreparationObservation(ACTOR, 1, True, (), (), 1, 0)).proposal is None
     with pytest.raises(FrozenInstanceError):
         ACTOR.scene = 2
     with pytest.raises(ValueError):
@@ -254,9 +324,11 @@ def test_no_installed_default_groups_or_actions_and_immutable_inputs():
 
 def test_invalid_receipt_claims_are_rejected_before_policy():
     p = PreparationPolicy(ACTOR, GROUPS).advance(observe()).proposal
-    for disposition, entry, settled in ((Disposition.QUEUED, EntryState.UNKNOWN, True),
-                                        (Disposition.NOT_READY, EntryState.ENTERED, True),
-                                        (Disposition.DEFERRED, EntryState.NEVER_ENTERED, False)):
+    for disposition, entry, settled in (
+        (Disposition.QUEUED, EntryState.UNKNOWN, True),
+        (Disposition.NOT_READY, EntryState.ENTERED, True),
+        (Disposition.DEFERRED, EntryState.NEVER_ENTERED, False),
+    ):
         with pytest.raises(ValueError):
             PreparationAcknowledgement(p, disposition, entry, settled)
 
@@ -308,8 +380,16 @@ def test_captured_concoction_template_zero_word_is_distinct_from_instance_key():
 def test_same_epoch_changed_item_or_pending_history_is_never_fresh_evidence():
     for changed in (
         replace(observe(), pending_applications=frozenset({"concentration"})),
-        replace(observe(), readiness=(replace(observe().readiness[0], operand=ItemOperand(
-            (99, 40), "replacement-item", (980066, 0))), *observe().readiness[1:])),
+        replace(
+            observe(),
+            readiness=(
+                replace(
+                    observe().readiness[0],
+                    operand=ItemOperand((99, 40), "replacement-item", (980066, 0)),
+                ),
+                *observe().readiness[1:],
+            ),
+        ),
     ):
         policy = PreparationPolicy(ACTOR, GROUPS)
         pending = policy.advance(observe()).proposal
@@ -357,3 +437,68 @@ def test_positive_queue_history_survives_remotely_uncertain_local_completion():
     acknowledge(policy, potion, Disposition.UNCERTAIN, settled=True, entry=EntryState.ENTERED)
     decision = policy.advance(observe(2))
     assert decision.proposal.action is PRECISION and decision.groups[0].application_pending
+
+
+@pytest.mark.parametrize("disposition", [Disposition.DEFERRED, Disposition.NOT_READY])
+def test_no_entry_refusal_ignores_journal_only_publication_revisions(disposition):
+    groups = (GROUPS[2],)
+    policy = PreparationPolicy(ACTOR, groups)
+    proposal = policy.advance(observe(groups=groups, admission=7)).proposal
+    acknowledge(policy, proposal, disposition)
+    for revision in range(2, 102):
+        decision = policy.advance(observe(revision, groups=groups, admission=7))
+        assert decision.proposal is None and not decision.poll_pending
+    # A newly captured refusal/clear race advances native eligibility, not time.
+    next_proposal = policy.advance(observe(102, groups=groups, admission=9)).proposal
+    assert next_proposal.action is BEORC and next_proposal.sequence == proposal.sequence + 1
+    assert next_proposal.admission_revision == 9
+
+
+@pytest.mark.parametrize("block", [1, 2, 4, 8, 16, 31])
+def test_actual_native_block_to_clear_transition_resumes(block):
+    policy = PreparationPolicy(ACTOR, (GROUPS[2],))
+    for revision in range(1, 5):
+        result = policy.advance(observe(revision, groups=(GROUPS[2],), admission=2, blocks=block))
+        assert result.proposal is None and result.reason == "native_admission_blocked"
+    assert policy.advance(observe(5, groups=(GROUPS[2],), admission=3)).proposal.action is BEORC
+
+
+def test_refused_action_does_not_block_other_ready_group_same_admission_revision():
+    groups = (GROUPS[2], GROUPS[1])
+    policy = PreparationPolicy(ACTOR, groups)
+    beorc = policy.advance(observe(groups=groups, admission=7)).proposal
+    acknowledge(policy, beorc, Disposition.DEFERRED)
+    precision = policy.advance(observe(2, groups=groups, admission=7)).proposal
+    assert precision.action is PRECISION
+    acknowledge(policy, precision)
+    assert policy.advance(observe(3, groups=groups, admission=7)).proposal is None
+
+
+def test_entered_local_pending_keeps_polling_despite_block_or_unknown_capture():
+    policy = PreparationPolicy(ACTOR, (GROUPS[1],))
+    proposal = policy.advance(observe(groups=(GROUPS[1],))).proposal
+    acknowledge(policy, proposal, settled=False)
+    blocked = policy.advance(observe(2, groups=(GROUPS[1],), blocks=4))
+    assert blocked.proposal is proposal and blocked.poll_pending
+    unknown = policy.advance(observe(3, groups=(GROUPS[1],), complete=False))
+    assert unknown.proposal is proposal and unknown.poll_pending
+
+
+def test_admission_revision_regression_latches_fault():
+    policy = PreparationPolicy(ACTOR, (GROUPS[2],))
+    first = policy.advance(observe(groups=(GROUPS[2],), admission=4)).proposal
+    acknowledge(policy, first, Disposition.DEFERRED)
+    with pytest.raises(PreparationPolicyError, match="regressed"):
+        policy.advance(observe(2, groups=(GROUPS[2],), admission=3))
+
+
+def test_admission_unknown_never_claims_block_and_requires_positive_revision():
+    for changes in (
+        {"admission_revision": 0},
+        {"admission_revision": True},
+        {"admission_blocks": 32},
+        {"admission_blocks": True},
+        {"complete": False, "admission_blocks": 1},
+    ):
+        with pytest.raises(ValueError):
+            replace(observe(), **changes)

@@ -55,6 +55,32 @@ bool PlayerName(std::uintptr_t target,const fence::ActorBinding& parent,const fe
 NativeActor::Operation Result(O outcome,E entry=E::never_entered,L settlement=L::settled) noexcept {
     NativeActor::Operation result{};result.outcome=outcome;result.entry=entry;result.local_settlement=settlement;return result;
 }
+NativeActor::Operation Blocked(std::uint32_t blocks,const NativeActor::Observation& state={}) noexcept {
+    auto result=Result(O::deferred);result.admission_blocks=blocks;result.reason=wire::AdmissionReason(blocks);result.state=state;return result;
+}
+}
+std::uint32_t NativeActor::AdmissionBlocks(const Observation& state,bool owned_followup) noexcept {
+    std::uint32_t blocks{};
+    if(!state.ClearInitiation()&&!owned_followup){blocks|=admission::initiation;}
+    if(power::NativeUseInFlight()){blocks|=admission::native_use;}
+    if(pending_||request_||transfer_){blocks|=admission::local_action;}
+    if(state.target&&(!child_bound_||state.target!=reinterpret_cast<std::uintptr_t>(target_)
+        ||!Current(true))){blocks|=admission::foreign_target;}
+    return blocks;
+}
+bool NativeActor::ReadAdmission(std::uint32_t& blocks) noexcept {
+    blocks=0;if(running_||faulted_){return false;}running_=true;bool result=false;
+    __try{__try{result=ReadAdmissionImpl(blocks);}__finally{running_=false;}}
+    __except(EXCEPTION_EXECUTE_HANDLER){faulted_=true;blocks=0;}
+    return result;
+}
+bool NativeActor::ReadAdmissionImpl(std::uint32_t& blocks) noexcept {
+    blocks=0;Observation before{},after{};
+    if(!SceneCurrent()||!ActorIdentity()||!ReadState(before)){return false;}
+    const auto first=AdmissionBlocks(before);
+    if(!ReadState(after)||before.target!=after.target||before.mode!=after.mode||before.initiation!=after.initiation
+        ||first!=AdmissionBlocks(after)||!SceneCurrent()){return false;}
+    blocks=first;return true;
 }
 bool NativeActor::Owner() const noexcept {
     DWORD process{};return thread_&&GetCurrentThreadId()==thread_
@@ -150,7 +176,9 @@ bool NativeActor::Gate(void* value) noexcept {
         self.command_.action==wire::Action::use_item?self.item_receipt_.native_entered:self.power_receipt_.native_entered;
     if(!entered){Observation state{};
         if(!self.pre_entry_epoch_||power::InitiationEpoch()!=self.pre_entry_epoch_||!self.ReadState(state)
-            ||(!state.ClearInitiation()&&!state.initiation.Only(self.pre_entry_self_id_))){return false;}}
+            ||(!state.ClearInitiation()&&!state.initiation.Only(self.pre_entry_self_id_))){return false;}
+        const auto blocks=self.AdmissionBlocks(state,state.initiation.Only(self.pre_entry_self_id_));
+        if(blocks&~admission::local_action){return false;}}
     return true;
 }
 bool NativeActor::AppendGate(void* value) noexcept {
@@ -207,10 +235,13 @@ NativeActor::Operation NativeActor::Attach(const fence::ContextBinding& child,Ga
 }
 NativeActor::Operation NativeActor::SubmitImpl(){
     const bool child=wire::Any(command_.context_id);
-    if(power::NativeUseInFlight()||pending_){return Result(O::deferred);}
+    if(power::NativeUseInFlight()||pending_){return Blocked((power::NativeUseInFlight()?admission::native_use:0U)|(pending_?admission::local_action:0U));}
     stage_="current";if(!Current(child)){return Result(O::stale);}
     if(!child&&(command_.action==wire::Action::self_power||command_.action==wire::Action::use_item)){
-        if(command_.selector_index>=publication_.count||!RevalidatePublicationImpl(publication_)){return Result(O::stale);}
+        std::uint32_t current_blocks{};
+        if(!ReadAdmissionImpl(current_blocks)){return Blocked(0);}
+        if(current_blocks){return Blocked(current_blocks);}
+        if(command_.selector_index>=publication_.count||!RevalidatePublicationImpl(publication_)){return Blocked(0);}
         const auto& intent=publication_.actions[command_.selector_index].intent;
         if(intent.action_index!=command_.selector_index||intent.power_id!=command_.power_id){return Result(O::invalid);}
         if(command_.action==wire::Action::use_item){
@@ -232,17 +263,18 @@ NativeActor::Operation NativeActor::SubmitImpl(){
             &&definition==instant_definition_&&definition.seconds==0
             &&power::InitiationEpoch()==instant_self_epoch_&&Current(true);
     }
-    if((!state.ClearInitiation()&&!owned_followup)||(state.target&&(!child_bound_
-        ||state.target!=reinterpret_cast<std::uintptr_t>(target_)))){return Result(O::deferred);}
+    const auto blocks=AdmissionBlocks(state,owned_followup);
+    if(blocks){return Blocked(blocks,state);}
     power::InitiationDefinition self_definition{};
     const bool instant=command_.action==wire::Action::self_power&&child&&state.ClearInitiation()
         &&calls_.self_initiation(image_,scene_.actor,command_.power_id,self_definition)&&self_definition.seconds==0;
     if(!Current(child)){return Result(O::stale);}
     Observation final{};
-    if(!ReadState(final)||final!=state){return Result(O::deferred);}
+    if(!ReadState(final)||final!=state){return Blocked(0);}
+    const auto final_blocks=AdmissionBlocks(final,owned_followup);if(final_blocks){return Blocked(final_blocks,final);}
     pre_entry_epoch_=owned_followup?instant_self_epoch_:observed_epoch;
     pre_entry_self_id_=owned_followup?instant_self_id_:0;
-    if(!pre_entry_epoch_||power::InitiationEpoch()!=pre_entry_epoch_){return Result(O::deferred);}
+    if(!pre_entry_epoch_||power::InitiationEpoch()!=pre_entry_epoch_){return Blocked(0);}
     std::uintptr_t writer{},container{};stage_="writer";
     if(!Read(image_+0x16ab88c,writer)||!Read(writer+0x44,container)){return Result(O::unavailable);}
     stage_="dispatch";ClearInstant();
@@ -318,7 +350,7 @@ NativeActor::Operation NativeActor::Submit(const wire::Command& command) noexcep
     if(running_||faulted_||!wire::Valid(wire::Verb::submit,command)||!parent_bound_
         ||!wire::Bindings(command,parent_,wire::Any(command.context_id)?&child_:nullptr)
         ||(wire::Any(command.context_id)&&!child_bound_)){return Result(O::invalid);}
-    if(pending_||request_||transfer_){return Result(O::deferred);}
+    if(pending_||request_||transfer_){return Blocked(admission::local_action);}
     command_=command;running_=true;dispatched_=false;melee_receipt_={};power_receipt_={};item_receipt_={};item_state_={};
     pending_owned_followup_=false;pending_saw_initiation_=false;pending_epoch_=0;
     auto result=Guarded(2);running_=false;
@@ -433,11 +465,15 @@ NativeActor::Operation NativeActor::Guarded(unsigned operation,Admission gate,vo
 }
 actor_buffs::Unknown NativeActor::PublishImpl(const actor_buffs::Request& request,actor_buffs::Publication& out) noexcept {
     out={};publication_={};
-    if(!SceneCurrent()||!ActorIdentity()){return actor_buffs::Unknown::identity;}
+    std::uint32_t before{};
+    if(!ReadAdmissionImpl(before)){return actor_buffs::Unknown::identity;}
     if(!actor_buffs::Release(observation_state_)){faulted_=true;return actor_buffs::Unknown::inventory;}
     const actor_effects::Context context{image_,scene_.actor,scene_.identity,scene_.epoch,SceneGate,this};
-    const auto result=actor_buffs::Capture(context,request,observation_state_,out);
-    if(result==actor_buffs::Unknown::none){publication_=out;}return result;
+    auto result=actor_buffs::Capture(context,request,observation_state_,out);
+    std::uint32_t after{};
+    if(result==actor_buffs::Unknown::none&&(!ReadAdmissionImpl(after)||before!=after)){result=actor_buffs::Unknown::changed;}
+    if(result==actor_buffs::Unknown::none){out.admission_blocks=after;publication_=out;}else{out={};out.unknown=result;}
+    return result;
 }
 actor_buffs::Unknown NativeActor::Publish(const actor_buffs::Request& request,actor_buffs::Publication& out) noexcept {
     if(running_||faulted_){out={};return actor_buffs::Unknown::identity;}
@@ -456,6 +492,7 @@ bool NativeActor::RevalidatePublication(const actor_buffs::Publication& out) noe
 bool NativeActor::RevalidatePublicationImpl(const actor_buffs::Publication& out) noexcept {
     if(!SceneCurrent()||!ActorIdentity()){return false;}
     const actor_effects::Context context{image_,scene_.actor,scene_.identity,scene_.epoch,SceneGate,this};
-    return actor_buffs::Revalidate(context,observation_state_,out);
+    std::uint32_t blocks{};
+    return actor_buffs::Revalidate(context,observation_state_,out)&&ReadAdmissionImpl(blocks)&&blocks==out.admission_blocks;
 }
 }

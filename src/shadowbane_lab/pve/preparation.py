@@ -4,6 +4,7 @@ This module observes no memory and sends no input. The owning coordinator suppli
 complete, mutation-safe coverage and exact native action receipts. Publication
 ordering is not elapsed time; neither queueing nor a timer proves an active effect.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,8 +17,13 @@ def _positive(value: int, name: str, bits: int = 64) -> None:
 
 
 def _text(value: str, name: str) -> None:
-    if (not isinstance(value, str) or not value or value != value.strip()
-            or len(value) > 128 or any(ord(c) < 32 for c in value)):
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or len(value) > 128
+        or any(ord(c) < 32 for c in value)
+    ):
         raise ValueError(f"{name} requires bounded canonical text")
 
 
@@ -94,6 +100,7 @@ class PowerOperand:
 @dataclass(frozen=True, slots=True)
 class ItemOperand:
     """Already resolved inventory identity; native entry must retain/revalidate it."""
+
     item_key: tuple[int, int]
     item_token: str
     template_key: tuple[int, int]
@@ -120,9 +127,9 @@ class PreparationAction:
             _template_key(self.item_template)
 
     def matches(self, operand: PowerOperand | ItemOperand) -> bool:
-        return ((isinstance(operand, PowerOperand) and operand.power_id == self.power_id)
-                or (isinstance(operand, ItemOperand)
-                    and operand.template_key == self.item_template))
+        return (isinstance(operand, PowerOperand) and operand.power_id == self.power_id) or (
+            isinstance(operand, ItemOperand) and operand.template_key == self.item_template
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,14 +139,18 @@ class PreparationGroup:
     The canonical observer projects either active form as PRESENT. PARTIAL always
     suppresses reapplication, including a consumable's staggered effect records.
     """
+
     group_id: str
     alternatives: tuple[PreparationAction, ...]
 
     def __post_init__(self) -> None:
         _text(self.group_id, "group_id")
-        if (type(self.alternatives) is not tuple or not 1 <= len(self.alternatives) <= 16
-                or not all(isinstance(a, PreparationAction) for a in self.alternatives)
-                or len({a.action_id for a in self.alternatives}) != len(self.alternatives)):
+        if (
+            type(self.alternatives) is not tuple
+            or not 1 <= len(self.alternatives) <= 16
+            or not all(isinstance(a, PreparationAction) for a in self.alternatives)
+            or len({a.action_id for a in self.alternatives}) != len(self.alternatives)
+        ):
             raise ValueError("group requires bounded distinct immutable alternatives")
 
 
@@ -177,17 +188,29 @@ class PreparationObservation:
     complete: bool
     coverage: tuple[CoverageEvidence, ...]
     readiness: tuple[ReadinessEvidence, ...]
+    admission_revision: int
+    admission_blocks: int
     pending_applications: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         if not isinstance(self.actor, ActorIdentity) or type(self.complete) is not bool:
             raise ValueError("observation requires exact actor and explicit completeness")
         _positive(self.publication_epoch, "publication_epoch")
-        for values, kind, field in ((self.coverage, CoverageEvidence, "group_id"),
-                                    (self.readiness, ReadinessEvidence, "action_id")):
-            if (type(values) is not tuple or len(values) > 256
-                    or not all(isinstance(v, kind) for v in values)
-                    or len({getattr(v, field) for v in values}) != len(values)):
+        _positive(self.admission_revision, "admission_revision")
+        if type(self.admission_blocks) is not int or not 0 <= self.admission_blocks <= 31:
+            raise ValueError("admission blocks require known native flags")
+        if not self.complete and self.admission_blocks:
+            raise ValueError("unknown observation cannot assert admission facts")
+        for values, kind, field in (
+            (self.coverage, CoverageEvidence, "group_id"),
+            (self.readiness, ReadinessEvidence, "action_id"),
+        ):
+            if (
+                type(values) is not tuple
+                or len(values) > 256
+                or not all(isinstance(v, kind) for v in values)
+                or len({getattr(v, field) for v in values}) != len(values)
+            ):
                 raise ValueError("publication evidence must be bounded, typed and unique")
         if type(self.pending_applications) is not frozenset or len(self.pending_applications) > 32:
             raise ValueError("pending application history must be an immutable bounded set")
@@ -203,6 +226,7 @@ class PreparationProposal:
     group_id: str
     action: PreparationAction
     operand: PowerOperand | ItemOperand
+    admission_revision: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,22 +238,26 @@ class PreparationAcknowledgement:
     effect presence, remote uncertainty and elapsed time cannot. UNCERTAIN may
     coexist with that proof when remote application remains unknown.
     """
+
     proposal: PreparationProposal
     disposition: Disposition
     entry_state: EntryState
     local_settled: bool
 
     def __post_init__(self) -> None:
-        if (not isinstance(self.proposal, PreparationProposal)
-                or not isinstance(self.disposition, Disposition)
-                or not isinstance(self.entry_state, EntryState)
-                or type(self.local_settled) is not bool):
+        if (
+            not isinstance(self.proposal, PreparationProposal)
+            or not isinstance(self.disposition, Disposition)
+            or not isinstance(self.entry_state, EntryState)
+            or type(self.local_settled) is not bool
+        ):
             raise ValueError("acknowledgement requires typed receipt evidence")
         if self.disposition is Disposition.QUEUED:
             if self.entry_state is not EntryState.ENTERED:
                 raise ValueError("queued requires positive native entry")
-        elif (self.disposition is not Disposition.UNCERTAIN
-              and (self.entry_state is not EntryState.NEVER_ENTERED or not self.local_settled)):
+        elif self.disposition is not Disposition.UNCERTAIN and (
+            self.entry_state is not EntryState.NEVER_ENTERED or not self.local_settled
+        ):
             raise ValueError("definitive refusal requires no entry and local settlement")
 
 
@@ -256,9 +284,13 @@ class PreparationPolicy:
     """No default groups, native calls, timers, persistence or runtime activation."""
 
     def __init__(self, actor: ActorIdentity, groups: tuple[PreparationGroup, ...] = ()):
-        if (not isinstance(actor, ActorIdentity) or type(groups) is not tuple
-                or len(groups) > 32 or not all(isinstance(g, PreparationGroup) for g in groups)
-                or len({g.group_id for g in groups}) != len(groups)):
+        if (
+            not isinstance(actor, ActorIdentity)
+            or type(groups) is not tuple
+            or len(groups) > 32
+            or not all(isinstance(g, PreparationGroup) for g in groups)
+            or len({g.group_id for g in groups}) != len(groups)
+        ):
             raise ValueError("policy requires an exact actor and unique immutable groups")
         actions = [a for group in groups for a in group.alternatives]
         if len({a.action_id for a in actions}) != len(actions):
@@ -271,6 +303,7 @@ class PreparationPolicy:
         self._queued = False
         self._entered = False
         self._rejected: set[str] = set()
+        self._refused_at: dict[str, int] = {}
         self._applications: dict[str, int] = {}
         self._sequence = 0
         self._after_epoch = 0
@@ -291,48 +324,79 @@ class PreparationPolicy:
             self._fail("preparation actor identity changed")
         if self._last is not None and (
             observation.publication_epoch < self._last.publication_epoch
-            or (observation.publication_epoch == self._last.publication_epoch
-                and observation != self._last)
+            or observation.admission_revision < self._last.admission_revision
+            or (
+                observation.publication_epoch == self._last.publication_epoch
+                and observation != self._last
+            )
         ):
             self._fail("native publication regressed or changed without an epoch")
-        if (any(e.group_id not in self._group_ids for e in observation.coverage)
-                or not observation.pending_applications <= self._group_ids
-                or any(e.action_id not in self._actions for e in observation.readiness)):
+        if (
+            any(e.group_id not in self._group_ids for e in observation.coverage)
+            or not observation.pending_applications <= self._group_ids
+            or any(e.action_id not in self._actions for e in observation.readiness)
+        ):
             self._fail("publication references unconfigured preparation intent")
         for evidence in observation.readiness:
-            if (evidence.operand is not None
-                    and not self._actions[evidence.action_id].matches(evidence.operand)):
+            if evidence.operand is not None and not self._actions[evidence.action_id].matches(
+                evidence.operand
+            ):
                 self._fail("resolved operand differs from configured native identity")
         self._last = observation
-        coverage = ({e.group_id: e.state for e in observation.coverage}
-                    if observation.complete else {})
+        coverage = (
+            {e.group_id: e.state for e in observation.coverage} if observation.complete else {}
+        )
         for group in observation.pending_applications:
             self._applications.setdefault(group, observation.publication_epoch)
         for group, epoch in tuple(self._applications.items()):
-            if (coverage.get(group) is Coverage.PRESENT and observation.publication_epoch > epoch
-                    and group not in observation.pending_applications):
+            if (
+                coverage.get(group) is Coverage.PRESENT
+                and observation.publication_epoch > epoch
+                and group not in observation.pending_applications
+            ):
                 del self._applications[group]
-        status = tuple(GroupStatus(g.group_id, coverage.get(g.group_id, Coverage.UNKNOWN),
-                                   g.group_id in self._applications) for g in self.groups)
+        status = tuple(
+            GroupStatus(
+                g.group_id,
+                coverage.get(g.group_id, Coverage.UNKNOWN),
+                g.group_id in self._applications,
+            )
+            for g in self.groups
+        )
         if self._pending is not None:
             return PreparationDecision(self._pending, True, status, "native_action_pending")
         if not observation.complete:
             return PreparationDecision(None, False, status, "observation_unknown")
+        if observation.admission_blocks:
+            return PreparationDecision(None, False, status, "native_admission_blocked")
         if observation.publication_epoch <= self._after_epoch:
             return PreparationDecision(None, False, status, "fresh_publication_required")
         ready = {e.action_id: e for e in observation.readiness}
         for group in self.groups:
-            if (coverage.get(group.group_id) is not Coverage.MISSING
-                    or group.group_id in self._applications):
+            if (
+                coverage.get(group.group_id) is not Coverage.MISSING
+                or group.group_id in self._applications
+            ):
                 continue
             for action in group.alternatives:
                 evidence = ready.get(action.action_id)
-                if (evidence is None or evidence.state is not Readiness.READY
-                        or action.action_id in self._rejected):
+                if (
+                    evidence is None
+                    or evidence.state is not Readiness.READY
+                    or action.action_id in self._rejected
+                    or self._refused_at.get(action.action_id, 0) >= observation.admission_revision
+                ):
                     continue
                 self._sequence += 1
-                self._pending = PreparationProposal(self._sequence, self.actor,
-                    observation.publication_epoch, group.group_id, action, evidence.operand)
+                self._pending = PreparationProposal(
+                    self._sequence,
+                    self.actor,
+                    observation.publication_epoch,
+                    group.group_id,
+                    action,
+                    evidence.operand,
+                    observation.admission_revision,
+                )
                 self._queued = self._entered = False
                 return PreparationDecision(self._pending, False, status, "submit")
         reason = "covered" if all(s.coverage is Coverage.PRESENT for s in status) else "waiting"
@@ -341,8 +405,11 @@ class PreparationPolicy:
     def acknowledge(self, acknowledgement: PreparationAcknowledgement) -> None:
         if self._fault is not None:
             raise PreparationPolicyError(self._fault)
-        if (not isinstance(acknowledgement, PreparationAcknowledgement)
-                or self._pending is None or acknowledgement.proposal != self._pending):
+        if (
+            not isinstance(acknowledgement, PreparationAcknowledgement)
+            or self._pending is None
+            or acknowledgement.proposal != self._pending
+        ):
             self._fail("receipt does not match the exact pending preparation proposal")
         ack = acknowledgement
         if self._queued and ack.disposition not in (Disposition.QUEUED, Disposition.UNCERTAIN):
@@ -354,12 +421,22 @@ class PreparationPolicy:
             self._rejected.add(self._pending.action.action_id)
         if ack.disposition is Disposition.QUEUED:
             self._queued = True
-        if (ack.disposition is Disposition.QUEUED
-                or (ack.disposition is Disposition.UNCERTAIN
-                    and ack.entry_state is not EntryState.NEVER_ENTERED)):
+        if ack.disposition is Disposition.QUEUED or (
+            ack.disposition is Disposition.UNCERTAIN
+            and ack.entry_state is not EntryState.NEVER_ENTERED
+        ):
             # Possible remote application suppresses duplicates independently of
             # proven local completion. Other groups need not wait for its effect.
             self._applications.setdefault(self._pending.group_id, self._last.publication_epoch)
+        if (
+            ack.disposition in (Disposition.DEFERRED, Disposition.NOT_READY)
+            and ack.entry_state is EntryState.NEVER_ENTERED
+            and ack.local_settled
+        ):
+            # Journal writes and new transport snapshots are not a change in
+            # native entry eligibility. Fence only this refused action, leaving
+            # independently ready groups available after local settlement.
+            self._refused_at[self._pending.action.action_id] = self._pending.admission_revision
         if ack.local_settled:
             self._after_epoch = self._last.publication_epoch
             self._pending = None

@@ -9,11 +9,11 @@ namespace {
 bool Zero(const auto& value)noexcept{const auto* bytes=reinterpret_cast<const unsigned char*>(&value);
     for(std::size_t i=0;i<sizeof(value);++i){if(bytes[i]){return false;}}return true;}
 bool Facts(const Frame& f)noexcept{
-    if(f.unknown>10 || f.complete>1 || f.initiation_clear>1 || f.effect_count>256
+    if((f.admission_blocks&~admission::known) || f.unknown>10 || f.complete>1 || f.initiation_clear>1 || f.effect_count>256
         || f.readiness_count>32 || f.application_count>32 || f.descriptor_count>256
         || !Zero(f.reserved) || !Zero(f.padding)){return false;}
     if(!f.complete){return f.unknown && !f.effect_epoch && !f.effect_count && !f.readiness_count
-        && !f.application_count && !f.descriptor_count && !f.actor_mode && !f.initiation_clear
+        && !f.application_count && !f.descriptor_count && !f.actor_mode && !f.initiation_clear && !f.admission_blocks
         && Zero(f.effects) && Zero(f.readiness) && Zero(f.applications) && Zero(f.descriptors);}
     if(f.unknown || !f.effect_epoch || !f.readiness_count || f.actor_mode<1 || f.actor_mode>3){return false;}
     for(std::size_t i=0;i<f.effects.size();++i){const auto& e=f.effects[i];
@@ -58,6 +58,12 @@ bool Facts(const Frame& f)noexcept{
     }
     return true;
 }
+bool SameEligibility(const Frame& a,const Frame& b)noexcept{
+    return a.complete==b.complete && a.unknown==b.unknown && a.actor_mode==b.actor_mode
+        && a.initiation_clear==b.initiation_clear && a.admission_blocks==b.admission_blocks
+        && a.readiness_count==b.readiness_count
+        && !std::memcmp(a.readiness.data(),b.readiness.data(),sizeof(a.readiness));
+}
 bool Same(const Frame& a,const Frame& b)noexcept{
     constexpr auto offset=offsetof(Frame,effect_epoch);
     return !std::memcmp(reinterpret_cast<const char*>(&a)+offset,reinterpret_cast<const char*>(&b)+offset,sizeof(Frame)-offset);
@@ -75,23 +81,23 @@ bool Security(PSECURITY_DESCRIPTOR& result){
 }
 }
 bool Valid(const Header& h)noexcept{
-    return !std::memcmp(h.magic,"WBAPUB1",8)&&h.version==1&&h.bytes==mapping_size&&h.client_pid
+    return !std::memcmp(h.magic,"WBAPUB2",8)&&h.version==2&&h.bytes==mapping_size&&h.client_pid
         &&h.slot_bytes==slot_size&&h.slots==2&&!h.reserved&&h.client_creation&&fence::Any(h.actor_lifetime)
         &&fence::Any(h.manifest)&&h.actor_key[0]&&h.actor_key[1]==53&&fence::Address(h.actor_address)
         &&!h.reserved2&&h.scene&&h.active>=-1&&h.active<=1&&Zero(h.padding);
 }
 bool Valid(const Frame& f)noexcept{
-    return f.sequence>0&&!(f.sequence&1)&&f.revision&&fence::Any(f.snapshot)&&f.sampled_tick&&Facts(f);
+    return f.sequence>0&&!(f.sequence&1)&&f.revision&&f.admission_revision&&fence::Any(f.snapshot)&&f.sampled_tick&&Facts(f);
 }
 std::wstring Name(std::uint32_t pid,std::uint64_t creation,const Digest& manifest){
     if(!pid||!creation||!fence::Any(manifest)){return {};}
-    std::wstring result=L"Local\\WonderBane.ActorPublication.v1."+std::to_wstring(pid)+L"."+std::to_wstring(creation)+L".";
+    std::wstring result=L"Local\\WonderBane.ActorPublication.v2."+std::to_wstring(pid)+L"."+std::to_wstring(creation)+L".";
     constexpr wchar_t hex[]=L"0123456789abcdef";for(auto b:manifest){result+=hex[b>>4];result+=hex[b&15];}return result;
 }
 bool Encode(const selectors::Manifest& manifest,const actor_buffs::Publication& p,
     const actor_actions::ApplicationJournal& journal,Frame& out)noexcept{
     out={};if(!selectors::Valid(manifest)||!p.Complete()||journal.Faulted()||p.count!=manifest.count){return false;}
-    out.unknown=0;out.complete=1;out.effect_epoch=p.effect_epoch;out.actor_mode=p.actor_mode;out.initiation_clear=p.initiation_clear;
+    out.unknown=0;out.complete=1;out.effect_epoch=p.effect_epoch;out.actor_mode=p.actor_mode;out.initiation_clear=p.initiation_clear;out.admission_blocks=p.admission_blocks;
     const auto effects=p.Effects();if(effects.size()>out.effects.size()){return false;}out.effect_count=static_cast<std::uint32_t>(effects.size());
     for(std::size_t i=0;i<effects.size();++i){const auto& e=effects[i];auto& dest=out.effects[i];
         dest={e.descriptor_id,e.action_id,e.rank,e.native_class,e.source_tag,{e.source_words[0],e.source_words[1],e.source_words[2]},
@@ -115,11 +121,12 @@ bool Encode(const selectors::Manifest& manifest,const actor_buffs::Publication& 
             static_cast<std::uint32_t>(a.state),static_cast<std::uint32_t>(a.local_settled),static_cast<std::uint32_t>(a.queued),{}};}}
     if(!Facts(out)){out={};return false;}return true;
 }
-bool Writer::Open(const Header& header,std::uint64_t revision_floor)noexcept{
+bool Writer::Open(const Header& header,std::uint64_t revision_floor,std::uint64_t admission_floor)noexcept{
     const DWORD error=GetLastError();bool ok=false;PSECURITY_DESCRIPTOR descriptor{};
     try{
         if(!mapping_&&!handle_&&!faulted_&&Valid(header)&&header.active==-1
             &&revision_floor<static_cast<std::uint64_t>(std::numeric_limits<LONG64>::max()/2)
+            &&admission_floor<static_cast<std::uint64_t>(std::numeric_limits<LONG64>::max()/2)
             &&header.client_pid==GetCurrentProcessId()&&fence::Creation(GetCurrentProcess())==header.client_creation
             &&Security(descriptor)){
             SECURITY_ATTRIBUTES attributes{sizeof(attributes),descriptor,FALSE};const auto name=Name(header.client_pid,header.client_creation,header.manifest);
@@ -127,16 +134,31 @@ bool Writer::Open(const Header& header,std::uint64_t revision_floor)noexcept{
             const bool existing=GetLastError()==ERROR_ALREADY_EXISTS;
             if(handle_&&!existing){mapping_=static_cast<Mapping*>(MapViewOfFile(handle_,FILE_MAP_READ|FILE_MAP_WRITE,0,0,mapping_size));
                 if(mapping_){std::memset(mapping_,0,mapping_size);mapping_->header=header;
-                    if(revision_<revision_floor){revision_=revision_floor;}ok=true;}}
+                    if(revision_<revision_floor){revision_=revision_floor;}
+                    if(admission_revision_<admission_floor){admission_revision_=admission_floor;}ok=true;}}
         }
     }catch(...){ok=false;}
     if(descriptor){LocalFree(descriptor);}if(!ok){Close();}SetLastError(error);return ok;
+}
+bool Writer::TrackAdmission(const Frame& facts)noexcept{
+    if(!has_eligibility_||!SameEligibility(eligibility_,facts)){
+        if(admission_revision_==static_cast<std::uint64_t>(std::numeric_limits<LONG64>::max()/2)){
+            faulted_=true;if(mapping_){InterlockedExchange(&mapping_->header.active,-1);}return false;}
+        ++admission_revision_;eligibility_=facts;has_eligibility_=true;
+    }return true;
+}
+bool Writer::ObserveAdmission(std::uint32_t blocks)noexcept{
+    if(!mapping_||faulted_||!has_eligibility_||!eligibility_.complete||!blocks||(blocks&~admission::known)){return false;}
+    auto facts=eligibility_;facts.admission_blocks=blocks;return TrackAdmission(facts);
+}
+bool Writer::InvalidateAdmission()noexcept{
+    if(!mapping_||faulted_){return false;}Frame facts{};return TrackAdmission(facts);
 }
 bool Writer::Publish(const Frame& facts)noexcept{
     const DWORD error=GetLastError();if(!mapping_||faulted_){SetLastError(error);return false;}
     if(!Facts(facts)||write_sequence_==static_cast<std::uint64_t>(std::numeric_limits<LONG64>::max()/2)){
         faulted_=true;InterlockedExchange(&mapping_->header.active,-1);SetLastError(error);return false;}
-    Frame next=facts;bool ok=true;
+    Frame next=facts;bool ok=TrackAdmission(facts);next.admission_revision=admission_revision_;
     if(!has_last_||!Same(last_,next)){
         if(revision_==static_cast<std::uint64_t>(std::numeric_limits<LONG64>::max()/2)
             ||BCryptGenRandom(nullptr,next.snapshot.data(),static_cast<ULONG>(next.snapshot.size()),BCRYPT_USE_SYSTEM_PREFERRED_RNG)<0){ok=false;}
@@ -156,6 +178,6 @@ bool Writer::Unknown(std::uint32_t reason)noexcept{Frame frame{};frame.unknown=r
 bool Writer::Current(Frame& out)const noexcept{out={};if(!mapping_||!has_last_||faulted_){return false;}out=last_;return Valid(out);}
 void Writer::Close()noexcept{
     const DWORD error=GetLastError();if(mapping_){InterlockedExchange(&mapping_->header.active,-1);UnmapViewOfFile(mapping_);mapping_=nullptr;}
-    if(handle_){CloseHandle(handle_);handle_=nullptr;}has_last_=false;SetLastError(error);
+    if(handle_){CloseHandle(handle_);handle_=nullptr;}has_last_=false;has_eligibility_=false;SetLastError(error);
 }
 }

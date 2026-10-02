@@ -4,62 +4,81 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Current shared source and deployment - October 1
+## Current shared source and deployment - October 2
 
 Start new development from freshly fetched `origin/main`, now
-`1517a61b512b10bafa54fe96815372ead33fcfe4` (PR #59 merge). Approved head
-`1ceead08748fe4160ac4e5623489b4c6f84c1504` passed all 15 hosted checks and merged
-at 23:04:23 UTC. Qualified package source
-`e8aec9942e84ef367593461b698fee9eb143e3aa` is retained in main; the later head
-changed only qualification/handoff documentation.
+`5c94808698fe8bfd2ca194a53e532a50b7cf344d` (PR #60 merge). Approved head
+`23f1674` passed all 15 hosted checks and merged at 00:17:59 UTC on October 2
+after explicit user approval. Qualified package source
+`1bbd536c791136e3d485cb935b7bc4482d0b1f5c` is retained in main; the later PR
+head records qualification and handoff documentation.
 
-Host **0.3.63** / native **1.8.43** are installed from `artifacts/b43/c34beb8b`.
+Host **0.3.64** / native **1.8.44** are installed from `artifacts/b44/9282f541`.
 Official client **1.3.38.13**, settings and job data remain in place. Installation
-verified 463 modules, 9,572 retained files and one DLL inventory change. Manager
-PID 6480 activated healthy; all five shortcuts and startup preflight passed.
-The initial launch verified the exact DLL in PID 5328. After the user restarted
-via the desktop launcher, the fresh receipt identified PID 8616, creation FILETIME
-`134353700194624995`, HWND `2687708`, at 23:13:44.4875369 UTC. Readiness subsequently
-observed an alive local actor, fresh scene 1, owner NONE and actor capability 0x80,
-with no cleanup pending. These are recorded observations, not enduring admission.
+verified 463 modules, 9,574 retained files and one DLL inventory change. Manager
+PID 7096 activated healthy; all five shortcuts and startup preflight passed.
+Launch at 00:23:54.8667615 UTC verified the qualified DLL in PID 7932, creation
+FILETIME `134353742281930705`, HWND `3015386`. Passive readiness observed an alive
+actor, owner NONE, fresh scene 1 and capabilities 129 (including actor protocol
+0x80). These are recorded observations, not enduring admission.
 
-The obsolete .62 host (2,100 files) and two .42 guest payload binaries were removed
-only after new activation and complete ownership/inventory checks, totaling
-50,366,340 bytes. Four obsolete host/share .42 binaries totaled 5,388,644 bytes.
-No rollback copies were retained. Twelve compact receipts and seven current
-installed-file hashes are preserved privately under
-`artifacts/bot-deploy/20261001-b43/receipts`. The initial export corresponds to
-PID 5328; it is historical evidence, not the current restarted process identity.
+The obsolete .63 host (2,116 files) and two .43 guest payload binaries were removed
+after verified new activation and exact ownership/inventory checks, totaling
+50,804,512 bytes. Four obsolete host/share binaries totaled 5,617,612 bytes.
+No rollback copies were retained. Twelve compact receipts and seven installed-file
+hashes are preserved privately under `artifacts/bot-deploy/20261001-b44/receipts`.
 
-The integrated [buff implementation](buff-preparation-20261001.md) is in main.
-Package qualification completed 82 stages with 110 indexed hashes, both native
-profiles, real movement/combat/actor IPC and original/prepared image probes.
-No live buff success is claimed yet. The active source receipt and acceptance lane
-uses `codex/buff-deployment-20261001` in the existing bot-integration worktree.
-Canonical `E:\Projects\shadowbane` is clean on main `1517a61`.
-The merged buff feature branch was retired locally and remotely after its tip was
-verified reachable from main and its checkout was free. The active integration
-worktree remains in use for acceptance and diagnostic tools.
+The integrated [buff implementation and startup repair](buff-preparation-20261001.md)
+are in main. Qualification verified 82 stages and 110 indexed artifacts, both
+native profiles, real movement/combat/actor IPC and original/prepared image probes.
+The combined candidate branch is `codex/buff-acceptance-20261002` in the reused
+bot-integration worktree.
+[PR #61](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/61)
+targets main and now contains the reviewed host/native admission repair plus the
+live acceptance and deployment records. Native checkpoint `5917d1c`, host
+checkpoint `c8c30c6`, and version checkpoint `a8325d8` are integrated. Candidate
+versions are host **0.3.65** / native **1.8.45**; they are not installed.
 
-**Active next item:** obtain separate PR #60 merge/install approval for the
-qualified .64/.44 effect-observer startup repair on
-`codex/buff-deployment-20261001`. Package source is
-`1bbd536c791136e3d485cb935b7bc4482d0b1f5c`, with 82 verified stages and 110
-indexed artifacts. Installed runtime remains .63/.43; fresh VM inspection found
-PID 8616 still running and the current manager healthy/idle. Close the game and
-reinspect the exact baseline before installation. The
-bounded run `actor-preparation-ce616a3df0e044c4859d64f888b6f8b4` issued four read-only
-REGISTER_SELECTORS requests with the same immutable request 2; all returned
-UNAVAILABLE. No OPEN_OWNER, ATTACH_CONTEXT or SUBMIT was issued. STOP_OWNER request
-3 confirmed NEVER_BOUND/CLOSED, and fresh readiness showed owner NONE with no
-cleanup pending. Passive inspection of the existing publication found UNKNOWN=2
-(effect capture), revision 1/sequence 8. This is historical diagnostic evidence,
-not current buff authority. See the [acceptance record](buff-preparation-20261001.md).
-Passive hook inspection and the source dependency audit identified the graphics
-hash cache being read before initialization. The repair starts that required
-service first, still inside the original synchronous client bootstrap.
-Automatic retaliation remains disabled. Any shared-source/runtime repair requires
-its own review and delivery gate before another live buff/NPC acceptance.
+The merged `codex/buff-deployment-20261001` branch was retired locally and remotely
+after tip `23f1674` was verified reachable from origin/main and no active checkout
+remained. The pushed `codex/buff-admission-20261002` source lane remains in the
+bot-runtime worktree for review and qualification. Its tip is included in PR #61;
+retire it after verified main integration when no active process needs that
+checkout. Canonical `E:\Projects\shadowbane` remains clean on main `5c94808`.
+
+**Active next item:** obtain new PR #61 merge/install approval for the qualified
+.65/.45 candidate. Exact package source
+`fc8b316781bba53605729a2bee3578a1ace3b10e` passed all 82 required stages,
+110 indexed artifact checks and all 15 hosted checks. The packaged host suite
+passed 4,835 tests with 37 skips; both native profiles and real publication,
+movement, combat and actor IPC passed. Independent verification checked all
+indexed hashes, wheel contents, versions and original/prepared client probes.
+Fresh VM inspection at 12:21:54 UTC found the game closed, .64/.44 installed,
+and manager 7096 healthy with no bound slots. Reinspect before installation;
+this is historical state, not continuing authorization. No new gameplay run
+has been issued.
+The second .64 bounded acceptance
+remains **not passed**. Canonical native publication reported potion and Precision
+coverage PRESENT; one exact NPC ATTACK queued and its child NATIVE_STOPPED
+cleanup completed. Beorc Rune received 29 DEFERRED/NEVER_ENTERED/SETTLED replies,
+then the helper stopped at its 32-submission bound. These were refused proposals,
+not 29 casts. Final parent LOCAL_RELEASED was confirmed, with no list entries and
+no watchdog timeout; that receipt still reported a combat target and action state
+2, so it is not native-idle proof. No new gameplay run is pending.
+
+The preserved evidence is `artifacts/bot-deploy/20261001-b44/live-v2-evidence`;
+[the buff record](buff-preparation-20261001.md#644-second-live-acceptance)
+contains hashes and the exact limits. Full buff coverage, expiry/refresh, potion
+application overlap, NPC death, server kill credit and skill consumption remain
+unproved by this run. The earlier private camp-filter failure remains separately
+preserved under `first-live-evidence`. Automatic retaliation remains disabled.
+
+The historical .63 run failed earlier: four same-request registrations returned
+UNAVAILABLE without OPEN, ATTACH or SUBMIT. Passive hook inspection confirmed
+pristine effect hooks; the graphics identity cache had been read before startup
+initialized it. The installed .64 repair starts that required service first while
+still inside the original synchronous client bootstrap. See the
+[full acceptance record](buff-preparation-20261001.md).
 
 ## Previous .62/.42 live evidence
 

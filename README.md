@@ -4,33 +4,37 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`, currently PR #59 merge
-`1517a61b512b10bafa54fe96815372ead33fcfe4`. Installed host **0.3.63** / native
-**1.8.43** use qualified source `e8aec99` with official client **1.3.38.13**.
+Start new work from freshly fetched `origin/main`, currently PR #60 merge
+`5c94808698fe8bfd2ca194a53e532a50b7cf344d`. Installed host **0.3.64** / native
+**1.8.44** use qualified source `1bbd536` with official client **1.3.38.13**.
 
-[PR #59](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/59)
-merged after all 15 hosted checks passed at approved head `1ceead0`. The installed
-buff module shares one native actor owner with NPC/manual-player combat. Native
-coverage and readiness govern automatic preparation; pending potion application
-does not block an independent locally ready action. See the
-[buff contract and qualification receipt](docs/buff-preparation-20261001.md).
+[PR #60](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/60)
+merged after user approval and all 15 hosted checks passed at approved head
+`23f1674`. It fixes cold-start effect observer initialization while preserving
+exact image and original bootstrap checks. The buff module shares one native
+actor owner with NPC/manual-player combat. See the
+[buff contract and deployment receipt](docs/buff-preparation-20261001.md).
 
-Installation verified 463 modules, 9,572 preserved files, one DLL inventory change,
+Installation verified 463 modules, 9,574 preserved files, one DLL inventory change,
 healthy manager activation, five shortcuts and startup preflight. The obsolete
-.62 host and .42 deployment payloads were removed without retained rollback copies.
+.63 host and .43 deployment payloads were removed without retained rollback copies.
 Settings, jobs and diagnostic evidence remain in place. The desktop Vendor Test
-and Modded Client shortcuts use the updated launcher; dashboard shortcuts use .63.
+and Modded Client shortcuts use the updated launcher; dashboard shortcuts use .64.
 
-**Active next item:** obtain merge/install approval for the qualified .64/.44
-effect-observer startup repair in PR #60, then close the client and install it. Registration returned unavailable before any
-buff or attack submission; exact cleanup and subsequent idle readiness passed.
-Source/package qualification and installation do not prove live buff application
-or expiry. Automatic retaliation remains disabled. The earlier .62
-[bounded combat recovery acceptance](docs/native-owner-liveness-20261001.md)
-remains a separate result and need not be repeated as buff acceptance.
+**Active next item:** obtain merge/install approval for the qualified host
+0.3.65 / native 1.8.45 admission repair in PR #61. Exact source `fc8b316` passed
+82 package stages, 110 artifact checks and all 15 hosted checks. The second .64
+acceptance remains **not passed**: canonical
+native publication reported Greater Concoction Potion and Precision coverage
+PRESENT, one NPC attack queued, and child NATIVE_STOPPED cleanup completed. Beorc
+Rune then received 29 never-entered deferrals before the private helper's total
+32-submission bound stopped the run. Parent LOCAL_RELEASED cleanup completed;
+this does not prove actor idle or all requested buff coverage. No new gameplay
+run is pending. Automatic retaliation remains disabled. See the
+[bounded evidence and limits](docs/buff-preparation-20261001.md#644-second-live-acceptance).
 
 The deployment-receipt/live-acceptance lane uses
-`codex/buff-deployment-20261001` in the existing integration worktree. Read the
+`codex/buff-acceptance-20261002` in the existing integration worktree. Read the
 [branch map](docs/git-branch-map.md) before selecting a development base and the
 [contributor workflow](CONTRIBUTING.md) before starting a new task. The
 [session-boundary audit](docs/retaliation-session-boundary-20261001.md) records

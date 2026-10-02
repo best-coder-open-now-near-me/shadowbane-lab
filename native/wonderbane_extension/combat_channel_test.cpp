@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
         v::wire::Receipt receipt{}; std::memcpy(&receipt, &last_result().movement, sizeof(receipt)); return receipt;
     };
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
-    assert(!(storage.header.capability_flags & kNativeActorCapability));
+    assert(!(storage.header.capability_flags & (kNativeActorCapability|kNativeActorAdmissionCapability)));
     publish(v::wire::Verb::submit);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
     assert(!v::Take() && last_result().stage == static_cast<unsigned>(ClientActionResultStage::failed));
@@ -157,6 +157,7 @@ int main(int argc, char** argv) {
     publish(v::wire::Verb::submit);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
     assert(kNativeActorCapability==128U && (storage.header.capability_flags&kNativeActorCapability));
+    assert(kNativeActorAdmissionCapability==256U && (storage.header.capability_flags&kNativeActorAdmissionCapability));
     assert(!(storage.header.capability_flags & (8U|16U|32U|64U)));
     assert(runtime.combat_pending && !runtime.pending && storage.header.command_read_sequence == 1);
     auto command = v::Take(); assert(command && command->lease->Current(now));
@@ -178,7 +179,7 @@ int main(int argc, char** argv) {
     outer::test_ready = false;
     publish(v::wire::Verb::cancel_action);
     assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
-    assert(!(storage.header.capability_flags & kNativeActorCapability));
+    assert(!(storage.header.capability_flags & (kNativeActorCapability|kNativeActorAdmissionCapability)));
     command = v::Take(); assert(command && command->verb == v::wire::Verb::cancel_action);
     receipt = v::wire::Reply(command->command, command->verb, v::wire::Outcome::pending);
     receipt.flags = v::wire::owner_cleanup; receipt.owner_phase = v::wire::Phase::stopping;

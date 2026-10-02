@@ -54,6 +54,14 @@ int Ipc(){
     std::string command;
     while(std::getline(std::cin,command)){
         if(command=="same"){if(!writer.Publish(sample)){return 4;}}
+        else if(command=="journal"){
+            sample.application_count=1;auto& a=sample.applications[0];a.intent.fill(1);a.command.fill(2);
+            ++a.command[0];a.submitted_revision=writer.Revision();a.local_settled=1;
+            if(!writer.Publish(sample)){return 9;}
+        }
+        else if(command=="occupied"){sample.admission_blocks=8;if(!writer.Publish(sample)){return 10;}}
+        else if(command=="clear"){sample.admission_blocks=0;if(!writer.Publish(sample)){return 11;}}
+        else if(command=="race"){if(!writer.ObserveAdmission(8)){return 12;}sample.admission_blocks=0;if(!writer.Publish(sample)){return 13;}}
         else if(command=="reuse"){sample.readiness[0].readiness=5;if(!writer.Publish(sample)){return 5;}}
         else if(command=="unknown"){if(!writer.Unknown(6)){return 6;}}
         else if(command=="close"){writer.Close();std::cout<<"closed\n"<<std::flush;return 0;}
@@ -78,6 +86,22 @@ int main(int argc,char** argv){
     Check(mapping&&mapping->header.active>=0&&p::Valid(mapping->frames[static_cast<std::size_t>(mapping->header.active)]),"published slot validates across actual mapping");
     Check(writer.Publish(sample),"identical facts refreshed");p::Frame same{};writer.Current(same);
     Check(same.revision==first.revision&&same.snapshot==first.snapshot&&same.sequence>first.sequence,"content identity stable but transport sequence advances");
+    sample.application_count=1;auto& history=sample.applications[0];history.intent.fill(1);history.command.fill(2);
+    history.submitted_revision=first.revision;history.local_settled=1;
+    Check(writer.Publish(sample),"never-entered journal record published");p::Frame history_frame{};writer.Current(history_frame);
+    Check(history_frame.revision>same.revision&&history_frame.admission_revision==same.admission_revision,
+        "journal-only revision cannot create renewed admission");
+    for(unsigned i=0;i<32;++i){history.command[0]=static_cast<std::uint8_t>(i+3);history.submitted_revision++;
+        Check(writer.Publish(sample),"journal record replacement remains valid");p::Frame fresh{};writer.Current(fresh);
+        Check(fresh.admission_revision==same.admission_revision,"repeated no-entry history never advances admission");}
+    Check(writer.ObserveAdmission(wonderbane::extension::actor::admission::foreign_target),"actual failed target predicate recorded privately");
+    p::Frame prior{};writer.Current(prior);Check(!prior.admission_blocks,"historical failed predicate is not published as current occupancy");
+    Check(writer.Publish(sample),"actual clear capture after raced block");p::Frame clear{};writer.Current(clear);
+    Check(clear.admission_revision>prior.admission_revision+1,"observed block then clear allows a genuinely recovered retry");
+    Check(writer.InvalidateAdmission()&&writer.Publish(sample),"unknown admission must be positively recaptured");
+    p::Frame recovered{};writer.Current(recovered);Check(recovered.admission_revision>clear.admission_revision,"unknown recovery advances admission");
+    sample.admission_blocks=wonderbane::extension::actor::admission::foreign_target;
+    Check(writer.Publish(sample),"real occupancy can coexist with resource-ready metadata");sample.admission_blocks=0;
     sample.readiness[0].readiness=5;Check(writer.Publish(sample),"readiness change published");p::Frame changed{};writer.Current(changed);
     Check(changed.revision>same.revision&&changed.snapshot!=same.snapshot,"readiness change advances full content identity");
     Check(writer.Unknown(6),"failed capture publishes unknown");p::Frame unknown{};writer.Current(unknown);
@@ -87,8 +111,9 @@ int main(int argc,char** argv){
     writer.Close();Check(mapping->header.active==-1,"closure invalidates retained reader view");
     if(mapping){UnmapViewOfFile(mapping);}if(reader){CloseHandle(reader);}
     h.manifest[0]^=1;p::Writer replacement;
-    Check(replacement.Open(h,100)&&replacement.Publish(Sample()),"new manifest preserves retained actor revision high-water");
-    p::Frame migrated{};Check(replacement.Current(migrated)&&migrated.revision==101&&replacement.Revision()==101,
+    Check(replacement.Open(h,100,200)&&replacement.Publish(Sample()),"new manifest preserves retained actor revision high-water");
+    p::Frame migrated{};Check(replacement.Current(migrated)&&migrated.revision==101&&replacement.Revision()==101&&migrated.admission_revision==201,
         "new mapping revision follows prior application history");replacement.Close();
+    p::Writer exhausted;Check(!exhausted.Open(h,0,UINT64_MAX),"admission generation overflow never wraps into an old permission");
     std::printf("publication: %u checks, %u failures\n",checks,failures);return failures?1:0;
 }

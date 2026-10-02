@@ -30,6 +30,7 @@ public:
         wire::LocalSettlement local_settlement = wire::LocalSettlement::settled;
         std::uint32_t history{}; // outbound_queued / uncertain_history only
         wire::Reason reason = wire::Reason::none;
+        std::uint32_t admission_blocks{};
         wire::Closure closure = wire::Closure::none;
         Observation state{};
         std::array<char,72> detail{};
@@ -52,6 +53,7 @@ public:
     Operation Poll() noexcept;
     bool PendingCommand(wire::Command&) const noexcept;
     bool ReadState(Observation&) const noexcept;
+    bool ReadAdmission(std::uint32_t&) noexcept;
     bool CombatTargetCurrent() const noexcept;
     // Read-only continuation of the retained child: no UI selection requirement.
     // Null AF8 is valid for a pending cast; a non-null foreign AF8 is not.
@@ -97,7 +99,9 @@ private:
     bool ClearCxx() noexcept;
     actor_buffs::Unknown PublishImpl(const actor_buffs::Request&,actor_buffs::Publication&) noexcept;
     bool RevalidatePublicationImpl(const actor_buffs::Publication&) noexcept;
+    bool ReadAdmissionImpl(std::uint32_t&) noexcept;
     void ClearInstant() noexcept;
+    std::uint32_t AdmissionBlocks(const Observation&,bool owned_followup=false) noexcept;
     std::uintptr_t image_{};
     HWND window_{};
     DWORD thread_{};

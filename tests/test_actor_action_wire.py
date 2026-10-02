@@ -538,3 +538,38 @@ def test_one_closure_proof_cannot_discharge_a_different_lifecycle(scope, owner, 
     )
     with pytest.raises(ValueError, match="closure"):
         r.encode()
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        Reason.TARGET_OCCUPIED,
+        Reason.LOCAL_ACTION,
+        Reason.NATIVE_USE,
+        Reason.CHILD_CLEANUP,
+        Reason.ADMISSION_CHANGED,
+    ],
+)
+def test_typed_admission_refusal_requires_no_entry_and_exact_verb(reason):
+    _, _, _, queued = fixture()
+    refusal = replace(
+        queued,
+        outcome=Outcome.DEFERRED,
+        flags=OWNER_CLEANUP,
+        entry=Entry.NEVER_ENTERED,
+        application=Application.NONE,
+        reason=reason,
+    )
+    assert Receipt.decode(refusal.encode()) == refusal
+    assert Receipt.decode(replace(refusal, verb=Verb.ACTION_STATUS).encode()).reason == reason
+    for changes in (
+        {"verb": Verb.CANCEL_ACTION},
+        {"action": Action.NONE},
+        {"outcome": Outcome.UNAVAILABLE},
+        {"entry": Entry.ENTERED},
+        {"local_settlement": LocalSettlement.PENDING},
+        {"application": Application.PENDING},
+        {"flags": OWNER_CLEANUP | OUTBOUND_QUEUED},
+    ):
+        with pytest.raises(ValueError):
+            replace(refusal, **changes).encode()

@@ -23,6 +23,7 @@ from .movement_wire import Grant, Host, Owner
 
 VERSION = 3
 CAPABILITY = 0x80
+ADMISSION_CAPABILITY = 0x100
 NO_SELECTOR = 0xFFFFFFFF
 ZERO_DIGEST = bytes(32)
 _COMMAND = struct.Struct("<16sQ216s16s16s16s32s32s10I32sQ16sI124s")
@@ -109,6 +110,11 @@ class Reason(IntEnum):
     STANCE = 4
     OBSERVATION = 5
     ITEM = 6
+    TARGET_OCCUPIED = 7
+    LOCAL_ACTION = 8
+    NATIVE_USE = 9
+    CHILD_CLEANUP = 10
+    ADMISSION_CHANGED = 11
 
 
 OWNER_CLEANUP = 1
@@ -523,6 +529,22 @@ class Receipt:
                 or history
             ):
                 raise ValueError("definitive action refusal requires no entry")
+        if self.reason in (
+            Reason.TARGET_OCCUPIED,
+            Reason.LOCAL_ACTION,
+            Reason.NATIVE_USE,
+            Reason.CHILD_CLEANUP,
+            Reason.ADMISSION_CHANGED,
+        ) and (
+            self.verb not in (Verb.SUBMIT, Verb.ACTION_STATUS)
+            or self.action is Action.NONE
+            or self.entry is not Entry.NEVER_ENTERED
+            or self.local_settlement is not LocalSettlement.SETTLED
+            or history
+            or self.application is not Application.NONE
+            or self.outcome is not Outcome.DEFERRED
+        ):
+            raise ValueError("invalid typed admission refusal")
         if self.outcome is Outcome.POWER_REUSE_BLOCKED:
             if (
                 self.action not in (Action.CAST, Action.SELF_POWER)

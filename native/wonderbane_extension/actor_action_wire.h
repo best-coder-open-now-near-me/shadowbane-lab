@@ -1,6 +1,7 @@
 #pragma once
 #include "actor_action_fence.h"
 #include "movement_wire.h"
+#include "actor_admission.h"
 namespace wonderbane::extension::actor::wire {
 namespace m=::wonderbane::extension::movement;
 using Digest=fence::Digest;using Id=fence::Id;
@@ -14,8 +15,8 @@ enum class LocalSettlement:std::uint32_t { unknown,pending,settled };
 enum class Application:std::uint32_t { none,pending,observed,unknown };
 enum class Closure:std::uint32_t { none,never_bound,native_stopped,scene_retired,history_expired,local_released };
 enum class ClosureScope:std::uint32_t { none,owner,context };
-enum class Reason:std::uint32_t { none,power_reuse,recovery,initiation,stance,observation,item };
-constexpr std::uint32_t capability=0x80,no_selector=UINT32_MAX;
+enum class Reason:std::uint32_t { none,power_reuse,recovery,initiation,stance,observation,item,target_occupied,local_action,native_use,child_cleanup,admission_changed };
+constexpr std::uint32_t capability=0x80,admission_capability=0x100,no_selector=UINT32_MAX;
 enum Flag:std::uint32_t { owner_cleanup=1,context_cleanup=2,outbound_queued=4,uncertain_history=8,application_pending=16 };
 #pragma pack(push,1)
 struct Command {
@@ -41,6 +42,11 @@ static_assert(sizeof(Command)==576&&offsetof(Command,request)==240);
 static_assert(offsetof(Command,manifest_digest)==392&&offsetof(Command,version)==448);
 static_assert(sizeof(Receipt)==384&&offsetof(Receipt,command_digest)==296&&offsetof(Receipt,version)==328);
 using fence::Any;
+inline Reason AdmissionReason(std::uint32_t blocks) noexcept {
+    return blocks&admission::child_cleanup?Reason::child_cleanup:blocks&admission::local_action?Reason::local_action:
+        blocks&admission::native_use?Reason::native_use:blocks&admission::foreign_target?Reason::target_occupied:
+        blocks&admission::initiation?Reason::initiation:Reason::admission_changed;
+}
 inline bool Zero(const auto& value) noexcept{return m::wire::Zero(&value,sizeof(value));}
 inline bool Owned(Phase p) noexcept{return p==Phase::bound||p==Phase::stopping||p==Phase::blocked;}
 inline bool Closed(Phase p) noexcept{return p==Phase::closed||p==Phase::retired;}
@@ -93,7 +99,7 @@ inline bool Valid(const Receipt& r) noexcept {
     if(r.version!=3||r.verb<Verb::open_owner||r.verb>Verb::register_selectors||r.action>Action::use_item
         ||r.outcome>Outcome::power_reuse_blocked||r.entry>Entry::entered||r.local_settlement>LocalSettlement::settled
         ||r.owner_phase>Phase::blocked||r.context_phase>Phase::blocked||r.closure>Closure::local_released
-        ||r.application>Application::unknown||r.reason>Reason::item||r.closure_scope>ClosureScope::context
+        ||r.application>Application::unknown||r.reason>Reason::admission_changed||r.closure_scope>ClosureScope::context
         ||!m::wire::Valid(r.host)||!r.window||r.window>UINT32_MAX||!Any(r.request)||!Any(r.command_digest)
         ||r.flags&~31U||r.combat_target_present>1||!ValidGrant(r.grant,parent)
         ||ActionVerb(r.verb)!=(r.action!=Action::none)
@@ -134,6 +140,9 @@ inline bool Valid(const Receipt& r) noexcept {
         if((r.action!=Action::cast&&r.action!=Action::self_power)||(r.verb!=Verb::submit&&r.verb!=Verb::action_status)
             ||r.reason!=Reason::power_reuse||r.owner_phase==Phase::unknown){return false;}
     }else if(r.reason==Reason::power_reuse){return false;}
+    if(r.reason>=Reason::target_occupied && ((r.verb!=Verb::submit&&r.verb!=Verb::action_status)||r.action==Action::none
+        ||r.entry!=Entry::never_entered||r.local_settlement!=LocalSettlement::settled||history
+        ||r.application!=Application::none||r.outcome!=Outcome::deferred)){return false;}
     return true;
 }
 inline bool Correlated(const Command& c,Verb v,const Receipt& r) noexcept {

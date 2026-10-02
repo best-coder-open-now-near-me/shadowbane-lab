@@ -1,6 +1,7 @@
 #pragma once
 #include "actor_effects_native.h"
 #include "actor_inventory_native.h"
+#include "actor_admission.h"
 #include <array>
 #include <cstdint>
 
@@ -69,6 +70,7 @@ struct Publication {
     std::uint64_t scene{}, effect_epoch{};
     std::uint32_t count{}, actor_mode{};
     bool initiation_clear{};
+    std::uint32_t admission_blocks{}; // NativeActor contextual guard, not resource readiness.
     std::array<ActionFacts,kMaxActions> actions{};
     bool Complete() const noexcept { return unknown==Unknown::none && effect_epoch && scene; }
     std::span<const actor_effects::Effect> Effects() const noexcept {

@@ -215,7 +215,7 @@ public:
                 if(std::memcmp(&a->command,&c,sizeof(c))){return Reply(c,v,O::invalid,p,x);}
                 if(!p||(wire::Any(c.context_id)&&!x)){return Expired(c,v);}
                 if(v==wire::Verb::cancel_action&&a->result.entry!=E::never_entered){StopScope(x?*x:*p,!x,invoker);}
-                const auto out=v==wire::Verb::cancel_action&&a->result.outcome==O::power_reuse_blocked?O::cancelled:a->result.outcome;
+                const auto out=v==wire::Verb::cancel_action&&(a->result.outcome==O::power_reuse_blocked||a->result.reason>=wire::Reason::target_occupied)?O::cancelled:a->result.outcome;
                 auto copy=a->result;if(out==O::cancelled){copy.reason=wire::Reason::none;}
                 return Reply(c,v,out,p,x,&copy);
             }
