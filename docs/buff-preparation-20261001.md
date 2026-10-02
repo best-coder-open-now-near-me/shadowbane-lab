@@ -737,3 +737,14 @@ The native correction must qualify heterogeneous inventory traversal separately
 from strict actionable-potion eligibility. No gameplay action was issued by this
 diagnostic. The host pending-action correction independently passed 37 focused
 tests and review; native inventory work is still in progress.
+
+
+A second independently reviewed passive census, qualified for the five exact
+primary ArcItem classes in the official image, completed across both current
+actor containers (11 objects, split 9 and 2). It found two plain ArcItem stacks
+for the already-reviewed potion template `[980066,0]`, with quantities 4 and 5
+and the required type 8 / flags 0x0a. The report is
+`artifacts/bot-deploy/20261002-b45/heterogeneous-inventory-observation.json`.
+This confirms the potions are represented in the observed inventory and the
+class restriction caused the earlier census failure. Passive rereads do not
+prove native locked lookup/retain or dispatch; no item was used by the census.
