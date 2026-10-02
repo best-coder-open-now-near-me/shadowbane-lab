@@ -40,7 +40,9 @@ The merged `codex/buff-deployment-20261001` branch was retired locally and
 remotely after tip `23f1674` was verified reachable from origin/main and no active
 checkout remained. The separate `codex/buff-admission-20261002` lane in bot-runtime
 contains the native/host admission repair in progress; it is outside main and is
-not installed. This documentation branch does not contain that repair.
+not installed. This documentation branch does not yet contain that repair. The
+planned delivery is to integrate the reviewed repair into PR #61, update its scope,
+and qualify the exact combined source before requesting merge/install approval.
 
 **Active next item:** diagnose the post-child-cleanup actor admission and retry
 feedback before any further gameplay run. The second .64 bounded acceptance
