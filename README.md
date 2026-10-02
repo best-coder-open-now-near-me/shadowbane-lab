@@ -4,46 +4,37 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`, currently the PR #58 merge
-`8fa16aa4d4d6da2dabf8afe2e26418048ac9fcd0`. Installed host **0.3.62** / native
-**1.8.42** use qualified source `7f37ff5` with official client **1.3.38.13**.
+Start new work from freshly fetched `origin/main`, currently PR #59 merge
+`1517a61b512b10bafa54fe96815372ead33fcfe4`. Installed host **0.3.63** / native
+**1.8.43** use qualified source `e8aec99` with official client **1.3.38.13**.
 
-[PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58)
-merged after all 15 hosted checks passed at approved head `3cc3101`. Its included
-[PR #57](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/57)
-receipt is also merged. Installation verified 455 modules, 9,571 preserved files,
-one DLL change, healthy manager activation, five shortcuts and startup preflight.
-The inspected obsolete .61 runtime and .41 payloads were removed without rollback
-copies; settings, jobs and diagnostic evidence remain preserved.
+[PR #59](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/59)
+merged after all 15 hosted checks passed at approved head `1ceead0`. The installed
+buff module shares one native actor owner with NPC/manual-player combat. Native
+coverage and readiness govern automatic preparation; pending potion application
+does not block an independent locally ready action. See the
+[buff contract and qualification receipt](docs/buff-preparation-20261001.md).
 
-The [native owner-liveness correction](docs/native-owner-liveness-20261001.md)
-is installed and passed bounded live acceptance: first-NPC native health zero,
-exact cleanup, later SEEKING, then a distinct second NPC with native reuse-blocked
-opener skip, queued ATTACK and terminal cleanup under the same Grant. No owner,
-list entry, error or watchdog remained. This proves the observed control/recovery
-path, not server kill credit, skill consumption or snare application.
-The earlier .61 run remains not passed: SELF_POWER queued, then a
-297 ms client update gap revoked ownership before ATTACK entered. Native cleanup
-was confirmed. That preserved failure is not a result for the new runtime.
+Installation verified 463 modules, 9,572 preserved files, one DLL inventory change,
+healthy manager activation, five shortcuts and startup preflight. The obsolete
+.62 host and .42 deployment payloads were removed without retained rollback copies.
+Settings, jobs and diagnostic evidence remain in place. The desktop Vendor Test
+and Modded Client shortcuts use the updated launcher; dashboard shortcuts use .63.
 
-Bot-integration owns `codex/native-buff-preparation-20261001` through
-[draft PR #59](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/59),
-now targeting main and incorporating PR #58. It records
-[automatic buff preparation](docs/buff-preparation-20261001.md); actor/effect/item
-authority remains under qualification, with no buff implementation or live claim.
-The merged owner-liveness and receipt branches were retired locally and remotely
-after ancestry checks; the clean runtime worktree is detached at `8fa16aa` for reuse.
-Active next item is buff effect/item/actor-authority qualification. Automatic
-retaliation remains disabled.
+**Active next item:** obtain merge/install approval for the qualified .64/.44
+effect-observer startup repair in PR #60, then close the client and install it. Registration returned unavailable before any
+buff or attack submission; exact cleanup and subsequent idle readiness passed.
+Source/package qualification and installation do not prove live buff application
+or expiry. Automatic retaliation remains disabled. The earlier .62
+[bounded combat recovery acceptance](docs/native-owner-liveness-20261001.md)
+remains a separate result and need not be repeated as buff acceptance.
 
-Read the [branch map](docs/git-branch-map.md) before selecting a development base,
-the [current bot qualification and live-test todos](docs/queued-skills-20261001.md),
-and the [contributor workflow](CONTRIBUTING.md) before starting a new task.
-Automatic retaliation remains disabled; the [offline session-boundary audit](docs/retaliation-session-boundary-20261001.md)
-records the remaining attribution and session guarantees. The
-[native effects audit](docs/native-combat-effects-20261001.md) records actor-owned
-effect paths and the remaining active-buff observation gaps.
-Earlier integration history and retained lanes are recorded in the
+The deployment-receipt/live-acceptance lane uses
+`codex/buff-deployment-20261001` in the existing integration worktree. Read the
+[branch map](docs/git-branch-map.md) before selecting a development base and the
+[contributor workflow](CONTRIBUTING.md) before starting a new task. The
+[session-boundary audit](docs/retaliation-session-boundary-20261001.md) records
+remaining retaliation attribution guarantees. Earlier lanes remain in the
 [integration inventory](docs/integration-status-20260923.md).
 
 `shadowbane-lab` is a deterministic simulation and bot-policy laboratory. It treats

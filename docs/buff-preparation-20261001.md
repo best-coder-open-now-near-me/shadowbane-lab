@@ -5,7 +5,7 @@
 The user authorized automatic application and refresh of missing Greater Concoction
 Potion, Precision, Beorc Rune, Transform and Defensive Stance effects. This record
 captures requirements, native read-only findings and the production ownership
-boundaries. **The complete native/host slice is implemented but not installed or
+boundaries. **The complete native/host slice is installed as .63/.43 but not yet
 live-qualified.** Shared actor ownership, canonical native observations, automatic
 preparation, saved intent and both NPC/manual-player runners are integrated.
 Independent review, regression suites and exact-source package qualification
@@ -267,13 +267,13 @@ listener and manager composition must use the same policy and observations.
    policy, settings migration and NPC/manual-player runner/status paths.
 3. Complete: independent review, complete regression suites, published integrated
    checkpoints `a03e729` / `e8aec99`, and exact-source .63/.43 package qualification.
-4. **Active:** prepare and review deployment and acceptance helper migration.
+4. Complete: prepare and independently review deployment/readiness/retirement helpers.
    Automatic approval review initially rejected creating the b43 verifier as
    outside prior .62/.42 approval. The user subsequently approved source-only
    preparation and reported the game closed; no merge/install is implied by
    that source-only approval.
-5. Obtain concrete approval to merge PR #59 and install the qualified package.
-6. Run bounded live acceptance against fresh character/item/effect evidence:
+5. Complete: the user approved merge/install; PR #59 merged and .63/.43 is installed.
+6. **Active:** finish bounded acceptance-helper review and run live acceptance against fresh character/item/effect evidence:
    potion overlap without repeat consumption, ready independent buffs, either-form
    coverage, expiry/refresh and target cleanup. Only qualified native effect
    observations prove application; retain unresolved outcomes honestly.
@@ -382,12 +382,130 @@ target context, local settlement and remote application. Old v2 acceptance helpe
 cannot be used with version-only edits. Source-only helper preparation was initially blocked by automatic review. The
 user explicitly approved that preparation and reported the game closed, so helper
 migration can proceed. Package generation and read-only receipt inspection
-completed independently. No VM files or live settings have been changed.
+completed independently. At that qualification checkpoint, no VM files or live
+settings had been changed. The subsequent installation is recorded below.
 
 A private Umbra intent JSON is schema/CLI/manifest validated under
 `artifacts/bot-buffs/20261001/umbra-buff-intent.json`, SHA-256
 `db8810268cf75acf6d55fb95eac9d9655868b019dde3ddcf02aa6fc7252946ea`.
 It enables five groups/six actions and preserves existing Shot to the Leg settings
 when applied through the buff-only settings option. It has not been saved to the
-live character. Installed .62/.42 remains in place; automatic retaliation remains
-disabled. Merge, installation and live buff acceptance are still outstanding.
+live character. At that checkpoint .62/.42 remained installed; subsequent merge
+and installation are recorded below. Live buff acceptance remains outstanding,
+and automatic retaliation remains disabled.
+
+## Installed .63/.43 and restarted-client boundary
+
+The user explicitly approved PR #59 merge/install after hosted checks. All 15
+checks passed at `1ceead0`; merge `1517a61` retains package source `e8aec99`.
+The separately reviewed deployment helpers verified the actual .62/.42 baseline,
+then installed 463 host modules while preserving 9,572 files. Exactly one client
+inventory record changed, for the new DLL. Manager 6480 activated healthy; all five
+shortcuts and startup preflight passed. The old .62 host and .42 payload/staging
+binaries were removed after exact ownership/hash checks; no rollback was retained.
+
+Initial PID 5328 loaded the qualified DLL at 23:11:43.8987094 UTC. The user then
+restarted the client through the updated desktop shortcut. Fresh launch receipt:
+PID 8616 / creation FILETIME 134353700194624995 / HWND 2687708, source `e8aec99`,
+DLL SHA `0807494a529c2c59dd15031a5eb6701926cc40a4e454167efa5c0aa87709e098`.
+Both Vendor Test and Modded Client shortcuts point to `launch-reviewed.ps1`;
+dashboard shortcuts point to `host-0.3.63/Scripts/pythonw.exe`. The user reported
+Umbra in world near NPCs; read-only readiness found actor capability 0x80, alive
+actor, owner NONE, fresh scene 1 and no cleanup pending. Revalidate before each
+live operation. This record does not claim a buff application or NPC action.
+
+Compact installation evidence under private `artifacts/bot-deploy/20261001-b43`
+includes twelve exported receipts and seven independently checked installed-file
+hashes. Initial exported launch/readiness receipts retain PID 5328 deliberately;
+they must not authorize the restarted PID 8616. The active bounded test will record
+its own exact identity and distinguish entry, local settlement, pending remote
+application, native effect presence, child closure and final parent closure.
+
+## First bounded .63/.43 acceptance: effect observation unavailable
+
+The approved run `actor-preparation-ce616a3df0e044c4859d64f888b6f8b4` revalidated
+Umbra in PID 8616 with the installed exact DLL and fresh idle scene. It did not
+pass: four REGISTER_SELECTORS reads reused request 2 and manifest digest
+`10862bd07353869c4178648d02da1e0108959d9d929f4d68b217fa5299fd45f2`; each returned
+UNAVAILABLE. There was no OPEN_OWNER, ATTACH_CONTEXT or SUBMIT. STOP_OWNER request
+3 confirmed owner CLOSED / NEVER_BOUND. The watchdog and unexpected-operation-stop
+flags were false; subsequent passive readiness confirmed owner NONE and no
+cleanup pending. No potion use, buff entry or NPC attack is claimed.
+
+A passive read of the existing native publication, without a new registration or
+producer, found revision 1, sequence 8, UNKNOWN=2 (effect capture), complete=false
+and zero factual/action/application counts. Its sampled tick 316601125 belongs to
+the failed requests; its age is not current buff authority. This separates the
+failure from selector mapping/open failure. The underlying effect-capture branch
+still needs diagnosis before another gameplay test. User-reported potion expiry
+is recorded as context, not as native coverage evidence.
+
+Private evidence remains under
+`artifacts/bot-deploy/20261001-b43/failed-registration-evidence`:
+
+| File | SHA-256 |
+| --- | --- |
+| acceptance.json | `b9aa5cd44014f3d4875d6cc27ea5e1d79df9ca8e28aa1738b65fcd542c671624` |
+| events.jsonl | `0f072495b1da0f09449242da2304717e1e7e9167681f2cef0aefcf9fbf92a918` |
+
+The private acceptance helper was corrected so a failed NPC runner cannot enter
+its later preparation-only phase. The original failure made one extra read-only
+registration in that phase; it sent no gameplay action. The revised helper and
+readiness tests passed 69 cases. Existing staged helper hashes were left intact;
+a revised live helper must be reviewed and pinned separately before use.
+
+## .64/.44 cold-start repair candidate
+
+The source audit identified a deterministic initialization dependency failure.
+`actor_effects::StartAtBootstrap` requires `GraphicsExecutableSha256Matches`, but
+Initialize called it before `StartGraphicsStatusPublication` populated the hash.
+The observer therefore rejected cold startup. Later graphics initialization could
+not establish effect history retroactively. Passive inspection of PID 8616
+confirmed all nine mutation CALL sites and all three effect virtual slots still
+contained their original client values; the prepared entrypoint matched and all
+20 observed effect records passed the diagnostic layout predicates. This matches
+the startup defect; it is not native absence authority.
+
+The candidate starts graphics publication before the observer, while the same
+synchronous prepared entrypoint still holds the original initializer return
+address. The diagnostics worker does not run native actor/effect code. Graphics
+failure skips observer installation, and late initialization retains its existing
+unavailable behavior. No hash, original-caller or native observation gate is
+weakened. The exported-initializer regression models an initially empty identity
+cache, verifies dependency order, duplicate initialization and failed-start retry.
+The separate synthetic effect fixture exercises the real public bootstrap entry:
+cold identity, late caller, failed image verification and mismatched verified base
+leave all hook sites pristine; initialized identity installs before entry. It does
+not substitute for private exact-image qualification. Focused startup/effect
+checks and 481 package-contract tests passed before the source checkpoint.
+Host 0.3.64 / native 1.8.44 completed the exact-source qualification below.
+Separate merge/install approval is still required. Installed .63/.43 is unchanged.
+
+## Qualified .64/.44 package awaiting approval
+
+Package `artifacts/b44/9282f541` was built from committed source
+`1bbd536c791136e3d485cb935b7bc4482d0b1f5c`. The full host suite passed 4,787 tests
+with 38 skips. Both native profiles passed 219 tests, with three private-image
+CTest placeholders covered by the explicit original/prepared image probes.
+Per-profile IPC passed 73 movement, 86 combat and 106 actor tests, with no IPC
+skips. Installed-wheel checks passed. All 82 package stages and 110 indexed
+artifact hashes were independently verified, including source archive identity,
+both version resources and the startup/public-bootstrap regressions. The two
+existing transparency diagnostics per profile retained their previously documented
+limitations; no new required gate failed.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Acceptance ZIP | `5d4d9b8ebdaf8795ee73135d0b0f614daf72caed1286a2df6bd0ce3bb2c1746f` |
+| Receipt | `ac09bcba3f9c20ce1ebcfb561ae937cf6f47ef27194df7d8b3b8fb9826238e7d` |
+| Full DLL | `94af80cd77835a8ea7efbeb892a880ee171f53e86c91d423064a942cec53b936` |
+| Host wheel | `de9e17d99bd04616f4bcb563f446c3f32c509239553ec02e86692becccf3866b` |
+
+Private deployment/acceptance helpers under `artifacts/bot-deploy/20261001-b44`
+were migrated from the installed .63/.43 baseline. Qualified pins and dependency
+hashes are fixed; 102 offline tests, 26 PowerShell parse checks and mocked exact-path
+retirement checks passed. No payload was applied or staged to the VM. Fresh read-only
+inspection at 23:53:27 UTC found game PID 8616, healthy idle manager 6480/parent500,
+and the exact .63/.43 installed identity. That running baseline is diagnostic;
+installation requires a fresh closed-client baseline and new approval. Settings,
+jobs and original client assets remain in place; no rollback artifacts were made.

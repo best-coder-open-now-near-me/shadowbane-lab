@@ -30,11 +30,17 @@ int effects_stops = 0, navigation_stops = 0, status_stops = 0, control_stops = 0
 DWORD telemetry_result = ERROR_ACCESS_DENIED, trace_result = ERROR_SUCCESS;
 int trace_stops = 0, targeted_starts = 0, targeted_stops = 0;
 DWORD targeted_result = ERROR_SUCCESS;
+DWORD graphics_result = ERROR_SUCCESS;
+bool graphics_identity_ready = false;
+int graphics_starts = 0;
 namespace actor_effects {
 int starts = 0;
 bool StartAtBootstrap(std::uintptr_t image,std::uintptr_t initializer_return) noexcept {
     assert(image==reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr)));
     assert(initializer_return && starts==targeted_starts);
+    // Model the actual graphics-owned SHA cache: it is empty at cold startup.
+    // The public observer requires that identity before it can install hooks.
+    assert(graphics_identity_ready && graphics_result == ERROR_SUCCESS);
     ++starts;
     return false; // Unsupported early observation cannot prevent ordinary startup.
 }
@@ -82,8 +88,12 @@ DWORD StartWorldMapCapture(HMODULE, const ProcessIdentity&) noexcept { return ER
 void StopWorldMapCapture() noexcept {}
 DWORD InitializeEventChannel(const ProcessIdentity&, std::uint32_t) noexcept { return ERROR_SUCCESS; }
 void ShutdownEventChannel() noexcept { ++event_stops; }
-DWORD StartGraphicsStatusPublication() noexcept { return ERROR_SUCCESS; }
-void StopGraphicsStatusPublication() noexcept { ++status_stops; }
+DWORD StartGraphicsStatusPublication() noexcept {
+    ++graphics_starts;
+    graphics_identity_ready = graphics_result == ERROR_SUCCESS;
+    return graphics_result;
+}
+void StopGraphicsStatusPublication() noexcept { ++status_stops; graphics_identity_ready = false; }
 DWORD StartGraphicsControl() noexcept { return ERROR_SUCCESS; }
 void StopGraphicsControl() noexcept { ++control_stops; }
 DWORD StartNavigationChannel(const ProcessIdentity&) noexcept { return ERROR_SUCCESS; }
@@ -110,13 +120,15 @@ int main() {
     using namespace wonderbane::extension;
     g_extension_module = GetModuleHandleW(nullptr);
     assert(SetEnvironmentVariableW(kPerformanceProfileEnvironment, L"disabled"));
+    assert(!graphics_identity_ready && graphics_starts == 0);
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS);
+    assert(graphics_identity_ready && graphics_starts == 1);
     assert(renderer_starts == 1 && telemetry_starts == 0 && renderer_stops == 0);
     assert(movement::starts == 1 && targeted_starts == 1 && targeted_stops == 0);
     assert(condemn::starts == 1 && condemn::stops == 0);
     assert(combat::starts == 1 && actor_effects::starts == 1);
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS && movement::starts == 1);
-    assert(actor_effects::starts == 1);
+    assert(actor_effects::starts == 1 && graphics_starts == 1);
     assert(DeleteFileW(g_heartbeat_path));
     InterlockedExchange(&g_state, static_cast<LONG>(WonderBaneExtensionState::uninitialized));
     targeted_result = ERROR_NOT_SUPPORTED; condemn::result = ERROR_NOT_SUPPORTED;
@@ -142,5 +154,18 @@ int main() {
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED && renderer_starts == 3);
     assert(targeted_starts == 3 && targeted_stops == 1);
     assert(condemn::starts == 3 && condemn::stops == 1);
+    // A fresh process whose identity publication fails must never attempt the
+    // pre-entry observer; retrying the failed initializer remains inert.
+    InterlockedExchange(&g_state, static_cast<LONG>(WonderBaneExtensionState::uninitialized));
+    assert(!graphics_identity_ready); // Prior failed initialization shut status down.
+    fail_heartbeat = false; graphics_result = ERROR_ACCESS_DENIED;
+    const int before_observer = actor_effects::starts;
+    const int before_graphics = graphics_starts;
+    const int before_targeted = targeted_starts;
+    assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED);
+    assert(graphics_starts == before_graphics + 1 && !graphics_identity_ready);
+    assert(actor_effects::starts == before_observer && targeted_starts == before_targeted);
+    assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED);
+    assert(graphics_starts == before_graphics + 1 && actor_effects::starts == before_observer);
     return 0;
 }

@@ -34,7 +34,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.8.43";
+constexpr char kExtensionVersion[] = "1.8.44";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -404,12 +404,6 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result == ERROR_SUCCESS) {
             result = PinExtensionModule();
         }
-        if (result == ERROR_SUCCESS && is_client && !kDiagnosticsOnly) {
-            // This observer requires the synchronous prepared entrypoint. A late
-            // initializer remains usable, but cannot publish buff absence.
-            (void)wonderbane::extension::actor_effects::StartAtBootstrap(
-                reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr)), initializer_return);
-        }
         if (result == ERROR_SUCCESS && world_map_supported) {
             result = wonderbane::extension::StartWorldMapCapture(
                 g_extension_module,
@@ -420,6 +414,14 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result == ERROR_SUCCESS && is_client) {
             result = wonderbane::extension::StartGraphicsStatusPublication();
             graphics_status_started = result == ERROR_SUCCESS;
+        }
+        if (result == ERROR_SUCCESS && is_client && !kDiagnosticsOnly) {
+            // Graphics startup synchronously establishes the exact executable
+            // hash required by this observer. We are still in the prepared
+            // entrypoint; original client code cannot run until we return.
+            // A late initializer remains usable without buff absence authority.
+            (void)wonderbane::extension::actor_effects::StartAtBootstrap(
+                reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr)), initializer_return);
         }
         if (result == ERROR_SUCCESS && is_client) {
             // Optional passive tracing cannot disable an otherwise working client.

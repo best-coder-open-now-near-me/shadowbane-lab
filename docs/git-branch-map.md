@@ -7,73 +7,69 @@ records in place. Historical backup/rollback requirements below are superseded.
 ## Current shared source and deployment - October 1
 
 Start new development from freshly fetched `origin/main`, now
-`8fa16aa4d4d6da2dabf8afe2e26418048ac9fcd0` (PR #58 merge). The normal project
-checkout is clean on this revision. Approved head `3cc3101` passed all 15 hosted
-checks; [PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58)
-merged October 1 at 20:29:16 UTC. Its included receipt
-[PR #57](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/57)
-was marked merged at 20:29:18 UTC. Exact package source
-`7f37ff53e181288ce1ae695f2e2699ecf2bb8ff2` is retained in main; documentation
-commits do not change the installed source stamp.
+`1517a61b512b10bafa54fe96815372ead33fcfe4` (PR #59 merge). Approved head
+`1ceead08748fe4160ac4e5623489b4c6f84c1504` passed all 15 hosted checks and merged
+at 23:04:23 UTC. Qualified package source
+`e8aec9942e84ef367593461b698fee9eb143e3aa` is retained in main; the later head
+changed only qualification/handoff documentation.
 
-Host **0.3.62** / native **1.8.42** are installed from qualified package
-`artifacts/b42/d87717cd`, retaining official client **1.3.38.13**. Installation
-verified 455 modules, 9,571 preserved files, one DLL inventory change, five
-shortcuts and startup preflight. Manager PID 8392 was healthy. Launch at
-20:34:42.8062291 UTC verified the exact DLL in PID 9380, creation FILETIME
-`134353604742065321`, HWND `2622084`. Fresh Umbra readiness showed owner NONE,
-scene 1; NPC preflight passed with two eligible candidates and health 95%.
-The subsequent bounded .62 live acceptance **passed**: exact first-NPC native
-health zero, cleanup, later SEEKING, distinct second NPC, native reuse-blocked
-opener skip, queued ATTACK and final cleanup under the same Grant. No retained
-owner/list entry, error, read failure, boundary rejection or watchdog remained.
-These recorded process observations are not continuing authorization; each action
-needs fresh identity and readiness.
-See the [ownership deployment receipt](native-owner-liveness-20261001.md).
+Host **0.3.63** / native **1.8.43** are installed from `artifacts/b43/c34beb8b`.
+Official client **1.3.38.13**, settings and job data remain in place. Installation
+verified 463 modules, 9,572 retained files and one DLL inventory change. Manager
+PID 6480 activated healthy; all five shortcuts and startup preflight passed.
+The initial launch verified the exact DLL in PID 5328. After the user restarted
+via the desktop launcher, the fresh receipt identified PID 8616, creation FILETIME
+`134353700194624995`, HWND `2687708`, at 23:13:44.4875369 UTC. Readiness subsequently
+observed an alive local actor, fresh scene 1, owner NONE and actor capability 0x80,
+with no cleanup pending. These are recorded observations, not enduring admission.
 
-The obsolete .61 host (2,100 files; 47,672,015 bytes) and two exact .41 guest payload
-binaries were removed, totaling 50,365,297 bytes. Four obsolete host/share staging
-binaries totaled 5,386,564 bytes. Settings, jobs and diagnostic evidence remain;
-no rollback copies were retained. Twelve compact receipts and seven installed-file
-hashes were verified under private `artifacts/bot-deploy/20261001-b42/receipts`.
+The obsolete .62 host (2,100 files) and two .42 guest payload binaries were removed
+only after new activation and complete ownership/inventory checks, totaling
+50,366,340 bytes. Four obsolete host/share .42 binaries totaled 5,388,644 bytes.
+No rollback copies were retained. Twelve compact receipts and seven current
+installed-file hashes are preserved privately under
+`artifacts/bot-deploy/20261001-b43/receipts`. The initial export corresponds to
+PID 5328; it is historical evidence, not the current restarted process identity.
 
-Bot-integration owns `codex/native-buff-preparation-20261001`, published in
-[draft PR #59](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/59)
-against main. Checkpoints `c752abe` and `4d133df` deliver retained native inventory,
-effect resolution, actor/context wire authority, semantic selector manifests,
-application history, lifecycle controller and canonical publication. The integrated
-source adds the production runtime, shared host owner, automatic buff refresh,
-NPC/manual-player runner composition and required package/hosted gates. The
-[buff preparation contract](buff-preparation-20261001.md) records behavior and
-remaining qualification. No buff runtime has been installed; PR #59 is not merged.
-The merged
-`codex/native-owner-liveness-20261001` and
-`codex/native-readiness-deployment-20261001` branch tips were verified in
-`origin/main` and both branches were deleted locally and remotely. The clean runtime
-worktree is detached at `8fa16aa` for reuse; bot-integration remains on the active
-buff branch. Do not switch an actively owned checkout. PR #50 remains closed
-as superseded; its branch is retained because its exact tip is not an ancestor
-of main.
+The integrated [buff implementation](buff-preparation-20261001.md) is in main.
+Package qualification completed 82 stages with 110 indexed hashes, both native
+profiles, real movement/combat/actor IPC and original/prepared image probes.
+No live buff success is claimed yet. The active source receipt and acceptance lane
+uses `codex/buff-deployment-20261001` in the existing bot-integration worktree.
+Canonical `E:\Projects\shadowbane` is clean on main `1517a61`.
+The merged buff feature branch was retired locally and remotely after its tip was
+verified reachable from main and its checkout was free. The active integration
+worktree remains in use for acceptance and diagnostic tools.
 
-Integrated source `e8aec9942e84ef367593461b698fee9eb143e3aa` (following
-`a03e729`) passed all 15 hosted checks and exact-source .63/.43 package
-qualification at private `artifacts/b43/c34beb8b`. All 110 indexed file hashes and
-82 stages were checked; package hashes and validation counts are recorded in the
-[buff qualification receipt](buff-preparation-20261001.md#exact-source-package-qualification).
-The active integration checkout remains on its published feature branch; canonical
-`E:\Projects\shadowbane` remains clean on main `8fa16aa`.
+**Active next item:** obtain separate PR #60 merge/install approval for the
+qualified .64/.44 effect-observer startup repair on
+`codex/buff-deployment-20261001`. Package source is
+`1bbd536c791136e3d485cb935b7bc4482d0b1f5c`, with 82 verified stages and 110
+indexed artifacts. Installed runtime remains .63/.43; fresh VM inspection found
+PID 8616 still running and the current manager healthy/idle. Close the game and
+reinspect the exact baseline before installation. The
+bounded run `actor-preparation-ce616a3df0e044c4859d64f888b6f8b4` issued four read-only
+REGISTER_SELECTORS requests with the same immutable request 2; all returned
+UNAVAILABLE. No OPEN_OWNER, ATTACH_CONTEXT or SUBMIT was issued. STOP_OWNER request
+3 confirmed NEVER_BOUND/CLOSED, and fresh readiness showed owner NONE with no
+cleanup pending. Passive inspection of the existing publication found UNKNOWN=2
+(effect capture), revision 1/sequence 8. This is historical diagnostic evidence,
+not current buff authority. See the [acceptance record](buff-preparation-20261001.md).
+Passive hook inspection and the source dependency audit identified the graphics
+hash cache being read before initialization. The repair starts that required
+service first, still inside the original synchronous client bootstrap.
+Automatic retaliation remains disabled. Any shared-source/runtime repair requires
+its own review and delivery gate before another live buff/NPC acceptance.
 
-**Active next item:** migrate and review source-only deployment and live-acceptance
-helpers for actor-v3. Automatic approval review initially rejected creating the new
-verifier as outside earlier .62/.42 approval; the user subsequently approved
-source-only preparation and reported the game closed. Source/package work is
-complete. After reviewed helper preparation,
-obtain separate concrete merge/install approval for PR #59, then run bounded live
-buff acceptance. No new merge or deployment is authorized by package qualification.
-The .62 run `npc-recovery-readiness-171aeadcf4c44bd19a38876e94c87ef4` already proves
-bounded combat recovery and reuse fallback. It does not prove buff application,
-second-NPC death, server kill credit or snare application. Automatic retaliation
-remains disabled.
+## Previous .62/.42 live evidence
+
+The .62 run `npc-recovery-readiness-171aeadcf4c44bd19a38876e94c87ef4` passed bounded
+combat recovery: first-NPC native health zero, exact cleanup, later SEEKING,
+distinct second NPC, native reuse-blocked opener skip, queued ATTACK and terminal
+cleanup under the same Grant. It did not prove second-NPC death, server kill credit,
+skill consumption or snare application. See the
+[ownership receipt](native-owner-liveness-20261001.md). That combat result is not
+live qualification of the newly installed buff module.
 
 ## Previous .61/.41 live evidence
 
