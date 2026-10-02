@@ -1,389 +1,138 @@
-# Camp-scoped PvE automation
+# Native PvE automation
 
-The live PvE slice repeatedly acquires nearby mobiles and attacks only a newly confirmed living
-target. The persistent `/pve` command runs continuously inside a spatial lease centered on the
-player's exact LT/LG when the command starts. Targets outside that camp radius are never admitted;
-an empty camp becomes an idle respawn wait, and drift is routed back to the anchor through the
-same terrain-seeded A* controller. Camp return uses hysteresis: the default lease starts a return
-only beyond 30 units and considers it complete inside 12 units, preventing boundary chatter. An
-unroutable A* request becomes a recoverable target/camp failure instead of terminating the whole
-session as an observation error. The one-shot command retains its bounded kill, encounter,
-recovery, and session limits for validation runs. Both modes consume exact player vitals and position,
-selected-target health, position, action state, local-player animation state, and native
-service-role identity. It also reads the complete loaded native character population without
-changing selection. Native message events are optional evidence;
-the persistent in-game command does not depend on a populated message HUD.
+The production runner uses registered native objects, exact process/actor lifetimes,
+and one shared native owner for preparation and combat. UI selection, hotbar
+bindings, HUD messages and combat-log text are not action or kill authority.
+The installed release and live qualification limits are recorded in the
+[buff preparation receipt](buff-preparation-20261001.md) and
+[branch map](git-branch-map.md). The latest buff acceptance is partial; the commands
+below describe the existing production interface, not authorization to repeat it.
 
-## Control loop
+## Control and ownership
 
-The controller progresses through `INITIALIZING`, `SEEKING`, `OPENING`, `ENGAGED`,
-`POST_KILL`, and, in continuous mode, `CAMP_IDLE`.
-It ranks all loaded, living, attack-eligible characters inside the camp by exact player distance.
-Only after choosing a target does it use `Target Next Mob`, stopping as soon as the selected
-opaque token matches that chosen character; a wrapped selection cycle marks only that candidate
-temporarily unavailable and advances to the next ranked one. Selection and the player's current
-action target remain separate observations, so melee commitment can continue while selection is
-prepared for a power. A kill must be confirmed by a
-typed native `TARGET_KILLED` event or exact selected-target health reaching zero before it
-counts or another target can be acquired. A zero-health acquisition candidate is treated as a
-corpse and is never attacked.
+Fresh registry-backed population identifies eligible NPCs by exact key and opaque
+lifetime token. The controller retains the admitted object across selection
+changes. Learned powers use native numeric IDs; SELF_POWER applies to the actor
+while preserving the encounter context, and ATTACK applies to the exact NPC.
+Native initiation and reuse admission decide whether a proposal may enter.
+Animation frame/index telemetry does not prove cast completion or interrupt safety.
 
-Every living candidate is also checked against the client-native `merchantData` presence marker
-and the `shopkeeper`, `banker`, `isTrainer`, and `isMinion` sparse flags. Protected characters
-participate in target-cycle accounting so the nearest-target scan can finish, but they are never
-admitted to the attack candidate set. A missing or incoherent identity snapshot withholds
-engagement. `merchantData` is presence-based rather than boolean; live 1.0.5 validation found it
-on `Lirak, Master Bard` even though that service NPC exposed neither `isTrainer` nor `shopkeeper`.
-If an otherwise stable candidate exposes an unreadable sparse-role table, the evidence trace
-marks its identity classification unavailable and the controller skips it. The failure remains
-fail-closed for combat while allowing the bounded target scan to continue.
+A correlated queued receipt proves client enqueue, not damage, skill consumption
+or server acceptance. Exact native health zero can confirm target death; it does
+not assign server kill credit. Missing objects, changed identity, lost authority
+and uncertain commands retain their cleanup obligations. Recovery requires the
+appropriate correlated native closure. Closing an NPC context may retain the
+shared parent for further preparation or another encounter. Parent LOCAL_RELEASED
+is distinct from a claim that the actor is idle.
 
-The live profile maps semantic operations to the installed client's captured native
-preferences:
+Configured buffs use canonical effect coverage and native readiness. Pending
+potion application suppresses duplicates without a fixed application sleep.
+Either configured Transform form satisfies its coverage group. Item queue,
+local settlement, remote application and effect presence remain separate facts.
+See the [buff contract](buff-preparation-20261001.md) for exact selectors and
+current acceptance gaps. No host timer fabricates buff success.
 
-- `client.pve.target_next_mobile` uses `;` (`Target Next Mob`, native action `188`); and
-- `client.pve.target_previous_mobile` uses `'` (`Target Previous Mob`, native action `189`) and
-  remains available to the controller's legacy bounded-selection fallback; and
-- `shadowbane.basic_attack` uses `Ctrl+A` (`Attack Selected`).
+## Profile and saved character settings
 
-`Clear Target` is native action `102`, but it had no key record in that capture, so the harness
-does not pretend it has a working clear-selection key. Inspect the current file without changing
-it before any live run:
+Use the installed host and a reviewed VM-local client profile for the current
+window geometry and native build. A live run requires both
+`"live_input_enabled": true` in that local profile and `--live`. Keep machine-local
+and live-enabled profiles out of Git. Profile action bindings retained for other
+adapters do not enable hotkey fallback in native PvE.
+
+Validate the local profile and read the current character settings using a fresh
+process ID; the example variables must point to the installed release and local
+files in the game VM:
 
 ```powershell
-$env:PYTHONPATH = "src"
-.\.venv\Scripts\python.exe -m shadowbane_lab.cli client inspect-hotkeys `
-  "C:\Users\admin\Downloads\WonderbaneClient\Wonderbane\Config\ArcanePref.cfg" `
-  --json
+$py = 'C:\ShadowbaneLab-Guided\vendor-1.8.3-bd08ffc\host-0.3.64\Scripts\python.exe'
+$profile = 'C:\path\to\reviewed-client-profile.json'
+$processId = 7932 # Replace with the freshly verified current client process.
+$env:PYTHONPATH = $null
+& $py -B -m shadowbane_lab.cli client validate-profile $profile --json
+& $py -B -m shadowbane_lab.cli client pve-settings --process-id $processId --json
 ```
 
-The controller deliberately does not toggle combat mode with `C`: combat mode is a stateful
-toggle and the current state is not yet part of the native observation contract. `Ctrl+A`
-is the client's direct attack-selected command and therefore avoids an unobserved toggle.
+`pve-settings` is scoped to the exact current server/character and saves with a
+revision check and final session validation. With no mutation flags it only shows
+settings. `--buff-config <reviewed.json>` persists typed intent, not proof that an
+item is owned, a power is learned or its effects are active; the native runner
+resolves those facts again. A buff-only settings update preserves the saved policy
+and opener. Umbra's authorized opener is Shot to the Leg (`563795161`), with basic
+policy; do not substitute a universal proc-Assassin/Shadow Touch configuration.
+The runner loads settings once at startup; editing settings does not reconfigure
+an already running operation.
 
-## Proc-Assassin policy
+## Run a finite encounter
 
-`--policy proc-assassin` is the guarded translation of the smart-camp policy. It accepts a
-target the game acquired automatically only after a fresh native player-hit record, then
-observes that target's native action queue. It uses rank-40 Shadow Touch once when the mob
-queues or begins an attack aimed at the local player and native mana is at least its verified
-55-point cost. When an explicitly acquired target is already within measured melee range, it
-sends `Ctrl+A` immediately. If neither participant deals damage, the controller watches the
-local player's native action sequence: it cycles a target after 1.5 seconds when the attack
-animation never begins, or after 2.5 seconds when an animation begins but still produces no
-hit. A newly auto-selected target is accepted only after the previous kill has been confirmed
-by the native message stream.
-
-The target-action profile is locked to the verified WonderBane executable hash and reads the
-selected `ArcCharacter` action-pending flag, current `ArcMotion` ID, impact marker, and
-target-of-target pointer. Live traces showed the queue transition 543-909 ms before the attack
-motion on the first calibrated target. A second live target confirmed that animation IDs and
-queue-to-impact timing vary by creature, and that a new queue may overlap the previous attack's
-lingering impact marker. The queue flag therefore has precedence and is the earliest interrupt
-trigger; verified motion IDs provide an additional windup signal. The policy never triggers on
-impact alone, never for an attack aimed elsewhere, and never more than once per mob. That
-per-target limit avoids spending Shadow Touch again during its verified 27-second stun-immunity
-effect.
-
-The first end-to-end bounded validation observed a queued attack aimed at the player, accepted
-the guarded Shadow Touch input, and measured the expected roughly 55-point native mana decrease
-on the next sample. That queued action returned to a non-impact motion without producing its own
-impact marker; the next queue arrived 12.3 seconds later and was correctly ignored by the
-once-per-target guard. This proves the native signal-to-semantic-input path on the calibrated
-client build; it does not claim every creature has identical animation timing.
-
-The same guarded `ArcCharacter`/`ArcMotion` layout is sampled for the local player. Each trace
-records player motion ID, action-pending flag, impact frame, selected action target, derived
-phase, action sequence, and exact motion-transition sequence. A targeted action or motion
-transition after dispatch proves that an attack animation started; unrelated player animations
-do not extend the target grace period. Live validation also showed that the local player's
-impact marker can linger while motion and targets change, so impact alone is neither treated as
-a fresh animation nor allowed to suppress recovery. There is not yet a separately decoded
-player-stun bit; actual LT/LG displacement—not the input dispatch—is the authority for whether
-a reposition succeeded.
-
-The current WonderBane 1.0.5 regression also exercised mixed town targets. A preselected Tree
-of Life was classified as a non-character and cycled without attack input; service characters
-were skipped by their native role data. A later run abandoned a nonresponsive 75-health Crab,
-kept its opaque token excluded, acquired a 10-health Turtle, normalized the client's signed
-overkill health to zero, and completed at the one-kill limit.
-
-The local-player animation regression then repeated that path with the native-state source. In
-the final bounded run, two 75-health targets showed targeted motion transitions from motion 15
-to motion 3 but no health exchange; they were excluded 2,500 and 2,563 ms after direct attack.
-A later 10-health target transitioned through the same motion evidence and reached exact native
-health zero, completing the one-kill run. The trace also confirmed that player impact-frame
-state lingered across multiple motion and target changes, which is why motion sequence—not an
-impact marker by itself—is the animation authority.
-
-Shadow Touch must have a real key mapping in the local client profile before this policy can
-run. The checked profile intentionally does not invent one; a proc-Assassin run fails before
-input if `shadowbane.assassin.shadow_touch` is absent. The dry-run replay exercises target
-cycle, automatic selection, attack interruption, automatic attack observation, and the bounded direct-attack
-fallback through the same guarded input compiler and executor without touching the VM.
-
-The bounded farming loop separates the total session bound from a per-encounter bound. The verified
-live target started 61 units away, `Attack Selected` closed to melee range, and automatic
-attacks removed about 2,400 of 5,526 health during the first 28 seconds. The former 30-second
-ceiling was therefore too short for that target. The default encounter allowance is now 120
-seconds, while the no-progress detector still retries or abandons stalled targets much sooner.
-After a confirmed kill, the controller waits for 75% health, 15% mana, and 25% stamina before
-acquiring another mob. A bounded run stops if those floors are not reached within 30 seconds.
-A continuous run keeps waiting—while the independent 50% health safety stop remains active—so
-a temporary mana or stamina deficit cannot end an otherwise healthy camp session.
-
-## Fail-closed behavior
-
-The run stops without issuing more input when any of these conditions occurs:
-
-- the foreground executable, title, window size, or DPI guard changes;
-- the independent `Ctrl+Shift+F12` emergency stop trips;
-- native process identity or executable hash validation fails;
-- three consecutive native observation polls fail pointer, health, identity, action, or resource validation;
-- exact player health reaches the 50-percent safety threshold;
-- the native message HUD reports player death or multiple ambiguous kills;
-- an input plan is rejected or interrupted.
-
-Bounded runs additionally stop when selection, recovery, acquisition, engagement, session,
-kill, or stalled-target limits are exceeded. Continuous runs turn those ordinary farming
-conditions into resumable states: a bad or changed target is temporarily excluded, an encounter
-timeout seeks another target, and an empty scan idles before trying the camp again. Failed target
-tokens expire after 30 seconds so respawns and transient client/server disagreement do not poison
-the session forever. A failed return route waits before replanning instead of producing a click loop.
-
-The runner never attacks a target that was already selected when it started. A stalled
-proc-Assassin selection gets a one-second grace for a fresh native hit, then the controller
-uses the verified Target Next Mob binding to acquire a different mobile. A stalled fight may
-retry the direct attack command twice. If the client still makes no combat progress, the
-proc-Assassin policy remembers that target for the rest of a bounded session, abandons it, and uses
-the verified Target Next Mob binding to seek a different mobile. It requires a new native
-target token before engaging again. Bounded runs permit at most four such retargets; continuous
-runs instead idle the camp and expire exclusions after the cooldown, so an unresponsive cluster
-cannot create a tight input loop or become permanently poisoned.
-
-If the player loses health within melee range while the selected target loses none, and the
-player is natively idle rather than animating, the controller can request at most two combat
-repositions per target. The approach layer tightens its arrival radius from 20 units to 3 and
-reuses the terrain-seeded weighted-A* and learned-obstacle recovery. Continued input without
-measured displacement does not count as successful recovery; the existing engagement and
-stalled-target bounds still terminate or retarget.
-
-A single torn native observation is not treated as a trustworthy state change. The runner
-withholds all input while retrying up to three consecutive polls and resets that count only
-after a complete native-state observation succeeds. Selection describes the target
-of a new input; it does not establish the target of an ongoing action. Engagement
-binds both an opaque process-bound token and native object key, and follows that
-exact object's health, position and eligibility in fresh population frames even
-after deselection. A reused pointer with a new key cannot inherit the engagement
-or a kill. Starting observation or changing UI selection does not require stopping
-an existing action, and projectile flight is not an idle-baseline requirement.
-The bot preserves unknown cast-target state instead of inferring it from selection. A third observation failure stops the run and records the reader error.
-
-HUD/log messages do not drive targeting, hit/progress, kill, player-death, or
-recovery decisions. Native health zero confirms the tracked object's death;
-health changes alone do not attribute a hit to the player. The observed combat
-pointer can attribute a native combat action to the tracked object, but does not
-identify every spell target. New attacks and powers require that the same object
-is still selected. Missing or ineligible objects, stalls, retargeting and stops
-retain the old engagement through explicit native cleanup. Recovery and target
-acquisition wait for the same owner's correlated cancellation acknowledgment.
-
-## Prepare a VM-local profile
-
-Copy `configs/wonderbane-pve.template.json` inside the game VM. Verify that the target
-window is exactly 1920 by 955 at DPI scale 1.0 and that the client reports the expected
-bindings. The verified WonderBane character hotbar has Shadow Touch (`ASS-013`) on F2;
-inspect the automatically resolved current-character config before enabling input:
+Choose a new evidence path, use the installed source, and focus the matching client
+during the guarded wait. `run-pve` selects the matching foreground client; it does
+not accept the `pve-settings` process-ID argument.
 
 ```powershell
-$env:PYTHONPATH = "src"
-.\.venv\Scripts\python.exe -m shadowbane_lab.cli client inspect-active-profile `
-  --json
-```
-
-Change only the local client-profile copy to:
-
-```json
-"live_input_enabled": true
-```
-
-Do not commit a live-enabled or machine-local profile. Validate it before use:
-
-```powershell
-$env:PYTHONPATH = "src"
-.\.venv\Scripts\python.exe -m shadowbane_lab.cli client validate-profile `
-  .\configs\wonderbane-pve.local.json --json
-```
-
-## Start from in-game chat
-
-The persistent foreground chat listener owns both travel and battle commands. Start it once
-inside the VM (or restart it after updating the repository):
-
-```powershell
-powershell.exe -NoProfile -File \\VBOXSVR\codexrepo\scripts\start-wonderbane-go-listener.ps1
-```
-
-With Shadowbane focused, submit `/pve` in game chat. The launcher configures that command for
-continuous operation inside a 120-unit radius around the starting LT/LG and the verified current
-Shadow Touch hotbar mapping. It uses native object state: the engaged object's
-health confirms death, fresh identity and authority exclude protected characters,
-and coherently selected target action state drives interrupts. Submit `/stop`, open chat,
-click a mouse button, or press
-`Ctrl+Shift+F12` to cancel it. `/stop` keeps the background listener alive for another `/pve`;
-the emergency hotkey shuts down the listener itself. Each `/pve` run writes a unique final
-`pve-chat-*.json` evidence artifact plus an incrementally flushed `pve-chat-*.events.jsonl` journal to
-`\\VBOXSVR\codexdiag`. Only the latest 2,000 steps are retained in RAM; the journal preserves
-the full sequence even if the process does not reach final evidence assembly. Restart the listener
-with `-BoundedPve` when intentionally validating the older finite kill/session lifecycle.
-
-## Run one bounded encounter
-
-Before touching the client, run the trace-backed semantic bridge. It drives the production
-`PvEController` through the same typed object-health and player-vitals boundary
-used by the VM:
-
-```powershell
-$env:PYTHONPATH = "src"
-.\.venv\Scripts\python.exe -m shadowbane_lab.rollouts `
-  --scenario frost-walker `
-  --seed 23 `
-  --json
-```
-
-The checked profile contains the live-observed Frost Walker values (10 health, player hits of
-4 and 5, and 744 experience) plus exact player vitals. Seed 23 completes one controller-confirmed
-kill in 2.4 simulated seconds with rolls `[4, 5, 5]`, no rejected semantic actions, and the
-terminal reason `kill_limit_reached`. The output always carries its evidence and assumptions;
-incoming attacks, misses, regeneration, movement, loot, and exact weapon timing remain outside
-that profile. This is the automation preflight, not a claim of emulator parity.
-
-After the simulation gate passes, stand near a Frost Walker spawn with no valuable or friendly
-object selected. Start the command in PowerShell, then focus the Shadowbane window during the
-wait period:
-
-```powershell
-$env:PYTHONPATH = "src"
-.\.venv\Scripts\python.exe -m shadowbane_lab.cli client run-pve `
-  --client-profile .\configs\wonderbane-pve.local.json `
-  --combat-source state `
-  --hotbar-config $hotbar.FullName `
+$evidence = 'C:\path\to\new-pve-evidence.json'
+& $py -B -m shadowbane_lab.cli client run-pve `
+  --client-profile $profile `
   --navigation-cache-directory 'C:\path\to\Wonderbane\cache' `
-  --policy proc-assassin `
   --max-kills 1 `
-  --max-seconds 180 `
-  --max-encounter-seconds 120 `
+  --max-seconds 60 `
+  --max-encounter-seconds 45 `
   --recovery-timeout-seconds 30 `
   --recovery-health-fraction 0.75 `
   --recovery-mana-fraction 0.15 `
   --recovery-stamina-fraction 0.25 `
   --wait-for-client-seconds 15 `
-  --evidence-output "\\VBOXSVR\codexdiag\pve-fight-001.json" `
+  --evidence-output $evidence `
   --live `
   --json
 ```
 
-The VM wrapper validates the live-locked profile, native object-reader build, unique character
-hotbar, and single visible Shadowbane window; refuses to overwrite evidence; and runs the same one-kill
-proc-Assassin command with a timestamped artifact. Focus Shadowbane during its guarded
-15-second wait:
+Omitting `--policy` and `--opening-skill` uses saved settings, whose unsaved defaults
+are basic policy and no opener. `--no-opening-skill` explicitly suppresses a saved
+opener for that run. No `--hotbar-config` is needed: that legacy option is rejected
+by the native path. Native state is the default control source; legacy HUD/log
+options are likewise rejected. Do not use an old hotbar-oriented wrapper as a
+substitute for this interface.
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  \\VBOXSVR\codexrepo\scripts\run-wonderbane-pve-evidence.ps1
-```
+Finite mode stops for its kill/session limits or an earlier safety/encounter
+condition. Cleanup may take its separately bounded settlement time. A finite run
+may finish before a queued potion's remote application becomes observable; this
+is not permission to repeat the item or report its effect as active.
 
-After a one-kill evidence run succeeds, the same wrapper can exercise the complete bounded
-three-kill lifecycle. The longer session allowance is deliberate: the calibrated simulation's
-median three-target clear is about 175 seconds before any passive-recovery wait.
+## Camp and approach limitations
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File `
-  \\VBOXSVR\codexrepo\scripts\run-wonderbane-pve-evidence.ps1 `
-  -MaximumKills 3 `
-  -MaximumSeconds 300
-```
+`--camp-radius` currently applies only with `--continuous`, around the starting
+position. Finite mode passes no camp radius to the controller, so adding that flag
+to the finite command above does not enforce a custom starting-camp boundary.
+Native NPC admission retains its own exact-object and nearby eligibility checks;
+those are not a substitute for an arbitrary smaller finite camp.
 
-Before an approach begins, the live runner resolves the active native zone in the same guarded
-`sb.exe` process, loads its first `CZone` terrain layer, and seeds a bounded local weighted-A* window with
-height-transition exclusions and costs. Runtime stalls still add learned obstacle cells and
-replan around them. Explicit zone-local `CZone` water planes become high-cost traversable cells;
-parent/world-relative water remains neutral rather than being guessed from sample darkness.
-`CZone` object-population masks are joined through `CObjects`, `Render`, and `Mesh`; populations
-whose render graph contains collision-bearing mesh geometry seed a soft density cost. The masks
-do not encode individual placements, so exact trunks and structure edges remain online-learned.
+Continuous mode requires durable evidence output and runs until stopped; its
+controller does not apply the finite global kill/session limits. Do not combine
+`--continuous` with `--max-seconds` and describe the result as a time-bounded run.
 
-Selected-target health is guarded structurally rather than by a low gameplay cap: the build and
-pointer must match, the selection must stay stable across the read, both float values must be
-finite, and `0 <= current <= maximum`. This admits legitimate multi-million-HP targets without
-weakening pointer or coherence validation.
+The standalone command constructs the native movement operation and
+`PvEApproachController`, using the active navigation map and A* planner. It may
+approach or reposition for an encounter. There is no CLI switch that makes this
+path stationary. The private acceptance harness's explicit target, distance,
+action-count and movement restrictions do not silently carry over to production
+CLI runs. Native ATTACK can also initiate the client's own approach behavior.
 
-The versioned JSON result includes native build/profile provenance, the active terrain seed, and a sample-by-sample
-trace: player health/mana/stamina and LT/LG/altitude, target native role flags, opaque identity,
-health/position, planar
-and three-dimensional target range, target and local-player native action
-phase/motion/impact/action-sequence/motion-sequence state,
-the retained object binding, cleanup request/acknowledgment, controller phase, and guarded
-input outcome. This is the evidence boundary used to calibrate later simulator profiles. A
-successful first trial ends with `kill_limit_reached`. Move the pointer to a PyAutoGUI
-fail-safe corner or press `Ctrl+Shift+F12` to stop immediately.
+## Evidence and stopping
 
-`--evidence-output` writes that complete payload atomically as a versioned artifact even when
-the bounded controller stops without a kill. Compile one or more distinct artifacts into an
-aggregate calibration without editing simulator constants by hand:
+Read the final typed result and incremental journal together: proposal identity,
+actual enqueue, coverage, exact health/death, child closure and parent closure
+answer different questions. Never promote a rejected observation or unavailable
+publication into missing coverage, and never use a system message as bot authority.
 
-```powershell
-python -m shadowbane_lab.cli client calibrate-pve `
-  --evidence "\\VBOXSVR\codexdiag\pve-fight-001.json" `
-  --output "\\VBOXSVR\codexdiag\proc-assassin-calibration.json" `
-  --json
-```
+Foreground, character lifetime, scene, owner lease and manual-input protections
+remain active. An uncertain entered action is polled/cleaned up under its original
+identity; it is not replayed as a fresh cast. Native STOP_CONTEXT/STOP_OWNER
+receipts must be assessed at their own scope. Saved settings and historical
+journals remain in place; deployments retain no rollback runtimes.
 
-The calibration retains sample counts and histograms for observed target health, outgoing and
-incoming damage, hit/miss opportunities, poll-observed attack intervals, starting resources,
-engagement distance, experience, adjacent-poll Shadow Touch mana deltas, and exact aggregate
-player/target health decreases even when no complete native message is available. Duplicate trace
-content is rejected rather than counted twice. Timing remains limited by the controller poll;
-native message damage and aggregate health changes do not identify individual weapon/proc/mitigation
-components, and target tokens remain process-local opaque identities; those limitations are
-carried in the artifact.
-
-When exact target-health decreases are available, smart-camp uses their median interval as the
-successful-hit opportunity cadence. It retains the sourced fist and proc mechanics, subtracts
-their expected damage from the observed aggregate decrease, and samples the positive remainder
-from the observed histogram as separately tagged `observed_unattributed_damage`. This aligns the
-total damage envelope without claiming that the residual came from any specific weapon, proc,
-mitigation rule, or polling boundary.
-
-Apply the resulting evidence to the generic smart-camp simulator:
-
-```powershell
-python -m shadowbane_lab.rollouts `
-  --scenario smart-camp `
-  --episodes 1000 `
-  --seed 0 `
-  --max-ticks 1500 `
-  --pve-calibration "\\VBOXSVR\codexdiag\proc-assassin-calibration.json" `
-  --json
-```
-
-Supported observations replace the generic camp's health, engagement distance, incoming damage
-range/cadence, and starting player resources. Sparse fields retain their declared baseline
-defaults, and applying aggregate observations to every generic camp mob remains an explicit
-assumption rather than named-archetype evidence.
-
-The first 1,000-seed run from the 5,526-health live target trace cleared 988 camps and timed out
-12 at the default 200-second analysis ceiling, with no player defeats. Raising only the bounded
-analysis window to 300 seconds cleared all 1,000: median 175.2 seconds, p90 189.6 seconds, and
-p99 200.4 seconds. This supports the cohesive target-retention and replacement policy under the
-current aggregate damage model; it does not turn a single unnamed target trace into universal
-mob stats or validate unattended live farming.
-
-## Current scope
-
-`Attack Selected` is now live-validated to close ordinary open-ground distance, while the
-existing stalled-target path remains the bounded response to blocked approaches. The loop can
-confirm native zero-health kills, recover passively to explicit resource floors, and repeat
-target acquisition. Active healing, looting/inventory limits, hostile-relation validation, and
-a larger hotbar power rotation remain separate vertical slices; they are not inferred from
-unverified keys or hidden inside the nearby-mobile loop.
+The source boundaries for these commands are `cli_commands/parser.py`,
+`cli_commands/client_pve.py`, `cli_commands/client_pve_settings.py`, and the
+`pve` controller, runner and shared actor coordinator. Historical keyboard, HUD,
+animation-interrupt and proc-Assassin calibration instructions are superseded by
+this native path; Git history preserves those earlier experiments.

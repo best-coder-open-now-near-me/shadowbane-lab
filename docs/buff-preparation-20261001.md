@@ -10,13 +10,15 @@ into main at `5c94808698fe8bfd2ca194a53e532a50b7cf344d` after approval and all
 15 hosted checks. Shared actor ownership, canonical observations, preparation,
 saved intent and NPC/manual-player runners are integrated.
 
-Live qualification remains incomplete. The first .64 run registered and observed
-native facts, then queued a potion request with local settlement and pending
-remote application. A private camp-filter failure stopped it before NPC attachment
-or attack; parent cleanup was confirmed. Queueing is not proof of buff application.
-The active receipt/acceptance lane is `codex/buff-acceptance-20261002`; the installed
-source and chronological evidence below remain distinct from that documentation
-branch. See the [branch map](git-branch-map.md).
+Live qualification remains incomplete. The second .64 run observed canonical
+potion and Precision coverage, queued one NPC attack and confirmed child cleanup,
+but repeated never-entered Beorc deferrals reached the private submission bound.
+The whole result remains not passed. The active next item is the post-combat
+admission/retry diagnosis; no further gameplay run is pending. The active
+receipt lane is `codex/buff-acceptance-20261002`, documentation-only
+[PR #61](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/61).
+Installed source and chronological evidence remain distinct from this branch.
+See the [branch map](git-branch-map.md).
 
 The earlier .62/.42 [bounded combat recovery gate](native-owner-liveness-20261001.md)
 passed native reuse-blocked opener fallback. That historical combat result does
@@ -548,3 +550,50 @@ This run proves registration and local item submission/settlement, not buff
 application, potion overlap, duration, expiry, NPC death or server kill credit.
 The next acceptance step must use the corrected reviewed camp filter and fresh
 canonical coverage/application history, preserving duplicate-potion suppression.
+
+## .64/.44 second live acceptance
+
+The preserved `artifacts/bot-deploy/20261001-b44/live-v2-evidence` result is
+**not passed**. Fresh canonical publications reported all nine Greater Concoction
+Potion descriptors and Precision PRESENT. No additional USE_ITEM was submitted
+in this run. Precision and the saved Shot to the Leg opener queued, followed by
+one ATTACK against the pinned NPC `[23883,37]`. Exact STOP_CONTEXT returned
+NATIVE_STOPPED at trace sequence 28, retaining the shared parent owner.
+
+After child cleanup, 29 Beorc Rune proposals returned
+DEFERRED/NEVER_ENTERED/SETTLED. Along with the three queued actions, they reached
+the helper's 32-submission bound (`RuntimeError: Submission bound`). They did not
+enter 29 native casts. Final STOP_OWNER returned LOCAL_RELEASED at sequence 211;
+no manual-list entries remained and the watchdog did not fire. The receipt still
+reported mode 1, action state 2 and a combat target. Parent ownership release is
+therefore established, but native idle is not. The result also records
+`parent_operation_cancelled` and `unexpected_operation_stop`; these are retained
+as reported rather than relabeled a successful run.
+
+Source/trace review found that no-entry Beorc journal updates advance publication
+revision even while readiness and coverage facts remain unchanged. The policy's
+fresh-revision check can consequently admit another refused proposal. Native
+actor-only admission after child closure is also under investigation: publication
+reported Beorc READY while SUBMIT deferred, but the recorder did not retain the
+per-attempt native detail needed to establish the precise blocker. No cause is
+inferred from action state or final target presence alone.
+
+A subsequent read-only census (`post-v2-action-observation.txt`) matched the actor's
+AF8 to the same registered NPC key/token. Its health was 201.6433/400 at roughly
+two units; its action target was Umbra. The actor reported mode 1, action state 2,
+initiation state 5 and an empty protocol vector. These are passive observations,
+not damage attribution, an uninterrupted-action history or permission to resume.
+They support retaining the native foreign-target guard. The next private
+acceptance design will cover a full encounter rather than stopping immediately
+after queueing, subject to review; no new gameplay run has been issued.
+
+The single active next item is to reconcile native admission facts and host retry
+progress before a further bounded gameplay run. This evidence proves the stated
+client coverage and queue/cleanup boundaries, not full buff preparation,
+expiry/refresh, potion overlap timing, NPC death, server kill credit or skill
+consumption. The first live failure and this partial result remain unchanged.
+
+Compact evidence SHA-256:
+
+- `acceptance.json`: `77a4cfa1a43e2b6cc79b8c90edc9a384898eba469580017136309e99692bf1ca`
+- `events.jsonl`: `eb5be76f5cbb8315497ba508e94b50e32797a89f4e59a15bfebba4299b6d4fe1`

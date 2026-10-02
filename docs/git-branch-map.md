@@ -32,22 +32,32 @@ The integrated [buff implementation and startup repair](buff-preparation-2026100
 are in main. Qualification verified 82 stages and 110 indexed artifacts, both
 native profiles, real movement/combat/actor IPC and original/prepared image probes.
 The current receipt/acceptance branch is `codex/buff-acceptance-20261002`, based on
-main `5c94808`, in the reused bot-integration worktree. This documentation checkpoint
-is separate from the installed package source; its PR is not yet created.
-The prior `codex/buff-deployment-20261001` branch remains retained pending the
-ancestry and checkout audit; this checkpoint does not retire it.
+main `5c94808`, in the reused bot-integration worktree. Its documentation-only
+[PR #61](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/61)
+targets main; these receipt updates are separate from installed package source.
 
-**Active next item:** complete bounded buff/NPC acceptance after independent
-review of the private helper's camp-filter correction and fresh canonical native
-observations. The first .64 run returned OBSERVED for REGISTER_SELECTORS and
-OBSERVE_ACTOR, then entered and queued one USE_ITEM with local settlement and
-remote application pending. The helper selected an NPC about 108 units away,
-outside its 80-unit camp bound, and stopped before ATTACH_CONTEXT or NPC attack.
-Exact parent LOCAL_RELEASED cleanup was confirmed; subsequent readiness showed
-owner NONE. The whole acceptance remains not passed. No buff application, expiry,
-potion overlap, NPC result or server effect is claimed. Original evidence remains
-under `artifacts/bot-deploy/20261001-b44/first-live-evidence`.
-Automatic retaliation remains disabled.
+The merged `codex/buff-deployment-20261001` branch was retired locally and
+remotely after tip `23f1674` was verified reachable from origin/main and no active
+checkout remained. The separate `codex/buff-admission-20261002` lane in bot-runtime
+contains the native/host admission repair in progress; it is outside main and is
+not installed. This documentation branch does not contain that repair.
+
+**Active next item:** diagnose the post-child-cleanup actor admission and retry
+feedback before any further gameplay run. The second .64 bounded acceptance
+remains **not passed**. Canonical native publication reported potion and Precision
+coverage PRESENT; one exact NPC ATTACK queued and its child NATIVE_STOPPED
+cleanup completed. Beorc Rune received 29 DEFERRED/NEVER_ENTERED/SETTLED replies,
+then the helper stopped at its 32-submission bound. These were refused proposals,
+not 29 casts. Final parent LOCAL_RELEASED was confirmed, with no list entries and
+no watchdog timeout; that receipt still reported a combat target and action state
+2, so it is not native-idle proof. No new gameplay run is pending.
+
+The preserved evidence is `artifacts/bot-deploy/20261001-b44/live-v2-evidence`;
+[the buff record](buff-preparation-20261001.md#644-second-live-acceptance)
+contains hashes and the exact limits. Full buff coverage, expiry/refresh, potion
+application overlap, NPC death, server kill credit and skill consumption remain
+unproved by this run. The earlier private camp-filter failure remains separately
+preserved under `first-live-evidence`. Automatic retaliation remains disabled.
 
 The historical .63 run failed earlier: four same-request registrations returned
 UNAVAILABLE without OPEN, ATTACH or SUBMIT. Passive hook inspection confirmed

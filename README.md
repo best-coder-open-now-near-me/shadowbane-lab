@@ -21,15 +21,15 @@ healthy manager activation, five shortcuts and startup preflight. The obsolete
 Settings, jobs and diagnostic evidence remain in place. The desktop Vendor Test
 and Modded Client shortcuts use the updated launcher; dashboard shortcuts use .64.
 
-**Active next item:** complete bounded buff/NPC acceptance after correcting the
-private helper's camp filter. The first .64 run successfully registered selectors,
-observed native facts and queued one potion request with local settlement and
-remote application pending. It stopped before NPC attachment or attack because
-the helper selected a target outside its 80-unit bound; parent cleanup was
-confirmed and fresh readiness showed owner NONE. This proves neither buff
-application nor expiry. Automatic retaliation remains disabled. The earlier .62
-[bounded combat recovery acceptance](docs/native-owner-liveness-20261001.md)
-remains a separate result.
+**Active next item:** diagnose the post-combat buff admission/retry mismatch before
+another gameplay run. The second .64 acceptance remains **not passed**: canonical
+native publication reported Greater Concoction Potion and Precision coverage
+PRESENT, one NPC attack queued, and child NATIVE_STOPPED cleanup completed. Beorc
+Rune then received 29 never-entered deferrals before the private helper's total
+32-submission bound stopped the run. Parent LOCAL_RELEASED cleanup completed;
+this does not prove actor idle or all requested buff coverage. No new gameplay
+run is pending. Automatic retaliation remains disabled. See the
+[bounded evidence and limits](docs/buff-preparation-20261001.md#644-second-live-acceptance).
 
 The deployment-receipt/live-acceptance lane uses
 `codex/buff-acceptance-20261002` in the existing integration worktree. Read the
