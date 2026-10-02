@@ -32,8 +32,11 @@ No rollback runtime copies were retained.
 The source and versions of the reviewed admission repair are now in main. The
 active delivery-record branch is `codex/buff-runtime-receipt-20261002` in the
 bot-integration worktree. Canonical `E:\Projects\shadowbane` is clean on main
-`1e7c26f`. Both earlier admission and acceptance tips are retained in main; their
-branch retirement awaits checkout ownership reconciliation during the next fix.
+`1e7c26f`. The earlier admission and acceptance branch tips are retained in main; both
+completed branches were retired locally and remotely after checkout ownership
+was reconciled. The reused bot-runtime checkout now hosts
+`codex/native-preparation-settlement-20261002`, based on `1e7c26f`, for the pending
+preparation fix. Its work is not yet integrated into PR #62.
 
 **Active next item:** fix legitimate pending-buff timeout handling and diagnose
 native potion inventory lookup before another live test. The .65 run

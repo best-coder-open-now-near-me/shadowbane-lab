@@ -725,3 +725,15 @@ Compact evidence SHA-256:
 
 - `acceptance.json`: `adbedd889a105693d57753731104ba0ebfde983010f5c97ad51cb08eb2816e2f`
 - `events.jsonl`: `3b58ddcafdf86e78a99585e93335b412d5d1d97ffff58a59d828b501710e7c27`
+
+
+The subsequent passive inventory census identified a concrete structural failure:
+an inventory object at address 314019760 had vtable RVA `0x1143278`, while the
+current scanner required the base item RVA `0x1142748` for every node. The census
+was rejected before any absence conclusion; its `capture_rejected` record is
+`artifacts/bot-deploy/20261002-b45/inventory-observation.json`. This is not an
+empty-inventory claim or permission to dispatch through the unqualified class.
+The native correction must qualify heterogeneous inventory traversal separately
+from strict actionable-potion eligibility. No gameplay action was issued by this
+diagnostic. The host pending-action correction independently passed 37 focused
+tests and review; native inventory work is still in progress.
