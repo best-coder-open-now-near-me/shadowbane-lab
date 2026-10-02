@@ -856,3 +856,24 @@ def test_explicit_finish_cancels_long_pending_without_claiming_settlement(setup,
     assert owner._obligation.released
     assert [c.args[1] for c in session.actor_action.call_args_list].count(Verb.SUBMIT) == 1
     assert [c.args[1] for c in session.actor_action.call_args_list].count(Verb.STOP_OWNER) == 1
+
+
+def test_unknown_item_resource_allows_independently_ready_power(setup, monkeypatch):
+    owner, session, _, _, _ = setup
+    pub, _ = configure(owner, session, monkeypatch)
+    item = replace(
+        pub.actions[0],
+        readiness=publication.Readiness.UNKNOWN,
+        item_key=(0, 0),
+        template_key=(0, 0),
+        item_hint=0,
+        template_hint=0,
+        quantity=0,
+        item_type=0,
+        item_flags=0,
+    )
+    owner.publication_reader.read.return_value = replace(pub, actions=(item, pub.actions[1]))
+    update = owner.preparation_step()
+    assert update.acknowledgement.proposal.group_id == "precision"
+    submits = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
+    assert len(submits) == 1 and submits[0].action is Action.SELF_POWER
