@@ -10,6 +10,7 @@ from test_native_actor_coordinator import setup as actor_fixture
 from shadowbane_lab.client_extension import actor_publication as publication
 from shadowbane_lab.client_extension.actor_action_wire import (
     APPLICATION_PENDING,
+    Action,
     Application,
     Entry,
     LocalSettlement,
@@ -76,7 +77,21 @@ def configure(owner, session, monkeypatch):
             )
         )
     pub = publication.Publication(
-        ident, 2, 1, b"s" * 16, 10, 1, 0, True, 1, True, (), tuple(facts), ()
+        ident,
+        2,
+        1,
+        b"s" * 16,
+        10,
+        1,
+        0,
+        True,
+        1,
+        True,
+        (),
+        tuple(facts),
+        (),
+        1,
+        publication.AdmissionBlock(0),
     )
     owner.publication_reader.read.return_value = pub
 
@@ -339,7 +354,6 @@ def test_preparation_transport_uncertain_keeps_command_and_original_deadline(set
     assert owner._closed and owner._obligation.released
 
 
-
 def test_every_preparation_observation_refreshes_native_capture(setup, monkeypatch):
     owner, session, _, _, _ = setup
     pub, send = configure(owner, session, monkeypatch)
@@ -351,10 +365,18 @@ def test_every_preparation_observation_refreshes_native_capture(setup, monkeypat
             seen.append(command)
             if len(seen) == 2:
                 owner.publication_reader.read.return_value = replace(
-                    pub, revision=2, snapshot_id=b"t" * 16,
-                    actions=tuple(replace(a, coverage=publication.Coverage.PRESENT,
-                                          readiness=publication.Readiness.POWER_REUSE)
-                                  for a in pub.actions))
+                    pub,
+                    revision=2,
+                    snapshot_id=b"t" * 16,
+                    actions=tuple(
+                        replace(
+                            a,
+                            coverage=publication.Coverage.PRESENT,
+                            readiness=publication.Readiness.POWER_REUSE,
+                        )
+                        for a in pub.actions
+                    ),
+                )
         return send(grant, verb, command, **kwargs)
 
     session.actor_action.side_effect = refresh
@@ -425,9 +447,9 @@ def test_context_cleanup_preserves_actor_only_unsettled_action(setup, monkeypatc
     assert session.actor_action.call_args.args[1:3] == (Verb.ACTION_STATUS, command)
 
 
-
 def test_public_runner_refreshes_buffs_during_listed_combat_after_health_checks(
-    listed_encounter, monkeypatch,
+    listed_encounter,
+    monkeypatch,
 ):
     from test_listed_combat import frame
 
@@ -444,8 +466,9 @@ def test_public_runner_refreshes_buffs_during_listed_combat_after_health_checks(
 
     def publication_now():
         state["revision"] += 1
-        return replace(pub, revision=state["revision"],
-                       snapshot_id=state["revision"].to_bytes(16, "big"))
+        return replace(
+            pub, revision=state["revision"], snapshot_id=state["revision"].to_bytes(16, "big")
+        )
 
     owner.publication_reader.read.side_effect = publication_now
 
@@ -473,38 +496,246 @@ def test_public_runner_refreshes_buffs_during_listed_combat_after_health_checks(
 
     runner = PvERunner(
         controller=PvEController(PvEControllerConfig(continuous=True, camp_radius=100)),
-        health_reader=source("target"), player_vitals_reader=source("player"),
+        health_reader=source("target"),
+        player_vitals_reader=source("player"),
         player_position_reader=source("player_position"),
-        target_position_reader=source("target_position"), population_reader=source("population"),
+        target_position_reader=source("target_position"),
+        population_reader=source("population"),
         group_reader=SimpleNamespace(
-            process_id=1234, observe=lambda: NativeGroupObservation(False, False, ())),
+            process_id=1234, observe=lambda: NativeGroupObservation(False, False, ())
+        ),
         party_group_id="party",
         player_action_reader=SimpleNamespace(
-            process_id=1234, observe_player=lambda: current().player_action),
-        dispatcher=encounter.combat, combat_cleanup=encounter.combat,
-        listed_combat=encounter.coordinator, actor_preparation=owner,
-        stop_signal=stop, clock=lambda: clock.now, sleeper=sleep, trace_sink=record,
+            process_id=1234, observe_player=lambda: current().player_action
+        ),
+        dispatcher=encounter.combat,
+        combat_cleanup=encounter.combat,
+        listed_combat=encounter.coordinator,
+        actor_preparation=owner,
+        stop_signal=stop,
+        clock=lambda: clock.now,
+        sleeper=sleep,
+        trace_sink=record,
     )
     result = runner.run()
     submitted = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
     assert [(c.action.value, c.power_id) for c in submitted] == [(1, 0), (4, 0), (3, 429545819)]
     assert len({c.parent_id for c in submitted}) == 1
     assert not encounter.combat.active and owner._opened and not owner._obligation.released
-    assert [x.preparation.acknowledgement.proposal.group_id for x in result.trace
-            if x.preparation is not None] == ["concoction", "precision"]
+    assert [
+        x.preparation.acknowledgement.proposal.group_id
+        for x in result.trace
+        if x.preparation is not None
+    ] == ["concoction", "precision"]
     assert any(x.listed_combat is not None and x.listed_combat.recovered for x in result.trace)
     assert owner.finish("test_done")[0]
 
 
-
 def test_native_unknown_publication_does_not_stop_combat_or_authorize_preparation(
-    setup, monkeypatch,
+    setup,
+    monkeypatch,
 ):
     owner, session, _, observation, proposal = setup
     pub, _ = configure(owner, session, monkeypatch)
     owner.publication_reader.read.return_value = replace(
-        pub, complete=False, unknown=1, actions=(), effects=(), applications=())
+        pub, complete=False, unknown=1, actions=(), effects=(), applications=()
+    )
     assert owner.preparation_step(proposal) is None
     assert owner.advance_combat(proposal, observation).acknowledgement.disposition.value == "queued"
     submitted = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
     assert len(submitted) == 1 and submitted[0].action.value == 1
+
+
+def test_native_admission_blocks_do_not_open_owner_or_submit(setup, monkeypatch):
+    owner, session, _, _, _ = setup
+    pub, _ = configure(owner, session, monkeypatch)
+    owner.publication_reader.read.return_value = replace(
+        pub, admission_blocks=publication.AdmissionBlock.FOREIGN_TARGET
+    )
+    assert owner.preparation_step() is None
+    assert all(
+        c.args[1] in (Verb.REGISTER_SELECTORS, Verb.OBSERVE_ACTOR)
+        for c in session.actor_action.call_args_list
+    )
+
+
+def test_native_journal_only_changes_cannot_resubmit_refused_buff(setup, monkeypatch):
+    from shadowbane_lab.client_extension.actor_action_wire import Reason
+
+    owner, session, _, _, _ = setup
+    pub, send = configure(owner, session, monkeypatch)
+    pub = replace(
+        pub,
+        actions=(replace(pub.actions[0], coverage=publication.Coverage.PRESENT), pub.actions[1]),
+    )
+    owner.publication_reader.read.return_value = pub
+
+    def refuse(g, v, c, **kwargs):
+        result = send(g, v, c, **kwargs)
+        if v is Verb.SUBMIT:
+            result.receipt = replace(
+                result.receipt,
+                outcome=Outcome.DEFERRED,
+                reason=Reason.TARGET_OCCUPIED,
+                entry=Entry.NEVER_ENTERED,
+                local_settlement=LocalSettlement.SETTLED,
+                flags=1,
+                application=Application.NONE,
+            )
+            result.receipt.require_command(c, v)
+        return result
+
+    session.actor_action.side_effect = refuse
+    first = owner.preparation_step()
+    assert first.receipt.reason is Reason.TARGET_OCCUPIED
+    assert first.as_dict()["reason"] == "target_occupied"
+    for revision in range(2, 40):
+        owner.publication_reader.read.return_value = replace(
+            pub,
+            revision=revision,
+            snapshot_id=revision.to_bytes(16, "big"),
+            applications=(
+                publication.Application(
+                    owner.manifest.group_digest(1), first.command.digest, 1, 0, 0, 0, True, False
+                ),
+            ),
+        )
+        assert owner.preparation_step() is None
+    submits = [c for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
+    assert len(submits) == 1
+    owner.publication_reader.read.return_value = replace(
+        pub,
+        revision=40,
+        snapshot_id=b"b" * 16,
+        admission_revision=2,
+        admission_blocks=publication.AdmissionBlock.FOREIGN_TARGET,
+    )
+    assert owner.preparation_step() is None
+    owner.publication_reader.read.return_value = replace(
+        pub, revision=41, snapshot_id=b"c" * 16, admission_revision=3
+    )
+    next_update = owner.preparation_step()
+    assert next_update.command.request != first.command.request
+    assert next_update.command.parent_id == first.command.parent_id
+    assert next_update.command.grant == first.command.grant
+    assert len([c for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]) == 2
+
+
+def test_public_runner_blocked_preparation_trace_does_not_gate_npc_attack(setup, monkeypatch):
+    from test_pve_native_proposals import character, observe
+
+    from shadowbane_lab.client_input import EventEmergencyStop
+    from shadowbane_lab.client_observation import NativeGroupObservation
+    from shadowbane_lab.pve import PvERunner
+    from shadowbane_lab.pve.model import PvEControllerConfig
+    from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
+    from shadowbane_lab.pve.target_authority import PvEController
+
+    owner, session, _, original, proposal = setup
+    pub, send = configure(owner, session, monkeypatch)
+    pub = replace(pub, admission_blocks=publication.AdmissionBlock.FOREIGN_TARGET)
+    combat = NativeCombatCoordinator(owner=owner)
+    stop, clock = EventEmergencyStop(), SimpleNamespace(now=0.0)
+    target = replace(character(), object_key=proposal.target_key, token=proposal.target_token)
+    state = {"power": False, "revision": 1}
+
+    def publication_now():
+        state["revision"] += 1
+        return replace(
+            pub, revision=state["revision"], snapshot_id=state["revision"].to_bytes(16, "big")
+        )
+
+    owner.publication_reader.read.side_effect = publication_now
+
+    def current():
+        observed_target = replace(target, current_health=0) if state["power"] else target
+        value = observe(round(clock.now * 1000), characters=(observed_target,))
+        return replace(
+            value,
+            population=replace(
+                value.population,
+                local_player_object_key=original.population.local_player_object_key,
+            ),
+        )
+
+    def source(field):
+        return SimpleNamespace(
+            process_id=owner.parent.client_pid, observe=lambda: getattr(current(), field)
+        )
+
+    def response(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if verb is Verb.SUBMIT and command.action is Action.ATTACK:
+            state["power"] = True
+        return result
+
+    session.actor_action.side_effect = response
+    trace = []
+
+    def record(step):
+        trace.append(step)
+        if step.combat_cleanup is not None and step.combat_cleanup.confirmed:
+            stop.trip()
+
+    def sleep(seconds):
+        clock.now += seconds
+        assert clock.now < 4, "shared owner did not complete bounded cleanup"
+
+    runner = PvERunner(
+        controller=PvEController(PvEControllerConfig()),
+        health_reader=source("target"),
+        player_vitals_reader=source("player"),
+        player_position_reader=source("player_position"),
+        target_position_reader=source("target_position"),
+        population_reader=source("population"),
+        player_action_reader=SimpleNamespace(
+            process_id=owner.parent.client_pid, observe_player=lambda: current().player_action
+        ),
+        group_reader=SimpleNamespace(
+            process_id=owner.parent.client_pid,
+            observe=lambda: NativeGroupObservation(False, False, ()),
+        ),
+        party_group_id="party",
+        dispatcher=combat,
+        combat_cleanup=combat,
+        actor_preparation=owner,
+        stop_signal=stop,
+        clock=lambda: clock.now,
+        sleeper=sleep,
+        trace_sink=record,
+        poll_interval_ms=100,
+    )
+    result = runner.run()
+    assert result.kills == 1 and not combat.active
+    calls = session.actor_action.call_args_list
+    submits = [c.args[2] for c in calls if c.args[1] is Verb.SUBMIT]
+    assert [(c.action.value, c.power_id) for c in submits] == [(1, 0)]
+    assert len({c.parent_id for c in submits}) == 1
+    assert submits[0].context_id is not None
+    assert owner._opened and not owner._obligation.released
+    assert owner.finish("runner_done")[0] and owner._obligation.released
+    session.pause.assert_not_called()
+    statuses = [step.as_dict()["preparation"] for step in trace if step.preparation is not None]
+    assert statuses and all(s["action"] is None for s in statuses)
+    assert all(s["blockers"] == ["foreign_target"] for s in statuses)
+    assert any(step.native_combat is not None and step.preparation is not None for step in trace)
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        (0, 1, 8),
+        (1, 0, 8),
+        (True, 1, 8),
+        (1, True, 8),
+        (1, 1, False),
+        (1, 1, 0),
+        (1, 1, 32),
+        (1, 1, -1),
+    ],
+)
+def test_trace_only_status_rejects_missing_or_unknown_authority(values):
+    from shadowbane_lab.pve.native_actor import NativePreparationStatus
+
+    with pytest.raises(ValueError):
+        NativePreparationStatus(*values)

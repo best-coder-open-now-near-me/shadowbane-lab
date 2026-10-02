@@ -28,8 +28,8 @@ def manifest():
 def header(m=None, nonce=bytes([3]) * 16):
     m = m or manifest()
     return p._HEADER.pack(
-        b"WBAPUB1\0",
-        1,
+        b"WBAPUB2\0",
+        2,
         p.SIZE,
         m.client_pid,
         p.SLOT_SIZE,
@@ -48,7 +48,7 @@ def header(m=None, nonce=bytes([3]) * 16):
     )
 
 
-def frame(*, revision=1, sequence=2, tick=100, ready=1, unknown=0):
+def frame(*, revision=1, sequence=2, tick=100, ready=1, unknown=0, admission=None, blocks=0):
     value = bytearray(p.SLOT_SIZE)
     value[:256] = p._FRAME.pack(
         sequence,
@@ -64,7 +64,9 @@ def frame(*, revision=1, sequence=2, tick=100, ready=1, unknown=0):
         1 if not unknown else 0,
         1 if not unknown else 0,
         int(not unknown),
-        bytes(176),
+        revision if admission is None else admission,
+        blocks,
+        bytes(164),
     )
     if not unknown:
         values = [0, 0, 3, 111, 0, 0, 111, 0, 40, 0, 2, 0, 3, 1, ready, 0, 1] + [0] * 9
@@ -102,7 +104,9 @@ def test_unknown_is_explicit_and_has_no_absence_authority():
         (68, 257),
         (72, 0),
         (76, 2),
-        (80, 1),
+        (80, 0),
+        (88, 32),
+        (92, 1),
         (22784, 1),
         (10496 + 13 * 4, 3),
         (10496 + 15 * 4, 1),
@@ -297,6 +301,23 @@ def test_real_native_publication_mapping_roundtrip():
         second = reader.read()
         assert second.revision == first.revision and second.snapshot_id == first.snapshot_id
         assert second.sequence > first.sequence
+        assert command("journal") == "published"
+        journal = reader.read()
+        assert journal.revision > second.revision
+        assert journal.admission_revision == second.admission_revision
+        assert journal.applications and journal.applications[0].entry == 0
+        assert command("occupied") == "published"
+        occupied = reader.read()
+        assert occupied.admission_blocks == p.AdmissionBlock.FOREIGN_TARGET
+        assert occupied.admission_revision > journal.admission_revision
+        assert command("clear") == "published"
+        clear = reader.read()
+        assert not clear.admission_blocks
+        assert clear.admission_revision > occupied.admission_revision
+        assert command("race") == "published"
+        race = reader.read()
+        assert not race.admission_blocks and race.eligibility_facts() == clear.eligibility_facts()
+        assert race.admission_revision > clear.admission_revision
         assert command("reuse") == "published"
         reuse = reader.read()
         assert reuse.revision > second.revision
@@ -315,3 +336,78 @@ def test_real_native_publication_mapping_roundtrip():
         for stream in (process.stdin, process.stdout, process.stderr):
             stream.close()
         thread.join(timeout=1)
+
+
+def test_v1_publication_is_not_admission_authority():
+    old = bytearray(header())
+    old[:8] = b"WBAPUB1\0"
+    old[8:12] = (1).to_bytes(4, "little")
+    with pytest.raises(p.PublicationError):
+        p.Header.decode(bytes(old))
+    assert "ActorPublication.v2." in p.mapping_name(manifest())
+
+
+@pytest.mark.parametrize("blocks", [1, 2, 4, 8, 16, 31])
+def test_resource_readiness_is_distinct_from_shared_admission(blocks):
+    observed = decode(frame(blocks=blocks, admission=17))
+    assert observed.actions[0].readiness is p.Readiness.READY
+    assert observed.admission_blocks == blocks and observed.admission_revision == 17
+
+
+def test_unknown_frame_cannot_claim_admission_block():
+    with pytest.raises(p.PublicationError):
+        decode(frame(unknown=6, blocks=8))
+
+
+def test_admission_revision_monotonic_independent_of_full_revision(monkeypatch):
+    r, current, _ = reader(monkeypatch)
+    current[1] = frame(admission=3)
+    first = r.read()
+    current[1] = frame(sequence=4, revision=2, admission=3)
+    assert r.read().admission_revision == first.admission_revision
+    current[1] = frame(sequence=6, revision=3, admission=2)
+    with pytest.raises(p.PublicationError, match="admission revision regressed"):
+        r.read()
+
+
+def test_same_full_revision_cannot_mutate_admission_facts(monkeypatch):
+    r, current, _ = reader(monkeypatch)
+    r.read()
+    current[1] = frame(sequence=4, blocks=8)
+    with pytest.raises(p.PublicationError, match="same native revision"):
+        r.read()
+
+
+@pytest.mark.parametrize("change", ["readiness", "mode", "blocks", "unknown", "rank"])
+def test_same_admission_revision_cannot_change_semantic_eligibility(monkeypatch, change):
+    r, current, _ = reader(monkeypatch)
+    r.read()
+    payload = bytearray(
+        frame(
+            sequence=4,
+            revision=2,
+            admission=1,
+            ready=5 if change == "readiness" else 1,
+            blocks=8 if change == "blocks" else 0,
+            unknown=6 if change == "unknown" else 0,
+        )
+    )
+    if change == "mode":
+        payload[72:76] = (2).to_bytes(4, "little")
+    if change == "rank":
+        payload[10496 + 32 : 10496 + 36] = (41).to_bytes(4, "little")
+    current[1] = bytes(payload)
+    with pytest.raises(p.PublicationError, match="admission revision changed eligibility"):
+        r.read()
+
+
+def test_same_admission_revision_allows_descriptor_detail_and_effect_epoch(monkeypatch):
+    r, current, _ = reader(monkeypatch)
+    first = r.read()
+    payload = bytearray(frame(sequence=4, revision=2, admission=1))
+    payload[40:48] = (2).to_bytes(8, "little")
+    payload[18688:18692] = (223).to_bytes(4, "little")
+    current[1] = bytes(payload)
+    second = r.read()
+    assert second.eligibility_facts() == first.eligibility_facts()
+    assert second.actions != first.actions and second.effect_epoch != first.effect_epoch

@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import ctypes as c
 import struct
-from dataclasses import dataclass
-from enum import IntEnum
+from dataclasses import dataclass, replace
+from enum import IntEnum, IntFlag
 
 from .actor_selector_manifest import Manifest, Selector
 from .combat_fence_windows import Windows
@@ -19,7 +19,7 @@ HEADER_SIZE = 256
 SLOT_SIZE = 32768
 SIZE = HEADER_SIZE + 2 * SLOT_SIZE
 _HEADER = struct.Struct("<8s6IQ16s32s4IQi140s")
-_FRAME = struct.Struct("<QQ16sQQ8I176s")
+_FRAME = struct.Struct("<QQ16sQQ8IQI164s")
 _EFFECT = struct.Struct("<10I")
 _READY = struct.Struct("<26I24s")
 _APPLICATION = struct.Struct("<32s32sQQ4I32s")
@@ -32,6 +32,14 @@ assert (
     _APPLICATION.size,
     _DESCRIPTOR.size,
 ) == (256, 256, 40, 128, 128, 16)
+
+
+class AdmissionBlock(IntFlag):
+    INITIATION = 1
+    NATIVE_USE = 2
+    LOCAL_ACTION = 4
+    FOREIGN_TARGET = 8
+    CHILD_CLEANUP = 16
 
 
 class PublicationError(RuntimeError):
@@ -90,7 +98,7 @@ class Header:
         )
         v = _HEADER.unpack(payload)
         _require(
-            v[:3] == (b"WBAPUB1\0", 1, SIZE)
+            v[:3] == (b"WBAPUB2\0", 2, SIZE)
             and v[3]
             and v[4:7] == (SLOT_SIZE, 2, 0)
             and v[7]
@@ -176,6 +184,23 @@ class Publication:
     effects: tuple[Effect, ...]
     actions: tuple[ActionFacts, ...]
     applications: tuple[Application, ...]
+    admission_revision: int
+    admission_blocks: AdmissionBlock
+
+    def eligibility_facts(self):
+        """Exact native SameEligibility projection, excluding journal/effect history.
+
+        Descriptor offsets are canonical cumulative counts checked by decode;
+        descriptor content is intentionally outside the native readiness record.
+        """
+        return (
+            self.complete,
+            self.unknown,
+            self.actor_mode,
+            self.initiation_clear,
+            self.admission_blocks,
+            tuple((replace(a, descriptors=()), len(a.descriptors)) for a in self.actions),
+        )
 
     @classmethod
     def decode(cls, header, payload, manifest):
@@ -207,6 +232,8 @@ class Publication:
             dc,
             mode,
             clear,
+            admission_revision,
+            admission_blocks,
             reserved,
         ) = v
         _require(
@@ -222,6 +249,8 @@ class Publication:
             and ac <= 32
             and dc <= 256
             and clear <= 1
+            and 0 < admission_revision < 2**64
+            and admission_blocks & ~31 == 0
             and not any(reserved)
             and not any(payload[22784:]),
             "invalid or incomplete publication frame",
@@ -229,7 +258,7 @@ class Publication:
         if not complete:
             _require(
                 unknown
-                and not any((epoch, ec, rc, ac, dc, mode, clear))
+                and not any((epoch, ec, rc, ac, dc, mode, clear, admission_blocks))
                 and not any(payload[256:]),
                 "unknown publication contains factual authority",
             )
@@ -247,6 +276,8 @@ class Publication:
                 (),
                 (),
                 (),
+                admission_revision,
+                AdmissionBlock(admission_blocks),
             )
         _require(
             not unknown and epoch and rc == len(manifest.selectors) and 1 <= mode <= 3,
@@ -392,6 +423,8 @@ class Publication:
             tuple(effects),
             tuple(actions),
             tuple(applications),
+            admission_revision,
+            AdmissionBlock(admission_blocks),
         )
 
 
@@ -399,7 +432,7 @@ def mapping_name(manifest):
     if not isinstance(manifest, Manifest):
         raise PublicationError("typed selector manifest required")
     return (
-        f"Local\\WonderBane.ActorPublication.v1.{manifest.client_pid}."
+        f"Local\\WonderBane.ActorPublication.v2.{manifest.client_pid}."
         f"{manifest.client_creation}.{manifest.digest.hex()}"
     )
 
@@ -474,6 +507,10 @@ class Reader:
         self.session.require_current()
         if self.last is not None:
             _require(result.revision >= self.last.revision, "native publication revision regressed")
+            _require(
+                result.admission_revision >= self.last.admission_revision,
+                "native admission revision regressed",
+            )
             if result.revision == self.last.revision:
                 _require(
                     result.snapshot_id == self.last.snapshot_id
@@ -484,8 +521,15 @@ class Reader:
                     and result.initiation_clear == self.last.initiation_clear
                     and result.effects == self.last.effects
                     and result.actions == self.last.actions
-                    and result.applications == self.last.applications,
+                    and result.applications == self.last.applications
+                    and result.admission_revision == self.last.admission_revision
+                    and result.admission_blocks == self.last.admission_blocks,
                     "same native revision changed facts",
+                )
+            if result.admission_revision == self.last.admission_revision:
+                _require(
+                    result.eligibility_facts() == self.last.eligibility_facts(),
+                    "same native admission revision changed eligibility",
                 )
         self.identity, self.last = result.identity, result
         return result

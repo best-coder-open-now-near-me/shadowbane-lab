@@ -25,7 +25,7 @@ from shadowbane_lab.travel.model import TravelDecision, TravelDestination
 if TYPE_CHECKING:
     from shadowbane_lab.pve.authority_snapshot import PvETargetAuthoritySnapshot
     from shadowbane_lab.pve.listed_combat import ListedCombatUpdate
-    from shadowbane_lab.pve.native_actor import NativePreparationUpdate
+    from shadowbane_lab.pve.native_actor import NativePreparationStatus, NativePreparationUpdate
     from shadowbane_lab.pve.native_combat import NativeCombatUpdate
 
 
@@ -865,7 +865,7 @@ class PvERunTraceStep:
     population_player_action_target_token: str | None = None
     population_scan_generation: int | None = None
     native_combat: NativeCombatUpdate | None = None
-    preparation: NativePreparationUpdate | None = None
+    preparation: NativePreparationUpdate | NativePreparationStatus | None = None
     listed_combat: ListedCombatUpdate | None = None
     combat_cleanup: PvECombatCleanupResult | None = None
 
@@ -882,9 +882,12 @@ class PvERunTraceStep:
         if self.input_accepted is not None and not isinstance(self.input_accepted, bool):
             raise ValueError("input_accepted must be a boolean when present")
         if self.preparation is not None:
-            from shadowbane_lab.pve.native_actor import NativePreparationUpdate
+            from shadowbane_lab.pve.native_actor import (
+                NativePreparationStatus,
+                NativePreparationUpdate,
+            )
 
-            if not isinstance(self.preparation, NativePreparationUpdate):
+            if not isinstance(self.preparation, (NativePreparationUpdate, NativePreparationStatus)):
                 raise ValueError("preparation trace requires a typed correlated update")
         if self.native_combat is not None:
             from shadowbane_lab.pve.native_combat import NativeCombatUpdate
