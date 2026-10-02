@@ -43,6 +43,7 @@ from shadowbane_lab.pve.model import (
     PvERunResult,
     PvERunTraceStep,
 )
+from shadowbane_lab.pve.native_actor import NativePreparationStatus
 from shadowbane_lab.pve.native_combat import NativeCombatUpdate
 from shadowbane_lab.travel.arrival import ArrivalTracker
 from shadowbane_lab.travel.runtime import TravelDecisionDispatcher
@@ -308,6 +309,9 @@ class PvERunner:
 
         def record(step: PvERunTraceStep) -> None:
             nonlocal total_steps
+            status = getattr(self._actor_preparation, "latest_preparation_status", None)
+            if step.preparation is None and isinstance(status, NativePreparationStatus):
+                step = replace(step, preparation=status)
             trace.append(step)
             total_steps += 1
             if self._trace_sink is not None:

@@ -121,6 +121,7 @@ class NativeActorCoordinator:
         self._registered = False
         self._settings = self._publication = self._preparation_policy = None
         self._preparation_before_combat = None
+        self.latest_preparation_status = None
         self._last_preparation_receipt = self._last_preparation_command = None
         self._preparation_proposal = self._preparation_command = None
         self._preparation_started = None
@@ -467,8 +468,10 @@ class NativeActorCoordinator:
                     self.session.cleanup.continue_owner(self._obligation, r)
                 self.context = self._context_ticket = self._attach_command = None
                 self._attach_sent = self._attached = self._adopted = False
-                if (self._local_command is not None
-                        and self._local_command.context_id == r.context_id):
+                if (
+                    self._local_command is not None
+                    and self._local_command.context_id == r.context_id
+                ):
                     self._local_command = self._local_receipt = None
                 self._combat_proposal = self._combat_command = None
                 self._target_token = self._target_key = self._stop_context_command = None
@@ -532,10 +535,11 @@ class NativeActorCoordinator:
                 and r.closure_scope is ClosureScope.OWNER
                 and r.owner_phase in (Phase.CLOSED, Phase.RETIRED)
                 and (
-                    r.closure
-                    in (Closure.NATIVE_STOPPED, Closure.SCENE_RETIRED)
-                    or (r.closure in (Closure.NEVER_BOUND, Closure.LOCAL_RELEASED)
-                        and not self._adopted)
+                    r.closure in (Closure.NATIVE_STOPPED, Closure.SCENE_RETIRED)
+                    or (
+                        r.closure in (Closure.NEVER_BOUND, Closure.LOCAL_RELEASED)
+                        and not self._adopted
+                    )
                 )
             ):
                 self._release_owner(r, result.detail)
@@ -711,7 +715,14 @@ class NativeActorCoordinator:
             raise native.PublicationError("unmatched pending application prevents preparation")
         self._publication = pub
         return policy.PreparationObservation(
-            actor, pub.revision, pub.complete, tuple(coverage), tuple(readiness), frozenset(pending)
+            actor,
+            pub.revision,
+            pub.complete,
+            tuple(coverage),
+            tuple(readiness),
+            pub.admission_revision,
+            int(pub.admission_blocks),
+            frozenset(pending),
         )
 
     def advance_preparation(self, proposal):
@@ -754,6 +765,8 @@ class NativeActorCoordinator:
                 or not pub.complete
                 or proposal.actor != expected
                 or proposal.publication_epoch != pub.revision
+                or proposal.admission_revision != pub.admission_revision
+                or pub.admission_blocks
             ):
                 raise ValueError("preparation proposal has no exact current publication")
             group_index = next(
@@ -840,6 +853,7 @@ class NativeActorCoordinator:
 
     def preparation_step(self, combat_proposal=None):
         """At most one new ready buff ahead of each still-unpublished combat proposal."""
+        self.latest_preparation_status = None
         if self._preparation_policy is None or self._combat_proposal is not None:
             return None
         if self._terminal or self._stop_context_command is not None:
@@ -859,6 +873,12 @@ class NativeActorCoordinator:
             decision = self._preparation_policy.advance(observation)
         self._preparation_decision = decision
         if decision.proposal is None:
+            if observation is not None and observation.complete and observation.admission_blocks:
+                self.latest_preparation_status = NativePreparationStatus(
+                    observation.publication_epoch,
+                    observation.admission_revision,
+                    observation.admission_blocks,
+                )
             return None
         if combat_proposal is not None:
             self._preparation_before_combat = combat_proposal
@@ -898,12 +918,14 @@ class NativePreparationUpdate:
             "action": proposal.action.action_id,
             "sequence": proposal.sequence,
             "publication_revision": proposal.publication_epoch,
+            "admission_revision": proposal.admission_revision,
             "disposition": self.acknowledgement.disposition.value,
             "entry_state": self.acknowledgement.entry_state.value,
             "local_settled": self.acknowledgement.local_settled,
             "request": None if r is None else r.request.encode().hex(),
             "command_digest": None if r is None else r.command_digest.hex(),
             "outcome": None if r is None else r.outcome.name.lower(),
+            "reason": None if r is None else r.reason.name.lower(),
             "application": None if r is None else r.application.name.lower(),
             "groups": [
                 {
@@ -913,4 +935,39 @@ class NativePreparationUpdate:
                 }
                 for g in self.decision.groups
             ],
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class NativePreparationStatus:
+    """Trace-only current blockers; never an action acknowledgement or scheduler gate."""
+
+    publication_revision: int
+    admission_revision: int
+    admission_blocks: int
+
+    def __post_init__(self):
+        if (
+            any(
+                type(v) is not int or not 0 < v < 2**64
+                for v in (
+                    self.publication_revision,
+                    self.admission_revision,
+                )
+            )
+            or type(self.admission_blocks) is not int
+            or not 0 < self.admission_blocks <= 31
+        ):
+            raise ValueError("trace status requires positive revisions and known native blockers")
+
+    def as_dict(self):
+        from shadowbane_lab.client_extension.actor_publication import AdmissionBlock
+
+        return {
+            "action": None,
+            "reason": "native_admission_blocked",
+            "publication_revision": self.publication_revision,
+            "admission_revision": self.admission_revision,
+            "admission_blocks": self.admission_blocks,
+            "blockers": [b.name.lower() for b in AdmissionBlock if b & self.admission_blocks],
         }

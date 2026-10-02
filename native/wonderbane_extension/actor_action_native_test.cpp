@@ -246,9 +246,48 @@ void Publish(a::NativeActor& actor,bool item){
 }
 void CloseScene(a::NativeActor& actor){live=false;assert(actor.ReleaseScene());}
 }
+void AdmissionCases(){
+    for(bool owned:{false,true}){
+        ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();
+        std::uint32_t blocks{};Put(scene.actor+0xaf8,base+0x4000);
+        assert(actor.ReadAdmission(blocks)&&(blocks&a::admission::foreign_target)); // No parent grants invented ownership.
+        Put(scene.actor+0xaf8,std::uintptr_t{});assert(actor.ValidateParent(parent,Gates()));
+        if(owned){const auto child=Child(parent);assert(actor.Attach(child,Gates()).outcome==AO::bound);}
+        Put(scene.actor+0xaf8,base+0x4000);Publish(actor,false);
+        if(owned){current_callback=[&]{
+            assert(actor.Submit(Typed(parent,nullptr,a::wire::Action::self_power)).outcome==AO::invalid);
+            std::uint32_t nested{};assert(!actor.ReadAdmission(nested)&&!casts);
+        };assert(actor.ReadAdmission(blocks)&&!blocks&&!casts);}
+        assert(actor.Publication().admission_blocks==(owned?0U:a::admission::foreign_target));
+        auto command=Typed(parent,nullptr,a::wire::Action::self_power);auto result=actor.Submit(command);
+        if(!owned){assert(result.outcome==AO::deferred&&result.reason==a::wire::Reason::target_occupied
+            &&result.entry==AE::never_entered&&result.local_settlement==AL::settled&&!casts&&!stops);
+            Put(scene.actor+0xaf8,std::uintptr_t{});Publish(actor,false);assert(!actor.Publication().admission_blocks);
+            result=actor.Submit(command);}
+        assert(result.outcome==AO::queued&&casts==1&&!stops);
+        assert(actor.ReadAdmission(blocks)&&(blocks&a::admission::local_action));
+        Protocol({});Put(base+0xc010,std::uint32_t{5});assert(actor.Poll().local_settlement==AL::settled);
+        assert(actor.ReadAdmission(blocks)&&!blocks); // Remote application is not a local block.
+        CloseScene(actor);
+    }
+    {
+        ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();
+        assert(actor.ValidateParent(parent,Gates()));const auto child=Child(parent);assert(actor.Attach(child,Gates()).outcome==AO::bound);
+        Put(scene.actor+0xaf8,base+0x4000);current_callback=[] {RaiseException(0xe0008888,0,0,nullptr);};
+        std::uint32_t blocks{};assert(!actor.ReadAdmission(blocks)&&!actor.Available()&&!casts);
+        assert(!actor.ReadAdmission(blocks));a::NativeActorTestAccess::Dispose(actor);
+    }
+    ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();
+    assert(actor.ValidateParent(parent,Gates()));Publish(actor,false);native_in_flight=true;
+    auto result=actor.Submit(Typed(parent,nullptr,a::wire::Action::self_power));
+    assert(result.reason==a::wire::Reason::native_use&&result.entry==AE::never_entered&&!casts);
+    native_in_flight=false;Publish(actor,false);Put(scene.actor+0xad0,std::uintptr_t{});
+    std::uint32_t blocks{};assert(!actor.ReadAdmission(blocks));CloseScene(actor);
+}
 int main(){
     base=reinterpret_cast<std::uintptr_t>(VirtualAlloc(nullptr,0x1800000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));assert(base);
     window=CreateWindowExW(0,L"STATIC",L"actor-native",0,0,0,1,1,HWND_MESSAGE,nullptr,GetModuleHandleW(nullptr),nullptr);assert(window);
+    AdmissionCases();
     {
         ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();
         assert(actor.MatchesIdentity(parent.local_name,parent.server));auto wrong=parent.server;wrong[0]^=1;

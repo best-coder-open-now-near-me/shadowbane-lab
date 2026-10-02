@@ -39,7 +39,8 @@ def owned(monkeypatch):
                 command.host.process_id, command.host.creation_filetime)
             self.host_lease_generation = command.host.lease_generation
             self.header = channel.NativeActionChannelHeader(identity,
-                channel.CLIENT_ACTION_TRANSPORT_CAPABILITY | channel.ACTOR_ACTION_CAPABILITY)
+                channel.CLIENT_ACTION_TRANSPORT_CAPABILITY | channel.ACTOR_ACTION_CAPABILITY
+                | channel.ACTOR_ADMISSION_CAPABILITY)
             self.commands = []
             self.failure = None
             self.payload = receipt
@@ -189,3 +190,22 @@ def test_typed_actor_slot_preserves_outer_geometry_and_payload():
     slot = wire.encode_slot(sequence=2, created_tick=10, deadline_tick=20)
     assert len(slot) == channel.CLIENT_ACTION_COMMAND_SLOT_SIZE
     assert slot[192:] == command.encode()
+
+
+
+def test_old_actor_capability_cannot_admit_new_schema_but_can_cleanup(owned):
+    session,grant,parent,command,_,transport,_=owned
+    transport.header=replace(transport.header,capability_flags=1|channel.ACTOR_ACTION_CAPABILITY)
+    with pytest.raises(channel.NativeActionChannelUnavailable,match='admission'):
+        session.require_actor_actions(grant)
+    with pytest.raises(channel.NativeActionChannelUnavailable,match='admission'):
+        session.actor_action(grant,Verb.SUBMIT,command,parent=parent)
+    assert not transport.commands
+    session.actor_action(grant,Verb.ACTION_STATUS,command,parent=parent)
+    stop=Command(command.host,command.window,command.grant,RequestId(99),command.parent_id,None,
+                 command.parent_digest,bytes(32))
+    transport.payload=Receipt(stop.request,stop.host,stop.window,Outcome.ENGAGEMENT_CLOSED,0,
+        stop.grant,stop.parent_id,None,stop.digest,Verb.STOP_OWNER,Action.NONE,
+        owner_phase=Phase.CLOSED,closure=Closure.LOCAL_RELEASED,closure_scope=ClosureScope.OWNER)
+    session.actor_action(grant,Verb.STOP_OWNER,stop,parent=parent)
+    assert [w.kind for w in transport.commands]==[Verb.ACTION_STATUS,Verb.STOP_OWNER]

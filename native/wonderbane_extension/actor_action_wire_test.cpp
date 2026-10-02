@@ -67,6 +67,21 @@ int wmain(int argc,wchar_t** argv){
     assert(!w::Valid(bad_scope));
     bad_scope.closure_scope=w::ClosureScope::owner;bad_scope.context_phase=w::Phase::retired;
     assert(!w::Valid(bad_scope));
+    for(unsigned reason=7;reason<=11;++reason){auto typed=refused;
+        typed.outcome=w::Outcome::deferred;typed.reason=static_cast<w::Reason>(reason);
+        assert(w::Valid(typed)); // Historical positive context closure retains the exact refusal.
+        typed.verb=w::Verb::submit;typed.context_phase=w::Phase::bound;typed.closure=w::Closure::none;
+        typed.closure_scope=w::ClosureScope::none;typed.flags=w::owner_cleanup|w::context_cleanup;
+        assert(w::Valid(typed));
+        for(unsigned bad=0;bad<6;++bad){auto invalid=typed;
+            if(bad==0){invalid.entry=w::Entry::entered;}
+            if(bad==1){invalid.local_settlement=w::LocalSettlement::pending;}
+            if(bad==2){invalid.flags|=w::outbound_queued;}
+            if(bad==3){invalid.verb=w::Verb::cancel_action;}
+            if(bad==4){invalid.application=w::Application::observed;}
+            if(bad==5){invalid.outcome=w::Outcome::rejected;}
+            assert(!w::Valid(invalid));}
+    }
     refused.verb=w::Verb::cancel_action;assert(!w::Valid(refused));
     auto readonly=c;readonly.grant={};readonly.parent_id={};readonly.parent_digest={};readonly.action=w::Action::none;
     readonly.power_id=0;std::memset(readonly.item_key,0,8);std::memset(readonly.template_key,0,8);

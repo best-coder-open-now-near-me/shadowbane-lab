@@ -447,8 +447,11 @@ class NativeMovementSession:
         header = transport.header
         if header.process_identity != self.identity:
             raise channel.NativeActionChannelUnavailable("actor exact client lifetime changed")
-        if require_capability and not header.capability_flags & channel.ACTOR_ACTION_CAPABILITY:
-            raise channel.NativeActionChannelUnavailable("shared actor protocol is unavailable")
+        required = channel.ACTOR_ACTION_CAPABILITY | channel.ACTOR_ADMISSION_CAPABILITY
+        if require_capability and header.capability_flags & required != required:
+            raise channel.NativeActionChannelUnavailable(
+                "shared actor admission protocol is unavailable"
+            )
         return transport
 
     def require_actor_actions(self, grant: NativeMovementGrant) -> None:
