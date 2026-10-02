@@ -3,22 +3,21 @@
 ## Scope and source status
 
 The user authorized automatic application and refresh of missing Greater Concoction
-Potion, Precision, Beorc Rune, Transform and Defensive Stance effects. The complete
-native/host slice and cold-start observation repair are installed as **.64/.44**
-from qualified source `1bbd536c791136e3d485cb935b7bc4482d0b1f5c`. PR #60 merged
-into main at `5c94808698fe8bfd2ca194a53e532a50b7cf344d` after approval and all
-15 hosted checks. Shared actor ownership, canonical observations, preparation,
-saved intent and NPC/manual-player runners are integrated.
+Potion, Precision, Beorc Rune, Transform and Defensive Stance effects. The native
+and host slice, observation/admission repairs, pending-action settlement repair
+and heterogeneous inventory census are installed as **.66/.46** from qualified
+source `9e1a77ae9e763a65bfc7f39587c30b3f46c39c4b`. PR #62 merged into main at
+`a983384b2e95a6ab6cc3f46a750265b82ec0bae2`. Shared actor ownership, canonical
+observations, preparation, saved intent and NPC/manual-player runners are integrated.
 
-Live qualification remains incomplete. The second .64 run observed canonical
-potion and Precision coverage, queued one NPC attack and confirmed child cleanup,
-but repeated never-entered Beorc deferrals reached the private submission bound.
-The whole result remains not passed. The active next item is the post-combat
-admission/retry diagnosis; no further gameplay run is pending. The active
-receipt lane is `codex/buff-acceptance-20261002`, documentation-only
-[PR #61](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/61).
-Installed source and chronological evidence remain distinct from this branch.
-See the [branch map](git-branch-map.md).
+Live qualification remains incomplete. The historical .65 run confirmed Precision
+and Beorc effects, but no potion or NPC attack; Rat's queued action remained locally
+pending in the captured trace. The fixes and final .66 package/deployment receipts
+are recorded below without changing that failed result. The active next item is
+Umbra login and fresh native readiness, followed by the bounded one-NPC/buff gate.
+The delivery-record branch is `codex/buff-deployment-20261002`; installed source and
+chronological evidence remain distinct from this documentation branch. See the
+[branch map](git-branch-map.md).
 
 The earlier .62/.42 [bounded combat recovery gate](native-owner-liveness-20261001.md)
 passed native reuse-blocked opener fallback. That historical combat result does
@@ -621,9 +620,8 @@ Focused native suites and the production DLL build passed; independent native
 and combined source reviews found no outstanding issue. The full host suite
 passed 4,836 tests with 36 skips; focused host checks also exercised the real v2
 publication mapping and the production runner's no-barrier behavior. Exact-source
-package qualification is complete as recorded below. This candidate is not
-merged or installed; the VM remains on qualified .64/.44. New merge/install
-authorization is the active next item.
+package qualification is complete as recorded below. At that qualification checkpoint the candidate was not yet merged or installed;
+the later installation and live result are recorded below.
 
 The next private acceptance helper uses one immutable NPC, native health-zero
 proof, correlated child cleanup and the same parent owner for remaining buffs.
@@ -661,7 +659,7 @@ Fresh read-only VM inspection at 12:21:54 UTC on October 2 found the game closed
 the exact .64/.44 installed baseline, healthy idle manager 7096 and all five
 shortcuts still pointing to the installed runtime. These are recorded facts,
 not permanent process identity or permission to install. Settings, jobs and
-historical evidence remain in place. No .65/.45 runtime has been deployed and
+historical evidence remain in place. At that pre-installation checkpoint, no .65/.45 runtime had been deployed and
 no rollback copies were created. Deployment helper tests passed 17 cases, with
 16 verifier tests, 11 distribution ownership fixtures, PowerShell parsing and
 exact-path retirement checks also passing. The acceptance helper passed 98
@@ -669,9 +667,9 @@ offline tests after qualified pin closure. Final independent review verified
 all 36 deployment and nine acceptance source dependencies and reran 131
 deployment/verifier/acceptance/readiness tests successfully. Its review covered
 the fresh-launch wrappers, qualified artifact identity and current-write disk
-requirement without any rollback allowance. The next step is explicit
-merge/install approval, then a fresh baseline and bounded one-NPC/buff acceptance
-after login.
+requirement without any rollback allowance. The next step at that checkpoint was merge/install approval, followed by a fresh
+baseline and bounded one-NPC/buff acceptance after login. The following section
+records that completed installation and the failed live gate.
 
 
 ## Installed .65/.45 and first bounded run - October 2
@@ -715,9 +713,9 @@ as well as a preceding host stop request; their timing must be correlated before
 assigning a single cause. Final parent NATIVE_STOPPED cleanup completed; fresh passive readiness showed
 an alive actor, owner NONE and no pending cleanup. No watchdog fired.
 
-The active next item is native potion lookup diagnosis and production handling
-of legitimate long pending buffs, with shared-owner cancellation and duplicate
-suppression preserved. Full buff coverage, expiry/refresh, potion overlap and
+That run led to native potion lookup diagnosis and the repair of legitimate long
+pending-buff handling, with shared-owner cancellation and duplicate suppression
+preserved. These repairs are integrated in .66/.46 below. Full buff coverage, expiry/refresh, potion overlap and
 NPC encounter acceptance remain unproved. Evidence remains in
 `artifacts/bot-deploy/20261002-b45/live-evidence`.
 
@@ -736,7 +734,8 @@ empty-inventory claim or permission to dispatch through the unqualified class.
 The native correction must qualify heterogeneous inventory traversal separately
 from strict actionable-potion eligibility. No gameplay action was issued by this
 diagnostic. The host pending-action correction independently passed 37 focused
-tests and review; native inventory work is still in progress.
+tests and review; native inventory work was still in progress at that point.
+Both repairs are now integrated in PR #62, as recorded below.
 
 
 A second independently reviewed passive census, qualified for the five exact
@@ -748,3 +747,66 @@ and the required type 8 / flags 0x0a. The report is
 This confirms the potions are represented in the observed inventory and the
 class restriction caused the earlier census failure. Passive rereads do not
 prove native locked lookup/retain or dispatch; no item was used by the census.
+
+
+## Qualified and installed .66/.46 - October 2
+
+PR #62 merged exact source `9e1a77ae9e763a65bfc7f39587c30b3f46c39c4b` into
+main at `a983384b2e95a6ab6cc3f46a750265b82ec0bae2`, 14:11:08 UTC. The release
+changes the pending-action watchdog to measure unavailable correlated native
+status, rather than elapsed action age. A valid live-parent response preserves
+an immutable pending/uncertain command without resubmission. Explicit safety
+cancellation remains available; remote application pending after positive local
+settlement still permits other actions.
+
+The native inventory census qualifies five exact primary classes before reading
+common identity fields: ArcContainerObject, ArcDeed, ArcItem, ArcRune and ArcKey.
+Only a plain ArcItem with the exact configured potion template `[980066,0]`, type
+8, flags 0x0a and positive quantity becomes an actionable operand. Native retained
+lookup, complete recapture and current-owner checks remain required. A complete,
+stable census with no eligible match is distinct from UNKNOWN after an unreadable,
+changed or malformed census. UNKNOWN zeros all item operands and does not block
+independently ready powers or fabricate missing-effect evidence.
+
+Package `artifacts/b46/948aa06b` passed 4,857 host tests with 37 skips. Both native
+profiles passed 219 tests and all 121 required gates. Real IPC per profile passed
+73 movement, 86 combat and 143 actor cases, with no IPC skips/errors. The three
+native private-image placeholders were covered by explicit image probes. Each
+original/prepared inventory probe passed 10 cases, reusing 48 native primitives
+and qualifying all five primary classes. The two previously documented native
+transparency diagnostics per profile remain separate limitations; no required
+gate failed. Independent verification checked 82 stages, all 110 indexed artifact
+hashes/sizes, source identity, wheel RECORD and both DLL version resources.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Acceptance ZIP | `33c951be988e3252b5a6b026c86229e226c65b475746c0d100d8a3afe2c07671` |
+| Receipt | `36955219c29144a193ab373871a83664782505147ebd13fad97b4d6010b6ced6` |
+| Full DLL | `b1393468817344be3722ff923bafe025c3b320e680a88e4a8e3751197e1ba674` |
+| Host wheel | `4e811e4b99afdd0e91dca7cd65af1cd4f1580da737bb695dc95889db1a2f68ac` |
+
+Qualified helper review verified 36 deployment dependencies, nine acceptance
+sources and the seven-file stage plan; 131 focused helper tests passed. Both
+acceptance wrappers now use the same radius 120 for production selection and
+validation. One immutable NPC, at most four positively settled attack queues,
+one optional Shot opener, one potentially entered action per buff group, and
+30-second NPC / 45-second whole-run bounds remain. Uncertain actions only poll
+the original command. Buff coverage is not a prerequisite for starting combat.
+
+Installation verified 463 modules, 9,576 retained files and one DLL inventory
+change. Manager 9900 activated healthy; five shortcuts and startup preflight
+passed. The obsolete .65 host (2,116 files) and two .45 guest payloads totaled
+50,825,499 bytes removed after exact ownership checks. Four obsolete host/share
+staging binaries totaled another 5,630,514 bytes. Settings, jobs and diagnostic
+evidence remain in place; no rollback copies were retained. Twelve compact
+receipts and seven installed-file hashes are preserved privately under
+`artifacts/bot-deploy/20261002-b46/receipts`.
+
+The verified launch at 17:53:00.5627234 UTC loaded the qualified DLL into PID 7588,
+creation FILETIME `134354371726530142`, HWND `5702362`. Passive inspection was
+**not ready** at login/loading; no .66 gameplay action was issued. The seven
+acceptance dependencies are staged separately in
+`bot-actor-full-encounter-20261002-b46`. The next gate requires Umbra login and a
+fresh exact-session preflight. Full buff coverage, potion application/overlap,
+expiry/refresh and the new full-encounter gate remain unproved; the historical
+.65 failure is unchanged.

@@ -4,32 +4,34 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`, currently PR #61 merge
-`1e7c26ff005cf53453842e4e5462a9091c9058c0`. Installed host **0.3.65** / native
-**1.8.45** use qualified source `fc8b316` with official client **1.3.38.13**.
+Start new work from freshly fetched `origin/main`, currently PR #62 merge
+`a983384b2e95a6ab6cc3f46a750265b82ec0bae2`. Installed host **0.3.66** / native
+**1.8.46** use qualified source `9e1a77ae9e763a65bfc7f39587c30b3f46c39c4b`
+with official client **1.3.38.13**.
 
-[PR #61](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/61)
-merged after all 15 checks passed at `86d76b9`. The user gave standing approval
-for routine bot merges/installations after required checks and reviews; see
+[PR #62](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/62)
+merged at 14:11:08 UTC on October 2 after required checks. The user gave standing
+approval for routine bot merges/installations after validation and review; see
 [delivery instructions](AGENTS.md). This does not waive validation.
 
-Installation verified 463 modules, 9,575 preserved files, one DLL inventory change,
-healthy manager activation, five shortcuts and startup preflight. The obsolete
-.64 host and .44 deployment payloads were removed without retained rollback copies.
-Settings, jobs and diagnostic evidence remain in place. The desktop launch and
-dashboard shortcuts point to the verified current runtime.
+The release preserves legitimate pending buff actions while correlated native
+status replies continue, and distinguishes a complete inventory with no eligible
+potion from an unknown census. Five qualified inventory classes can be traversed;
+only the exact plain-item potion operand is actionable. Installation verified
+463 modules, 9,576 preserved files, one DLL inventory change, healthy manager
+activation, five shortcuts and startup preflight. Obsolete .65/.45 runtime and
+payload files were removed without rollback copies. Settings, jobs and evidence
+remain in place.
 
-**Active next item:** resolve pending-buff timeout handling and the native potion
-inventory lookup before repeating bounded gameplay. The first .65 test remains
-**not passed**. Precision and Beorc effects were observed; Rat Shape queued but
-remained locally pending in the captured publications. No potion or NPC attack
-was submitted. A parent stop followed the host's five-second preparation deadline;
-native telemetry separately retained a 281 ms stalled-update revocation. Exact
-NATIVE_STOPPED cleanup and subsequent owner NONE were confirmed. This is
-not full buff or encounter acceptance. Automatic retaliation remains disabled.
-See the [buff record](docs/buff-preparation-20261001.md).
+**Active next item:** after Umbra login and fresh native readiness, run the bounded
+one-NPC/buff acceptance at camp radius 120. The verified new launch was still at
+login/loading during passive inspection; no .66 gameplay action has been issued.
+The historical .65 run remains **not passed**: Precision and Beorc effects were
+observed, Rat stayed locally pending, and no potion or NPC attack was submitted.
+That evidence does not establish full buff coverage, refresh or potion overlap.
+Automatic retaliation remains disabled. See the [buff record](docs/buff-preparation-20261001.md).
 
-The delivery-record lane is `codex/buff-runtime-receipt-20261002` in the existing
+The delivery-record lane is `codex/buff-deployment-20261002` in the existing
 integration worktree. Read the [branch map](docs/git-branch-map.md) before selecting
 a development base and the [contributor workflow](CONTRIBUTING.md) before starting
 a new task. The [session-boundary audit](docs/retaliation-session-boundary-20261001.md)
