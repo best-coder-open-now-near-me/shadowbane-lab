@@ -587,8 +587,9 @@ They support retaining the native foreign-target guard. The next private
 acceptance design will cover a full encounter rather than stopping immediately
 after queueing, subject to review; no new gameplay run has been issued.
 
-The single active next item is to reconcile native admission facts and host retry
-progress before a further bounded gameplay run. This evidence proves the stated
+The subsequent .65/.45 repair below reconciles native admission facts and host
+retry progress; its installation remains the next prerequisite for gameplay.
+This evidence proves the stated
 client coverage and queue/cleanup boundaries, not full buff preparation,
 expiry/refresh, potion overlap timing, NPC death, server kill credit or skill
 consumption. The first live failure and this partial result remain unchanged.
@@ -620,12 +621,54 @@ Focused native suites and the production DLL build passed; independent native
 and combined source reviews found no outstanding issue. The full host suite
 passed 4,836 tests with 36 skips; focused host checks also exercised the real v2
 publication mapping and the production runner's no-barrier behavior. Exact-source
-package qualification is the active next item. This candidate is not merged or
-installed; the VM remains on qualified .64/.44. New merge/install authorization
-is required after package qualification.
+package qualification is complete as recorded below. This candidate is not
+merged or installed; the VM remains on qualified .64/.44. New merge/install
+authorization is the active next item.
 
 The next private acceptance helper uses one immutable NPC, native health-zero
 proof, correlated child cleanup and the same parent owner for remaining buffs.
 It retains bounded duration and action counts, optional Shot-to-the-Leg semantics,
-and no replay of uncertain attacks. Its source pins remain unqualified until the
-candidate package is verified. No gameplay success is claimed from offline tests.
+and no replay of uncertain attacks. Its 98 offline tests and independent review
+passed. Qualified source/artifact pins and nine acceptance dependencies are
+frozen against the verified package below. No gameplay success is claimed from
+offline tests.
+
+## Qualified .65/.45 package
+
+Package `artifacts/b45/38619e76` was built from committed source
+`fc8b316781bba53605729a2bee3578a1ace3b10e`. The packaged host suite passed
+4,835 tests with 37 skips. Both native profiles passed 219 tests and all 121
+mandatory native gates. Per profile, real IPC passed 73 movement, 86 combat and
+130 actor tests with zero IPC skips or errors. The three native private-image
+placeholders were covered by explicit original/prepared image probes. The two
+previously documented transparency diagnostics per profile remain separate
+limitations; no new required gate failed.
+
+Independent verification covered all 82 required stages, all 110 indexed artifact
+hashes and sizes, archive entries, exact source identity, wheel RECORD and both
+DLL version resources. Installed-wheel checks passed. All 15 hosted checks passed
+at the exact packaged source; subsequent qualification documentation must also
+pass hosted checks before an approved merge.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Acceptance ZIP | `339210b78b68f928cc5317fa074fecff87a269db67a62fe8239056a86d6d1ecc` |
+| Receipt | `29444cd060a13f929233b59485fb673517e9990e0ff3265e76137321dc09a2b2` |
+| Full DLL | `bc76ae8bac5f464cf81fb3ae75de7e2e836ce3b3d039822bb324ec5ae9bdb777` |
+| Host wheel | `681466e70642f28417e5a3d009ed65dbeae3790ff765cebbe63f1f361d434f0e` |
+
+Fresh read-only VM inspection at 12:21:54 UTC on October 2 found the game closed,
+the exact .64/.44 installed baseline, healthy idle manager 7096 and all five
+shortcuts still pointing to the installed runtime. These are recorded facts,
+not permanent process identity or permission to install. Settings, jobs and
+historical evidence remain in place. No .65/.45 runtime has been deployed and
+no rollback copies were created. Deployment helper tests passed 17 cases, with
+16 verifier tests, 11 distribution ownership fixtures, PowerShell parsing and
+exact-path retirement checks also passing. The acceptance helper passed 98
+offline tests after qualified pin closure. Final independent review verified
+all 36 deployment and nine acceptance source dependencies and reran 131
+deployment/verifier/acceptance/readiness tests successfully. Its review covered
+the fresh-launch wrappers, qualified artifact identity and current-write disk
+requirement without any rollback allowance. The next step is explicit
+merge/install approval, then a fresh baseline and bounded one-NPC/buff acceptance
+after login.

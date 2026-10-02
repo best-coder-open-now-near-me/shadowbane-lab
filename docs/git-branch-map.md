@@ -32,7 +32,7 @@ The integrated [buff implementation and startup repair](buff-preparation-2026100
 are in main. Qualification verified 82 stages and 110 indexed artifacts, both
 native profiles, real movement/combat/actor IPC and original/prepared image probes.
 The combined candidate branch is `codex/buff-acceptance-20261002` in the reused
-bot-integration worktree. Draft
+bot-integration worktree.
 [PR #61](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/61)
 targets main and now contains the reviewed host/native admission repair plus the
 live acceptance and deployment records. Native checkpoint `5917d1c`, host
@@ -46,10 +46,17 @@ bot-runtime worktree for review and qualification. Its tip is included in PR #61
 retire it after verified main integration when no active process needs that
 checkout. Canonical `E:\Projects\shadowbane` remains clean on main `5c94808`.
 
-**Active next item:** exact-source package qualification for the combined .65/.45
-candidate, followed by a new merge/install approval request. Independent source
-reviews, focused native suites, real publication IPC and the full host suite
-(4,836 passed / 36 skipped) passed. No new gameplay run is pending.
+**Active next item:** obtain new PR #61 merge/install approval for the qualified
+.65/.45 candidate. Exact package source
+`fc8b316781bba53605729a2bee3578a1ace3b10e` passed all 82 required stages,
+110 indexed artifact checks and all 15 hosted checks. The packaged host suite
+passed 4,835 tests with 37 skips; both native profiles and real publication,
+movement, combat and actor IPC passed. Independent verification checked all
+indexed hashes, wheel contents, versions and original/prepared client probes.
+Fresh VM inspection at 12:21:54 UTC found the game closed, .64/.44 installed,
+and manager 7096 healthy with no bound slots. Reinspect before installation;
+this is historical state, not continuing authorization. No new gameplay run
+has been issued.
 The second .64 bounded acceptance
 remains **not passed**. Canonical native publication reported potion and Precision
 coverage PRESENT; one exact NPC ATTACK queued and its child NATIVE_STOPPED

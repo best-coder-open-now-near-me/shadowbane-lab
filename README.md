@@ -21,8 +21,10 @@ healthy manager activation, five shortcuts and startup preflight. The obsolete
 Settings, jobs and diagnostic evidence remain in place. The desktop Vendor Test
 and Modded Client shortcuts use the updated launcher; dashboard shortcuts use .64.
 
-**Active next item:** qualify the reviewed host 0.3.65 / native 1.8.45 admission
-repair in draft PR #61 before requesting merge/install approval. The second .64 acceptance remains **not passed**: canonical
+**Active next item:** obtain merge/install approval for the qualified host
+0.3.65 / native 1.8.45 admission repair in PR #61. Exact source `fc8b316` passed
+82 package stages, 110 artifact checks and all 15 hosted checks. The second .64
+acceptance remains **not passed**: canonical
 native publication reported Greater Concoction Potion and Precision coverage
 PRESENT, one NPC attack queued, and child NATIVE_STOPPED cleanup completed. Beorc
 Rune then received 29 never-entered deferrals before the private helper's total
