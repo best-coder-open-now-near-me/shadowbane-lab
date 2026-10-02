@@ -36,10 +36,11 @@ bool Facts(const Frame& f)noexcept{
             if(r.readiness==1&&(!r.rank||r.category>1||r.target_mode!=2||r.delivery||r.required_mode<1||r.required_mode>3
                 ||(r.required_mode==2&&f.actor_mode>1))){return false;}
         }else if(r.item_hint || r.template_hint || r.quantity){
+            if(r.readiness==0){return false;}
             if(!r.item_key[0]||!r.item_key[1]||r.template_key[0]!=r.selector.template_id||r.template_key[1]
                 ||!fence::Address(r.item_hint)||!fence::Address(r.template_hint)||r.item_hint==r.template_hint
                 ||!r.quantity||r.type!=8||r.flags!=0x0a){return false;}
-        }else if(!Zero(r.item_key)||!Zero(r.template_key)||r.type||r.flags||r.readiness!=8){return false;}
+        }else if(!Zero(r.item_key)||!Zero(r.template_key)||r.type||r.flags||(r.readiness!=8&&r.readiness!=0)){return false;}
     }
     if(offset!=f.descriptor_count){return false;}
     for(std::size_t i=0;i<f.descriptors.size();++i){const auto& d=f.descriptors[i];

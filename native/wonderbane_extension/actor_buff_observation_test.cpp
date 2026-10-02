@@ -6,7 +6,7 @@ namespace inv=wonderbane::extension::combat::inventory;
 namespace {
 unsigned failures{},checks{};std::uint64_t effect_epoch=1,power_epoch=1;
 bool actor_current=true,foreign_use=false,effect_present=false,item_present=false,item_current=true;
-unsigned inventory_mutation{};
+unsigned inventory_mutation{};bool item_unknown=false;
 unsigned char* image{};
 alignas(4) std::array<unsigned char,0xe00> actor{};
 alignas(4) std::array<unsigned char,0x30> state{};
@@ -28,7 +28,7 @@ bool Current(void*)noexcept{return actor_current;}
 void Reset(){
     actor.fill(0);state.fill(0);definition.fill(0);action.fill(0);fixture_descriptor.fill(0);actions={};learned={};
     actor_current=true;foreign_use=false;effect_present=false;item_present=false;item_current=true;
-    inventory_mutation=0;
+    inventory_mutation=0;item_unknown=false;
     effect_epoch=power_epoch=1;const auto base=reinterpret_cast<std::uintptr_t>(image);
     context={base,Address(actor),{4050960,53},1,Current,nullptr};
     Put(Address(actor)+0xad0,static_cast<std::uint32_t>(Address(state)));Put(Address(state)+0x10,std::uint32_t{5});Put(Address(state)+0x18,std::uint32_t{1});
@@ -72,10 +72,11 @@ void Mutate()noexcept{
     if(inventory_mutation==3){++power_epoch;}
     if(inventory_mutation==4){fixture_descriptor[0x4c]=1;}
 }
-bool Observe(const Context& c,State&,Observation& out)noexcept{
+Result Observe(const Context& c,State&,Observation& out)noexcept{
     Mutate();
-    out={};if(!item_present){return false;}out.count=1;out.generation=1;
-    out.items[0]={{55,30},c.template_key,0x21000000,0x22000000,3,8,0x0a};return true;
+    out={};if(item_unknown){return Result::unknown;}out.generation=1;
+    if(!item_present){out.result=Result::no_eligible;return out.result;}out.count=1;out.result=Result::available;
+    out.items[0]={{55,30},c.template_key,0x21000000,0x22000000,3,8,0x0a};return out.result;
 }
 bool Revalidate(const Context&,State&,const Observation&)noexcept{Mutate();return item_current;}
 bool Release(State&)noexcept{return true;}
@@ -116,6 +117,17 @@ int RunActorBuffFixtureCases(){
     Reset();item_present=true;Check(b::Capture(context,item,owner,publication)==b::Unknown::none,"item publication for revalidation callback test");
     inventory_mutation=3;Check(!b::ItemOperand(context,owner,publication,0,operand),"item operand rejects protocol mutation during native revalidation");b::Release(owner);
     Reset();Capture(publication,item);Check(publication.actions[0].readiness==b::Readiness::item_unavailable,"no candidate is unavailable not invented inventory absence");
+    Reset();item_unknown=true;auto mixed=Request();mixed.count=2;
+    mixed.actions[1]={1,1,0,{980066,0},111,b::CoverageKind::all_descriptors};
+    Check(b::Capture(context,mixed,owner,publication)==b::Unknown::none
+        &&publication.actions[0].readiness==b::Readiness::ready
+        &&publication.actions[1].readiness==b::Readiness::unknown
+        &&publication.actions[1].coverage==b::Coverage::missing
+        &&!publication.actions[1].item_hint,"unknown inventory preserves independent ready power and effect coverage");
+    Check(b::Revalidate(context,owner,publication),"unknown resource does not globally block unrelated ready power");
+    inv::Facts absent;Check(!b::ItemOperand(context,owner,publication,1,absent),"unknown resource never supplies item operand");b::Release(owner);
+    Reset();Check(b::Capture(context,item,owner,publication)==b::Unknown::none,"complete noeligible publication");
+    item_current=false;Check(!b::Revalidate(context,owner,publication),"noeligible must revalidate, not bypass empty state");b::Release(owner);
     Reset();auto transform=Request();transform.actions[0].coverage_kind=b::CoverageKind::transform_marker;
     Put(Address(action),static_cast<std::uint32_t>(context.image+0x114853c));Capture(publication,transform);Check(publication.actions[0].descriptors[0].action_class==e::ActionClass::transform,"transform coverage uses actual marker action");
     Reset();auto invalid=Request();invalid.count=2;invalid.actions[1]=invalid.actions[0];Check(b::Capture(context,invalid,owner,publication)==b::Unknown::request,"duplicate action index rejected");
