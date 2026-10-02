@@ -31,21 +31,26 @@ hashes are preserved privately under `artifacts/bot-deploy/20261001-b44/receipts
 The integrated [buff implementation and startup repair](buff-preparation-20261001.md)
 are in main. Qualification verified 82 stages and 110 indexed artifacts, both
 native profiles, real movement/combat/actor IPC and original/prepared image probes.
-The current receipt/acceptance branch is `codex/buff-acceptance-20261002`, based on
-main `5c94808`, in the reused bot-integration worktree. Its documentation-only
+The combined candidate branch is `codex/buff-acceptance-20261002` in the reused
+bot-integration worktree. Draft
 [PR #61](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/61)
-targets main; these receipt updates are separate from installed package source.
+targets main and now contains the reviewed host/native admission repair plus the
+live acceptance and deployment records. Native checkpoint `5917d1c`, host
+checkpoint `c8c30c6`, and version checkpoint `a8325d8` are integrated. Candidate
+versions are host **0.3.65** / native **1.8.45**; they are not installed.
 
-The merged `codex/buff-deployment-20261001` branch was retired locally and
-remotely after tip `23f1674` was verified reachable from origin/main and no active
-checkout remained. The separate `codex/buff-admission-20261002` lane in bot-runtime
-contains the native/host admission repair in progress; it is outside main and is
-not installed. This documentation branch does not yet contain that repair. The
-planned delivery is to integrate the reviewed repair into PR #61, update its scope,
-and qualify the exact combined source before requesting merge/install approval.
+The merged `codex/buff-deployment-20261001` branch was retired locally and remotely
+after tip `23f1674` was verified reachable from origin/main and no active checkout
+remained. The pushed `codex/buff-admission-20261002` source lane remains in the
+bot-runtime worktree for review and qualification. Its tip is included in PR #61;
+retire it after verified main integration when no active process needs that
+checkout. Canonical `E:\Projects\shadowbane` remains clean on main `5c94808`.
 
-**Active next item:** diagnose the post-child-cleanup actor admission and retry
-feedback before any further gameplay run. The second .64 bounded acceptance
+**Active next item:** exact-source package qualification for the combined .65/.45
+candidate, followed by a new merge/install approval request. Independent source
+reviews, focused native suites, real publication IPC and the full host suite
+(4,836 passed / 36 skipped) passed. No new gameplay run is pending.
+The second .64 bounded acceptance
 remains **not passed**. Canonical native publication reported potion and Precision
 coverage PRESENT; one exact NPC ATTACK queued and its child NATIVE_STOPPED
 cleanup completed. Beorc Rune received 29 DEFERRED/NEVER_ENTERED/SETTLED replies,
