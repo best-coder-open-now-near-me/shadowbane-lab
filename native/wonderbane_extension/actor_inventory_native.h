@@ -22,7 +22,9 @@ struct Facts {
     std::uint32_t quantity{}, type{}, flags{};
     bool operator==(const Facts&) const = default;
 };
+enum class Result : std::uint32_t { unknown, available, no_eligible };
 struct Observation {
+    Result result = Result::unknown;
     std::array<Facts, kMaxItems> items{};
     std::uint32_t count{};
     std::uint64_t generation{};
@@ -53,10 +55,11 @@ bool Start(std::uintptr_t image) noexcept;
 bool Ready() noexcept;
 // Owner-thread only. Bounded complete discovery in both actor-owned trees,
 // native locked owned lookup, complete recapture, final actor/fence checks.
-// False (including no eligible candidate) means unavailable, never authoritative
-// inventory absence or effect absence. Only type8/flags0xA positive-quantity
-// candidates for the exact configured template are published.
-bool Observe(const Context&, State&, Observation&) noexcept;
+// Unknown is not absence. No-eligible requires complete stable discovery in both
+// containers and remains revalidatable; it says nothing about unloaded/server
+// inventory or effect absence. Only exact ArcItem type8/flags0xA positive-quantity
+// candidates for the configured template are retained and published.
+Result Observe(const Context&, State&, Observation&) noexcept;
 bool Revalidate(const Context&, State&, const Observation&) noexcept;
 // Uses only saved native release and owned slots, so stale context can teardown.
 // A true result proves local references released, not item/effect completion.

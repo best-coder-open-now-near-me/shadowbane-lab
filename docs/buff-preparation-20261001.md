@@ -672,3 +672,79 @@ the fresh-launch wrappers, qualified artifact identity and current-write disk
 requirement without any rollback allowance. The next step is explicit
 merge/install approval, then a fresh baseline and bounded one-NPC/buff acceptance
 after login.
+
+
+## Installed .65/.45 and first bounded run - October 2
+
+PR #61 merged at `1e7c26f` at 13:17:17 UTC after all 15 checks passed at
+`86d76b9`. The user has given standing approval for routine bot merges and
+qualified installation; required reviews/checks and preservation rules still
+apply. Installation verified 463 modules, 9,575 retained files and one DLL
+inventory change. Manager 9932 activated healthy, all five shortcuts passed, and
+startup preflight passed. Exact obsolete .64 environment retirement removed
+2,116 files plus two .44 guest payloads (50,803,605 bytes); four obsolete staging
+binaries totaled 5,617,156 bytes. No rollback copies were retained. Twelve compact
+receipts and seven current installed-file hashes are preserved privately.
+
+Launch at 13:23:19.4677569 UTC verified the qualified DLL in PID 7336, creation
+FILETIME `134354209911431065`, HWND `3474162`. Following user login, passive
+preflight confirmed Umbra/Wonderbane and actor/admission capabilities 0x181.
+The bounded run `actor-full-encounter-9046c452a4d648dcb2bef68eb831fd69` is
+**not passed**. Three self-power requests queued: Precision at 484 ms, Beorc at
+2,234 ms, and Rat Shape at 7,562 ms. Canonical effects subsequently confirmed
+Precision and Beorc. Rat remained locally pending through the last captured
+publication; its eventual application is not established by this trace.
+
+No potion command was submitted. Across 24 complete publications, all nine
+potion descriptors were missing and the item selector reported ITEM_UNAVAILABLE
+with zero item/template operands and quantity. This does not establish an empty
+inventory: native inventory census failure and no eligible item must be
+separated. No potion reuse refusal or pending application history was present.
+The user observed the other buffs triggering, which is retained as user feedback
+rather than substituted for missing native effect evidence.
+
+No NPC context or ATTACK occurred. Initial nearest-NPC distance was about 80.10
+units against the 80-unit test camp. Rat's last queued/pending STATUS was at
+12,250 ms; parent STOP_OWNER request 30 appeared at 12,875 ms, before the runner
+reported emergency_stop/native_movement_owner_revoked at 14,953 ms. This order
+matches the production host's five-second preparation-resolution timeout and
+requires fixing pending handling. A later passive telemetry capture retained
+last_owner_loss reason `stalled`: interval 281 ms, generation 3 to 4, owner
+AUTOMATION to NONE, key bits zero, tick 327954968. This is a native loss record
+as well as a preceding host stop request; their timing must be correlated before
+assigning a single cause. Final parent NATIVE_STOPPED cleanup completed; fresh passive readiness showed
+an alive actor, owner NONE and no pending cleanup. No watchdog fired.
+
+The active next item is native potion lookup diagnosis and production handling
+of legitimate long pending buffs, with shared-owner cancellation and duplicate
+suppression preserved. Full buff coverage, expiry/refresh, potion overlap and
+NPC encounter acceptance remain unproved. Evidence remains in
+`artifacts/bot-deploy/20261002-b45/live-evidence`.
+
+Compact evidence SHA-256:
+
+- `acceptance.json`: `adbedd889a105693d57753731104ba0ebfde983010f5c97ad51cb08eb2816e2f`
+- `events.jsonl`: `3b58ddcafdf86e78a99585e93335b412d5d1d97ffff58a59d828b501710e7c27`
+
+
+The subsequent passive inventory census identified a concrete structural failure:
+an inventory object at address 314019760 had vtable RVA `0x1143278`, while the
+current scanner required the base item RVA `0x1142748` for every node. The census
+was rejected before any absence conclusion; its `capture_rejected` record is
+`artifacts/bot-deploy/20261002-b45/inventory-observation.json`. This is not an
+empty-inventory claim or permission to dispatch through the unqualified class.
+The native correction must qualify heterogeneous inventory traversal separately
+from strict actionable-potion eligibility. No gameplay action was issued by this
+diagnostic. The host pending-action correction independently passed 37 focused
+tests and review; native inventory work is still in progress.
+
+
+A second independently reviewed passive census, qualified for the five exact
+primary ArcItem classes in the official image, completed across both current
+actor containers (11 objects, split 9 and 2). It found two plain ArcItem stacks
+for the already-reviewed potion template `[980066,0]`, with quantities 4 and 5
+and the required type 8 / flags 0x0a. The report is
+`artifacts/bot-deploy/20261002-b45/heterogeneous-inventory-observation.json`.
+This confirms the potions are represented in the observed inventory and the
+class restriction caused the earlier census failure. Passive rereads do not
+prove native locked lookup/retain or dispatch; no item was used by the census.

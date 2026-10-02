@@ -15,6 +15,7 @@ from shadowbane_lab.client_extension.actor_action_wire import (
     Entry,
     LocalSettlement,
     Outcome,
+    Phase,
     Receipt,
     Verb,
 )
@@ -330,7 +331,7 @@ def test_public_runner_shared_owner_item_combat_power_death_and_exact_cleanup(se
     ] == ["concoction", "precision"]
 
 
-def test_preparation_transport_uncertain_keeps_command_and_original_deadline(setup, monkeypatch):
+def test_preparation_transport_uncertain_keeps_command_and_response_deadline(setup, monkeypatch):
     owner, session, _, _, _ = setup
     _, send = configure(owner, session, monkeypatch)
     now = SimpleNamespace(value=10.0)
@@ -739,3 +740,140 @@ def test_trace_only_status_rejects_missing_or_unknown_authority(values):
 
     with pytest.raises(ValueError):
         NativePreparationStatus(*values)
+
+
+@pytest.mark.parametrize("uncertain", [False, True])
+def test_long_native_pending_uses_status_until_positive_settlement(setup, monkeypatch, uncertain):
+    owner, session, _, _, combat = setup
+    pub, send = configure(owner, session, monkeypatch)
+    # Start with the actor power; an item effect pending remotely is independent.
+    owner.publication_reader.read.return_value = replace(
+        pub,
+        actions=(replace(pub.actions[0], coverage=publication.Coverage.PRESENT), pub.actions[1]),
+    )
+    now = SimpleNamespace(value=10.0)
+    session.cleanup.clock = lambda: now.value
+    settled = False
+
+    def native(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if verb in (Verb.SUBMIT, Verb.ACTION_STATUS):
+            result.receipt = replace(
+                result.receipt,
+                local_settlement=LocalSettlement.SETTLED if settled else LocalSettlement.PENDING,
+                outcome=Outcome.UNCERTAIN if uncertain else Outcome.CLIENT_OUTBOUND_QUEUED,
+            )
+        return result
+
+    session.actor_action.side_effect = native
+    first = owner.preparation_step(combat)
+    command = first.command
+    for timestamp in (14.0, 18.0, 28.0):
+        now.value = timestamp
+        update = owner.preparation_step(combat)
+        assert update.command is command
+        assert not update.acknowledgement.local_settled
+        assert session.actor_action.call_args.args[1:3] == (Verb.ACTION_STATUS, command)
+        assert owner._local_command is command and not owner._obligation.released
+    settled = True
+    now.value = 29.0
+    final = owner.preparation_step(combat)
+    assert final.command is command and final.acknowledgement.local_settled
+    # The same NPC proposal is allowed immediately; no all-buffs gate or timer.
+    assert owner.preparation_step(combat) is None
+    assert owner._local_command is None
+    assert [c.args[1] for c in session.actor_action.call_args_list].count(Verb.SUBMIT) == 1
+    assert all(c.args[1] is not Verb.STOP_OWNER for c in session.actor_action.call_args_list)
+
+
+@pytest.mark.parametrize(
+    "failure", ["missing", "wrong_command", "wrong_verb", "stopping", "unknown"]
+)
+def test_only_live_correlated_pending_refreshes_response_watchdog(setup, monkeypatch, failure):
+    owner, session, _, _, _ = setup
+    _, send = configure(owner, session, monkeypatch)
+    now = SimpleNamespace(value=10.0)
+    session.cleanup.clock = lambda: now.value
+    failed = False
+
+    def native(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if verb in (Verb.SUBMIT, Verb.ACTION_STATUS):
+            result.receipt = replace(result.receipt, local_settlement=LocalSettlement.PENDING)
+            if failed:
+                if failure == "missing":
+                    raise TimeoutError("lost status")
+                if failure == "wrong_command":
+                    result.receipt = replace(result.receipt, command_digest=b"x" * 32)
+                elif failure == "wrong_verb":
+                    result.receipt = replace(result.receipt, verb=Verb.SUBMIT)
+                elif failure == "stopping":
+                    result.receipt = replace(result.receipt, owner_phase=Phase.STOPPING)
+                else:
+                    result.receipt = replace(
+                        result.receipt, local_settlement=LocalSettlement.UNKNOWN
+                    )
+        return result
+
+    session.actor_action.side_effect = native
+    first = owner.preparation_step()
+    now.value = 14.0
+    assert not owner.preparation_step().acknowledgement.local_settled
+    failed = True
+    now.value = 18.99
+    assert not owner.preparation_step().acknowledgement.local_settled
+    now.value = 19.0
+    with pytest.raises(RuntimeError, match="status response deadline"):
+        owner.preparation_step()
+    actions = [
+        c
+        for c in session.actor_action.call_args_list
+        if c.args[1] in (Verb.SUBMIT, Verb.ACTION_STATUS)
+    ]
+    assert [c.args[1] for c in actions] == [Verb.SUBMIT] + [Verb.ACTION_STATUS] * 3
+    assert all(c.args[2] is first.command for c in actions)
+    assert owner._closed and owner._obligation.released
+
+
+def test_explicit_finish_cancels_long_pending_without_claiming_settlement(setup, monkeypatch):
+    owner, session, _, _, _ = setup
+    _, send = configure(owner, session, monkeypatch)
+    now = SimpleNamespace(value=10.0)
+    session.cleanup.clock = lambda: now.value
+
+    def native(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if verb in (Verb.SUBMIT, Verb.ACTION_STATUS):
+            result.receipt = replace(result.receipt, local_settlement=LocalSettlement.PENDING)
+        return result
+
+    session.actor_action.side_effect = native
+    first = owner.preparation_step()
+    now.value = 30.0
+    update = owner.preparation_step()
+    assert update.command is first.command and not update.acknowledgement.local_settled
+    assert owner.finish("user_cancel")[0]
+    assert owner._obligation.released
+    assert [c.args[1] for c in session.actor_action.call_args_list].count(Verb.SUBMIT) == 1
+    assert [c.args[1] for c in session.actor_action.call_args_list].count(Verb.STOP_OWNER) == 1
+
+
+def test_unknown_item_resource_allows_independently_ready_power(setup, monkeypatch):
+    owner, session, _, _, _ = setup
+    pub, _ = configure(owner, session, monkeypatch)
+    item = replace(
+        pub.actions[0],
+        readiness=publication.Readiness.UNKNOWN,
+        item_key=(0, 0),
+        template_key=(0, 0),
+        item_hint=0,
+        template_hint=0,
+        quantity=0,
+        item_type=0,
+        item_flags=0,
+    )
+    owner.publication_reader.read.return_value = replace(pub, actions=(item, pub.actions[1]))
+    update = owner.preparation_step()
+    assert update.acknowledgement.proposal.group_id == "precision"
+    submits = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
+    assert len(submits) == 1 and submits[0].action is Action.SELF_POWER

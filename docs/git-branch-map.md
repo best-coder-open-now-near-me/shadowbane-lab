@@ -7,78 +7,55 @@ records in place. Historical backup/rollback requirements below are superseded.
 ## Current shared source and deployment - October 2
 
 Start new development from freshly fetched `origin/main`, now
-`5c94808698fe8bfd2ca194a53e532a50b7cf344d` (PR #60 merge). Approved head
-`23f1674` passed all 15 hosted checks and merged at 00:17:59 UTC on October 2
-after explicit user approval. Qualified package source
-`1bbd536c791136e3d485cb935b7bc4482d0b1f5c` is retained in main; the later PR
-head records qualification and handoff documentation.
+`1e7c26ff005cf53453842e4e5462a9091c9058c0` (PR #61 merge). Head
+`86d76b986f6459a349933b50eec8dea9e84430cc` passed all 15 hosted checks and merged
+at 13:17:17 UTC. Exact qualified package source
+`fc8b316781bba53605729a2bee3578a1ace3b10e` is retained in main; the later head
+changed only qualification documentation. The user gave standing approval for
+routine bot merge/install delivery after validation; see [AGENTS.md](../AGENTS.md).
 
-Host **0.3.64** / native **1.8.44** are installed from `artifacts/b44/9282f541`.
+Host **0.3.65** / native **1.8.45** are installed from `artifacts/b45/38619e76`.
 Official client **1.3.38.13**, settings and job data remain in place. Installation
-verified 463 modules, 9,574 retained files and one DLL inventory change. Manager
-PID 7096 activated healthy; all five shortcuts and startup preflight passed.
-Launch at 00:23:54.8667615 UTC verified the qualified DLL in PID 7932, creation
-FILETIME `134353742281930705`, HWND `3015386`. Passive readiness observed an alive
-actor, owner NONE, fresh scene 1 and capabilities 129 (including actor protocol
-0x80). These are recorded observations, not enduring admission.
+verified 463 modules, 9,575 retained files and one DLL inventory change. Manager
+9932 activated healthy; five shortcuts and startup preflight passed. Launch at
+13:23:19.4677569 UTC verified the DLL in PID 7336, creation FILETIME
+`134354209911431065`, HWND `3474162`. Later passive readiness observed an alive
+actor, owner NONE, no pending cleanup, scene 1 and capability flags 385 (0x181).
+These are historical observations, not permanent session authority.
 
-The obsolete .63 host (2,116 files) and two .43 guest payload binaries were removed
-after verified new activation and exact ownership/inventory checks, totaling
-50,804,512 bytes. Four obsolete host/share binaries totaled 5,617,612 bytes.
-No rollback copies were retained. Twelve compact receipts and seven installed-file
-hashes are preserved privately under `artifacts/bot-deploy/20261001-b44/receipts`.
+The obsolete .64 host (2,116 files) and two .44 guest payload files were removed
+after exact ownership checks, totaling 50,803,605 bytes. Four old host/share
+payload binaries totaled 5,617,156 bytes. Twelve compact receipts and seven
+installed-file hashes are retained under `artifacts/bot-deploy/20261002-b45/receipts`.
+No rollback runtime copies were retained.
 
-The integrated [buff implementation and startup repair](buff-preparation-20261001.md)
-are in main. Qualification verified 82 stages and 110 indexed artifacts, both
-native profiles, real movement/combat/actor IPC and original/prepared image probes.
-The combined candidate branch is `codex/buff-acceptance-20261002` in the reused
-bot-integration worktree.
-[PR #61](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/61)
-targets main and now contains the reviewed host/native admission repair plus the
-live acceptance and deployment records. Native checkpoint `5917d1c`, host
-checkpoint `c8c30c6`, and version checkpoint `a8325d8` are integrated. Candidate
-versions are host **0.3.65** / native **1.8.45**; they are not installed.
+The source and versions of the reviewed admission repair are now in main. The
+active delivery-record branch is `codex/buff-runtime-receipt-20261002` in the
+bot-integration worktree. Canonical `E:\Projects\shadowbane` is clean on main
+`1e7c26f`. The earlier admission and acceptance branch tips are retained in main; both
+completed branches were retired locally and remotely after checkout ownership
+was reconciled. The reused bot-runtime checkout now hosts
+`codex/native-preparation-settlement-20261002`, based on `1e7c26f`, for the pending
+preparation fix. Its work is not yet integrated into PR #62.
 
-The merged `codex/buff-deployment-20261001` branch was retired locally and remotely
-after tip `23f1674` was verified reachable from origin/main and no active checkout
-remained. The pushed `codex/buff-admission-20261002` source lane remains in the
-bot-runtime worktree for review and qualification. Its tip is included in PR #61;
-retire it after verified main integration when no active process needs that
-checkout. Canonical `E:\Projects\shadowbane` remains clean on main `5c94808`.
+**Active next item:** fix legitimate pending-buff timeout handling and diagnose
+native potion inventory lookup before another live test. The .65 run
+`actor-full-encounter-9046c452a4d648dcb2bef68eb831fd69` remains **not passed**.
+Precision and Beorc effects were observed; Rat Shape queued and stayed locally
+pending in the captured state. Potion coverage was missing but the native item
+resolver reported ITEM_UNAVAILABLE with zero operands, so no item was submitted.
+No NPC context or ATTACK occurred; the closest observed NPC was just outside the
+80-unit test camp. STOP_OWNER preceded the reported ownership revocation and is
+consistent with the host's five-second pending preparation timeout. Retained
+native telemetry also records a 281 ms stalled-update loss, generation 3 to 4,
+with zero sampled key bits; its precise relation to the cleanup remains under
+review. Exact parent
+NATIVE_STOPPED cleanup completed and fresh readiness reported owner NONE.
 
-**Active next item:** obtain new PR #61 merge/install approval for the qualified
-.65/.45 candidate. Exact package source
-`fc8b316781bba53605729a2bee3578a1ace3b10e` passed all 82 required stages,
-110 indexed artifact checks and all 15 hosted checks. The packaged host suite
-passed 4,835 tests with 37 skips; both native profiles and real publication,
-movement, combat and actor IPC passed. Independent verification checked all
-indexed hashes, wheel contents, versions and original/prepared client probes.
-Fresh VM inspection at 12:21:54 UTC found the game closed, .64/.44 installed,
-and manager 7096 healthy with no bound slots. Reinspect before installation;
-this is historical state, not continuing authorization. No new gameplay run
-has been issued.
-The second .64 bounded acceptance
-remains **not passed**. Canonical native publication reported potion and Precision
-coverage PRESENT; one exact NPC ATTACK queued and its child NATIVE_STOPPED
-cleanup completed. Beorc Rune received 29 DEFERRED/NEVER_ENTERED/SETTLED replies,
-then the helper stopped at its 32-submission bound. These were refused proposals,
-not 29 casts. Final parent LOCAL_RELEASED was confirmed, with no list entries and
-no watchdog timeout; that receipt still reported a combat target and action state
-2, so it is not native-idle proof. No new gameplay run is pending.
-
-The preserved evidence is `artifacts/bot-deploy/20261001-b44/live-v2-evidence`;
-[the buff record](buff-preparation-20261001.md#644-second-live-acceptance)
-contains hashes and the exact limits. Full buff coverage, expiry/refresh, potion
-application overlap, NPC death, server kill credit and skill consumption remain
-unproved by this run. The earlier private camp-filter failure remains separately
-preserved under `first-live-evidence`. Automatic retaliation remains disabled.
-
-The historical .63 run failed earlier: four same-request registrations returned
-UNAVAILABLE without OPEN, ATTACH or SUBMIT. Passive hook inspection confirmed
-pristine effect hooks; the graphics identity cache had been read before startup
-initialized it. The installed .64 repair starts that required service first while
-still inside the original synchronous client bootstrap. See the
-[full acceptance record](buff-preparation-20261001.md).
+The current evidence is `artifacts/bot-deploy/20261002-b45/live-evidence`.
+Earlier partial .64 results are preserved separately. No full buff, expiry/refresh,
+potion overlap, NPC death or server kill-credit claim follows from these runs.
+Automatic retaliation remains disabled; see the [buff record](buff-preparation-20261001.md).
 
 ## Previous .62/.42 live evidence
 

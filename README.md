@@ -4,41 +4,36 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`, currently PR #60 merge
-`5c94808698fe8bfd2ca194a53e532a50b7cf344d`. Installed host **0.3.64** / native
-**1.8.44** use qualified source `1bbd536` with official client **1.3.38.13**.
+Start new work from freshly fetched `origin/main`, currently PR #61 merge
+`1e7c26ff005cf53453842e4e5462a9091c9058c0`. Installed host **0.3.65** / native
+**1.8.45** use qualified source `fc8b316` with official client **1.3.38.13**.
 
-[PR #60](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/60)
-merged after user approval and all 15 hosted checks passed at approved head
-`23f1674`. It fixes cold-start effect observer initialization while preserving
-exact image and original bootstrap checks. The buff module shares one native
-actor owner with NPC/manual-player combat. See the
-[buff contract and deployment receipt](docs/buff-preparation-20261001.md).
+[PR #61](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/61)
+merged after all 15 checks passed at `86d76b9`. The user gave standing approval
+for routine bot merges/installations after required checks and reviews; see
+[delivery instructions](AGENTS.md). This does not waive validation.
 
-Installation verified 463 modules, 9,574 preserved files, one DLL inventory change,
+Installation verified 463 modules, 9,575 preserved files, one DLL inventory change,
 healthy manager activation, five shortcuts and startup preflight. The obsolete
-.63 host and .43 deployment payloads were removed without retained rollback copies.
-Settings, jobs and diagnostic evidence remain in place. The desktop Vendor Test
-and Modded Client shortcuts use the updated launcher; dashboard shortcuts use .64.
+.64 host and .44 deployment payloads were removed without retained rollback copies.
+Settings, jobs and diagnostic evidence remain in place. The desktop launch and
+dashboard shortcuts point to the verified current runtime.
 
-**Active next item:** obtain merge/install approval for the qualified host
-0.3.65 / native 1.8.45 admission repair in PR #61. Exact source `fc8b316` passed
-82 package stages, 110 artifact checks and all 15 hosted checks. The second .64
-acceptance remains **not passed**: canonical
-native publication reported Greater Concoction Potion and Precision coverage
-PRESENT, one NPC attack queued, and child NATIVE_STOPPED cleanup completed. Beorc
-Rune then received 29 never-entered deferrals before the private helper's total
-32-submission bound stopped the run. Parent LOCAL_RELEASED cleanup completed;
-this does not prove actor idle or all requested buff coverage. No new gameplay
-run is pending. Automatic retaliation remains disabled. See the
-[bounded evidence and limits](docs/buff-preparation-20261001.md#644-second-live-acceptance).
+**Active next item:** resolve pending-buff timeout handling and the native potion
+inventory lookup before repeating bounded gameplay. The first .65 test remains
+**not passed**. Precision and Beorc effects were observed; Rat Shape queued but
+remained locally pending in the captured publications. No potion or NPC attack
+was submitted. A parent stop followed the host's five-second preparation deadline;
+native telemetry separately retained a 281 ms stalled-update revocation. Exact
+NATIVE_STOPPED cleanup and subsequent owner NONE were confirmed. This is
+not full buff or encounter acceptance. Automatic retaliation remains disabled.
+See the [buff record](docs/buff-preparation-20261001.md).
 
-The deployment-receipt/live-acceptance lane uses
-`codex/buff-acceptance-20261002` in the existing integration worktree. Read the
-[branch map](docs/git-branch-map.md) before selecting a development base and the
-[contributor workflow](CONTRIBUTING.md) before starting a new task. The
-[session-boundary audit](docs/retaliation-session-boundary-20261001.md) records
-remaining retaliation attribution guarantees. Earlier lanes remain in the
+The delivery-record lane is `codex/buff-runtime-receipt-20261002` in the existing
+integration worktree. Read the [branch map](docs/git-branch-map.md) before selecting
+a development base and the [contributor workflow](CONTRIBUTING.md) before starting
+a new task. The [session-boundary audit](docs/retaliation-session-boundary-20261001.md)
+records remaining retaliation attribution guarantees. Earlier lanes remain in the
 [integration inventory](docs/integration-status-20260923.md).
 
 `shadowbane-lab` is a deterministic simulation and bot-policy laboratory. It treats

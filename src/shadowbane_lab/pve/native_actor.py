@@ -124,7 +124,7 @@ class NativeActorCoordinator:
         self.latest_preparation_status = None
         self._last_preparation_receipt = self._last_preparation_command = None
         self._preparation_proposal = self._preparation_command = None
-        self._preparation_started = None
+        self._preparation_last_response = None
         self._preparation_publication = self._preparation_decision = None
 
     def _command(self, *, context=None, action=Action.NONE, power_id=0, **kwargs):
@@ -743,14 +743,21 @@ class NativeActorCoordinator:
         if self._preparation_proposal is None:
             self._preparation_proposal = proposal
             self._preparation_publication = self._publication
-            self._preparation_started = self.session.cleanup.clock()
-        if self.session.cleanup.clock() - self._preparation_started >= 5.0:
-            self._stop_owner_once("preparation_action_resolution_timeout")
-            raise RuntimeError("preparation action resolution deadline expired")
+            self._preparation_last_response = self.session.cleanup.clock()
+
+        def require_response():
+            # This bounds unavailable status transport, not native action duration.
+            # Always try this turn's original request before testing freshness.
+            if self.session.cleanup.clock() - self._preparation_last_response >= 5.0:
+                self._stop_owner_once("preparation_status_unavailable")
+                raise RuntimeError("preparation status response deadline expired")
+
         if not self._ensure_open():
+            require_response()
             return ack()
         if self._preparation_command is None:
             if not self._local_ready():
+                require_response()
                 return ack()
             pub = self._preparation_publication
             expected = policy.ActorIdentity(
@@ -823,7 +830,21 @@ class NativeActorCoordinator:
         self._last_preparation_receipt = r
         self._last_preparation_command = self._preparation_command
         if r is None:
+            require_response()
             return ack()
+        # _send validates this fresh transport response against the immutable
+        # command and verb. Journal/publication updates cannot renew this bound.
+        if r.owner_phase is Phase.BOUND and (
+            r.local_settlement is LocalSettlement.SETTLED
+            or (
+                r.local_settlement is LocalSettlement.PENDING
+                and r.outcome
+                in (Outcome.CLIENT_OUTBOUND_QUEUED, Outcome.PENDING, Outcome.UNCERTAIN)
+            )
+        ):
+            self._preparation_last_response = self.session.cleanup.clock()
+        else:
+            require_response()
         disposition = policy.Disposition.UNCERTAIN
         if r.owner_phase is Phase.BOUND:
             if r.flags & OUTBOUND_QUEUED and r.outcome not in (

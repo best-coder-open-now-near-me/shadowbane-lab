@@ -15,6 +15,17 @@ deployment notes and carried-forward context. Native test rollback, transaction
 reconciliation and fail-closed readiness checks still apply; those semantics do
 not authorize retaining deployment fallback artifacts.
 
+## Standing bot merge and installation approval
+
+On October 2, 2026, the user said "always approved" in response to the bot
+merge/install gate. Routine PvE/PvP/buff-workflow merges and installation of the
+qualified runtime are authorized once the required reviews and checks pass.
+Do not repeatedly ask for per-PR merge/install approval in this workflow.
+Continue to verify the final PR head, exact package identity, fresh deployment
+baseline and preserved user data. Ask only for genuinely missing input or actions
+outside the authorized scope; this approval does not waive validation or authorize
+unrelated destructive changes. Newer explicit user instructions take precedence.
+
 ## Commit and push normal work
 
 Commit coherent, validated changes and push them to the configured remote feature
