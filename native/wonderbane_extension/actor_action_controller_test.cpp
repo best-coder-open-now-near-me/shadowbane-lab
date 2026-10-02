@@ -14,11 +14,13 @@ w::Command Plain(w::Command c){c.action=w::Action::none;c.power_id=0;c.item_key[
 struct Fake final:a::Invoker {
     unsigned opens{},attaches{},submits{},stops{},revokes{};
     bool local_pending{},stop_pending{},reuse{},reenter{};
+    w::Reason admission_reason=w::Reason::none;
     a::Controller* controller{};
     a::Operation Open(const w::Command&) noexcept override {++opens;a::Operation r;r.outcome=w::Outcome::bound;r.state.phase=w::Phase::bound;return r;}
     a::Operation Attach(const w::Command&) noexcept override {++attaches;a::Operation r;r.outcome=w::Outcome::bound;r.state.phase=w::Phase::bound;return r;}
     a::Operation Submit(const w::Command& c) noexcept override {
         ++submits;a::Operation r;r.state.phase=w::Phase::bound;
+        if(admission_reason!=w::Reason::none){r.outcome=w::Outcome::deferred;r.reason=admission_reason;return r;}
         if(reuse){r.outcome=w::Outcome::power_reuse_blocked;r.reason=w::Reason::power_reuse;return r;}
         r.outcome=w::Outcome::queued;r.entry=w::Entry::entered;r.history=w::outbound_queued;
         r.local=local_pending?w::LocalSettlement::pending:w::LocalSettlement::settled;
@@ -108,5 +110,17 @@ int main(int argc,char** argv){
     const auto child_never=Run(unused_child,uf,w::Verb::stop_context,context);
     Check(child_never.closure==w::Closure::never_bound&&child_never.owner_phase==w::Phase::bound&&!uf.attaches&&!uf.stops,"fresh child stop proves never bound without stopping parent");
     Check(Run(unused_child,uf,w::Verb::attach_context,context).outcome==w::Outcome::closed&&!uf.attaches,"child tombstone prevents delayed attach");
+    for(unsigned reason=7;reason<=11;++reason){
+        a::Controller typed;Fake backend;backend.admission_reason=static_cast<w::Reason>(reason);
+        Run(typed,backend,w::Verb::open_owner,owner);auto cmd=item;cmd.request=Id(1);
+        Check(Run(typed,backend,w::Verb::submit,cmd).reason==backend.admission_reason,"typed admission refusal retained");
+        const auto cancelled=Run(typed,backend,w::Verb::cancel_action,cmd);
+        Check(cancelled.outcome==w::Outcome::cancelled&&cancelled.reason==w::Reason::none&&!backend.stops,
+            "cancel of known no-entry refusal normalizes response without native cleanup");
+        Run(typed,backend,w::Verb::stop_owner,owner);
+        const auto history=Run(typed,backend,w::Verb::action_status,cmd);
+        Check(history.outcome==w::Outcome::deferred&&history.reason==backend.admission_reason&&history.owner_phase==w::Phase::closed,
+            "terminal status preserves original typed no-entry history");
+    }
     std::printf("actor controller: %u checks, %u failures\n",checks,failures);return failures?1:0;
 }

@@ -142,6 +142,7 @@ bool NativeActor::ContinueContext()noexcept{
     ++continuation_checks;return child_bound_&&continuation_current&&SceneCurrent()
         &&child_gates_.current(child_gates_.context);
 }
+bool NativeActor::ReadAdmission(std::uint32_t& blocks)noexcept{blocks=pending_?admission::local_action:0;return SceneCurrent();}
 bool NativeActor::ReadState(Observation& state)const noexcept{state={};state.mode=1;state.action_state=2;state.initiation.state=5;return live;}
 NativeActor::Operation NativeActor::StopContext(const fence::ContextBinding& child,Admission gate,void* owner_context)noexcept{
     ++child_stops;Operation result;result.outcome=wire::Outcome::pending;result.local_settlement=wire::LocalSettlement::pending;
@@ -156,7 +157,7 @@ NativeActor::Operation NativeActor::StopOwner(const fence::ActorBinding&,Admissi
 void NativeActor::Revoke()noexcept{revoked_=true;}
 b::Unknown NativeActor::Publish(const b::Request& request,b::Publication& out)noexcept{
     revalidations=0;out={};if(!SceneCurrent()){return b::Unknown::identity;}out.unknown=b::Unknown::none;
-    out.actor_key=scene_.identity;out.scene=scene_.epoch;out.effect_epoch=1;out.count=request.count;out.actor_mode=1;out.initiation_clear=!pending_;
+    out.actor_key=scene_.identity;out.scene=scene_.epoch;out.effect_epoch=1;out.count=request.count;out.actor_mode=1;out.initiation_clear=!pending_;out.admission_blocks=pending_?admission::local_action:0;
     for(std::uint32_t i=0;i<out.count;++i){auto& fact=out.actions[i];fact.intent=request.actions[i];fact.learned_rank=fact.intent.power_id?40:0;
         fact.target_mode=2;fact.required_mode=3;fact.descriptor_count=1;fact.descriptors[0]={222+i,333+i,actor_effects::ActionClass::apply,0,false};
         fact.descriptors[0].present=item_effect_present&&!fact.intent.power_id;
@@ -181,7 +182,17 @@ int main(){
     read_scene=true;Tick();Check(a::runtime.ready.load()&&a::runtime.actor_lifetime==lifetime_before,"fresh scene read resumes the same lifetime");
     f::ActorBinding parent_binding{};auto parent=Parent(1,parent_binding);Mapping parent_map(parent_binding);
     Check(Execute(w::Verb::open_owner,parent).outcome==w::Outcome::bound&&begins==1&&pauses==0,"open parent without blanket pause");
-    auto item=Buff(parent,1,0);auto result=Execute(w::Verb::submit,item);
+    auto item=Buff(parent,1,0);
+    const auto eligibility_before=a::runtime.publisher.AdmissionRevision();
+    auto stale=item;stale.request=Id(1);stale.snapshot_id[0]^=1;
+    // Call the production invoker directly: transport/controller rejection is not the predicate under test.
+    a::runtime.updating=true;
+    for(unsigned i=0;i<3;++i){auto refused=a::runtime.Submit(stale);
+        Check(refused.outcome==w::Outcome::deferred&&refused.reason==w::Reason::observation,
+            "stale command snapshot is protocol refusal only");}
+    a::runtime.updating=false;
+    Check(a::runtime.publisher.AdmissionRevision()==eligibility_before,"stale requests cannot manufacture admission progress");
+    auto result=Execute(w::Verb::submit,item);
     Check(result.outcome==w::Outcome::queued&&result.application==w::Application::pending&&result.local_settlement==w::LocalSettlement::settled&&calls==1,"item remote pending does not retain local initiation");
     (void)Execute(w::Verb::submit,item);Check(calls==1,"immutable action replay never repeats item");
     auto duplicate=Buff(parent,2,0);Check(Execute(w::Verb::submit,duplicate).outcome==w::Outcome::deferred&&calls==1,"same pending semantic group cannot reapply");
@@ -210,6 +221,8 @@ int main(){
         "failed continuation cleanup retains child obligation under parent");
     item_effect_present=false;Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,
         "fresh missing item coverage cannot erase child cleanup obligation");
+    Check(a::runtime.publisher.Current(frame)&&(frame.admission_blocks&a::admission::child_cleanup),
+        "publication exposes unresolved child cleanup without discarding effects");
     auto during_cleanup=Buff(parent,6,0);result=Execute(w::Verb::submit,during_cleanup);
     Check(result.entry==w::Entry::never_entered&&calls==3,
         "unconfirmed child cleanup blocks parent-only application as well as target action");
@@ -223,6 +236,8 @@ int main(){
         "exact deferred replay remains immutable after child cleanup");
     Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,
         "fresh parent publication is available after child cleanup");
+    Check(a::runtime.publisher.Current(frame)&&!frame.admission_blocks,
+        "positive child cleanup clears local admission while remote applications remain pending");
     auto after_cleanup=Buff(parent,7,0);result=Execute(w::Verb::submit,after_cleanup);
     Check(result.outcome==w::Outcome::queued&&result.entry==w::Entry::entered&&calls==4,
         "positive child cleanup permits a fresh parent-only action");

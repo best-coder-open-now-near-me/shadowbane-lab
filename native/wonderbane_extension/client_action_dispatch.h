@@ -29,6 +29,7 @@ constexpr std::uint32_t kNativeCombatCapability = 1U << 4U;
 constexpr std::uint32_t kNativeSelfPowerCapability = 1U << 5U;
 constexpr std::uint32_t kNativePowerReadinessCapability = 1U << 6U;
 constexpr std::uint32_t kNativeActorCapability = 1U << 7U;
+constexpr std::uint32_t kNativeActorAdmissionCapability = 1U << 8U;
 constexpr std::uint32_t kKnownClientActionCapabilities =
     kClientActionTransportCapability
     | kNativeActionDispatchCapability
@@ -36,7 +37,7 @@ constexpr std::uint32_t kKnownClientActionCapabilities =
     | kNativeCombatCapability
     | kNativeSelfPowerCapability
     | kNativePowerReadinessCapability
-    | kNativeActorCapability;
+    | kNativeActorCapability | kNativeActorAdmissionCapability;
 
 struct ClientActionRequest {
     std::uint64_t command_id;

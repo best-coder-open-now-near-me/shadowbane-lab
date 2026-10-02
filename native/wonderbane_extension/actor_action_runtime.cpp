@@ -122,6 +122,14 @@ public:
             if(!found){return false;}
         }return !journal.Faulted();
     }
+    std::uint32_t ArbiterBlocks() const noexcept {
+        return (!controller.ContextAllowsEntry()||(child_admitted&&child_cancelled.load(std::memory_order_acquire))?admission::child_cleanup:0U)
+            |(journal.LocalPending()?admission::local_action:0U);
+    }
+    Operation AdmissionRefused(std::uint32_t blocks) noexcept {
+        if(has_manifest){if(blocks){(void)publisher.ObserveAdmission(blocks);}else{(void)publisher.InvalidateAdmission();}}
+        return Refused(O::deferred,wire::AdmissionReason(blocks));
+    }
     bool Refresh() noexcept {
         if(!has_manifest||!native.SceneCurrent()){if(has_manifest){(void)publisher.Unknown(3);}return false;}
         actor_buffs::Request request{};request.count=manifest.count;
@@ -131,6 +139,7 @@ public:
         actor_buffs::Publication facts{};
         if(native.Publish(request,facts)!=actor_buffs::Unknown::none||!native.RevalidatePublication(facts)){
             (void)publisher.Unknown(static_cast<std::uint32_t>(facts.unknown)?static_cast<std::uint32_t>(facts.unknown):6U);return false;}
+        facts.admission_blocks|=ArbiterBlocks();
         publication::Frame frame{};
         if(!publication::Encode(manifest,facts,journal,frame)||!publisher.Publish(frame)||!publisher.Current(frame)){(void)publisher.Unknown(6);return false;}
         for(std::uint32_t group=0;group<manifest.groups;++group){
@@ -144,7 +153,9 @@ public:
         }
         // Observation may resolve application history. Publish that transition
         // separately so callers submit against the latest exact factual revision.
-        if(!native.RevalidatePublication(facts)||!publication::Encode(manifest,facts,journal,frame)||!publisher.Publish(frame)){(void)publisher.Unknown(6);return false;}
+        if(!native.RevalidatePublication(native.Publication())
+            ||facts.admission_blocks!=(native.Publication().admission_blocks|ArbiterBlocks())
+            ||!publication::Encode(manifest,facts,journal,frame)||!publisher.Publish(frame)){(void)publisher.Unknown(6);return false;}
         return true;
     }
     wire::Receipt Read(wire::Verb verb,const wire::Command& input,bool live) noexcept {
@@ -165,7 +176,7 @@ public:
                 header.actor_address=static_cast<std::uint32_t>(scene.actor);header.scene=scene.epoch;
                 auto floor=publisher.Revision();
                 for(const auto& record:journal.Records()){if(record.reserved){floor=(std::max)(floor,(std::max)(record.submitted_revision,record.observed_revision));}}
-                if(!publisher.Open(header,floor)){return result;}
+                if(!publisher.Open(header,floor,publisher.AdmissionRevision())){return result;}
                 manifest=proposed;manifest_digest=input.manifest_digest;has_manifest=true;
             }
         }else if(!has_manifest||input.manifest_digest!=manifest_digest){return result;}
@@ -220,13 +231,16 @@ public:
         if(!active||!wire::Bindings(input,parent,targeted?&child:nullptr)||!(targeted?ChildCurrent(this):Current(this))){return Refused();}
         // Child cleanup occupies the shared local arbiter even after its last
         // action settled. Actor-only preparation cannot bypass that obligation.
-        if(!controller.ContextAllowsEntry()||(child_admitted&&child_cancelled.load(std::memory_order_acquire))
-            ||journal.Faulted()||journal.LocalPending()){return Refused(O::deferred,wire::Reason::observation);}
+        if(journal.Faulted()){return AdmissionRefused(0);}
+        if(const auto blocks=ArbiterBlocks()){return AdmissionRefused(blocks);}
         if(!targeted){
+            std::uint32_t blocks{};
+            if(!native.ReadAdmission(blocks)){return AdmissionRefused(0);}
+            if(blocks){return AdmissionRefused(blocks);}
             publication::Frame frame{};
             if(!has_manifest||input.manifest_digest!=manifest_digest||input.selector_index>=manifest.count
-                ||!publisher.Current(frame)||!frame.complete||frame.revision!=input.publication_revision||frame.snapshot!=input.snapshot_id
-                ||!native.RevalidatePublication(native.Publication())){return Refused(O::deferred,wire::Reason::observation);}
+                ||!publisher.Current(frame)||!frame.complete||frame.revision!=input.publication_revision||frame.snapshot!=input.snapshot_id){return Refused(O::deferred,wire::Reason::observation);}
+            if(!native.RevalidatePublication(native.Publication())){return AdmissionRefused(0);}
             const auto& facts=native.Publication();
             const auto group=manifest.records[input.selector_index].group;
             if(input.selector_index>=facts.count||facts.actions[input.selector_index].readiness!=actor_buffs::Readiness::ready){return Refused(O::deferred,wire::Reason::observation);}
@@ -240,7 +254,11 @@ public:
         dispatching=true;Operation result=Refused();
         if((targeted?ChildCurrent(this):Current(this))&&parent_ticket.TryAdmit(parent,true)==fence::Result::admitted
             &&(!targeted||child_ticket.TryAdmit(child,true)==fence::Result::admitted)){
-            result=Converted(native.Submit(input));
+            const auto submitted=native.Submit(input);result=Converted(submitted);
+            if(!targeted&&result.outcome==O::deferred&&result.entry==wire::Entry::never_entered){
+                if(submitted.admission_blocks){(void)publisher.ObserveAdmission(submitted.admission_blocks);}
+                else if(result.reason==wire::Reason::admission_changed){(void)publisher.InvalidateAdmission();}
+            }
         }
         dispatching=false;
         if(!RecordApplication(input,result)){admission_blocked=true;cancelled.store(true,std::memory_order_release);}
