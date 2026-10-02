@@ -3,25 +3,24 @@
 ## Scope and source status
 
 The user authorized automatic application and refresh of missing Greater Concoction
-Potion, Precision, Beorc Rune, Transform and Defensive Stance effects. This record
-captures requirements, native read-only findings and the production ownership
-boundaries. **The complete native/host slice is installed as .63/.43 but not yet
-live-qualified.** Shared actor ownership, canonical native observations, automatic
-preparation, saved intent and both NPC/manual-player runners are integrated.
-Independent review, regression suites and exact-source package qualification
-passed for source `e8aec9942e84ef367593461b698fee9eb143e3aa`. Deployment and
-live-acceptance helper migration is the active, source-only preparation step.
+Potion, Precision, Beorc Rune, Transform and Defensive Stance effects. The complete
+native/host slice and cold-start observation repair are installed as **.64/.44**
+from qualified source `1bbd536c791136e3d485cb935b7bc4482d0b1f5c`. PR #60 merged
+into main at `5c94808698fe8bfd2ca194a53e532a50b7cf344d` after approval and all
+15 hosted checks. Shared actor ownership, canonical observations, preparation,
+saved intent and NPC/manual-player runners are integrated.
 
-The focused branch is `codex/native-buff-preparation-20261001`. Its dependency,
-[PR #58](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/58),
-is merged into main at `8fa16aa`; this branch has incorporated that merge. The
-qualified ownership package retains source `7f37ff53e181288ce1ae695f2e2699ecf2bb8ff2`.
-See the [native service ownership changes](native-owner-liveness-20261001.md).
-The installed .62/.42 subsequently passed bounded two-encounter recovery and
-native reuse-blocked opener fallback. That combat gate does not qualify buffs.
-This dependency does not establish a buff action, actor-only authority, effect
-observer or potion inventory resolver. Main inclusion, package qualification and
-installation remain separate delivery gates recorded in the [branch map](git-branch-map.md).
+Live qualification remains incomplete. The first .64 run registered and observed
+native facts, then queued a potion request with local settlement and pending
+remote application. A private camp-filter failure stopped it before NPC attachment
+or attack; parent cleanup was confirmed. Queueing is not proof of buff application.
+The active receipt/acceptance lane is `codex/buff-acceptance-20261002`; the installed
+source and chronological evidence below remain distinct from that documentation
+branch. See the [branch map](git-branch-map.md).
+
+The earlier .62/.42 [bounded combat recovery gate](native-owner-liveness-20261001.md)
+passed native reuse-blocked opener fallback. That historical combat result does
+not qualify buff application, overlap, expiry or refresh.
 
 ## Required behavior
 
@@ -272,8 +271,10 @@ listener and manager composition must use the same policy and observations.
    outside prior .62/.42 approval. The user subsequently approved source-only
    preparation and reported the game closed; no merge/install is implied by
    that source-only approval.
-5. Complete: the user approved merge/install; PR #59 merged and .63/.43 is installed.
-6. **Active:** finish bounded acceptance-helper review and run live acceptance against fresh character/item/effect evidence:
+5. Complete: PR #59 delivered the buff slice; PR #60 delivered the startup repair.
+   The user approved both merge/install steps; .64/.44 is now installed.
+6. **Active:** correct and independently review the private camp filter, then complete
+   bounded acceptance against fresh character/item/effect evidence:
    potion overlap without repeat consumption, ready independent buffs, either-form
    coverage, expiry/refresh and target cleanup. Only qualified native effect
    observations prove application; retain unresolved outcomes honestly.
@@ -303,7 +304,7 @@ and prepared official client image. Inventory qualification passed 105 unit chec
 and both original/prepared native probes. Independent reviews found no remaining
 actionable issues in these frozen slices. These are source checkpoints: canonical
 publication, shared runtime/coordinator integration and complete package validation
-remain in progress. No new runtime version is installed.
+remain in progress. At that source checkpoint, no new runtime version was installed.
 
 ## Integrated production path
 
@@ -334,7 +335,7 @@ The package and hosted gates now require the production runtime fixture, native
 actor adapters, effects/inventory/resolver probes, shared wire fixtures and real
 Windows cross-process parent/child and publication tests. Original and prepared
 client images are probed for both DLL profiles. These source and fixture checks
-do not claim live buff success. The installed runtime remains .62/.42.
+do not claim live buff success. At that integration checkpoint, .62/.42 remained installed.
 
 Integration validation: the complete host suite passed 4,789 tests and 788
 subtests, with 39 environment-dependent skips. The full native build passed
@@ -342,7 +343,7 @@ subtests, with 39 environment-dependent skips. The full native build passed
 The production runtime fixture exercises 189 assertions, including the unresolved
 child cleanup gate, positive closure and immutable replay. Host source/package
 lint passed. Independent host, native adapter, runtime and CI reviews are complete.
-The candidate versions are host 0.3.63 and native 1.8.43.
+That integration candidate used host 0.3.63 and native 1.8.43.
 
 ## Exact-source package qualification
 
@@ -454,7 +455,7 @@ registration in that phase; it sent no gameplay action. The revised helper and
 readiness tests passed 69 cases. Existing staged helper hashes were left intact;
 a revised live helper must be reviewed and pinned separately before use.
 
-## .64/.44 cold-start repair candidate
+## .64/.44 cold-start repair
 
 The source audit identified a deterministic initialization dependency failure.
 `actor_effects::StartAtBootstrap` requires `GraphicsExecutableSha256Matches`, but
@@ -466,7 +467,7 @@ contained their original client values; the prepared entrypoint matched and all
 20 observed effect records passed the diagnostic layout predicates. This matches
 the startup defect; it is not native absence authority.
 
-The candidate starts graphics publication before the observer, while the same
+The installed repair starts graphics publication before the observer, while the same
 synchronous prepared entrypoint still holds the original initializer return
 address. The diagnostics worker does not run native actor/effect code. Graphics
 failure skips observer installation, and late initialization retains its existing
@@ -479,9 +480,9 @@ leave all hook sites pristine; initialized identity installs before entry. It do
 not substitute for private exact-image qualification. Focused startup/effect
 checks and 481 package-contract tests passed before the source checkpoint.
 Host 0.3.64 / native 1.8.44 completed the exact-source qualification below.
-Separate merge/install approval is still required. Installed .63/.43 is unchanged.
+The user subsequently approved merge/install; deployment is recorded below.
 
-## Qualified .64/.44 package awaiting approval
+## Qualified .64/.44 package
 
 Package `artifacts/b44/9282f541` was built from committed source
 `1bbd536c791136e3d485cb935b7bc4482d0b1f5c`. The full host suite passed 4,787 tests
@@ -504,8 +505,46 @@ limitations; no new required gate failed.
 Private deployment/acceptance helpers under `artifacts/bot-deploy/20261001-b44`
 were migrated from the installed .63/.43 baseline. Qualified pins and dependency
 hashes are fixed; 102 offline tests, 26 PowerShell parse checks and mocked exact-path
-retirement checks passed. No payload was applied or staged to the VM. Fresh read-only
-inspection at 23:53:27 UTC found game PID 8616, healthy idle manager 6480/parent500,
+retirement checks passed. At that source-only checkpoint no payload had been applied
+or staged to the VM. Fresh read-only inspection at 23:53:27 UTC found game PID 8616, healthy idle manager 6480/parent500,
 and the exact .63/.43 installed identity. That running baseline is diagnostic;
-installation requires a fresh closed-client baseline and new approval. Settings,
+the later installation used a fresh closed-client baseline and new approval. Settings,
 jobs and original client assets remain in place; no rollback artifacts were made.
+
+## Installed .64/.44 and first live acceptance - October 2
+
+The user approved PR #60 merge/install. Approved head `23f1674` passed all 15
+hosted checks; merge `5c94808` at 00:17:59 UTC retains exact package source
+`1bbd536`. Installation verified 463 modules, 9,574 preserved files and one client
+DLL inventory change. Manager 7096 was healthy, and all five shortcuts and startup
+preflight passed. User settings, saved jobs and historical evidence remain in
+place; no rollback copies were made.
+
+After verified activation, the inspected obsolete .63 host (2,116 files) and two
+.43 guest payload binaries were removed, totaling 50,804,512 bytes. Four obsolete
+host/share binaries totaling 5,617,612 bytes were also removed by exact identity.
+Twelve compact receipts and seven installed-file hashes are retained privately
+under `artifacts/bot-deploy/20261001-b44/receipts`.
+
+Launch at 00:23:54.8667615 UTC verified DLL
+`94af80cd77835a8ea7efbeb892a880ee171f53e86c91d423064a942cec53b936` in PID 7932,
+creation FILETIME `134353742281930705`, HWND `3015386`. Passive readiness observed
+an alive actor, owner NONE, fresh scene 1 and capabilities 129. Each subsequent
+operation still requires fresh exact identity/readiness validation.
+
+The first bounded run remains **not passed**. REGISTER_SELECTORS and OBSERVE_ACTOR
+returned OBSERVED. One USE_ITEM entered, received a positive outbound QUEUED
+receipt, settled locally and retained application PENDING. No ATTACH_CONTEXT or
+NPC attack occurred. The private helper's target picker chose an NPC about 108
+units away despite its configured 80-unit camp limit; its strict observation
+boundary rejected the frame. The helper ended through exact parent LOCAL_RELEASED
+cleanup, and later passive readiness found owner NONE. Local release does not
+recall a queued remote potion application.
+
+Preserved evidence is `artifacts/bot-deploy/20261001-b44/first-live-evidence`:
+acceptance SHA-256 `69df95e18c6adf6d17d32e51e85ae8c746b7408e92adffede1093d93a396840a`;
+events SHA-256 `1423c4b36bd6ccbe2f5bbfca9fe524d4aed80d161fc2a403a2d92e6324ad7e97`.
+This run proves registration and local item submission/settlement, not buff
+application, potion overlap, duration, expiry, NPC death or server kill credit.
+The next acceptance step must use the corrected reviewed camp filter and fresh
+canonical coverage/application history, preserving duplicate-potion suppression.
