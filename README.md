@@ -4,8 +4,8 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`, currently PR #62 merge
-`a983384b2e95a6ab6cc3f46a750265b82ec0bae2`. Installed host **0.3.66** / native
+Start new work from freshly fetched `origin/main`; PR #63's installation record
+is integrated at `6373cfd6aff4bb6fd39c57e3c654297f435f21f4`. Installed host **0.3.66** / native
 **1.8.46** use qualified source `9e1a77ae9e763a65bfc7f39587c30b3f46c39c4b`
 with official client **1.3.38.13**.
 
@@ -23,15 +23,17 @@ activation, five shortcuts and startup preflight. Obsolete .65/.45 runtime and
 payload files were removed without rollback copies. Settings, jobs and evidence
 remain in place.
 
-**Active next item:** after Umbra login and fresh native readiness, run the bounded
-one-NPC/buff acceptance at camp radius 120. The verified new launch was still at
-login/loading during passive inspection; no .66 gameplay action has been issued.
-The historical .65 run remains **not passed**: Precision and Beorc effects were
-observed, Rat stayed locally pending, and no potion or NPC attack was submitted.
-That evidence does not establish full buff coverage, refresh or potion overlap.
-Automatic retaliation remains disabled. See the [buff record](docs/buff-preparation-20261001.md).
+The .66 bounded NPC/buff test now **passes**: exact native NPC death, correlated
+combat cleanup, continuing parent preparation and all five requested buff groups.
+Potion use and coverage were independently observed in the preceding run. Missing
+Beorc and the eligible alternate Skree transform were applied in the passing run;
+already-present potion, Precision and Defensive effects were not resubmitted.
+Umbra's automatic buff settings are saved at revision 2 with her opener preserved.
+**Active next item:** action-specific potion overlap qualification, then sustained
+expiry/reuse cycles. Automatic retaliation remains disabled. See the
+[live acceptance record](docs/buff-live-acceptance-20261002.md).
 
-The delivery-record lane is `codex/buff-deployment-20261002` in the existing
+The live-evidence lane is `codex/buff-live-acceptance-20261002` in the existing
 integration worktree. Read the [branch map](docs/git-branch-map.md) before selecting
 a development base and the [contributor workflow](CONTRIBUTING.md) before starting
 a new task. The [session-boundary audit](docs/retaliation-session-boundary-20261001.md)

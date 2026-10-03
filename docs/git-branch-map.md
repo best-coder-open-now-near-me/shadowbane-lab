@@ -7,7 +7,7 @@ records in place. Historical backup/rollback requirements below are superseded.
 ## Current shared source and deployment - October 2
 
 Start new development from freshly fetched `origin/main`, now
-`a983384b2e95a6ab6cc3f46a750265b82ec0bae2` (PR #62 merge at 14:11:08 UTC).
+`6373cfd6aff4bb6fd39c57e3c654297f435f21f4` (PR #63 merge at 18:11:10 UTC).
 Exact qualified package head `9e1a77ae9e763a65bfc7f39587c30b3f46c39c4b`
 is integrated in main. The pending-action settlement repair, heterogeneous
 inventory census and typed item UNKNOWN/no-eligible distinction are delivered;
@@ -30,9 +30,10 @@ binaries totaled 5,630,514 bytes. Twelve compact receipts and seven installed-fi
 hashes are retained under `artifacts/bot-deploy/20261002-b46/receipts`.
 No rollback runtime copies were retained.
 
-The documentation-only delivery branch is `codex/buff-deployment-20261002` in
-bot-integration, based on `origin/main` at `a983384`. It targets main for
-receipt-only review; the runtime source changes are already integrated. Canonical
+The installation record branch `codex/buff-deployment-20261002` is integrated
+through PR #63 after all 15 hosted checks passed. The current documentation branch
+is `codex/buff-live-acceptance-20261002` in bot-integration, based on `6373cfd`,
+targeting main with the new live evidence; runtime source remains unchanged. Canonical
 `E:\Projects\shadowbane` is on main at that merge. The earlier
 `codex/buff-runtime-receipt-20261002` head `9e1a77a` and bot-runtime's
 `codex/native-preparation-settlement-20261002` head `5083f81` are included in
@@ -40,17 +41,21 @@ main; those retained checkouts/branches need an ownership and cleanliness check
 before retirement or reuse. No unfinished runtime change is held only in this
 documentation branch.
 
-**Active next item:** Umbra login, fresh native readiness, then the bounded
-one-NPC/buff acceptance. Seven qualified acceptance dependencies are staged in
-the separate `bot-actor-full-encounter-20261002-b46` directory. Both preflight and
-live wrappers use radius 120, with unchanged one-NPC, action and time bounds.
-The .66 live gate remains pending. Earlier .65 and .64 partial results remain
-separate; the .65 run observed Precision/Beorc, queued Rat without captured local
-settlement, and issued no potion or NPC attack. Its host pending timeout and
-separate 281 ms native owner-loss record are preserved in the
-[buff record](buff-preparation-20261001.md). No full buff, expiry/refresh, potion
-overlap or server kill-credit claim follows from these runs. Automatic retaliation
-remains disabled.
+The .66 bounded NPC/buff gate **passed** in run
+`actor-full-encounter-rebind-7a57fd7769404f688fa5fe682a370233`: exact native death,
+child NATIVE_STOPPED cleanup, continuing preparation, all five groups PRESENT,
+parent LOCAL_RELEASED and zero retained target-list membership. The successor
+helper distinguishes a closure-proved never-bound same-NPC context retry from a
+different NPC; 116 offline tests and independent review passed. Original failed
+runs remain unchanged. Umbra's buff settings are saved/read back at revision 2.
+See the [live acceptance record](buff-live-acceptance-20261002.md).
+
+**Active next item:** qualify action-specific potion overlap, then sustained
+expiry/reuse cycles. Missing Beorc and alternate Skree were recovered in the
+passing run, but it does not establish expiration causality, repeated cooldown
+cycles, potion overlap, server kill credit or queued-skill consumption. Earlier
+partial runs remain in the [buff record](buff-preparation-20261001.md).
+Automatic retaliation remains disabled.
 
 ## Previous .62/.42 live evidence
 
