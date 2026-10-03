@@ -36,15 +36,44 @@ initiation/action-target error did not retain the rejected observation, so the
 failed predicate is unknown. Four subsequent passive samples showed initiation
 state 5, empty protocol IDs and no native action target before the retry.
 
+## Passing bounded encounter
+
+Run `actor-full-encounter-rebind-7a57fd7769404f688fa5fe682a370233` passed with the
+same installed runtime. The private successor retained one immutable NPC and
+permitted a new provisional context only after correlated NEVER_BOUND closure,
+without child action history. Independent review and 116 offline tests passed.
+Both original failed runs remain unchanged.
+
+The passing run submitted Shot to the Leg and two positively queued ATTACK
+requests against the same NPC. Native death was observed at event 126. Correlated
+STOP_CONTEXT request 39 confirmed NATIVE_STOPPED while the parent remained BOUND.
+Preparation continued under that parent, all five coverage groups were observed,
+and STOP_OWNER request 116 confirmed LOCAL_RELEASED. No target-list entry,
+watchdog, unexpected interruption or recorded error remained. Subsequent passive
+readiness was fresh, owner NONE and no cleanup pending. This is native-object
+death and cleanup proof, not server kill credit or queued-skill consumption.
+
+Beorc was initially missing and was reapplied. Rat was missing and reuse-blocked;
+Skree was eligible and later supplied Transform coverage. Its first submission
+was definitely never entered because a native target was occupied; a fresh
+eligible request subsequently queued and settled. Potion, Precision and Defensive
+coverage were already present and remained so; none was resubmitted in this run.
+This proves missing-buff recovery and alternate choice, not the cause of buff
+loss or a complete repeated expiry/cooldown cycle. Potion quantity remained 3.
+
+Umbra / Wonderbane's reviewed buff configuration is saved and read back at
+revision 2. Basic policy and Shot to the Leg opener `563795161` are preserved.
+The saved intent enables missing-buff maintenance on subsequent PvE runs; saving
+settings did not start an unbounded bot. The compact local settings receipt is
+`artifacts/bot-deploy/20261002-b46/saved-buff-settings.json`.
+
 ## Remaining work
 
-1. Qualify the private helper's same-NPC context retry only after exact prior
-   NEVER_BOUND closure, preserving parent, request, target and action bounds.
-2. Complete bounded NPC acceptance and save/read back the user's buff settings.
-3. Investigate action-specific potion overlap. The item request settled locally,
+1. Investigate action-specific potion overlap. The item request settled locally,
    but native state 6 and protocol 429021400 kept admission INITIATION_PENDING;
    Precision was not submitted until 12,141 ms. No fixed host delay was identified.
-4. Verify refresh after expiry and alternate-transform cooldown behavior.
+2. Verify sustained refresh and alternate-transform cooldown behavior across
+   complete expiry/reuse cycles.
 
 Automatic retaliation remains disabled. This record contains reviewed findings;
 raw captures and client binaries remain private.

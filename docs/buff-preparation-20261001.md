@@ -1,5 +1,11 @@
 # Automatic buff preparation - October 1, 2026
 
+**October 2 live update:** the bounded .66 NPC/buff gate passed, all five buff
+groups were observed, and Umbra's automatic settings are saved at revision 2.
+The [live acceptance record](buff-live-acceptance-20261002.md) supersedes the
+earlier pending-live status below. Original failed-run evidence remains unchanged.
+Potion overlap and sustained expiry/reuse cycles remain open.
+
 ## Scope and source status
 
 The user authorized automatic application and refresh of missing Greater Concoction
