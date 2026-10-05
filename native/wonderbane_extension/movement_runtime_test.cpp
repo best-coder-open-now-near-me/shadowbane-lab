@@ -217,6 +217,37 @@ int main(int argc, char** argv) {
         run(acquire); const auto owned = rt.controls.Current();
         Check(acquire->receipt.outcome == 0 && owned.owner == wm::Owner::automation, "queued acquire obtains native owner");
         if (mode == "owner-service") {
+            // This is the real queued ACQUIRE path, before any native actor
+            // service has been pinned. Publication work must not expire its
+            // stationary grant merely because one owning update took 313ms.
+            rt.busy = true;
+            Check(rt.StartupLeaseCurrent(owned) && !rt.AutomationLeaseCurrent(owned),
+                "new stationary grant has exact startup proof without a service hold");
+            auto wrong_startup = owned; ++wrong_startup.generation;
+            Check(!rt.StartupLeaseCurrent(wrong_startup), "startup proof rejects another grant");
+            const auto startup_lease = rt.automation_lease; rt.automation_lease.reset();
+            Check(!rt.StartupLeaseCurrent(owned), "startup proof rejects missing lease");
+            rt.automation_lease = startup_lease;
+            lease_current = false;
+            Check(!rt.StartupLeaseCurrent(owned), "startup proof rejects expired or replaced producer lease");
+            lease_current = true;
+            const auto startup_handle = lease->process;
+            lease->process = CreateEventW(nullptr, TRUE, TRUE, nullptr);
+            Check(!rt.StartupLeaseCurrent(owned), "startup proof rejects dead producer handle");
+            CloseHandle(lease->process); lease->process = startup_handle;
+            ++rt.automation_grant.generation;
+            Check(!rt.StartupLeaseCurrent(owned), "startup proof rejects changed acquired identity");
+            --rt.automation_grant.generation;
+            alive = false;
+            Check(!rt.StartupLeaseCurrent(owned), "startup proof rejects ended native lifetime");
+            alive = true;
+            rt.busy = false;
+            Check(!rt.StartupLeaseCurrent(owned), "startup proof exists only inside owning update");
+            const auto startup_moves = f.moves;
+            clock_tick += 313; step();
+            Check(rt.controls.Current() == owned && rt.controls.Ready() && f.moves == startup_moves
+                && !rt.owner_activity_stop && !rt.controls.CleanupPending(),
+                "actual acquire survives 313ms before actor open without dispatch or cleanup hold");
             namespace extension = wonderbane::extension;
             FILETIME created{}, exited{}, kernel{}, user{};
             Check(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) != FALSE,
@@ -317,7 +348,8 @@ int main(int argc, char** argv) {
                 && stops == stops_before_gap, "exact leased service survives delayed update without stop or reacquire");
             // Exercise runtime proof itself without dispatching another command.
             rt.busy = true;
-            Check(rt.AutomationLeaseCurrent(owned), "fresh pinned service supplies continuation proof");
+            Check(rt.AutomationLeaseCurrent(owned) && !rt.StartupLeaseCurrent(owned),
+                "fresh pinned service supplies continuation proof and consumes startup eligibility");
             auto wrong_owner = owned; ++wrong_owner.generation;
             Check(!rt.AutomationLeaseCurrent(wrong_owner), "replacement grant cannot borrow service proof");
             const auto held_lease = rt.automation_lease; rt.automation_lease.reset();

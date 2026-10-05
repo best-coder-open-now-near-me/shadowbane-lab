@@ -14,8 +14,8 @@ preflight passed.
 
 Launch at **2026-10-05T00:34:41.1329652Z** verified the qualified DLL in PID 7516,
 creation FILETIME `134356340764063745`, HWND `1115034`. Passive readiness was
-**not ready** at login/loading; no gameplay action was issued. User login and
-fresh in-world readiness remain pending. These process values are historical
+**not ready** at login/loading; no gameplay action was issued. Subsequent in-world readiness passed for the same process creation and recreated
+HWND `459704`, with a 1920x1080 client area at DPI 96. These process values are historical
 receipt identity, not continuing session authority.
 
 The exact-source package `artifacts/b47/d2707a93` passed 4,893 host tests with
@@ -86,7 +86,19 @@ Its `receipts` directory contains 12 compact deployment receipts and seven
 verified installed-file hashes.
 No private binaries, captures or credentials belong in source delivery.
 
-Next: user login and fresh in-world readiness, then resume the pending
-potion-overlap and repeated buff-expiry/reuse checks.
+The user removed potion-overlap testing as a requirement: potion and other buff
+order are immaterial. The October 5 automatic run confirmed all five groups
+PRESENT, including the concentration potion. Its NPC phase sent no attack: the
+first candidate was NEVER_BOUND during preparation, and the bounded helper
+refused a different candidate afterward. Parent cleanup was LOCAL_RELEASED.
+
+The next run was rejected before actor ownership or any NPC action. Retained
+native input evidence records a 313 ms update interval revoking movement
+generation 5 to 6 with reason `stalled`, no keys, unchanged scene and window.
+Fresh readiness afterward showed owner NONE, no cleanup pending and Umbra alive.
+HISTORY_EXPIRED replies are not positive cleanup receipts.
+
+Next: qualify the stationary startup liveness repair, then repeat NPC combat and
+normal automatic buff refresh. Private original traces remain unchanged.
 Automatic retaliation remains disabled pending authoritative character-session
 provenance. The prior bounded NPC/buff acceptance remains historical .66 evidence.
