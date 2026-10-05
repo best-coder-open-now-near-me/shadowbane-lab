@@ -430,6 +430,13 @@ void Controls::Tick(const Input& input) noexcept {
     const bool destination = !Nonzero(direction) && drag_active_
         && input.ground_valid && Finite(input.ground);
     const bool directional = Nonzero(direction) && Basis(input);
+    if (discontinuity && startup_stationary_ && (Nonzero(direction) || drag_active_)
+        && !directional && !destination) {
+        // The stationary startup exception must not hide fresh manual intent
+        // merely because its basis/terrain query cannot authorize a write.
+        // Drag still passed the ordinary capture/UI/threshold interpretation.
+        Inhibit(StopReason::takeover); return;
+    }
     if (!cleanup_ready) {
         // Native basis/terrain queries themselves require Ready. Recognize the
         // configured physical intent before those actuation-only prerequisites;

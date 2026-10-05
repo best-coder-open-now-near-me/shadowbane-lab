@@ -742,6 +742,14 @@ void StartupUpdateGaps() {
       Check(f.controls.Current()!=g, "qualified fresh startup drag takes over after delayed frame"); }
     { Fixture f;const auto g=acquire(f);f.input.left_stick={1,0};f.Step(313);
       Check(f.controls.Current()!=g, "fresh startup controller direction takes over"); }
+    { Fixture f;const auto g=acquire(f);f.input.camera_basis_valid=false;
+      f.input.keys[f.settings.keys[0]]=true;f.Step(313);
+      Check(f.controls.Current()!=g && f.actuator.Count('d')==0 && f.actuator.Count('p')==0,
+          "startup gap manual direction revokes without an available actuation basis"); }
+    { Fixture f;const auto g=acquire(f);f.input.keys[f.settings.drag_button]=true;f.Step();
+      f.input.ground_valid=false;f.input.pointer_x+=f.settings.drag_threshold_pixels+1;f.Step(313);
+      Check(f.controls.Current()!=g && f.actuator.Count('d')==0 && f.actuator.Count('p')==0,
+          "startup gap captured threshold drag revokes without a terrain pick"); }
     for(unsigned history=0;history<4;++history){
         Fixture f;const auto g=acquire(f);
         if(history==0){(void)f.controls.AutomationDestination(g,{1,0,2});}
