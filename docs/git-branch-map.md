@@ -4,7 +4,7 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active bot startup follow-through — October 5
+## Active bot startup follow-through - October 5
 
 Start from freshly fetched `origin/main`, currently
 `2c0ee9037238f894c3bf4f85d41fdbeda5d94849` after PRs #65 and #66 merged.
@@ -74,7 +74,7 @@ different NPC; 116 offline tests and independent review passed. Original failed
 runs remain unchanged. Umbra's buff settings are saved/read back at revision 2.
 See the [live acceptance record](buff-live-acceptance-20261002.md).
 
-**Active next item:** qualify action-specific potion overlap, then sustained
+**Historical October 2 next item (overlap requirement canceled October 5):** qualify action-specific potion overlap, then sustained
 expiry/reuse cycles. Missing Beorc and alternate Skree were recovered in the
 passing run, but it does not establish expiration causality, repeated cooldown
 cycles, potion overlap, server kill credit or queued-skill consumption. Earlier
