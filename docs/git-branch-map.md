@@ -6,22 +6,47 @@ records in place. Historical backup/rollback requirements below are superseded.
 
 ## Active official-client patch — October 4
 
-Shared `origin/main` is `a582368ff43a43f1c366bb61f06e90ccc69bee45` after PR #64.
-The canonical checkout remains clean on `main`. Active branch
-`codex/client-update-20261004` in the bot-integration worktree prepares official
-client 1.3.38.14 compatibility for host 0.3.67 / native 1.8.47. It starts from that
-shared tip; it is not yet installed or merged. The current installed runtime is
-still qualified .66/.46 with prepared client .13. The original client is already
-on official .14. See the [patch record](client-update-20261004.md).
+Shared `origin/main` is `03375a9b989aa4c01735ce70d91a4b8218744e18` after
+PR #65 merged with all 15 hosted checks passing. The canonical checkout is
+fast-forwarded on `main`. Exact qualified source
+`a34a57ff9037018765a9ce6e3614b5792c5e6e43` is integrated, including official
+client 1.3.38.14 support for host 0.3.67 / native 1.8.47. Start new development
+from freshly fetched `origin/main`.
 
-Next: exact-source package qualification and deployment, then resume potion
-overlap and repeated buff-expiry/reuse validation. Prior .66 live proof remains
+Package `artifacts/b47/d2707a93` passed 4,893 host tests (37 skips), 224 native
+checks per profile, all 126 required native gates, and 73 movement / 86 combat /
+146 actor IPC checks per profile. Independent verification checked 110 artifacts
+and 82 stages. Host .67 / native .47 / prepared client .14 are installed:
+463 modules, 9,578 retained files and three client inventory changes were verified.
+Manager PID 6072 is healthy and unbound; five shortcuts and startup preflight
+passed. Launch at 2026-10-05T00:34:41.1329652Z verified the qualified DLL in PID
+7516, creation FILETIME `134356340764063745`, HWND `1115034`. Passive readiness
+was not ready at login/loading; no gameplay action was issued. The original
+client remains official .14. See the [patch record](client-update-20261004.md).
+
+The obsolete .66 host (2,116 files) and two .46 guest payloads were removed after
+exact ownership checks, totaling 50,827,934 bytes; four obsolete host/share files
+totaled 5,631,830 bytes. Twelve compact receipts and seven installed hashes are
+retained. No rollback copies were created.
+
+The bot-integration worktree now owns documentation-only branch
+`codex/client14-deployment-record-20261004`, based on that merged main tip.
+It targets main with delivery receipts; it contains no additional runtime change.
+The merged `codex/client-update-20261004` branch was retired locally and remotely
+after exact-tip ancestry and worktree-ownership checks. The bot-integration
+checkout remains active for this delivery record. Retirement of 21 old Python
+environments is separately
+blocked by automatic approval review pending explicit user approval; no removal
+is claimed.
+
+Next: user login and fresh in-world readiness, then resume potion overlap and
+repeated buff-expiry/reuse validation. Prior .66 live proof remains
 in [the acceptance record](buff-live-acceptance-20261002.md). The earlier
 `codex/buff-runtime-receipt-20261002` and `codex/buff-deployment-20261002` branches
 were retired after verified integration; the old retention language below is
 historical. No current unfinished runtime work depends on those branches.
 
-## Current shared source and deployment - October 2
+## Historical shared source and deployment - October 2
 
 Start new development from freshly fetched `origin/main`, now
 `6373cfd6aff4bb6fd39c57e3c654297f435f21f4` (PR #63 merge at 18:11:10 UTC).
