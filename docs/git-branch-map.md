@@ -4,6 +4,23 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Active official-client patch — October 4
+
+Shared `origin/main` is `a582368ff43a43f1c366bb61f06e90ccc69bee45` after PR #64.
+The canonical checkout remains clean on `main`. Active branch
+`codex/client-update-20261004` in the bot-integration worktree prepares official
+client 1.3.38.14 compatibility for host 0.3.67 / native 1.8.47. It starts from that
+shared tip; it is not yet installed or merged. The current installed runtime is
+still qualified .66/.46 with prepared client .13. The original client is already
+on official .14. See the [patch record](client-update-20261004.md).
+
+Next: exact-source package qualification and deployment, then resume potion
+overlap and repeated buff-expiry/reuse validation. Prior .66 live proof remains
+in [the acceptance record](buff-live-acceptance-20261002.md). The earlier
+`codex/buff-runtime-receipt-20261002` and `codex/buff-deployment-20261002` branches
+were retired after verified integration; the old retention language below is
+historical. No current unfinished runtime work depends on those branches.
+
 ## Current shared source and deployment - October 2
 
 Start new development from freshly fetched `origin/main`, now
