@@ -170,7 +170,12 @@ public:
     bool Busy() const noexcept {return parent_||context_||calling_||PendingLocal();}
     const wire::Command* ActiveOwner() const noexcept {return parent_?&parent_->binding:nullptr;}
     const wire::Command* ActiveContext() const noexcept {return context_?&context_->binding:nullptr;}
-    std::array<char,73> Diagnose(const wire::Command& c) noexcept {const auto* a=ActionRecord(c);return a?a->result.detail:std::array<char,73>{};}
+    std::array<char,73> Diagnose(const wire::Command& c) noexcept {
+        // Numeric IDs can recur in a new producer namespace. Never attach an
+        // older action's diagnostic to a different immutable command.
+        const auto* a=ActionRecord(c);
+        return a&&!std::memcmp(&a->command,&c,sizeof(c))?a->result.detail:std::array<char,73>{};
+    }
     bool UpdateAction(const wire::Command& c,const Operation& result) noexcept {
         auto* a=ActionRecord(c);if(!a||std::memcmp(&a->command,&c,sizeof(c))){return false;}
         return Record(*a,result);
