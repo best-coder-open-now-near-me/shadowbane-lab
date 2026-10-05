@@ -166,7 +166,14 @@ def test_bundled_nested_schema_is_exact_and_legacy_scan_profile_is_rejected():
     raw = json.loads(resource.read_text())
     profile = load_native_character_population_profile_text(json.dumps(raw))
     assert profile.schema_version == 4 and profile.registry_profile.world_pointer_rva == 0x1389028
-    assert len(profile.registry_profile.executable_sha256s) == 4
+    assert set(profile.registry_profile.executable_sha256s) == {
+        "3891fcab09dac06d858ac55911046448e75f3519e2f58e1d7c2ccc954aa410b7",
+        "2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289",
+        "e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8",
+        "0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d",
+        "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
+        "78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903",
+    }
     raw["schema_version"] = 3
     with pytest.raises(NativeCharacterPopulationProfileLoadError):
         load_native_character_population_profile_text(json.dumps(raw))
