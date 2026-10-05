@@ -10,11 +10,12 @@ namespace bootstrap_fixture {
 bool identity_ready = false, image_valid = true;
 std::uintptr_t verified_image{};
 unsigned image_checks{};
+const char* digest="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d";
 }
 namespace wonderbane::extension {
 bool GraphicsExecutableSha256Matches(const char* digest) noexcept {
     return bootstrap_fixture::identity_ready && digest
-        && std::strcmp(digest,"0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d")==0;
+        && std::strcmp(digest,bootstrap_fixture::digest)==0;
 }
 namespace movement {
 bool VerifyNativeMovementImage(std::uintptr_t& verified) noexcept {
@@ -107,6 +108,7 @@ void TestTrap(const e::Site& site) {
 }
 }
 int main(int argc,char** argv) {
+    if(argc==2 && std::strcmp(argv[1],"prepared14")==0){bootstrap_fixture::digest="78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903";}
     Prepare();if(!image){return 1;}
     Check(e::StartupCurrent(context.image,context.image+0x1140e9e),"exact bootstrap path accepted");
     Check(!e::StartupCurrent(context.image,context.image+0x1140e9d),"late/arbitrary caller rejected");
@@ -128,6 +130,16 @@ int main(int argc,char** argv) {
         && GetLastError()==2468 && pristine() && bootstrap_fixture::image_checks==0,
         "cold identity rejects public startup before verification or hook mutation");
     bootstrap_fixture::identity_ready=true;
+    const char* qualified_digest=bootstrap_fixture::digest;
+    for(const char* denied:{"e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
+                            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}){
+        bootstrap_fixture::digest=denied;
+        Check(!e::StartAtBootstrap(context.image,context.image+0x1140e9e)
+            && pristine() && bootstrap_fixture::image_checks==0,
+            "original14 and unknown images cannot install native effects hooks");
+    }
+    bootstrap_fixture::digest=qualified_digest;
+
     Check(!e::StartAtBootstrap(context.image,context.image+0x1140e9d)
         && GetLastError()==2468 && pristine() && bootstrap_fixture::image_checks==0,
         "initialized identity cannot authorize late caller");

@@ -183,8 +183,8 @@ int Run(int argc,char** argv){
         Require(static_cast<bool>(file.read(reinterpret_cast<char*>(bytes.data()),size)),"short image read");
 
         const auto hash=Digest(bytes.data(),bytes.size());
-        Require(hash=="e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8"
-            ||hash=="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d","unreviewed executable");
+        Require((hash=="e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8" || hash=="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e")
+            ||(hash=="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d" || hash=="78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903"),"unreviewed executable");
         auto* image=static_cast<unsigned char*>(VirtualAlloc(nullptr,0x16c0000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
         Require(image!=nullptr,"arena allocation failed");arena_base=reinterpret_cast<std::uintptr_t>(image);
         // Uncopied code traps. Data pages begin zeroed; no client initialization.

@@ -467,3 +467,21 @@ def test_ready_item_requires_full_qualified_operand():
         item_and_power_frame(p.Readiness.READY)
     with pytest.raises(p.PublicationError, match="unqualified retained item"):
         item_and_power_frame(p.Readiness.READY, [5802955, 30, 980066, 0, 0x12500000, 0, 3, 8, 10])
+
+@pytest.mark.parametrize("digest,allowed", [
+    ("78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903", True),
+    ("e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e", False),
+    ("ff" * 32, False),
+])
+def test_exact_successor_image_preserves_publication_session_gate(monkeypatch, digest, allowed):
+    r, current, session = reader(monkeypatch)
+    session.binding.executable_sha256 = digest
+    if allowed:
+        assert r.read().complete
+        current[1] = frame(sequence=4, tick=105)
+        assert r.read().identity == r.identity
+    else:
+        monkeypatch.setattr(p, "_copy_mapping",
+                            lambda _: pytest.fail("unqualified image read mapping"))
+        with pytest.raises(p.PublicationError, match="unqualified publication session"):
+            r.read()

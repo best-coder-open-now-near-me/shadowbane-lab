@@ -77,6 +77,8 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_combat_initiation",
     "wonderbane_extension_combat_power_readiness",
     "wonderbane_extension_movement_boundary_outermost_service",
+    "wonderbane_extension_combat_image_prepared14",
+    "wonderbane_extension_combat_image_original14",
     "wonderbane_extension_movement_runtime_owner-service",
     "wonderbane_extension_movement_windows_input_mouse",
     "wonderbane_extension_combat_submission",
@@ -85,7 +87,8 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_combat_power_entry",
     "wonderbane_extension_combat_power_partial_install",
     *(f"wonderbane_extension_combat_power_image_{case}"
-      for case in ("prepared12", "original12", "prepared13", "original13", "unknown")),
+      for case in ("prepared12", "original12", "prepared13", "original13",
+                   "prepared14", "original14", "unknown")),
     "wonderbane_extension_combat_target_policy",
     "wonderbane_extension_combat_v2_wire",
     "wonderbane_extension_combat_v2_controller",
@@ -104,6 +107,7 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_actor_publication",
     "wonderbane_extension_combat_item_entry",
     "wonderbane_extension_actor_effects_native",
+    "wonderbane_extension_actor_effects_native_prepared14",
     *(f"wonderbane_extension_actor_effects_native_{mode}"
       for mode in ("partial", "cpp", "saturation")),
 })
