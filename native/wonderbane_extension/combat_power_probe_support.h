@@ -50,8 +50,8 @@ bool Prepare(int argc,char** argv,unsigned char* image) {
         const auto digest=Digest(bytes);
         if(digest!="3891fcab09dac06d858ac55911046448e75f3519e2f58e1d7c2ccc954aa410b7"
             && digest!="2dc0e19c3fcf43bc19508939fb9c63982bc370a868f810208394324a12cdc289"
-            && digest!="e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8"
-            && digest!="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d"){
+            && (digest!="e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8" && digest!="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e")
+            && (digest!="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d" && digest!="78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903")){
             throw std::runtime_error("unreviewed executable");}
         // In these reviewed files raw text offsets equal RVAs. Copy only the
         // closed, audited primitives; execute no native initialization or imports.

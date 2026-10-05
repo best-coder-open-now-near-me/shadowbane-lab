@@ -79,7 +79,9 @@ class FakeProcessMemory:
         self.closed = True
 
 
-@pytest.mark.parametrize("digest", [ORIGINAL, PREPARED])
+@pytest.mark.parametrize("digest", [ORIGINAL, PREPARED,
+    "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
+    "78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903"])
 def test_exact_reviewed_images(digest):
     memory = FakeProcessMemory()
     memory.executable_sha256 = digest

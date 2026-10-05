@@ -1,4 +1,4 @@
-"""Passive learned ability resolution for the exact reviewed Wonderbane 1.3.38.13.
+"""Passive learned ability resolution for the exact reviewed WonderBane 1.3.38.13/.14.
 
 Reviewed native manager lookup uses RVA 0x138757c and its bounded ordered map.
 Native name lookup 0x16d910 compares core::String fields +0x13c/+0x154; learned
@@ -19,7 +19,9 @@ from .native_training import NativePlayerTrainingReader, load_bundled_native_tra
 _REVIEWED_IMAGES = frozenset(
     {
         "e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8",
+        "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
         "0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d",
+        "78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903",
     }
 )
 _MANAGER_RVA = 0x138757C

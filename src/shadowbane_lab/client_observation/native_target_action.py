@@ -19,7 +19,9 @@ from shadowbane_lab.client_observation.native_health import (
 NATIVE_TARGET_ACTION_PROFILE_SCHEMA_VERSION = 3
 _REVIEWED_IMAGES = frozenset({
     "e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8",
+    "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
     "0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d",
+    "78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903",
 })
 _BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-target-action.json"
 

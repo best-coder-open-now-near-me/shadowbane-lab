@@ -106,7 +106,9 @@ def test_generic_name_or_id_reads_native_rank_and_names_on_same_handle(setup, se
     assert session.require_current.call_count >= 4
 
 
-@pytest.mark.parametrize("image", [ORIGINAL, PREPARED])
+@pytest.mark.parametrize("image", [ORIGINAL, PREPARED,
+    "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
+    "78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903"])
 def test_only_exact_reviewed_original_and_prepared_images_are_admitted(setup, image):
     session, process, _, _ = setup
     session.binding.executable_sha256 = process.executable_sha256 = image

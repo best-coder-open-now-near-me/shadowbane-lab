@@ -266,7 +266,11 @@ def test_power_gate_cannot_count_one_image_twice(pair, feature):
 
 @pytest.mark.parametrize("name", [
     *(f"wonderbane_extension_combat_power_image_{image}"
-      for image in ("prepared12", "original12", "prepared13", "original13", "unknown")),
+      for image in ("prepared12", "original12", "prepared13", "original13",
+                   "prepared14", "original14", "unknown")),
+    "wonderbane_extension_combat_image_prepared14",
+    "wonderbane_extension_combat_image_original14",
+    "wonderbane_extension_actor_effects_native_prepared14",
     "wonderbane_extension_movement_runtime_owner-service",
     "wonderbane_extension_movement_windows_input_mouse",
 ])
