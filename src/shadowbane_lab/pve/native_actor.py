@@ -120,6 +120,9 @@ class NativeActorCoordinator:
         self._manifest_mapping = self._register_command = None
         self._registered = False
         self._settings = self._publication = self._preparation_policy = None
+        self._preparation_capture_identity = None
+        self._preparation_capture_sequence = 0
+        self._preparation_capture_revoked = False
         self._preparation_before_combat = None
         self.latest_preparation_status = None
         self._last_preparation_receipt = self._last_preparation_command = None
@@ -628,6 +631,8 @@ class NativeActorCoordinator:
         if self._settings is None:
             raise RuntimeError("preparation requires configured canonical selectors")
         self._current()
+        if self._preparation_capture_revoked:
+            raise native.PublicationError("preparation capture lifetime was revoked")
         if not self._registered:
             result = self.session.actor_action(
                 None, Verb.REGISTER_SELECTORS, self._register_command
@@ -661,6 +666,21 @@ class NativeActorCoordinator:
         )
         if actual != expected:
             raise native.PublicationError("preparation publication differs from parent actor")
+        # This sequence belongs to the persistent native writer and actor lifetime.
+        # It is freshness evidence only; it must not alter semantic/admission epochs.
+        if (
+            type(pub.sequence) is not int
+            or not 0 < pub.sequence < 2**63
+            or pub.sequence % 2
+            or pub.sequence < self._preparation_capture_sequence
+            or (
+                self._preparation_capture_identity is not None
+                and pub.identity != self._preparation_capture_identity
+            )
+            or (pub.sequence == self._preparation_capture_sequence and pub != self._publication)
+        ):
+            self._preparation_capture_revoked = True
+            raise native.PublicationError("preparation capture sequence or lifetime changed")
         actor = policy.ActorIdentity(
             self.parent.client_pid,
             self.parent.client_creation,
@@ -713,6 +733,8 @@ class NativeActorCoordinator:
         known_groups = {self.manifest.group_digest(i) for i in range(self.manifest.group_count)}
         if any(x.state == 1 and x.group_digest not in known_groups for x in pub.applications):
             raise native.PublicationError("unmatched pending application prevents preparation")
+        self._preparation_capture_identity = pub.identity
+        self._preparation_capture_sequence = pub.sequence
         self._publication = pub
         return policy.PreparationObservation(
             actor,
@@ -723,6 +745,7 @@ class NativeActorCoordinator:
             pub.admission_revision,
             int(pub.admission_blocks),
             frozenset(pending),
+            capture_sequence=pub.sequence,
         )
 
     def advance_preparation(self, proposal):

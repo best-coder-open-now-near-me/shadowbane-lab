@@ -48,6 +48,7 @@ def observe(
     complete=True,
     admission=None,
     blocks=0,
+    capture=None,
 ):
     coverage = coverage or {}
     ready = ready or {}
@@ -75,6 +76,7 @@ def observe(
         epoch if admission is None else admission,
         blocks,
         frozenset(pending),
+        capture_sequence=epoch * 2 if capture is None else capture,
     )
 
 
@@ -311,7 +313,12 @@ def test_resolved_operand_cannot_change_configured_power_or_template():
 
 def test_no_installed_default_groups_or_actions_and_immutable_inputs():
     policy = PreparationPolicy(ACTOR)
-    assert policy.advance(PreparationObservation(ACTOR, 1, True, (), (), 1, 0)).proposal is None
+    assert (
+        policy.advance(
+            PreparationObservation(ACTOR, 1, True, (), (), 1, 0, capture_sequence=2)
+        ).proposal
+        is None
+    )
     with pytest.raises(FrozenInstanceError):
         ACTOR.scene = 2
     with pytest.raises(ValueError):
@@ -502,3 +509,57 @@ def test_admission_unknown_never_claims_block_and_requires_positive_revision():
     ):
         with pytest.raises(ValueError):
             replace(observe(), **changes)
+
+
+def test_settlement_requires_new_capture_not_changed_semantic_revision():
+    policy = PreparationPolicy(ACTOR, GROUPS)
+    covered = {"concentration": Coverage.PRESENT, "precision": Coverage.PRESENT}
+    beorc = policy.advance(observe(13, coverage=covered, admission=9, capture=100)).proposal
+    assert beorc.action is BEORC
+    acknowledge(policy, beorc, settled=False)
+    settled = observe(
+        17, coverage={**covered, "beorc": Coverage.PRESENT}, admission=12, capture=176
+    )
+    assert policy.advance(settled).proposal == beorc
+    acknowledge(policy, beorc, settled=True)
+    assert policy.advance(settled).reason == "fresh_publication_required"
+    rat = policy.advance(replace(settled, capture_sequence=178)).proposal
+    assert rat.action is RAT and rat.publication_epoch == 17 and rat.admission_revision == 12
+    acknowledge(policy, rat)
+    assert policy.advance(replace(settled, capture_sequence=178)).proposal is None
+    stance = policy.advance(replace(settled, capture_sequence=180)).proposal
+    assert stance.action is STANCE and stance.publication_epoch == 17
+    acknowledge(policy, stance)
+    # Possible remote application still suppresses duplicate entries even though
+    # complete captures continue and neither effect has appeared yet.
+    assert policy.advance(replace(settled, capture_sequence=182)).proposal is None
+
+
+@pytest.mark.parametrize("capture", [0, -2, 1, True, 2**63])
+def test_invalid_native_capture_sequence_rejected(capture):
+    with pytest.raises(ValueError, match="capture"):
+        observe(capture=capture)
+
+
+def test_capture_regression_and_same_capture_changed_semantics_revoke_policy():
+    for changed in (observe(2, capture=2), observe(1, capture=2)):
+        policy = PreparationPolicy(ACTOR, GROUPS)
+        policy.advance(observe(1, capture=4))
+        with pytest.raises(PreparationPolicyError):
+            policy.advance(changed)
+        with pytest.raises(PreparationPolicyError):
+            policy.advance(observe(3, capture=6))
+    policy = PreparationPolicy(ACTOR, GROUPS)
+    policy.advance(observe(1, capture=4))
+    with pytest.raises(PreparationPolicyError):
+        policy.advance(observe(2, capture=4))
+
+
+def test_new_capture_does_not_make_unknown_or_changed_same_epoch_facts_authoritative():
+    policy = PreparationPolicy(ACTOR, GROUPS)
+    first = policy.advance(observe()).proposal
+    acknowledge(policy, first)
+    unknown = observe(2, capture=4, complete=False)
+    assert policy.advance(unknown).reason == "observation_unknown"
+    with pytest.raises(PreparationPolicyError):
+        policy.advance(replace(unknown, capture_sequence=6, complete=True))

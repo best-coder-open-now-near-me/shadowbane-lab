@@ -26,8 +26,8 @@ setup = actor_fixture
 listed_encounter = listed_fixture
 
 
-def configure(owner, session, monkeypatch):
-    settings = BuffSettings(
+def configure(owner, session, monkeypatch, settings=None):
+    settings = settings or BuffSettings(
         True,
         (
             BuffGroup(
@@ -95,6 +95,14 @@ def configure(owner, session, monkeypatch):
         publication.AdmissionBlock(0),
     )
     owner.publication_reader.read.return_value = pub
+    capture = 0
+
+    def read_capture():
+        nonlocal capture
+        capture += 2
+        return replace(owner.publication_reader.read.return_value, sequence=capture)
+
+    owner.publication_reader.read.side_effect = read_capture
 
     def send(g, v, c, **kw):
         if v in (Verb.REGISTER_SELECTORS, Verb.OBSERVE_ACTOR):
@@ -252,7 +260,10 @@ def test_public_runner_shared_owner_item_combat_power_death_and_exact_cleanup(se
     def publication_now():
         state["revision"] += 1
         return replace(
-            pub, revision=state["revision"], snapshot_id=state["revision"].to_bytes(16, "big")
+            pub,
+            sequence=state["revision"] * 2,
+            revision=state["revision"],
+            snapshot_id=state["revision"].to_bytes(16, "big"),
         )
 
     owner.publication_reader.read.side_effect = publication_now
@@ -468,7 +479,10 @@ def test_public_runner_refreshes_buffs_during_listed_combat_after_health_checks(
     def publication_now():
         state["revision"] += 1
         return replace(
-            pub, revision=state["revision"], snapshot_id=state["revision"].to_bytes(16, "big")
+            pub,
+            sequence=state["revision"] * 2,
+            revision=state["revision"],
+            snapshot_id=state["revision"].to_bytes(16, "big"),
         )
 
     owner.publication_reader.read.side_effect = publication_now
@@ -643,7 +657,10 @@ def test_public_runner_blocked_preparation_trace_does_not_gate_npc_attack(setup,
     def publication_now():
         state["revision"] += 1
         return replace(
-            pub, revision=state["revision"], snapshot_id=state["revision"].to_bytes(16, "big")
+            pub,
+            sequence=state["revision"] * 2,
+            revision=state["revision"],
+            snapshot_id=state["revision"].to_bytes(16, "big"),
         )
 
     owner.publication_reader.read.side_effect = publication_now
@@ -877,3 +894,102 @@ def test_unknown_item_resource_allows_independently_ready_power(setup, monkeypat
     assert update.acknowledgement.proposal.group_id == "precision"
     submits = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
     assert len(submits) == 1 and submits[0].action is Action.SELF_POWER
+
+
+def test_beorc_settled_at_revision17_continues_rat_and_stance_on_fresh_captures(setup, monkeypatch):
+    owner, session, _, _, _ = setup
+    settings = BuffSettings(
+        True,
+        tuple(
+            BuffGroup(name, (BuffAction(PreparationAction(name, power_id=power), power),))
+            for name, power in (("beorc", 429590426), ("rat", 429513599), ("stance", 676005819))
+        ),
+    )
+    pub, send = configure(owner, session, monkeypatch, settings)
+    owner.publication_reader.read.return_value = replace(pub, revision=13, admission_revision=9)
+    settled = False
+
+    def response(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if command.action is Action.SELF_POWER and command.power_id == 429590426:
+            result.receipt = replace(
+                result.receipt,
+                local_settlement=LocalSettlement.SETTLED if settled else LocalSettlement.PENDING,
+            )
+            result.receipt.require_command(command, verb)
+        return result
+
+    session.actor_action.side_effect = response
+    first = owner.preparation_step()
+    assert not first.acknowledgement.local_settled
+    original = first.command
+    owner.publication_reader.read.return_value = replace(
+        pub,
+        revision=17,
+        admission_revision=12,
+        snapshot_id=b"u" * 16,
+        actions=(replace(pub.actions[0], coverage=publication.Coverage.PRESENT), *pub.actions[1:]),
+    )
+    assert owner.preparation_step().command is original
+    settled = True
+    final = owner.preparation_step()
+    assert final.command is original and final.acknowledgement.local_settled
+    rat, stance = owner.preparation_step(), owner.preparation_step()
+    assert [rat.command.power_id, stance.command.power_id] == [429513599, 676005819]
+    assert rat.command.publication_revision == stance.command.publication_revision == 17
+    assert owner.preparation_step() is None
+    submissions = [
+        c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT
+    ]
+    assert [c.power_id for c in submissions] == [429590426, 429513599, 676005819]
+    assert all(c.parent_id == owner.parent.owner_id and c.context_id is None for c in submissions)
+    assert not any(
+        c.args[1] in (Verb.STOP_CONTEXT, Verb.STOP_OWNER)
+        for c in session.actor_action.call_args_list
+    )
+
+
+def test_same_native_capture_cannot_release_post_settlement_barrier(setup, monkeypatch):
+    owner, session, _, _, _ = setup
+    pub, _ = configure(owner, session, monkeypatch)
+    owner.publication_reader.read.side_effect = None
+    assert owner.preparation_step().acknowledgement.local_settled
+    assert owner.preparation_step() is None
+    owner.publication_reader.read.return_value = replace(pub, sequence=4)
+    assert owner.preparation_step().command.power_id == 429545819
+    submitted = [c for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
+    assert len(submitted) == 2
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"sequence": 2},
+        {"sequence": 0},
+        {"sequence": 3},
+        {"sequence": 2**63},
+        {"revision": 2},
+        {"lifetime": b"n" * 16},
+    ],
+)
+def test_capture_reset_wrap_or_lifetime_change_permanently_blocks_preparation(
+    setup, monkeypatch, change
+):
+    owner, session, _, _, _ = setup
+    pub, _ = configure(owner, session, monkeypatch)
+    owner.publication_reader.read.side_effect = None
+    pub = replace(pub, sequence=4)
+    owner.publication_reader.read.return_value = pub
+    owner.observe_preparation()
+    changed = (
+        replace(pub, identity=replace(pub.identity, actor_lifetime=change["lifetime"]))
+        if "lifetime" in change
+        else replace(pub, **change)
+    )
+    owner.publication_reader.read.return_value = changed
+    with pytest.raises(publication.PublicationError, match="capture"):
+        owner.preparation_step()
+    owner.publication_reader.read.return_value = replace(pub, sequence=6)
+    with pytest.raises(publication.PublicationError, match="revoked"):
+        owner.preparation_step()
+    assert all(c.args[1] is not Verb.SUBMIT for c in session.actor_action.call_args_list)
