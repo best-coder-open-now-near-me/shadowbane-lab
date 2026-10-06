@@ -1,11 +1,59 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
+## Current .68/.48 startup repair deployment - October 6
+
+PR #67 merged into `main` at
+`9cf9f20a322f4ce0b199c7806f509c1aa2c991cb` after all 15 hosted checks passed.
+Exact package source `7aca53e3e6a66bbcddebdc6349ef96f86bbfdfaf` supplies host
+**0.3.68** / native **1.8.48**. The stationary startup repair is merged and
+**applied and verified**: 463 host modules, 9,583 preserved files and exactly one
+DLL inventory change. Both client .14 executables, official data, corrected
+1920x1080 preferences, settings and jobs remain in place. No rollback copies
+were created. Manager PID 9108 activated healthy; all five shortcuts and startup
+preflight passed. Launch at 2026-10-06T19:13:40.6492763Z verified the qualified
+DLL in PID 8832, creation FILETIME `134357876109226569`, HWND `2687194`. Fresh
+passive readiness reported ready with no actions sent. These are historical
+receipt identities, not continuing session authority. The bounded live run below
+completed NPC combat and cleanup but remains partial for buff preparation.
+
+Package `artifacts/b48/64bc2349` passed 4,893 host tests with 37 skips. Each native
+profile passed 224 native tests, all 126 required gates, 73 movement IPC,
+86 combat IPC and 146 actor IPC cases. Independent verification checked all
+110 indexed artifacts and 82 stages. The known image-wrapper skips remain
+separately covered by actual-image probes, with only the recorded optional
+rendering findings. The full DLL SHA-256 is
+`d0fad978a7813f75eac3e0c2a0f90f483d35874b215c062a7885e658767e582e`.
+Private qualification and deployment receipts are under
+`artifacts/bot-deploy/20261005-b48`. Its `receipts` directory contains 12 compact
+receipts and seven independently verified installed-file hashes. The obsolete
+.67 host (2,116 files) and two .47 guest payload binaries were retired after
+verified activation, totaling 50,832,946 bytes. Four exact old .47 host/share
+staging DLL/wheel files were then removed, totaling 5,633,626 bytes. Settings,
+jobs and diagnostic evidence remain in place; no fallback builds were kept.
+
+The earlier .67 run observed all five buff groups PRESENT; its NPC acceptance
+remained incomplete. Manual potion-overlap testing was canceled by the user.
+The .68 run `actor-full-encounter-provisional-f6b83d15cdee407d9962c5a2b87e95f0`
+remains **partial**. Shot queued, followed by one positively queued ATTACK; the
+exact NPC `23886/37` reached observed native health zero at sequence 168. Child
+cleanup confirmed NATIVE_STOPPED and parent cleanup LOCAL_RELEASED, with no
+interruption or watchdog and zero retained list membership. Fresh readiness
+afterward showed an idle, unowned client with no cleanup pending.
+
+Concentration potion, Precision and Beorc coverage were PRESENT. Transform and
+defensive stance remained READY/MISSING near 44 seconds; scheduler investigation
+is active. These observations do not establish server kill credit or skill
+consumption. Next: resolve why the ready missing groups were not scheduled, then
+validate normal automatic buff refresh. The prior evidence remains unchanged.
+
+## Historical .67/.47 client update and live attempts
+
 PR #65 merged into shared `main` at
 `03375a9b989aa4c01735ce70d91a4b8218744e18` after all 15 hosted checks passed.
 Host **0.3.67** / native **1.8.47** are qualified from exact source
 `a34a57ff9037018765a9ce6e3614b5792c5e6e43`, including the two reviewed client
 1.3.38.14 hashes while retaining signature checks and unknown-image rejection.
-Installation and launch are **verified**: host .67 / native .47 now run with
+Installation and launch were **verified**: host .67 / native .47 ran with
 prepared client .14. Installation verified 463 host modules, 9,578 retained files
 and exactly three client inventory changes: executable, CObjects cache and DLL.
 Settings and jobs remain in place. Manager PID 6072 activated healthy and unbound,
@@ -98,7 +146,8 @@ generation 5 to 6 with reason `stalled`, no keys, unchanged scene and window.
 Fresh readiness afterward showed owner NONE, no cleanup pending and Umbra alive.
 HISTORY_EXPIRED replies are not positive cleanup receipts.
 
-Next: qualify the stationary startup liveness repair, then repeat NPC combat and
-normal automatic buff refresh. Private original traces remain unchanged.
+The stationary startup repair is now merged and applied as recorded above;
+activation and launch are verified; current live findings are recorded above.
+Private original traces remain unchanged.
 Automatic retaliation remains disabled pending authoritative character-session
 provenance. The prior bounded NPC/buff acceptance remains historical .66 evidence.
