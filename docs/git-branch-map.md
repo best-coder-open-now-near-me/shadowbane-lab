@@ -4,47 +4,29 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active official-client patch — October 4
+## Active bot startup follow-through - October 5
 
-Shared `origin/main` is `03375a9b989aa4c01735ce70d91a4b8218744e18` after
-PR #65 merged with all 15 hosted checks passing. The canonical checkout is
-fast-forwarded on `main`. Exact qualified source
-`a34a57ff9037018765a9ce6e3614b5792c5e6e43` is integrated, including official
-client 1.3.38.14 support for host 0.3.67 / native 1.8.47. Start new development
-from freshly fetched `origin/main`.
+Start from freshly fetched `origin/main`, currently
+`2c0ee9037238f894c3bf4f85d41fdbeda5d94849` after PRs #65 and #66 merged.
+The canonical checkout remains clean on `main`. Qualified host .67 / native .47
+and prepared client .14 are installed from source `a34a57f`; settings and jobs
+are preserved. See [the patch record](client-update-20261004.md).
 
-Package `artifacts/b47/d2707a93` passed 4,893 host tests (37 skips), 224 native
-checks per profile, all 126 required native gates, and 73 movement / 86 combat /
-146 actor IPC checks per profile. Independent verification checked 110 artifacts
-and 82 stages. Host .67 / native .47 / prepared client .14 are installed:
-463 modules, 9,578 retained files and three client inventory changes were verified.
-Manager PID 6072 is healthy and unbound; five shortcuts and startup preflight
-passed. Launch at 2026-10-05T00:34:41.1329652Z verified the qualified DLL in PID
-7516, creation FILETIME `134356340764063745`, HWND `1115034`. Passive readiness
-was not ready at login/loading; no gameplay action was issued. The original
-client remains official .14. See the [patch record](client-update-20261004.md).
+The bot-integration checkout owns `codex/actor-startup-liveness-20261005`, based
+on that main tip. Its work addresses a measured 313 ms frame gap revoking a fresh,
+stationary automation grant before actor ownership opened. This is new source
+work awaiting qualification and integration; installed runtime is unchanged.
 
-The obsolete .66 host (2,116 files) and two .46 guest payloads were removed after
-exact ownership checks, totaling 50,827,934 bytes; four obsolete host/share files
-totaled 5,631,830 bytes. Twelve compact receipts and seven installed hashes are
-retained. No rollback copies were created.
+Automatic buff-up applied all five groups, including the concentration potion.
+The bounded NPC check remains incomplete. The user explicitly removed manual
+potion-overlap testing as a requirement; buff order is immaterial. Next: validate
+and package the startup repair, then repeat NPC combat and normal buff refresh.
+Automatic retaliation remains disabled pending authoritative session provenance.
 
-The bot-integration worktree now owns documentation-only branch
-`codex/client14-deployment-record-20261004`, based on that merged main tip.
-It targets main with delivery receipts; it contains no additional runtime change.
-The merged `codex/client-update-20261004` branch was retired locally and remotely
-after exact-tip ancestry and worktree-ownership checks. The bot-integration
-checkout remains active for this delivery record. Retirement of 21 old Python
-environments is separately
-blocked by automatic approval review pending explicit user approval; no removal
-is claimed.
-
-Next: user login and fresh in-world readiness, then resume potion overlap and
-repeated buff-expiry/reuse validation. Prior .66 live proof remains
-in [the acceptance record](buff-live-acceptance-20261002.md). The earlier
-`codex/buff-runtime-receipt-20261002` and `codex/buff-deployment-20261002` branches
-were retired after verified integration; the old retention language below is
-historical. No current unfinished runtime work depends on those branches.
+No deployment rollback copies are retained. Retirement of 21 old Python
+environments remains separately blocked by automatic approval review pending
+explicit user approval; no removal is claimed. The prior delivery-record branch
+is merged and inactive; retire it after ownership and ancestry verification.
 
 ## Historical shared source and deployment - October 2
 
@@ -92,7 +74,7 @@ different NPC; 116 offline tests and independent review passed. Original failed
 runs remain unchanged. Umbra's buff settings are saved/read back at revision 2.
 See the [live acceptance record](buff-live-acceptance-20261002.md).
 
-**Active next item:** qualify action-specific potion overlap, then sustained
+**Historical October 2 next item (overlap requirement canceled October 5):** qualify action-specific potion overlap, then sustained
 expiry/reuse cycles. Missing Beorc and alternate Skree were recovered in the
 passing run, but it does not establish expiration causality, repeated cooldown
 cycles, potion overlap, server kill credit or queued-skill consumption. Earlier

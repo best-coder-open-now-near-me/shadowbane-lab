@@ -90,6 +90,36 @@ int main(int argc,char** argv){
     Check(interrupted.owner_phase==w::Phase::stopping||interrupted.owner_phase==w::Phase::closed,"reentrant stop is not lost");
     Check(f.revokes>0,"cleanup revokes admission before native stop");
 
+    a::Controller diagnostics;Fake df;
+    Run(diagnostics,df,w::Verb::open_owner,owner);
+    Run(diagnostics,df,w::Verb::submit,item);
+    auto detailed=done;detailed.application=w::Application::pending;
+    constexpr char message[]="actor_v3:dispatch:o1:n2q1";
+    std::memcpy(detailed.detail.data(),message,sizeof(message));
+    Check(diagnostics.UpdateAction(item,detailed),"record exact action diagnostic");
+    Check(diagnostics.Diagnose(item)==detailed.detail,"exact command retains diagnostic");
+    bool exact_only=true;
+    for(std::size_t i=0;i<sizeof(item);++i){
+        auto altered=item;reinterpret_cast<unsigned char*>(&altered)[i]^=1;
+        exact_only&=diagnostics.Diagnose(altered)==std::array<char,73>{};
+    }
+    Check(exact_only,"every immutable command byte participates in diagnostic correlation");
+    Check(diagnostics.UpdateScope(owner,{w::Phase::closed,w::Closure::local_released},true)
+        &&!diagnostics.Busy(),"positive local release permits a later producer namespace");
+    Check(diagnostics.Diagnose(item)==detailed.detail,"closed exact action retains diagnostic history");
+    auto replacement=owner;++replacement.host.process;++replacement.host.creation;
+    ++replacement.host.generation;++replacement.grant.generation;replacement.parent_digest[0]^=1;
+    replacement.request=item.request;
+    const auto expired=Run(diagnostics,df,w::Verb::stop_owner,replacement,false,false);
+    Check(expired.outcome==w::Outcome::history_expired&&df.stops==0,
+        "revoked replacement namespace does not borrow prior closure");
+    Check(diagnostics.Diagnose(replacement)==std::array<char,73>{},
+        "new producer STOP with reused IDs cannot leak old queued-action detail");
+    Check(Run(diagnostics,df,w::Verb::open_owner,replacement).outcome==w::Outcome::bound&&df.opens==2,
+        "current new producer can open the same parent ordinal after prior closure");
+    Check(Run(diagnostics,df,w::Verb::action_status,item,false,false).outcome==w::Outcome::history_expired
+        &&diagnostics.Diagnose(item)==std::array<char,73>{},"new namespace discards old action diagnostic history");
+
     a::Controller malformed;Fake mf;Run(malformed,mf,w::Verb::open_owner,owner);
     auto uncertain=item;uncertain.request=Id(1);mf.local_pending=true;Run(malformed,mf,w::Verb::submit,uncertain);
     a::Operation impossible;impossible.outcome=w::Outcome::queued;impossible.entry=w::Entry::unknown;

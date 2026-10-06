@@ -19,6 +19,10 @@ struct Actuator final : NativeActuator {
     bool camera_ok = true;
     bool lease_current = false;
     Grant lease_grant{};
+    bool startup_lease_current = false;
+    bool StartupLeaseCurrent(const Grant& grant) const noexcept override {
+        return startup_lease_current && lease_grant == grant;
+    }
     bool AutomationLeaseCurrent(const Grant& grant) const noexcept override {
         return lease_current && lease_grant == grant;
     }
@@ -701,6 +705,61 @@ void RetainedCleanupStatus() {
         }
     }
 }
+void StartupUpdateGaps() {
+    const auto acquire = [](Fixture& f) {
+        Grant g{};
+        Check(f.controls.AcquireAutomation(f.controls.Current().generation, Identity("startup"), g)
+            == Result::accepted, "stationary startup acquired");
+        f.actuator.lease_grant = g; f.actuator.startup_lease_current = true;
+        f.actuator.events.clear(); return g;
+    };
+    { Fixture f; const auto g = acquire(f); f.input.right_stick = {1,0};
+      f.Step(313);
+      Check(f.controls.Current() == g && f.controls.Ready() && !f.controls.CleanupPending(),
+          "313ms startup preserves exact unspent grant");
+      Check(f.actuator.Count('s') == 0 && f.actuator.Count('d') == 0 && f.actuator.Count('p') == 0,
+          "startup continuation neither stops nor dispatches movement");
+      for (const auto& e:f.actuator.events) { if(e.kind=='c') {Check(Near(e.vector.x,0)&&Near(e.vector.y,0), "startup camera has no catchup dt");} }
+      Check(f.controls.BeginAutomationNativeAction(g) == Result::accepted, "actor can open after delayed startup");
+      f.Step(313);
+      Check(f.controls.Current() != g, "startup proof cannot replace missing pinned service lease"); }
+    for (unsigned failure=0;failure<9;++failure) {
+        Fixture f; const auto g=acquire(f);
+        if(failure==0){f.actuator.startup_lease_current=false;}
+        if(failure==1){++f.actuator.lease_grant.generation;}
+        if(failure==2){f.input.exact_foreground=false;}
+        if(failure==3){f.input.ui_owns_input=true;}
+        if(failure==4){f.input.text_owns_input=true;}
+        if(failure==5){++f.input.scene;}
+        if(failure==6){f.input.native_available=false;}
+        if(failure==7){f.input.tick_ms=0;f.controls.Tick(f.input);}
+        if(failure==8){f.input.keys['W']=true;}
+        if(failure!=7){f.Step(313);}
+        Check(f.controls.Current()!=g, "startup rejects failed lease lifetime focus UI clock or fresh manual input");
+    }
+    { Fixture f;const auto g=acquire(f);f.input.keys[f.settings.drag_button]=true;f.Step();
+      f.input.pointer_x+=30;f.Step(313);
+      Check(f.controls.Current()!=g, "qualified fresh startup drag takes over after delayed frame"); }
+    { Fixture f;const auto g=acquire(f);f.input.left_stick={1,0};f.Step(313);
+      Check(f.controls.Current()!=g, "fresh startup controller direction takes over"); }
+    { Fixture f;const auto g=acquire(f);f.input.camera_basis_valid=false;
+      f.input.keys[f.settings.keys[0]]=true;f.Step(313);
+      Check(f.controls.Current()!=g && f.actuator.Count('d')==0 && f.actuator.Count('p')==0,
+          "startup gap manual direction revokes without an available actuation basis"); }
+    { Fixture f;const auto g=acquire(f);f.input.keys[f.settings.drag_button]=true;f.Step();
+      f.input.ground_valid=false;f.input.pointer_x+=f.settings.drag_threshold_pixels+1;f.Step(313);
+      Check(f.controls.Current()!=g && f.actuator.Count('d')==0 && f.actuator.Count('p')==0,
+          "startup gap captured threshold drag revokes without a terrain pick"); }
+    for(unsigned history=0;history<4;++history){
+        Fixture f;const auto g=acquire(f);
+        if(history==0){(void)f.controls.AutomationDestination(g,{1,0,2});}
+        if(history==1){(void)f.controls.AutomationDestination(g,{1,0,2});(void)f.controls.PauseAutomation(g);}
+        if(history==2){(void)f.controls.PauseAutomation(g);}
+        if(history==3){(void)f.controls.AutomationDestination(g,{std::numeric_limits<float>::quiet_NaN(),0,2});}
+        f.Step(313);
+        Check(f.controls.Current()!=g, "used paused or attempted route never reconstructs startup proof");
+    }
+}
 void FrameRatesAndSettings() {
     for (const int hz : {20, 30, 60, 144, 240}) {
         Fixture f; f.input.right_stick = {1, 0};
@@ -724,6 +783,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    PendingServiceTakeover(); ServiceUpdateGaps(); RetainedCleanupStatus(); ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
+    StartupUpdateGaps(); PendingServiceTakeover(); ServiceUpdateGaps(); RetainedCleanupStatus(); ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

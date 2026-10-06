@@ -82,6 +82,7 @@ bool Controls::RetryStop() noexcept {
     return true;
 }
 bool Controls::StopActive(StopReason reason) noexcept {
+    startup_stationary_ = false;
     if (!RetryStop()) { return false; }
     // Native click/follow intent may exist before this controller has submitted
     // a move. Admission must retire it before publishing a replacement owner.
@@ -161,12 +162,14 @@ Result Controls::AcquireAutomation(std::uint64_t expected, Token token, Grant& o
         return actuator_.Interrupted() ? Result::inhibited : Result::stop_failed;
     }
     if (shutdown_pending_) { Shutdown(); return Result::inhibited; }
+    startup_stationary_ = true;
     output = grant_;
     return Result::accepted;
 }
 Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) noexcept {
     if (actuating_ || shutdown_pending_) { return Result::inhibited; }
     if (grant != grant_ || grant.owner != Owner::automation) { return Result::stale; }
+    startup_stationary_ = false;
     if (!Finite(point)) { return Result::invalid; }
     if (!ContinueInput()) { return Result::inhibited; }
     if (!available_ || !foreground_ || text_owned_) { return Result::inhibited; }
@@ -189,6 +192,7 @@ Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) no
 Result Controls::BeginAutomationNativeAction(const Grant& grant) noexcept {
     if (actuating_ || shutdown_pending_) { return Result::inhibited; }
     if (grant != grant_ || grant.owner != Owner::automation) { return Result::stale; }
+    startup_stationary_ = false;
     if (!ContinueInput()) { return Result::inhibited; }
     if (!available_ || !foreground_ || text_owned_) { return Result::inhibited; }
     if (!RetryStop()) { return Result::stop_failed; }
@@ -288,13 +292,15 @@ void Controls::Tick(const Input& input) noexcept {
     foreground_ = true;
     if (!ContinueInput()) { return; }
     if (discontinuity && grant_.owner == Owner::automation) {
-        // A delayed frame is not a dead producer. Only a known service-only
-        // obligation may continue, under a fresh exact-owner lease proof. A
-        // stale route or unknown owner still retires; failed stop provenance
-        // must not become service-only merely because moving_ was cleared.
+        // Continue only a proven unspent stationary acquisition or a pinned
+        // service obligation, each with its exact live producer lease. Neither
+        // an old route nor failed cleanup can become startup just by going idle.
         const bool service_only = !text_owned_ && !moving_ && (native_activity_
             || (pending_stop_ && pending_service_only_ && pending_grant_ == grant_));
-        if (!service_only || !actuator_.AutomationLeaseCurrent(grant_)) {
+        const bool startup = !text_owned_ && startup_stationary_ && !moving_
+            && !native_activity_ && !pending_stop_;
+        if (!(service_only && actuator_.AutomationLeaseCurrent(grant_))
+            && !(startup && actuator_.StartupLeaseCurrent(grant_))) {
             Inhibit(StopReason::stalled); return;
         }
     }
@@ -424,6 +430,13 @@ void Controls::Tick(const Input& input) noexcept {
     const bool destination = !Nonzero(direction) && drag_active_
         && input.ground_valid && Finite(input.ground);
     const bool directional = Nonzero(direction) && Basis(input);
+    if (discontinuity && startup_stationary_ && (Nonzero(direction) || drag_active_)
+        && !directional && !destination) {
+        // The stationary startup exception must not hide fresh manual intent
+        // merely because its basis/terrain query cannot authorize a write.
+        // Drag still passed the ordinary capture/UI/threshold interpretation.
+        Inhibit(StopReason::takeover); return;
+    }
     if (!cleanup_ready) {
         // Native basis/terrain queries themselves require Ready. Recognize the
         // configured physical intent before those actuation-only prerequisites;

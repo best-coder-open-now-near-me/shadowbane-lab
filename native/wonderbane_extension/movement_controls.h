@@ -103,6 +103,7 @@ public:
     // Fresh exact-owner lease and pinned native-service proof, never inferred
     // from elapsed time or permissive stop admission. Unknown remains false.
     virtual bool AutomationLeaseCurrent(const Grant&) const noexcept { return false; }
+    virtual bool StartupLeaseCurrent(const Grant&) const noexcept { return false; }
 };
 
 // Exactly one instance per injected client. All calls (including automation
@@ -177,6 +178,8 @@ private:
     bool shutdown_pending_ = false, shutdown_ = false;
     bool moving_ = false;
     bool native_activity_ = false;
+    // Proven only by a successful acquisition; never reconstructed from idle flags.
+    bool startup_stationary_ = false;
     bool available_ = false;
     bool faulted_ = false;
     bool camera_faulted_ = false;
