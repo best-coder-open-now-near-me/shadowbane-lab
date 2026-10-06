@@ -4,7 +4,30 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active buff capture freshness deployment - October 6
+## Active automatic buff renewal repair - October 6
+
+Start from freshly fetched `origin/main`, now
+`27b76007ea065049a98f1dfb84a3becbb8d3c082` after deployment PR #70 merged
+with all 15 checks passing. Canonical main is clean. Installed host .69 / native
+.49 passed the two bounded encounters recorded below; these did not prove
+renewal after buff coverage disappears.
+
+The bot-integration checkout owns `codex/buff-application-renewal-20261006`.
+A reproduced policy defect can recreate application-pending state when the
+settled acknowledgement arrives after PRESENT coverage was already observed.
+If the next changed observation is MISSING, renewal can then remain suppressed.
+The repair reconciles already validated application evidence using the
+original proposal revision while retaining exact local-settlement responsibility.
+Candidate .70/.50 requires independent review and exact-source qualification
+before installation. A bounded buff-only cycle harness is being prepared;
+no overlap test or automatic retaliation is enabled.
+
+The prior deployment record is integrated and its branch retired locally and
+remotely after ancestry checks. Next: qualify and install the renewal repair,
+then observe native coverage transitions and automatic refresh. The user chose
+to keep current work on PvE and buffs; controlled PvP testing is deferred.
+
+## Installed buff capture freshness deployment - October 6
 
 Start from freshly fetched `origin/main`, now
 `490af652eaee83dd1914869ce99da9c908049f37` after PRs #68 and #69 merged.

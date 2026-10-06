@@ -434,7 +434,9 @@ def test_effect_presence_never_settles_uncertain_local_responsibility(entry):
     assert decision.proposal is potion and decision.poll_pending
     acknowledge(policy, potion, Disposition.UNCERTAIN, settled=True, entry=entry)
     decision = policy.advance(observe(3))
-    assert decision.proposal.action is PRECISION and decision.groups[0].application_pending
+    # Coverage proved the remote application, but only the explicit settled
+    # receipt released local responsibility. Its later loss can now renew.
+    assert decision.proposal.action is POTION and not decision.groups[0].application_pending
 
 
 def test_positive_queue_history_survives_remotely_uncertain_local_completion():
@@ -563,3 +565,108 @@ def test_new_capture_does_not_make_unknown_or_changed_same_epoch_facts_authorita
     assert policy.advance(unknown).reason == "observation_unknown"
     with pytest.raises(PreparationPolicyError):
         policy.advance(replace(unknown, capture_sequence=6, complete=True))
+
+
+@pytest.mark.parametrize(
+    "disposition,entry",
+    [
+        (Disposition.QUEUED, EntryState.ENTERED),
+        (Disposition.UNCERTAIN, EntryState.ENTERED),
+        (Disposition.UNCERTAIN, EntryState.UNKNOWN),
+    ],
+)
+@pytest.mark.parametrize("missing_before_settlement", [False, True])
+def test_observed_application_is_not_recreated_by_late_settlement(
+    disposition, entry, missing_before_settlement
+):
+    groups = (GROUPS[2],)
+    policy = PreparationPolicy(ACTOR, groups)
+    original = policy.advance(observe(13, groups=groups, capture=100)).proposal
+    acknowledge(policy, original, disposition, settled=False, entry=entry)
+    present = observe(17, groups=groups, coverage={"beorc": Coverage.PRESENT}, capture=176)
+    decision = policy.advance(present)
+    assert decision.proposal is original and decision.poll_pending
+    assert not decision.groups[0].application_pending
+    if missing_before_settlement:
+        decision = policy.advance(observe(18, groups=groups, capture=178))
+        assert decision.proposal is original and decision.poll_pending
+    acknowledge(policy, original, disposition, settled=True, entry=entry)
+    renewed = policy.advance(observe(19, groups=groups, capture=180)).proposal
+    assert renewed.action is BEORC and renewed.sequence == original.sequence + 1
+    # The previous application evidence cannot satisfy this new submission.
+    acknowledge(policy, renewed, disposition, settled=True, entry=entry)
+    assert policy.advance(observe(20, groups=groups, capture=182)).proposal is None
+
+
+@pytest.mark.parametrize(
+    "complete,coverage,native_pending",
+    [
+        (False, Coverage.PRESENT, ()),
+        (True, Coverage.UNKNOWN, ()),
+        (True, Coverage.PARTIAL, ()),
+        (True, Coverage.MISSING, ()),
+        (True, Coverage.PRESENT, ("beorc",)),
+    ],
+)
+@pytest.mark.parametrize(
+    "disposition,entry",
+    [
+        (Disposition.QUEUED, EntryState.ENTERED),
+        (Disposition.UNCERTAIN, EntryState.UNKNOWN),
+    ],
+)
+def test_unproven_application_remains_suppressed_after_local_settlement(
+    complete, coverage, native_pending, disposition, entry
+):
+    groups = (GROUPS[2],)
+    policy = PreparationPolicy(ACTOR, groups)
+    original = policy.advance(observe(13, groups=groups)).proposal
+    acknowledge(policy, original, disposition, settled=False, entry=entry)
+    policy.advance(
+        observe(
+            17,
+            groups=groups,
+            coverage={"beorc": coverage},
+            complete=complete,
+            pending=native_pending,
+        )
+    )
+    acknowledge(policy, original, disposition, settled=True, entry=entry)
+    for epoch in (18, 19, 10**12):
+        decision = policy.advance(observe(epoch, groups=groups))
+        assert decision.proposal is None and decision.groups[0].application_pending
+
+
+def test_new_native_pending_after_observed_application_requires_new_positive_evidence():
+    groups = (GROUPS[2],)
+    policy = PreparationPolicy(ACTOR, groups)
+    original = policy.advance(observe(13, groups=groups)).proposal
+    acknowledge(policy, original, settled=False)
+    policy.advance(observe(17, groups=groups, coverage={"beorc": Coverage.PRESENT}))
+    policy.advance(observe(18, groups=groups, pending=("beorc",)))
+    acknowledge(policy, original)
+    assert policy.advance(observe(19, groups=groups)).proposal is None
+    policy.advance(observe(20, groups=groups, coverage={"beorc": Coverage.PRESENT}))
+    assert policy.advance(observe(21, groups=groups)).proposal.action is BEORC
+
+
+def test_alternative_group_renews_across_repeated_observed_expiry_cycles():
+    groups = (GROUPS[3],)
+    policy = PreparationPolicy(ACTOR, groups)
+    for cycle in range(4):
+        epoch = 1 + cycle * 3
+        action = RAT if cycle % 2 == 0 else SKREE
+        unavailable = SKREE if action is RAT else RAT
+        first = policy.advance(
+            observe(epoch, groups=groups, ready={unavailable.action_id: Readiness.NOT_READY})
+        ).proposal
+        assert first.action is action
+        acknowledge(policy, first, settled=False)
+        policy.advance(observe(epoch + 1, groups=groups, coverage={"transform": Coverage.PRESENT}))
+        acknowledge(policy, first)
+        assert (
+            policy.advance(
+                observe(epoch + 2, groups=groups, coverage={"transform": Coverage.PRESENT})
+            ).proposal
+            is None
+        )
