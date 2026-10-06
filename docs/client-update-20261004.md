@@ -1,5 +1,33 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
+## Qualified .69/.49 buff scheduling repair - October 6
+
+PR #69 merged at `490af652eaee83dd1914869ce99da9c908049f37` after all 15
+hosted checks passed; exact qualified source is
+`439d074051edc627ad8ba81a84113a345d2fd42c`. The .68 live run below exposed a
+scheduler stall: after Beorc settled, fresh observations kept semantic revision
+17 because the facts were unchanged. The policy incorrectly required that
+revision to increase before submitting another buff. It now requires a later
+validated native capture sequence, preserving semantic equality, lifetime,
+immutable pending action, duplicate application and admission-refusal guards.
+
+Package `artifacts/b49/4f564b4d` supplies host **0.3.69** / native **1.8.49**.
+It passed 4,909 host tests with 37 skips; each profile passed 224 native tests,
+126 required gates and 73 movement / 86 combat / 146 actor IPC cases. Independent
+review verified 110 artifacts and 82 stages, both .14 client images, wheel source
+and DLL identity. Known optional rendering findings are unchanged. Full DLL
+SHA-256: `d4961bf0d50613d9d9e339691a4ef8ae0c29316c57c5842ed7f4e62cf7c36fae`.
+The installer passed 20 offline tests and independent final pin review; the
+bounded encounter helper passed 138 tests against the exact package. Private
+receipts are under `artifacts/bot-deploy/20261006-b49`.
+
+**Installation is pending client closure.** A fresh observation at
+2026-10-06T19:46:02.3414972Z found PID 8832 running with .68/.48; the user was
+asked to close it. No runtime replacement or .49 gameplay action is claimed.
+Seven reviewed encounter helper files are staged on the testing VM share but
+have not run. Next: fresh closed-client verification, install/activate and retire
+only verified obsolete runtime files, then repeat the NPC and normal buff test.
+
 ## Current .68/.48 startup repair deployment - October 6
 
 PR #67 merged into `main` at
