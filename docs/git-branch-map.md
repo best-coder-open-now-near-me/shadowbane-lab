@@ -4,29 +4,44 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active bot startup follow-through - October 5
+## Active startup repair deployment - October 6
 
 Start from freshly fetched `origin/main`, currently
-`2c0ee9037238f894c3bf4f85d41fdbeda5d94849` after PRs #65 and #66 merged.
-The canonical checkout remains clean on `main`. Qualified host .67 / native .47
-and prepared client .14 are installed from source `a34a57f`; settings and jobs
-are preserved. See [the patch record](client-update-20261004.md).
+`9cf9f20a322f4ce0b199c7806f509c1aa2c991cb` after PR #67 merged with all
+15 hosted checks passing. Exact package source `7aca53e` is included in main.
+Host .68 / native .48 are applied and verified with prepared client .14:
+463 host modules, 9,583 preserved files and one DLL inventory change. Settings,
+jobs and corrected display preferences remain in place. Healthy manager
+activation, all five shortcuts/startup preflight, launch and fresh passive
+readiness are verified. The .68 bounded live run is partial: exact NPC death and
+cleanup succeeded, while two ready missing buff groups were not scheduled. See
+the [patch record](client-update-20261004.md).
 
-The bot-integration checkout owns `codex/actor-startup-liveness-20261005`, based
-on that main tip. Its work addresses a measured 313 ms frame gap revoking a fresh,
-stationary automation grant before actor ownership opened. This is new source
-work awaiting qualification and integration; installed runtime is unchanged.
+The receipt branch `codex/actor-startup-deployment-20261006` in the
+bot-integration checkout starts from that main merge and records deployment
+progress; these documentation updates await their own checkpoint. The prior
+client .14 delivery branch was retired locally and remotely after verification.
+The merged `codex/actor-startup-liveness-20261005` runtime branch was also retired
+locally and remotely after both ancestry checks against `origin/main` passed.
+No runtime source remains pending integration from that feature.
 
-Automatic buff-up applied all five groups, including the concentration potion.
-The bounded NPC check remains incomplete. The user explicitly removed manual
-potion-overlap testing as a requirement; buff order is immaterial. Next: validate
-and package the startup repair, then repeat NPC combat and normal buff refresh.
-Automatic retaliation remains disabled pending authoritative session provenance.
+The earlier automatic buff run observed all five groups PRESENT, including the
+concentration potion; its bounded NPC check was incomplete. The user canceled
+manual potion-overlap testing, so buff order is not an acceptance requirement.
+The current .68 run queued Shot and one ATTACK, observed exact NPC native health
+zero, confirmed child NATIVE_STOPPED and parent LOCAL_RELEASED, and ended with
+no interruption, watchdog or list membership. Concentration potion, Precision
+and Beorc were PRESENT; transform and defensive stance remained READY/MISSING
+near 44 seconds. Fresh post-run readiness was idle and unowned. No server kill
+credit or skill consumption is claimed. Next: investigate scheduling of those
+ready missing groups, then validate normal buff refresh. Automatic retaliation
+remains disabled pending authoritative session provenance.
 
-No deployment rollback copies are retained. Retirement of 21 old Python
+The obsolete .67 host and two .47 guest payloads (50,832,946 bytes), plus four
+old host/share staging binaries (5,633,626 bytes), were retired with exact hash
+checks. No deployment rollback copies are retained. Retirement of 21 old Python
 environments remains separately blocked by automatic approval review pending
-explicit user approval; no removal is claimed. The prior delivery-record branch
-is merged and inactive; retire it after ownership and ancestry verification.
+explicit user approval; no removal is claimed.
 
 ## Historical shared source and deployment - October 2
 
