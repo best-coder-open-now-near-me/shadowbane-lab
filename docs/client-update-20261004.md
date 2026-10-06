@@ -1,6 +1,6 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
-## Qualified .70/.50 renewal repair - October 6
+## Installed .70/.50 renewal repair - October 6
 
 PR #71 merged at `578f5f933cf5770764c79c5c5dc0ceea19e786ec` after all 15
 hosted checks passed for exact source
@@ -30,11 +30,26 @@ Qualified SHA-256 identities:
 
 The installer passed 20 offline tests, PowerShell parsing and independent final
 pin review. Compact private evidence is under `artifacts/bot-deploy/20261006-b50`.
-The fresh baseline still found game PID 3456 on .69/.49, so **installation is
-pending user-confirmed client closure**. No B50 VM deployment or live result is
-claimed. Next: install, verify startup and preserved user data, remove only
-verified obsolete deployment artifacts, then run the bounded buff-only renewal
-check. PvP is deferred by the user's choice; manual overlap testing is canceled.
+After user-confirmed closure, **installation and activation passed**. Apply
+verified 463 host modules, 9,585 preserved files and exactly one client DLL
+inventory change. Manager 6076 activated healthy; all five shortcuts and startup
+preflight passed. Official/prepared .14 assets, settings and jobs were preserved.
+
+Launch at `2026-10-06T20:48:39.2159949Z` verified the qualified DLL in PID 8616,
+creation FILETIME `134357933071546966`, HWND `1770578`. Passive readiness reported
+login/loading, so no gameplay action or in-world acceptance is claimed. These
+identities are receipts, not continuing session authority.
+
+The exact obsolete .69 host (2,116 files / 48,019,845 bytes) and two .49 guest
+payloads were removed after ownership and activation checks, totaling 50,837,562
+bytes. Four old host/share staging binaries totaled another 5,635,434 bytes.
+No fallback copies were retained; settings, jobs and diagnostic evidence remain.
+Twelve compact receipts and seven installed-file hashes are in B50 `receipts`.
+
+The buff-only cycle helper passed 42 tests and independent final hash review;
+its eight qualified dependencies are staged. Next: user login, fresh readiness,
+and bounded native expiry/renewal observation. Production PvE/buff integration
+work proceeds in parallel. PvP remains deferred; manual overlap testing is canceled.
 
 ## Installed .69/.49 buff scheduling repair - October 6
 

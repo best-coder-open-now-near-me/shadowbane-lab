@@ -20,15 +20,21 @@ required gates per profile, plus all movement/combat/actor IPC gates. The one
 additional host skip is the unchanged Tk display test; no required gate was
 bypassed. Final installer pin review and 20 offline tests passed.
 
-**Installation is pending client closure.** The fresh VM observation still
-finds the installed .69/.49 game open. The renewal repair preserves observed
-application evidence across delayed local settlement, so a subsequent missing
-buff can be renewed without releasing uncertain local work. A bounded buff-only
-cycle helper is prepared to observe native coverage transitions after deployment;
-no renewal or transform-alternation live success is claimed yet.
+**Host .70 / native .50 are installed and activated.** Apply verified 463 host
+modules, 9,585 preserved files and exactly one client DLL inventory change.
+Manager 6076 is healthy; all five shortcuts and startup preflight passed. Launch
+at 20:48:39 UTC verified the qualified DLL in PID 8616, creation FILETIME
+`134357933071546966`, HWND `1770578`. Passive readiness was at login/loading;
+these are receipt identities, not continuing session authority.
 
-Next: close the client, install and verify .70/.50, retire only its exact obsolete
-.69/.49 runtime/staging artifacts, then observe native automatic buff renewal.
+The exact obsolete .69 host and two .49 guest payloads were removed (50,837,562
+bytes), plus four host/share staging binaries (5,635,434 bytes). Settings, jobs
+and evidence remain preserved; no rollback runtime is retained. Twelve compact
+receipts and seven installed-file hashes are retained under the B50 receipt folder.
+The bounded buff-only helper passed independent review and 42 tests and is staged.
+Next: user login, fresh readiness, then native coverage renewal validation.
+Production integration and configuration work can proceed in parallel; no renewal
+or transform-alternation live success is claimed yet.
 The user chose PvE and buffs; controlled PvP is deferred. No manual overlap test
 or automatic retaliation is enabled. See the [patch record](client-update-20261004.md).
 
