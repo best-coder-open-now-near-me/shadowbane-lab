@@ -306,6 +306,7 @@ class PreparationPolicy:
         self._pending: PreparationProposal | None = None
         self._queued = False
         self._entered = False
+        self._application_observed = False
         self._rejected: set[str] = set()
         self._refused_at: dict[str, int] = {}
         self._applications: dict[str, int] = {}
@@ -357,13 +358,7 @@ class PreparationPolicy:
         )
         for group in observation.pending_applications:
             self._applications.setdefault(group, observation.publication_epoch)
-        for group, epoch in tuple(self._applications.items()):
-            if (
-                coverage.get(group) is Coverage.PRESENT
-                and observation.publication_epoch > epoch
-                and group not in observation.pending_applications
-            ):
-                del self._applications[group]
+        self._reconcile_applications(observation)
         status = tuple(
             GroupStatus(
                 g.group_id,
@@ -407,9 +402,31 @@ class PreparationPolicy:
                     observation.admission_revision,
                 )
                 self._queued = self._entered = False
+                self._application_observed = False
                 return PreparationDecision(self._pending, False, status, "submit")
         reason = "covered" if all(s.coverage is Coverage.PRESENT for s in status) else "waiting"
         return PreparationDecision(None, False, status, reason)
+
+    def _reconcile_applications(self, observation: PreparationObservation) -> None:
+        if not observation.complete:
+            return
+        present = {
+            e.group_id
+            for e in observation.coverage
+            if e.state is Coverage.PRESENT and e.group_id not in observation.pending_applications
+        }
+        for group, epoch in tuple(self._applications.items()):
+            if group in present and observation.publication_epoch > epoch:
+                del self._applications[group]
+        if (
+            self._pending is not None
+            and self._pending.group_id in present
+            and observation.publication_epoch > self._pending.publication_epoch
+        ):
+            # Remember application evidence for this immutable proposal even if
+            # coverage disappears before its local settlement reply arrives.
+            # This does not release the pending local action.
+            self._application_observed = True
 
     def acknowledge(self, acknowledgement: PreparationAcknowledgement) -> None:
         if self._fault is not None:
@@ -436,7 +453,11 @@ class PreparationPolicy:
         ):
             # Possible remote application suppresses duplicates independently of
             # proven local completion. Other groups need not wait for its effect.
-            self._applications.setdefault(self._pending.group_id, self._last.publication_epoch)
+            if not self._application_observed:
+                self._applications.setdefault(
+                    self._pending.group_id, self._pending.publication_epoch
+                )
+            self._reconcile_applications(self._last)
         if (
             ack.disposition in (Disposition.DEFERRED, Disposition.NOT_READY)
             and ack.entry_state is EntryState.NEVER_ENTERED

@@ -993,3 +993,73 @@ def test_capture_reset_wrap_or_lifetime_change_permanently_blocks_preparation(
     with pytest.raises(publication.PublicationError, match="revoked"):
         owner.preparation_step()
     assert all(c.args[1] is not Verb.SUBMIT for c in session.actor_action.call_args_list)
+
+
+@pytest.mark.parametrize("missing_before_settlement", [False, True])
+def test_last_buff_observed_before_settlement_can_renew_on_next_missing_capture(
+    setup, monkeypatch, missing_before_settlement
+):
+    owner, session, _, _, _ = setup
+    power = 429590426
+    settings = BuffSettings(
+        True,
+        (BuffGroup("beorc", (BuffAction(PreparationAction("beorc", power_id=power), power),)),),
+    )
+    pub, send = configure(owner, session, monkeypatch, settings)
+    reader = owner.publication_reader.read
+    reader.return_value = replace(pub, revision=13, admission_revision=9)
+    settled = False
+
+    def response(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if command.action is Action.SELF_POWER:
+            result.receipt = replace(
+                result.receipt,
+                local_settlement=LocalSettlement.SETTLED if settled else LocalSettlement.PENDING,
+            )
+            result.receipt.require_command(command, verb)
+        return result
+
+    session.actor_action.side_effect = response
+    first = owner.preparation_step()
+    original = first.command
+    assert not first.acknowledgement.local_settled
+    reader.return_value = replace(
+        pub,
+        revision=17,
+        admission_revision=12,
+        snapshot_id=b"u" * 16,
+        actions=(replace(pub.actions[0], coverage=publication.Coverage.PRESENT),),
+    )
+    observed = owner.preparation_step()
+    assert observed.command is original and not observed.acknowledgement.local_settled
+    if missing_before_settlement:
+        reader.return_value = replace(
+            pub, revision=18, admission_revision=13, snapshot_id=b"v" * 16
+        )
+        unresolved = owner.preparation_step()
+        assert unresolved.command is original and not unresolved.acknowledgement.local_settled
+    settled = True
+    completed = owner.preparation_step()
+    assert completed.command is original and completed.acknowledgement.local_settled
+    reader.return_value = replace(pub, revision=19, admission_revision=14, snapshot_id=b"w" * 16)
+    renewal = owner.preparation_step()
+    assert renewal is not None and renewal.command.power_id == power
+    assert renewal.command.request != original.request
+    assert renewal.command.parent_id == original.parent_id == owner.parent.owner_id
+    assert renewal.command.context_id is original.context_id is None
+    assert renewal.command.manifest_digest == original.manifest_digest
+    assert renewal.command.publication_revision == 19
+    # No observed effect from the first application may release the second one.
+    reader.return_value = replace(pub, revision=20, admission_revision=14, snapshot_id=b"x" * 16)
+    assert owner.preparation_step() is None
+    submits = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
+    assert submits == [original, renewal.command]
+    polls = [
+        c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.ACTION_STATUS
+    ]
+    assert polls and all(c is original for c in polls)
+    assert not any(
+        c.args[1] in (Verb.STOP_CONTEXT, Verb.STOP_OWNER)
+        for c in session.actor_action.call_args_list
+    )
