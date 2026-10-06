@@ -4,28 +4,33 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active automatic buff renewal repair - October 6
+## Active automatic buff renewal deployment - October 6
 
 Start from freshly fetched `origin/main`, now
-`27b76007ea065049a98f1dfb84a3becbb8d3c082` after deployment PR #70 merged
-with all 15 checks passing. Canonical main is clean. Installed host .69 / native
-.49 passed the two bounded encounters recorded below; these did not prove
-renewal after buff coverage disappears.
+`578f5f933cf5770764c79c5c5dc0ceea19e786ec` after PR #71 merged with all 15
+hosted checks passing. Canonical main is clean. Exact source
+`a99dc978a1a083881348ba55ae36974f4442d20e` is integrated; no runtime source
+remains outside main for this change.
 
-The bot-integration checkout owns `codex/buff-application-renewal-20261006`.
-A reproduced policy defect can recreate application-pending state when the
-settled acknowledgement arrives after PRESENT coverage was already observed.
-If the next changed observation is MISSING, renewal can then remain suppressed.
-The repair reconciles already validated application evidence using the
-original proposal revision while retaining exact local-settlement responsibility.
-Candidate .70/.50 requires independent review and exact-source qualification
-before installation. A bounded buff-only cycle harness is being prepared;
-no overlap test or automatic retaliation is enabled.
+The bot-integration checkout owns `codex/buff-renewal-deployment-20261006`,
+based on that merge, for qualification and installation records. Host .70 /
+native .50 package `artifacts/b50/f4d9e515` passed exact-source qualification
+and independent review: 4,928 host tests (38 skips), 224 native tests and 126
+required gates per profile, plus all movement/combat/actor IPC gates. The one
+additional host skip is the unchanged Tk display test; no required gate was
+bypassed. Final installer pin review and 20 offline tests passed.
 
-The prior deployment record is integrated and its branch retired locally and
-remotely after ancestry checks. Next: qualify and install the renewal repair,
-then observe native coverage transitions and automatic refresh. The user chose
-to keep current work on PvE and buffs; controlled PvP testing is deferred.
+**Installation is pending client closure.** The fresh VM observation still
+finds the installed .69/.49 game open. The renewal repair preserves observed
+application evidence across delayed local settlement, so a subsequent missing
+buff can be renewed without releasing uncertain local work. A bounded buff-only
+cycle helper is prepared to observe native coverage transitions after deployment;
+no renewal or transform-alternation live success is claimed yet.
+
+Next: close the client, install and verify .70/.50, retire only its exact obsolete
+.69/.49 runtime/staging artifacts, then observe native automatic buff renewal.
+The user chose PvE and buffs; controlled PvP is deferred. No manual overlap test
+or automatic retaliation is enabled. See the [patch record](client-update-20261004.md).
 
 ## Installed buff capture freshness deployment - October 6
 
@@ -51,7 +56,7 @@ with no errors, interruption, watchdog or retained list membership. The first
 submitted four missing buff powers; concentration coverage was preexisting.
 The second submitted only Shot and ATTACK, suppressing duplicate buffs. Fresh
 readiness afterward was alive, unowned and clean. Next: sustained expiry/reuse
-validation, then controlled PvP with an available, agreed player. No manual
+validation; controlled PvP is deferred by the user. No manual
 overlap test is required; no new potion use or expiry-cycle proof is claimed.
 
 The bot-integration checkout now owns

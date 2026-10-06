@@ -1,5 +1,41 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
+## Qualified .70/.50 renewal repair - October 6
+
+PR #71 merged at `578f5f933cf5770764c79c5c5dc0ceea19e786ec` after all 15
+hosted checks passed for exact source
+`a99dc978a1a083881348ba55ae36974f4442d20e`. A reproduced ordering defect could
+recreate application suppression when local settlement arrived after PRESENT
+coverage had already been observed, preventing renewal after coverage became
+MISSING. The policy now remembers validated application evidence for the exact
+proposal while retaining local ownership until its typed settlement receipt.
+The regression suite covers disappearance before settlement and later renewal.
+
+Package `artifacts/b50/f4d9e515` passed 4,928 host tests with 38 skips, both
+native profiles (224 passed / 126 required gates each), and 73 movement / 86
+combat / 146 actor IPC cases per profile. Independent review verified all 110
+artifacts, 82 stages, exact Git source, wheel RECORD/source stamp, both DLL
+versions, original/prepared .14 client bindings and seven bootstrap writes.
+The extra host skip versus .69 was the byte-identical
+`test_replay_does_not_publish_and_return_live_rebinds_controls`, whose Tk fixture
+reported the display unavailable; all other skips match. Known optional
+transparency findings remain unchanged and separate from required gates.
+
+Qualified SHA-256 identities:
+
+- Full DLL: `d102f6b45f784accdcd1839443c9fe51d5761cdb50015899c14f1a7e26b24717`.
+- Wheel: `7024d623532905f98d9693fad9c7dd62bb8302ce7ccecf4045d76785dda21dc4`.
+- Archive: `f02e9e907e2d2bfe2d330c84228293b985a86d89b1d0b0fda7366d58695ebdbf`.
+- Receipt: `81c67fa4264e580ee951df22398628039804a49bc8577808c7d3dd93070df6df`.
+
+The installer passed 20 offline tests, PowerShell parsing and independent final
+pin review. Compact private evidence is under `artifacts/bot-deploy/20261006-b50`.
+The fresh baseline still found game PID 3456 on .69/.49, so **installation is
+pending user-confirmed client closure**. No B50 VM deployment or live result is
+claimed. Next: install, verify startup and preserved user data, remove only
+verified obsolete deployment artifacts, then run the bounded buff-only renewal
+check. PvP is deferred by the user's choice; manual overlap testing is canceled.
+
 ## Installed .69/.49 buff scheduling repair - October 6
 
 PR #69 merged at `490af652eaee83dd1914869ce99da9c908049f37` after all 15
