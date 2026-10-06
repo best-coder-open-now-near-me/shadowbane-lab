@@ -459,9 +459,11 @@ def test_context_cleanup_preserves_actor_only_unsettled_action(setup, monkeypatc
     assert session.actor_action.call_args.args[1:3] == (Verb.ACTION_STATUS, command)
 
 
+@pytest.mark.parametrize("preexisting_pending_buff", [False, True])
 def test_public_runner_refreshes_buffs_during_listed_combat_after_health_checks(
     listed_encounter,
     monkeypatch,
+    preexisting_pending_buff,
 ):
     from test_listed_combat import frame
 
@@ -489,11 +491,16 @@ def test_public_runner_refreshes_buffs_during_listed_combat_after_health_checks(
 
     def response(grant, verb, command, **kwargs):
         result = send(grant, verb, command, **kwargs)
+        if preexisting_pending_buff and verb is Verb.SUBMIT and command.action is Action.USE_ITEM:
+            result.receipt = replace(result.receipt, local_settlement=LocalSettlement.PENDING)
         if verb is Verb.SUBMIT and command.power_id == 429545819:
             state["dead"] = True
         return result
 
     session.actor_action.side_effect = response
+    if preexisting_pending_buff:
+        first = owner.preparation_step()
+        assert first.command.action is Action.USE_ITEM and not first.acknowledgement.local_settled
 
     def current():
         return frame(round(clock.now * 1000), dead=state["dead"])
@@ -534,14 +541,20 @@ def test_public_runner_refreshes_buffs_during_listed_combat_after_health_checks(
     )
     result = runner.run()
     submitted = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
-    assert [(c.action.value, c.power_id) for c in submitted] == [(1, 0), (4, 0), (3, 429545819)]
+    expected = (
+        [(4, 0), (1, 0), (3, 429545819)]
+        if preexisting_pending_buff
+        else [(1, 0), (4, 0), (3, 429545819)]
+    )
+    assert [(c.action.value, c.power_id) for c in submitted] == expected
     assert len({c.parent_id for c in submitted}) == 1
     assert not encounter.combat.active and owner._opened and not owner._obligation.released
     assert [
         x.preparation.acknowledgement.proposal.group_id
         for x in result.trace
         if x.preparation is not None
-    ] == ["concoction", "precision"]
+    ] == (["precision"] if preexisting_pending_buff else ["concoction", "precision"])
+    assert owner._preparation_policy.pending_proposal is None
     assert any(x.listed_combat is not None and x.listed_combat.recovered for x in result.trace)
     assert owner.finish("test_done")[0]
 
@@ -1063,3 +1076,214 @@ def test_last_buff_observed_before_settlement_can_renew_on_next_missing_capture(
         c.args[1] in (Verb.STOP_CONTEXT, Verb.STOP_OWNER)
         for c in session.actor_action.call_args_list
     )
+
+
+@pytest.mark.parametrize("refusal", [None, "missing", "wrong_command"])
+def test_combat_poll_routes_preparation_settlement_to_its_owner(setup, monkeypatch, refusal):
+    owner, session, _, observation, combat_proposal = setup
+    _, send = configure(owner, session, monkeypatch)
+    item_settled = False
+    attack_settled = False
+
+    def response(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if command.action is Action.USE_ITEM:
+            if verb is Verb.ACTION_STATUS and refusal == "missing":
+                raise TimeoutError("no correlated status")
+            result.receipt = replace(
+                result.receipt,
+                local_settlement=(
+                    LocalSettlement.SETTLED if item_settled else LocalSettlement.PENDING
+                ),
+            )
+            if verb is Verb.ACTION_STATUS and refusal == "wrong_command":
+                result.receipt = replace(result.receipt, command_digest=b"x" * 32)
+        elif command.action is Action.ATTACK:
+            result.receipt = replace(
+                result.receipt,
+                local_settlement=(
+                    LocalSettlement.SETTLED if attack_settled else LocalSettlement.PENDING
+                ),
+            )
+        return result
+
+    session.actor_action.side_effect = response
+    first = owner.preparation_step()
+    original = first.command
+    assert not first.acknowledgement.local_settled
+    assert (
+        owner.advance_combat(combat_proposal, observation).acknowledgement.disposition.value
+        == "uncertain"
+    )
+    assert owner._local_command is original
+    item_settled = True
+    update = owner.advance_combat(combat_proposal, observation)
+    if refusal is not None:
+        assert update.acknowledgement.disposition.value == "uncertain"
+        assert owner._local_command is original
+        assert owner._preparation_policy.pending_proposal == first.acknowledgement.proposal
+        assert [
+            c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT
+        ] == [original]
+        return
+    assert update.acknowledgement.disposition.value == "queued"
+    attack = update.command
+    assert (
+        owner._local_command is attack
+        and update.receipt.local_settlement is LocalSettlement.PENDING
+    )
+    assert owner._preparation_policy.pending_proposal is None
+    assert owner._preparation_command is owner._preparation_proposal is None
+    # The potion remains remotely pending. Its local settlement permits combat,
+    # and only the exact newer ATTACK status can release the shared local slot.
+    assert owner._preparation_policy._applications.keys() == {"concoction"}
+    assert owner.preparation_step() is None
+    assert session.actor_action.call_args.args[1:3] == (Verb.ACTION_STATUS, attack)
+    assert owner._local_command is attack
+    # Even a retained old result cannot be delivered to a new command owner.
+    with pytest.raises(ValueError, match="exact pending command owner"):
+        owner._preparation_result(
+            send(owner.grant, Verb.ACTION_STATUS, original),
+            first.acknowledgement.proposal,
+            original,
+        )
+    assert owner._local_command is attack
+    attack_settled = True
+    precision = owner.preparation_step()
+    assert precision.command.power_id == 429545819
+    assert owner.finish("test_complete")[0]
+
+
+@pytest.mark.parametrize("uncertain", [False, True])
+def test_combat_waits_for_live_preparation_status_without_expiring_new_proposal(
+    setup, monkeypatch, uncertain
+):
+    owner, session, _, observation, proposal = setup
+    _, send = configure(owner, session, monkeypatch)
+    now = SimpleNamespace(value=0.0)
+    session.cleanup.clock = lambda: now.value
+    settled = False
+
+    def response(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if command.action is Action.USE_ITEM:
+            result.receipt = replace(
+                result.receipt,
+                local_settlement=LocalSettlement.SETTLED if settled else LocalSettlement.PENDING,
+                outcome=Outcome.UNCERTAIN if uncertain else Outcome.CLIENT_OUTBOUND_QUEUED,
+            )
+        return result
+
+    session.actor_action.side_effect = response
+    first = owner.preparation_step()
+    for milliseconds in (1_000, 6_000, 18_000):
+        observation.now_ms = milliseconds
+        now.value = milliseconds / 1000
+        update = owner.advance_combat(proposal, observation)
+        assert update.acknowledgement.disposition.value == "uncertain"
+        assert session.actor_action.call_args.args[1:3] == (Verb.ACTION_STATUS, first.command)
+        assert owner._local_command is first.command and owner.context is None
+        assert owner._preparation_policy.pending_proposal == first.acknowledgement.proposal
+    settled = True
+    observation.now_ms = 19_000
+    now.value = 19.0
+    update = owner.advance_combat(proposal, observation)
+    assert update.acknowledgement.disposition.value == "queued"
+    assert owner._preparation_policy.pending_proposal is None
+    assert owner._preparation_policy._applications.keys() == {"concoction"}
+    submits = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
+    assert [c.action for c in submits] == [Action.USE_ITEM, Action.ATTACK]
+    assert not any(
+        c.args[1] in (Verb.STOP_OWNER, Verb.STOP_CONTEXT)
+        for c in session.actor_action.call_args_list
+    )
+    assert owner.finish("test_complete")[0]
+
+
+@pytest.mark.parametrize(
+    "failure", ["missing", "wrong_command", "wrong_verb", "stopping", "unknown"]
+)
+def test_combat_wait_does_not_renew_preparation_deadline_from_invalid_status(
+    setup, monkeypatch, failure
+):
+    owner, session, _, observation, proposal = setup
+    _, send = configure(owner, session, monkeypatch)
+    now = SimpleNamespace(value=0.0)
+    session.cleanup.clock = lambda: now.value
+    failed = False
+
+    def response(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if command.action is Action.USE_ITEM:
+            result.receipt = replace(result.receipt, local_settlement=LocalSettlement.PENDING)
+            if failed:
+                if failure == "missing":
+                    raise TimeoutError("missing native reply")
+                if failure == "wrong_command":
+                    result.receipt = replace(result.receipt, command_digest=b"x" * 32)
+                elif failure == "wrong_verb":
+                    result.receipt = replace(result.receipt, verb=Verb.SUBMIT)
+                elif failure == "stopping":
+                    result.receipt = replace(result.receipt, owner_phase=Phase.STOPPING)
+                else:
+                    result.receipt = replace(
+                        result.receipt, local_settlement=LocalSettlement.UNKNOWN
+                    )
+        return result
+
+    session.actor_action.side_effect = response
+    first = owner.preparation_step()
+    observation.now_ms = 1_000
+    now.value = 1.0
+    owner.advance_combat(proposal, observation)
+    failed = True
+    observation.now_ms = 5_999
+    now.value = 5.999
+    assert (
+        owner.advance_combat(proposal, observation).acknowledgement.disposition.value == "uncertain"
+    )
+    observation.now_ms = 6_000
+    now.value = 6.0
+    with pytest.raises(RuntimeError, match="status response deadline expired"):
+        owner.advance_combat(proposal, observation)
+    submits = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
+    assert submits == [first.command]
+    assert any(c.args[1] is Verb.STOP_OWNER for c in session.actor_action.call_args_list)
+
+
+def test_preparation_waiting_on_pending_combat_does_not_start_a_new_action_deadline(
+    setup, monkeypatch
+):
+    owner, session, _, observation, proposal = setup
+    _, send = configure(owner, session, monkeypatch)
+    now = SimpleNamespace(value=0.0)
+    session.cleanup.clock = lambda: now.value
+    settled = False
+
+    def response(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if command.action is Action.ATTACK:
+            result.receipt = replace(
+                result.receipt,
+                local_settlement=LocalSettlement.SETTLED if settled else LocalSettlement.PENDING,
+            )
+        return result
+
+    session.actor_action.side_effect = response
+    attack = owner.advance_combat(proposal, observation).command
+    for timestamp in (1.0, 6.0, 18.0):
+        now.value = timestamp
+        assert owner.preparation_step() is None
+        assert session.actor_action.call_args.args[1:3] == (Verb.ACTION_STATUS, attack)
+        assert owner._local_command is attack
+        assert owner._preparation_proposal is owner._preparation_policy.pending_proposal is None
+        assert owner._preparation_last_response is None
+    settled = True
+    now.value = 19.0
+    first = owner.preparation_step()
+    assert first.command.action is Action.USE_ITEM and first.acknowledgement.local_settled
+    assert not any(
+        c.args[1] in (Verb.STOP_CONTEXT, Verb.STOP_OWNER)
+        for c in session.actor_action.call_args_list
+    )
+    assert owner.finish("test_complete")[0]
