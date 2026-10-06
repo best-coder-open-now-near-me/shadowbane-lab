@@ -1,6 +1,71 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
-## Current .68/.48 startup repair deployment - October 6
+## Installed .69/.49 buff scheduling repair - October 6
+
+PR #69 merged at `490af652eaee83dd1914869ce99da9c908049f37` after all 15
+hosted checks passed; exact qualified source is
+`439d074051edc627ad8ba81a84113a345d2fd42c`. The .68 live run below exposed a
+scheduler stall: after Beorc settled, fresh observations kept semantic revision
+17 because the facts were unchanged. The policy incorrectly required that
+revision to increase before submitting another buff. It now requires a later
+validated native capture sequence, preserving semantic equality, lifetime,
+immutable pending action, duplicate application and admission-refusal guards.
+
+Package `artifacts/b49/4f564b4d` supplies host **0.3.69** / native **1.8.49**.
+It passed 4,909 host tests with 37 skips; each profile passed 224 native tests,
+126 required gates and 73 movement / 86 combat / 146 actor IPC cases. Independent
+review verified 110 artifacts and 82 stages, both .14 client images, wheel source
+and DLL identity. Known optional rendering findings are unchanged. Full DLL
+SHA-256: `d4961bf0d50613d9d9e339691a4ef8ae0c29316c57c5842ed7f4e62cf7c36fae`.
+The installer passed 20 offline tests and independent final pin review; the
+bounded encounter helper passed 138 tests against the exact package. Private
+receipts are under `artifacts/bot-deploy/20261006-b49`.
+
+**Installation and activation are verified.** After fresh closed-client
+verification, apply reported `updated_verified_not_launched`: 463 host modules,
+9,584 preserved files and exactly one client DLL inventory change. Prepared
+client .14, corrected display preferences, settings and jobs remain in place;
+no rollback copies were created. Manager PID 9512 activated healthy with all
+9,584 retained files verified. All five shortcuts and startup preflight passed
+while the game was closed.
+
+Launch at 2026-10-06T20:00:57.2271144Z verified the qualified DLL in PID 3456,
+creation FILETIME `134357904517155349`, HWND `2163786`. Fresh in-world passive
+readiness reported ready, owner NONE, scene 1 and no cleanup pending. These are
+receipt identities, not continuing session authority.
+
+The obsolete .68 host (2,116 files / 48,016,130 bytes) and two .48 guest payloads
+were removed after verified activation, totaling 50,833,456 bytes. Four exact
+old .48 host/share staging DLL/wheel files were then removed, totaling 5,634,652
+bytes. Settings, jobs and diagnostic evidence remain preserved; no rollback
+copies were retained. The B49 `receipts` directory contains 12 compact receipts
+and seven independently verified installed-file hashes.
+
+Two bounded .69/.49 runs **passed** after the initial resource-gated preflight.
+Run `d6b24f1051214adfa054979c2d4b1b10` observed exact NPC `23887/37` native
+health zero at sequence 110 after two positively queued ATTACKs. Precision,
+Beorc, defensive stance and Rat Shape were submitted, alongside Shot and the
+attacks; all five coverage groups were PRESENT. Concentration coverage was
+preexisting: this run sent no USE_ITEM or Skree request. Independent review
+correlated all 134 wire command/receipt pairs and the exact death/cleanup proof.
+
+Run `d073ec9e5a58464b982990d21d161a67` then observed exact NPC `23886/37`
+native health zero at sequence 69 after one positively queued ATTACK. Its only
+action submissions were Shot and ATTACK: all five buff groups were already
+PRESENT, and no duplicate buff was submitted. Both runs confirmed child
+NATIVE_STOPPED and parent LOCAL_RELEASED, with zero list membership and no
+errors, watchdog or interruption. Fresh readiness afterward was alive, unowned
+and clean. These bounded results validate the scheduling repair and subsequent
+run's suppression of duplicate buffs; they do not establish new potion use,
+Skree application, expiry/reuse cycles, server kill credit or skill consumption.
+Private evidence is retained on the `bot-actor-provisional-encounter-20261006-b49`
+diagnostic share under the exact run IDs above.
+
+Next: sustained expiry/reuse validation, then controlled PvP with an available,
+agreed player. Manual potion-overlap testing is not required; automatic
+retaliation remains disabled pending authoritative session provenance.
+
+## Historical .68/.48 startup repair deployment - October 6
 
 PR #67 merged into `main` at
 `9cf9f20a322f4ce0b199c7806f509c1aa2c991cb` after all 15 hosted checks passed.
@@ -41,10 +106,10 @@ interruption or watchdog and zero retained list membership. Fresh readiness
 afterward showed an idle, unowned client with no cleanup pending.
 
 Concentration potion, Precision and Beorc coverage were PRESENT. Transform and
-defensive stance remained READY/MISSING near 44 seconds; scheduler investigation
-is active. These observations do not establish server kill credit or skill
-consumption. Next: resolve why the ready missing groups were not scheduled, then
-validate normal automatic buff refresh. The prior evidence remains unchanged.
+defensive stance remained READY/MISSING near 44 seconds. The capture-freshness
+repair above addresses the identified scheduler stall and passed the two bounded
+live runs recorded above. These observations do not establish server kill credit or skill
+consumption. The prior evidence remains unchanged.
 
 ## Historical .67/.47 client update and live attempts
 

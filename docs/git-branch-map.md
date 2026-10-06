@@ -4,47 +4,55 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active startup repair deployment - October 6
+## Active buff capture freshness deployment - October 6
 
-Start from freshly fetched `origin/main`, currently
-`9cf9f20a322f4ce0b199c7806f509c1aa2c991cb` after PR #67 merged with all
-15 hosted checks passing. Exact package source `7aca53e` is included in main.
-Host .68 / native .48 are applied and verified with prepared client .14:
-463 host modules, 9,583 preserved files and one DLL inventory change. Settings,
-jobs and corrected display preferences remain in place. Healthy manager
-activation, all five shortcuts/startup preflight, launch and fresh passive
-readiness are verified. The .68 bounded live run is partial: exact NPC death and
-cleanup succeeded, while two ready missing buff groups were not scheduled. See
-the [patch record](client-update-20261004.md).
+Start from freshly fetched `origin/main`, now
+`490af652eaee83dd1914869ce99da9c908049f37` after PRs #68 and #69 merged.
+The canonical checkout is clean on main. Exact source
+`439d074051edc627ad8ba81a84113a345d2fd42c` is included; all 15 hosted checks
+passed. The scheduler now distinguishes fresh native captures from unchanged
+semantic content revisions, fixing the stall after Beorc settled at revision 17.
 
-The deployment receipt checkpoint `18b87a7` is pushed on
-`codex/actor-startup-deployment-20261006` and proposed to main in PR #68.
-The bot-integration checkout now owns `codex/buff-capture-freshness-20261006`,
-based on that checkpoint, for the follow-up scheduler repair. It separates
-fresh native capture ordering from semantic content/admission revisions so an
-unchanged, ready buff can follow a settled action. Candidate host .69 / native
-.49 require focused regression tests, independent review, exact-source package
-qualification and integration before installation. Installed runtime remains .68/.48.
-The prior client .14 delivery and startup-liveness branches were retired locally
-and remotely after ancestry checks. No startup-repair source remains unmerged.
+Host .69 / native .49 are **installed and activated** from exact source
+`439d074`. Package `artifacts/b49/4f564b4d` passed 4,909 host tests (37 skips),
+both native profiles and required IPC gates; independent source, package and
+installer reviews passed. Apply verified 463 modules, 9,584 preserved files and
+one DLL inventory change, with prepared client .14 and user settings unchanged.
+Manager PID 9512 is healthy; all five shortcuts and startup preflight passed.
+Launch at 20:00:57 UTC verified the qualified DLL in PID 3456, creation FILETIME
+`134357904517155349`, HWND `2163786`. Fresh in-world readiness was ready and
+unowned with no cleanup pending; these are receipt identities, not continuing
+authority. Two subsequent bounded .49 runs passed: exact NPC native health zero,
+all five buff groups PRESENT, child NATIVE_STOPPED and parent LOCAL_RELEASED,
+with no errors, interruption, watchdog or retained list membership. The first
+submitted four missing buff powers; concentration coverage was preexisting.
+The second submitted only Shot and ATTACK, suppressing duplicate buffs. Fresh
+readiness afterward was alive, unowned and clean. Next: sustained expiry/reuse
+validation, then controlled PvP with an available, agreed player. No manual
+overlap test is required; no new potion use or expiry-cycle proof is claimed.
 
-The earlier automatic buff run observed all five groups PRESENT, including the
-concentration potion; its bounded NPC check was incomplete. The user canceled
-manual potion-overlap testing, so buff order is not an acceptance requirement.
-The current .68 run queued Shot and one ATTACK, observed exact NPC native health
-zero, confirmed child NATIVE_STOPPED and parent LOCAL_RELEASED, and ended with
-no interruption, watchdog or list membership. Concentration potion, Precision
-and Beorc were PRESENT; transform and defensive stance remained READY/MISSING
-near 44 seconds. Fresh post-run readiness was idle and unowned. No server kill
-credit or skill consumption is claimed. Next: investigate scheduling of those
-ready missing groups, then validate normal buff refresh. Automatic retaliation
-remains disabled pending authoritative session provenance.
+The bot-integration checkout now owns
+`codex/buff-freshness-deployment-20261006`, based on that main merge, for the
+installation and acceptance record. Its documentation checkpoint targets main
+with the verified deployment and two bounded passing runs. The merged startup deployment and
+buff capture freshness branches were retired locally and remotely after ancestry
+checks; no runtime source remains outside main.
 
-The obsolete .67 host and two .47 guest payloads (50,832,946 bytes), plus four
-old host/share staging binaries (5,633,626 bytes), were retired with exact hash
-checks. No deployment rollback copies are retained. Retirement of 21 old Python
-environments remains separately blocked by automatic approval review pending
-explicit user approval; no removal is claimed.
+The .68 live run confirmed exact NPC native health zero, child NATIVE_STOPPED,
+parent LOCAL_RELEASED, no interruption/watchdog and zero retained membership.
+Concentration potion, Precision and Beorc applied; transform and defensive stance
+remained READY/MISSING. That historical regression is preserved separately from
+the .69 passing results. See the [patch record](client-update-20261004.md) for
+exact run IDs, scope and evidence limits.
+
+Verified obsolete .68 host files and two .48 guest payloads were removed,
+totaling 50,833,456 bytes; four old .48 host/share staging files totaled 5,634,652
+bytes. Twelve compact receipts and seven installed-file hashes are retained under
+`artifacts/bot-deploy/20261006-b49/receipts`. Settings, jobs and evidence remain
+preserved. No rollback copies are retained.
+The separate retirement of 21 old Python environments remains blocked by earlier
+automatic approval review pending explicit user approval; no removal is claimed.
+Automatic retaliation remains disabled pending authoritative session provenance.
 
 ## Historical shared source and deployment - October 2
 
