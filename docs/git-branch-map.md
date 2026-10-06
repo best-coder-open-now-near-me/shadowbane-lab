@@ -32,10 +32,17 @@ bytes), plus four host/share staging binaries (5,635,434 bytes). Settings, jobs
 and evidence remain preserved; no rollback runtime is retained. Twelve compact
 receipts and seven installed-file hashes are retained under the B50 receipt folder.
 The bounded buff-only helper passed independent review and 42 tests and is staged.
-Next: user login, fresh readiness, then native coverage renewal validation.
-Production integration and configuration work can proceed in parallel; no renewal
-or transform-alternation live success is claimed yet.
-The user chose PvE and buffs; controlled PvP is deferred. No manual overlap test
+Fresh in-world readiness passed. Buff-only run
+`3438e509d24a4bb89ebf557ba9e1403b` ended cleanly at the observation ceiling:
+four self-buff requests, all five groups PRESENT, no target contexts, confirmed
+LOCAL_RELEASED, no errors or watchdog. Concoction was preexisting; no expiry or
+renewal transition occurred, so that gate remains inconclusive.
+
+The user reenabled controlled PvP against native `DayOwl` on Wonderbane; passive
+census found one matching player nearby. Revalidate before actions. Production
+ownership repair PR #73 (`2d1c928`) and a separate passive dashboard status lane
+are in progress. Next: qualify the ownership repair, then controlled PvP and
+combined buff/combat validation; finish dashboard status in parallel. No manual overlap test
 or automatic retaliation is enabled. See the [patch record](client-update-20261004.md).
 
 ## Installed buff capture freshness deployment - October 6

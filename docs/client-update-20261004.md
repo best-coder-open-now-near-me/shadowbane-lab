@@ -47,9 +47,26 @@ No fallback copies were retained; settings, jobs and diagnostic evidence remain.
 Twelve compact receipts and seven installed-file hashes are in B50 `receipts`.
 
 The buff-only cycle helper passed 42 tests and independent final hash review;
-its eight qualified dependencies are staged. Next: user login, fresh readiness,
-and bounded native expiry/renewal observation. Production PvE/buff integration
-work proceeds in parallel. PvP remains deferred; manual overlap testing is canceled.
+its eight qualified dependencies are staged. Fresh in-world readiness passed,
+and run `3438e509d24a4bb89ebf557ba9e1403b` ended at the bounded observation ceiling
+without errors, interruption or watchdog. Independent review correlated 629 native
+command/receipt pairs and 597 complete canonical frames under one parent/Grant.
+Exactly four SELF_POWER requests were sent: Precision, Beorc, Rat Shape and
+defensive stance. Concoction coverage was already present; no USE_ITEM, Skree,
+Shot, ATTACK or target context was sent. All five groups remained PRESENT through
+the last capture. STOP_OWNER confirmed CLOSED / LOCAL_RELEASED. No group became
+MISSING after PRESENT, so renewal and alternate-form reuse remain inconclusive.
+Evidence is under the B50 buff-cycle shared directory; the compact local summary
+records original hashes.
+
+The user then reenabled controlled PvP: read-only native census uniquely observed
+`DayOwl` on Wonderbane, key `5845459/53`, approximately 8.55 units away. Census
+identity must be refreshed before action. Production ownership repair PR #73
+prevents a prior buff settlement from clearing a newer attack; package qualification
+is running. Passive per-buff dashboard status is a separate source lane. Next:
+qualify/install that ownership repair, validate agreed-player attack/cancel and
+combined buff/combat behavior, and finish production status. Manual overlap testing
+remains canceled; automatic retaliation remains disabled.
 
 ## Installed .69/.49 buff scheduling repair - October 6
 
