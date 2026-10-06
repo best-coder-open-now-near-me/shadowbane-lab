@@ -7,7 +7,7 @@ ordering is not elapsed time; neither queueing nor a timer proves an active effe
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
 
@@ -191,17 +191,21 @@ class PreparationObservation:
     admission_revision: int
     admission_blocks: int
     pending_applications: frozenset[str] = frozenset()
+    capture_sequence: int = field(kw_only=True)
 
     def __post_init__(self) -> None:
         if not isinstance(self.actor, ActorIdentity) or type(self.complete) is not bool:
             raise ValueError("observation requires exact actor and explicit completeness")
+        _positive(self.capture_sequence, "capture_sequence", bits=63)
+        if self.capture_sequence % 2:
+            raise ValueError("capture sequence requires a completed native publication")
         _positive(self.publication_epoch, "publication_epoch")
         _positive(self.admission_revision, "admission_revision")
         if type(self.admission_blocks) is not int or not 0 <= self.admission_blocks <= 31:
             raise ValueError("admission blocks require known native flags")
         if not self.complete and self.admission_blocks:
             raise ValueError("unknown observation cannot assert admission facts")
-        for values, kind, field in (
+        for values, kind, identity_field in (
             (self.coverage, CoverageEvidence, "group_id"),
             (self.readiness, ReadinessEvidence, "action_id"),
         ):
@@ -209,7 +213,7 @@ class PreparationObservation:
                 type(values) is not tuple
                 or len(values) > 256
                 or not all(isinstance(v, kind) for v in values)
-                or len({getattr(v, field) for v in values}) != len(values)
+                or len({getattr(v, identity_field) for v in values}) != len(values)
             ):
                 raise ValueError("publication evidence must be bounded, typed and unique")
         if type(self.pending_applications) is not frozenset or len(self.pending_applications) > 32:
@@ -306,7 +310,7 @@ class PreparationPolicy:
         self._refused_at: dict[str, int] = {}
         self._applications: dict[str, int] = {}
         self._sequence = 0
-        self._after_epoch = 0
+        self._after_capture = 0
         self._fault: str | None = None
 
     @property
@@ -323,11 +327,16 @@ class PreparationPolicy:
         if not isinstance(observation, PreparationObservation) or observation.actor != self.actor:
             self._fail("preparation actor identity changed")
         if self._last is not None and (
-            observation.publication_epoch < self._last.publication_epoch
+            observation.capture_sequence < self._last.capture_sequence
+            or (
+                observation.capture_sequence == self._last.capture_sequence
+                and observation != self._last
+            )
+            or observation.publication_epoch < self._last.publication_epoch
             or observation.admission_revision < self._last.admission_revision
             or (
                 observation.publication_epoch == self._last.publication_epoch
-                and observation != self._last
+                and replace(observation, capture_sequence=self._last.capture_sequence) != self._last
             )
         ):
             self._fail("native publication regressed or changed without an epoch")
@@ -369,7 +378,7 @@ class PreparationPolicy:
             return PreparationDecision(None, False, status, "observation_unknown")
         if observation.admission_blocks:
             return PreparationDecision(None, False, status, "native_admission_blocked")
-        if observation.publication_epoch <= self._after_epoch:
+        if observation.capture_sequence <= self._after_capture:
             return PreparationDecision(None, False, status, "fresh_publication_required")
         ready = {e.action_id: e for e in observation.readiness}
         for group in self.groups:
@@ -438,6 +447,8 @@ class PreparationPolicy:
             # independently ready groups available after local settlement.
             self._refused_at[self._pending.action.action_id] = self._pending.admission_revision
         if ack.local_settled:
-            self._after_epoch = self._last.publication_epoch
+            # Content/admission revisions stay stable when native facts do.
+            # Require a later validated capture, not an unrelated fact mutation.
+            self._after_capture = self._last.capture_sequence
             self._pending = None
             self._queued = self._entered = False

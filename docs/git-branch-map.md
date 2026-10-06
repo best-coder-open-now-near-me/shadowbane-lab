@@ -17,13 +17,16 @@ readiness are verified. The .68 bounded live run is partial: exact NPC death and
 cleanup succeeded, while two ready missing buff groups were not scheduled. See
 the [patch record](client-update-20261004.md).
 
-The receipt branch `codex/actor-startup-deployment-20261006` in the
-bot-integration checkout starts from that main merge and records deployment
-progress; these documentation updates await their own checkpoint. The prior
-client .14 delivery branch was retired locally and remotely after verification.
-The merged `codex/actor-startup-liveness-20261005` runtime branch was also retired
-locally and remotely after both ancestry checks against `origin/main` passed.
-No runtime source remains pending integration from that feature.
+The deployment receipt checkpoint `18b87a7` is pushed on
+`codex/actor-startup-deployment-20261006` and proposed to main in PR #68.
+The bot-integration checkout now owns `codex/buff-capture-freshness-20261006`,
+based on that checkpoint, for the follow-up scheduler repair. It separates
+fresh native capture ordering from semantic content/admission revisions so an
+unchanged, ready buff can follow a settled action. Candidate host .69 / native
+.49 require focused regression tests, independent review, exact-source package
+qualification and integration before installation. Installed runtime remains .68/.48.
+The prior client .14 delivery and startup-liveness branches were retired locally
+and remotely after ancestry checks. No startup-repair source remains unmerged.
 
 The earlier automatic buff run observed all five groups PRESENT, including the
 concentration potion; its bounded NPC check was incomplete. The user canceled
