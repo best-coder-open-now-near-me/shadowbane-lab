@@ -13,30 +13,43 @@ The canonical checkout is clean on main. Exact source
 passed. The scheduler now distinguishes fresh native captures from unchanged
 semantic content revisions, fixing the stall after Beorc settled at revision 17.
 
-Host .69 / native .49 are fully qualified but **not installed**. Package
-`artifacts/b49/4f564b4d` passed 4,909 host tests (37 skips), both native profiles
-and required IPC gates; independent source, package and installer reviews passed.
-Installed runtime remains host .68 / native .48 with prepared client .14.
-The fresh 19:46 UTC deployment observation found Vendor Test PID 8832 still
-running. User confirmation of closure is pending; no .49 gameplay action ran.
-Next: verify the client is closed, install the qualified package, then repeat
-the bounded NPC and automatic buff test. No manual overlap test is required.
+Host .69 / native .49 are **installed and activated** from exact source
+`439d074`. Package `artifacts/b49/4f564b4d` passed 4,909 host tests (37 skips),
+both native profiles and required IPC gates; independent source, package and
+installer reviews passed. Apply verified 463 modules, 9,584 preserved files and
+one DLL inventory change, with prepared client .14 and user settings unchanged.
+Manager PID 9512 is healthy; all five shortcuts and startup preflight passed.
+Launch at 20:00:57 UTC verified the qualified DLL in PID 3456, creation FILETIME
+`134357904517155349`, HWND `2163786`. Fresh in-world readiness was ready and
+unowned with no cleanup pending; these are receipt identities, not continuing
+authority. Two subsequent bounded .49 runs passed: exact NPC native health zero,
+all five buff groups PRESENT, child NATIVE_STOPPED and parent LOCAL_RELEASED,
+with no errors, interruption, watchdog or retained list membership. The first
+submitted four missing buff powers; concentration coverage was preexisting.
+The second submitted only Shot and ATTACK, suppressing duplicate buffs. Fresh
+readiness afterward was alive, unowned and clean. Next: sustained expiry/reuse
+validation, then controlled PvP with an available, agreed player. No manual
+overlap test is required; no new potion use or expiry-cycle proof is claimed.
 
 The bot-integration checkout now owns
 `codex/buff-freshness-deployment-20261006`, based on that main merge, for the
-unfinished installation record. Its documentation checkpoint is intended for
-main after the installation facts are added. The merged startup deployment and
+installation and acceptance record. Its documentation checkpoint targets main
+with the verified deployment and two bounded passing runs. The merged startup deployment and
 buff capture freshness branches were retired locally and remotely after ancestry
 checks; no runtime source remains outside main.
 
 The .68 live run confirmed exact NPC native health zero, child NATIVE_STOPPED,
 parent LOCAL_RELEASED, no interruption/watchdog and zero retained membership.
 Concentration potion, Precision and Beorc applied; transform and defensive stance
-remained READY/MISSING. This is the measured scheduler regression, not full buff
-acceptance. See the [patch record](client-update-20261004.md).
+remained READY/MISSING. That historical regression is preserved separately from
+the .69 passing results. See the [patch record](client-update-20261004.md) for
+exact run IDs, scope and evidence limits.
 
-Verified obsolete .67 runtime/payloads and four old staging files were removed;
-settings, jobs and evidence remain preserved. No rollback copies are retained.
+Verified obsolete .68 host files and two .48 guest payloads were removed,
+totaling 50,833,456 bytes; four old .48 host/share staging files totaled 5,634,652
+bytes. Twelve compact receipts and seven installed-file hashes are retained under
+`artifacts/bot-deploy/20261006-b49/receipts`. Settings, jobs and evidence remain
+preserved. No rollback copies are retained.
 The separate retirement of 21 old Python environments remains blocked by earlier
 automatic approval review pending explicit user approval; no removal is claimed.
 Automatic retaliation remains disabled pending authoritative session provenance.
