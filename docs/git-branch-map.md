@@ -9,8 +9,10 @@ older client-harness next steps below are historical and superseded by the
 It reuses the clean bot-integration worktree; the former PR #92 tip remains pushed
 on its original branch. PRs #92/#93/#94 remain draft client work, not server gates.
 Find Wonderbane fix notes owns server base/bootstrap and client baseline; Continue
-PvE/PvP bot work owns gameplay policy/service migration. Next: select the server
-source/database base, then implement the shared buff/combat service slice.
+PvE/PvP bot work owns gameplay policy/service migration. PR #95 now maps the
+service boundaries directly to bootstrap source `bafb48fe`; PR #97 owns its
+source/data/library pairing. Runtime/login remain untested. Next: establish the
+tracked server development checkout and implement the shared buff/combat slice.
 
 ## Context cleanup progress - October 7
 

@@ -15,12 +15,18 @@ pending harness PRs to merge before server development can proceed.
   This plan starts from `cdaafb234cfe324cc1c750c77102cfcc76552f50` on
   `codex/server-side-migration-20261007`. It is a source mapping and implementation
   plan, not an implemented server adapter or a successful server launch.
-- Inspected Magicbane Server `master` revision:
-  `3649c629b709c67625a09150a3752107f4b873cc`, in the existing
-  `magicbane-server-source` checkout. This is a reference, not a selected
-  production base. The setup lane is comparing upstream candidates and the
-  matching database/client requirements. No server is bootstrapped yet; its
-  Docker startup issue is separate from source analysis.
+- Initial bootstrap source is now `bafb48fe14e5356a64137954cf2d79205835a204`,
+  recovered from the pinned MagicBox image. The setup lane's
+  [PR #97](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/97)
+  publishes the source/database/library pairing and successful Java compilation.
+  Database import, server startup and client compatibility remain untested.
+  Bootstrap startup must preserve the source pin: the image's default scripts
+  fetch and pull a moving branch. This source mapping does not run those scripts.
+- Earlier inspected `master` revision `3649c629b709c67625a09150a3752107f4b873cc`
+  remains historical context. The newer `9866632` candidate requires data and
+  dependencies absent from the inspected image and is not a drop-in upgrade.
+  The service map below has now been rechecked directly at `bafb48fe` using Git
+  objects; the canonical server checkout and source export remain unchanged.
 
 The existing .14 Wonderbane client is the user's chosen distribution starting
 point. Its identity does not establish compatibility with a selected Magicbane
@@ -87,7 +93,7 @@ for players, but an internal server actor does not need a fabricated client sess
 
 ## Verified source seams and required extraction
 
-At inspected server revision `3649c629`:
+At bootstrap server revision `bafb48fe14e5356a64137954cf2d79205835a204`:
 
 - `src/engine/net/client/ClientMessagePump.java` routes player action messages
   to `PowersManager.usePower` and `CombatManager.setAttackTarget`.
@@ -100,10 +106,23 @@ At inspected server revision `3649c629`:
   lookup, learned-power/reuse/mode checks, target and resource handling, scheduling
   and outbound messages. `useMobPower` is a separate existing mob entry point.
   Factor shared behavior while retaining deliberate player/mob differences.
-- `CombatManager` references `DeferredPowerJob`; `PowersManager` owns recycle jobs,
-  power execution and effect removal functions. Audit queued weapon-skill and
-  consumable paths in the selected base before altering behavior. Do not treat
-  low-level `runPowerAction` as a public admission API.
+- `src/engine/jobs/DeferredPowerJob.java:attack` consumes the pending player
+  weapon power after its applicable range check and invokes the deferred power.
+  `CombatManager` integrates it with hit/miss, hand and special dual-wield paths.
+  A miss may clear a requires-hit skill; some special powers are retained for
+  the other hand. Preserve these distinctions and test expiry/range failure as
+  well as a successful hit. Do not replace them with an unconditional consume.
+- `src/engine/net/client/handlers/ObjectActionMsgHandler.java` contains the
+  consumable path (including potion action case 8), target resolution, charge
+  checks and item consumption. Extract item-use admission here alongside learned
+  powers; calling power application alone would omit inventory behavior.
+- `CombatManager.handleRetaliate(AbstractCharacter, AbstractCharacter)` already
+  receives victim and attacker objects and handles player, pet and mob responses.
+  Reuse and refine its explicit conditions; do not build a second automatic
+  retaliation loop or infer the attacker from client messages. Policy/controller
+  integration must avoid duplicate actions from existing retaliation behavior.
+- `PowersManager` owns recycle jobs, power execution and effect removal functions.
+  Do not treat low-level `runPowerAction` as a public admission API.
 
 These are concrete extraction locations, not proof that this historical revision
 already implements the desired Wonderbane behavior. Do not create a second combat
@@ -147,9 +166,12 @@ be tested together; expected differences belong in explicit actor rules.
 
 - [x] Coordinate ownership with Find Wonderbane fix notes.
 - [x] Map actual lab reuse and historical server service entry points.
-- [ ] **Active:** select the server source/database base in the setup lane and
-  map these service boundaries onto it. Docker startup is owned by that lane.
-- [ ] Implement shared gameplay admission plus the complete buff/combat slice.
+- [x] Identify a coherent bootstrap source/data/library set in the setup lane
+  and remap service boundaries directly against its pinned source.
+- [ ] **Active:** establish the tracked server development/integration checkout
+  and implement shared gameplay admission plus the complete buff/combat slice.
+  Bootstrap runtime/login qualification proceeds in the setup lane; compilation
+  and source work do not require pretending those live checks already passed.
 - [ ] Add controlled PvP/retaliation and client-visible compatibility validation.
 
 Client follow-on PRs #92 (preparation/stop reasons), #93 (offline hostile
