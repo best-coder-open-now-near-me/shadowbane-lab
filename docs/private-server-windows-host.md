@@ -34,7 +34,7 @@ SQL and dependency hashes before compiling with networking disabled. It checks
 verifies value preservation, missing-key rejection and absence of values in logs.
 It never invokes the upstream mutable build/entrypoint scripts.
 
-The image is `shadowbane-private:65952a25`; its OCI revision and
+The image is `shadowbane-private:65952a25-human-costs`; its OCI revision and
 `/opt/shadowbane/build-receipt.txt` record the installed source. Record the actual
 image identity and JAR hash from each build. Build timestamps can change JAR
 bytes; a revision tag alone is not an installed-image receipt.
@@ -116,3 +116,45 @@ The matching client can use `Config/ArcaneIP.cfg` with `SERVER= <VPN IPv4>`
 and `PORT= 6000`, launching `sb.exe` directly. Preserve user settings; verify the
 full official client hash and manifest before deployment. Additional launcher
 server-menu entries have not been qualified by this checkpoint.
+
+## Human bloodline creation costs
+
+A valid build with Born of the Taripontor showed nine points remaining in the
+client but was rejected with minus one by the paired server. Its seed charged
+ten points for each Human bloodline. The qualified official client charges zero
+for all five: Ethyri (252129), Taripontor (252130), Gwendannen (252131),
+Invorri (252132), and Irydnu (252133). Male and female Human starting allowances
+remain unchanged.
+
+Evidence is the [official manifest](http://87.99.132.84/manifest.json), SHA-256
+`22e083d1ef09aa94ced7380cc7e2bf994e69b3a3d8450f319c8f19c4dabbb95c`, and
+its [CObjects.cache](http://87.99.132.84/client/cache/CObjects.cache), SHA-256
+`08c115baeef5da811f7ee2802ccdc1002cfeba29cf1818956c452e3e594efef6`.
+The [official ArcRune decoder](https://repo.magicbane.com/MagicBane/mbEditorPro/src/commit/75efa29012592d7d0e35ebfd0703990f90f10995/mbEditorPro2.0/arcane/objects/ArcRune.py)
+decoded all five records completely and returned `rune_creation_cost = 0`.
+The same decode confirmed unchanged comparison costs: Fleet of Foot 10,
+Lightning Reflexes 12, Lucky 8, Precise 8, Taught by Master Thief 8, Tough Hide 12.
+Client assets and private gameplay logs are not included in source control.
+
+The `65952a25-human-costs` image retains the exact credential-safe Java source,
+libraries and original seed SQL. Before starting either Java process, it runs
+`human-bloodline-costs.sql` against the existing database. This transaction
+changes only the five cost attributes, so creation, later rune application and
+point recalculation use the same corrected values. It leaves character rows,
+race allowances, other costs, prerequisites and overspending checks intact.
+
+Startup requires InnoDB, exact rune identities, one cost row per rune, and
+costs of either the original ten or corrected zero. Unexpected custom costs,
+missing/duplicate rows or a failed update abort startup. The batch client must
+never use `--force`; connection closure rolls back an incomplete transaction.
+Repeated startup is idempotent. The build receipt includes the migration hash.
+
+Run `test-human-bloodline-costs.sh` in a disposable image container with MySQL
+started, no live data mounts and no published ports. It verifies the five-row
+change, all unrelated static rows, repeat application, the reported nine-point
+balance, rejection cases and transaction failure. It uses only a synthetic test
+database seeded from the image's static tables.
+
+Deploy after a clean save/logout and verify the same existing character and the
+previously rejected build after restart. Do not reseed populated volumes or keep
+the superseded image/container for rollback.

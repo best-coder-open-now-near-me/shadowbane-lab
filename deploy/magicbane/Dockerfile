@@ -19,8 +19,9 @@ RUN --network=none --mount=type=bind,from=server-source,target=/reviewed-source,
     && test "$(find build/classes -name '*.class' | wc -l)" -eq 970 \
     && tar -xzf mb.data/heightmaps.tar.gz -C mb.data \
     && { git -C build/Server rev-parse HEAD 'HEAD^{tree}'; sha256sum build/bin/magicbane.jar mb.data/magicbane.sql; } > /opt/shadowbane/build-receipt.txt
-COPY --chown=mbbox:mbbox entrypoint.sh healthcheck.sh credential-smoke.sh CredentialLoggingSmoke.java /opt/shadowbane/
-RUN bash -n /opt/shadowbane/entrypoint.sh \
+COPY --chown=mbbox:mbbox entrypoint.sh healthcheck.sh credential-smoke.sh CredentialLoggingSmoke.java human-bloodline-costs.sql /opt/shadowbane/
+RUN sha256sum /opt/shadowbane/human-bloodline-costs.sql >> /opt/shadowbane/build-receipt.txt \
+    && bash -n /opt/shadowbane/entrypoint.sh \
     && bash -n /opt/shadowbane/healthcheck.sh \
     && bash -n /opt/shadowbane/credential-smoke.sh \
     && bash /opt/shadowbane/credential-smoke.sh

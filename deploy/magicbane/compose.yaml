@@ -1,7 +1,7 @@
 name: shadowbane-local
 services:
   server:
-    image: shadowbane-private:65952a25
+    image: shadowbane-private:65952a25-human-costs
     build:
       context: .
       additional_contexts:
