@@ -1,5 +1,117 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
+## Installed .71/.51 shared ownership repair - October 7
+
+PR #73 merged at `b17b003649fb927c5e5ef4ba0dec28d0a4968ff6` after all 15
+hosted checks passed. Qualified source is
+`2d1c928c5d9b3d130728dc936873df99de2edb51`. The production shared coordinator
+now routes a prior buff's settlement to that exact policy proposal and preserves
+any newer attack's ownership. A correlated pending reply remains progress while
+another proposal waits; lost or unavailable replies still require bounded cleanup.
+
+Package `artifacts/b51/a83dc62b` passed 4,943 host tests (37 skips), both native
+profiles with 224 passed tests / 126 required gates each, and 73 movement / 86
+combat / 146 actor IPC cases per profile. Independent qualification checked all
+110 artifacts and 82 stages. Qualified SHA-256 identities:
+
+- Full DLL: `ce2f598e05bc696f3d9b3a4922f8a16ec2d6fba13dc7e62695026f0fa8edba0a`.
+- Wheel: `b0d0bf32e6d7b06909557830d07d32fe6b5089edc2acd3916eceb1bb164c86e6`.
+- Archive: `c6c62f0a726cbd87ab1c320ea8b8a265081bdd69b718b35058e3809dc0e68a6a`.
+- Receipt: `613e875a58d34fac2d2524a475c92ccbb3855cfa4ad63ef1bde4cab38c4d6a8c`.
+
+**Installation and activation passed.** Apply verified 463 host modules,
+9,587 preserved files and exactly one client DLL inventory change. Manager 5868
+is healthy; all five shortcuts and startup preflight passed. Prepared client .14,
+corrected display preferences, settings and jobs remain in place.
+
+Launch at `2026-10-07T01:37:36.2173995Z` verified the qualified DLL in PID 4128,
+creation FILETIME `134358106481261509`, HWND `197180`. Passive readiness was at
+login/loading, so no .51 live gameplay acceptance is claimed. Process identities
+are receipts; a fresh session check is required before action.
+
+The obsolete .70 host (2,116 files / 48,021,726 bytes) and two .50 guest payloads
+were removed after exact ownership checks, totaling 50,839,643 bytes. No rollback
+copies were retained. Four old .50 host/share staging binaries were also removed,
+totaling 5,635,834 bytes. Twelve compact receipts and seven independently verified
+installed-file hashes are retained under `artifacts/bot-deploy/20261006-b51/receipts`.
+
+Open PR #74 publishes passive production PvE/buff status at
+`5da11d111cdbca81cc65ed25147ee75ed09a67d3`. Independent review and 335 affected
+tests passed, including exact-operation storage, stale capture/worker handling,
+missing-status presentation and dashboard rendering. Hosted CI found an outdated
+test call missing the required operation argument; a fixture-only correction is
+in progress. Hosted checks are not yet reported passing, and this status feature
+is not part of the installed package. Next: fresh exact-identity preflight and
+bounded authorized player attack/cancel validation while `DayOwl` is available,
+followed by shared buff/combat handoff validation. Sustained renewal and alternate-form reuse remain unproved;
+manual overlap testing is canceled and automatic retaliation remains disabled.
+
+## Installed .70/.50 renewal repair - October 6
+
+PR #71 merged at `578f5f933cf5770764c79c5c5dc0ceea19e786ec` after all 15
+hosted checks passed for exact source
+`a99dc978a1a083881348ba55ae36974f4442d20e`. A reproduced ordering defect could
+recreate application suppression when local settlement arrived after PRESENT
+coverage had already been observed, preventing renewal after coverage became
+MISSING. The policy now remembers validated application evidence for the exact
+proposal while retaining local ownership until its typed settlement receipt.
+The regression suite covers disappearance before settlement and later renewal.
+
+Package `artifacts/b50/f4d9e515` passed 4,928 host tests with 38 skips, both
+native profiles (224 passed / 126 required gates each), and 73 movement / 86
+combat / 146 actor IPC cases per profile. Independent review verified all 110
+artifacts, 82 stages, exact Git source, wheel RECORD/source stamp, both DLL
+versions, original/prepared .14 client bindings and seven bootstrap writes.
+The extra host skip versus .69 was the byte-identical
+`test_replay_does_not_publish_and_return_live_rebinds_controls`, whose Tk fixture
+reported the display unavailable; all other skips match. Known optional
+transparency findings remain unchanged and separate from required gates.
+
+Qualified SHA-256 identities:
+
+- Full DLL: `d102f6b45f784accdcd1839443c9fe51d5761cdb50015899c14f1a7e26b24717`.
+- Wheel: `7024d623532905f98d9693fad9c7dd62bb8302ce7ccecf4045d76785dda21dc4`.
+- Archive: `f02e9e907e2d2bfe2d330c84228293b985a86d89b1d0b0fda7366d58695ebdbf`.
+- Receipt: `81c67fa4264e580ee951df22398628039804a49bc8577808c7d3dd93070df6df`.
+
+The installer passed 20 offline tests, PowerShell parsing and independent final
+pin review. Compact private evidence is under `artifacts/bot-deploy/20261006-b50`.
+After user-confirmed closure, **installation and activation passed**. Apply
+verified 463 host modules, 9,585 preserved files and exactly one client DLL
+inventory change. Manager 6076 activated healthy; all five shortcuts and startup
+preflight passed. Official/prepared .14 assets, settings and jobs were preserved.
+
+Launch at `2026-10-06T20:48:39.2159949Z` verified the qualified DLL in PID 8616,
+creation FILETIME `134357933071546966`, HWND `1770578`. Passive readiness reported
+login/loading, so no gameplay action or in-world acceptance is claimed. These
+identities are receipts, not continuing session authority.
+
+The exact obsolete .69 host (2,116 files / 48,019,845 bytes) and two .49 guest
+payloads were removed after ownership and activation checks, totaling 50,837,562
+bytes. Four old host/share staging binaries totaled another 5,635,434 bytes.
+No fallback copies were retained; settings, jobs and diagnostic evidence remain.
+Twelve compact receipts and seven installed-file hashes are in B50 `receipts`.
+
+The buff-only cycle helper passed 42 tests and independent final hash review;
+its eight qualified dependencies are staged. Fresh in-world readiness passed,
+and run `3438e509d24a4bb89ebf557ba9e1403b` ended at the bounded observation ceiling
+without errors, interruption or watchdog. Independent review correlated 629 native
+command/receipt pairs and 597 complete canonical frames under one parent/Grant.
+Exactly four SELF_POWER requests were sent: Precision, Beorc, Rat Shape and
+defensive stance. Concoction coverage was already present; no USE_ITEM, Skree,
+Shot, ATTACK or target context was sent. All five groups remained PRESENT through
+the last capture. STOP_OWNER confirmed CLOSED / LOCAL_RELEASED. No group became
+MISSING after PRESENT, so renewal and alternate-form reuse remain inconclusive.
+Evidence is under the B50 buff-cycle shared directory; the compact local summary
+records original hashes.
+
+The user then reenabled controlled PvP: read-only native census uniquely observed
+`DayOwl` on Wonderbane, key `5845459/53`, approximately 8.55 units away. Census
+identity must be refreshed before action. At that checkpoint, ownership repair
+PR #73 and passive dashboard status were still in progress. PR #73 is now merged
+and installed as .71/.51 above; dashboard status is published separately in open
+PR #74. The historical B50 observation does not prove a renewal cycle.
+
 ## Installed .69/.49 buff scheduling repair - October 6
 
 PR #69 merged at `490af652eaee83dd1914869ce99da9c908049f37` after all 15
