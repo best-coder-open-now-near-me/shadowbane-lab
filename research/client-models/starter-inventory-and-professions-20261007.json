@@ -1,0 +1,987 @@
+{
+  "catalog_sha256": "1a0abbe48063a5dd9869325c8061a6a7770c73c73a321fad794091f26c94bc1c",
+  "database_sha256": "cbc0bb3607d6ba9fafa4b7ad5270ff2086cfb9814012d9671a2087e330a37226",
+  "inventory_prefix_bytes": 19119,
+  "inventory_prefix_sha256": "62d3329e042b84f013aa245b38751fddc4022f583719dcd4b7941dd420fff01f",
+  "joins": [
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "items",
+      "field": "ID",
+      "group_id": 0,
+      "missing_ids": [
+        576,
+        577,
+        7000511,
+        7000512,
+        7000513
+      ],
+      "nonpositive_or_noninteger_rows": 0,
+      "present_unique": 5089,
+      "rows": 5094,
+      "status": "id_coverage_only",
+      "table": "static_itembase"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "mob_loads",
+      "field": "loadID",
+      "group_id": 0,
+      "missing_ids": [],
+      "nonpositive_or_noninteger_rows": 0,
+      "present_unique": 2375,
+      "rows": 2781,
+      "status": "id_coverage_only",
+      "table": "static_npc_mobbase"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "race_definitions",
+      "field": "ID",
+      "group_id": 0,
+      "missing_ids": [],
+      "nonpositive_or_noninteger_rows": 0,
+      "present_unique": 26,
+      "rows": 26,
+      "status": "id_coverage_only",
+      "table": "static_rune_race"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "base_class_definitions",
+      "field": "ID",
+      "group_id": 0,
+      "missing_ids": [],
+      "nonpositive_or_noninteger_rows": 0,
+      "present_unique": 4,
+      "rows": 4,
+      "status": "id_coverage_only",
+      "table": "static_rune_baseclass"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "profession_definitions",
+      "field": "ID",
+      "group_id": 0,
+      "missing_ids": [],
+      "nonpositive_or_noninteger_rows": 0,
+      "present_unique": 33,
+      "rows": 33,
+      "status": "id_coverage_only",
+      "table": "static_rune_promotion"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "rune_definitions",
+      "field": "ID",
+      "group_id": 0,
+      "missing_ids": [],
+      "nonpositive_or_noninteger_rows": 0,
+      "present_unique": 315,
+      "rows": 315,
+      "status": "id_coverage_only",
+      "table": "static_rune_runebase"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "placed_buildings",
+      "field": "meshUUID",
+      "group_id": 0,
+      "missing_ids": [
+        622010
+      ],
+      "nonpositive_or_noninteger_rows": 1,
+      "present_unique": 1289,
+      "rows": 31754,
+      "status": "id_coverage_only",
+      "table": "obj_building"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CZone.cache",
+      "category": "placed_zones",
+      "field": "LoadNum",
+      "group_id": 0,
+      "missing_ids": [],
+      "nonpositive_or_noninteger_rows": 0,
+      "present_unique": 611,
+      "rows": 770,
+      "status": "id_coverage_only",
+      "table": "obj_zone"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CZone.cache",
+      "category": "zone_sizes",
+      "field": "loadNum",
+      "group_id": 0,
+      "missing_ids": [
+        15001
+      ],
+      "nonpositive_or_noninteger_rows": 0,
+      "present_unique": 861,
+      "rows": 862,
+      "status": "id_coverage_only",
+      "table": "static_zone_size"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "building_rank0",
+      "field": "Rank0UUID",
+      "group_id": 0,
+      "missing_ids": [],
+      "nonpositive_or_noninteger_rows": 0,
+      "present_unique": 168,
+      "rows": 168,
+      "status": "id_coverage_only",
+      "table": "static_building_blueprint"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "building_rank1",
+      "field": "Rank1UUID",
+      "group_id": 0,
+      "missing_ids": [
+        1699900
+      ],
+      "nonpositive_or_noninteger_rows": 18,
+      "present_unique": 149,
+      "rows": 168,
+      "status": "id_coverage_only",
+      "table": "static_building_blueprint"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "building_rank3",
+      "field": "Rank3UUID",
+      "group_id": 0,
+      "missing_ids": [
+        1699800,
+        1699900
+      ],
+      "nonpositive_or_noninteger_rows": 71,
+      "present_unique": 95,
+      "rows": 168,
+      "status": "id_coverage_only",
+      "table": "static_building_blueprint"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "building_rank7",
+      "field": "Rank7UUID",
+      "group_id": 0,
+      "missing_ids": [
+        1699800,
+        1699900
+      ],
+      "nonpositive_or_noninteger_rows": 71,
+      "present_unique": 95,
+      "rows": 168,
+      "status": "id_coverage_only",
+      "table": "static_building_blueprint"
+    },
+    {
+      "ambiguous_ids": [],
+      "archive": "CObjects.cache",
+      "category": "building_destroyed",
+      "field": "DestroyedUUID",
+      "group_id": 0,
+      "missing_ids": [],
+      "nonpositive_or_noninteger_rows": 19,
+      "present_unique": 148,
+      "rows": 168,
+      "status": "id_coverage_only",
+      "table": "static_building_blueprint"
+    }
+  ],
+  "limitations": [
+    "Resource identity includes archive, group and ID; this audit tests group zero only.",
+    "ID presence does not prove field layout, visuals, gameplay or wire compatibility.",
+    "CObject prefix parsing is not a complete schema; suspect names remain unclassified.",
+    "Dynamic native object keys are not resource IDs and are not joined here."
+  ],
+  "object_prefix_type_counts": {
+    "1": 6,
+    "13": 2758,
+    "15": 901,
+    "16": 10,
+    "17": 295,
+    "19": 93,
+    "3": 1575,
+    "4": 121,
+    "5": 651,
+    "9": 4280
+  },
+  "object_prefixes_with_control_characters": 295,
+  "observed_inventory": {
+    "distinct_instances": 66,
+    "limitations": [
+      "Initial inventory is presence evidence, not a captured starter grant.",
+      "Raw counts are not assumed to mean stack size; some items have charges.",
+      "Instance types are runtime observations, not independently verified wire tags.",
+      "Template presence does not prove effect, appearance, or profession compatibility."
+    ],
+    "missing_client_templates": [],
+    "missing_server_items": [],
+    "templates": [
+      {
+        "client_prefix_name": "Gold Pile",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Gold Pile",
+          "numCharges": 0,
+          "type": "GOLD",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 7
+      },
+      {
+        "client_prefix_name": "Corsairs Axe",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Corsairs Axe",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 25090
+      },
+      {
+        "client_prefix_name": "Long Knife",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Long Knife",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 25490
+      },
+      {
+        "client_prefix_name": "Hunting Bow",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 2,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Hunting Bow",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 25680
+      },
+      {
+        "client_prefix_name": "Crossbow",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 2,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Crossbow",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 25760
+      },
+      {
+        "client_prefix_name": "Throwing Knife",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Throwing Knife",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 25840
+      },
+      {
+        "client_prefix_name": "Short Spear",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 2,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Short Spear",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 26230
+      },
+      {
+        "client_prefix_name": "Quarter Staff",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 2,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Quarter Staff",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 26390
+      },
+      {
+        "client_prefix_name": "Great Sword",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 2,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Great Sword",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 26800
+      },
+      {
+        "client_prefix_name": "Gilded Scepter",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 2,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Gilded Scepter",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 26990
+      },
+      {
+        "client_prefix_name": "Snow Imp Sword",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 8,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Snow Imp Sword",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 27520
+      },
+      {
+        "client_prefix_name": "Stonefist",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Stonefist",
+          "numCharges": 0,
+          "type": "WEAPON",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 29280
+      },
+      {
+        "client_prefix_name": "Ring Mail Gauntlets",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Ring Mail Gauntlets",
+          "numCharges": 0,
+          "type": "ARMOR",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 177900
+      },
+      {
+        "client_prefix_name": "Burnoose",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 4,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Burnoose",
+          "numCharges": 0,
+          "type": "ARMOR",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 181000
+      },
+      {
+        "client_prefix_name": "Azure Kite Shield",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Azure Kite Shield",
+          "numCharges": 0,
+          "type": "ARMOR",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 181860
+      },
+      {
+        "client_prefix_name": "Studded Shield",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Studded Shield",
+          "numCharges": 0,
+          "type": "ARMOR",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 182050
+      },
+      {
+        "client_prefix_name": "Black Leather Gloves",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Black Leather Gloves",
+          "numCharges": 0,
+          "type": "ARMOR",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 182290
+      },
+      {
+        "client_prefix_name": "Brown Leather Gloves",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Brown Leather Gloves",
+          "numCharges": 0,
+          "type": "ARMOR",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 182300
+      },
+      {
+        "client_prefix_name": "Gray Leather Gloves",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Gray Leather Gloves",
+          "numCharges": 0,
+          "type": "ARMOR",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 182310
+      },
+      {
+        "client_prefix_name": "Cleansing Flame Novice Hood",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Cleansing Flame Novice Hood",
+          "numCharges": 0,
+          "type": "ARMOR",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 182960
+      },
+      {
+        "client_prefix_name": "Plain Tunic Sleeves",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 2,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Plain Tunic Sleeves",
+          "numCharges": 0,
+          "type": "ARMOR",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 183700
+      },
+      {
+        "client_prefix_name": "Jeweled Ring",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Jeweled Ring",
+          "numCharges": 0,
+          "type": "JEWELRY",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 680099
+      },
+      {
+        "client_prefix_name": "Scarab Amulet",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Scarab Amulet",
+          "numCharges": 0,
+          "type": "JEWELRY",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 680113
+      },
+      {
+        "client_prefix_name": "Tear Pendant",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Tear Pendant",
+          "numCharges": 0,
+          "type": "JEWELRY",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 680116
+      },
+      {
+        "client_prefix_name": "Kenaryn's Symbol",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          0
+        ],
+        "server_definition": {
+          "name": "Kenaryn's Symbol",
+          "numCharges": 0,
+          "type": "JEWELRY",
+          "useAmount": 0,
+          "useID": 0
+        },
+        "server_item_matches": 1,
+        "template_id": 680139
+      },
+      {
+        "client_prefix_name": "Sublimation of Garlic",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 7,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          3
+        ],
+        "server_definition": {
+          "name": "Sublimation of Garlic",
+          "numCharges": 3,
+          "type": "POTION",
+          "useAmount": 1,
+          "useID": 429512920
+        },
+        "server_item_matches": 1,
+        "template_id": 980050
+      },
+      {
+        "client_prefix_name": "Relgor's Restorative Elixir",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 4,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          3
+        ],
+        "server_definition": {
+          "name": "Relgor's Restorative Elixir",
+          "numCharges": 3,
+          "type": "POTION",
+          "useAmount": 1,
+          "useID": 429414616
+        },
+        "server_item_matches": 1,
+        "template_id": 980051
+      },
+      {
+        "client_prefix_name": "Caster Oil",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 8,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          3
+        ],
+        "server_definition": {
+          "name": "Caster Oil",
+          "numCharges": 3,
+          "type": "POTION",
+          "useAmount": 1,
+          "useID": 429447384
+        },
+        "server_item_matches": 1,
+        "template_id": 980052
+      },
+      {
+        "client_prefix_name": "Fillig's Milk of Mandrake",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          3
+        ],
+        "server_definition": {
+          "name": "Fillig's Milk of Mandrake",
+          "numCharges": 3,
+          "type": "POTION",
+          "useAmount": 1,
+          "useID": 429611224
+        },
+        "server_item_matches": 1,
+        "template_id": 980053
+      },
+      {
+        "client_prefix_name": "Essence of Litharge",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 3,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          3
+        ],
+        "server_definition": {
+          "name": "Essence of Litharge",
+          "numCharges": 3,
+          "type": "POTION",
+          "useAmount": 1,
+          "useID": 429643992
+        },
+        "server_item_matches": 1,
+        "template_id": 980054
+      },
+      {
+        "client_prefix_name": "Greater Concoction Potion",
+        "client_prefix_type": 9,
+        "client_resource_matches": 1,
+        "distinct_observed_instances": 1,
+        "native_classes": [
+          "ArcItem"
+        ],
+        "native_instance_types": [
+          30
+        ],
+        "observed_raw_counts": [
+          4,
+          5
+        ],
+        "server_definition": {
+          "name": "Greater Concoction Potion",
+          "numCharges": 5,
+          "type": "POTION",
+          "useAmount": 35,
+          "useID": 429021400
+        },
+        "server_item_matches": 1,
+        "template_id": 980066
+      }
+    ],
+    "unique_templates": 31
+  },
+  "schema_version": 1
+}

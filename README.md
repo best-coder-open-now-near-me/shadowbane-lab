@@ -1,5 +1,9 @@
 # shadowbane-lab
 
+Current own-server priority: [client/server model alignment](docs/client-server-models.md).
+The passive watcher and resource audit replace the historical client-harness next
+steps below. Server gameplay work follows the model compatibility inventory.
+
 Navigation diagnostics: [inspector usage, review branch and acceptance status](docs/navigation-inspector.md).
 
 ## Finding the current code

@@ -1,0 +1,127 @@
+{
+  "catalog_sha256": "1a0abbe48063a5dd9869325c8061a6a7770c73c73a321fad794091f26c94bc1c",
+  "database_sha256": "cbc0bb3607d6ba9fafa4b7ad5270ff2086cfb9814012d9671a2087e330a37226",
+  "distinct_observed_instances": 76,
+  "inventory_prefix_bytes": 29758,
+  "inventory_prefix_sha256": "217d4fa96370475b5d0d4646a8eb94e837fd536013dc4c9cd78c1c03de7e1257",
+  "limitations": [
+    "Promotion and dagger training were user-reported; native learned-rune/skill transitions were not decoded.",
+    "Item appearance does not prove its grant/trade provenance. No client item stats or server rules are inferred from names.",
+    "Missing server rows are relative to the pinned SQL; no automatic content substitutions."
+  ],
+  "missing_client_templates": [],
+  "missing_server_items": [
+    8176490,
+    8176500,
+    8176510,
+    8176520,
+    8176530,
+    8176540
+  ],
+  "new_content_gaps": [
+    {
+      "client_prefix_name": "Shinobi Sleeves",
+      "client_prefix_type": 9,
+      "client_resource_matches": 1,
+      "distinct_observed_instances": 1,
+      "native_classes": [
+        "ArcItem"
+      ],
+      "native_instance_types": [
+        30
+      ],
+      "observed_raw_counts": [
+        0
+      ],
+      "server_item_matches": 0,
+      "template_id": 8176490
+    },
+    {
+      "client_prefix_name": "Shinobi Vest",
+      "client_prefix_type": 9,
+      "client_resource_matches": 1,
+      "distinct_observed_instances": 1,
+      "native_classes": [
+        "ArcItem"
+      ],
+      "native_instance_types": [
+        30
+      ],
+      "observed_raw_counts": [
+        0
+      ],
+      "server_item_matches": 0,
+      "template_id": 8176500
+    },
+    {
+      "client_prefix_name": "Shinobi Leggings",
+      "client_prefix_type": 9,
+      "client_resource_matches": 1,
+      "distinct_observed_instances": 1,
+      "native_classes": [
+        "ArcItem"
+      ],
+      "native_instance_types": [
+        30
+      ],
+      "observed_raw_counts": [
+        0
+      ],
+      "server_item_matches": 0,
+      "template_id": 8176510
+    },
+    {
+      "client_prefix_name": "Shinobi Boots",
+      "client_prefix_type": 9,
+      "client_resource_matches": 1,
+      "distinct_observed_instances": 1,
+      "native_classes": [
+        "ArcItem"
+      ],
+      "native_instance_types": [
+        30
+      ],
+      "observed_raw_counts": [
+        0
+      ],
+      "server_item_matches": 0,
+      "template_id": 8176520
+    },
+    {
+      "client_prefix_name": "Shinobi Helm",
+      "client_prefix_type": 9,
+      "client_resource_matches": 1,
+      "distinct_observed_instances": 1,
+      "native_classes": [
+        "ArcItem"
+      ],
+      "native_instance_types": [
+        30
+      ],
+      "observed_raw_counts": [
+        0
+      ],
+      "server_item_matches": 0,
+      "template_id": 8176530
+    },
+    {
+      "client_prefix_name": "Shinobi Gloves",
+      "client_prefix_type": 9,
+      "client_resource_matches": 1,
+      "distinct_observed_instances": 1,
+      "native_classes": [
+        "ArcItem"
+      ],
+      "native_instance_types": [
+        30
+      ],
+      "observed_raw_counts": [
+        0
+      ],
+      "server_item_matches": 0,
+      "template_id": 8176540
+    }
+  ],
+  "schema_version": 1,
+  "unique_observed_templates": 39
+}

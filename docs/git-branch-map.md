@@ -1,5 +1,23 @@
 # Git branch map
 
+## Dedicated host handoff - October 7
+
+[Private server PC handoff](handoffs/private-server-pc-20261007.md) records the
+published bootstrap/server tips, private VPN setup, and preservation requirements
+for the chat on the user's non-work PC. No public ports have been opened.
+
+## Client/server model alignment - October 7
+
+`codex/client-server-models-20261007` starts from refreshed main `cdaafb2` and
+reuses bot-integration. It owns the passive model watcher, cache categorization,
+server resource audit and [alignment inventory](client-server-models.md).
+PR #98 contains the model watcher, resource audit, character-bound deduplication and passive starter-inventory census; it targets main. The old client-harness todos below are
+superseded by the own-server pivot in PR #95. Gameplay service work now follows
+model alignment; server code belongs in the separate shadowbane-server repository.
+Next: confirm the identified object-type wire difference and trace absent resource
+references before changing server protocol/content. Find Wonderbane fix notes owns
+bootstrap and connection qualification; live watcher observations remain private.
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from
