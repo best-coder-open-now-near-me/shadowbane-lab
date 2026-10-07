@@ -49,8 +49,8 @@ runtime was retained. See [the compact receipt record](client-update-20261004.md
 Source branches remain until a separate ancestry/ownership cleanup; no active
 checkout is retired here. Next: qualify the separately owned host cleanup-liveness
 repair, then resume production and sustained renewal validation. The receipt-doc
-commits are retained locally while GitHub ordinary pushes return server errors;
-their integration destination remains `main`.
+commits are pushed on `codex/power-diagnostics-deployment-20261007` in PR #90,
+awaiting checked integration into `main`.
 
 ## Historical .75/.52 deployment closeout - October 7
 
