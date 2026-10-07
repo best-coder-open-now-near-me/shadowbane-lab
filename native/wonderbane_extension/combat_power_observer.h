@@ -16,6 +16,11 @@ struct Receipt {
     std::uint64_t initiation_epoch = 0;
     Availability availability = Availability::unknown;
     std::uint64_t availability_epoch = 0;
+    // Optional copied diagnostics only. Never used for admission or settlement.
+    struct Observation {
+        bool definition_known{}, state_known{}, use_called{}, use_returned{}, use_value{};
+        std::uint32_t required_mode{}, actor_mode{}, state_aux{}, initiation_state{}, definition_flags{};
+    } observation{};
 };
 struct Context {
     std::uintptr_t image{}, actor{}, target{}, writer{}, container{};
@@ -53,6 +58,7 @@ public:
 private:
     friend struct detail::Observer;
     friend struct detail::Entry;
+    void PublishObservation() noexcept;
     Context context_{};
     Receipt receipt_{};
     Scope* previous_{};

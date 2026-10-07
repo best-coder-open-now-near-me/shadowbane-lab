@@ -4,7 +4,7 @@
 #include <cstdint>
 
 namespace wonderbane::extension::combat::power {
-enum class Availability { unknown, ready, global_recovery, reuse_blocked };
+enum class Availability { unknown, ready, global_recovery, reuse_blocked, stance_ineligible };
 namespace readiness {
 // Exact .13 PreparePower4E339/4E3D9: recovery clock, then reuse-list
 // membership unless ADMIN_ISADMIN. Predicted node deadlines NEVER admit a power.

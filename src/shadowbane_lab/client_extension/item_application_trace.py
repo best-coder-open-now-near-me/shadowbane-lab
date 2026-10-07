@@ -106,8 +106,7 @@ def parse_snapshot(data: bytes, *, process_id: int, creation: int):
             raise ItemApplicationTraceError("absent item fields are nonzero")
         if stage == 4:
             if (
-                kind != 1
-                or not flags & 1
+                not flags & 1
                 or flags & 4
                 or caller
                 or not any(request)
@@ -116,11 +115,24 @@ def parse_snapshot(data: bytes, *, process_id: int, creation: int):
                 or entry > 2
                 or settled > 2
                 or history & ~12
-                or body[:2] != [2, 1]
-                or not all(body[2:4])
-                or any(body[4:])
             ):
+                raise ItemApplicationTraceError("invalid owned return")
+            if kind == 1 and (body[:2] != [2, 1] or not all(body[2:4]) or any(body[4:])):
                 raise ItemApplicationTraceError("invalid owned item return")
+            if kind == 2 and (
+                not body[0] or body[1] & ~127 or body[2] > 3 or body[5] > 4
+                or body[10] & ~0x3FFFF
+                or (body[1] & 64 and not body[1] & 32)
+                or (body[1] & 32 and not body[1] & 16)
+                or (body[1] & 16 and not body[1] & 1)
+                or (body[1] & 2 and not body[1] & 1)
+                or (body[1] & 8 and not body[1] & 4)
+                or (body[1] & 4 and not body[1] & 2)
+                or ((body[3] or body[4]) and not body[1] & 8)
+                or (not body[10] & 0x10000 and (body[6] or body[10] & 0xFFFF))
+                or (not body[10] & 0x20000 and (body[7] or body[8] or body[9]))
+            ):
+                raise ItemApplicationTraceError("invalid owned power diagnostic")
         elif any(request) or any(command) or outcome or entry or settled or history:
             raise ItemApplicationTraceError(
                 "incoming message has invented local request correlation"
@@ -145,6 +157,24 @@ def parse_snapshot(data: bytes, *, process_id: int, creation: int):
                 "local_settlement": settled if stage == 4 else None,
                 "history": history if stage == 4 else None,
                 "payload_words": body,
+                "power_diagnostic": {
+                    "power_id": body[0],
+                    "native_entered": bool(body[1] & 1),
+                    "send_observed": bool(body[1] & 2),
+                    "append_observed": bool(body[1] & 4),
+                    "followup_entered": bool(body[1] & 8),
+                    "use_called": bool(body[1] & 16),
+                    "use_returned": bool(body[1] & 32),
+                    "use_return_value": bool(body[1] & 64) if body[1] & 32 else None,
+                    "receipt_result": body[2],
+                    "initiation_epoch": body[3] | body[4] << 32,
+                    "availability": body[5],
+                    "required_mode_raw": body[6] if body[10] & 0x10000 else None,
+                    "actor_mode_raw": body[7] if body[10] & 0x20000 else None,
+                    "actor_state_1c_raw": body[8] if body[10] & 0x20000 else None,
+                    "actor_state_10_raw": body[9] if body[10] & 0x20000 else None,
+                    "definition_274_275_raw": body[10] & 0xFFFF if body[10] & 0x10000 else None,
+                } if stage == 4 and kind == 2 else None,
             }
         )
     return {

@@ -333,7 +333,11 @@ int main(){
     for(bool uncertain:{false,true}){
         ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();assert(actor.ValidateParent(parent,Gates()));Publish(actor,false);
         if(uncertain){power_receipt={p::Result::uncertain,true,false,false,false};}
-        auto command=Typed(parent,nullptr,a::wire::Action::self_power);assert(actor.Submit(command).local_settlement==AL::pending);
+        power_receipt.observation.use_called=true;power_receipt.observation.use_returned=!uncertain;
+        auto command=Typed(parent,nullptr,a::wire::Action::self_power);const auto submitted=actor.Submit(command);
+        assert(submitted.local_settlement==AL::pending&&submitted.power_diagnostic.observation.use_called
+            &&submitted.power_diagnostic.observation.use_returned==!uncertain
+            &&submitted.power_diagnostic.append_observed==!uncertain);
         Protocol({});Put(base+0xc010,std::uint32_t{5});
         if(uncertain){assert(actor.Poll().local_settlement==AL::pending);}else{admitted=false;assert(actor.Poll().local_settlement==AL::pending);admitted=true;}
         Put(base+0xc018,std::uint32_t{2});assert(actor.StopOwner(parent,Current,nullptr).closure==a::wire::Closure::native_stopped);CloseScene(actor);
@@ -355,6 +359,20 @@ int main(){
         power_receipt={};power_receipt.availability=p::Availability::reuse_blocked;power_receipt.availability_epoch=epoch;
         availability_change=change;auto command=Typed(parent,nullptr,a::wire::Action::self_power);const auto result=actor.Submit(command);
         assert(result.entry==AE::never_entered&&result.outcome!=AO::power_reuse_blocked&&!result.history&&!stops);CloseScene(actor);
+    }
+    for(const bool with_child:{false,true}){
+        ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));
+        const auto parent=Parent();assert(actor.ValidateParent(parent,Gates()));const auto child=Child(parent);
+        if(with_child){assert(actor.Attach(child,Gates()).outcome==AO::bound);}else{Publish(actor,false);}
+        power_receipt={};power_receipt.availability=p::Availability::stance_ineligible;power_receipt.availability_epoch=epoch;
+        auto command=Typed(parent,with_child?&child:nullptr,a::wire::Action::self_power);
+        const auto result=actor.Submit(command);
+        assert(result.outcome==AO::deferred&&result.reason==a::wire::Reason::observation
+            &&result.entry==AE::never_entered&&result.local_settlement==AL::settled&&!result.history&&!stops);
+        a::wire::Command pending{};assert(!actor.PendingCommand(pending));
+        // A positive no-entry refusal cannot leave a synthetic local obligation.
+        power_receipt={p::Result::queued,true,true,true,true,epoch};command.request.back()=2;
+        assert(actor.Submit(command).outcome==AO::queued);CloseScene(actor);
     }
     {
         ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();assert(actor.ValidateParent(parent,Gates()));const auto child=Child(parent);
