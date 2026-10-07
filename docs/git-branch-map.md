@@ -4,28 +4,38 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Combined .75/.52 release candidate - October 7
+## Installed .75/.52 and deployment closeout - October 7
 
-`codex/combined-buff-diagnostics-release-20261007` in bot-runtime combines
-reviewed PR #79 (`64ef3be`) and PR #80 (`d52e525`), both including main
-`b313a63`. This is the single integration candidate for host .75/native .52.
-The source PRs remain published until the combined PR is merged and their tips
-are verified reachable. No candidate installation has occurred.
+Start from freshly fetched `origin/main`, now
+`acb1ba7f41875a567654dbdcb5182857bba05679` after PR #81 merged the combined
+release. Exact source `733b5fecb862c6d9421b8c2d20f8b8aee5c6db18` is installed
+as host .75/native .52; .14 executable and official cache `08c115…` remain unchanged.
+The release includes reviewed cleanup ownership repair and optional item-response
+diagnostics. Their source branches remain retained pending safe branch cleanup;
+no current checkout is repurposed by this documentation task.
 
-The host repair escalates child cleanup blocked by a retained parent-local action
-to one exact aggregate stop within the original cleanup budget. Confirmed owner
-closure ends ordinary/listed combat; remote application uncertainty is retained.
-The optional native diagnostic stream records owned item returns and copied
-incoming item/power boundaries without altering admission or application authority.
-See [the diagnostic boundary](item-application-diagnostics-20261007.md).
+Package B52 independently verified 116 artifacts/88 stages, 5,120 host tests
+(39 skips), 231 native tests/133 required gates per profile and 74/86/146
+movement/combat/actor IPC cases per profile. Apply/activation verified 467
+modules, 9,607 preserved files, one DLL inventory change and healthy manager 8100;
+all five shortcuts passed. Old .74 host/payload retirement removed 50,950,003
+bytes, then five obsolete staging binaries removed 7,352,316 bytes. No rollback
+runtime was retained; settings/jobs/journals and evidence remain intact.
 
-Independent slice validation passed 328 cleanup tests (106 reviewer tests), nine
-native diagnostic CTests, eight decoder cases per original/prepared .14 image,
-and 607 related Python tests. The combined candidate passed 713 targeted tests,
-23 release-identity tests and Ruff. Exact-source full and diagnostics-only package
-qualification is next; deployment remains separate.
+Fresh launch PID 8436, creation `134358520489522692`, HWND 2556262 passed passive
+in-world readiness with alive player, owner NONE, no pending cleanup and scene 1.
+The passive preflight found zero loaded eligible NPCs; no actions were sent.
+No .75 live acceptance is claimed yet. The previous .74 Praeda run passed exact
+native queue/cancel and cleanup, without a server-damage or buff-suite claim.
+See the [deployment record](client-update-20261004.md) for original receipt hashes.
 
-## Active .74 host and official data-patch closeout - October 7
+`codex/buff-cleanup-deployment-20261007` in bot-integration owns this documentation
+checkpoint, based on merged main. PR #82's retaliation provenance work remains a
+separate open source review in bot-command-ownership; retaliation stays disabled.
+**Current next todo:** once NPCs are available, bounded NPC/buff validation on
+.75/.52 with exact cleanup and evidence for unresolved potion application.
+
+## Historical .74 host and official data-patch closeout - October 7
 
 Start from freshly fetched `origin/main`, now
 `b313a63` after deployment records in PR #77 merged; PR #78 previously
@@ -62,9 +72,9 @@ LOCAL_RELEASED and no errors/watchdog/unexpected stop. The owned list entry was
 removed. This is bounded queue/cancel recovery evidence, not server damage proof
 or validation of the pending cleanup repair and potion observer.
 
-**Current next todo:** qualify the combined .75/.52 candidate, review its exact
-package and complete the authorized installation. Sustained buff renewal and
-missing potion-application diagnosis remain unproven; retaliation stays disabled.
+Qualification and installation listed as next at this checkpoint are complete
+in B52 above. Sustained buff renewal and missing potion-application diagnosis
+remain unproven; retaliation stays disabled.
 See the [deployment record](client-update-20261004.md).
 
 ## Merged registry observation churn handling - October 7
