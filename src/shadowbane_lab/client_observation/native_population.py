@@ -25,6 +25,7 @@ from shadowbane_lab.client_observation.native_registry import (
     NativeObjectRegistryProfile,
     NativeObjectRegistryReader,
     NativeObjectRegistryReadError,
+    NativeObjectRegistrySnapshotChanged,
     NativeRegistrySnapshot,
 )
 from shadowbane_lab.client_observation.native_target_action import (
@@ -47,6 +48,10 @@ class NativeCharacterPopulationCompatibilityError(NativeCharacterPopulationError
 
 class NativeCharacterPopulationReadError(NativeCharacterPopulationError):
     """Raised when the loaded character population cannot be read safely."""
+
+
+class NativeCharacterPopulationSnapshotChanged(NativeCharacterPopulationReadError):
+    """Registry rereads disagreed; no population from this transaction is usable."""
 
 
 class NativeCharacterPopulationProfileLoadError(ValueError):
@@ -652,6 +657,8 @@ class NativeCharacterPopulationReader:
             raise NativeCharacterPopulationReadError("native population reader is closed")
         try:
             snapshot = self._registry.capture()
+        except NativeObjectRegistrySnapshotChanged as exc:
+            raise NativeCharacterPopulationSnapshotChanged(str(exc)) from exc
         except NativeObjectRegistryReadError as exc:
             raise NativeCharacterPopulationReadError(str(exc)) from exc
         if sum(entry.vtable == self._character_vtable for entry in snapshot.objects) > (
@@ -663,6 +670,8 @@ class NativeCharacterPopulationReader:
     def _verify_registry(self, snapshot: NativeRegistrySnapshot) -> None:
         try:
             self._registry.verify(snapshot)
+        except NativeObjectRegistrySnapshotChanged as exc:
+            raise NativeCharacterPopulationSnapshotChanged(str(exc)) from exc
         except NativeObjectRegistryReadError as exc:
             raise NativeCharacterPopulationReadError(str(exc)) from exc
 

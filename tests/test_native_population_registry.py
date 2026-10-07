@@ -10,6 +10,7 @@ from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.client_observation.native_population import (
     NativeCharacterPopulationReader,
     NativeCharacterPopulationReadError,
+    NativeCharacterPopulationSnapshotChanged,
 )
 
 
@@ -65,7 +66,7 @@ def test_registry_unregistration_during_field_refresh_rejects_population():
         return value
 
     process.read_block = change
-    with pytest.raises(NativeCharacterPopulationReadError, match="membership changed"):
+    with pytest.raises(NativeCharacterPopulationSnapshotChanged, match="membership changed"):
         reader.observe()
 
 
@@ -81,7 +82,7 @@ def test_registry_membership_change_during_detail_read_rejects_before_publish():
         return value
 
     action.observe_character = change
-    with pytest.raises(NativeCharacterPopulationReadError, match="membership changed"):
+    with pytest.raises(NativeCharacterPopulationSnapshotChanged, match="membership changed"):
         population.observe_character_detail(crab.token, crab.object_key, action)
 
 

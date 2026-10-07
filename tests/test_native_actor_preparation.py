@@ -1287,3 +1287,174 @@ def test_preparation_waiting_on_pending_combat_does_not_start_a_new_action_deadl
         for c in session.actor_action.call_args_list
     )
     assert owner.finish("test_complete")[0]
+
+
+@pytest.mark.parametrize("after_child", [False, True])
+def test_registry_churn_is_unavailable_without_cached_coverage(setup, monkeypatch, after_child):
+    from shadowbane_lab.client_observation.native_population import (
+        NativeCharacterPopulationSnapshotChanged,
+    )
+
+    owner, session, _, obs, combat = setup
+    configure(owner, session, monkeypatch)
+    if after_child:
+        owner.advance_combat(combat, obs)
+        assert owner.finish_context("native_death")[0]
+    before = owner.observe_preparation()
+    captured = owner._status_captured_at
+    calls = session.actor_action.call_count
+    reads = owner.publication_reader.read.call_count
+    owner.population.resolve_actor_address.side_effect = NativeCharacterPopulationSnapshotChanged(
+        "registry membership changed during read"
+    )
+    assert owner.observe_preparation() is None
+    assert owner.preparation_step() is None
+    assert owner._status_observation is None
+    assert owner._status_captured_at == captured
+    assert session.actor_action.call_count == calls
+    assert owner.publication_reader.read.call_count == reads
+    owner.population.resolve_actor_address.side_effect = None
+    after = owner.observe_preparation()
+    assert after.capture_sequence > before.capture_sequence
+    assert after.admission_revision == before.admission_revision
+    assert owner.preparation_step() is not None
+
+
+@pytest.mark.parametrize("failure", ["structure", "budget", "session", "token", "address"])
+def test_registry_unavailable_does_not_hide_identity_or_fatal_reads(setup, monkeypatch, failure):
+    from shadowbane_lab.client_observation.native_population import (
+        NativeCharacterPopulationReadError,
+        NativeCharacterPopulationSnapshotChanged,
+    )
+
+    owner, session, _, _, _ = setup
+    configure(owner, session, monkeypatch)
+    owner.population.resolve_actor_address.side_effect = NativeCharacterPopulationSnapshotChanged(
+        "changed"
+    )
+    if failure in ("structure", "budget"):
+        owner.population.resolve_actor_address.side_effect = NativeCharacterPopulationReadError(
+            failure
+        )
+    elif failure == "address":
+        owner.population.resolve_actor_address.side_effect = None
+        owner.population.resolve_actor_address.return_value = owner.parent.actor_hint + 4
+    elif failure == "session":
+        owner.character_session.require_current.side_effect = [None, ValueError("session replaced")]
+    else:
+        owner.population.observe_actor_identity.side_effect = [
+            (owner.actor_token, owner.actor_key, None), ("replacement", owner.actor_key, None)
+        ]
+    with pytest.raises((NativeCharacterPopulationReadError, ValueError)):
+        owner.observe_preparation()
+    session.actor_action.assert_not_called()
+
+
+@pytest.mark.parametrize("uncertain", [False, True])
+def test_registry_churn_preserves_original_pending_status_and_cleanup(
+    setup, monkeypatch, uncertain
+):
+    from shadowbane_lab.client_observation.native_population import (
+        NativeCharacterPopulationSnapshotChanged,
+    )
+
+    owner, session, _, _, _ = setup
+    _, send = configure(owner, session, monkeypatch)
+    now = [10.0]
+    session.cleanup.clock = lambda: now[0]
+    settled = False
+
+    def native(g, v, c, **kw):
+        result = send(g, v, c, **kw)
+        if v in (Verb.SUBMIT, Verb.ACTION_STATUS):
+            result.receipt = replace(
+                result.receipt,
+                local_settlement=LocalSettlement.SETTLED if settled else LocalSettlement.PENDING,
+                outcome=Outcome.UNCERTAIN if uncertain else Outcome.CLIENT_OUTBOUND_QUEUED,
+            )
+        return result
+
+    session.actor_action.side_effect = native
+    first = owner.preparation_step()
+    owner.population.resolve_actor_address.side_effect = NativeCharacterPopulationSnapshotChanged(
+        "changed"
+    )
+    for timestamp in (16.0, 24.0):
+        now[0] = timestamp
+        update = owner.preparation_step()
+        assert update.command is first.command
+        assert not update.acknowledgement.local_settled
+        assert owner._local_command is first.command
+    settled = True
+    assert owner.preparation_step().acknowledgement.local_settled
+    assert owner.preparation_step() is None  # No new action from retained publication.
+    calls = [(c.args[1], c.args[2]) for c in session.actor_action.call_args_list]
+    action_calls = [(v, c) for v, c in calls if v in (Verb.SUBMIT, Verb.ACTION_STATUS)]
+    assert [v for v, c in action_calls] == [Verb.SUBMIT] + [Verb.ACTION_STATUS] * 3
+    assert all(c is first.command for v, c in action_calls)
+    assert owner.finish("explicit_cancel")[0]
+    assert owner._obligation.released
+
+
+def test_registry_churn_between_proposal_and_open_never_submits_or_marks_refused(
+    setup, monkeypatch
+):
+    from shadowbane_lab.client_observation.native_population import (
+        NativeCharacterPopulationSnapshotChanged,
+    )
+
+    owner, session, _, _, _ = setup
+    configure(owner, session, monkeypatch)
+    hint = owner.parent.actor_hint
+    owner.population.resolve_actor_address.side_effect = [
+        hint, NativeCharacterPopulationSnapshotChanged("changed")
+    ]
+    update = owner.preparation_step()
+    assert not update.acknowledgement.local_settled
+    assert owner._preparation_policy.pending_proposal is update.decision.proposal
+    assert not owner._preparation_policy._refused_at
+    assert not any(
+        c.args[1] in (Verb.OPEN_OWNER, Verb.SUBMIT) for c in session.actor_action.call_args_list
+    )
+    owner.population.resolve_actor_address.side_effect = None
+    resumed = owner.preparation_step()
+    assert resumed.acknowledgement.local_settled
+    assert [c.args[1] for c in session.actor_action.call_args_list].count(Verb.SUBMIT) == 1
+
+
+@pytest.mark.parametrize("submitted", [False, True])
+def test_registry_churn_cannot_renew_missing_response_watchdog(setup, monkeypatch, submitted):
+    from shadowbane_lab.client_observation.native_population import (
+        NativeCharacterPopulationSnapshotChanged,
+    )
+
+    owner, session, _, _, _ = setup
+    _, send = configure(owner, session, monkeypatch)
+    now = [10.0]
+    session.cleanup.clock = lambda: now[0]
+
+    def native(g, v, c, **kw):
+        if v is Verb.ACTION_STATUS:
+            raise TimeoutError("no status")
+        result = send(g, v, c, **kw)
+        if v is Verb.SUBMIT:
+            result.receipt = replace(result.receipt, local_settlement=LocalSettlement.PENDING)
+        return result
+
+    session.actor_action.side_effect = native
+    if not submitted:
+        owner.population.resolve_actor_address.side_effect = [
+            owner.parent.actor_hint, NativeCharacterPopulationSnapshotChanged("changed")
+        ]
+    owner.preparation_step()
+    owner.population.resolve_actor_address.side_effect = NativeCharacterPopulationSnapshotChanged(
+        "changed"
+    )
+    now[0] = 15.0
+    with pytest.raises(RuntimeError, match="status response deadline"):
+        owner.preparation_step()
+    verbs = [c.args[1] for c in session.actor_action.call_args_list]
+    assert verbs.count(Verb.SUBMIT) == int(submitted)
+    assert verbs.count(Verb.ACTION_STATUS) == int(submitted)
+    assert verbs.count(Verb.STOP_OWNER) == 1
+    assert owner._obligation.released
