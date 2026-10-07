@@ -169,6 +169,39 @@
         return payload;
       };
 
+      function renderPveStatus(workerPanel, pve) {
+        if (pve?.progress || pve?.operation_id) {
+          const panel = document.createElement("section");
+          panel.className = "worker-panel";
+          const heading = document.createElement("h3");
+          heading.textContent = `PvE · ${text(pve.state)}`;
+          panel.append(heading);
+          const detail = document.createElement("p");
+          detail.className = "detail";
+          const age = Number.isFinite(pve.age_seconds) ? ` · capture ${Math.max(0, pve.age_seconds).toFixed(1)}s ago` : "";
+          detail.textContent = `${text(pve.progress?.phase)} · ${text(pve.operation_state)}${age}`;
+          panel.append(detail);
+          const buffs = pve.progress?.preparation;
+          const notice = document.createElement("p");
+          notice.className = "detail";
+          notice.textContent = !buffs ? "PvE buff status unavailable; no current observation." :
+            !buffs.enabled ? "Automatic buffs disabled" :
+            !pve.current ? "Last observation only; current buff state is unavailable." :
+            buffs.local_pending ? "Native action settlement pending" : "Native buff observation";
+          panel.append(notice);
+          for (const group of buffs?.groups || []) {
+            const row = document.createElement("p");
+            row.className = "detail";
+            const alternatives = (group.actions || []).map(a => `${text(a.action_id)}: ${text(a.readiness)}`).join(" / ");
+            row.textContent = `${text(group.group_id)} · ${pve.current ? "" : "last "}${text(group.coverage)}` +
+              (group.application_pending ? " · application pending" : "") + ` · ${alternatives}`;
+            panel.append(row);
+          }
+          workerPanel.append(panel);
+        }
+
+      }
+
       const text = (value, fallback = "—") => {
         if (value === null || value === undefined || value === "") return fallback;
         return String(value);
@@ -414,6 +447,8 @@
           operationDetail.textContent = text(latestResult.receipt.detail);
           workerPanel.append(operationDetail);
         }
+
+        renderPveStatus(workerPanel, slot?.pve);
 
         const controls = document.createElement("div");
         controls.className = "actions";

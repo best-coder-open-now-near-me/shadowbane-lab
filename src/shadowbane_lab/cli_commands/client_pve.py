@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
@@ -88,6 +88,7 @@ from shadowbane_lab.pve.listed_combat import ListedCombatCoordinator
 from shadowbane_lab.pve.model import PvEAbility, PvEAbilityRecipient
 from shadowbane_lab.pve.native_actor import NativeActorCoordinator
 from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
+from shadowbane_lab.pve.preparation_status import PvEProgress
 from shadowbane_lab.pve.settings import load_pve_settings
 from shadowbane_lab.travel import (
     SparseNavigationMap,
@@ -140,6 +141,7 @@ def _run_pve(
     native_character_population_profile_path: Path | None = None,
     navigation_map: SparseNavigationMap | None = None,
     movement_dispatcher: TravelDecisionDispatcher | None = None,
+    progress_sink: Callable[[PvEProgress], None] | None = None,
 ) -> int:
     if movement_dispatcher is not None and not isinstance(
         movement_dispatcher, TravelDecisionDispatcher
@@ -559,6 +561,7 @@ def _run_pve(
                 poll_interval_ms=poll_ms,
                 maximum_retained_trace_steps=(retained_trace_steps if continuous else None),
                 trace_sink=pve_trace_sink(journal, navigation_observer),
+                progress_sink=progress_sink,
             ).run()
             if journal is not None:
                 journal.finish(

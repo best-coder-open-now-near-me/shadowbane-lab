@@ -687,14 +687,17 @@ class WorkerOperationLedger:
                 f"could not lock worker operation ledger: {exc}"
             ) from exc
 
-    def _read(self, path: Path, parser: Callable[[str], object]) -> object:
+    def _read(
+        self, path: Path, parser: Callable[[str], object], *, max_bytes: int | None = None
+    ) -> object:
+        limit = self._max_bytes if max_bytes is None else max_bytes
         try:
             if path.is_symlink() or not path.is_file():
                 raise WorkerOperationFormatError("operation record must be a regular file")
-            source = read_record_bytes(path, self._max_bytes)
+            source = read_record_bytes(path, limit)
         except OSError as exc:
             raise WorkerOperationLedgerError(f"could not read operation record: {exc}") from exc
-        if len(source) > self._max_bytes:
+        if len(source) > limit:
             raise WorkerOperationFormatError("operation record exceeds size limit")
         try:
             text = source.decode("utf-8", errors="strict")
@@ -702,7 +705,8 @@ class WorkerOperationLedger:
             raise WorkerOperationFormatError("operation record must be UTF-8") from exc
         return parser(text)
 
-    def _encode(self, value: Mapping[str, object]) -> bytes:
+    def _encode(self, value: Mapping[str, object], *, max_bytes: int | None = None) -> bytes:
+        limit = self._max_bytes if max_bytes is None else max_bytes
         payload = json.dumps(
             value,
             ensure_ascii=True,
@@ -710,9 +714,53 @@ class WorkerOperationLedger:
             separators=(",", ":"),
             sort_keys=True,
         ).encode("utf-8")
-        if len(payload) > self._max_bytes:
+        if len(payload) > limit:
             raise WorkerOperationLedgerError("serialized operation record exceeds size limit")
         return payload
+
+    def publish_pve_progress(self, record) -> None:
+        """Replace one exact-operation progress record; never grant dispatch authority."""
+        from .pve_status import WorkerPvEProgress
+        if not isinstance(record, WorkerPvEProgress):
+            raise ValueError("progress record must be typed")
+        operation = record.operation
+        directory = self._directory(operation.client_id)
+        with self._transaction(directory):
+            stored = self._read(
+                directory / f"{operation.operation_id}.json", loads_worker_operation)
+            receipt = self._inspect_receipt_unlocked(directory, operation.operation_id)
+            if (stored != operation or receipt is None or receipt.state.terminal
+                    or receipt.state not in {
+                        WorkerOperationState.ACCEPTED, WorkerOperationState.ACTIVE}):
+                raise WorkerOperationLedgerError(
+                    "progress does not own an active immutable operation")
+            acknowledged = tuple(s for s in self._inspect_slot_unlocked(directory)
+                                 if s.receipt is not None)
+            # Match manager selection ordering across worker replacement, including
+            # newer terminal stop/travel operations. An abandoned ACTIVE receipt
+            # never permits an older writer to replace the current slot snapshot.
+            if not acknowledged or acknowledged[-1].operation != operation:
+                raise WorkerOperationLedgerError("progress writer was superseded")
+            target = directory / "pve-progress.json"
+            if target.is_symlink():
+                raise WorkerOperationLedgerError("progress must not be a symlink")
+            publish_atomic_record(target, self._encode(record.to_dict(), max_bytes=65_536),
+                                  temporary_label="pve-progress")
+
+    def inspect_pve_progress(self, client_id: str):
+        from .pve_status import WorkerPvEProgress
+        directory = self._directory(client_id)
+        with self._transaction(directory):
+            path = directory / "pve-progress.json"
+            if not path.exists():
+                return None
+            record = self._read(
+                path, lambda raw: _loads(raw, WorkerPvEProgress.parse, "PvE progress"),
+                max_bytes=65_536)
+            if (record.operation.node_id != self._manifest.node_id
+                    or record.operation.client_id != self._client_id(client_id)):
+                raise WorkerOperationLedgerError("progress record belongs to another slot")
+            return record
 
     def _operation_paths(self, directory: Path) -> list[Path]:
         try:

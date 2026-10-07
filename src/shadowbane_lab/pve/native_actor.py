@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, replace
 
 from shadowbane_lab.client_extension.actor_action_fence import (
@@ -129,6 +130,9 @@ class NativeActorCoordinator:
         self._preparation_proposal = self._preparation_command = None
         self._preparation_last_response = None
         self._preparation_publication = self._preparation_decision = None
+        self._status_observation = None
+        self._status_capture_sequence = 0
+        self._status_captured_at = None
 
     def _command(self, *, context=None, action=Action.NONE, power_id=0, **kwargs):
         return Command(
@@ -641,6 +645,29 @@ class NativeActorCoordinator:
         )
         return self._preparation_policy
 
+    @property
+    def preparation_status(self):
+        """Immutable presentation snapshot; never refresh native action authority."""
+        from .preparation_status import PreparationStatus, capture_status
+
+        if self._settings is None or not self._settings.enabled:
+            return PreparationStatus.disabled()
+        observation = None if self._closed else self._status_observation
+        return capture_status(
+            tuple(group.policy_group() for group in self._settings.groups),
+            observation,
+            self._preparation_decision,
+            captured_at=self._status_captured_at if observation is not None else None,
+            local_pending=(
+                not self._closed
+                and (
+                    self._local_command is not None
+                    or self._preparation_policy.pending_proposal is not None
+                )
+            ),
+            application_pending_groups=self._preparation_policy.application_pending_groups,
+        )
+
     def _item_token(self, facts, publication):
         import hashlib
         import struct
@@ -659,6 +686,19 @@ class NativeActorCoordinator:
         ).hexdigest()
 
     def observe_preparation(self):
+        # Failed refreshes cannot present the previous coverage as current. Keep
+        # the last sequence/timestamp separately so rereading the same capture
+        # after an unavailable response cannot manufacture a newer timestamp.
+        self._status_observation = None
+        observation = self._observe_preparation()
+        if observation is not None:
+            if observation.capture_sequence > self._status_capture_sequence:
+                self._status_captured_at = time.time()
+                self._status_capture_sequence = observation.capture_sequence
+            self._status_observation = observation
+        return observation
+
+    def _observe_preparation(self):
         from shadowbane_lab.client_extension import actor_publication as native
 
         from . import preparation as policy

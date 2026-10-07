@@ -718,8 +718,10 @@ def _run_manager_worker(
         binding.validate_for(manifest)
         inspector = WindowsVisibleWindowInspector()
         process_inspector = Win32ProcessLifetimeInspector()
+        operation_ledger = WorkerOperationLedger(manifest, worker_state_directory)
         executor = _ExactWorkerEngineExecutor(
             binding,
+            operation_ledger=operation_ledger,
             destination_state_path=destination_state_path,
             client_profile_path=client_profile_path,
             native_position_profile_path=native_position_profile_path,
@@ -750,10 +752,7 @@ def _run_manager_worker(
             WorkerHeartbeatLedger(manifest, worker_state_directory),
             ManifestClientRegistryProvider(inspector, manifest),
             process_inspector,
-            operation_ledger=WorkerOperationLedger(
-                manifest,
-                worker_state_directory,
-            ),
+            operation_ledger=operation_ledger,
             operation_executor=executor,
             operation_maintenance=executor.maintain,
             operation_initializer=executor.initialize,
@@ -794,8 +793,10 @@ class _ExactWorkerEngineExecutor:
         vendor_executor=None,
         guard_executor=None,
         condemn_executor=None,
+        operation_ledger=None,
     ) -> None:
         self._binding = binding
+        self._operation_ledger = operation_ledger
         self._vendor_executor = vendor_executor
         self._guard_executor = guard_executor
         self._condemn_executor = condemn_executor
@@ -905,7 +906,8 @@ class _ExactWorkerEngineExecutor:
                 )
             elif operation.kind is WorkerOperationKind.PVE:
                 result = self._execute_pve(
-                    stop_signal=movement, movement_dispatcher=movement.dispatcher
+                    operation=operation, stop_signal=movement,
+                    movement_dispatcher=movement.dispatcher
                 )
             else:
                 raise ValueError(f"unsupported operation kind {operation.kind!r}")
@@ -985,40 +987,51 @@ class _ExactWorkerEngineExecutor:
     def _execute_pve(
         self,
         *,
+        operation: WorkerOperation,
         stop_signal: StopSignal,
         movement_dispatcher: TravelDecisionDispatcher,
     ) -> WorkerOperationExecution:
         self._pve_evidence_directory.mkdir(parents=True, exist_ok=True)
         evidence_output = _new_chat_pve_evidence_path(self._pve_evidence_directory)
-        result = _run_pve(
-            client_profile_path=self._pve_client_profile_path,
-            combat_log_path=None,
-            hotbar_config_path=self._pve_hotbar_config_path,
-            native_health_profile_path=None,
-            native_vitals_profile_path=self._native_vitals_profile_path,
-            native_position_profile_path=self._native_position_profile_path,
-            native_target_position_profile_path=None,
-            native_target_action_profile_path=None,
-            navigation_cache_directory=self._navigation_cache_directory,
-            max_kills=self._pve_max_kills,
-            max_seconds=self._pve_max_seconds,
-            max_encounter_seconds=self._pve_max_encounter_seconds,
-            recovery_timeout_seconds=self._pve_recovery_timeout_seconds,
-            wait_for_client_seconds=0,
-            poll_ms=self._pve_poll_ms,
-            policy=None,  # Resolve saved policy for this exact current character.
-            live=True,
-            as_json=True,
-            evidence_output_path=evidence_output,
-            combat_source="state",
-            stop_signal=stop_signal,
-            client_process_id=self._binding.game_process_id,
-            continuous=True,
-            camp_radius=self._pve_camp_radius,
-            retained_trace_steps=self._pve_retained_trace_steps,
-            navigation_map=self._navigation_map,
-            movement_dispatcher=movement_dispatcher,
-        )
+        from shadowbane_lab.manager.pve_status import PvEProgressPublisher
+        publisher = None if self._operation_ledger is None else PvEProgressPublisher(
+            self._operation_ledger, operation,
+            process_id=self._binding.game_process_id,
+            process_creation=self._binding.game_process_started_at_100ns)
+        try:
+            result = _run_pve(
+                client_profile_path=self._pve_client_profile_path,
+                combat_log_path=None,
+                hotbar_config_path=self._pve_hotbar_config_path,
+                native_health_profile_path=None,
+                native_vitals_profile_path=self._native_vitals_profile_path,
+                native_position_profile_path=self._native_position_profile_path,
+                native_target_position_profile_path=None,
+                native_target_action_profile_path=None,
+                navigation_cache_directory=self._navigation_cache_directory,
+                max_kills=self._pve_max_kills,
+                max_seconds=self._pve_max_seconds,
+                max_encounter_seconds=self._pve_max_encounter_seconds,
+                recovery_timeout_seconds=self._pve_recovery_timeout_seconds,
+                wait_for_client_seconds=0,
+                poll_ms=self._pve_poll_ms,
+                policy=None,  # Resolve saved policy for this exact current character.
+                live=True,
+                as_json=True,
+                evidence_output_path=evidence_output,
+                combat_source="state",
+                stop_signal=stop_signal,
+                client_process_id=self._binding.game_process_id,
+                continuous=True,
+                camp_radius=self._pve_camp_radius,
+                retained_trace_steps=self._pve_retained_trace_steps,
+                progress_sink=publisher,
+                navigation_map=self._navigation_map,
+                movement_dispatcher=movement_dispatcher,
+            )
+        finally:
+            if publisher is not None:
+                publisher.close()
         if stop_signal.is_set():
             return WorkerOperationExecution(
                 WorkerOperationState.CANCELLED,
