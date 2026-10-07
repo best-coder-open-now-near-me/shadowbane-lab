@@ -7,17 +7,19 @@
 `b8654f07888ecd28b329d8c5848fb39cd0738c00` and targets `main` with that dependency.
 The [startup policy](client-desktop-fullscreen.md) preserves the desktop display
 mode and separates fullscreen presentation from the client's exclusive mode.
-The standalone native launcher and Windows CI workflow are implemented. The
-packaging script and all three native/CLI test groups pass, including atomic
-preference updates and physical window identity checks. Read-only inspection
-rejects the currently running exclusive-mode client as intended. No runtime has
-been installed; the next step is a live launch after the user closes that client,
-then mouse/Alt-Tab/Discord acceptance. The existing bootstrap checkout remains on
-`codex/magicbane-runtime-pairing`; the normal project checkout remains on `main`.
-Implementation `fe500a7c2ae2f467b57933464a6cf97a5830f8e0` is published in
-[draft PR #100](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/100).
-Hosted launcher validation uses the VS 2022 runner. This branch is not merged or
-live-qualified yet; retain its worktree for the pending acceptance check.
+The standalone native launcher is installed and live-verified at source
+`f665f106a72b29e69fbd7a489b6562271cc09925`; implementation is
+`fe500a7c2ae2f467b57933464a6cf97a5830f8e0`. All 17 hosted checks passed at that
+source revision. The first launch verified a 1920x1080 physical client area with
+all three desktop modes unchanged; other preferences and client assets were
+preserved. The user accepted the live result. The existing launch entry now uses
+the new launcher; see the startup document for exact binary identity and limits.
+
+[PR #100](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/100)
+is ready for review, not merged. Next: review/integrate dependency #96, then #100
+into `main`; retain the task worktree until integration. No startup implementation
+todo remains. The bootstrap checkout remains on `codex/magicbane-runtime-pairing`,
+and the normal project checkout remains clean on `main`.
 
 ## Independent client baseline - October 7
 

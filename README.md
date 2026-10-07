@@ -10,6 +10,9 @@ records the exact files, API ownership and unverified server pairing. The own-se
 pivot puts further client-circumvention harness development on hold; historical
 bot-runtime status below remains evidence, not the new server's prerequisite list.
 
+[Automatic desktop fullscreen](docs/client-desktop-fullscreen.md) documents the
+installed native launcher, preserved settings and verified live startup.
+
 ## Finding the current code
 
 Start from freshly fetched `origin/main`; the [branch map](docs/git-branch-map.md)

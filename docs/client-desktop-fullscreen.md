@@ -76,6 +76,32 @@ Read-only preflight matched the current client markers and correctly rejected a
 second launch; primary current mode was 800x600 while configured desktop was
 1920x1080, with two other 1920x1080 monitors unchanged.
 
-Active next: one live launch after the existing game closes, then verify mouse
-alignment, Alt-Tab/Discord behavior and reconnect. No client or shortcut has been
-changed yet; marker checks do not qualify the entire game/server pairing.
+## Installed and verified - October 7
+
+The Release launcher from source `f665f106a72b29e69fbd7a489b6562271cc09925`
+(implementation `fe500a7c2ae2f467b57933464a6cf97a5830f8e0`) is installed beside the
+local client. Its SHA-256 is
+`f940a2469cc4fbafba4cae8af25152b849164bf7e92015647d00a321cc670f74`.
+The existing `Play-ShadowbaneLocal.cmd` now starts `ShadowbaneLauncher.exe`.
+Use that entry for future starts; launching `sb.exe` directly bypasses placement.
+
+The first live start returned `desktop_fullscreen_ready`: the physical client
+area and borderless frame matched 1920x1080, DPI awareness was active, and all
+three monitor modes/positions remained unchanged. A subsequent inspection
+confirmed the desktop was still unchanged. The executable/cache hashes matched,
+only `ArcanePref.cfg` changed among configuration files, and all non-display
+preference bytes were preserved. No rollback copy was created.
+
+The user responded positively to the live display/input/Alt-Tab acceptance prompt.
+This is acceptance of the observed startup, not qualification of every DPI or
+monitor arrangement or the entire game/server pairing. The earlier client had
+stalled while exiting; its exact process was cleared after the user closed it.
+The launcher itself never terminates an existing client.
+
+All 17 hosted checks passed at the installed source revision, including both
+launcher jobs. Private installation and live receipts are retained under
+`artifacts/magicbane-local-runtime/desktop-fullscreen-20261007/`; no client assets,
+settings contents or private captures are published. Source and reproduction
+instructions are in [PR #100](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/100).
+Next: review and integrate the baseline dependency #96, then #100 into `main`.
+The task worktree remains for that review; no startup implementation todo remains.
