@@ -453,6 +453,10 @@ class PvERunner:
                     if decision.terminal:
                         terminal = decision
                         break
+                    if update.owner_closed:
+                        terminal = self._controller.stop("actor_owner_closed", now_ms=now_ms)
+                        record(self._trace(terminal, observation=observation))
+                        break
                     arrival_pending = arrival_approach = None
                     if self._approach_controller is not None:
                         self._approach_controller.cancel("combat_cleanup_confirmed")
@@ -665,6 +669,10 @@ class PvERunner:
                     if not update.confirmed:
                         terminal = (recovery if recovery.terminal else self._controller.stop(
                             "combat_cleanup_unconfirmed", now_ms=now_ms))
+                        break
+                    if update.owner_closed and not recovery.terminal:
+                        terminal = self._controller.stop("actor_owner_closed", now_ms=now_ms)
+                        record(self._trace(terminal, observation=observation))
                         break
                 if recovery.terminal:
                     terminal = recovery
