@@ -9,9 +9,9 @@ WonderBane host .75/native .52 and must not replace its x86 runtime.
 Version 0.1.2 adds object-local movement and same-character doorway continuity.
 All four local suites pass, including 8,640 native parent-transform direction
 checks, camera regressions, queue erases, and entry/exit/release ownership cases.
-The build is ready; installation awaits client exit, then live interior and
-boundary-crossing acceptance. The installed receipt below still describes 0.1.1
-until that replacement completes.
+Version 0.1.2 is installed after confirmed client exit, with both installed
+file hashes verified against the tested build. Next: attach in the new Steam
+session and complete live interior/boundary-crossing acceptance.
 
 ### Accepted 0.1.1 camera baseline
 
@@ -106,8 +106,8 @@ patched on disk, and the launcher never terminates the game.
 ## Local installation receipt
 
 Current candidate: `E:\Projects\shadowbane\artifacts\steam-wasd\runtime`.
-Exact runtime source: `60f7305514d3b01784a5954c9f5c69b71d1b7057` (0.1.1).
-DLL SHA-256: `445a3c4ae2cc8b220ab6ed75197c5838a61a9b1c9d305cd3390626b35450fcbd`.
+Exact runtime source: `b7d7534621fbfe3c3c4a39b3209464be1f22594d` (0.1.2).
+DLL SHA-256: `e18a0e8ff91e0997f58f7a9934f12700515e0f4d80019e9b51b3b265818c01ff`.
 The local `receipt.json` records the full source and launcher hash. No Steam files
 or settings were replaced and no rollback deployment was retained. Private live
 status evidence is in the worktree's `artifacts/steam-wasd/live-status.log`.
