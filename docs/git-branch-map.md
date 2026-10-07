@@ -1,5 +1,16 @@
 # Git branch map
 
+## Character transfer capture - October 7
+
+`codex/character-transfer-capture` owns an isolated managed worktree and targets
+`main`. It adds the read-only single-character capture launcher and versioned
+native JSON plus guided equipment/rune/attribute screenshot evidence. It changes
+no runtime or server database. Source remains outside main pending PR review.
+See [capture instructions and acceptance limits](character-transfer-capture.md).
+Next: capture one logged-in character, review/transcribe the missing gear/build
+fields, then implement the destination mapping/import against the server model.
+
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from
