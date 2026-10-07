@@ -14,8 +14,9 @@ process ancestry/lifetime establish the exact stop address. Explicit replacement
 requests wait for predecessor exit and are cancelled by pause, detach or binding
 change; this does not automatically restart arbitrary failed workers.
 
-This source lane targets `main` through its own reviewed PR. Runtime installation
-and game validation remain separate; no native DLL or gameplay change is included.
+PR #76 targets `main`; candidate host .73 retains native .51 unchanged. Runtime
+installation and game validation remain separate; no native DLL or gameplay
+change is included.
 Next: independent review and hosted checks, then integrate and qualify the host.
 
 ## Active native client admission repair - October 7
