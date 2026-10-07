@@ -4,6 +4,22 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Actor cleanup ownership - October 7
+
+The focused branch `codex/actor-cleanup-ownership-20261007` in
+bot-command-ownership starts from `origin/main` at `f2ea801` and targets `main`.
+It fixes child cleanup blocked by a separate parent-owned local action: an exact
+pending child reply escalates to one immutable aggregate owner stop within the
+original cleanup budget. Positive owner closure remains owner-scoped and ends
+ordinary or listed combat; it does not authorize another action, prove a buff
+applied, or clear remote application uncertainty. Ordinary child closure retains
+its parent, and remote application pending alone never triggers escalation.
+
+Focused validation: 328 tests and Ruff pass; independent review passed with 106
+targeted tests. Integration is pending; no runtime installation or live cleanup
+success is claimed. Native
+diagnostic work remains separate in `codex/potion-application-diagnostics-20261007`.
+
 ## Registry observation churn handling - October 7
 
 New work starts from `origin/main` at `1ee3d6b`, including merged PR #76's

@@ -143,6 +143,8 @@ class ListedCombatCoordinator:
                 if not confirmed:
                     self._cleanup_attempts += 1
                     return self._update("listed_previous_cleanup_pending", receipt, detail)
+                if receipt is not None and receipt.owner_phase in (Phase.CLOSED, Phase.RETIRED):
+                    return self._cancel_complete(True, receipt, detail, "listed_target_interrupt")
             candidate = self._candidate
             self._sequence += 1
             self._proposal = PvECombatProposal(
