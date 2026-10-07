@@ -2,6 +2,14 @@
 
 Navigation diagnostics: [inspector usage, review branch and acceptance status](docs/navigation-inspector.md).
 
+## Own-server bootstrap
+
+[Verified MagicBox source/data pairing and remaining startup checks](docs/magicbane-bootstrap.md)
+records the exact embedded source, successful Java compilation and the missing
+inputs that prevent substituting newer source into the historical public image.
+The pinned local login/world server now passes startup and restart checks.
+Wonderbane login, character creation and persistence remain to be verified.
+
 ## Finding the current code
 
 Start from freshly fetched `origin/main`; the [branch map](docs/git-branch-map.md)
