@@ -209,3 +209,28 @@ migration is justified from native object class numbers alone. The local old
 server already loads a client character. Resolve wire tags versus constructed
 native class identities before changing the 435 enum-related use sites or stored
 heraldry types.
+
+## Post-promotion content gap
+
+The [next inventory checkpoint](../research/client-models/promotion-content-gaps-20261007.json)
+contains 39 templates across 76 distinct item instances. All templates resolve in
+client CObjects, but six have no `static_itembase` row in the paired server SQL:
+
+| Template | Client definition |
+| --- | --- |
+| 8176490 | Shinobi Sleeves |
+| 8176500 | Shinobi Vest |
+| 8176510 | Shinobi Leggings |
+| 8176520 | Shinobi Boots |
+| 8176530 | Shinobi Helm |
+| 8176540 | Shinobi Gloves |
+
+Two Balanced Dagger instances (25860) also appeared; that template exists on both
+sides. The native zone chain recorded All-Father's Rest (10067), then Uthgaard
+(130) and Grimstaark Peaks (3031). Promotion, dagger training and the trade were
+reported by the user; these readers do not independently establish learned-skill
+changes or the provenance of an item transfer. The Shinobi items were subsequently
+no longer observed; that alone does not establish sale, destruction or ownership
+transfer. Next: decode their authoritative definition fields and determine the
+intended server content before adding rows. Do not substitute nearby armor IDs
+or invent gameplay stats from item names.
