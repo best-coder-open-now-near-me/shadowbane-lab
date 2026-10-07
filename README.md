@@ -4,41 +4,21 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 
 ## Finding the current code
 
-Start new work from freshly fetched `origin/main`; PR #63's installation record
-is integrated at `6373cfd6aff4bb6fd39c57e3c654297f435f21f4`. Installed host **0.3.66** / native
-**1.8.46** use qualified source `9e1a77ae9e763a65bfc7f39587c30b3f46c39c4b`
-with official client **1.3.38.13**.
+Start from freshly fetched `origin/main`; the [branch map](docs/git-branch-map.md)
+records active source ownership and exact delivery receipts. Installed host **.74**
+and native **.51** use the reviewed official/prepared **1.3.38.14** executable,
+with the October 7 official data-only cache update. Settings and jobs are preserved.
 
-[PR #62](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/62)
-merged at 14:11:08 UTC on October 2 after required checks. The user gave standing
-approval for routine bot merges/installations after validation and review; see
-[delivery instructions](AGENTS.md). This does not waive validation.
+The combined **.75/.52 candidate** incorporates reviewed PR #80's aggregate cleanup
+repair and PR #79's optional potion-response diagnostic stream. It is undergoing
+exact-source qualification; no candidate deployment is claimed. Diagnostics do
+not supply application authority or change combat admission.
 
-The release preserves legitimate pending buff actions while correlated native
-status replies continue, and distinguishes a complete inventory with no eligible
-potion from an unknown census. Five qualified inventory classes can be traversed;
-only the exact plain-item potion operand is actionable. Installation verified
-463 modules, 9,576 preserved files, one DLL inventory change, healthy manager
-activation, five shortcuts and startup preflight. Obsolete .65/.45 runtime and
-payload files were removed without rollback copies. Settings, jobs and evidence
-remain in place.
-
-The .66 bounded NPC/buff test now **passes**: exact native NPC death, correlated
-combat cleanup, continuing parent preparation and all five requested buff groups.
-Potion use and coverage were independently observed in the preceding run. Missing
-Beorc and the eligible alternate Skree transform were applied in the passing run;
-already-present potion, Precision and Defensive effects were not resubmitted.
-Umbra's automatic buff settings are saved at revision 2 with her opener preserved.
-**Active next item:** action-specific potion overlap qualification, then sustained
-expiry/reuse cycles. Automatic retaliation remains disabled. See the
-[live acceptance record](docs/buff-live-acceptance-20261002.md).
-
-The live-evidence lane is `codex/buff-live-acceptance-20261002` in the existing
-integration worktree. Read the [branch map](docs/git-branch-map.md) before selecting
-a development base and the [contributor workflow](CONTRIBUTING.md) before starting
-a new task. The [session-boundary audit](docs/retaliation-session-boundary-20261001.md)
-records remaining retaliation attribution guarantees. Earlier lanes remain in the
-[integration inventory](docs/integration-status-20260923.md).
+The latest authorized Praeda test passed one native ATTACK queue/cancel, exact
+child cleanup, later SEEKING and parent release. This does not prove server damage
+or sustained buff renewal. Missing potion application and sustained renewal remain
+active work; automatic retaliation stays disabled. Routine reviewed bot merges and
+installations have standing authorization under [AGENTS.md](AGENTS.md).
 
 `shadowbane-lab` is a deterministic simulation and bot-policy laboratory. It treats
 Shadowbane as a data-driven ruleset and keeps deployment mechanisms outside the policy.

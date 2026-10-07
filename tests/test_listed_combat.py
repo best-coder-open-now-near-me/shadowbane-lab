@@ -489,6 +489,20 @@ def test_actual_scene_retirement_terminates_instead_of_resuming(encounter):
     assert not update.recovered and not encounter.combat.active
 
 
+def test_previous_npc_aggregate_close_cannot_start_listed_context(encounter):
+    command = encounter.owner._command()
+    receipt = actor_reply(command, Verb.STOP_OWNER).receipt
+    stop = Mock(return_value=(True, receipt, None))
+    advance = Mock(side_effect=AssertionError("closed owner cannot admit a listed action"))
+    encounter.coordinator.combat = SimpleNamespace(active=True, stop=stop, advance=advance)
+    assert encounter.coordinator.prepare(frame(), None)
+    update = encounter.coordinator.advance(frame())
+    assert update.terminal_reason == "listed_actor_owner_closed" and not update.recovered
+    assert update.receipt is receipt and not encounter.coordinator.active
+    stop.assert_called_once_with("listed_target_interrupt")
+    advance.assert_not_called()
+
+
 def test_prepare_failure_discards_unadmitted_candidate(encounter):
     assert encounter.coordinator.prepare(frame(), None)
     encounter.current.failure = True

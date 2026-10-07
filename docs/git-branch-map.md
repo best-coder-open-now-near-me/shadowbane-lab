@@ -4,16 +4,26 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Optional potion diagnostics - October 7
+## Combined .75/.52 release candidate - October 7
 
-`codex/potion-application-diagnostics-20261007` in bot-runtime targets `main`
-through PR #79 and includes current main `b313a63` (merged deployment PR #77).
-It adds optional native item/power observations without changing the installed
-host .74/native .51 or their receipts. See [the diagnostic boundary](item-application-diagnostics-20261007.md).
-The native slice passes nine focused CTests and eight real decoder cases on each
-original/prepared .14 image. The read-only exporter and mandatory package gates
-passed independent review and 607 related tests. Release qualification and native
-installation remain separate from this source PR.
+`codex/combined-buff-diagnostics-release-20261007` in bot-runtime combines
+reviewed PR #79 (`64ef3be`) and PR #80 (`d52e525`), both including main
+`b313a63`. This is the single integration candidate for host .75/native .52.
+The source PRs remain published until the combined PR is merged and their tips
+are verified reachable. No candidate installation has occurred.
+
+The host repair escalates child cleanup blocked by a retained parent-local action
+to one exact aggregate stop within the original cleanup budget. Confirmed owner
+closure ends ordinary/listed combat; remote application uncertainty is retained.
+The optional native diagnostic stream records owned item returns and copied
+incoming item/power boundaries without altering admission or application authority.
+See [the diagnostic boundary](item-application-diagnostics-20261007.md).
+
+Independent slice validation passed 328 cleanup tests (106 reviewer tests), nine
+native diagnostic CTests, eight decoder cases per original/prepared .14 image,
+and 607 related Python tests. The combined candidate passed 713 targeted tests,
+23 release-identity tests and Ruff. Exact-source full and diagnostics-only package
+qualification is next; deployment remains separate.
 
 ## Active .74 host and official data-patch closeout - October 7
 
@@ -45,10 +55,16 @@ failure receipt. Fresh launch succeeded with PID 1612, creation
 `134358364309881895`, HWND 4063778; host .74, native .51 and executable .14
 remain unchanged. Finalization receipt is `052a48aafe2480b0c2a5213f4e17674fcd19441f0d2fa2455f1fbf313f359628`.
 
-**Current next todo:** resolve the unconfirmed cleanup before further gameplay;
-login and fresh in-world readiness also remain required. The source repair lane
-is `codex/actor-cleanup-ownership-20261007` in bot-command-ownership; potion
-response diagnostics remain separate in bot-runtime.
+A later authorized .74/.51 player run `7aae5857276148ebae0877ae58a352b3`
+passed one ATTACK queue/cancel against exact Praeda: native action target matched
+while UI selection differed, child NATIVE_STOPPED, later SEEKING, parent
+LOCAL_RELEASED and no errors/watchdog/unexpected stop. The owned list entry was
+removed. This is bounded queue/cancel recovery evidence, not server damage proof
+or validation of the pending cleanup repair and potion observer.
+
+**Current next todo:** qualify the combined .75/.52 candidate, review its exact
+package and complete the authorized installation. Sustained buff renewal and
+missing potion-application diagnosis remain unproven; retaliation stays disabled.
 See the [deployment record](client-update-20261004.md).
 
 ## Merged registry observation churn handling - October 7
