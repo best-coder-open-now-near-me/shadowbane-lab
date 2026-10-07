@@ -1,8 +1,23 @@
 # Git branch map
 
+## Initial preparation capture recovery - October 7
+
+`codex/preparation-registration-recovery-20261007` in bot-integration starts at
+PR #91 head `0a8c75f` without modifying that branch or its qualified artifacts.
+A correlated initial selector-registration UNAVAILABLE response now leaves buff
+coverage unknown and retries the same read-only command. It cannot open an owner
+or submit a buff from cached evidence, and does not make buff availability a PvE
+startup prerequisite. Invalid identity and incompatible pending-manifest refusals
+still fail closed. Offline tests cover later recovery, imported potion history
+and ordinary NPC progress; this is not a diagnosed cause of the prior live stall.
+The isolated slice passed 182 related tests and independent review with 101
+focused tests. It awaits a separate draft PR targeting `main`; it is not merged
+or deployed. Next: review and qualify a later release after current host .77
+validation; its existing package pins remain unchanged.
+
 ## Context cleanup progress - October 7
 
-`codex/context-cleanup-progress-20261007` in bot-integration starts from
+`codex/context-cleanup-progress-20261007` starts from
 main `7770df3` and now includes main `7235c16` after PR #90 merged. It targets
 `main` through PR #91. This host .77 source candidate keeps native
 .53 unchanged. It finishes an already-started context stop within the original

@@ -792,6 +792,12 @@ class NativeActorCoordinator:
                 None, Verb.REGISTER_SELECTORS, self._register_command
             )
             result.receipt.require_command(self._register_command, Verb.REGISTER_SELECTORS)
+            if result.receipt.outcome is Outcome.UNAVAILABLE:
+                # Registration also captures native facts. Its manifest may be
+                # accepted while that capture is unavailable. Retry only this
+                # immutable read request; neither cached coverage nor action
+                # admission follows until registration and a fresh read succeed.
+                return None
             if result.receipt.outcome is not Outcome.OBSERVED:
                 raise native.PublicationError("native selector registration unconfirmed")
             self._registered = True
