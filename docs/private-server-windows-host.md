@@ -1,0 +1,118 @@
+# Private Windows host preparation - October 7, 2026
+
+This checkpoint prepares the destination independently from the existing game
+server. It does not migrate characters or enable remote players. Follow the
+[handoff](https://github.com/best-coder-open-now-near-me/shadowbane-lab/blob/245f7d911a0bbb29022b96da1382b27ed9d3a01c/docs/handoffs/private-server-pc-20261007.md)
+and [deployment policy](deployment-policy.md). Keep original user data until the
+destination is verified and source retirement is authorized.
+
+## Source and build
+
+Base deployment: lab `30e66d57133479e399bedf443185dd52f0e3c427`.
+Server: `65952a25afe3fc86cb4cf23a5ff375d1b2f854b5`, including credential-safe
+logging; complete tree `173a4699d597b8cf0e4bec933b669545839d55ea`.
+The MagicBox image digest, seed SQL and all eight application libraries remain
+pinned to the qualified pair.
+
+Use an independent clean server checkout at that exact commit. From the lab root:
+
+```powershell
+./deploy/magicbane/prepare-source.ps1 -SourceRepository <server-checkout> -OutputDirectory <private-build-input-directory>
+```
+
+The helper creates an incremental Git bundle requiring original server commit
+`bafb48fe14e5356a64137954cf2d79205835a204`. It contains the two published
+commits, not a modified export or a copy of a running deployment. Recreate it
+from committed source when needed. Do not commit the bundle, credentials or
+runtime data to the lab.
+
+Add `SHADOWBANE_SERVER_SOURCE_CONTEXT=<private-build-input-directory>` to the
+private env file described in [the bootstrap guide](magicbane-bootstrap.md).
+The image build verifies its embedded base, bundle head, complete tree, seed
+SQL and dependency hashes before compiling with networking disabled. It checks
+821 Java sources / 970 class files and runs a synthetic credential test that
+verifies value preservation, missing-key rejection and absence of values in logs.
+It never invokes the upstream mutable build/entrypoint scripts.
+
+The image is `shadowbane-private:65952a25`; its OCI revision and
+`/opt/shadowbane/build-receipt.txt` record the installed source. Record the actual
+image identity and JAR hash from each build. Build timestamps can change JAR
+bytes; a revision tag alone is not an installed-image receipt.
+
+## Host and resource bounds
+
+Inspect Windows, virtualization, WSL and Docker compatibility before installing.
+Keep machine identities, installed-version inventory and private paths in local
+receipts outside source control.
+
+Allocate enough WSL memory for the container while reserving memory for Windows.
+Compose caps the server at 5 GiB, four CPUs and 512 PIDs. Login Java uses
+128 MiB initial / 512 MiB maximum heap; world Java uses 512 MiB / 2 GiB.
+These are initial small-server bounds, not a player-capacity guarantee.
+Real remote gameplay and sustained load validation remain required.
+
+## Private networking
+
+Install Tailscale, sign in and use unattended mode for hosting. Keep incoming
+connections blocked with `shields-up` until policies are verified. Do not enable
+subnet routes, an exit node, Tailscale SSH or Funnel for the game service.
+
+Local Compose still publishes exactly TCP 6000/8000 on 127.0.0.1.
+The optional `compose.tailscale.yaml` replaces the ports using `!override`,
+requiring Compose 2.24.4 or newer. Obtain `TAILSCALE_IPV4` from this host's
+`tailscale ip -4`; never use a sample address. The override sets the advertised
+world address to that same IPv4. Validate before starting:
+
+```powershell
+docker compose --env-file <private-env-file> -f deploy/magicbane/compose.yaml -f deploy/magicbane/compose.tailscale.yaml config
+```
+
+The resolved config must contain only the intended VPN IPv4 and TCP 6000/8000,
+with no database/debug/admin publication. Configure Windows Firewall and
+Tailscale policy for the intended users/devices and these ports before removing
+shields-up or launching remote mode. Audit existing allow-all ACLs/grants:
+adding a restrictive rule does not remove existing broader access.
+
+Share this server device with the friend, not broad membership in the user's
+network. Consult current [Tailscale sharing guidance](https://tailscale.com/docs/features/sharing).
+An actual remote login, world entry and failed access to an unrelated port are
+mandatory. Local socket tests do not establish this isolation.
+
+## Destination validation and cutover
+
+A temporary loopback test used the fixed image with no named game-data volumes.
+The seed boot reached healthy with 125 base tables, eight views, 179 heightmaps
+and about 2.1 GiB memory during startup. TCP 6000/8000 were reachable locally;
+3306 and 5000 were not. The new database secret was absent from collected logs.
+A clean restart returned to healthy with the same schema and about 1.9 GiB memory.
+The four pre-existing NPC-slot content errors (15551, 15895, 16056, 31969)
+remain. This is bootstrap qualification only, not real character persistence.
+
+Before replacing the original host:
+
+1. Finish policy review and obtain the actual client/source device identities.
+2. Agree on a source cutover window. Stop game writes and shut down login/world
+   and MySQL cleanly using the existing source runtime procedure.
+3. Privately transfer a consistent set of the actual database, world-data and log
+   volumes (`shadowbane-local-database`, `shadowbane-local-world-data`,
+   `shadowbane-local-logs`), preserving numeric ownership and settings. Record
+   transfer hashes and private row-count/state receipts. Logs may contain old
+   passwords: never publish them or put them in a friend package.
+4. Populate previously empty destination volumes with the transfer, not the seed.
+   Use the independently generated destination service-account secret; startup
+   provisions that account. Preserve the source world name and other settings.
+   Do not overwrite any populated destination volume without inspecting it.
+5. Verify transferred hashes/state, login with an existing account, load the
+   existing character/inventory/location, save, restart cleanly and reconnect.
+   Complete remote world-entry and blocked-port checks and observe stability.
+6. Retire the source only after destination acceptance and explicit authorization.
+   Remove completed transfer staging when verified; retain no rollback runtimes
+   or deployment archives. Preserve original user data and private diagnostics.
+
+If the source resumes accepting changes after export, that transfer is stale;
+do not declare cutover complete. Do not run volume pruning or factory reset.
+
+The matching client can use `Config/ArcaneIP.cfg` with `SERVER= <VPN IPv4>`
+and `PORT= 6000`, launching `sb.exe` directly. Preserve user settings; verify the
+full official client hash and manifest before deployment. Additional launcher
+server-menu entries have not been qualified by this checkpoint.

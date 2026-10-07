@@ -1,0 +1,9 @@
+# Explicit remote mode; set TAILSCALE_IPV4 from this host's tailscale ip -4.
+# Audit tailnet grants and host firewall before disabling shields-up.
+services:
+  server:
+    environment:
+      SERVER_EXTERNAL_ADDRESS: ${TAILSCALE_IPV4:?Set the actual server Tailscale IPv4}
+    ports: !override
+      - "${TAILSCALE_IPV4:?Set the actual server Tailscale IPv4}:6000:6000"
+      - "${TAILSCALE_IPV4:?Set the actual server Tailscale IPv4}:8000:8000"

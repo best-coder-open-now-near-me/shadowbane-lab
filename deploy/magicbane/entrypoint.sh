@@ -62,10 +62,10 @@ export CLASSPATH='/usr/share/java/*:build/bin/magicbane.jar'
 [[ -n "$MB_BIND_ADDR" ]] || { echo "Container address unavailable" >&2; exit 4; }
 [[ -f "mb.data/$MB_WORLD_NAME.pop" ]] || printf '0\n' > "mb.data/$MB_WORLD_NAME.pop"
 
-java -server -Djava.awt.headless=true -cp "$CLASSPATH" engine.server.login.LoginServer &
+java -server -Xms128m -Xmx512m -Djava.awt.headless=true -cp "$CLASSPATH" engine.server.login.LoginServer &
 login_pid=$!
 printf '%s\n' "$login_pid" > /tmp/shadowbane-login.pid
-java -server -Djava.awt.headless=true -cp "$CLASSPATH" engine.server.world.WorldServer &
+java -server -Xms512m -Xmx2048m -Djava.awt.headless=true -cp "$CLASSPATH" engine.server.world.WorldServer &
 world_pid=$!
 printf '%s\n' "$world_pid" > /tmp/shadowbane-world.pid
 

@@ -1,11 +1,16 @@
 name: shadowbane-local
 services:
   server:
-    image: shadowbane-local:bafb48fe
+    image: shadowbane-private:65952a25
     build:
       context: .
+      additional_contexts:
+        server-source: ${SHADOWBANE_SERVER_SOURCE_CONTEXT:?Set the verified source bundle directory}
     restart: "no"
     init: true
+    mem_limit: 5g
+    cpus: 4
+    pids_limit: 512
     stop_grace_period: 60s
     environment:
       SERVER_WORLD_NAME: ${SERVER_WORLD_NAME:-ShadowbaneLocal}
