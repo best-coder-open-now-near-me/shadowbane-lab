@@ -624,6 +624,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             poll_seconds=arguments.poll_seconds,
             as_json=arguments.json,
         )
+    if arguments.command == "client" and arguments.client_command == "inspect-distribution":
+        return _client_inspection_commands.inspect_distribution_command(
+            arguments.directory, variant=arguments.variant, as_json=arguments.json,
+        )
     if arguments.command == "client" and arguments.client_command == "validate-profile":
         return _validate_profile(arguments.profile, as_json=arguments.json)
     if arguments.command == "client" and arguments.client_command == "inspect-hotkeys":
