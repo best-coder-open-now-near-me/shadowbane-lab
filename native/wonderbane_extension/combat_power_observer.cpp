@@ -284,6 +284,7 @@ Scope::Scope(const Context& c) noexcept : context_(c), previous_(active) {
     SetLastError(error);
 }
 Scope::~Scope() { (void)Finish(); }
+void Scope::PublishObservation() noexcept { detail::Observer::Publish(*this); }
 bool Scope::CanEnter() const noexcept {
     return !receipt_.native_entered && Current();
 }

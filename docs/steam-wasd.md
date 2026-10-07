@@ -18,12 +18,14 @@ auto-track/orbit changes and removes the yaw/character-heading assumption. All
 three local suites pass: 2,160 camera combinations, 216 rays compared against
 native Steam unprojection, 12,800 native queue erases, and input-boundary tests.
 The correction is installed from source `60f7305` after the client exited.
-The updated DLL is now attached and enabled in a fresh Steam session; exact
-package identity, live frame heartbeat and fault-free startup passed.
-Next: retest camera-relative W/A/S/D
-with auto-track on and off, plus release/chat/focus behavior.
+The updated DLL is attached and enabled in a fresh Steam session. The user
+responded "perfect" to the explicit W/A/S/D, auto-track on/off, and release-stop
+check. Post-test status recorded 265 move calls, 22 stop completions, idle state 5,
+no retained movement owner, and no native fault. Camera direction and normal key
+release are accepted. Explicit live chat/focus edge cases and final CI/review
+remain; those are not implied by the successful camera test.
 [Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
-targets main; live acceptance is still pending.
+targets main; the remaining edge-case acceptance and review are still pending.
 
 ## Exact client boundary
 
@@ -120,3 +122,8 @@ setting is changed. Parent-local coordinate frames remain outside qualification.
 
 The previously blocked camera-fix commits were pushed successfully. Private
 camera-corrected session evidence is `artifacts/steam-wasd/live-camera-status.log`.
+
+The user also reported improved middle-mouse camera behavior. No native
+middle-mouse camera handler was changed. The existing input hook stops owned WASD
+on middle-button press; any benefit from corrected camera alignment is an
+unverified side effect, not a separately qualified camera feature.

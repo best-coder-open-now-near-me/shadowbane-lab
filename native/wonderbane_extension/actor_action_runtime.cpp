@@ -257,7 +257,7 @@ public:
             &&(!targeted||child_ticket.TryAdmit(child,true)==fence::Result::admitted)){
             const auto submitted=native.Submit(input);result=Converted(submitted);
             // Observation after native return, outside the queue lock. Never application authority.
-            item_trace::OwnedReturn(input,scene,result.outcome,result.entry,result.local,result.history);
+            item_trace::OwnedReturn(input,scene,result.outcome,result.entry,result.local,result.history,&submitted.power_diagnostic);
             if(!targeted&&result.outcome==O::deferred&&result.entry==wire::Entry::never_entered){
                 if(submitted.admission_blocks){(void)publisher.ObserveAdmission(submitted.admission_blocks);}
                 else if(result.reason==wire::Reason::admission_changed){(void)publisher.InvalidateAdmission();}

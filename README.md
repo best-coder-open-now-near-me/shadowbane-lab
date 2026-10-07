@@ -5,20 +5,28 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 ## Finding the current code
 
 Start from freshly fetched `origin/main`; the [branch map](docs/git-branch-map.md)
-records active source ownership and exact delivery receipts. Installed host **.74**
-and native **.51** use the reviewed official/prepared **1.3.38.14** executable,
+records active source ownership and exact delivery receipts. Installed host **.76**
+and native **.53** use the reviewed official/prepared **1.3.38.14** executable,
 with the October 7 official data-only cache update. Settings and jobs are preserved.
 
-The combined **.75/.52 candidate** incorporates reviewed PR #80's aggregate cleanup
-repair and PR #79's optional potion-response diagnostic stream. It is undergoing
-exact-source qualification; no candidate deployment is claimed. Diagnostics do
-not supply application authority or change combat admission.
+PR #87's release is merged, qualified and installed. It adds peace-only direct
+power admission and optional owned-power diagnostics to the existing cleanup and
+potion-response paths. After login and fresh readiness, the .76 production run
+observed three native NPC health-zero results with confirmed child cleanup and
+all five buff groups PRESENT. It still failed when fourth-context admission and
+cleanup remained unconfirmed. Later native-idle readiness does not establish
+that missing cleanup receipt. A host cleanup-liveness repair is the next step;
+sustained refresh remains unproven and concoction coverage was pre-existing.
+Historical .75 evidence and the unresolved Beorc request remain recorded.
+Diagnostics do not supply application authority, and the peace-mode fix does
+not explain the pending Beorc request.
 
-The latest authorized Praeda test passed one native ATTACK queue/cancel, exact
-child cleanup, later SEEKING and parent release. This does not prove server damage
-or sustained buff renewal. Missing potion application and sustained renewal remain
-active work; automatic retaliation stays disabled. Routine reviewed bot merges and
-installations have standing authorization under [AGENTS.md](AGENTS.md).
+The earlier authorized .74 Praeda test passed one native ATTACK queue/cancel,
+exact child cleanup, later SEEKING and parent release. This does not prove server
+damage or sustained buff renewal. B52 now has observed potion coverage and a
+quantity decrement; diagnosis of the pending Beorc action precedes further renewal
+claims. Automatic retaliation stays disabled. Routine reviewed bot
+merges and installations have standing authorization under [AGENTS.md](AGENTS.md).
 
 `shadowbane-lab` is a deterministic simulation and bot-policy laboratory. It treats
 Shadowbane as a data-driven ruleset and keeps deployment mechanisms outside the policy.

@@ -1,44 +1,118 @@
 # Git branch map
 
+## Offline hostile health consumer fixture - October 7
+
+PR #89 from `codex/hostile-health-consumer-probe-20261007` merged at
+`7770df308124cd66dffaebb1e6e8bbc74b83a69a` after all 15 hosted checks passed.
+Its standalone native probe executes exact .14
+constructor/field-transfer and conditional health-update code, with named
+instrumented dependencies. Twenty cases pass on both original and prepared
+images. It adds no runtime hook or automatic response authority. The next work
+is real participant/dispatcher and connection/message/action lifetime
+qualification; see [the evidence limits](hostile-consumer-evidence-20261007.md).
+The probe is separate from the qualified .76/.53 runtime package.
+
 **Deployment policy:** [No retained rollback artifacts](deployment-policy.md).
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
 ## Steam WASD lane - October 7
 
-`codex/steam-wasd` starts at main `acb1ba7`. It targets the x64 Steam client
-only; the x86 bot/runtime lane is unchanged. Profile/input/queue qualification is
-published as source. Runtime source `418bd22` is attached to the user's Steam
-client; basic movement worked but the user found incorrect camera orientation.
-Version 0.1.1 (`60f7305`) replaces the yaw assumption with the rendered camera
-matrix; all local regressions pass and it is installed after client exit.
-The 0.1.1 runtime is attached and enabled in a fresh Steam session with verified
-DLL identity, frame heartbeat and no fault. Camera-corrected live acceptance
-remains pending. Source publication succeeded after the GitHub server outage. [Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
-targets main; it is not merged or qualified for release. See [Steam WASD](steam-wasd.md).
+`codex/steam-wasd` targets the x64 Steam client independently of the x86 runtime.
+Version 0.1.1, exact installed source `60f7305`, uses the rendered camera matrix.
+The user accepted WASD direction and release stopping with auto-track on and off.
+Post-test status showed 265 move calls, 22 stop completions, idle state, no retained
+movement owner and no fault. Source publication succeeded after the GitHub outage.
+[Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
+targets main and includes main `7235c16`. Remaining: explicit chat/focus edge-case
+acceptance and final CI/review; it is not merged. See [Steam WASD](steam-wasd.md).
 
-## Combined .75/.52 release candidate - October 7
+## Installed .76/.53 delivery checkpoint - October 7
 
-`codex/combined-buff-diagnostics-release-20261007` in bot-runtime combines
-reviewed PR #79 (`64ef3be`) and PR #80 (`d52e525`), both including main
-`b313a63`. This is the single integration candidate for host .75/native .52.
-The source PRs remain published until the combined PR is merged and their tips
-are verified reachable. No candidate installation has occurred.
+Start from freshly fetched `origin/main`, including merged PRs #87 and #89.
+The exact qualified release source is `490cba79e7804b27948e182996d8e2bab2d1f050`.
+It includes PR #85 at
+`7c34c9473dcd37ba2b8a929be52c21b60e15a053` and PR #86 at
+`3f578eca873128ed653e3f98b5d5a10d7999b956` by ancestry. All source slices are
+merged. B53 `faf7a2b4` passed 5,140 host tests (38 skips), 116 artifact checks and
+88 stages, both native profiles and all mandatory IPC/actual-image gates.
 
-The host repair escalates child cleanup blocked by a retained parent-local action
-to one exact aggregate stop within the original cleanup budget. Confirmed owner
-closure ends ordinary/listed combat; remote application uncertainty is retained.
-The optional native diagnostic stream records owned item returns and copied
-incoming item/power boundaries without altering admission or application authority.
-See [the diagnostic boundary](item-application-diagnostics-20261007.md).
+Peace-only direct power entry now defers before entering native code when the
+current mode is ineligible. Normal buff publication already enforces this rule;
+this is not an explanation for the unresolved Beorc request. Optional owned-power
+records expose native return, send/append/followup, initiation epoch and copied
+pre-entry metadata without changing action authority or settlement.
 
-Independent slice validation passed 328 cleanup tests (106 reviewer tests), nine
-native diagnostic CTests, eight decoder cases per original/prepared .14 image,
-and 607 related Python tests. The combined candidate passed 713 targeted tests,
-23 release-identity tests and Ruff. Exact-source full and diagnostics-only package
-qualification is next; deployment remains separate.
+`codex/power-diagnostics-deployment-20261007` in bot-command-ownership owns the
+receipt-only delivery checkpoint from main `7770df3`, targeting `main`.
+Installation/activation verified 467 modules, 9,615 retained files, one DLL
+inventory change and healthy manager 5820. Five shortcuts/preflight passed.
+Launch PID 4308, creation `134358592076268529`, HWND 2228630 verified the exact
+DLL. Initial login/loading readiness was unavailable; later in-world readiness
+passed before production run `63ff90fb`. That run remains failed: three native
+health-zero/confirmed child-cleanup results and all five buff groups PRESENT did
+not prevent fourth-context admission/cleanup from remaining unconfirmed through
+187.547 seconds. Concoction was pre-existing; renewal remains unproven. Later
+owner NONE/no pending cleanup does not confirm the missing request receipt.
+Old .75 host and two payloads were removed
+(50,991,883 bytes), followed by four staging files (5,682,766 bytes); no rollback
+runtime was retained. See [the compact receipt record](client-update-20261004.md).
+Source branches remain until a separate ancestry/ownership cleanup; no active
+checkout is retired here. Next: qualify the separately owned host cleanup-liveness
+repair, then resume production and sustained renewal validation. The receipt-doc
+commits are pushed on `codex/power-diagnostics-deployment-20261007` in PR #90,
+awaiting checked integration into `main`.
 
-## Active .74 host and official data-patch closeout - October 7
+## Historical .75/.52 deployment closeout - October 7
+
+Start from freshly fetched `origin/main`, now
+`a84f010a752d91f61aa4366921729f3af3dc8074` after PRs #83 and #84 merged the deployment
+and provenance records. PR #81 integrated the combined release.
+Exact source `733b5fecb862c6d9421b8c2d20f8b8aee5c6db18` is installed
+as host .75/native .52; .14 executable and official cache `08c115…` remain unchanged.
+The release includes reviewed cleanup ownership repair and optional item-response
+diagnostics. Their source branches remain retained pending safe branch cleanup;
+no current checkout is repurposed by this documentation task.
+
+Package B52 independently verified 116 artifacts/88 stages, 5,120 host tests
+(39 skips), 231 native tests/133 required gates per profile and 74/86/146
+movement/combat/actor IPC cases per profile. Apply/activation verified 467
+modules, 9,607 preserved files, one DLL inventory change and healthy manager 8100;
+all five shortcuts passed. Old .74 host/payload retirement removed 50,950,003
+bytes, then five obsolete staging binaries removed 7,352,316 bytes. No rollback
+runtime was retained; settings/jobs/journals and evidence remain intact.
+
+Fresh launch PID 8436, creation `134358520489522692`, HWND 2556262 passed passive
+in-world readiness with alive player, owner NONE, no pending cleanup and scene 1.
+The initial passive preflight found zero eligible NPCs in the captured population
+and sent no actions. After NPCs became available, first run `6a579490` remained
+not passed at its 30-second bound (NPC health unchanged); all five buff groups
+were natively PRESENT by 28.406 seconds, with potion quantity 4 to 3. Its ordered
+events prove child NATIVE_STOPPED and parent LOCAL_RELEASED despite a stale
+cleanup summary field. Second run `780510c5` passed: NPC `23886/37` health
+800 to zero at 9.016 seconds, confirmed child/parent cleanup, zero membership
+and no errors/watchdog/interruption. Subsequent readiness was clean. This does
+not prove sustained refresh, server kill credit or live parent-blocked escalation
+in those two bounded runs. Later production run `219d5fc6` failed with
+`combat_acknowledgment_timeout` at 124.484 seconds, while Beorc remained uncertain
+and locally pending. Its exact target cleanup was confirmed with `owner_closed=true`;
+subsequent passive readiness showed owner NONE and no pending cleanup. This
+exercises aggregate owner closure live, without establishing why Beorc remained
+pending or proving buff renewal.
+The previous .74 Praeda run remains bounded native queue/cancel evidence.
+See the [deployment record](client-update-20261004.md) for original receipt hashes.
+
+PR #83 and included PR #82 are merged. Their source branches remain retained
+pending safe retirement; bot-integration remains available to its active owner.
+PR #84 on `codex/hostile-consumer-evidence-20261007` in bot-command-ownership adds
+[concrete native consumer evidence](hostile-consumer-evidence-20261007.md), targeting
+main with no runtime changes. Automatic retaliation stays disabled. The next PvP
+source item is exact consumer and connection/message/action lifetime qualification,
+not a partial authority hook or a blanket server-documentation prerequisite.
+**Current next todo:** diagnose the pending Beorc action from production run
+`219d5fc6` before claiming sustained renewal; preserve the confirmed cleanup result.
+
+## Historical .74 host and official data-patch closeout - October 7
 
 Start from freshly fetched `origin/main`, now
 `b313a63` after deployment records in PR #77 merged; PR #78 previously
@@ -75,9 +149,9 @@ LOCAL_RELEASED and no errors/watchdog/unexpected stop. The owned list entry was
 removed. This is bounded queue/cancel recovery evidence, not server damage proof
 or validation of the pending cleanup repair and potion observer.
 
-**Current next todo:** qualify the combined .75/.52 candidate, review its exact
-package and complete the authorized installation. Sustained buff renewal and
-missing potion-application diagnosis remain unproven; retaliation stays disabled.
+Qualification and installation listed as next at this checkpoint are complete
+in B52 above. Sustained buff renewal and missing potion-application diagnosis
+remain unproven; retaliation stays disabled.
 See the [deployment record](client-update-20261004.md).
 
 ## Merged registry observation churn handling - October 7

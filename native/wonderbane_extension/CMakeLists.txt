@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.52 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.53 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -1557,6 +1557,14 @@ if(BUILD_TESTING)
   target_compile_options(wonderbane_extension_combat_power_readiness_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   target_link_libraries(wonderbane_extension_combat_power_readiness_probe PRIVATE bcrypt)
   set_property(TARGET wonderbane_extension_combat_power_readiness_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  # Private exact-image conformance; never linked into the runtime DLL.
+  add_executable(wonderbane_extension_hostile_health_consumer_probe EXCLUDE_FROM_ALL hostile_health_consumer_probe.cpp)
+  target_compile_features(wonderbane_extension_hostile_health_consumer_probe PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_hostile_health_consumer_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_hostile_health_consumer_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_hostile_health_consumer_probe PRIVATE bcrypt)
+  set_property(TARGET wonderbane_extension_hostile_health_consumer_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+
   add_executable(wonderbane_extension_combat_power_mode_probe EXCLUDE_FROM_ALL combat_power_mode_probe.cpp)
   target_compile_features(wonderbane_extension_combat_power_mode_probe PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_combat_power_mode_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
