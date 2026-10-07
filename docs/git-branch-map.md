@@ -1,5 +1,17 @@
 # Git branch map
 
+## Offline participant and dispatcher qualification - October 7
+
+`codex/hostile-participant-dispatch-20261007` in bot-runtime starts from freshly
+fetched main `7235c16` (deployment receipt PR #90) and targets `main` through a
+draft PR. Its standalone EXCLUDE_FROM_ALL probe executes original .14 native
+participant lookup, selected dispatcher and normal reference-slot disposal, with
+explicit instrumented dependencies; 14 new cases plus the existing 20 cases pass
+on both exact images. It changes no runtime authority, native DLL or release
+version. PR #91 host cleanup qualification/deployment remains separate; do not
+merge this lane while that release is in progress. See the
+[scope and remaining lifetime work](hostile-consumer-evidence-20261007.md).
+
 ## Offline hostile health consumer fixture - October 7
 
 PR #89 from `codex/hostile-health-consumer-probe-20261007` merged at

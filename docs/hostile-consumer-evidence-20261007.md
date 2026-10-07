@@ -160,11 +160,68 @@ Compact execution receipts and source/executable hashes remain private under
 the selected field-transfer/conditional-write question only. The connection,
 message, queue and retained participant lifetime work below remains necessary.
 
+### Executed participant lookup and dispatcher continuation
+
+`hostile_participant_probe.cpp` adds a separate `EXCLUDE_FROM_ALL` target,
+`wonderbane_extension_hostile_participant_probe`. It includes the existing probe
+as test-only support and first reruns its 20 cases, then runs 14 additional cases
+on each exact original/prepared .14 image. Whole-image hashes are checked before
+either execution arena is created, including a fresh check for the second read.
+Unknown images are rejected. Neither source is part of the extension DLL.
+
+The continuation executes these original paths with private fixture objects:
+
+- Caller slice `0x1faacb..0x1faaf5`: copies action `+8` through getter `0xda130`,
+  then resolves it using the caller's manager. The wrapper stops before the queue
+  pump's type/admission branches; it does not claim the entire queue pump.
+- Manager lookup `0x1fcc80 -> 0x1fb160`, sparse search `0x2150c0`, original key
+  hash/copy/equality/getter, and iterator helpers. Positive, missing, wrong UUID,
+  collision and tombstone cases execute these implementations, not a fake map.
+- Full consumer `0x4563e0..0x456817` and its relocated original dispatch table:
+  selected kind 21 calls the previously qualified defense health prefix; kind 99
+  takes the real default branch. Other dispatcher targets remain unexecuted.
+- Native participant-slot assignment/retain dispatch and the complete normal
+  destructor `0x456060..0x456152`. Terminal reference callbacks count exact
+  pointers and require the owning slot to be cleared before release. They do not
+  qualify native reference counting, locking, heap destruction or SEH recovery.
+
+The observed identity limits are material. Consumer `+0x38` receives its attacker
+from the caller argument; it does not independently compare that object against
+original action key `+8`. The real caller lookup does reject a missing key. Victim
+`+0x4c` is cleared and resolved again: an eligible contextual interface from key
+`+0x30` is tried before global manager lookup of key `+0x28`. The fixture exercises
+both global fallback and contextual precedence; the contextual virtual slot calls
+the same original native manager lookup, while type masks and object layout remain
+explicit instrumentation. A replacement object with the same key is accepted by
+native lookup. Thus successful lookup alone cannot supply original-object lifetime
+or turn a diagnostic key into retained participant authority.
+
+The full consumer restores action's raw `+0x48` link into supplied actor `+0xae4`.
+Normal destruction releases `+0x50`, `+0x4c` and `+0x38`, but leaves `+0x48`
+untouched. Repeated consumption of the same action is also possible in isolation:
+the second call returns 1 with no second health write when health already matches.
+There is no observed unique-consumption ticket in this boundary. Missing victim
+also returns 1 without a health write. Exact original participant retention and
+an independently owned one-use action token are still required above it.
+
+The real no-op lock thunks execute, but the synthetic objects and terminal
+reference/type callbacks are not a concurrency or native RTTI proof. Existing
+notification, formatter and post-health-tail exclusions remain in force. A
+successful case establishes the named normal callthrough and slot ordering only;
+no socket, message retry, scene transition, allocator, full handler tail or
+server application is executed. No automatic response authority is enabled.
+
+Private build/execution receipts are under `artifacts/hostile-participants-20261007`.
+The next coherent qualification remains physical connection/full-decoder ownership
+and retry/disposal lineage, then joining that lineage to these exact retained
+participants through a qualified current-local-victim consumption branch.
+
 The bounded next qualification work is an exact-image fixture for the selected
 consumer branch and its complete connection/message/action lifetime path:
 
-1. The bounded constructor/health-prefix fixture above is complete. Extend it to
-   real participant resolution and the supported dispatcher branch before
+1. The constructor/health-prefix and participant/selected-dispatch fixtures above
+   are complete within their explicit instrumentation limits. Qualify terminal
+   native reference/type ownership and the full supported consumption branch before
    treating the observed write as full hostile consumption. Its missing-attacker
    and formatter negatives must remain unavailable for attacker attribution.
 2. Qualify physical stream construction/close and full-decoder ownership. The
