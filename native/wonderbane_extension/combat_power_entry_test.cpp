@@ -22,10 +22,12 @@ int learned_rank = 20;
 std::uint32_t actor_mode = 1;
 unsigned stance_reads{}, stance_toggles{};
 bool deny_stance{}, revoke_stance{}, revoke_mode_read{}, fault_stance{}, seh_stance{};
+bool epoch_during_mode_read{}, combat_during_availability{};
 std::uint32_t* replaced_target_key{};
 std::uint32_t __fastcall Mode(void*, void*) {
     ++stance_reads;
     if (revoke_mode_read) { current=false; }
+    if (epoch_during_mode_read) { pw::AdvanceEpoch(); }
     return actor_mode;
 }
 void __fastcall Toggle(void*, void*, bool combat, bool force) {
@@ -120,7 +122,10 @@ void Nested() {
         && outer_receipt->followup_entered==before.followup_entered,"nested same/different power leaves outer receipt unchanged");
 }
 pw::Availability availability = pw::Availability::ready;
-pw::Availability ReadAvailability(std::uintptr_t,std::uintptr_t,std::uint32_t) noexcept { return availability; }
+pw::Availability ReadAvailability(std::uintptr_t,std::uintptr_t,std::uint32_t) noexcept {
+    if(combat_during_availability){actor_mode=2;}
+    return availability;
+}
 void Run(const pw::Context& c) { pw::Scope scope(c); (void)pw::InvokeBound(scope, {Definition,reinterpret_cast<pw::Rank>(&Rank),native_use,
     {reinterpret_cast<wonderbane::extension::combat::stance::Getter>(&Mode),
      reinterpret_cast<wonderbane::extension::combat::stance::Toggle>(&Toggle)},ReadAvailability}); }
@@ -301,9 +306,45 @@ int main(int argc, char** argv) {
     }
     for(auto required:{2U,3U}) {
         definition[0x1f0/4]=required;reset();stance_uses=uses;
-        Check(Guarded(context)&&receipt.result==pw::Result::queued&&stance_reads==0
+        Check(Guarded(context)&&receipt.result==pw::Result::queued&&stance_reads==(required==2?1U:0U)
             &&stance_toggles==0&&actor_mode==1&&uses==stance_uses+1,
             "peace-only and either-mode powers preserve ordinary native behavior");
+    }
+    // Shared native entry covers both the actor-only preparation path and a
+    // context-bound self power, which has no selector publication prerequisite.
+    definition[0x1f0/4]=2;
+    for(const auto authority:{pw::Authority::engagement,pw::Authority::actor}) {
+        context=engagement_context;context.authority=authority;
+        if(authority==pw::Authority::actor){context.target=0;context.target_key={};}
+        for(auto mode:{2U,3U,0x7fffffffU}) {
+            reset();actor_mode=mode;const auto before_uses=uses,before_sends=sends,before_followups=followups;
+            Check(Guarded(context)&&!receipt.native_entered&&!receipt.append_observed
+                &&receipt.availability==pw::Availability::stance_ineligible
+                &&receipt.availability_epoch==pw::InitiationEpoch()&&stance_reads==1&&!stance_toggles
+                &&uses==before_uses&&sends==before_sends&&followups==before_followups,
+                "combat peace-only refusal creates no native side effect or pending entry");
+        }
+        for(auto mode:{1U,0U,0xffffffffU,0x80000000U}) {
+            reset();actor_mode=mode;const auto before_uses=uses;
+            Check(Guarded(context)&&receipt.result==pw::Result::queued&&uses==before_uses+1
+                &&stance_reads==1&&!stance_toggles,"native signed peace predicate is unchanged without a toggle or timer");
+        }
+    }
+    context=engagement_context;
+    definition[0x1f0/4]=3;reset();actor_mode=2;stance_uses=uses;
+    Check(Guarded(context)&&receipt.result==pw::Result::queued&&uses==stance_uses+1
+        &&!stance_reads&&!stance_toggles,"either-mode buffs remain admitted in combat without stance changes");
+    definition[0x1f0/4]=2;
+    reset();combat_during_availability=true;stance_uses=uses;
+    Check(Guarded(context)&&!receipt.native_entered&&receipt.availability==pw::Availability::stance_ineligible
+        &&uses==stance_uses&&!stance_toggles,"entry observes mode change after resource readiness");
+    combat_during_availability=false;
+    for(unsigned change:{1U,2U}) {
+        reset();actor_mode=2;revoke_mode_read=change==1;epoch_during_mode_read=change==2;stance_uses=uses;
+        Check(Guarded(context)&&!receipt.native_entered&&receipt.availability==pw::Availability::unknown
+            &&!receipt.availability_epoch&&uses==stance_uses&&!stance_toggles,
+            "mode callback identity or initiation-epoch loss cannot publish a qualified refusal");
+        epoch_during_mode_read=false;
     }
     definition[0x1f0/4]=1;
     reset();deny_stance=true;stance_uses=uses;

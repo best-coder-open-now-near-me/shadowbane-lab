@@ -356,6 +356,20 @@ int main(){
         availability_change=change;auto command=Typed(parent,nullptr,a::wire::Action::self_power);const auto result=actor.Submit(command);
         assert(result.entry==AE::never_entered&&result.outcome!=AO::power_reuse_blocked&&!result.history&&!stops);CloseScene(actor);
     }
+    for(const bool with_child:{false,true}){
+        ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));
+        const auto parent=Parent();assert(actor.ValidateParent(parent,Gates()));const auto child=Child(parent);
+        if(with_child){assert(actor.Attach(child,Gates()).outcome==AO::bound);}else{Publish(actor,false);}
+        power_receipt={};power_receipt.availability=p::Availability::stance_ineligible;power_receipt.availability_epoch=epoch;
+        auto command=Typed(parent,with_child?&child:nullptr,a::wire::Action::self_power);
+        const auto result=actor.Submit(command);
+        assert(result.outcome==AO::deferred&&result.reason==a::wire::Reason::observation
+            &&result.entry==AE::never_entered&&result.local_settlement==AL::settled&&!result.history&&!stops);
+        a::wire::Command pending{};assert(!actor.PendingCommand(pending));
+        // A positive no-entry refusal cannot leave a synthetic local obligation.
+        power_receipt={p::Result::queued,true,true,true,true,epoch};command.request.back()=2;
+        assert(actor.Submit(command).outcome==AO::queued);CloseScene(actor);
+    }
     {
         ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();assert(actor.ValidateParent(parent,Gates()));const auto child=Child(parent);
         assert(actor.Attach(child,Gates()).outcome==AO::bound);Put(base+0x4018,std::uint32_t{201});

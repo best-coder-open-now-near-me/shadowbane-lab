@@ -100,8 +100,18 @@ bool InvokeBound(Scope& scope, const Calls& calls) {
     // Qualified refusal before ANY stance/Use effects. Later native refusal stays
     // entered uncertainty; neither a return bool nor a timer guesses no entry.
     const auto availability_epoch=InitiationEpoch();
-    if (!calls.availability || !scope.AdmitAvailability(
-            calls.availability(c.image,c.actor,c.power_id),availability_epoch)) { return false; }
+    if (!calls.availability) { return false; }
+    auto availability=calls.availability(c.image,c.actor,c.power_id);
+    // Context-bound self powers do not pass through preparation publication.
+    // Recheck the native peace-only predicate at their shared entry boundary;
+    // never toggle to peace or create a cleanup obligation for this refusal.
+    if (availability==Availability::ready && required_mode==2) {
+        if (!calls.stance.mode || !scope.CanEnter()) { return false; }
+        const auto mode=calls.stance.mode(reinterpret_cast<void*>(c.actor));
+        if (!scope.Current()) { return false; }
+        if (static_cast<std::int32_t>(mode)>1) { availability=Availability::stance_ineligible; }
+    }
+    if (!scope.AdmitAvailability(availability,availability_epoch)) { return false; }
     // Native PreparePower4e0be..4e133 uses +1f0: 1 requires signed mode>=2,
     // 2 requires mode<=1, 3 permits either. Only the first requires combat stance;
     // category0/self also includes unrelated buffs and is not a stance classifier.
