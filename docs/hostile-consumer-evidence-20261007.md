@@ -116,6 +116,6 @@ consumer branch and its complete connection/message/action lifetime path:
 This is sufficient to start concrete offline implementation qualification without
 requesting server source or another generic fight trace. It is not yet sufficient
 to enable automatic response insertion. This document is delivered on
-`codex/hostile-consumer-evidence-20261007`, stacked on PR #83 tip `9cd6cde`, with
-integration destination `main` after PR #83. Deployment and sustained buff
-validation remain separate work.
+`codex/hostile-consumer-evidence-20261007` in PR #84, targeting `main`. It includes
+merged PR #83 (`ae7f72d`) and the prior provenance correction. Deployment and
+sustained buff validation remain separate work.

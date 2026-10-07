@@ -94,10 +94,26 @@ Evidence remains private under `bot-actor-encounter-20261007-b52`:
 - Second acceptance: `e0191da251d5f176e022cf8372967f39497ec3b1504e76c425a49290b9076362`;
   events: `02aa20794e9e57d560dd3cb030f872f9f78aedd262ebc20837a1b66d47755026`.
 
-**Current next todo:** bounded sustained buff renewal validation, with claims
-limited to actual coverage transitions and native cleanup evidence. Automatic
-retaliation remains disabled. PR #83 also incorporates reviewed PR #82's
-client-evidence qualification plan without runtime changes.
+The later continuous production invocation `219d5fc64a084fd8a4588c6b2669c7d8`
+remains **failed**, with `combat_acknowledgment_timeout` at 124.484 seconds and
+zero recorded kills. The configured 300-second stop timer had not fired; neither
+the hotkey nor an attack-list change stopped it. Beorc request `0x0b` remained
+ENTERED/UNCERTAIN, locally unsettled and application-pending before termination.
+The cause of that persistent state remains under investigation.
+
+Its terminal exact NPC `23884/37` cleanup request `0xba` was confirmed with
+`owner_closed=true` and no cleanup error. Subsequent passive readiness showed
+owner NONE and no pending cleanup. This is live evidence of aggregate owner
+closure while parent preparation was pending; it does not turn the failed run
+into a renewal pass or prove server application of the uncertain power. Original
+evidence remains private under `bot-production-pve-20261007-b52`: production
+result SHA-256 `7e0b9186a518d7397133c71ba0cab5bb805892868a71a02fd14d779aea3996d8`,
+events `349c4779ccd35801f1be3cad32b50f3e7e76a947f6e823f10a419b525248d928`.
+
+**Current next todo:** diagnose the pending Beorc action before further sustained
+renewal claims. Automatic retaliation remains disabled. Merged PR #83 includes
+PR #82's client-evidence qualification plan; [the concrete consumer follow-on](hostile-consumer-evidence-20261007.md)
+is a separate documentation/source-qualification lane without runtime changes.
 
 ## Official data-only patch verified and launched - October 7
 
