@@ -18,7 +18,9 @@ auto-track/orbit changes and removes the yaw/character-heading assumption. All
 three local suites pass: 2,160 camera combinations, 216 rays compared against
 native Steam unprojection, 12,800 native queue erases, and input-boundary tests.
 The correction is installed from source `60f7305` after the client exited.
-Next: relaunch and retest camera-relative W/A/S/D
+The updated DLL is now attached and enabled in a fresh Steam session; exact
+package identity, live frame heartbeat and fault-free startup passed.
+Next: retest camera-relative W/A/S/D
 with auto-track on and off, plus release/chat/focus behavior.
 [Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
 targets main; live acceptance is still pending.
@@ -115,3 +117,6 @@ handedness. The exactly overhead case uses projected screen-up. Double precision
 scratch avoids cancellation at large world coordinates. Invalid/degenerate views
 stop owned movement and require a fresh key release before resuming. No camera
 setting is changed. Parent-local coordinate frames remain outside qualification.
+
+The previously blocked camera-fix commits were pushed successfully. Private
+camera-corrected session evidence is `artifacts/steam-wasd/live-camera-status.log`.

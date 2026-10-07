@@ -12,8 +12,9 @@ published as source. Runtime source `418bd22` is attached to the user's Steam
 client; basic movement worked but the user found incorrect camera orientation.
 Version 0.1.1 (`60f7305`) replaces the yaw assumption with the rendered camera
 matrix; all local regressions pass and it is installed after client exit.
-Camera-corrected live acceptance remains pending. GitHub rejected the initial
-source pushes with Internal Server Error; the local commits remain ready to push. [Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
+The 0.1.1 runtime is attached and enabled in a fresh Steam session with verified
+DLL identity, frame heartbeat and no fault. Camera-corrected live acceptance
+remains pending. Source publication succeeded after the GitHub server outage. [Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
 targets main; it is not merged or qualified for release. See [Steam WASD](steam-wasd.md).
 
 ## Combined .75/.52 release candidate - October 7
