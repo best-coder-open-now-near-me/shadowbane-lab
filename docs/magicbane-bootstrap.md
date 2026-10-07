@@ -217,3 +217,29 @@ remain unverified. The user's separate starter-inventory capture request targets
 Wonderbane in the testing VM, not this local server.
 The peer's model inventory owns client/server content alignment; bootstrap health
 is not that proof.
+
+## First-session findings still under investigation
+
+- **Health:** the user reports sitting appears to fill health, then the next hit
+  snaps it back to the base-health range. A guarded, read-only official-client
+  snapshot recorded maximum health 1,066.5 at level 1. The server clamps both
+  regeneration and damage updates to its own calculated `healthMax`. Race/class,
+  effect-data and client calculation alignment remain open; no measured server
+  in-memory maximum or exact flat-offset cause has been established. Do not add
+  1,000 HP merely to make the display agree.
+- **Loot:** the user reports no drops from Hulda, Winter Harpy and White Wolf.
+  The running database contains 614 generator rows, 3,099 item rows and 22,745
+  drop-set rows. Mob loot is enabled, normal drop/gold multipliers are 1.0, and
+  all three mob bases reference populated drop sets. Their gold roll is about
+  60%, with additional item rolls; not every kill must drop something. No
+  source-type rejection was found in the inspected loot logs. Next establish
+  whether a corpse window is empty or fails to open, then trace that request.
+
+One user-requested Greater Concoction Potion was created through the server's
+existing `item_CREATE` procedure with its template's five charges. The user
+returned to character selection before a clean restart reloaded inventory.
+The exact character/item receipt remains private in the main checkout's
+`artifacts/magicbane-local-runtime/potion-grant-20261007.json`; do not replay the
+grant. The item row was verified after restart; client visibility is pending user
+confirmation. No loot-rate, character-stat or administrator-privilege changes
+were made during these checks.
