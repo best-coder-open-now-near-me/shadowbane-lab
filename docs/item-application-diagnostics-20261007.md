@@ -37,6 +37,28 @@ entry/settlement/queue history after NativeActor returns, outside the queue lock
 It is not the append timestamp and carries no receive-message ticket. Item-key
 or time proximity must not be presented as proven request/response correlation.
 
+The follow-on owned-power event uses the same immutable command boundary and
+existing 176-byte record (`kind=2`, `stage=4`). It copies the actual Scope receipt:
+entry, send, append, followup, result, initiation epoch and resource availability.
+It separately records whether ordinary Use was called, returned normally, and
+returned true or false. A native exception leaves normal return unknown. Neither
+false return nor empty initiation establishes local settlement after entry.
+
+Before Scope entry and any stance preparation, bounded fault-contained reads copy
+definition `+1F0`, bytes `+274/+275`, and actor state `+10/+18/+1C`. Definition
+and coherent state have independent known bits; failed reads leave unknown fields
+zero and do not block gameplay. These are raw pre-entry observations, not proof
+that a later native branch ran. In particular, mode 3 does not exclude other
+PreparePower refusals. The metadata fields do not invent names for state `+1C`.
+
+For owned-power records, payload words are power ID; receipt/Use flags; Scope
+result; initiation epoch low/high; availability; required mode; actor mode;
+state `+1C`; state `+10`; and definition flags in low 16 bits with definition/state
+known bits 16/17. The reader rejects inconsistent flags and unknown fields carrying
+values. Incoming power records retain their different copied-message geometry.
+Older diagnostic readers may reject this added owned-power record combination;
+that means unavailable diagnostics, never a gameplay compatibility decision.
+
 The fixed 256-record mapping has a read-only same-user ACL. Sequence commits,
 overwrite/rejection/ticket-drop counters and stopped state expose gaps. Hooks
 retain immutable originals for callbacks in flight, preserve native return values,
@@ -53,9 +75,11 @@ real decoder cases per original/prepared image with a synthetic stream and an
 instrumented power-ID dictionary lookup. It fingerprints full process/destructor
 bodies; it does not execute their gameplay or networking paths.
 
-This source is a diagnostic candidate, not an installed release. The existing
-host .74 and native .51 remain the deployment baseline. Full exact-source package
-qualification, review and a later native installation are separate work.
+The original recorder is installed in host .75/native .52, exact source `733b5fe`.
+The owned-power addition is a separate candidate on
+`codex/power-entry-diagnostics-20261007`, based on main `ae7f72d`.
+Full exact-source package qualification, review and a later native installation
+remain separate work. No live failure is retroactively explained by these fields.
 
 ## Read-only export
 

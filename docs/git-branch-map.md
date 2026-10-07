@@ -4,6 +4,16 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Optional owned-power diagnostics candidate - October 7
+
+`codex/power-entry-diagnostics-20261007` in bot-runtime starts from refreshed
+main `ae7f72d`. It extends the existing optional recorder with exact power Scope
+and ordinary Use return observations; no admission, retry or settlement rule
+changes. Integration destination is `main` after independent review and CI.
+The separate peace-mode entry prerequisite work is not a Beorc failure diagnosis
+and must be merged deliberately where it shares the power entry source.
+Installed .75/.52 and the completed package remain unchanged.
+
 ## Installed .75/.52 and deployment closeout - October 7
 
 Start from freshly fetched `origin/main`, now

@@ -333,7 +333,11 @@ int main(){
     for(bool uncertain:{false,true}){
         ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();assert(actor.ValidateParent(parent,Gates()));Publish(actor,false);
         if(uncertain){power_receipt={p::Result::uncertain,true,false,false,false};}
-        auto command=Typed(parent,nullptr,a::wire::Action::self_power);assert(actor.Submit(command).local_settlement==AL::pending);
+        power_receipt.observation.use_called=true;power_receipt.observation.use_returned=!uncertain;
+        auto command=Typed(parent,nullptr,a::wire::Action::self_power);const auto submitted=actor.Submit(command);
+        assert(submitted.local_settlement==AL::pending&&submitted.power_diagnostic.observation.use_called
+            &&submitted.power_diagnostic.observation.use_returned==!uncertain
+            &&submitted.power_diagnostic.append_observed==!uncertain);
         Protocol({});Put(base+0xc010,std::uint32_t{5});
         if(uncertain){assert(actor.Poll().local_settlement==AL::pending);}else{admitted=false;assert(actor.Poll().local_settlement==AL::pending);admitted=true;}
         Put(base+0xc018,std::uint32_t{2});assert(actor.StopOwner(parent,Current,nullptr).closure==a::wire::Closure::native_stopped);CloseScene(actor);

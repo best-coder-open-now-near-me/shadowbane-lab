@@ -96,6 +96,25 @@ int main(int argc,char** argv){
     const auto owned_sequence=t::storage->sequence;command.version=0;
     t::OwnedReturn(command,scene,w::Outcome::queued,w::Entry::entered,w::LocalSettlement::settled,w::outbound_queued);
     Check(t::storage->sequence==owned_sequence,"malformed owned command not recorded");
+    command.version=3;command.action=w::Action::self_power;command.power_id=429590426;
+    command.item_key[0]=command.item_key[1]=command.template_key[0]=command.template_key[1]=0;
+    command.item_hint=command.template_hint=0;command.request[0]=6;
+    wonderbane::extension::combat::power::Receipt power_result{};
+    // The coordinated peace-mode slice appends internal availability value 4.
+    power_result.availability=static_cast<wonderbane::extension::combat::power::Availability>(4);
+    t::OwnedReturn(command,scene,w::Outcome::deferred,w::Entry::never_entered,w::LocalSettlement::settled,0,&power_result);
+    Check(Last().payload[5]==4&&!Last().payload[1],"no-entry mode refusal retains diagnostic availability");
+    power_result={};
+    power_result.native_entered=true;power_result.result=wonderbane::extension::combat::power::Result::uncertain;
+    power_result.observation={true,true,true,true,false,3,2,3,5,0x101};
+    Check(w::Valid(command)&&w::HashCommand(command,digest),"immutable owned power fixture valid");
+    SetLastError(0xabcd);
+    t::OwnedReturn(command,scene,w::Outcome::uncertain,w::Entry::entered,w::LocalSettlement::pending,w::uncertain_history,&power_result);
+    Check(GetLastError()==0xabcd&&Last().kind==2&&Last().stage==4&&Last().command==digest
+        &&Last().payload[0]==429590426&&Last().payload[1]==49&&Last().payload[6]==3
+        &&Last().payload[7]==2&&Last().payload[8]==3&&Last().payload[9]==5&&Last().payload[10]==0x30101,
+        "owned power preserves false return, independent metadata and immutable correlation");
+    Check(!Last().decode_sequence&&!(Last().flags&4),"owned power has no fabricated incoming lineage");
     wchar_t name[160]{};StringCchPrintfW(name,160,L"Local\\ShadowbaneLab.Extension.ItemApplication.v1.%lu.123456789",GetCurrentProcessId());
     HANDLE reader=OpenFileMappingW(FILE_MAP_READ,FALSE,name);Check(reader!=nullptr,"same-user read mapping");
     HANDLE writer=OpenFileMappingW(FILE_MAP_WRITE,FALSE,name);Check(!writer,"external writer denied");
