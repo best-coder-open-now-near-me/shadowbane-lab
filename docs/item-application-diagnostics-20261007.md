@@ -56,3 +56,27 @@ bodies; it does not execute their gameplay or networking paths.
 This source is a diagnostic candidate, not an installed release. The existing
 host .74 and native .51 remain the deployment baseline. Full exact-source package
 qualification, review and a later native installation are separate work.
+
+## Read-only export
+
+After installing a separately qualified DLL containing the observer, export an
+existing exact-process mapping with:
+
+```powershell
+python -m shadowbane_lab.client_extension.item_application_trace `
+  --process-id <PID> --creation-filetime <FILETIME> --seconds 30 --output <new-jsonl-path>
+```
+
+The reader opens no producer, lease, owner or action channel. It requires two
+identical bounded mapping copies, validates the exact process lifetime, and never
+replays an accepted sequence. Initial retained records are explicitly history;
+scene stamps describe their capture time. Missing mappings, stopped writers,
+read failures, overwritten records and lost decode tickets cannot mean that a
+potion failed or succeeded. Export errors write an `unknown` diagnostic result.
+The caller must obtain the current PID and creation time independently.
+
+Package qualification now requires the seven native observer CTests, real native
+record-layout parsing for each profile, and the decoder probe on both original
+and prepared .14 images for both profiles. The receipt field
+`item_application_trace_decoder_verified` certifies only that scoped probe;
+`native_buff_observation_verified` retains its separate existing meaning.

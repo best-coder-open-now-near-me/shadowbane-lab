@@ -112,6 +112,11 @@ REQUIRED_COMBAT_TESTS = frozenset({
       for mode in ("partial", "cpp", "saturation")),
 })
 
+REQUIRED_ITEM_TRACE_TESTS = frozenset({
+    "wonderbane_extension_item_application_trace",
+    *(f"wonderbane_extension_item_trace_install_{step}" for step in range(1, 7)),
+})
+
 REQUIRED_COMBAT_IPC_TESTS = frozenset({
     "test_real_actor_readiness_mapping_retains_parent_context_and_cleanup",
     "test_native_entry_once_then_mutation_requires_cancellation",
@@ -204,12 +209,11 @@ def _validate_combat_power_probe_steps(steps, *, reviewed_client, feature):
     return True
 
 
-def validate_actor_probe_steps(steps, *, reviewed_client):
+def _validate_actor_probe_steps(steps, *, reviewed_client, features):
     if not reviewed_client:
         return False
     for profile in ("full", "diagnostics-only"):
-        for feature in ("combat_item", "actor_effects_native",
-                        "actor_inventory_native", "actor_buff_observation"):
+        for feature in features:
             images = []
             for suffix in ("binding", "prepared-binding"):
                 name = f"{profile}-{feature}-{suffix}"
@@ -226,6 +230,17 @@ def validate_actor_probe_steps(steps, *, reviewed_client):
                 raise RuntimeError(
                     f"{profile}: actor probe must exercise original and prepared images")
     return True
+
+
+def validate_actor_probe_steps(steps, *, reviewed_client):
+    return _validate_actor_probe_steps(steps, reviewed_client=reviewed_client, features=(
+        "combat_item", "actor_effects_native", "actor_inventory_native", "actor_buff_observation",
+    ))
+
+
+def validate_item_trace_probe_steps(steps, *, reviewed_client):
+    return _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
+                                       features=("item_application_trace",))
 
 
 def validate_combat_power_initiation_steps(steps, *, reviewed_client):
@@ -450,6 +465,7 @@ def main() -> int:
                               "actor_action_runtime.cpp", "actor_effects_native.cpp",
                               "actor_inventory_native.cpp", "actor_buff_observation.cpp",
                               "actor_publication.cpp", "combat_item_entry.cpp",
+                              "item_application_trace.cpp",
                               "combat_melee_entry.cpp",
                               "combat_power_entry.cpp", "combat_power_observer.cpp",
                               "combat_target_policy.cpp"):
@@ -467,7 +483,8 @@ def main() -> int:
                                  "actor_effects_native_probe.cpp",
                                  "actor_inventory_native_probe.cpp",
                                  "actor_buff_observation_probe.cpp", "combat_item_probe.cpp",
-                                 "combat_item_entry_test.cpp",
+                                 "combat_item_entry_test.cpp", "item_application_trace_test.cpp",
+                                 "item_application_trace_probe.cpp",
                                  "combat_v2_wire_test.cpp", "combat_v2_controller_test.cpp",
                                  "combat_v3_fence_test.cpp", "combat_v2_native_test.cpp",
                                  "combat_v2_runtime_test.cpp", "movement_tree_probe.cpp",
@@ -586,6 +603,7 @@ def main() -> int:
         required_native_tests.update(REQUIRED_TARGETED_ACTION_TESTS)
         required_native_tests.update(REQUIRED_VENDOR_TESTS)
         required_native_tests.update(REQUIRED_GUARD_TESTS)
+        required_native_tests.update(REQUIRED_ITEM_TRACE_TESTS)
         profile_failures = validate_native_results(
             native_results, required_native_tests,
             diagnostic=False, exit_code=native_exit,
@@ -658,6 +676,13 @@ def main() -> int:
             environment.pop("WONDERBANE_ACTOR_ACTION_TEST", None)
             environment.pop("SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE", None)
         validate_actor_ipc_results(actor_results, profile)
+        environment["WONDERBANE_ITEM_TRACE_TEST"] = str(
+            build / "Release/wonderbane_extension_item_application_trace_test.exe")
+        try:
+            run(f"{profile}-item-trace-reader", [sys.executable, "-m", "pytest",
+                "tests/test_item_application_trace.py", "-q"])
+        finally:
+            environment.pop("WONDERBANE_ITEM_TRACE_TEST", None)
         if arguments.reviewed_client:
             run(
                 f"{profile}-combat-registry-build",
@@ -669,6 +694,7 @@ def main() -> int:
                  "wonderbane_extension_combat_power_initiation_probe",
                  "wonderbane_extension_combat_power_readiness_probe",
                  "wonderbane_extension_combat_item_probe",
+                 "wonderbane_extension_item_application_trace_probe",
                  "wonderbane_extension_actor_effects_native_probe",
                  "wonderbane_extension_actor_inventory_native_probe",
                  "wonderbane_extension_actor_buff_observation_probe"],
@@ -769,7 +795,7 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
                 [build / "Release/wonderbane_extension_combat_power_readiness_probe.exe",
                  prepared_client],
             )
-            for feature in ("combat_item", "actor_effects_native",
+            for feature in ("combat_item", "actor_effects_native", "item_application_trace",
                         "actor_inventory_native", "actor_buff_observation"):
                 for suffix, image in (("binding", arguments.reviewed_client.resolve()),
                                       ("prepared-binding", prepared_client)):
@@ -824,6 +850,7 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
         for name in (
             "client_extension/actor_action_wire.py", "client_extension/actor_action_fence.py",
             "client_extension/actor_action_channel.py", "client_extension/actor_publication.py",
+            "client_extension/item_application_trace.py",
             "client_extension/actor_selector_manifest.py", "pve/native_actor.py",
             "pve/preparation.py", "pve/buff_intent.py",
             "client_extension/condemn_session.py", "client_extension/condemn_transaction.py",
@@ -1117,6 +1144,8 @@ else:
         "selected_cue_binding_verified": bool(arguments.reviewed_client),
         "movement_prepared_binding_verified": bool(arguments.reviewed_client),
         "actor_v3_host_native_interop_verified": True,
+        "item_application_trace_decoder_verified": validate_item_trace_probe_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client)),
         "native_buff_observation_verified": validate_actor_probe_steps(
             steps, reviewed_client=bool(arguments.reviewed_client)),
         "combat_registry_binding_verified": bool(arguments.reviewed_client),

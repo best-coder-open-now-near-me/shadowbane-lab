@@ -11,8 +11,8 @@ records in place. Historical backup/rollback requirements below are superseded.
 message observations; installed host .74/native .51 and their receipts are
 unchanged. See [the exact diagnostic boundary](item-application-diagnostics-20261007.md).
 The native slice builds and passes nine focused CTests plus eight real decoder
-cases on each original/prepared .14 image. A read-only exporter and mandatory
-package proof gates follow in the same task; deployment remains separate.
+cases on each original/prepared .14 image. The read-only exporter and mandatory
+package proof gates are in the same source task (draft PR #79); deployment remains separate.
 
 ## Registry observation churn handling - October 7
 
