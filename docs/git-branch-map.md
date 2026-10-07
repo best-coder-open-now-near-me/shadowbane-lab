@@ -4,12 +4,12 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active .74 host deployment closeout - October 7
+## Active .74 host and official data-patch closeout - October 7
 
 Start from freshly fetched `origin/main`, now
 `f2ea8012876fd3624d813bd2b9c8cc80c5d6fdb8` after PR #78 passed all 15 checks
 and merged. Exact source `18769f1d8228c64503a773fc42e145ec6eca94b0` is installed
-as host .74; native .51 and the running game remain unchanged. Host .73 was not
+as host .74; native .51 and the prepared executable remain unchanged. Host .73 was not
 installed separately. The bot-integration checkout owns PR #77 on
 `codex/native-identity-deployment-20261007` for the deployment receipts.
 
@@ -25,9 +25,19 @@ cleanup unconfirmed; final membership is unavailable. It is not a gameplay or
 buff-suite pass. Verified obsolete .72 retirement removed 2,122 host files and
 one wheel (49,799,696 bytes), without rollback copies.
 
-**Current next todo:** qualify the newly requested official client patch before
-continuing gameplay. Preserve the unconfirmed cleanup and potion response
-investigations as follow-up work.
+The later official data-only update changes just `cache/CObjects.cache` in a
+211-file manifest. Both cache writes and the bot package reseal verified, but
+final preservation checking caught the sole changing denied/unbound dispatch
+permit among 10,044 protected files. Reviewed finalization then verified all
+10,043 other files and reconciled only that denied record, preserving the initial
+failure receipt. Fresh launch succeeded with PID 1612, creation
+`134358364309881895`, HWND 4063778; host .74, native .51 and executable .14
+remain unchanged. Finalization receipt is `052a48aafe2480b0c2a5213f4e17674fcd19441f0d2fa2455f1fbf313f359628`.
+
+**Current next todo:** resolve the unconfirmed cleanup before further gameplay;
+login and fresh in-world readiness also remain required. The source repair lane
+is `codex/actor-cleanup-ownership-20261007` in bot-command-ownership; potion
+response diagnostics remain separate in bot-runtime.
 See the [deployment record](client-update-20261004.md).
 
 ## Merged registry observation churn handling - October 7

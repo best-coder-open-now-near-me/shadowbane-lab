@@ -1,5 +1,39 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
+## Official data-only patch verified and launched - October 7
+
+The official manifest contains 211 files; its only change is
+`cache/CObjects.cache`, from SHA-256
+`5979b544426669e1ffd89fdf95a7a7800d1b42a6cfc7840c942efed1656ff2f7` to
+`08c115baeef5da811f7ee2802ccdc1002cfeba29cf1818956c452e3e594efef6`
+(5,433,065 bytes). Manifest SHA-256 is
+`22e083d1ef09aa94ced7380cc7e2bf994e69b3a3d8450f319c8f19c4dabbb95c`.
+The official/prepared .14 executables, host .74 and native .51 are unchanged.
+
+With both games closed, preflight recorded 10,044 protected files. Apply wrote
+both normal and bot caches and verified the resealed bot package, then failed
+preservation checking on the manager's changing `dispatch.permit`. Independent
+comparison found that sole difference: the exact slot was denied and unbound;
+all 10,043 other protected files matched. The reviewed finalizer rechecked those
+facts and completed at `2026-10-07T08:46:57.666772Z`, preserving the original
+failure receipt. All 10,043 other protected files remained unchanged; the one
+reconciled permit was explicitly denied/unbound. No rollback copies were created.
+
+Finalization receipt SHA-256 is
+`052a48aafe2480b0c2a5213f4e17674fcd19441f0d2fa2455f1fbf313f359628`;
+resealed package SHA-256 is
+`b3f8c213eafc7235d53a89cf06459dbd0ace16dcf2204742242e297c58fd3c57`.
+The original failure receipt remains
+`b865bd3e0b9e0fe89c7c0c3aca54061f41bb2d6dfb1b4a269dda8451b85dc35b`.
+
+Fresh launch succeeded at `2026-10-07T08:47:19.0223372Z`: PID 1612, creation
+`134358364309881895`, HWND 4063778, with the unchanged qualified native DLL.
+Launch receipt SHA-256 is
+`c3cba3c62bd44fc478f52121f7a508a58bbe7bb7083a3c77566fd6f3ba3a09a9`.
+The compact receipts are retained privately under
+`artifacts/guard-deploy/client-update-20261007/receipts`. Login and fresh
+in-world readiness remain pending; this receipt makes no live-attack claim.
+
 ## Host .74 activated; bounded NPC cleanup unconfirmed - October 7
 
 PR #78 merged after all 15 hosted checks passed, advancing main to
@@ -60,10 +94,10 @@ events SHA-256 is
 `ee9b74c0d616c25eb3befc494041397bcc71cd9d40f1490771505e8676fb4e27`.
 The original evidence remains unchanged.
 
-**Current next todo:** qualify the newly requested official client patch before
-continuing gameplay. Keep the unconfirmed .74 cleanup and potion response
-investigations as explicit follow-up work.
-The new patch is not covered by the preceding .14 installation receipt.
+**Current next todo:** resolve the unconfirmed cleanup before further gameplay;
+login and fresh in-world readiness also remain required. The cleanup source lane
+is `codex/actor-cleanup-ownership-20261007` in bot-command-ownership. Potion
+response diagnostics remain separate follow-up work.
 
 ## Historical host .72 delivery - October 7
 
