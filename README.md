@@ -7,7 +7,8 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 [Verified MagicBox source/data pairing and remaining startup checks](docs/magicbane-bootstrap.md)
 records the exact embedded source, successful Java compilation and the missing
 inputs that prevent substituting newer source into the historical public image.
-This is not yet a running server or a verified Wonderbane client/server pairing.
+The pinned local login/world server now passes startup and restart checks.
+Wonderbane login, character creation and persistence remain to be verified.
 
 ## Finding the current code
 

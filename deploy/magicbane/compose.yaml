@@ -1,0 +1,37 @@
+name: shadowbane-local
+services:
+  server:
+    image: shadowbane-local:bafb48fe
+    build:
+      context: .
+    restart: "no"
+    init: true
+    stop_grace_period: 60s
+    environment:
+      SERVER_WORLD_NAME: ${SERVER_WORLD_NAME:-ShadowbaneLocal}
+      SERVER_EXTERNAL_ADDRESS: ${SERVER_EXTERNAL_ADDRESS:-127.0.0.1}
+    ports:
+      - "127.0.0.1:6000:6000"
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - database:/var/lib/mysql
+      - world-data:/home/mbbox/magicbane/mb.data
+      - logs:/home/mbbox/magicbane/logs
+    secrets:
+      - database-password
+    healthcheck:
+      test: ["CMD", "/bin/bash", "/opt/shadowbane/healthcheck.sh"]
+      interval: 15s
+      timeout: 5s
+      start_period: 120s
+      retries: 4
+secrets:
+  database-password:
+    file: ${SHADOWBANE_DATABASE_PASSWORD_FILE:?Set the persistent database password file}
+volumes:
+  database:
+    name: shadowbane-local-database
+  world-data:
+    name: shadowbane-local-world-data
+  logs:
+    name: shadowbane-local-logs

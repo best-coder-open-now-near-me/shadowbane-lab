@@ -78,13 +78,52 @@ change it from a supplied `.mbp` filename, then calls `mbbuild.sh`. That script
 fetches, checks out and pulls a branch before compiling. Consequently an image
 digest alone does **not** pin the server code that default startup runs.
 
-Before launching our paired server, supply a startup/build path that uses the
-exact chosen source commit without following a moving branch. Keep the database
-and configuration in durable locations, use localhost-facing ports for initial
-validation, and preserve all created characters and settings. Use the existing
-[deployment policy](deployment-policy.md); no retained fallback deployments.
-Neither the default entrypoint nor its account/database configuration scripts
-were executed during this investigation.
+The tracked [Dockerfile](../deploy/magicbane/Dockerfile) verifies that exact Git
+revision and a clean embedded source tree, compiles it with the bundled Linux
+Java/Ant toolchain, and extracts the bundled heightmaps. Its own entrypoint never
+runs the upstream branch-pulling or database-reset scripts.
+
+The [Compose configuration](../deploy/magicbane/compose.yaml) publishes only
+`127.0.0.1:6000` (login) and `127.0.0.1:8000` (world). It retains MySQL, world
+files and logs in named Docker volumes. Docker seeds those volumes from the image
+on their first use; subsequent starts reuse them without importing or dropping
+SQL. The seed contains 125 base tables and eight views. The healthcheck verifies
+both Java children, both listening ports and database availability. Component
+failure stops the container; it does not silently restart into a partial server.
+
+Supply an env file outside the managed worktree with these values:
+
+```dotenv
+SHADOWBANE_DATABASE_PASSWORD_FILE=E:/Projects/shadowbane/artifacts/magicbane-local-runtime/database-password
+SERVER_WORLD_NAME=ShadowbaneLocal
+SERVER_EXTERNAL_ADDRESS=127.0.0.1
+```
+
+The password file contains 64 random hexadecimal characters; preserve this file
+and the env file in place. It is a read-only Compose secret, not a committed
+credential. This host's files are already provisioned. On another host, generate
+a fresh password once and use its own absolute path. Startup accepts LF/CRLF.
+World names permit letters, digits, underscore and hyphen: the original login
+server shells out to read its population file and crashes on names with spaces.
+
+From this repository, using the absolute env-file path:
+
+```powershell
+docker compose --env-file E:/Projects/shadowbane/artifacts/magicbane-local-runtime/compose.env -f deploy/magicbane/compose.yaml up -d --build
+docker compose --env-file E:/Projects/shadowbane/artifacts/magicbane-local-runtime/compose.env -f deploy/magicbane/compose.yaml ps
+```
+
+Use `stop` to shut down and `start` to resume the existing server. Do not use
+`down --volumes`, volume pruning or a Docker factory reset on the populated
+runtime. Follow the [deployment policy](deployment-policy.md): preserve user data,
+rebuild software from its committed source, and retain no fallback deployments.
+Upstream configuration logging includes the database password; keep these logs
+private and redact secrets before sharing diagnostics. Database port 3306 and
+debug port 5000 are not published. Automatic game-account registration is enabled.
+
+This endpoint is for a client on the Windows host. A VM's own `127.0.0.1` cannot
+reach it; VM access needs an explicit host/guest route and a matching advertised
+world address. Do not treat Docker port availability as client compatibility.
 
 ## Local evidence and ownership
 
@@ -106,20 +145,36 @@ mapping in PR #95. It must remap source entry points to the chosen qualified bas
 its historical `3649c629` references are not this image's embedded revision.
 This lane owns source/data/bootstrap qualification and the client pairing.
 
-## Remaining qualification and concrete blocker
+## Live startup result and remaining qualification
 
-Complete: identify image/source/database/library provenance, compare embedded
-source with Git and compile the original source with its bundled libraries.
+On October 7, the pinned Linux image build succeeded. Login and world completed
+bootstrap, including 179 heightmaps. Both listening ports and the healthcheck
+passed. A clean Compose restart returned to healthy using the same database,
+world-data and log volumes; 125 tables and eight views remained available.
+This verifies server bootstrap and volume reuse, not character persistence.
 
-**Active next:** recover Docker startup, then import the database and start the
-pinned login/world servers with durable data. Afterward verify Wonderbane login,
-world listing, character creation, reconnect and persistence before declaring the
-client/server pair usable. No database import or live server/client test has run.
+The first attempts exposed two configuration issues now handled by startup:
+Windows CRLF in the database secret and a space-containing world name. The
+bundled content also logs NPC slot errors (15551, 15895, 16056, 31969) and an
+initial loot-ID warning. These do not prevent startup, but are unresolved content
+qualification findings; the server is not declared production-ready.
 
-Docker Desktop is stopped. Its exact zero-byte `run/dockerInference` reparse point
-still returns Windows error 1920 (file cannot be accessed) when queried; exact
-non-recursive removal also fails. No Docker settings, disk images, volumes or
-runtime directories were removed or renamed. The next recovery attempt is a
-user-timed Windows restart, followed by another Docker launch and fresh logs.
-A restart is an attempted recovery, not a guaranteed fix. Related reports exist
+Docker recovered after the user's factory reset and fresh IPC socket paths.
+Before the first server deployment, Docker reported no containers or volumes.
+The reset was performed by the user, not by the startup tooling. Three inspected
+runtime directories were renamed because their zero-byte AF_UNIX reparse sockets
+could not be unlinked (Windows error 1920):
+
+- `%LOCALAPPDATA%/Docker/run-inaccessible-sockets-20261007`
+- `%LOCALAPPDATA%/Docker/run-inaccessible-sockets-20261007-after-reset`
+- `%LOCALAPPDATA%/docker-secrets-engine-inaccessible-socket-20261007`
+
+These inaccessible IPC leftovers contain no deployment, settings or database
+backup. They remain diagnostic leftovers pending exact-path cleanup when Windows
+permits it. Do not reset Docker again to remove them. Related failure reports are
 in [Docker's issue tracker](https://github.com/docker/desktop-feedback/issues/625).
+
+**Active next:** configure the selected client route and verify Wonderbane login,
+world listing, character creation, reconnect and persistence. Client/server
+compatibility and actual character save/reload remain untested. The peer's model
+inventory owns client/server content alignment; bootstrap health is not that proof.

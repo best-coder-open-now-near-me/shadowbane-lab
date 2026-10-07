@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "recorded_at": "2026-10-07",
-  "purpose": "Pinned source/build/input provenance for initial server bootstrap; not live qualification",
+  "purpose": "Pinned source/build/input provenance and local bootstrap qualification; not client or production qualification",
   "image": {
     "repository": "docker.io/magicbane/magicbox",
     "manifest_sha256": "20050d2a9a1e59deb83a270f78e5cd2111c5fc0a786651de0f0c1c39c56214a2",
@@ -89,9 +89,13 @@
   "qualification": {
     "source_compiles_with_image_application_libraries": true,
     "database_import_tested": false,
-    "login_world_startup_tested": false,
+    "login_world_startup_tested": true,
     "wonderbane_client_pairing_tested": false,
-    "production_ready": false
+    "production_ready": false,
+    "linux_image_build_tested": true,
+    "compose_restart_healthy": true,
+    "database_seed_opened": true,
+    "character_persistence_tested": false
   },
   "newer_source_comparison": {
     "revision": "9866632ad5aa083165170202d508a95e2bc556ba",
@@ -203,5 +207,30 @@
       "size": 10122,
       "sha256": "31e16a52f95c965eeb83300438a972b9f32a5346750663d4ddc4832026ffb9e3"
     }
-  ]
+  ],
+  "runtime": {
+    "image": "shadowbane-local:bafb48fe",
+    "manifest_sha256": "da6c40854a70098ca623e028f60bbbf459b24efede72e8a1640ddb9ce8675f2d",
+    "source_revision": "bafb48fe14e5356a64137954cf2d79205835a204",
+    "world_name": "ShadowbaneLocal",
+    "published_ports": [
+      "127.0.0.1:6000",
+      "127.0.0.1:8000"
+    ],
+    "volumes": [
+      "shadowbane-local-database",
+      "shadowbane-local-world-data",
+      "shadowbane-local-logs"
+    ],
+    "base_tables": 125,
+    "views": 8,
+    "heightmaps_loaded": 179,
+    "restart_healthy_at_utc": "2026-10-07T19:18:35Z",
+    "unresolved": [
+      "NPC slot errors 15551, 15895, 16056, 31969",
+      "Initial loot-ID warning",
+      "Upstream configuration logging includes the database password; logs must remain private and shared output redacted",
+      "Wonderbane client pairing and actual character persistence untested"
+    ]
+  }
 }
