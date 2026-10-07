@@ -7,9 +7,12 @@ WonderBane host .75/native .52 and must not replace its x86 runtime.
 ## Qualification status
 
 The x64 DLL and launcher build with warnings treated as errors. Input policy and
-exact-image native queue tests pass. Live attachment and user movement validation
-are pending. Next: attach disabled, verify the frame callback, then test WASD and
-release/chat/focus boundaries with the user before calling this pack qualified.
+exact-image native queue tests pass. Live attachment of source `418bd22` succeeded with a game-thread heartbeat,
+correct in-world actor state/position, no native fault, and zero unsolicited
+movement commands. Movement is enabled for the user's test. Live WASD and
+release/chat/focus acceptance are still pending; this is not yet a qualified
+release. [Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
+targets main. Next: record the user's movement and stop results.
 
 ## Exact client boundary
 
@@ -77,3 +80,14 @@ A fault disables further native operations. Restart the game before trying a
 rebuilt DLL; uncertain operations are not replayed. Disabling leaves the pinned
 callback loaded until exit. The original executable and client settings are not
 patched on disk, and the launcher never terminates the game.
+
+## Local installation receipt
+
+Current candidate: `E:\Projects\shadowbane\artifacts\steam-wasd\runtime`.
+Exact runtime source: `418bd22` (later documentation/CI commits do not change it).
+DLL SHA-256: `f2073251ebc742d931a999ea3d91b0dbb6010d4a9d2209220443dc50af9efad5`.
+The local `receipt.json` records the full source and launcher hash. No Steam files
+or settings were replaced and no rollback deployment was retained. Private live
+status evidence is in the worktree's `artifacts/steam-wasd/live-status.log`.
+CI builds the standalone x64 targets and runs input tests; exact-image tests
+remain a local qualification requirement because the game executable is private.

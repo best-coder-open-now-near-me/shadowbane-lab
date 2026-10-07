@@ -8,8 +8,10 @@ records in place. Historical backup/rollback requirements below are superseded.
 
 `codex/steam-wasd` starts at main `acb1ba7`. It targets the x64 Steam client
 only; the x86 bot/runtime lane is unchanged. Profile/input/queue qualification is
-published as source, with runtime and live validation still unfinished.
-Integration destination is main through a reviewed PR. See [Steam WASD](steam-wasd.md).
+published as source. Runtime source `418bd22` is attached to the user's Steam
+client for live WASD acceptance; heartbeat and exact DLL identity passed, movement
+acceptance remains pending. [Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
+targets main; it is not merged or qualified for release. See [Steam WASD](steam-wasd.md).
 
 ## Combined .75/.52 release candidate - October 7
 

@@ -95,6 +95,17 @@ jobs:
             build/native-${{ matrix.profile }}/stretch-diagnostics.log
           if-no-files-found: error
 
+  steam-wasd-x64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure standalone Steam x64 add-on
+        run: cmake -S native/steam_wasd -B build/steam-wasd -A x64
+      - name: Build Steam add-on and launcher
+        run: cmake --build build/steam-wasd --config Release
+      - name: Test Steam input ownership
+        run: ctest --test-dir build/steam-wasd -C Release --output-on-failure
+
   powershell-syntax:
     runs-on: windows-latest
     steps:
