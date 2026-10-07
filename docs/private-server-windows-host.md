@@ -209,17 +209,19 @@ without live volumes or published ports. It exercises the actual
 - Invalid template data rejects startup and creation without partial rows.
 - Unknown or modified triggers are rejected without replacement.
 
-The integration checks and full isolated login/world startup passed. The live
-deployment is ready and awaiting the playing user to log out normally. A real new
-character's inventory display/use still requires client validation.
+The integration checks, isolated login/world startup and live deployment passed.
+The installed trigger matches the tested definition, both existing characters
+and their account/item data retained identical checksums, private networking
+guards passed, and startup logs contain no database secret. The superseded
+runtime was removed. A real new character's inventory display/use still requires
+client validation.
 
-### Maintenance while a character is playing
+### Small-update restart policy
 
-No manual player save is required. In the pinned Java source,
-`AbstractGameObject.addDatabaseJob` queues stat/skill persistence for 30 seconds
-and experience persistence for five minutes. Normal logout does not explicitly
-flush those scheduled jobs. Before a planned update, have the player log out and
-leave the current Java process running for at least five minutes to allow queued
-writes to finish. Recheck that nobody reconnects, then record preservation
-checksums and perform the clean restart. Do not treat the absence of a TCP
-connection alone as proof that pending experience writes have finished.
+No manual player save is required. The pinned source queues stat/skill writes
+for 30 seconds and XP writes for five minutes. The user explicitly chose prompt
+normal server restarts for small authorized updates on October 7, 2026; do not
+add an extra five-minute idle hold or another permission prompt for that scope.
+Use a graceful stop, preserve the existing volumes, and verify readiness and
+saved data after the restart. This replaces the earlier mandatory idle-window
+procedure.
