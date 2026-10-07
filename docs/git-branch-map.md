@@ -7,8 +7,9 @@ records in place. Historical backup/rollback requirements below are superseded.
 ## Installed .75/.52 and deployment closeout - October 7
 
 Start from freshly fetched `origin/main`, now
-`acb1ba7f41875a567654dbdcb5182857bba05679` after PR #81 merged the combined
-release. Exact source `733b5fecb862c6d9421b8c2d20f8b8aee5c6db18` is installed
+`ae7f72df205914d9d4d5ba18221e4c6bbfbdef16` after PR #83 merged the deployment
+and provenance records. PR #81 integrated the combined release.
+Exact source `733b5fecb862c6d9421b8c2d20f8b8aee5c6db18` is installed
 as host .75/native .52; .14 executable and official cache `08c115…` remain unchanged.
 The release includes reviewed cleanup ownership repair and optional item-response
 diagnostics. Their source branches remain retained pending safe branch cleanup;
@@ -32,18 +33,25 @@ events prove child NATIVE_STOPPED and parent LOCAL_RELEASED despite a stale
 cleanup summary field. Second run `780510c5` passed: NPC `23886/37` health
 800 to zero at 9.016 seconds, confirmed child/parent cleanup, zero membership
 and no errors/watchdog/interruption. Subsequent readiness was clean. This does
-not prove sustained refresh, server kill credit or live parent-blocked escalation.
+not prove sustained refresh, server kill credit or live parent-blocked escalation
+in those two bounded runs. Later production run `219d5fc6` failed with
+`combat_acknowledgment_timeout` at 124.484 seconds, while Beorc remained uncertain
+and locally pending. Its exact target cleanup was confirmed with `owner_closed=true`;
+subsequent passive readiness showed owner NONE and no pending cleanup. This
+exercises aggregate owner closure live, without establishing why Beorc remained
+pending or proving buff renewal.
 The previous .74 Praeda run remains bounded native queue/cancel evidence.
 See the [deployment record](client-update-20261004.md) for original receipt hashes.
 
-`codex/buff-cleanup-deployment-20261007` in bot-integration owns this documentation
-checkpoint in PR #83, based on merged main. It incorporates reviewed PR #82's
-remote tip `d996c8ac9b36a7534d9bf554adb748b8fff55c59` by ancestry so both
-documentation records can ship together. PR #82 can close after this combined
-PR merges; its client-evidence qualification remains source work, with automatic
-retaliation disabled. Neither document changes the installed runtime.
-**Current next todo:** bounded sustained buff renewal validation using actual
-coverage transitions and exact cleanup evidence.
+PR #83 and included PR #82 are merged. Their source branches remain retained
+pending safe retirement; bot-integration remains available to its active owner.
+PR #84 on `codex/hostile-consumer-evidence-20261007` in bot-command-ownership adds
+[concrete native consumer evidence](hostile-consumer-evidence-20261007.md), targeting
+main with no runtime changes. Automatic retaliation stays disabled. The next PvP
+source item is exact consumer and connection/message/action lifetime qualification,
+not a partial authority hook or a blanket server-documentation prerequisite.
+**Current next todo:** diagnose the pending Beorc action from production run
+`219d5fc6` before claiming sustained renewal; preserve the confirmed cleanup result.
 
 ## Historical .74 host and official data-patch closeout - October 7
 
