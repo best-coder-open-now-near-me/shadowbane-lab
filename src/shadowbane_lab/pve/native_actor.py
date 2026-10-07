@@ -284,21 +284,43 @@ class NativeActorCoordinator:
     def _local_ready(self):
         if self._local_command is None:
             return True
-        result = self._send(Verb.ACTION_STATUS, self._local_command)
+        command = self._local_command
+        self._local_receipt = None
+        result = self._send(Verb.ACTION_STATUS, command)
+        if result.receipt is not None and self._local_command == command:
+            self._local_receipt = result.receipt
+        if command == self._preparation_command:
+            # A competing lane may poll this action, but its original policy
+            # still owns the receipt and remote-application bookkeeping.
+            acknowledgement = self._preparation_result(result, self._preparation_proposal, command)
+            self._preparation_policy.acknowledge(acknowledgement)
         if result.receipt is None:
             return False
-        self._local_receipt = result.receipt
         if result.receipt.owner_phase is not Phase.BOUND:
             return False
-        if (
-            self._local_command.context_id is not None
-            and result.receipt.context_phase is not Phase.BOUND
-        ):
+        if command.context_id is not None and result.receipt.context_phase is not Phase.BOUND:
             return False
         if result.receipt.local_settlement is not LocalSettlement.SETTLED:
             return False
-        self._local_command = self._local_receipt = None
-        return True
+        if self._local_command == command:
+            self._local_command = self._local_receipt = None
+        return self._local_command is None
+
+    @staticmethod
+    def _live_local_response(command, receipt):
+        return (
+            receipt is not None
+            and receipt.owner_phase is Phase.BOUND
+            and (command.context_id is None or receipt.context_phase is Phase.BOUND)
+            and (
+                receipt.local_settlement is LocalSettlement.SETTLED
+                or (
+                    receipt.local_settlement is LocalSettlement.PENDING
+                    and receipt.outcome
+                    in (Outcome.CLIENT_OUTBOUND_QUEUED, Outcome.PENDING, Outcome.UNCERTAIN)
+                )
+            )
+        )
 
     @staticmethod
     def _uncertain(detail):
@@ -329,6 +351,17 @@ class NativeActorCoordinator:
             if proposal.adopted_existing_action:
                 self._adopted = True
                 self._target_token, self._target_key = proposal.target_token, proposal.target_key
+        waiting_local = False
+        if self._combat_command is None and self._local_command is not None:
+            if not self._ensure_open():
+                return self._uncertain("actor owner admission unconfirmed")
+            prior_command = self._local_command
+            waiting_local = not self._local_ready()
+            if not waiting_local or self._live_local_response(prior_command, self._local_receipt):
+                # This proposal has not entered. A current response for the
+                # original action is progress, not a failed combat transport.
+                # Missing/mismatched replies never renew this deadline.
+                self._combat_started = observation.now_ms
         if observation.now_ms - self._combat_started >= 5_000:
             confirmed, receipt, detail = self.stop_context("action_resolution_timeout")
             if confirmed:
@@ -338,6 +371,8 @@ class NativeActorCoordinator:
                     detail,
                 )
             return self._uncertain(detail)
+        if waiting_local:
+            return self._uncertain("previous local action settlement pending")
         if not self._ensure_open():
             return self._uncertain("actor owner admission unconfirmed")
         if self._combat_command is None:
@@ -414,7 +449,7 @@ class NativeActorCoordinator:
         if not live:
             disposition, reason = PvECombatDisposition.REJECTED, None
         command = self._combat_command
-        if r.local_settlement is LocalSettlement.SETTLED:
+        if r.local_settlement is LocalSettlement.SETTLED and self._local_command == command:
             self._local_command = self._local_receipt = None
         if disposition is not PvECombatDisposition.UNCERTAIN:
             self._combat_proposal = self._combat_command = None
@@ -768,19 +803,12 @@ class NativeActorCoordinator:
             self._preparation_publication = self._publication
             self._preparation_last_response = self.session.cleanup.clock()
 
-        def require_response():
-            # This bounds unavailable status transport, not native action duration.
-            # Always try this turn's original request before testing freshness.
-            if self.session.cleanup.clock() - self._preparation_last_response >= 5.0:
-                self._stop_owner_once("preparation_status_unavailable")
-                raise RuntimeError("preparation status response deadline expired")
-
         if not self._ensure_open():
-            require_response()
+            self._require_preparation_response()
             return ack()
         if self._preparation_command is None:
             if not self._local_ready():
-                require_response()
+                self._require_preparation_response()
                 return ack()
             pub = self._preparation_publication
             expected = policy.ActorIdentity(
@@ -849,25 +877,43 @@ class NativeActorCoordinator:
             result = self._send(Verb.SUBMIT, self._preparation_command)
         else:
             result = self._send(Verb.ACTION_STATUS, self._preparation_command)
+        return self._preparation_result(result, proposal, self._preparation_command)
+
+    def _require_preparation_response(self):
+        # This bounds unavailable status transport, not native action duration.
+        # Always try this turn's original request before testing freshness.
+        if self.session.cleanup.clock() - self._preparation_last_response >= 5.0:
+            self._stop_owner_once("preparation_status_unavailable")
+            raise RuntimeError("preparation status response deadline expired")
+
+    def _preparation_result(self, result, proposal, command):
+        from . import preparation as policy
+
+        if (
+            proposal is None
+            or proposal != self._preparation_proposal
+            or command is None
+            or command != self._preparation_command
+        ):
+            raise ValueError("preparation receipt has no exact pending command owner")
+
+        def ack(
+            disposition=policy.Disposition.UNCERTAIN, entry=policy.EntryState.UNKNOWN, settled=False
+        ):
+            return policy.PreparationAcknowledgement(proposal, disposition, entry, settled)
+
         r = result.receipt
         self._last_preparation_receipt = r
-        self._last_preparation_command = self._preparation_command
+        self._last_preparation_command = command
         if r is None:
-            require_response()
+            self._require_preparation_response()
             return ack()
         # _send validates this fresh transport response against the immutable
         # command and verb. Journal/publication updates cannot renew this bound.
-        if r.owner_phase is Phase.BOUND and (
-            r.local_settlement is LocalSettlement.SETTLED
-            or (
-                r.local_settlement is LocalSettlement.PENDING
-                and r.outcome
-                in (Outcome.CLIENT_OUTBOUND_QUEUED, Outcome.PENDING, Outcome.UNCERTAIN)
-            )
-        ):
+        if self._live_local_response(command, r):
             self._preparation_last_response = self.session.cleanup.clock()
         else:
-            require_response()
+            self._require_preparation_response()
         disposition = policy.Disposition.UNCERTAIN
         if r.owner_phase is Phase.BOUND:
             if r.flags & OUTBOUND_QUEUED and r.outcome not in (
@@ -891,7 +937,9 @@ class NativeActorCoordinator:
         }[r.entry]
         settled = r.local_settlement is LocalSettlement.SETTLED
         if settled:
-            self._local_command = self._preparation_command = self._preparation_proposal = None
+            if self._local_command == command:
+                self._local_command = self._local_receipt = None
+            self._preparation_command = self._preparation_proposal = None
             self._preparation_publication = None
         return ack(disposition, entry, settled)
 

@@ -4,7 +4,50 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active automatic buff renewal deployment - October 6
+## Active actor ownership deployment and passive status - October 7
+
+Start new work from freshly fetched `origin/main`, now
+`b17b003649fb927c5e5ef4ba0dec28d0a4968ff6` after PR #73 merged with all 15
+hosted checks passing. Exact ownership-repair source
+`2d1c928c5d9b3d130728dc936873df99de2edb51` is integrated and installed as host
+.71 / native .51. The shared coordinator reconciles settlement with the original
+buff policy and cannot clear a newer attack's local ownership. Correlated pending
+replies remain progress; unavailable replies retain bounded cleanup.
+
+Package `artifacts/b51/a83dc62b` passed 4,943 host tests (37 skips), both native
+profiles (224 tests / 126 required gates each), and 73 movement / 86 combat / 146
+actor IPC cases per profile. Independent qualification verified 110 artifacts
+and 82 stages. Apply verified 463 modules, 9,587 preserved files and one client
+DLL change; prepared .14, settings and jobs remain unchanged. Manager 5868 is
+healthy and all five shortcuts passed. Launch at 01:37:36 UTC on October 7
+verified the qualified DLL in PID 4128, creation FILETIME `134358106481261509`,
+HWND `197180`. Readiness was at login/loading; no .51 live acceptance is claimed.
+These are receipt identities, not continuing action authority.
+
+The obsolete .70 host and two .50 guest payloads were removed after verification,
+totaling 50,839,643 bytes. Four old .50 host/share staging binaries were removed
+(5,635,834 bytes). Twelve compact receipts and seven independently verified
+installed-file hashes are retained under B51 `receipts`. No rollback runtime is retained. The bot-integration checkout remains on
+`codex/buff-renewal-deployment-20261006` for this deployment record and the B50
+evidence below.
+
+Passive production PvE/buff status is published separately in draft PR #74,
+`codex/pve-buff-status-20261006` at
+`5da11d111cdbca81cc65ed25147ee75ed09a67d3`, targeting main. Its 335 affected
+regressions and independent review passed. It projects existing observations to
+the worker/dashboard with exact operation identity and explicit stale/unavailable
+states; it adds no runner or action controls. It is **not installed**. Hosted CI
+found an outdated test call missing the operation argument; its fixture correction
+is in progress, so hosted checks are not yet reported passing.
+
+Next: fresh in-world readiness and bounded combined buff/combat handoff validation,
+then agreed-player attack/cancel testing if the authorized player remains available.
+The previously observed `DayOwl` identity must be revalidated before any action.
+Sustained renewal/alternate-form proof remains outstanding. Manual overlap testing
+is canceled; automatic retaliation is not enabled. See the
+[patch record](client-update-20261004.md).
+
+## Historical automatic buff renewal deployment - October 6
 
 Start from freshly fetched `origin/main`, now
 `578f5f933cf5770764c79c5c5dc0ceea19e786ec` after PR #71 merged with all 15
@@ -38,12 +81,11 @@ four self-buff requests, all five groups PRESENT, no target contexts, confirmed
 LOCAL_RELEASED, no errors or watchdog. Concoction was preexisting; no expiry or
 renewal transition occurred, so that gate remains inconclusive.
 
-The user reenabled controlled PvP against native `DayOwl` on Wonderbane; passive
-census found one matching player nearby. Revalidate before actions. Production
-ownership repair PR #73 (`2d1c928`) and a separate passive dashboard status lane
-are in progress. Next: qualify the ownership repair, then controlled PvP and
-combined buff/combat validation; finish dashboard status in parallel. No manual overlap test
-or automatic retaliation is enabled. See the [patch record](client-update-20261004.md).
+At this B50 checkpoint, the user reenabled controlled PvP against native `DayOwl`
+on Wonderbane and passive census found one matching player nearby. That historical
+sample is not current action authority. Ownership repair PR #73 was subsequently
+merged and installed as recorded above; passive status is now draft PR #74.
+The B50 run did not establish expiry, renewal or transform alternation.
 
 ## Installed buff capture freshness deployment - October 6
 

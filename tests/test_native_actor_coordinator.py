@@ -291,7 +291,6 @@ def test_parent_cancel_child_ack_keeps_terminal_deadline_until_owner_stop(setup)
     assert owner.finish("parent_cancel")[0] and owner._obligation.released
 
 
-
 def test_unattached_adopted_action_cannot_close_via_local_release(setup):
     owner, session, _, observation, proposal = setup
     adopted = replace(proposal, kind=PvECombatKind.BIND, adopted_existing_action=True)
@@ -311,3 +310,43 @@ def test_unattached_adopted_action_cannot_close_via_local_release(setup):
     assert receipt.closure is Closure.LOCAL_RELEASED and not confirmed
     assert owner.active and not owner._closed and not owner._obligation.released
     session.pause.assert_not_called()
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_next_combat_wait_has_only_correlated_prior_action_progress(setup, missing):
+    owner, session, _, observation, first = setup
+    settled = False
+    failed = False
+
+    def response(grant, verb, command, **kwargs):
+        if failed and verb is Verb.ACTION_STATUS:
+            raise TimeoutError("unavailable original action")
+        return reply(command, verb, pending=command.action is not Action.NONE and not settled)
+
+    session.actor_action.side_effect = response
+    assert (
+        owner.advance_combat(first, observation).acknowledgement.disposition
+        is PvECombatDisposition.QUEUED
+    )
+    original = owner._local_command
+    next_proposal = replace(first, proposal_id=first.proposal_id + 1)
+    for milliseconds in (1_000, 6_000, 18_000):
+        observation.now_ms = milliseconds
+        assert (
+            owner.advance_combat(next_proposal, observation).acknowledgement.disposition
+            is PvECombatDisposition.UNCERTAIN
+        )
+        assert owner._local_command is original
+    failed = missing
+    settled = not missing
+    observation.now_ms = 23_000
+    result = owner.advance_combat(next_proposal, observation)
+    submits = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
+    if missing:
+        assert result.acknowledgement.disposition is PvECombatDisposition.REJECTED
+        assert len(submits) == 1 and owner.context is None
+        assert session.actor_action.call_args.args[1] is Verb.STOP_CONTEXT
+    else:
+        assert result.acknowledgement.disposition is PvECombatDisposition.QUEUED
+        assert len(submits) == 2 and submits[0].request != submits[1].request
+    assert owner.finish("test_complete")[0]

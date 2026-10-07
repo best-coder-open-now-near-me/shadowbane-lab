@@ -1,5 +1,51 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
+## Installed .71/.51 shared ownership repair - October 7
+
+PR #73 merged at `b17b003649fb927c5e5ef4ba0dec28d0a4968ff6` after all 15
+hosted checks passed. Qualified source is
+`2d1c928c5d9b3d130728dc936873df99de2edb51`. The production shared coordinator
+now routes a prior buff's settlement to that exact policy proposal and preserves
+any newer attack's ownership. A correlated pending reply remains progress while
+another proposal waits; lost or unavailable replies still require bounded cleanup.
+
+Package `artifacts/b51/a83dc62b` passed 4,943 host tests (37 skips), both native
+profiles with 224 passed tests / 126 required gates each, and 73 movement / 86
+combat / 146 actor IPC cases per profile. Independent qualification checked all
+110 artifacts and 82 stages. Qualified SHA-256 identities:
+
+- Full DLL: `ce2f598e05bc696f3d9b3a4922f8a16ec2d6fba13dc7e62695026f0fa8edba0a`.
+- Wheel: `b0d0bf32e6d7b06909557830d07d32fe6b5089edc2acd3916eceb1bb164c86e6`.
+- Archive: `c6c62f0a726cbd87ab1c320ea8b8a265081bdd69b718b35058e3809dc0e68a6a`.
+- Receipt: `613e875a58d34fac2d2524a475c92ccbb3855cfa4ad63ef1bde4cab38c4d6a8c`.
+
+**Installation and activation passed.** Apply verified 463 host modules,
+9,587 preserved files and exactly one client DLL inventory change. Manager 5868
+is healthy; all five shortcuts and startup preflight passed. Prepared client .14,
+corrected display preferences, settings and jobs remain in place.
+
+Launch at `2026-10-07T01:37:36.2173995Z` verified the qualified DLL in PID 4128,
+creation FILETIME `134358106481261509`, HWND `197180`. Passive readiness was at
+login/loading, so no .51 live gameplay acceptance is claimed. Process identities
+are receipts; a fresh session check is required before action.
+
+The obsolete .70 host (2,116 files / 48,021,726 bytes) and two .50 guest payloads
+were removed after exact ownership checks, totaling 50,839,643 bytes. No rollback
+copies were retained. Four old .50 host/share staging binaries were also removed,
+totaling 5,635,834 bytes. Twelve compact receipts and seven independently verified
+installed-file hashes are retained under `artifacts/bot-deploy/20261006-b51/receipts`.
+
+Draft PR #74 publishes passive production PvE/buff status at
+`5da11d111cdbca81cc65ed25147ee75ed09a67d3`. Independent review and 335 affected
+tests passed, including exact-operation storage, stale capture/worker handling,
+missing-status presentation and dashboard rendering. Hosted CI found an outdated
+test call missing the required operation argument; a fixture-only correction is
+in progress. Hosted checks are not yet reported passing, and this status feature
+is not part of the installed package. Next: fresh login/readiness and bounded shared buff/combat
+handoff validation, followed by authorized player attack/cancel validation if that
+player is available. Sustained renewal and alternate-form reuse remain unproved;
+manual overlap testing is canceled and automatic retaliation remains disabled.
+
 ## Installed .70/.50 renewal repair - October 6
 
 PR #71 merged at `578f5f933cf5770764c79c5c5dc0ceea19e786ec` after all 15
@@ -61,12 +107,10 @@ records original hashes.
 
 The user then reenabled controlled PvP: read-only native census uniquely observed
 `DayOwl` on Wonderbane, key `5845459/53`, approximately 8.55 units away. Census
-identity must be refreshed before action. Production ownership repair PR #73
-prevents a prior buff settlement from clearing a newer attack; package qualification
-is running. Passive per-buff dashboard status is a separate source lane. Next:
-qualify/install that ownership repair, validate agreed-player attack/cancel and
-combined buff/combat behavior, and finish production status. Manual overlap testing
-remains canceled; automatic retaliation remains disabled.
+identity must be refreshed before action. At that checkpoint, ownership repair
+PR #73 and passive dashboard status were still in progress. PR #73 is now merged
+and installed as .71/.51 above; dashboard status is published separately in draft
+PR #74. The historical B50 observation does not prove a renewal cycle.
 
 ## Installed .69/.49 buff scheduling repair - October 6
 
