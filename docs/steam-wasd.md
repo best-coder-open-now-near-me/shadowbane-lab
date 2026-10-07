@@ -6,13 +6,22 @@ WonderBane host .75/native .52 and must not replace its x86 runtime.
 
 ## Qualification status
 
-The x64 DLL and launcher build with warnings treated as errors. Input policy and
-exact-image native queue tests pass. Live attachment of source `418bd22` succeeded with a game-thread heartbeat,
-correct in-world actor state/position, no native fault, and zero unsolicited
-movement commands. Movement is enabled for the user's test. Live WASD and
-release/chat/focus acceptance are still pending; this is not yet a qualified
-release. [Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
-targets main. Next: record the user's movement and stop results.
+The user confirmed basic movement but found W pointing approximately screen-left
+and inconsistent behavior with auto-track. The attached `418bd22` runtime used a
+yaw assumption that does not represent the final rendered view. Its live status
+recorded 143 move calls and 43 stop completions without a native fault; this does
+not qualify camera orientation, chat, or focus behavior.
+
+The 0.1.1 camera correction derives forward and screen-right from the actual
+inverse screen-to-world matrix and eye used by native screen picking. It follows
+auto-track/orbit changes and removes the yaw/character-heading assumption. All
+three local suites pass: 2,160 camera combinations, 216 rays compared against
+native Steam unprojection, 12,800 native queue erases, and input-boundary tests.
+The correction is built but requires the user to exit the currently loaded
+client before installation. Next: install 0.1.1, then retest camera-relative W/A/S/D
+with auto-track on and off, plus release/chat/focus behavior.
+[Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
+targets main; live acceptance is still pending.
 
 ## Exact client boundary
 
@@ -75,7 +84,7 @@ It has no route playback, bot workflow, or packet construction.
 
 Status gate codes: 0 available, 1 disabled, 2 not foreground, 3 parent frame,
 4 modal/native window blocked, 5 modifiers/input inhibition, 6 typing,
-7 actor state/restriction, 8 no active world scene, 9 fault.
+7 actor state/restriction, 8 no active world scene, 9 fault, 10 invalid camera basis.
 A fault disables further native operations. Restart the game before trying a
 rebuilt DLL; uncertain operations are not replayed. Disabling leaves the pinned
 callback loaded until exit. The original executable and client settings are not
@@ -91,3 +100,18 @@ or settings were replaced and no rollback deployment was retained. Private live
 status evidence is in the worktree's `artifacts/steam-wasd/live-status.log`.
 CI builds the standalone x64 targets and runs input tests; exact-image tests
 remain a local qualification requirement because the game executable is private.
+
+## Camera profile and regression boundary
+
+Native screen-ray routine a25d40 reads eye XYZ at 105a904/105a908/105a90c and
+passes the matrix at 105aa70 to 191880. The public native unprojection wrapper is
+235df0. Matrix element accessor c62160 proves column-major indexing; native rays
+perform homogeneous division before subtracting the eye. The movement basis now
+uses these exact renderer inputs, independent of actor heading and yaw settings.
+
+Screen-right and screen-down rays define the view plane; their normal is oriented
+away from the camera eye and projected to the ground. Screen-right fixes the
+handedness. The exactly overhead case uses projected screen-up. Double precision
+scratch avoids cancellation at large world coordinates. Invalid/degenerate views
+stop owned movement and require a fresh key release before resuming. No camera
+setting is changed. Parent-local coordinate frames remain outside qualification.

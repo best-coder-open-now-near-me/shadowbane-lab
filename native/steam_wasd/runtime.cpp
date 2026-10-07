@@ -169,15 +169,18 @@ void tick() {
     ++stats.frames;
     Scene scene;
     if (!capture(scene)) {
-        controls.sample(physical_keys(),0,false,false); stats.gate=8; have_scene=false;
+        controls.sample(physical_keys(),{},false,false); stats.gate=8; have_scene=false;
         if(retained) { ++stats.scene_changes; release_owner(); }
         publish(); return;
     }
     bool same_scene=have_scene && same(scene,observed) && (!retained || same(scene,owner));
     observed=scene; have_scene=true;
     stats.keys=physical_keys(); stats.gate=gate(scene);
-    stats.yaw=global<float>(profile::yaw);
-    auto result=controls.sample(stats.keys,stats.yaw,stats.gate==0,same_scene);
+    const auto eye=global<Vec>(profile::camera_eye);
+    const auto basis=camera_basis(global<CameraMatrix>(profile::camera_matrix),{eye.x,eye.y,eye.z});
+    stats.yaw=basis.valid ? std::atan2(basis.forward.x,-basis.forward.z):0;
+    if(!basis.valid && !stats.gate) stats.gate=10;
+    auto result=controls.sample(stats.keys,basis,stats.gate==0,same_scene);
     if (!same_scene && retained) { ++stats.scene_changes; release_owner(); }
     if (result.stop) stop();
     if (result.steer) steer(scene,result.vector);

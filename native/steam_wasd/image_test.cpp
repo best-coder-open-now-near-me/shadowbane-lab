@@ -1,4 +1,5 @@
 #include "image.h"
+#include "camera_fixture.h"
 #include <map>
 #include <random>
 #include <algorithm>
@@ -44,6 +45,19 @@ int main(int argc, char** argv) {
         }
         check(tree.empty(), "sentinel restored after final erase");
     }
+    auto native_unproject=reinterpret_cast<void(*)(float*,int,int,float)>(reinterpret_cast<std::uintptr_t>(module)+steam_wasd::profile::unproject);
+    for(int degrees=0;degrees<360;degrees+=15) {
+        auto fixture=steam_wasd::test::camera(degrees*3.141592653589793/180,0.7,0.001);
+        std::memcpy(reinterpret_cast<char*>(module)+steam_wasd::profile::camera_matrix,fixture.matrix.data(),sizeof(fixture.matrix));
+        for(int x:{0,256,1024}) for(int y:{0,256,768}) {
+            float actual[3]{};steam_wasd::CameraPoint expected{};
+            native_unproject(actual,x,y,0.5F);
+            check(steam_wasd::unproject(fixture.matrix,x,y,0.5,expected),"unprojection succeeds");
+            check(std::abs(actual[0]-expected.x)<0.04 && std::abs(actual[1]-expected.y)<0.04
+                && std::abs(actual[2]-expected.z)<0.04,"camera math agrees with exact native unprojection");
+        }
+    }
+    puts("216 screen rays matched the exact native Steam unprojection code.");
     FreeLibrary(module);
     puts("Exact Steam image and 12,800 native tree erases passed.");
 }
