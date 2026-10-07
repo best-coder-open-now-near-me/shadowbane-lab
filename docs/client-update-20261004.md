@@ -1,6 +1,68 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
-## Host .72 installed and verified - October 7
+## Host .74 activated; bounded NPC cleanup unconfirmed - October 7
+
+PR #78 merged after all 15 hosted checks passed, advancing main to
+`f2ea8012876fd3624d813bd2b9c8cc80c5d6fdb8`. Exact installed host source is
+`18769f1d8228c64503a773fc42e145ec6eca94b0` (0.3.74). It includes the worker
+interpreter identity repair and bounded registry-read repair. Host .73 was not
+installed separately. Native 1.8.51/source `2d1c928c5d9b3d130728dc936873df99de2edb51`,
+the extension DLL and prepared client .14 remain unchanged.
+
+Exact-source qualification passed 5,056 host tests (37 skips), all 13 stages,
+466 installed-module checks and both native-profile IPC suites: 74 movement,
+86 combat and 146 actor cases per profile. Qualification SHA-256 is
+`59d687e3a85bad344e0527d68feaa543a2fdaecd4a3bff987c1b20e96c262ebd`;
+wheel SHA-256 is
+`e60eff219ee68b9fdbacccbb7d7eb558630afeee90194b773e1c1ef6057d353c`.
+
+Apply and activation succeeded with 466 modules, 9,588 retained files, eight
+validated generated worker records and zero client inventory changes. Manager
+7548 (creation `134358189279629173`, parent 8780 creation
+`134358189279033602`) is healthy with one paused worker and dispatch disabled.
+The original game stayed open: PID 4128, creation `134358106481261509`, HWND
+197180. These are receipt identities; actions still require fresh validation.
+
+The installer now distinguishes pause from worker shutdown. After proving idle
+operations and denied dispatch, it stopped the exact old manager handles before
+publishing the production stop request to actual worker PID 5588/creation
+`134358147964338484`. The worker and launch parent exited before apply. A narrowly
+reviewed repair changed only two shutdown helpers and the plan, preserving the
+prepared venv and original preparation receipt; 107 offline tests passed. No
+worker kill, game stop, replayed job or rollback runtime was introduced. The old
+.72 launcher wrapper's historical completion error is closed, with no pending
+process or new mutation from it.
+
+Eleven compact receipts were exported to the private diagnostic share
+`host-update-20261007-0.3.74/receipts`. Activation receipt SHA-256 is
+`2b735ff71be49119bf43bd0233e8148fb08733f7a29dabe54b2444023ab0034b`;
+apply receipt SHA-256 is
+`cffcb8d10be8444f9a52284d7dbdd442c79748043d577808de185c8b9e8e0e06`.
+The obsolete .72 host has no verified retirement receipt yet and is not recorded
+as removed or retained for rollback.
+
+Bounded run `1760e2eb1aa14762938a138ea3aec4c9` is **not passed**. Exact NPC
+`23888/37` reached native health zero in trace sequences 88/89 after one positive
+ATTACK queue. Shot to the Leg was queued; a later Beorc request entered with an
+UNCERTAIN/PENDING result. Child STOP request 21 still reported PENDING/STOPPING
+with closure NONE at sequence 91. Parent cleanup at sequence 92 remained
+unconfirmed without a receipt. The helper reported `native actor cleanup remains
+unconfirmed`; final list membership is unavailable. No watchdog or unexpected
+interruption was reported. Native health zero does not establish kill credit,
+completed cleanup, potion consumption or a complete buff-suite pass.
+
+Private acceptance SHA-256 is
+`245dcb935ace1465a7afbcdfb4514d449e19e76c7ae57aec580236a3b568b44c`;
+events SHA-256 is
+`ee9b74c0d616c25eb3befc494041397bcc71cd9d40f1490771505e8676fb4e27`.
+The original evidence remains unchanged.
+
+**Current next todo:** qualify the newly requested official client patch before
+continuing gameplay. Keep the unconfirmed .74 cleanup and potion response
+investigations, plus verified obsolete .72 retirement, as explicit follow-up work.
+The new patch is not covered by the preceding .14 installation receipt.
+
+## Historical host .72 delivery - October 7
 
 PRs #74 and #75 are merged; subsequent PR #76 also passed all 15 checks and
 merged, advancing main to `1ee3d6b`. The installed host remains the exact .72
@@ -80,11 +142,9 @@ there was no watchdog or unexpected interruption. The failed post-read leaves
 final membership unavailable. Concoction application remains unresolved; neither
 kill credit nor a complete buff-suite pass is claimed.
 
-**Current next todo:** qualify and review the combined .74 host-only update from
-installed .72, including registry-read repair and worker startup identity. The
-qualified .73 source is merged but will not be installed separately. Potion
-response/application remains a distinct unresolved investigation; no blind replay
-or manual-overlap requirement is introduced.
+The subsequent combined .74 installation is recorded above. Potion response and
+application remain a distinct unresolved investigation; no blind replay or
+manual-overlap requirement is introduced.
 
 
 ## Installed .71/.51 shared ownership repair - October 7

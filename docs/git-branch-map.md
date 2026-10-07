@@ -4,6 +4,31 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Active .74 host deployment closeout - October 7
+
+Start from freshly fetched `origin/main`, now
+`f2ea8012876fd3624d813bd2b9c8cc80c5d6fdb8` after PR #78 passed all 15 checks
+and merged. Exact source `18769f1d8228c64503a773fc42e145ec6eca94b0` is installed
+as host .74; native .51 and the running game remain unchanged. Host .73 was not
+installed separately. The bot-integration checkout owns PR #77 on
+`codex/native-identity-deployment-20261007` for the deployment receipts.
+
+Qualification passed 5,056 host tests (37 skips), six native IPC suites and 466
+module checks. Apply/activation verified 9,588 retained files and zero client
+inventory changes. Manager 7548 is healthy with one paused worker. Exact old
+manager/worker shutdown used the production stop ledger before the host switch;
+settings/jobs stayed in place and no rollback runtime was created.
+
+Eleven compact receipts were exported. The .74 bounded NPC run observed exact
+health zero after one positive ATTACK but failed with child STOPPING and parent
+cleanup unconfirmed; final membership is unavailable. It is not a gameplay or
+buff-suite pass. No verified .72 retirement receipt exists yet.
+
+**Current next todo:** qualify the newly requested official client patch before
+continuing gameplay. Preserve the unconfirmed cleanup and potion response
+investigations and verified obsolete .72 retirement as follow-up work.
+See the [deployment record](client-update-20261004.md).
+
 ## Merged worker interpreter identity repair - October 7
 
 PR #76 merged into `main` at `1ee3d6b` after all 15 hosted checks passed.
@@ -12,11 +37,11 @@ venv launcher PID is not necessarily the worker interpreter PID. A retained laun
 nonce, canonical heartbeat and OS process ancestry/lifetime establish the exact
 stop address. Explicit replacement requests wait for predecessor exit and are
 cancelled by pause, detach or binding change; arbitrary failed workers are not
-automatically restarted. Native .51 is unchanged. This repair will be delivered
-with the registry-read repair in one .74 update from installed .72; .73 will not
-be installed separately.
+automatically restarted. Native .51 is unchanged. This repair was delivered
+with the registry-read repair in one .74 update from installed .72; .73 was not
+installed separately.
 
-## Active host-only identity and status delivery - October 7
+## Historical .72 host-only identity and status delivery - October 7
 
 Start from freshly fetched `origin/main`; `main` remains the integration
 destination. PRs #74, #75 and #76 are merged; current main is `1ee3d6b`.
@@ -49,9 +74,8 @@ unchanged B51 native profiles, and 466 installed-module checks. Native source
 unchanged. The procedure preserves the running game lifetime and user data;
 only idle host workers/manager may be stopped. No rollback runtime is retained.
 
-**Current next todo:** qualify and review the combined .74 host-only update from
-installed .72; merged .73 will not be installed separately. Keep the unresolved
-potion response investigation distinct from registry-read/worker startup repair.
+The subsequent .74 installation is recorded above; the unresolved potion
+response investigation remains distinct from registry-read/worker startup repair.
 See the [qualification and delivery record](client-update-20261004.md).
 
 ## Historical actor ownership deployment and passive status - October 7
