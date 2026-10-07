@@ -203,12 +203,17 @@ A full local file receipt is retained in the main checkout's ignored
 settings created in this active install. Reconstruct official files from that
 pinned manifest and their official source; do not retain rollback installs.
 
-**Active next:** user enters a fresh local username/password in the host client.
+After the version correction, the user reported successful login, world entry,
+normal play and a character death. These are user-observed acceptance results,
+not an instrumented combat or persistence qualification.
+
 Automatic registration creates the local account on first login. The original
 server logs auto-registration passwords as well as its database password, so use
 a new local-only password, keep logs private and redact AutoRegister lines from
 shared output. Credential-log removal has been handed to the server-source lane.
-Then verify world listing, character creation, reconnect and persistence.
-Client/server compatibility and actual character save/reload remain untested.
+**Active next for local bootstrap:** verify respawn, reconnect and saved character,
+inventory and location. Full client/server compatibility and actual save/reload
+remain unverified. The user's separate starter-inventory capture request targets
+Wonderbane in the testing VM, not this local server.
 The peer's model inventory owns client/server content alignment; bootstrap health
 is not that proof.

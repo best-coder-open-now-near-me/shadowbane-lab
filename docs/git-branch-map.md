@@ -17,8 +17,9 @@ Preserve all three lane notices during integration. The normal checkout stays on
 main. Keep this managed worktree while its local bootstrap inputs remain active.
 Dedicated host client C:/Games/ShadowbaneLocal now has all 211 official files
 verified and the localhost route configured; its window opens and responds.
-Next: user login, character creation and saved-character reload. PR #97 includes
-the pinned Compose startup and live/client-install receipts.
+User reports successful local world entry, play and death after correcting the
+version gate. Next: respawn and saved-character/inventory/location reload.
+PR #97 includes the pinned startup and client-install receipts.
 
 
 ## Context cleanup progress - October 7

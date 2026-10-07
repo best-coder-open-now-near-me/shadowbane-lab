@@ -230,7 +230,7 @@
       "NPC slot errors 15551, 15895, 16056, 31969",
       "Initial loot-ID warning",
       "Upstream configuration logging includes the database password; logs must remain private and shared output redacted",
-      "Wonderbane client pairing and actual character persistence untested"
+      "Full Wonderbane client pairing and actual character persistence unverified; basic login/world entry reported by user"
     ],
     "expected_client_major_version": "1.3.38.14"
   },
@@ -243,7 +243,8 @@
     "endpoint_override": "127.0.0.1:6000",
     "launch_responding": true,
     "post_launch_file_hash_check": "passed with sole declared ArcaneIP override",
-    "client_server_login_tested": false,
-    "first_login_result": "Reached login server; rejected because bundled MB_MAJOR_VER was 1.2.26.0; corrected startup to 1.3.38.14, retry pending"
+    "client_server_login_tested": true,
+    "first_login_result": "Initial major-version mismatch; corrected MB_MAJOR_VER to 1.3.38.14; user then reported login, world entry, play and death",
+    "acceptance_evidence": "User report on 2026-10-07; no instrumented combat/persistence qualification"
   }
 }
