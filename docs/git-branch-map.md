@@ -11,8 +11,10 @@ on its original branch. PRs #92/#93/#94 remain draft client work, not server gat
 Find Wonderbane fix notes owns server base/bootstrap and client baseline; Continue
 PvE/PvP bot work owns gameplay policy/service migration. PR #95 now maps the
 service boundaries directly to bootstrap source `bafb48fe`; PR #97 owns its
-source/data/library pairing. Runtime/login remain untested. Next: establish the
-tracked server development checkout and implement the shared buff/combat slice.
+source/data/library pairing. Runtime/login remain untested. The separate private
+shadowbane-server repository now owns server code, with main pinned to `bafb48fe`.
+Its `codex/shared-gameplay-services` branch has docs checkpoint `22521f45` in
+server PR #1. Next: implement the shared buff/combat slice in that repository.
 
 ## Context cleanup progress - October 7
 
