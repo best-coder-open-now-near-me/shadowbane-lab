@@ -1,5 +1,40 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
+## Qualified host .72 update; activation pending - October 7
+
+Exact source `6d5abe5f74fd057fcf08c844027b6f58be9c5967` combines passive
+PvE/buff dashboard status and exact native client admission. Native PvE and
+travel no longer depend on screen calibration; process creation, executable,
+window, foreground and native ownership checks remain required.
+
+Host-only package `artifacts/host72/6d5abe5` passed 5,022 host tests (39 skips,
+790 subtests), six required movement/combat/actor IPC validators across both B51
+native profiles, and 466 installed-module checks. Independent review verified
+the exact Git archive, wheel RECORD/source hashes and all 13 qualification steps.
+Native source `2d1c928c5d9b3d130728dc936873df99de2edb51`, extension .51 and
+prepared client .14 are unchanged; no native rebuild or game restart is needed.
+
+Qualified SHA-256 identities:
+
+- Host wheel: `027c50a8fe5c9db7127b0461907ca01d360e06888cf4c7338ca356232a93d730`.
+- Source archive: `d3016ac7678387b42081c2d08224dd4d1224599d5a1c813f432267a1575090b9`.
+- Qualification: `c7042663c3a92f62515555fe3d1140f75d076582e5142baed0426692e90f06b5`.
+- Unchanged native DLL: `ce2f598e05bc696f3d9b3a4922f8a16ec2d6fba13dc7e62695026f0fa8edba0a`.
+
+The reviewed installer passed 33 offline tests. A baseline-only failure exposed
+64-bit PowerShell's incomplete module census; the reviewed correction uses the
+explicit 32-bit shell for that census without changing identity predicates.
+Fresh inspection then verified the same running game lifetime. The 21-file
+payload was staged with plan SHA-256
+`3e732f70bf7a8b0e669f21f359bfb5e69592a91aeafad783514ea4e68ade0ae0`.
+The new .72 wheel/dependencies are installed in their destination; validation is
+running. **The active host is still .71: switch, activation, old-host retirement
+and live acceptance are not yet recorded.** Settings, jobs, corrected display
+preferences and client assets must remain in place; no rollback copies are used.
+
+**Current next todo:** finish validation and host activation, then record exact
+preservation, shortcuts and fresh readiness before controlled live validation.
+
 ## Installed .71/.51 shared ownership repair - October 7
 
 PR #73 merged at `b17b003649fb927c5e5ef4ba0dec28d0a4968ff6` after all 15

@@ -4,26 +4,34 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active native client admission repair - October 7
+## Active host-only identity and status delivery - October 7
 
-Start from freshly fetched `origin/main`. The shared merge destination remains
-`main`; the installed runtime is host .71 / native .51 from `2d1c928`.
-`codex/native-client-identity-20261007` in bot-command-ownership removes an
-inherited screen-calibration dependency from native PvE and travel. Native
-operations retain exact process creation, executable path, window identity,
-foreground ownership, character binding and native leases; screen size, DPI,
-window title and mapped input actions are not their admission criteria.
+Start from freshly fetched `origin/main`; `main` remains the integration
+destination. PR #72 deployment records are merged at `2ad6b6c`. Exact combined
+host source `6d5abe5f74fd057fcf08c844027b6f58be9c5967` includes passive dashboard
+status from PR #74 and native client admission from PR #75. It removes screen
+calibration from native PvE/travel while retaining exact process, window,
+foreground, executable, character and native ownership checks.
 
-Deployment records are integrated through PR #72 at `2ad6b6c`. Passive dashboard
-status from PR #74 (`21c14a313b33ce2666e4647c848ef6b09f8cf502`) is included
-in this branch; all 15 hosted status checks passed. Host .72 combines status and
-identity admission while retaining the unchanged .51 native source/DLL. Neither
-host change is installed. Qualify and activate the combined host update before
-resuming the controlled DayOwl test. The
-prior passive PvP preflight stopped at the obsolete geometry check; no attack
-was sent. Buff renewal and combined combat handoff remain live validation todos.
+The bot-integration checkout owns `codex/native-identity-deployment-20261007`,
+based on that exact source, for the delivery receipt checkpoint. Source and
+qualification are distinct from activation: **the active runtime remains host
+.71 / native .51**. The qualified .72 wheel and dependencies have been installed
+into the new host directory; guest validation is running, with no interpreter
+switch, manager activation or new live acceptance yet.
 
-## Active actor ownership deployment and passive status - October 7
+Host-only package `artifacts/host72/6d5abe5` passed 5,022 host tests (39 skips,
+790 subtests), all six required movement/combat/actor IPC gates against both
+unchanged B51 native profiles, and 466 installed-module checks. Native source
+`2d1c928c5d9b3d130728dc936873df99de2edb51`, DLL and prepared client .14 remain
+unchanged. The procedure preserves the running game lifetime and user data;
+only idle host workers/manager may be stopped. No rollback runtime is retained.
+
+**Current next todo:** complete host validation, switch and activation, then
+record preservation, shortcut and readiness receipts before controlled live
+validation. See the [qualification and delivery record](client-update-20261004.md).
+
+## Historical actor ownership deployment and passive status - October 7
 
 Start new work from freshly fetched `origin/main`, now
 `b17b003649fb927c5e5ef4ba0dec28d0a4968ff6` after PR #73 merged with all 15
