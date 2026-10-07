@@ -1,7 +1,10 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
-## Qualified host .72 update; activation pending - October 7
+## Host .72 installed and verified - October 7
 
+PRs #74 and #75 are merged; subsequent PR #76 also passed all 15 checks and
+merged, advancing main to `1ee3d6b`. The installed host remains the exact .72
+source below; newer source is not installed by this receipt.
 Exact source `6d5abe5f74fd057fcf08c844027b6f58be9c5967` combines passive
 PvE/buff dashboard status and exact native client admission. Native PvE and
 travel no longer depend on screen calibration; process creation, executable,
@@ -21,19 +24,68 @@ Qualified SHA-256 identities:
 - Qualification: `c7042663c3a92f62515555fe3d1140f75d076582e5142baed0426692e90f06b5`.
 - Unchanged native DLL: `ce2f598e05bc696f3d9b3a4922f8a16ec2d6fba13dc7e62695026f0fa8edba0a`.
 
-The reviewed installer passed 33 offline tests. A baseline-only failure exposed
-64-bit PowerShell's incomplete module census; the reviewed correction uses the
-explicit 32-bit shell for that census without changing identity predicates.
-Fresh inspection then verified the same running game lifetime. The 21-file
-payload was staged with plan SHA-256
-`3e732f70bf7a8b0e669f21f359bfb5e69592a91aeafad783514ea4e68ade0ae0`.
-The new .72 wheel/dependencies are installed in their destination; validation is
-running. **The active host is still .71: switch, activation, old-host retirement
-and live acceptance are not yet recorded.** Settings, jobs, corrected display
-preferences and client assets must remain in place; no rollback copies are used.
+The corrected installer passed independent review and 59 offline tests.
+Baseline validation required an explicit 32-bit module census and omission of
+exactly two recognized running-engine outputs (`DoubleFusion/Engine.Log` and
+`DoubleFusion/dfts.dat`) from byte equality. Native/static inventory, settings
+and lifetime checks remain; failed diagnostics are preserved. No reinstall or
+runtime rollback was performed.
 
-**Current next todo:** finish validation and host activation, then record exact
-preservation, shortcuts and fresh readiness before controlled live validation.
+The existing new .72 host then validated all 466 module files and produced
+`host_prepared_not_switched` under final plan SHA-256
+`5256906f229b6ee0ccbd1a9de00a33f9cd12e5addc9d6cb4f47707ac667bf44a`.
+Apply and shortcuts then passed, verifying 466 modules and 9,586 retained files.
+Manager .72 is running (PID 2740); the original game remains open. Manager
+reconciliation keeps the exact client attached, so the reviewed installer now
+pauses that binding and verifies idle operations/worker ownership instead of
+requiring an empty slot list. An early activation postcheck saw an older heartbeat
+than the new launch reservation; fresh settled status confirms their matching
+worker UUID. A separately reviewed finalizer rechecks the existing manager
+without restarting it. **Activation is now verified**: the finalizer wrote
+`activation.json` (SHA-256
+`347b395ef9a81c680b3a8da6381afca5640029bf93f1ae992ff07eaf5bc4d628`),
+verifying 466 modules, 9,586 retained files and eight exact generated worker
+records. Manager 2740 and one paused worker are healthy; game PID 4128 is
+unchanged. The launcher misreported process completion after the Python verifier
+succeeded; saved JSON matched its stdout and stderr was empty. The finalizer was
+not rerun. Twelve compact receipts are retained locally under
+`artifacts/bot-deploy/20261007-host72/receipts`. Verified retirement removed the
+obsolete .71 host (2,116 files) and its old wheel, totaling 49,711,497 bytes;
+removal receipt SHA-256 is
+`053acac21d451db96a00169b5d2c52fa901c9ab69603a02d0d1c9de7100fcf46`.
+Settings and jobs remain in place; no rollback runtime was retained.
+
+Bounded player run `manual-pvp-a02f9c1042904e58bf44a8c225978ece` passed after
+fresh native identity/readiness checks: one ATTACK, same-child NATIVE_STOPPED,
+later SEEKING and parent LOCAL_RELEASED, with no errors, watchdog, unexpected
+stop or residual list membership. The native path did not require selected-target
+or screen-calibration authority. This establishes bounded action/cleanup behavior,
+not damage, kill credit or automatic retaliation. Manual overlap testing remains
+canceled.
+
+The first NPC/buff attempt (`4fff8a61820046a38c0a0d6bb5deca95`) found no
+eligible NPC and ended at its 30-second bound without a child context. Four buff
+groups became PRESENT. Concoction request 4 was positively queued and locally
+settled, but its native application journal remained pending, coverage MISSING
+and the observed stack quantity five. These facts do not prove consumption or
+remote application. Pending history prevented a duplicate potion request.
+
+A later radius-200 run (`64a84fa23c01494395c0db6a18eb61ad`) observed exact NPC
+`23884/37` health zero in trace sequence 114, followed by the recorded child
+NATIVE_STOPPED receipt at sequence 116. A subsequent registry read raised
+`NativeCharacterPopulationReadError: registry membership changed during read`;
+the complete acceptance result is **not passed**, despite the earlier combat
+and cleanup evidence. Parent LOCAL_RELEASED was confirmed at sequence 204;
+there was no watchdog or unexpected interruption. The failed post-read leaves
+final membership unavailable. Concoction application remains unresolved; neither
+kill credit nor a complete buff-suite pass is claimed.
+
+**Current next todo:** qualify and review the combined .74 host-only update from
+installed .72, including registry-read repair and worker startup identity. The
+qualified .73 source is merged but will not be installed separately. Potion
+response/application remains a distinct unresolved investigation; no blind replay
+or manual-overlap requirement is introduced.
+
 
 ## Installed .71/.51 shared ownership repair - October 7
 

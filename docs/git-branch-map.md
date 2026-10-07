@@ -7,18 +7,28 @@ records in place. Historical backup/rollback requirements below are superseded.
 ## Active host-only identity and status delivery - October 7
 
 Start from freshly fetched `origin/main`; `main` remains the integration
-destination. PR #72 deployment records are merged at `2ad6b6c`. Exact combined
+destination. PRs #74, #75 and #76 are merged; current main is `1ee3d6b`.
+The installed host remains exact .72 source below. PR #72 deployment records are
+merged at `2ad6b6c`. Exact combined
 host source `6d5abe5f74fd057fcf08c844027b6f58be9c5967` includes passive dashboard
 status from PR #74 and native client admission from PR #75. It removes screen
 calibration from native PvE/travel while retaining exact process, window,
 foreground, executable, character and native ownership checks.
 
 The bot-integration checkout owns `codex/native-identity-deployment-20261007`,
-based on that exact source, for the delivery receipt checkpoint. Source and
-qualification are distinct from activation: **the active runtime remains host
-.71 / native .51**. The qualified .72 wheel and dependencies have been installed
-into the new host directory; guest validation is running, with no interpreter
-switch, manager activation or new live acceptance yet.
+based on that exact source, for the delivery receipt checkpoint. **Host .72 is
+switched and its manager is running; native .51 is unchanged.** Apply verified
+466 modules and 9,586 retained files; shortcut updates passed. The running game
+was not restarted. Final activation independently verified the existing manager,
+one healthy paused worker and eight exact generated worker records. Twelve compact
+receipts were exported; verified retirement removed the old .71 host and wheel
+(49,711,497 bytes), preserving settings/jobs without rollback copies. A fresh bounded authorized player attack/cancel passed with one ATTACK,
+scoped NATIVE_STOPPED, later SEEKING and parent LOCAL_RELEASED; no errors,
+watchdog, unexpected stop or residual list membership. A subsequent NPC run
+observed exact-target health zero and child NATIVE_STOPPED, then failed during a
+later registry membership read; its overall result remains not passed. Parent
+LOCAL_RELEASED was confirmed. The earlier potion request remains remotely pending
+without consumption/application proof; no complete buff-suite pass is claimed.
 
 Host-only package `artifacts/host72/6d5abe5` passed 5,022 host tests (39 skips,
 790 subtests), all six required movement/combat/actor IPC gates against both
@@ -27,9 +37,10 @@ unchanged B51 native profiles, and 466 installed-module checks. Native source
 unchanged. The procedure preserves the running game lifetime and user data;
 only idle host workers/manager may be stopped. No rollback runtime is retained.
 
-**Current next todo:** complete host validation, switch and activation, then
-record preservation, shortcut and readiness receipts before controlled live
-validation. See the [qualification and delivery record](client-update-20261004.md).
+**Current next todo:** qualify and review the combined .74 host-only update from
+installed .72; merged .73 will not be installed separately. Keep the unresolved
+potion response investigation distinct from registry-read/worker startup repair.
+See the [qualification and delivery record](client-update-20261004.md).
 
 ## Historical actor ownership deployment and passive status - October 7
 
