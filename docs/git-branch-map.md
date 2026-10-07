@@ -4,6 +4,13 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Steam WASD lane - October 7
+
+`codex/steam-wasd` starts at main `acb1ba7`. It targets the x64 Steam client
+only; the x86 bot/runtime lane is unchanged. Profile/input/queue qualification is
+published as source, with runtime and live validation still unfinished.
+Integration destination is main through a reviewed PR. See [Steam WASD](steam-wasd.md).
+
 ## Combined .75/.52 release candidate - October 7
 
 `codex/combined-buff-diagnostics-release-20261007` in bot-runtime combines
