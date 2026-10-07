@@ -1,6 +1,68 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
-## Host .75/native .52 installed and ready - October 7
+## Host .76/native .53 installed; login pending - October 7
+
+PR #87 merged the reviewed peace-mode admission and owned-power diagnostics
+slices. Exact qualified source is `490cba79e7804b27948e182996d8e2bab2d1f050`.
+Package `artifacts/b53/faf7a2b4` passed 5,140 host tests (38 skips), 88 stages
+and independent verification of all 116 artifacts. Each native profile passed
+231 tests, all 133 required gates, 74 movement/86 combat/146 actor IPC cases and
+50 real item/power trace-reader cases with zero skips. Original/prepared .14
+decoder probes passed in both profiles. The skipped movement/cue/sky CTest
+wrappers have separate actual-image probes; optional transparency findings remain
+separate and unchanged.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Full DLL | `d79df0c046503eff1d68c9a58de0b77a40f065c882163568f279b76a949da6a6` |
+| Host wheel | `d5baa383bc41f7cb8c77d1d0035aabe3d3d604e35cf1f555b0ae726a615c478e` |
+| Package archive | `0bfe218f73f5b5b530c2458d394015a26df7bc16e99bdf21c55a75a065169ca7` |
+| Package receipt | `867f179f1eed6100df3e338b1ea24b7b68d59de7420938a6b151b96ce006f7c5` |
+
+Peace-only powers now decline direct native entry if current mode is ineligible,
+including the context-bound path. Existing buff publication already applied the
+mode rule. No stance is forced; this is not a diagnosis of Beorc's unresolved
+pending request. Optional copied power-entry records expose native return,
+send/append/followup and pre-entry metadata without authorizing actions, clearing
+application history or turning uncertain entry into completion.
+
+Apply and activation verified 467 host modules, 9,615 retained files and exactly
+one changed client inventory entry (the DLL). Manager PID 5820 activated healthy;
+all five shortcuts and launch preflight passed. The .14 executable and October 7
+cache `08c115…` remain unchanged. Settings, saved jobs and journals stayed in
+place without rollback copies. Exact old manager/worker shutdown preceded the
+replacement; fresh closed-client checks and current settings hashes fenced it.
+
+Launch at `2026-10-07T15:06:55.7045506Z` verified PID 4308, creation
+`134358592076268529`, HWND 2228630 and the qualified DLL. The following passive
+receipt was **not ready**, with actor/movement data unavailable at login/loading.
+This is a verified launch, not in-world readiness. No gameplay action was sent
+on this runtime before this checkpoint; user login and fresh readiness are next.
+
+All twelve compact exports and seven installed-file hashes were independently
+checked under `artifacts/bot-deploy/20261007-b53/receipts`. Export-manifest SHA-256
+is `4a56c106d0da85529afa0ad2866efb47e0a964b7a657cecde1669b9359e37a11`.
+Original guest receipt hashes (distinct from normalized export hashes) are:
+
+- Apply: `262b7edd65f8ad9683fc5be087ecbef6cbfda82994192f8f58c545f7547c787f`.
+- Activation: `2fb1fc22440cbc6a55ef2fc651d5856456afb6f94bf33d1a6bede4b9ede755ff`.
+- Launch: `c7268b51ddb21435c213f6b15b32b3e522acb0e5f002080249085a5b37519e7b`.
+- Obsolete runtime removal: `3a567b2b7919e4d814f22811fa432ecac5f88fd279bef5dca2019276fe396d80`.
+
+Verified retirement removed 2,124 old .75 host files and two obsolete .75/.52
+guest payloads, totaling 50,991,883 bytes. Four exact old local/share staging
+binaries totaled 5,682,766 bytes; removal receipt SHA-256 is
+`ab765bb5880ec23a340667b72712ef0c920b90a7a037f64232cf948ce7114a57`.
+No user settings, job records or diagnostic evidence were retired.
+
+PR #89 separately merged the offline consumer fixture at `7770df3`. Its 20 cases
+on each exact .14 image qualify constructor/conditional health-write behavior
+with named substitutes, not live hostile attribution. Automatic retaliation
+remains disabled. The next gameplay todo is diagnosis of the pending Beorc
+action, followed by sustained renewal evidence; potion-overlap testing remains
+canceled by the user.
+
+## Historical host .75/native .52 deployment - October 7
 
 PR #81 merged into main at `acb1ba7f41875a567654dbdcb5182857bba05679`.
 Exact source `733b5fecb862c6d9421b8c2d20f8b8aee5c6db18` combines aggregate

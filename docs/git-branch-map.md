@@ -2,27 +2,29 @@
 
 ## Offline hostile health consumer fixture - October 7
 
-`codex/hostile-health-consumer-probe-20261007` starts at freshly fetched main
-`a84f010` and targets `main`. Its standalone native probe executes exact .14
+PR #89 from `codex/hostile-health-consumer-probe-20261007` merged at
+`7770df308124cd66dffaebb1e6e8bbc74b83a69a` after all 15 hosted checks passed.
+Its standalone native probe executes exact .14
 constructor/field-transfer and conditional health-update code, with named
 instrumented dependencies. Twenty cases pass on both original and prepared
 images. It adds no runtime hook or automatic response authority. The next work
 is real participant/dispatcher and connection/message/action lifetime
 qualification; see [the evidence limits](hostile-consumer-evidence-20261007.md).
-The separate .76/.53 release candidate and installed .75/.52 are unchanged.
+The probe is separate from the qualified .76/.53 runtime package.
 
 **Deployment policy:** [No retained rollback artifacts](deployment-policy.md).
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Combined .76/.53 candidate - October 7
+## Installed .76/.53 delivery checkpoint - October 7
 
-`codex/power-diagnostics-release-20261007` in bot-integration is the single
-release candidate, based on main `a84f010`. It includes PR #85 at
+Start from freshly fetched `origin/main`, including merged PRs #87 and #89.
+The exact qualified release source is `490cba79e7804b27948e182996d8e2bab2d1f050`.
+It includes PR #85 at
 `7c34c9473dcd37ba2b8a929be52c21b60e15a053` and PR #86 at
-`3f578eca873128ed653e3f98b5d5a10d7999b956` by ancestry. Both focused slices
-passed independent review; combined package qualification is next. The source
-PRs remain published until combined integration is verified.
+`3f578eca873128ed653e3f98b5d5a10d7999b956` by ancestry. All source slices are
+merged. B53 `faf7a2b4` passed 5,140 host tests (38 skips), 116 artifact checks and
+88 stages, both native profiles and all mandatory IPC/actual-image gates.
 
 Peace-only direct power entry now defers before entering native code when the
 current mode is ineligible. Normal buff publication already enforces this rule;
@@ -30,10 +32,20 @@ this is not an explanation for the unresolved Beorc request. Optional owned-powe
 records expose native return, send/append/followup, initiation epoch and copied
 pre-entry metadata without changing action authority or settlement.
 
-Host .75/native .52 from `733b5fe` remain installed. No .76/.53 package has been
-installed. The next todo is exact-source combined qualification, then one update
-and a focused native diagnosis of the production pending-power failure.
-## Installed .75/.52 and deployment closeout - October 7
+`codex/power-diagnostics-deployment-20261007` in bot-command-ownership owns the
+receipt-only delivery checkpoint from main `7770df3`, targeting `main`.
+Installation/activation verified 467 modules, 9,615 retained files, one DLL
+inventory change and healthy manager 5820. Five shortcuts/preflight passed.
+Launch PID 4308, creation `134358592076268529`, HWND 2228630 verified the exact
+DLL; passive readiness remains not ready at login/loading. No .76 gameplay
+action or acceptance pass is claimed. Old .75 host and two payloads were removed
+(50,991,883 bytes), followed by four staging files (5,682,766 bytes); no rollback
+runtime was retained. See [the compact receipt record](client-update-20261004.md).
+Source branches remain until a separate ancestry/ownership cleanup; no active
+checkout is retired here. Next: user login and fresh readiness, focused native
+diagnosis of the pending-power failure, then sustained renewal evidence.
+
+## Historical .75/.52 deployment closeout - October 7
 
 Start from freshly fetched `origin/main`, now
 `a84f010a752d91f61aa4366921729f3af3dc8074` after PRs #83 and #84 merged the deployment
