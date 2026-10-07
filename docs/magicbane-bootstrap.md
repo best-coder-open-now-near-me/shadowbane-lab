@@ -174,7 +174,35 @@ backup. They remain diagnostic leftovers pending exact-path cleanup when Windows
 permits it. Do not reset Docker again to remove them. Related failure reports are
 in [Docker's issue tracker](https://github.com/docker/desktop-feedback/issues/625).
 
-**Active next:** configure the selected client route and verify Wonderbane login,
-world listing, character creation, reconnect and persistence. Client/server
-compatibility and actual character save/reload remain untested. The peer's model
-inventory owns client/server content alignment; bootstrap health is not that proof.
+## Dedicated host client
+
+The independent active install is `C:/Games/ShadowbaneLocal`. All 211 official
+files (2,309,329,106 bytes) were verified against reviewed manifest
+`22e083d1ef09aa94ced7380cc7e2bf994e69b3a3d8450f319c8f19c4dabbb95c`.
+203 exact matching files were read from the older local install; eight changed
+files were obtained from the official patch source and checked against the pins.
+No user settings or credentials were copied. The testing VM and Umbra session
+remain separate and unchanged by this setup.
+
+The sole official-file override is `Config/ArcaneIP.cfg`, now advertising login
+at `127.0.0.1:6000`. `Play-ShadowbaneLocal.cmd` starts `sb.exe` directly in its own
+working directory. No upstream patcher or bot extension is required or launched.
+The official executable remains `e703e7...`; CObjects remains `08c115...`.
+A post-launch verification passed for every official file, allowing only the
+explicit endpoint override. The game process opened a responding Shadowbane
+window; this is not proof of login or character loading.
+
+A full local file receipt is retained in the main checkout's ignored
+`artifacts/magicbane-local-runtime/client-install-receipt.json`. Preserve game
+settings created in this active install. Reconstruct official files from that
+pinned manifest and their official source; do not retain rollback installs.
+
+**Active next:** user enters a fresh local username/password in the host client.
+Automatic registration creates the local account on first login. The original
+server logs auto-registration passwords as well as its database password, so use
+a new local-only password, keep logs private and redact AutoRegister lines from
+shared output. Credential-log removal has been handed to the server-source lane.
+Then verify world listing, character creation, reconnect and persistence.
+Client/server compatibility and actual character save/reload remain untested.
+The peer's model inventory owns client/server content alignment; bootstrap health
+is not that proof.

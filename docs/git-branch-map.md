@@ -15,8 +15,10 @@ This source/documentation checkpoint is pending review and integration into main
 PR #96 retains the separate client baseline; PR #95 owns server gameplay migration.
 Preserve all three lane notices during integration. The normal checkout stays on
 main. Keep this managed worktree while its local bootstrap inputs remain active.
-Next: configure the client route, then verify login, character creation and saved
-character reload. PR #97 includes the pinned Compose startup and live receipt.
+Dedicated host client C:/Games/ShadowbaneLocal now has all 211 official files
+verified and the localhost route configured; its window opens and responds.
+Next: user login, character creation and saved-character reload. PR #97 includes
+the pinned Compose startup and live/client-install receipts.
 
 
 ## Context cleanup progress - October 7

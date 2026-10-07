@@ -232,5 +232,16 @@
       "Upstream configuration logging includes the database password; logs must remain private and shared output redacted",
       "Wonderbane client pairing and actual character persistence untested"
     ]
+  },
+  "client_install": {
+    "manifest_sha256": "22e083d1ef09aa94ced7380cc7e2bf994e69b3a3d8450f319c8f19c4dabbb95c",
+    "official_files_verified": 211,
+    "official_bytes": 2309329106,
+    "official_executable_sha256": "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
+    "cobjects_sha256": "08c115baeef5da811f7ee2802ccdc1002cfeba29cf1818956c452e3e594efef6",
+    "endpoint_override": "127.0.0.1:6000",
+    "launch_responding": true,
+    "post_launch_file_hash_check": "passed with sole declared ArcaneIP override",
+    "client_server_login_tested": false
   }
 }
