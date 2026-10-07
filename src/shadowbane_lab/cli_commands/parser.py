@@ -454,6 +454,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     discover.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
+    distribution = client_commands.add_parser(
+        "inspect-distribution",
+        help="read-only check of exact Wonderbane executable/cache baseline markers",
+    )
+    distribution.add_argument("directory", type=Path)
+    distribution.add_argument("--variant", choices=("official", "prepared"), required=True)
+    distribution.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
     validate = client_commands.add_parser(
         "validate-profile",
         help="strictly load a client calibration profile",

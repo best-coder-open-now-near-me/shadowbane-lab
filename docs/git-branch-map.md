@@ -1,5 +1,21 @@
 # Git branch map
 
+## Independent client baseline - October 7
+
+`codex/client-api-baseline` starts from `origin/main` at `cdaafb234cfe324cc1c750c77102cfcc76552f50`
+in the managed `client-api-baseline` worktree and targets `main`. It adds read-only
+Wonderbane .14/October 7 cache identification and the [independent client policy](client-distribution.md).
+It changes no live runtime, client assets or endpoint. This lane is separate from
+the coordinated authoritative server adapter mapping in Continue PvE/PvP bot work.
+Further client-circumvention harness development is on hold for the server pivot;
+the historical bot follow-ons are not own-server prerequisites.
+
+The source checkpoint is pending integration; use its feature branch until reviewed
+and merged, and continue other product work from freshly fetched `origin/main`.
+Next: complete baseline review, then resolve Docker startup and qualify a selected
+Magicbane source/data/runtime with this client. The normal project checkout stays
+on `main`; this worktree is retained for review, not as a deployment fallback.
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from
