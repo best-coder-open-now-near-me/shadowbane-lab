@@ -483,7 +483,7 @@ class ManagedWorkerControllerTests(unittest.TestCase):
                 clock=lambda: 101.0,
             )
 
-            self.assertIsNone(controller.ensure_started(CLIENT_ID, client))
+            self.assertEqual(WORKER_PROCESS_ID, controller.ensure_started(CLIENT_ID, client))
             self.assertEqual(1, controller.request_stop(CLIENT_ID, reason="detach requested"))
             request = ledger.inspect_stop_request(CLIENT_ID, WORKER_ID)
 
