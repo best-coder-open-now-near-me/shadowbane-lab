@@ -116,6 +116,8 @@ class NativeActorCoordinator:
         self._combat_proposal = self._combat_command = None
         self._combat_started = None
         self._stop_context_command = self._stop_owner_command = None
+        self._cleanup_result_command = None
+        self._first_cleanup_reply = None
         self._last_receipt = None
         self._last_context_result = (False, None, "context cleanup unconfirmed")
         self._last_owner_result = (False, None, "actor cleanup unconfirmed")
@@ -272,6 +274,8 @@ class NativeActorCoordinator:
                     context_id=identifier,
                     target_hint=target,
                 )
+            self._last_context_result = (False, None, "context cleanup unconfirmed")
+            self._cleanup_result_command = self._first_cleanup_reply = None
             self.context, self._context_ticket = binding, ticket
             self._target_token, self._target_key = proposal.target_token, proposal.target_key
             self._attach_command = self._command(context=binding)
@@ -339,11 +343,32 @@ class NativeActorCoordinator:
         )
 
     @staticmethod
-    def _uncertain(detail):
+    def _uncertain(detail, receipt=None, command=None):
         from .native_combat import NativeCombatUpdate
 
         return NativeCombatUpdate(
-            PvECombatAcknowledgement(PvECombatDisposition.UNCERTAIN, None, True), detail=detail
+            PvECombatAcknowledgement(PvECombatDisposition.UNCERTAIN, None, True),
+            receipt, detail, command
+        )
+
+    def _settle_combat_context(self, reason, *, preceding_reply=None):
+        """Finish the existing cleanup budget, never renew the combat timeout."""
+        from .native_combat import NativeCombatUpdate
+
+        confirmed, receipt, detail = self.finish_context(reason)
+        terminal = None
+        if not confirmed:
+            terminal = "combat_cleanup_unconfirmed"
+        elif self._closed:
+            terminal = ("native_scene_retired" if receipt is not None
+                        and receipt.owner_phase is Phase.RETIRED else "actor_owner_closed")
+        return NativeCombatUpdate(
+            PvECombatAcknowledgement(
+                PvECombatDisposition.REJECTED if confirmed else PvECombatDisposition.UNCERTAIN,
+                None, not confirmed),
+            receipt, detail, self._cleanup_result_command, terminal,
+            tuple(item for item in (preceding_reply, self._first_cleanup_reply)
+                  if item is not None),
         )
 
     def advance_combat(self, proposal, observation, *, listed=None):
@@ -352,7 +377,7 @@ class NativeActorCoordinator:
         if not isinstance(proposal, PvECombatProposal):
             raise ValueError("typed immutable combat proposal required")
         if self._stop_context_command is not None or self._terminal:
-            return self._uncertain("actor context settlement is pending")
+            return self._settle_combat_context("actor_context_settlement_pending")
         if self._combat_proposal is not None and proposal != self._combat_proposal:
             raise ValueError("another immutable combat proposal is unresolved")
         if self._adopted and (proposal.target_token, proposal.target_key) != (
@@ -379,14 +404,7 @@ class NativeActorCoordinator:
                 # Missing/mismatched replies never renew this deadline.
                 self._combat_started = observation.now_ms
         if observation.now_ms - self._combat_started >= 5_000:
-            confirmed, receipt, detail = self.stop_context("action_resolution_timeout")
-            if confirmed:
-                return NativeCombatUpdate(
-                    PvECombatAcknowledgement(PvECombatDisposition.REJECTED, None, False),
-                    receipt,
-                    detail,
-                )
-            return self._uncertain(detail)
+            return self._settle_combat_context("action_resolution_timeout")
         if waiting_local:
             return self._uncertain("previous local action settlement pending")
         if not self._ensure_open():
@@ -400,20 +418,19 @@ class NativeActorCoordinator:
                     Phase.CLOSED,
                     Phase.RETIRED,
                 ):
-                    confirmed, receipt, detail = self.stop_context("context_admission_refused")
-                    if confirmed:
-                        return NativeCombatUpdate(
-                            PvECombatAcknowledgement(PvECombatDisposition.REJECTED, None, False),
-                            receipt,
-                            detail,
-                        )
-                return self._uncertain(result.detail or "target context admission unconfirmed")
+                    return self._settle_combat_context(
+                        "context_admission_refused",
+                        preceding_reply=self._uncertain(
+                            result.detail, result.receipt, self._attach_command))
+                return self._uncertain(result.detail or "target context admission unconfirmed",
+                                       result.receipt, self._attach_command)
             if proposal.kind is PvECombatKind.BIND:
                 self._combat_proposal = None
                 return NativeCombatUpdate(
                     PvECombatAcknowledgement(PvECombatDisposition.BOUND, None, True),
                     result.receipt,
                     result.detail,
+                    self._attach_command,
                 )
             action = {
                 PvECombatKind.ATTACK: Action.ATTACK,
@@ -434,7 +451,7 @@ class NativeActorCoordinator:
 
         r = result.receipt
         if r is None:
-            return self._uncertain(result.detail)
+            return self._uncertain(result.detail, command=self._combat_command)
         live = r.owner_phase is Phase.BOUND and r.context_phase is Phase.BOUND
         disposition, reason = PvECombatDisposition.UNCERTAIN, None
         if (
@@ -492,13 +509,23 @@ class NativeActorCoordinator:
         if self.context is None:
             if self._adopted:
                 return self._stop_owner_once(reason)
-            return True, self._last_receipt, None
+            if self._closed:
+                return self._last_owner_result
+            if self._last_context_result[0]:
+                return self._last_context_result
+            return True, None, None
         if self._stop_context_command is None:
+            self._first_cleanup_reply = None
             self._stop_context_command = self._command(context=self.context)
         self.session.cleanup.begin_context(self._obligation, self._stop_context_command)
+        result = ActorResult(None)
         try:
             self._context_ticket.revoke(timeout_ms=self.session.cleanup.timeout_ms(self.grant, 750))
+            self._cleanup_result_command = self._stop_context_command
             result = self._send(Verb.STOP_CONTEXT, self._stop_context_command)
+            if self._first_cleanup_reply is None:
+                self._first_cleanup_reply = self._uncertain(
+                    result.detail, result.receipt, self._stop_context_command)
             r = result.receipt
             if (
                 r is not None
@@ -509,6 +536,11 @@ class NativeActorCoordinator:
             ):
                 self._release_owner(r, result.detail)
                 self._last_context_result = True, r, result.detail
+                return self._last_context_result
+            if r is not None and r.outcome is Outcome.HISTORY_EXPIRED:
+                # Child history cannot prove a live parent. Retrieve exact
+                # aggregate closure within the same deadline; never reopen it.
+                self._last_context_result = self._stop_owner_once(reason)
                 return self._last_context_result
             if r is not None and r.closure is Closure.NEVER_BOUND and self._adopted:
                 return self._stop_owner_once(reason)
@@ -560,10 +592,12 @@ class NativeActorCoordinator:
                 return self._last_context_result
             self._last_context_result = False, r, result.detail or reason
         except Exception as exc:
-            self._last_context_result = False, self._last_receipt, f"{reason}:{type(exc).__name__}"
+            self._last_context_result = False, result.receipt, f"{reason}:{type(exc).__name__}"
         return self._last_context_result
 
     def finish_context(self, reason):
+        if self._terminal or self._stop_owner_command is not None:
+            return self.finish(reason)
         if self.context is None:
             return self.stop_context(reason)
         return self.session.cleanup.settle(
@@ -608,8 +642,10 @@ class NativeActorCoordinator:
         if self._stop_owner_command is None:
             self._stop_owner_command = self._command()
         self.session.cleanup.begin(self._obligation)
+        result = ActorResult(None)
         try:
             self._parent_ticket.revoke(timeout_ms=self.session.cleanup.timeout_ms(self.grant, 750))
+            self._cleanup_result_command = self._stop_owner_command
             result = self._send(Verb.STOP_OWNER, self._stop_owner_command)
             r = result.receipt
             if (
@@ -628,7 +664,7 @@ class NativeActorCoordinator:
                 return self._last_owner_result
             self._last_owner_result = False, r, result.detail or reason
         except Exception as exc:
-            self._last_owner_result = False, self._last_receipt, f"{reason}:{type(exc).__name__}"
+            self._last_owner_result = False, result.receipt, f"{reason}:{type(exc).__name__}"
         return self._last_owner_result
 
     def finish(self, reason):

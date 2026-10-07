@@ -1,5 +1,26 @@
 # Git branch map
 
+## Context cleanup progress - October 7
+
+`codex/context-cleanup-progress-20261007` in bot-integration starts from
+main `7770df3` and now includes main `7235c16` after PR #90 merged. It targets
+`main` through PR #91. This host .77 source candidate keeps native
+.53 unchanged. It finishes an already-started context stop within the original
+cleanup deadline, preserves correlated admission/stop receipts and native reasons,
+and terminates the runner on unconfirmed cleanup or closed aggregate ownership.
+Prior child proof cannot settle a newly allocated child.
+
+The installed .76/.53 production run `63ff90fb` recorded three native health-zero
+encounters and all five buff groups PRESENT, then stalled after unconfirmed fourth
+context admission and stop. The host polling defect is reproduced offline; the
+original admission cause and sustained buff renewal remain unproved. Checkpoint
+`60988fa` passed independent source review, 5,150 host tests (39 skips) and host-only
+package qualification. The subsequent main integration changes documentation only;
+runtime sources are identical to that checkpoint. Next: pass the updated PR #91
+checks, integrate and install the reviewed host update before live validation.
+No new native admission rule or gameplay authority is introduced.
+
+
 ## Offline hostile health consumer fixture - October 7
 
 PR #89 from `codex/hostile-health-consumer-probe-20261007` merged at
@@ -47,10 +68,8 @@ Old .75 host and two payloads were removed
 (50,991,883 bytes), followed by four staging files (5,682,766 bytes); no rollback
 runtime was retained. See [the compact receipt record](client-update-20261004.md).
 Source branches remain until a separate ancestry/ownership cleanup; no active
-checkout is retired here. Next: qualify the separately owned host cleanup-liveness
-repair, then resume production and sustained renewal validation. The receipt-doc
-commits are pushed on `codex/power-diagnostics-deployment-20261007` in PR #90,
-awaiting checked integration into `main`.
+checkout is retired here. PR #90 merged these receipt records into main at `7235c16`. The separately owned
+host cleanup-progress repair and its current next step are recorded above.
 
 ## Historical .75/.52 deployment closeout - October 7
 
