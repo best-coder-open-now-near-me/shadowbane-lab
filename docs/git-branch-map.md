@@ -24,9 +24,16 @@ runtime was retained; settings/jobs/journals and evidence remain intact.
 
 Fresh launch PID 8436, creation `134358520489522692`, HWND 2556262 passed passive
 in-world readiness with alive player, owner NONE, no pending cleanup and scene 1.
-The passive preflight found zero loaded eligible NPCs; no actions were sent.
-No .75 live acceptance is claimed yet. The previous .74 Praeda run passed exact
-native queue/cancel and cleanup, without a server-damage or buff-suite claim.
+The initial passive preflight found zero eligible NPCs in the captured population
+and sent no actions. After NPCs became available, first run `6a579490` remained
+not passed at its 30-second bound (NPC health unchanged); all five buff groups
+were natively PRESENT by 28.406 seconds, with potion quantity 4 to 3. Its ordered
+events prove child NATIVE_STOPPED and parent LOCAL_RELEASED despite a stale
+cleanup summary field. Second run `780510c5` passed: NPC `23886/37` health
+800 to zero at 9.016 seconds, confirmed child/parent cleanup, zero membership
+and no errors/watchdog/interruption. Subsequent readiness was clean. This does
+not prove sustained refresh, server kill credit or live parent-blocked escalation.
+The previous .74 Praeda run remains bounded native queue/cancel evidence.
 See the [deployment record](client-update-20261004.md) for original receipt hashes.
 
 `codex/buff-cleanup-deployment-20261007` in bot-integration owns this documentation
@@ -35,8 +42,8 @@ remote tip `d996c8ac9b36a7534d9bf554adb748b8fff55c59` by ancestry so both
 documentation records can ship together. PR #82 can close after this combined
 PR merges; its client-evidence qualification remains source work, with automatic
 retaliation disabled. Neither document changes the installed runtime.
-**Current next todo:** once NPCs are available, bounded NPC/buff validation on
-.75/.52 with exact cleanup and evidence for unresolved potion application.
+**Current next todo:** bounded sustained buff renewal validation using actual
+coverage transitions and exact cleanup evidence.
 
 ## Historical .74 host and official data-patch closeout - October 7
 

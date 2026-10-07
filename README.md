@@ -11,13 +11,15 @@ with the October 7 official data-only cache update. Settings and jobs are preser
 
 PR #81's combined release is merged, qualified and installed. It includes aggregate
 cleanup ownership repair and optional potion-response diagnostics. Passive readiness
-is clean and in-world; bounded .75 NPC/buff validation awaits loaded NPCs. Diagnostics
-do not supply application authority or change combat admission.
+is clean and in-world. The first bounded run reached all five native buff groups
+but timed out before NPC completion; the second passed exact NPC health-zero
+and cleanup checks. Sustained refresh and the specific parent-blocked escalation
+remain unproven live. Diagnostics do not supply application authority.
 
 The earlier authorized .74 Praeda test passed one native ATTACK queue/cancel,
 exact child cleanup, later SEEKING and parent release. This does not prove server
-damage or sustained buff renewal. Missing potion application and sustained renewal
-remain active work; automatic retaliation stays disabled. Routine reviewed bot
+damage or sustained buff renewal. B52 now has observed potion coverage and a
+quantity decrement; sustained renewal remains next. Automatic retaliation stays disabled. Routine reviewed bot
 merges and installations have standing authorization under [AGENTS.md](AGENTS.md).
 
 `shadowbane-lab` is a deterministic simulation and bot-policy laboratory. It treats

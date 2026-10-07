@@ -30,11 +30,11 @@ Fresh launch at `2026-10-07T13:07:38.7098114Z` verified PID 8436, creation
 `134358520489522692`, HWND 2556262 and the qualified DLL. Passive in-world
 readiness reported the player alive, native owner NONE, no pending cleanup,
 scene 1 and capability flags 385. These are recorded observations; subsequent
-actions require fresh lifetime/readiness validation. No .75 live pass is claimed
-in this deployment checkpoint. Passive preflight
+actions require fresh lifetime/readiness validation. Initial passive preflight
 `1b1e8b005391434d85bce9f68320a823` observed exact Umbra `4050960/53` alive
-and idle, with no actions sent. Its eligibility census found zero loaded NPCs,
-not just none within range; live follow-through awaits NPC availability.
+and idle, with no actions sent. Its census found zero eligible NPCs in the captured
+population, not merely outside the camp radius. Later NPC availability permitted
+the bounded runs recorded below.
 
 Twelve compact exports, including independent installed hashes, are retained in
 `artifacts/bot-deploy/20261007-b52/receipts`. Original guest receipt SHA-256 values
@@ -58,10 +58,46 @@ That result establishes bounded target/cleanup behavior, not server damage or
 validation of .75 buff renewal. The previous failed NPC evidence below remains
 failed and unchanged.
 
-**Current next todo:** once NPCs are available, perform bounded NPC/buff validation
-on .75/.52, including exact cleanup and diagnostic evidence for unresolved potion application.
-Automatic retaliation remains disabled. PR #83 also incorporates reviewed
-PR #82's client-evidence qualification plan, without runtime changes.
+### B52 bounded buff and NPC results
+
+Run `6a57949029b84f1ea6c6d078c6020e3b` remains **not passed**: the fixed
+30-second session ended with NPC `23885/37` still at 400 health. The first context
+was never bound and closed positively. Native initiation and local power
+settlement occupied most of the session; the replacement context bound at
+25.922 seconds, Shot queued at 26.203 and two positive ATTACK queues followed at
+26.906/28.578. The moving NPC was about 150 units away when Shot queued and
+129.6 units away at timeout. This run did not allow enough time to establish
+combat completion; the evidence does not explain the short approach stopping.
+
+All five native buff coverage groups were PRESENT by 28.406 seconds, including
+concoction with observed item quantity 4 to 3. This establishes observed coverage
+and quantity change, without server transaction/consumption attribution. Exact
+child request 78 returned NATIVE_STOPPED and parent request 79 LOCAL_RELEASED;
+no watchdog or unexpected interruption occurred. The acceptance summary's
+`child_cleanup=not_started` is stale: its error path raised after recording the
+positive cleanup event but before returning the tuple to its caller. The original
+failed receipt remains unchanged; final membership was not captured in it.
+
+The second run, `780510c5e3e54da3a4128a8828173f38`, **passed**. Exact NPC
+`23886/37` went from native health 800 to zero at 9.016 seconds. Child request 25
+confirmed NATIVE_STOPPED; parent request 27 confirmed LOCAL_RELEASED. Final
+owned membership was zero, errors empty, and watchdog/unexpected-stop flags false.
+Fresh passive readiness afterward showed owner NONE and no pending cleanup.
+This proves the bounded encounter and ordinary cleanup path. It does not prove
+server kill credit, sustained expiry/refresh, or a live recurrence of the specific
+parent-local-action blockage repaired in this release.
+
+Evidence remains private under `bot-actor-encounter-20261007-b52`:
+
+- First acceptance: `dcf875f0fbe54fad8585cdb0c217dcb76cc93455a8ca80dd5197fe18eb5bdc31`;
+  events: `e3353c903b622218b9d567798a0896e3adbbcc7791545276db5c9c32b3e24ed7`.
+- Second acceptance: `e0191da251d5f176e022cf8372967f39497ec3b1504e76c425a49290b9076362`;
+  events: `02aa20794e9e57d560dd3cb030f872f9f78aedd262ebc20837a1b66d47755026`.
+
+**Current next todo:** bounded sustained buff renewal validation, with claims
+limited to actual coverage transitions and native cleanup evidence. Automatic
+retaliation remains disabled. PR #83 also incorporates reviewed PR #82's
+client-evidence qualification plan without runtime changes.
 
 ## Official data-only patch verified and launched - October 7
 
