@@ -1,10 +1,12 @@
 # Private Windows host preparation - October 7, 2026
 
-This checkpoint prepares the destination independently from the existing game
-server. It does not migrate characters or enable remote players. Follow the
+This deployment builds the destination independently from the existing game
+server and supports private remote play through an explicit Tailscale overlay. Follow the
 [handoff](https://github.com/best-coder-open-now-near-me/shadowbane-lab/blob/245f7d911a0bbb29022b96da1382b27ed9d3a01c/docs/handoffs/private-server-pc-20261007.md)
 and [deployment policy](deployment-policy.md). Keep original user data until the
-destination is verified and source retirement is authorized.
+destination is verified and source retirement is authorized. For an explicitly
+requested fresh world, leave the original world untouched and skip migration.
+Once the destination contains characters, preserve its existing volumes too.
 
 ## Source and build
 
@@ -158,3 +160,11 @@ database seeded from the image's static tables.
 Deploy after a clean save/logout and verify the same existing character and the
 previously rejected build after restart. Do not reseed populated volumes or keep
 the superseded image/container for rollback.
+
+Qualification passed for the guarded migration, a full isolated boot and clean
+restart, and the live private-host update. Account, character and item table
+checksums were identical before and after the update; the existing character
+was preserved. The new image was healthy with only the two intended VPN port
+bindings, and the database secret was absent from the startup log. Temporary
+test containers and the superseded runtime image were removed. Client retry,
+world entry, remote port-isolation checks and reboot startup remain pending.
