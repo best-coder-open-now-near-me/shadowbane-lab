@@ -17,6 +17,7 @@ from shadowbane_lab.client_action import (
 from shadowbane_lab.client_extension import (
     open_windows_extension_event_consumer,
 )
+from shadowbane_lab.client_extension.distribution import ClientVariant, inspect_distribution
 from shadowbane_lab.client_input import (
     ArcaneHotbarLoadError,
     ArcaneHotkeyLoadError,
@@ -130,6 +131,26 @@ from shadowbane_lab.world_data import (
 from .character import _snapshot_payload
 from .client_runtime import _PVE_TARGET_ACTIONS, _wait_for_guarded_client
 from .common import _error
+
+
+def inspect_distribution_command(
+    directory: Path, *, variant: ClientVariant, as_json: bool,
+) -> int:
+    try:
+        report = inspect_distribution(directory, variant=variant)
+    except (OSError, ValueError) as exc:
+        report = {"schema_version": 1, "markers_match": False, "error": str(exc)}
+    if as_json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        outcome = "MATCH" if report["markers_match"] else "MISMATCH"
+        print(f"Baseline executable/cache markers: {outcome}")
+        for check in report.get("checks", []):
+            print(f"  {check['expected']['relative_path']}: {check['status']}")
+        if "error" in report:
+            print(report["error"])
+        print("Package integrity, live readiness and server compatibility are not evaluated.")
+    return 0 if report["markers_match"] else 2
 
 
 def _inspect_client(*, as_json: bool) -> int:

@@ -1,5 +1,27 @@
 # Git branch map
 
+## Independent client baseline - October 7
+
+`codex/client-api-baseline` starts from `origin/main` at `cdaafb234cfe324cc1c750c77102cfcc76552f50`
+in the managed `client-api-baseline` worktree and targets `main`. It adds read-only
+Wonderbane .14/October 7 cache identification and the [independent client policy](client-distribution.md).
+It changes no live runtime, client assets or endpoint. This lane is separate from
+the coordinated authoritative server adapter mapping in Continue PvE/PvP bot work.
+Further client-circumvention harness development is on hold for the server pivot;
+the historical bot follow-ons are not own-server prerequisites.
+
+Source checkpoint `e3d8229ebd271a13e91c698f1f44a0d4694f0700` is pushed in
+[PR #96](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/96),
+pending integration. It passed 59 focused/CLI tests and 10 subtests, Ruff and diff
+checks; hosted checks are pending at publication. Use its feature branch until
+reviewed and merged, and continue other product work from fetched `origin/main`.
+The server migration mapping is published separately in
+[PR #95](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/95).
+Preserve both direction/ownership notices when integrating these parallel lanes.
+Next: complete baseline review, then resolve Docker startup and qualify a selected
+Magicbane source/data/runtime with this client. The normal project checkout stays
+on `main`; this worktree is retained for review, not as a deployment fallback.
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from
