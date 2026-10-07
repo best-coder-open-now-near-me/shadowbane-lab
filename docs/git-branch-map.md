@@ -1,5 +1,19 @@
 # Git branch map
 
+## Worker activation ownership - October 7
+
+`codex/worker-activation-ownership-20261007` in bot-runtime starts from freshly
+fetched main `cdaafb2` (merged PR #91). It adds controller-owned attachment
+inspection and bounded recovery to normal manager status and supervision, with
+separate heartbeat health and exact interpreter ownership. Paused delayed
+handshakes can complete without another launch or dispatch permission.
+This source slice targets `main`. The manager/worker suite passed 441 tests with
+one optional native movement fixture skip; the final separated lifecycle and
+attachment gate passed 81 focused tests. It changes no native image, release
+version or VM state.
+PR #93 remains published separately and is not included in this branch.
+
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from

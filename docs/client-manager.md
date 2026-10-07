@@ -310,6 +310,43 @@ failed, degraded, or emergency-tripped workers all fail closed and remain visibl
 `lifecycle_dispatch_enabled` remains separately visible so an operator can distinguish a manual
 pause from a worker-health block.
 
+### Worker attachment ownership
+
+The status response exposes `slots[].worker_activation` separately from
+`slots[].worker` heartbeat health. The dashboard displays both. A healthy paused
+interpreter can have `pending` attachment while its Windows venv launcher still
+owns an unfinished handshake; its launcher PID is not the worker's stop address.
+`attached` means the controller has recorded the exact worker ID, game instance,
+interpreter PID and creation time. `stopping` retains that tuple after an exact
+stop request. `exited`, `unavailable` and `recovery_required` are not attachment
+proof. `absent` means no controller launch reservation was observed, not that no
+process exists. An externally started worker without controller attachment cannot
+borrow managed dispatch from its heartbeat. The existing explicit `ensure_started()`
+reuse operation records its validated exact tuple under the launch lock; status
+and supervision do not perform that adoption. A different live reservation must
+be resolved before explicit reuse can replace it.
+
+Normal supervision attempts one existing handshake per turn, including for a
+paused slot. It never launches, resumes dispatch or requests a stop through this
+recovery path. The controller uses its retained launch object, generated worker
+ID, exact slot/game binding, heartbeat and OS interpreter lifetime. A missing
+heartbeat does not block other slots for the startup timeout. Lock contention is
+reported as unavailable for that turn. Missing launch ownership, inconsistent
+identities or an unverified launcher exit require explicit recovery; a healthy
+heartbeat alone cannot recreate ownership. Already durable attached interpreter
+records remain inspectable after manager restart without the old launcher handle.
+
+`ManagedWorkerController.inspect_activation()` is read-only;
+`recover_activation()` completes only the existing exact launch. Status callers
+and deployment tooling should consume this public boundary instead of parsing
+`.launch-reservation` or interpreting its intermediate fields. Managed dispatch
+requires the attached tuple to match the supervisor's selected heartbeat, as well
+as all existing lifecycle, freshness, process and emergency-stop checks. A
+paused, detached, replaced or stopped slot cannot gain dispatch through recovery.
+
+A shared host-update transaction consuming this status is the next consolidation
+step; per-release install orchestration is not part of this ownership API change.
+
 The manager continuously writes an atomic `dispatch.permit` beside each slot's heartbeat records.
 An allow permit names the exact game instance, worker ID, worker PID/creation time, and last verified
 heartbeat, and expires after two seconds. `pause`, `detach`, `close`, a new launch/attach, and orderly
