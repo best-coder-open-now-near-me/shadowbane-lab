@@ -176,6 +176,12 @@ in [Docker's issue tracker](https://github.com/docker/desktop-feedback/issues/62
 
 ## Dedicated host client
 
+The first real login reached the server but was rejected with
+`Major Version Failure: 1.3.38.14`: the bundled configuration still expected
+`1.2.26.0`. Startup now explicitly sets `MB_MAJOR_VER=1.3.38.14`, matching our
+pinned executable while retaining the exact-version check. This configuration
+correction is not proof of the remaining message/model compatibility.
+
 The independent active install is `C:/Games/ShadowbaneLocal`. All 211 official
 files (2,309,329,106 bytes) were verified against reviewed manifest
 `22e083d1ef09aa94ced7380cc7e2bf994e69b3a3d8450f319c8f19c4dabbb95c`.

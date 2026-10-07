@@ -54,6 +54,8 @@ export MB_EXTERNAL_ADDR="${SERVER_EXTERNAL_ADDRESS:-127.0.0.1}"
 export MB_BIND_ADDR="$(hostname -I | awk '{print $1}')"
 export MB_WORLD_NAME="${SERVER_WORLD_NAME:-ShadowbaneLocal}"
 [[ "$MB_WORLD_NAME" =~ ^[A-Za-z0-9_-]+$ ]] || { echo "World name must contain only letters, digits, underscore or hyphen" >&2; exit 4; }
+# Match the pinned Wonderbane executable; retain the server version check.
+export MB_MAJOR_VER=1.3.38.14
 export MB_LOGIN_PORT=6000 MB_WORLD_PORT=8000 MB_LOGIN_AUTOREG=TRUE
 export MB_WORLD_WAREHOUSE_PUSH=false MB_WORLD_MAINTENANCE=false
 export CLASSPATH='/usr/share/java/*:build/bin/magicbane.jar'

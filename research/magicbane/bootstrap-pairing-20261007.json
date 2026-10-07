@@ -210,7 +210,7 @@
   ],
   "runtime": {
     "image": "shadowbane-local:bafb48fe",
-    "manifest_sha256": "da6c40854a70098ca623e028f60bbbf459b24efede72e8a1640ddb9ce8675f2d",
+    "manifest_sha256": "741c770493d0d4a261debcf22ad300f87db2ba151192e7048844ef54428d2d86",
     "source_revision": "bafb48fe14e5356a64137954cf2d79205835a204",
     "world_name": "ShadowbaneLocal",
     "published_ports": [
@@ -231,7 +231,8 @@
       "Initial loot-ID warning",
       "Upstream configuration logging includes the database password; logs must remain private and shared output redacted",
       "Wonderbane client pairing and actual character persistence untested"
-    ]
+    ],
+    "expected_client_major_version": "1.3.38.14"
   },
   "client_install": {
     "manifest_sha256": "22e083d1ef09aa94ced7380cc7e2bf994e69b3a3d8450f319c8f19c4dabbb95c",
@@ -242,6 +243,7 @@
     "endpoint_override": "127.0.0.1:6000",
     "launch_responding": true,
     "post_launch_file_hash_check": "passed with sole declared ArcaneIP override",
-    "client_server_login_tested": false
+    "client_server_login_tested": false,
+    "first_login_result": "Reached login server; rejected because bundled MB_MAJOR_VER was 1.2.26.0; corrected startup to 1.3.38.14, retry pending"
   }
 }
