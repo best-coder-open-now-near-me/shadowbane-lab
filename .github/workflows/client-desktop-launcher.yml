@@ -1,0 +1,29 @@
+name: Client desktop launcher
+on:
+  push:
+    paths:
+      - 'native/client_launcher/**'
+      - 'scripts/build-client-desktop-launcher.ps1'
+      - 'scripts/generate-client-launcher-profile.py'
+      - 'src/shadowbane_lab/client_extension/distribution.py'
+      - '.github/workflows/client-desktop-launcher.yml'
+  pull_request:
+    paths:
+      - 'native/client_launcher/**'
+      - 'scripts/build-client-desktop-launcher.ps1'
+      - 'scripts/generate-client-launcher-profile.py'
+      - 'src/shadowbane_lab/client_extension/distribution.py'
+      - '.github/workflows/client-desktop-launcher.yml'
+permissions:
+  contents: read
+jobs:
+  desktop-startup:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Build standalone launcher and run Windows tests
+        shell: pwsh
+        run: ./scripts/build-client-desktop-launcher.ps1

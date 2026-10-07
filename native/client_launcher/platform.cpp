@@ -1,4 +1,5 @@
 #include "platform.h"
+#include "preferences.h"
 #include <bcrypt.h>
 #include <dwmapi.h>
 #include <shellscalingapi.h>
@@ -142,6 +143,60 @@ Handle VerifyFile(const std::filesystem::path& path, unsigned long long expected
     if (total != expected_size || hex.str() != expected_hash)
         throw std::runtime_error("Client files differ from the verified baseline. Use the pinned client package.");
     return file;
+}
+void PrepareDesktopPreferences(const std::filesystem::path& path, const Display& display, bool apply) {
+    for (auto part = path; !part.empty(); part = part.parent_path()) {
+        const DWORD attributes = GetFileAttributesW(part.c_str());
+        Require(attributes != INVALID_FILE_ATTRIBUTES, "Read preferences path");
+        if (attributes & FILE_ATTRIBUTE_REPARSE_POINT)
+            throw std::runtime_error("Preferences must not use path indirection.");
+        if (part == part.root_path()) break;
+    }
+    Handle original(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE,
+        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+    Require(original.get() != INVALID_HANDLE_VALUE, "Open display preferences");
+    LARGE_INTEGER size{};
+    Require(GetFileSizeEx(original.get(), &size) != FALSE, "Read preferences size");
+    if (size.QuadPart < 0 || size.QuadPart > 1024 * 1024)
+        throw std::runtime_error("Client preferences exceed the supported size.");
+    std::string before(static_cast<std::size_t>(size.QuadPart), '\0');
+    DWORD read = 0;
+    Require(ReadFile(original.get(), before.data(), static_cast<DWORD>(before.size()), &read, nullptr) &&
+        read == before.size(), "Read display preferences");
+    const auto after = DesktopPreferences(before, display);
+    if (!apply || after == before) return;
+    BY_HANDLE_FILE_INFORMATION initial{};
+    Require(GetFileInformationByHandle(original.get(), &initial) != FALSE, "Identify preferences");
+    const auto temporary = std::filesystem::path(path.wstring() + L".desktop-" +
+        std::to_wstring(GetCurrentProcessId()) + L".tmp");
+    bool temporary_owned = false;
+    try {
+        {
+            Handle output(CreateFileW(temporary.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW,
+                FILE_ATTRIBUTE_NORMAL, nullptr));
+            Require(output.get() != INVALID_HANDLE_VALUE, "Create atomic preferences update");
+            temporary_owned = true;
+            DWORD written = 0;
+            Require(WriteFile(output.get(), after.data(), static_cast<DWORD>(after.size()), &written, nullptr) &&
+                written == after.size() && FlushFileBuffers(output.get()), "Write display preferences");
+        }
+        Handle current(CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE,
+            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+        Require(current.get() != INVALID_HANDLE_VALUE, "Recheck preferences");
+        BY_HANDLE_FILE_INFORMATION now{};
+        Require(GetFileInformationByHandle(current.get(), &now) != FALSE, "Recheck preferences identity");
+        if (initial.dwVolumeSerialNumber != now.dwVolumeSerialNumber || initial.nFileIndexHigh != now.nFileIndexHigh ||
+            initial.nFileIndexLow != now.nFileIndexLow || initial.nFileSizeLow != now.nFileSizeLow ||
+            initial.nFileSizeHigh != now.nFileSizeHigh || CompareFileTime(&initial.ftLastWriteTime, &now.ftLastWriteTime))
+            throw std::runtime_error("Preferences changed during startup; retry after closing their editor.");
+        // ReplaceFile retains the original file's ACL and attributes. No backup path is supplied.
+        Require(ReplaceFileW(path.c_str(), temporary.c_str(), nullptr, 0, nullptr, nullptr) != FALSE,
+            "Commit display preferences");
+        temporary_owned = false;
+    } catch (...) {
+        if (temporary_owned) DeleteFileW(temporary.c_str());
+        throw;
+    }
 }
 std::vector<wchar_t> ChildEnvironment() {
     wchar_t* raw = GetEnvironmentStringsW();

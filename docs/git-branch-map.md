@@ -7,9 +7,14 @@
 `b8654f07888ecd28b329d8c5848fb39cd0738c00` and targets `main` with that dependency.
 The [startup policy](client-desktop-fullscreen.md) preserves the desktop display
 mode and separates fullscreen presentation from the client's exclusive mode.
-Policy/Windows argument tests pass. Native integration and live qualification are
-next; no runtime is installed yet. The existing bootstrap checkout remains on
-`codex/magicbane-runtime-pairing`; main stays clean.
+The standalone native launcher and Windows CI workflow are implemented. The
+packaging script and all three native/CLI test groups pass, including atomic
+preference updates and physical window identity checks. Read-only inspection
+rejects the currently running exclusive-mode client as intended. No runtime has
+been installed; the next step is a live launch after the user closes that client,
+then mouse/Alt-Tab/Discord acceptance. The existing bootstrap checkout remains on
+`codex/magicbane-runtime-pairing`; the normal project checkout remains on `main`.
+This branch is published for review; it is not merged or live-qualified yet.
 
 ## Independent client baseline - October 7
 

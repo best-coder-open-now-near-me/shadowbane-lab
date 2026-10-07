@@ -67,9 +67,7 @@ inline std::wstring Quote(std::wstring_view value) {
 
 inline std::wstring Arguments(const std::wstring& executable, const Display& display) {
     ValidateDesktop(display);
-    return Quote(executable) + L" -windowed -resolution " +
-        std::to_wstring(display.current.width) + L"x" +
-        std::to_wstring(display.current.height);
+    return Quote(executable);
 }
 
 // The display policy owns only DPI flags. Keep unrelated compatibility flags.

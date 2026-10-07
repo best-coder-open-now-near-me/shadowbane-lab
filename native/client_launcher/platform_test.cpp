@@ -47,6 +47,29 @@ int main() {
         }
         Reject([&] { VerifyFile(file, 4, digest); });
         Reject([&] { VerifyFile(file, 3, "not-the-digest"); });
+        const Mode test_mode{1920, 1080, 60, 32, 0};
+        const Display test_display{L"test", 0, 0, true, test_mode, test_mode};
+        {
+            std::ofstream prefs(file, std::ios::binary | std::ios::trunc);
+            prefs << "MUSIC= FALSE\r\nFULLSCREEN= TRUE\r\n";
+        }
+        PrepareDesktopPreferences(file, test_display, false);
+        {
+            std::ifstream prefs(file, std::ios::binary);
+            const std::string text((std::istreambuf_iterator<char>(prefs)), {});
+            Check(text == "MUSIC= FALSE\r\nFULLSCREEN= TRUE\r\n", "Inspection does not change preferences");
+        }
+        PrepareDesktopPreferences(file, test_display);
+        {
+            std::ifstream prefs(file, std::ios::binary);
+            const std::string text((std::istreambuf_iterator<char>(prefs)), {});
+            Check(text.starts_with("MUSIC= FALSE\r\nFULLSCREEN= FALSE\r\n") &&
+                text.find("RESOLUTION= 1920 1080\r\n") != std::string::npos,
+                "Atomic update preserves unrelated preferences");
+        }
+        Check(!std::filesystem::exists(file.wstring() + L".desktop-" +
+            std::to_wstring(GetCurrentProcessId()) + L".tmp"), "No replacement temporary remains");
+        PrepareDesktopPreferences(file, test_display);
         Check(std::filesystem::remove(file), "Remove generated fixture"); file.clear();
         WNDCLASSW type{}; type.lpfnWndProc = DefWindowProcW;
         type.hInstance = GetModuleHandleW(nullptr); type.lpszClassName = L"ShadowbaneLauncherHiddenTest";

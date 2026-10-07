@@ -21,6 +21,7 @@ std::vector<Display> Displays();
 std::wstring ExecutablePath();
 void RequireNoExistingClient(const std::filesystem::path& executable);
 Handle VerifyFile(const std::filesystem::path& path, unsigned long long size, const char* hash);
+void PrepareDesktopPreferences(const std::filesystem::path& path, const Display& display, bool apply = true);
 std::vector<wchar_t> ChildEnvironment();
 std::vector<WindowIdentity> ClientWindows(DWORD process);
 void ApplyDesktopFrame(const WindowIdentity& identity, HANDLE process, const Display& display);

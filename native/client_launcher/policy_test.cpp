@@ -1,4 +1,5 @@
 #include "policy.h"
+#include "preferences.h"
 #include <Windows.h>
 #include <Shellapi.h>
 #include <iostream>
@@ -50,10 +51,26 @@ int main() {
         const auto command = Arguments(L"C:\\Games With Spaces\\sb.exe", primary);
         int argc = 0;
         auto argv = CommandLineToArgvW(command.c_str(), &argc);
-        Check(argv && argc == 4, "Launch argument count");
-        Check(std::wstring(argv[1]) == L"-windowed" && std::wstring(argv[2]) == L"-resolution" &&
-            std::wstring(argv[3]) == L"2560x1440", "Render at desktop size without mode switching");
+        Check(argv && argc == 1 && std::wstring(argv[0]) == L"C:\\Games With Spaces\\sb.exe",
+            "No unverified display switches are passed to the executable");
         LocalFree(argv);
+        const std::string original = "# user preferences\r\nRESOLUTION= 800 600 \t([Width] [Height])\r\n"
+            "FULLSCREEN= TRUE\r\nREFRESH= -1\r\nVIDEOSETTINGSVALIDATION= 800x600@-1Hz\r\n"
+            "MUSIC= FALSE\r\nKEY= user hotkey\r\nCUSTOM= \xe9\r\n";
+        const auto updated = DesktopPreferences(original, primary);
+        Check(updated.find("RESOLUTION= 2560 1440 \t([Width] [Height])\r\n") != std::string::npos,
+            "Update resolution while preserving annotation and CRLF");
+        Check(updated.find("FULLSCREEN= FALSE\r\n") != std::string::npos, "Select the actual windowed renderer");
+        Check(updated.find("REFRESH= 144\r\n") != std::string::npos, "Use current refresh metadata");
+        Check(updated.find("VIDEOSETTINGSVALIDATION= 2560x1440@144Hz\r\n") != std::string::npos,
+            "Keep the client's validation stamp consistent");
+        Check(updated.ends_with("MUSIC= FALSE\r\nKEY= user hotkey\r\nCUSTOM= \xe9\r\n"),
+            "Unrelated settings and non-ASCII bytes remain unchanged");
+        Check(DesktopPreferences(updated, primary) == updated, "Preferences update is idempotent");
+        Check(DesktopPreferences("MUSIC= FALSE", primary).starts_with("MUSIC= FALSE\nRESOLUTION="),
+            "Append missing display keys without losing existing data");
+        Reject([&] { DesktopPreferences("FULLSCREEN= TRUE\nFULLSCREEN= FALSE\n", primary); });
+        Reject([&] { DesktopPreferences(std::string("a\0b", 3), primary); });
         std::cout << "Desktop startup policy checks passed.\n";
         return 0;
     } catch (const std::exception& error) {
