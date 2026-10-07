@@ -10,8 +10,14 @@ the coordinated authoritative server adapter mapping in Continue PvE/PvP bot wor
 Further client-circumvention harness development is on hold for the server pivot;
 the historical bot follow-ons are not own-server prerequisites.
 
-The source checkpoint is pending integration; use its feature branch until reviewed
-and merged, and continue other product work from freshly fetched `origin/main`.
+Source checkpoint `e3d8229ebd271a13e91c698f1f44a0d4694f0700` is pushed in
+[PR #96](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/96),
+pending integration. It passed 59 focused/CLI tests and 10 subtests, Ruff and diff
+checks; hosted checks are pending at publication. Use its feature branch until
+reviewed and merged, and continue other product work from fetched `origin/main`.
+The server migration mapping is published separately in
+[PR #95](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/95).
+Preserve both direction/ownership notices when integrating these parallel lanes.
 Next: complete baseline review, then resolve Docker startup and qualify a selected
 Magicbane source/data/runtime with this client. The normal project checkout stays
 on `main`; this worktree is retained for review, not as a deployment fallback.

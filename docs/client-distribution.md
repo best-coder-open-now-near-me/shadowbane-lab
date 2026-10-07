@@ -129,7 +129,22 @@ also found:
 - `magicbox-1.5.2.1`: `9866632ad5aa083165170202d508a95e2bc556ba`.
 - `subdate2`: `ab96cfcda4e983dd7fc1fc205205810f11ddd3de`.
 
-Compare build/runtime requirements and data compatibility before selecting the
+Both candidate refs have now been fetched explicitly into the research checkout.
+They diverge: `magicbox-1.5.2.1...subdate2` has 1 left-only and 50 right-only
+commits. The left-only commit is titled "Mandrake resource hash updated";
+commit ancestry alone does not prove a fix is absent from the other branch.
+Both `ConfigManager` implementations expect environment-based configuration and
+report a requirement for MagicBox >= 1.5.2. Neither checked tree supplies a
+standalone build descriptor, dependency JAR bundle, SQL dump or JSON content
+bundle. Therefore branch freshness and native-layout compatibility cannot
+establish a runnable, correctly paired server.
+
+Use `magicbox-1.5.2.1` as the initial bootstrap candidate to investigate against
+the MagicBox runtime, not as an already-qualified production choice. Preserve
+`subdate2` as a source of separately reviewed changes. The remaining prerequisite
+is a verified runtime image/build toolchain and database/content receipt matching
+the chosen source; no such pairing has been established by this checkpoint.
+Compare build/runtime requirements and data compatibility before finalizing the
 server base. On that master reference, `ClientMessagePump.java` dispatches
 `PerformActionMsg` to `PowersManager.usePower` and `AttackCmdMsg` to
 `CombatManager.setAttackTarget`. These are source investigation entry points,
