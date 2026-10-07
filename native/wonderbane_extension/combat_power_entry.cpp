@@ -68,11 +68,30 @@ __declspec(naked) bool __cdecl Bridge(const Invocation*) {
 }
 namespace detail {
 struct Entry {
+    static void Observe(Scope& scope, std::uintptr_t definition, std::uint32_t required_mode) noexcept {
+        const auto error=GetLastError();
+        auto& value=scope.receipt_.observation;
+        std::uint16_t flags{};
+        if(Read(&flags,definition+0x274,sizeof(flags))){
+            value.definition_known=true;value.required_mode=required_mode;value.definition_flags=flags;
+        }
+        std::uintptr_t state{},after{};std::array<std::uint32_t,4> first{},second{};
+        if(Read(&state,scope.context_.actor+0xad0,sizeof(state))&&state>=0x10000&&state<=0x7fff0000-0x20
+            &&!(state&3)&&Read(first.data(),state+0x10,sizeof(first))&&Read(second.data(),state+0x10,sizeof(second))
+            &&first==second&&Read(&after,scope.context_.actor+0xad0,sizeof(after))&&state==after){
+            value.state_known=true;value.initiation_state=first[0];value.actor_mode=first[2];value.state_aux=first[3];
+        }
+        scope.PublishObservation();SetLastError(error);
+    }
     static bool Call(Scope& scope, Use use, std::uint32_t rank, const float* position) {
         const auto& c = scope.context_;
         const Invocation invocation{use,c.power_id,rank,reinterpret_cast<void*>(c.actor),
             reinterpret_cast<void*>(c.Recipient()),position,Key{},&scope.native_frame_,&scope.native_return_};
-        return Bridge(&invocation);
+        scope.receipt_.observation.use_called=true;scope.PublishObservation();
+        const bool result=Bridge(&invocation);
+        const auto error=GetLastError();
+        scope.receipt_.observation.use_returned=true;scope.receipt_.observation.use_value=result;
+        scope.PublishObservation();SetLastError(error);return result;
     }
 };
 }
@@ -117,6 +136,7 @@ bool InvokeBound(Scope& scope, const Calls& calls) {
     // category0/self also includes unrelated buffs and is not a stance classifier.
     // Record entry BEFORE the native toggle, which can mutate and reenter even if
     // later power admission fails. No-entry retry must never hide that mutation.
+    detail::Entry::Observe(scope,definition,required_mode);
     if (!scope.Enter(definition, rank)) { return false; }
     if (required_mode == 1) {
         std::uint32_t mode{};

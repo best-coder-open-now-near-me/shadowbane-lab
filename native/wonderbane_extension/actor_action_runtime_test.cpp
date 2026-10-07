@@ -268,5 +268,5 @@ int main(){
 
 namespace wonderbane::extension::item_trace {
 void OwnedReturn(const actor::wire::Command&,const movement::NativeScene&,actor::wire::Outcome,
-    actor::wire::Entry,actor::wire::LocalSettlement,std::uint32_t) noexcept {}
+    actor::wire::Entry,actor::wire::LocalSettlement,std::uint32_t,const combat::power::Receipt*) noexcept {}
 }

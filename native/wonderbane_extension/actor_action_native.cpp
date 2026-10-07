@@ -360,6 +360,7 @@ NativeActor::Operation NativeActor::Submit(const wire::Command& command) noexcep
         if(faulted_){result.outcome=O::uncertain;result.local_settlement=L::pending;result.history|=wire::uncertain_history;}
     }
     if(result.local_settlement==L::pending){pending_=true;pending_command_=command;pending_operation_=result;}
+    if(command.action==wire::Action::self_power||command.action==wire::Action::cast){result.power_diagnostic=power_receipt_;}
     return result;
 }
 NativeActor::Operation NativeActor::PollImpl(){

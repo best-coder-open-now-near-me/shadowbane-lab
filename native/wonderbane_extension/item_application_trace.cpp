@@ -245,15 +245,29 @@ DWORD Start(const ProcessIdentity& identity) noexcept {
     return StartBound(identity, base, slots, targets);
 }
 void OwnedReturn(const actor::wire::Command& command,const movement::NativeScene& scene,
-    actor::wire::Outcome outcome,actor::wire::Entry entry,actor::wire::LocalSettlement settled,std::uint32_t history) noexcept {
+    actor::wire::Outcome outcome,actor::wire::Entry entry,actor::wire::LocalSettlement settled,std::uint32_t history,
+    const combat::power::Receipt* power) noexcept {
     const auto error=GetLastError();
-    if(command.action==actor::wire::Action::use_item){
-        Record record{};record.stage=4;record.kind=1;
+    const bool is_power=power&&(command.action==actor::wire::Action::self_power||command.action==actor::wire::Action::cast);
+    if(command.action==actor::wire::Action::use_item||is_power){
+        Record record{};record.stage=4;record.kind=is_power?2U:1U;
         if(actor::wire::HashCommand(command,record.command)){
             record.request=command.request;record.outcome=static_cast<std::uint32_t>(outcome);
             record.entry=static_cast<std::uint32_t>(entry);record.local_settlement=static_cast<std::uint32_t>(settled);
-            record.history=history;record.payload[0]=2;record.payload[1]=1;
-            record.payload[2]=command.item_key[0];record.payload[3]=command.item_key[1];
+            record.history=history;
+            if(is_power){
+                const auto& d=power->observation;
+                record.payload={command.power_id,
+                    (power->native_entered?1U:0U)|(power->send_observed?2U:0U)|(power->append_observed?4U:0U)
+                    |(power->followup_entered?8U:0U)|(d.use_called?16U:0U)|(d.use_returned?32U:0U)|(d.use_value?64U:0U),
+                    static_cast<std::uint32_t>(power->result),static_cast<std::uint32_t>(power->initiation_epoch),
+                    static_cast<std::uint32_t>(power->initiation_epoch>>32),static_cast<std::uint32_t>(power->availability),
+                    d.required_mode,d.actor_mode,d.state_aux,d.initiation_state,
+                    d.definition_flags|(d.definition_known?0x10000U:0U)|(d.state_known?0x20000U:0U)};
+            }else{
+                record.payload[0]=2;record.payload[1]=1;
+                record.payload[2]=command.item_key[0];record.payload[3]=command.item_key[1];
+            }
             record.flags=kPayload;Stamp(record,scene);
             AcquireSRWLockExclusive(&lock);(void)PublishLocked(record);ReleaseSRWLockExclusive(&lock);
         }

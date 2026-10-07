@@ -99,6 +99,7 @@ void* __cdecl Definition(std::uint32_t id) { ++lookups; Check(id == 428918601, "
 int __fastcall Rank(void*, void*, std::uint32_t) { return learned_rank; }
 void* sender{};
 pw::Use native_use{};
+bool __cdecl RefusedUse(std::uint32_t,int,void*,void*,const float*,pw::Key) {SetLastError(7654);return false;}
 bool __cdecl Use(std::uint32_t id, int rank, void* actor, void* target, const float* position, pw::Key key) {
     ++uses; last_actor=actor;last_target=target;Check((id == 428918601 || unrelated) && rank == std::min(learned_rank,9999), "native learned rank");
     Check(key == pw::Key{} && position[0] == 0 && position[1] == 0 && position[2] == 0, "zero key preserves native target validation");
@@ -152,7 +153,11 @@ int main(int argc, char** argv) {
     if (!image) { return 2; }
     const auto base = reinterpret_cast<std::uintptr_t>(image);
     const auto put = [base](std::uintptr_t at, std::uintptr_t value) { *reinterpret_cast<std::uintptr_t*>(base+at)=value; };
-    std::array<std::uint32_t,0x700/4> actor{}, target{};
+    std::array<std::uint32_t,0xae0/4> actor{};
+    std::array<std::uint32_t,0x700/4> target{};
+    std::array<std::uint32_t,8> diagnostic_state{};
+    diagnostic_state[4]=5;diagnostic_state[6]=2;diagnostic_state[7]=3;
+    actor[0xad0/4]=reinterpret_cast<std::uint32_t>(diagnostic_state.data());
     const pw::Key local{123,53}, victim{456,37};
     actor[0]=static_cast<std::uint32_t>(base+0x114165c); actor[6]=local[0]; actor[7]=local[1];
     target[6]=victim[0]; target[7]=victim[1];
@@ -220,6 +225,21 @@ int main(int argc, char** argv) {
     const auto reset=[&] { references=2;current_message=message.data(); message={};message[0]=static_cast<std::uint32_t>(base+0x1155fd8);message[0x80/4]=context.power_id;message[0xa4/4]=1;message[0x88/4]=local[0];message[0x8c/4]=local[1];message[0x90/4]=context.RecipientKey()[0];message[0x94/4]=context.RecipientKey()[1];current=true;queue_current=true;fault_send=false;fault_followup=false;seh_send=false;seh_followup=false;corrupt_key=false;revoke_during_use=false;receipt={};actor_mode=1;stance_reads=stance_toggles=0;deny_stance=revoke_stance=revoke_mode_read=fault_stance=seh_stance=false;replaced_target_key=nullptr;availability=pw::Availability::ready; };
     reset(); Check(Guarded(context),"normal power invocation");Check(receipt.result==pw::Result::queued && receipt.native_entered && receipt.send_observed && receipt.append_observed && receipt.followup_entered,"queued receipt preserves all boundaries");
     Check(receipt.initiation_epoch && receipt.initiation_epoch==pw::InitiationEpoch(),"ordinary owned followup captures mutation provenance");
+    Check(receipt.observation.use_called&&receipt.observation.use_returned
+        &&receipt.observation.definition_known&&receipt.observation.state_known
+        &&receipt.observation.actor_mode==2&&receipt.observation.state_aux==3
+        &&receipt.observation.initiation_state==5,"copied pre-entry fields and normal return remain diagnostics");
+    {
+        reset();const auto saved_use=native_use;native_use=RefusedUse;
+        Check(Guarded(context)&&receipt.native_entered&&!receipt.append_observed
+            &&receipt.observation.use_called&&receipt.observation.use_returned&&!receipt.observation.use_value
+            &&GetLastError()==7654,"false native return remains entered uncertainty with exact diagnostic and LastError");
+        native_use=saved_use;
+        reset();actor[0xad0/4]=0x10000;
+        Check(Guarded(context)&&receipt.result==pw::Result::queued&&!receipt.observation.state_known,
+            "unreadable optional state never blocks ordinary queue");
+        actor[0xad0/4]=reinterpret_cast<std::uint32_t>(diagnostic_state.data());
+    }
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
     Check(references==1,"real native sender preserves exactly one caller-owned reference");
 #endif
@@ -382,6 +402,8 @@ int main(int argc, char** argv) {
     pw::original_send=sender_call;
 #endif
     reset();seh_followup=true;Check(!Guarded(context)&&receipt.append_observed&&receipt.followup_entered&&receipt.result==pw::Result::uncertain,"SEH preserves queued history");Check(pw::active==nullptr,"followup SEH restores TLS");
+    Check(receipt.observation.use_called&&!receipt.observation.use_returned&&!receipt.observation.use_value,
+        "SEH never invents a normal Use return");
     reset();fault_followup=true;try{Run(context);Check(false,"C++ fault expected");}catch(const std::runtime_error&){}Check(!pw::active&&receipt.append_observed,"C++ unwind preserves queue fact");
     reset();before=sends;const float point[3]{};native_use(428918601,20,actor.data(),target.data(),point,pw::Key{});Check(sends==before+1&&!pw::active,"unscoped native calls pass through after faults");
     reset();current=false;before=lookups;Check(Guarded(context)&&lookups==before&&!receipt.native_entered,"revoked owner prevents native lookup");
