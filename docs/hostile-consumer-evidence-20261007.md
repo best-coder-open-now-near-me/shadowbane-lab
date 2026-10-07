@@ -95,13 +95,78 @@ still needs current exact target/party admission through the shared actor owner.
 
 ## Remaining evidence and next todo
 
+### Executed constructor and health-prefix fixture
+
+`native/wonderbane_extension/hostile_health_consumer_probe.cpp` now executes a
+bounded subset of the exact original and prepared .14 images. It is a separate
+`EXCLUDE_FROM_ALL` executable, never linked into the extension. Build target
+`wonderbane_extension_hostile_health_consumer_probe` with the existing Win32
+MSVC configuration, then pass one of the two hash-qualified image paths. No game
+process, socket, input, runtime hook or application setting is used. Unknown
+images are rejected before any native bytes become executable.
+
+The fixture runs 20 cases per image. Complete image hashes and explicit spans
+protect the copied code. It executes both argument-transfer blocks ending at
+`0x3ae28f` and `0x3ae306`, the full constructor `0x455ea0..0x455f48`, native key
+copy/inequality routines, the defense prefix `0x45cd90..0x45cfab`, and complete
+health setter `0x9e9f0..0x9ea1f`. The prefix ends at `0x45cfac` and uses the
+original early-return epilogue. Everything after that boundary is excluded.
+
+The executed mapping is:
+
+| Message field | Action field | Transfer |
+| --- | --- | --- |
+| `+0x80` / `+0x88` | key `+0x08` / key `+0x28` | Original attacker/victim key values, without proving current objects |
+| Primary `+0x90`, secondary `+0xa0` | kind `+0x10` | Secondary kind 8 is remapped to 21 by the defense prefix |
+| Primary `+0x94`, secondary `+0xa4` | scalar `+0x14` | Subsequently overwritten by the prefix's notification kind |
+| Primary `+0x98`, secondary `+0xa8` | health scalar `+0x18` | Constructor argument eight; consumed as floating-point bits |
+| Primary `+0x9c`, secondary `+0xac` | scalar `+0x1c` | Copied independently of health |
+
+The constructor initializes participant reference slots `+0x38/+0x4c` to null.
+The fixture supplies the victim separately; constructor keys alone do not prove
+retained participant identity. The native prefix reads the health scalar and
+uses an approximately 0.001 comparison tolerance. Cases cover a finite decrease,
+unchanged health, a sub-tolerance difference, an increase and maximum clamp,
+negative values under both type predicates, zero, NaN and both infinities.
+Notably, a NaN new scalar does not reach the setter in these cases; positive
+infinity clamps to maximum, while negative infinity can be written for the
+non-special type. These are native observations, not acceptable hostile-event
+inputs: eventual evidence must require finite, meaningful pre/post state.
+
+Kind 7 also reaches the same health write (remapped to 20). Thus a setter call
+or decrease does not by itself prove kind 21 or hostility. Null victim and failed
+type test return 1 without a write. The original missing-attacker substitution
+slice `0x3ae454..0x3ae45c` substitutes the victim key when the attacker is missing;
+that result cannot attribute hostility. The formatter-only call-site slice
+`0x3ae189..0x3ae1a5` invokes the instrumented formatter and never the qualified
+health-prefix entry. The fixture does **not** execute or characterize the full
+formatter implementation.
+
+Every replaced or excluded dependency is explicit:
+
+| Dependency | Fixture treatment and limit |
+| --- | --- |
+| Type query thunk `0x5e61` | Instrumented masks `0x2000`, `0x10`, `0x10000`; validates victim subobject address but does not qualify real RTTI/type semantics. `0x10` is false, excluding equipment branches. |
+| Reference retain `0xb2b7`, copy `0x25a8b`, virtual release | Instrumented exact-pointer callbacks; native release clears the local slot before callback. This proves call ABI/ordering, not reference ownership or destruction safety. |
+| Notification `0x27395` | Instrumented argument/count capture, with no UI effects. Local-attacker notification `0x19e66` is skipped by a fixture global; it is not qualified. |
+| Setter thunk `0x19105` | Instrumented call count forwards to the complete original setter; no mocked health computation. |
+| Participant bind thunks `0x79f0`, `0x1ca4e`; formatter `0x21995` | Instrumented only for the formatter-route negative. No participant retention or full formatter semantics are claimed. |
+| Allocator, registry lookup, temporary-key creation and queue | Not executed. The transfer wrappers supply private frames/objects and check copied fields. |
+| Exception handlers | Replaced; any fault terminates the probe as a failure. Only normal execution and stack balance are qualified, not native SEH recovery. |
+| Post-health handler tail, action/message destruction and consumer dispatcher | Not executed. The fixture cannot establish full action consumption, retirement, supported dispatch admission or live response authority. |
+
+Compact execution receipts and source/executable hashes remain private under
+`artifacts/hostile-consumer-20261007`; no image bytes are committed. This closes
+the selected field-transfer/conditional-write question only. The connection,
+message, queue and retained participant lifetime work below remains necessary.
+
 The bounded next qualification work is an exact-image fixture for the selected
 consumer branch and its complete connection/message/action lifetime path:
 
-1. Prove the supported constructor-to-handler field mapping and actual branch
-   execution, including a finite victim-health decrease, no-change/early-return,
-   missing-attacker fallback and formatter-only negatives. Instrumented fixture
-   dependencies must be named; a mocked handler cannot establish its semantics.
+1. The bounded constructor/health-prefix fixture above is complete. Extend it to
+   real participant resolution and the supported dispatcher branch before
+   treating the observed write as full hostile consumption. Its missing-attacker
+   and formatter negatives must remain unavailable for attacker attribution.
 2. Qualify physical stream construction/close and full-decoder ownership. The
    known teardown `0x7f4ce0` closes receiver socket `+0x3c`; this does not yet prove
    every retirement/replacement path. Reject unobserved or crossed lifetimes.
