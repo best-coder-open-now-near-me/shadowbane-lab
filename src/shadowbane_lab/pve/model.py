@@ -282,10 +282,12 @@ class PvECombatCleanupResult:
     confirmed: bool
     request_key: str | None = None
     error: str | None = None
+    owner_closed: bool = False
 
     def __post_init__(self) -> None:
         if (not isinstance(self.request, PvECombatCleanupRequest)
-                or type(self.confirmed) is not bool):
+                or type(self.confirmed) is not bool or type(self.owner_closed) is not bool
+                or (self.owner_closed and not self.confirmed)):
             raise ValueError("invalid cleanup result")
         if self.confirmed and (not self.request_key or self.error is not None):
             raise ValueError("confirmed cleanup requires correlated native acknowledgment")
@@ -294,7 +296,8 @@ class PvECombatCleanupResult:
 
     def as_dict(self) -> dict[str, object]:
         return {**self.request.as_dict(), "confirmed": self.confirmed,
-                "request_key": self.request_key, "error": self.error}
+                "request_key": self.request_key, "error": self.error,
+                "owner_closed": self.owner_closed}
 
 
 @dataclass(frozen=True, slots=True)

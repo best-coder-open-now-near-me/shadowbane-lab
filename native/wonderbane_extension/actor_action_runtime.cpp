@@ -1,4 +1,5 @@
 #include "combat_runtime.h"
+#include "item_application_trace.h"
 #include "actor_action_native.h"
 #include "actor_action_controller.h"
 #include "actor_action_command_queue.h"
@@ -255,6 +256,8 @@ public:
         if((targeted?ChildCurrent(this):Current(this))&&parent_ticket.TryAdmit(parent,true)==fence::Result::admitted
             &&(!targeted||child_ticket.TryAdmit(child,true)==fence::Result::admitted)){
             const auto submitted=native.Submit(input);result=Converted(submitted);
+            // Observation after native return, outside the queue lock. Never application authority.
+            item_trace::OwnedReturn(input,scene,result.outcome,result.entry,result.local,result.history);
             if(!targeted&&result.outcome==O::deferred&&result.entry==wire::Entry::never_entered){
                 if(submitted.admission_blocks){(void)publisher.ObserveAdmission(submitted.admission_blocks);}
                 else if(result.reason==wire::Reason::admission_changed){(void)publisher.InvalidateAdmission();}

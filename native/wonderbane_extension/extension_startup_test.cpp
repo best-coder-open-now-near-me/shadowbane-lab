@@ -116,6 +116,7 @@ DWORD StartPerformanceTelemetry(const ProcessIdentity&, PerformanceTelemetryProf
 }
 void StopPerformanceTelemetry() noexcept { ++telemetry_stops; }
 }
+namespace wonderbane::extension::item_trace {extern unsigned starts,stops;}
 int main() {
     using namespace wonderbane::extension;
     g_extension_module = GetModuleHandleW(nullptr);
@@ -126,6 +127,7 @@ int main() {
     assert(renderer_starts == 1 && telemetry_starts == 0 && renderer_stops == 0);
     assert(movement::starts == 1 && targeted_starts == 1 && targeted_stops == 0);
     assert(condemn::starts == 1 && condemn::stops == 0);
+    assert(item_trace::starts==1 && item_trace::stops==0);
     assert(combat::starts == 1 && actor_effects::starts == 1);
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS && movement::starts == 1);
     assert(actor_effects::starts == 1 && graphics_starts == 1);
@@ -146,6 +148,7 @@ int main() {
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED);
     assert(targeted_starts == 3 && targeted_stops == 1);
     assert(condemn::starts == 3 && condemn::stops == 1);
+    assert(item_trace::starts==3 && item_trace::stops==1);
     assert(renderer_stops == 1 && telemetry_stops == 1 && effects_stops == 1 && trace_stops == 2);
     assert(movement::starts == 2); // Failed shared startup did not register a consumer.
     assert(combat::starts == 2 && actor_effects::starts == 3);
@@ -154,6 +157,7 @@ int main() {
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED && renderer_starts == 3);
     assert(targeted_starts == 3 && targeted_stops == 1);
     assert(condemn::starts == 3 && condemn::stops == 1);
+    assert(item_trace::starts==3 && item_trace::stops==1);
     // A fresh process whose identity publication fails must never attempt the
     // pre-entry observer; retrying the failed initializer remains inert.
     InterlockedExchange(&g_state, static_cast<LONG>(WonderBaneExtensionState::uninitialized));
@@ -168,4 +172,10 @@ int main() {
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED);
     assert(graphics_starts == before_graphics + 1 && actor_effects::starts == before_observer);
     return 0;
+}
+
+namespace wonderbane::extension::item_trace {
+unsigned starts{},stops{};
+DWORD Start(const ProcessIdentity&) noexcept {++starts;return ERROR_NOT_SUPPORTED;}
+void Stop() noexcept {++stops;}
 }

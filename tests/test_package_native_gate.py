@@ -370,3 +370,36 @@ def test_actor_probe_cannot_count_same_image_twice(pair):
     steps[pair + 1]["command"][1] = steps[pair]["command"][1]
     with pytest.raises(RuntimeError, match="original and prepared"):
         builder.validate_actor_probe_steps(steps, reviewed_client=True)
+
+
+def item_trace_steps():
+    return [{"name": f"{profile}-item_application_trace-{suffix}", "exit_code": 0,
+             "command": ["wonderbane_extension_item_application_trace_probe.exe", image]}
+            for profile in ("full", "diagnostics-only")
+            for suffix, image in (("binding", "original14.exe"),
+                                  ("prepared-binding", f"{profile}-prepared14.exe"))]
+
+
+def test_item_trace_probe_requires_both_images_and_profiles():
+    assert builder.validate_item_trace_probe_steps(item_trace_steps(), reviewed_client=True)
+    assert not builder.validate_item_trace_probe_steps([], reviewed_client=False)
+    assert len(builder.REQUIRED_ITEM_TRACE_TESTS) == 7
+
+
+@pytest.mark.parametrize("index", range(4))
+@pytest.mark.parametrize("failure", ["missing", "failed", "duplicate",
+                                    "wrong_binary", "same_image"])
+def test_item_trace_gate_cannot_certify_missing_or_wrong_probe(index, failure):
+    steps = item_trace_steps()
+    if failure == "missing":
+        steps.pop(index)
+    elif failure == "failed":
+        steps[index]["exit_code"] = 1
+    elif failure == "duplicate":
+        steps.append(dict(steps[index]))
+    elif failure == "wrong_binary":
+        steps[index]["command"][0] = "other.exe"
+    else:
+        steps[index]["command"][1] = steps[index ^ 1]["command"][1]
+    with pytest.raises(RuntimeError):
+        builder.validate_item_trace_probe_steps(steps, reviewed_client=True)

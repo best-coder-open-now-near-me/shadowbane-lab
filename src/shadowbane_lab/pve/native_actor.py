@@ -484,6 +484,11 @@ class NativeActorCoordinator:
         return result.receipt, result.detail
 
     def stop_context(self, reason):
+        if self._stop_owner_command is not None:
+            # An aggregate stop is terminal. Never fall back to child-only
+            # polling or imply that its parent can continue after this proof.
+            self._last_context_result = self._stop_owner_once(reason)
+            return self._last_context_result
         if self.context is None:
             if self._adopted:
                 return self._stop_owner_once(reason)
@@ -531,6 +536,28 @@ class NativeActorCoordinator:
                 self._target_token = self._target_key = self._stop_context_command = None
                 self._last_context_result = True, r, result.detail
                 return self._last_context_result
+            command = self._local_command
+            if (
+                r is not None
+                and r.owner_phase is Phase.BOUND
+                and r.context_phase is Phase.STOPPING
+                and r.closure is Closure.NONE
+                and command is not None
+                and command.context_id is None
+                and command.parent_id == self.parent.owner_id
+                and command.parent_digest == self.parent.digest
+                and command.grant == self.grant.ownership
+                and command.host == self.grant.host
+                and command.window == self.grant.window
+            ):
+                # Native child cleanup cannot cancel a separate parent-owned
+                # local action. Stop their exact aggregate owner while the
+                # original cleanup budget remains; remote application pending
+                # alone does not retain _local_command and cannot trigger this.
+                # Keep the returned owner-scope receipt, never a fabricated
+                # child closure or permission to resume the parent.
+                self._last_context_result = self._stop_owner_once(reason)
+                return self._last_context_result
             self._last_context_result = False, r, result.detail or reason
         except Exception as exc:
             self._last_context_result = False, self._last_receipt, f"{reason}:{type(exc).__name__}"
@@ -556,7 +583,8 @@ class NativeActorCoordinator:
             else receipt.request.encode().hex()
         )
         return PvECombatCleanupResult(
-            request, confirmed, key, None if confirmed else detail or "cleanup unconfirmed"
+            request, confirmed, key, None if confirmed else detail or "cleanup unconfirmed",
+            owner_closed=bool(confirmed and self._closed),
         )
 
     def _release_owner(self, receipt, detail):

@@ -4,14 +4,35 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Combined .75/.52 release candidate - October 7
+
+`codex/combined-buff-diagnostics-release-20261007` in bot-runtime combines
+reviewed PR #79 (`64ef3be`) and PR #80 (`d52e525`), both including main
+`b313a63`. This is the single integration candidate for host .75/native .52.
+The source PRs remain published until the combined PR is merged and their tips
+are verified reachable. No candidate installation has occurred.
+
+The host repair escalates child cleanup blocked by a retained parent-local action
+to one exact aggregate stop within the original cleanup budget. Confirmed owner
+closure ends ordinary/listed combat; remote application uncertainty is retained.
+The optional native diagnostic stream records owned item returns and copied
+incoming item/power boundaries without altering admission or application authority.
+See [the diagnostic boundary](item-application-diagnostics-20261007.md).
+
+Independent slice validation passed 328 cleanup tests (106 reviewer tests), nine
+native diagnostic CTests, eight decoder cases per original/prepared .14 image,
+and 607 related Python tests. The combined candidate passed 713 targeted tests,
+23 release-identity tests and Ruff. Exact-source full and diagnostics-only package
+qualification is next; deployment remains separate.
+
 ## Active .74 host and official data-patch closeout - October 7
 
 Start from freshly fetched `origin/main`, now
-`f2ea8012876fd3624d813bd2b9c8cc80c5d6fdb8` after PR #78 passed all 15 checks
-and merged. Exact source `18769f1d8228c64503a773fc42e145ec6eca94b0` is installed
+`b313a63` after deployment records in PR #77 merged; PR #78 previously
+passed all 15 checks and merged. Exact source `18769f1d8228c64503a773fc42e145ec6eca94b0` is installed
 as host .74; native .51 and the prepared executable remain unchanged. Host .73 was not
-installed separately. The bot-integration checkout owns PR #77 on
-`codex/native-identity-deployment-20261007` for the deployment receipts.
+installed separately. PR #77 from `codex/native-identity-deployment-20261007`
+merged the deployment receipts into main.
 
 Qualification passed 5,056 host tests (37 skips), six native IPC suites and 466
 module checks. Apply/activation verified 9,588 retained files and zero client
@@ -34,10 +55,16 @@ failure receipt. Fresh launch succeeded with PID 1612, creation
 `134358364309881895`, HWND 4063778; host .74, native .51 and executable .14
 remain unchanged. Finalization receipt is `052a48aafe2480b0c2a5213f4e17674fcd19441f0d2fa2455f1fbf313f359628`.
 
-**Current next todo:** resolve the unconfirmed cleanup before further gameplay;
-login and fresh in-world readiness also remain required. The source repair lane
-is `codex/actor-cleanup-ownership-20261007` in bot-command-ownership; potion
-response diagnostics remain separate in bot-runtime.
+A later authorized .74/.51 player run `7aae5857276148ebae0877ae58a352b3`
+passed one ATTACK queue/cancel against exact Praeda: native action target matched
+while UI selection differed, child NATIVE_STOPPED, later SEEKING, parent
+LOCAL_RELEASED and no errors/watchdog/unexpected stop. The owned list entry was
+removed. This is bounded queue/cancel recovery evidence, not server damage proof
+or validation of the pending cleanup repair and potion observer.
+
+**Current next todo:** qualify the combined .75/.52 candidate, review its exact
+package and complete the authorized installation. Sustained buff renewal and
+missing potion-application diagnosis remain unproven; retaliation stays disabled.
 See the [deployment record](client-update-20261004.md).
 
 ## Merged registry observation churn handling - October 7
