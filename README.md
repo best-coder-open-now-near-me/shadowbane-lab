@@ -1,5 +1,12 @@
 # shadowbane-lab
 
+## Current direction: our own server
+
+The October 7 server pivot supersedes the client-bot harness and live-test todos
+below. Read the [server migration plan](docs/server-side-migration.md) for reuse,
+retired requirements, coordinated ownership and the first authoritative combat/buff
+slice. Historical client delivery records remain evidence, not server prerequisites.
+
 Navigation diagnostics: [inspector usage, review branch and acceptance status](docs/navigation-inspector.md).
 
 ## Finding the current code

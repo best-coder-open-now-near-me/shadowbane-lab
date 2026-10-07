@@ -1,5 +1,21 @@
 # Git branch map
 
+## Active server pivot - October 7
+
+Start from refreshed origin/main. The new direction is an authoritative server;
+older client-harness next steps below are historical and superseded by the
+[server migration plan](server-side-migration.md). Branch
+`codex/server-side-migration-20261007` starts at main `cdaafb2` and targets main.
+It reuses the clean bot-integration worktree; the former PR #92 tip remains pushed
+on its original branch. PRs #92/#93/#94 remain draft client work, not server gates.
+Find Wonderbane fix notes owns server base/bootstrap and client baseline; Continue
+PvE/PvP bot work owns gameplay policy/service migration. PR #95 now maps the
+service boundaries directly to bootstrap source `bafb48fe`; PR #97 owns its
+source/data/library pairing. Runtime/login remain untested. The separate private
+shadowbane-server repository now owns server code, with main pinned to `bafb48fe`.
+Its `codex/shared-gameplay-services` branch has docs checkpoint `22521f45` in
+server PR #1. Next: implement the shared buff/combat slice in that repository.
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from
