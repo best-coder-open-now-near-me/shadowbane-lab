@@ -1,5 +1,104 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
+## Host .75/native .52 installed and ready - October 7
+
+PR #81 merged into main at `acb1ba7f41875a567654dbdcb5182857bba05679`.
+Exact source `733b5fecb862c6d9421b8c2d20f8b8aee5c6db18` combines aggregate
+cleanup ownership repair and optional item-response diagnostics. Package
+`artifacts/b52/b9d92a76` passed 5,120 host tests (39 skips), 88 qualification
+stages and independent verification of 116 artifacts. Each native profile passed
+231 tests, 133 required gates and 74 movement/86 combat/146 actor IPC cases;
+the item-trace reader passed 31 cases per profile with original/prepared decoder
+probes. The diagnostic stream does not authorize actions or prove application.
+
+The qualified DLL is
+`6018a899c29a8057f93a6b4e2a677798a2a25200a91dbafeabe8aaa415ea4c90`;
+wheel SHA-256 is
+`32ac1e3a2ce4b9d72e2767c20e6195e674b925971e2b80968a59a322ec159a29`.
+The .14 executable and October 7 official cache remain unchanged. Apply verified
+467 modules, 9,607 preserved files and exactly one changed client inventory record
+(the DLL). Manager 8100 activated healthy; all five shortcuts passed. Settings,
+saved jobs and journals stayed in place without retained rollback runtimes.
+
+The installer was independently reviewed with 53 offline tests. A planning
+snapshot may be captured while the game is open; replacement separately requires
+fresh closed-client/manager/worker proof. The two exact ArcanePref files may save
+after planning, then their current closed-state bytes join strict pre/post-apply
+preservation checks. Static executable, cache and native identities stay exact.
+
+Fresh launch at `2026-10-07T13:07:38.7098114Z` verified PID 8436, creation
+`134358520489522692`, HWND 2556262 and the qualified DLL. Passive in-world
+readiness reported the player alive, native owner NONE, no pending cleanup,
+scene 1 and capability flags 385. These are recorded observations; subsequent
+actions require fresh lifetime/readiness validation. Initial passive preflight
+`1b1e8b005391434d85bce9f68320a823` observed exact Umbra `4050960/53` alive
+and idle, with no actions sent. Its census found zero eligible NPCs in the captured
+population, not merely outside the camp radius. Later NPC availability permitted
+the bounded runs recorded below.
+
+Twelve compact exports, including independent installed hashes, are retained in
+`artifacts/bot-deploy/20261007-b52/receipts`. Original guest receipt SHA-256 values
+from `export-manifest.json` (distinct from normalized export hashes) are:
+
+- Apply: `39e633779a769960d68ca709d636694d12978ee919e017e6e00c9b1ed8832f55`.
+- Activation: `c8f3cd910f30486a582081426f31a46e593735ef98119b453e8783210fd3de48`.
+- Launch: `4fc80c7ba828b947c89e1d10bb895613a369801faabb80d5cc8a81a079236239`.
+- Obsolete runtime removal: `3e0419c45b066f85acdad823fdfd0cd4d42ba97bcc12f3b0383b0920ad3c2a62`.
+
+Verified retirement removed 2,122 old host files and two obsolete payloads
+(50,950,003 bytes). Five exact old host/share staging binaries were then removed
+(7,352,316 bytes); that receipt is
+`5993d1b90b8670e541d9473b03068e5351e0f6d204f57da858276f05941fca55`.
+No settings, job records or original diagnostic evidence were retired.
+
+The earlier .74/.51 Praeda run `7aae5857276148ebae0877ae58a352b3` passed one
+native ATTACK queue/cancel against the exact player while UI selection differed:
+child NATIVE_STOPPED, later SEEKING, parent LOCAL_RELEASED and empty owned list.
+That result establishes bounded target/cleanup behavior, not server damage or
+validation of .75 buff renewal. The previous failed NPC evidence below remains
+failed and unchanged.
+
+### B52 bounded buff and NPC results
+
+Run `6a57949029b84f1ea6c6d078c6020e3b` remains **not passed**: the fixed
+30-second session ended with NPC `23885/37` still at 400 health. The first context
+was never bound and closed positively. Native initiation and local power
+settlement occupied most of the session; the replacement context bound at
+25.922 seconds, Shot queued at 26.203 and two positive ATTACK queues followed at
+26.906/28.578. The moving NPC was about 150 units away when Shot queued and
+129.6 units away at timeout. This run did not allow enough time to establish
+combat completion; the evidence does not explain the short approach stopping.
+
+All five native buff coverage groups were PRESENT by 28.406 seconds, including
+concoction with observed item quantity 4 to 3. This establishes observed coverage
+and quantity change, without server transaction/consumption attribution. Exact
+child request 78 returned NATIVE_STOPPED and parent request 79 LOCAL_RELEASED;
+no watchdog or unexpected interruption occurred. The acceptance summary's
+`child_cleanup=not_started` is stale: its error path raised after recording the
+positive cleanup event but before returning the tuple to its caller. The original
+failed receipt remains unchanged; final membership was not captured in it.
+
+The second run, `780510c5e3e54da3a4128a8828173f38`, **passed**. Exact NPC
+`23886/37` went from native health 800 to zero at 9.016 seconds. Child request 25
+confirmed NATIVE_STOPPED; parent request 27 confirmed LOCAL_RELEASED. Final
+owned membership was zero, errors empty, and watchdog/unexpected-stop flags false.
+Fresh passive readiness afterward showed owner NONE and no pending cleanup.
+This proves the bounded encounter and ordinary cleanup path. It does not prove
+server kill credit, sustained expiry/refresh, or a live recurrence of the specific
+parent-local-action blockage repaired in this release.
+
+Evidence remains private under `bot-actor-encounter-20261007-b52`:
+
+- First acceptance: `dcf875f0fbe54fad8585cdb0c217dcb76cc93455a8ca80dd5197fe18eb5bdc31`;
+  events: `e3353c903b622218b9d567798a0896e3adbbcc7791545276db5c9c32b3e24ed7`.
+- Second acceptance: `e0191da251d5f176e022cf8372967f39497ec3b1504e76c425a49290b9076362`;
+  events: `02aa20794e9e57d560dd3cb030f872f9f78aedd262ebc20837a1b66d47755026`.
+
+**Current next todo:** bounded sustained buff renewal validation, with claims
+limited to actual coverage transitions and native cleanup evidence. Automatic
+retaliation remains disabled. PR #83 also incorporates reviewed PR #82's
+client-evidence qualification plan without runtime changes.
+
 ## Official data-only patch verified and launched - October 7
 
 The official manifest contains 211 files; its only change is
@@ -31,8 +130,8 @@ Fresh launch succeeded at `2026-10-07T08:47:19.0223372Z`: PID 1612, creation
 Launch receipt SHA-256 is
 `c3cba3c62bd44fc478f52121f7a508a58bbe7bb7083a3c77566fd6f3ba3a09a9`.
 The compact receipts are retained privately under
-`artifacts/guard-deploy/client-update-20261007/receipts`. Login and fresh
-in-world readiness remain pending; this receipt makes no live-attack claim.
+`artifacts/guard-deploy/client-update-20261007/receipts`. Login and readiness were
+pending at that checkpoint; later Praeda and B52 results are recorded above. This patch receipt itself makes no live-attack claim.
 
 ## Host .74 activated; bounded NPC cleanup unconfirmed - October 7
 
@@ -94,10 +193,9 @@ events SHA-256 is
 `ee9b74c0d616c25eb3befc494041397bcc71cd9d40f1490771505e8676fb4e27`.
 The original evidence remains unchanged.
 
-**Current next todo:** resolve the unconfirmed cleanup before further gameplay;
-login and fresh in-world readiness also remain required. The cleanup source lane
-is `codex/actor-cleanup-ownership-20261007` in bot-command-ownership. Potion
-response diagnostics remain separate follow-up work.
+The next step at that historical checkpoint was the cleanup repair and fresh
+readiness. The repair and optional potion diagnostics are now installed in B52
+as recorded above; they do not change this failed run's result.
 
 ## Historical host .72 delivery - October 7
 

@@ -5,20 +5,22 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 ## Finding the current code
 
 Start from freshly fetched `origin/main`; the [branch map](docs/git-branch-map.md)
-records active source ownership and exact delivery receipts. Installed host **.74**
-and native **.51** use the reviewed official/prepared **1.3.38.14** executable,
+records active source ownership and exact delivery receipts. Installed host **.75**
+and native **.52** use the reviewed official/prepared **1.3.38.14** executable,
 with the October 7 official data-only cache update. Settings and jobs are preserved.
 
-The combined **.75/.52 candidate** incorporates reviewed PR #80's aggregate cleanup
-repair and PR #79's optional potion-response diagnostic stream. It is undergoing
-exact-source qualification; no candidate deployment is claimed. Diagnostics do
-not supply application authority or change combat admission.
+PR #81's combined release is merged, qualified and installed. It includes aggregate
+cleanup ownership repair and optional potion-response diagnostics. Passive readiness
+is clean and in-world. The first bounded run reached all five native buff groups
+but timed out before NPC completion; the second passed exact NPC health-zero
+and cleanup checks. Sustained refresh and the specific parent-blocked escalation
+remain unproven live. Diagnostics do not supply application authority.
 
-The latest authorized Praeda test passed one native ATTACK queue/cancel, exact
-child cleanup, later SEEKING and parent release. This does not prove server damage
-or sustained buff renewal. Missing potion application and sustained renewal remain
-active work; automatic retaliation stays disabled. Routine reviewed bot merges and
-installations have standing authorization under [AGENTS.md](AGENTS.md).
+The earlier authorized .74 Praeda test passed one native ATTACK queue/cancel,
+exact child cleanup, later SEEKING and parent release. This does not prove server
+damage or sustained buff renewal. B52 now has observed potion coverage and a
+quantity decrement; sustained renewal remains next. Automatic retaliation stays disabled. Routine reviewed bot
+merges and installations have standing authorization under [AGENTS.md](AGENTS.md).
 
 `shadowbane-lab` is a deterministic simulation and bot-policy laboratory. It treats
 Shadowbane as a data-driven ruleset and keeps deployment mechanisms outside the policy.
