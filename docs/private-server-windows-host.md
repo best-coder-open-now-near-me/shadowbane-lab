@@ -209,6 +209,17 @@ without live volumes or published ports. It exercises the actual
 - Invalid template data rejects startup and creation without partial rows.
 - Unknown or modified triggers are rejected without replacement.
 
-The integration checks passed. Full login/world startup and live deployment
-validation must complete before declaring the feature installed. A real new
+The integration checks and full isolated login/world startup passed. The live
+deployment is ready and awaiting the playing user to log out normally. A real new
 character's inventory display/use still requires client validation.
+
+### Maintenance while a character is playing
+
+No manual player save is required. In the pinned Java source,
+`AbstractGameObject.addDatabaseJob` queues stat/skill persistence for 30 seconds
+and experience persistence for five minutes. Normal logout does not explicitly
+flush those scheduled jobs. Before a planned update, have the player log out and
+leave the current Java process running for at least five minutes to allow queued
+writes to finish. Recheck that nobody reconnects, then record preservation
+checksums and perform the clean restart. Do not treat the absence of a TCP
+connection alone as proof that pending experience writes have finished.
