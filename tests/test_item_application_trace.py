@@ -249,8 +249,18 @@ def test_actual_native_layout(tmp_path):
     raw = path.read_bytes()
     pid, born = t.HEADER.unpack_from(raw)[4:6]
     result = t.parse_snapshot(raw, process_id=pid, creation=born)
-    owned = result["records"][-1]
+    owned = next(r for r in result["records"]
+                 if r["stage"] == "owned_return" and r["kind"] == "item")
     assert owned["stage"] == "owned_return" and owned["payload_words"][2:4] == [5802955, 30]
+    power = result["records"][-1]
+    assert power["kind"] == "power" and power["stage"] == "owned_return"
+    assert power["power_diagnostic"]["use_return_value"] is False
+    assert power["power_diagnostic"]["actor_state_10_raw"] == 5
+    assert power["power_diagnostic"]["actor_state_1c_raw"] == 3
+    assert power["power_diagnostic"]["required_mode_raw"] == 3
+    assert power["power_diagnostic"]["definition_274_275_raw"] == 0x101
+    assert any(r['power_diagnostic'] and r['power_diagnostic']['availability'] == 4
+               for r in result['records'])
     assert result["overwritten"] > 0 and result["ticket_drops"] > 0
 
 
@@ -261,3 +271,50 @@ def test_process_without_decode_lineage_is_explicitly_incomplete():
     assert result["records"][0]["stage"] == "processing"
     assert result["records"][0]["decode_sequence"] == 0
     assert not result["server_acceptance_verified"]
+
+
+def owned_power_body():
+    return [429590426, 49, 3, 0, 0, 1, 3, 2, 3, 5, 0x30101]
+
+
+def test_owned_power_false_return_is_diagnostic_not_settlement_or_receive_lineage():
+    data = snapshot(rows={
+        1: record(1, 4, 2, body=owned_power_body(), outcome=6, settled=1, history=8)
+    })
+    parsed = t.ItemApplicationTraceReader(11, 22, Memory(data)).drain()
+    power = parsed["records"][0]
+    assert power["power_diagnostic"]["use_return_value"] is False
+    assert not power["power_diagnostic"]["append_observed"]
+    assert power["local_settlement"] == 1 and power["outcome"] == 6
+    assert power["decode_sequence"] == 0
+    assert not parsed["server_acceptance_verified"]
+
+
+@pytest.mark.parametrize('word,value', [(0,0),(1,128),(1,64),(1,32),(1,16),(1,2),(1,9),(1,5),
+    (2,4),(3,1),(4,1),(5,5),(10,0x40000),(10,0),(10,0x10000),(10,0x20000)])
+def test_owned_power_impossible_flags_and_unknown_metadata_rejected(word, value):
+    body = owned_power_body()
+    body[word] = value
+    with pytest.raises(t.ItemApplicationTraceError):
+        t.parse_snapshot(snapshot(rows={1:record(1,4,2,body=body)}), process_id=11, creation=22)
+
+
+def test_owned_power_fault_and_unreadable_metadata_remain_unknown():
+    body = [429590426, 17, 3, 0, 0, 1, 0, 0, 0, 0, 0]
+    parsed = t.parse_snapshot(snapshot(rows={1:record(1,4,2,body=body)}),
+                              process_id=11, creation=22)
+    result = parsed['records'][0]['power_diagnostic']
+    assert result['use_called'] and not result['use_returned']
+    assert result['use_return_value'] is None
+    assert result['actor_state_10_raw'] is None and result['required_mode_raw'] is None
+
+
+def test_owned_power_peace_mode_availability_is_diagnostic_not_entry():
+    # Internal value 4 is appended by the separately reviewed peace-mode guard.
+    body = [429513599, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0]
+    parsed = t.parse_snapshot(snapshot(rows={1:record(1,4,2,body=body,
+        outcome=12,entry=1,settled=2,history=0)}), process_id=11, creation=22)
+    result = parsed['records'][0]
+    assert result['power_diagnostic']['availability'] == 4
+    assert not result['power_diagnostic']['native_entered']
+    assert result['power_diagnostic']['use_return_value'] is None

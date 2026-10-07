@@ -2,6 +2,7 @@
 #include "event_channel.h"
 #include "movement_lifetime.h"
 #include "actor_action_wire.h"
+#include "combat_power_observer.h"
 #include <Windows.h>
 #include <array>
 #include <cstdint>
@@ -31,5 +32,6 @@ static_assert(sizeof(Record)==176 && offsetof(Storage,records)==64);
 DWORD Start(const ProcessIdentity&) noexcept;
 void Stop() noexcept;
 void OwnedReturn(const actor::wire::Command&,const movement::NativeScene&,
-    actor::wire::Outcome,actor::wire::Entry,actor::wire::LocalSettlement,std::uint32_t history) noexcept;
+    actor::wire::Outcome,actor::wire::Entry,actor::wire::LocalSettlement,std::uint32_t history,
+    const combat::power::Receipt* power=nullptr) noexcept;
 }

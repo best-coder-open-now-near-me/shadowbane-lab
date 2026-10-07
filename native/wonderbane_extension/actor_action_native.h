@@ -34,6 +34,8 @@ public:
         wire::Closure closure = wire::Closure::none;
         Observation state{};
         std::array<char,72> detail{};
+        // Copied from this exact Submit, including guarded faults; never authority.
+        combat::power::Receipt power_diagnostic{};
     };
     // Retains the canonical local actor using the native owned registry lookup.
     // scene_current proves the outermost owner thread/lifetime, independently of
