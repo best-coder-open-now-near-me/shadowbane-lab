@@ -1,5 +1,16 @@
 # Git branch map
 
+## Client desktop fullscreen - October 7
+
+`codex/client-desktop-fullscreen` uses the dedicated managed
+`client-desktop-fullscreen` worktree. It starts from client baseline PR #96 at
+`b8654f07888ecd28b329d8c5848fb39cd0738c00` and targets `main` with that dependency.
+The [startup policy](client-desktop-fullscreen.md) preserves the desktop display
+mode and separates fullscreen presentation from the client's exclusive mode.
+Policy/Windows argument tests pass. Native integration and live qualification are
+next; no runtime is installed yet. The existing bootstrap checkout remains on
+`codex/magicbane-runtime-pairing`; main stays clean.
+
 ## Independent client baseline - October 7
 
 `codex/client-api-baseline` starts from `origin/main` at `cdaafb234cfe324cc1c750c77102cfcc76552f50`
