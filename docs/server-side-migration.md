@@ -33,6 +33,16 @@ point. Its identity does not establish compatibility with a selected Magicbane
 server/database. The other lane owns that work. We do not have original client
 source; rendering, UI and client engine fixes may still require client changes.
 
+Server code now lives in the private
+[shadowbane-server repository](https://github.com/best-coder-open-now-near-me/shadowbane-server).
+Its initial shared `main` is exactly `bafb48fe14e5356a64137954cf2d79205835a204`,
+with complete upstream ancestry and unchanged MIT attribution. The tracked local
+checkout is `E:/Projects/shadowbane-server`; `codex/shared-gameplay-services` owns
+implementation there. Its documentation checkpoint `22521f45872ab989fcea78db4ca8e76b7df3ee3d`
+is published in [server PR #1](https://github.com/best-coder-open-now-near-me/shadowbane-server/pull/1).
+No Java behavior is changed by that checkpoint. The lab remains the research and
+policy-testing destination; bootstrap builds the same pinned server source.
+
 ## Reuse, port, and retire
 
 | Existing work | Server destination |
@@ -168,8 +178,10 @@ be tested together; expected differences belong in explicit actor rules.
 - [x] Map actual lab reuse and historical server service entry points.
 - [x] Identify a coherent bootstrap source/data/library set in the setup lane
   and remap service boundaries directly against its pinned source.
-- [ ] **Active:** establish the tracked server development/integration checkout
-  and implement shared gameplay admission plus the complete buff/combat slice.
+- [x] Establish the private server repository and tracked development checkout,
+  preserving the pinned shared source and upstream history.
+- [ ] **Active:** implement shared gameplay admission plus the complete
+  buff/combat slice in the server repository.
   Bootstrap runtime/login qualification proceeds in the setup lane; compilation
   and source work do not require pretending those live checks already passed.
 - [ ] Add controlled PvP/retaliation and client-visible compatibility validation.
