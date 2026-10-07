@@ -1,6 +1,94 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
-## Host .76/native .53 installed; production cleanup failure - October 7
+## Host .77/native .53 activation verified - October 7
+
+PR #91 merged at `cdaafb234cfe324cc1c750c77102cfcc76552f50` after all 15
+hosted checks passed. The installed host is the exact qualified source
+`60988faa2fa10a04fb739da8123d975f962c3fb1`, version .77. Integration head
+`0a8c75fd3895c33991a7aa549f715f42276707c0` contains that source and changes only
+README and two documentation files. All 1,399 remaining Git entries are identical;
+the private equivalence receipt SHA-256 is
+`16350538c6e4bc9d75ed8707eb6efb9662000388a34c1d3b9a794909567f49eb`.
+
+Host qualification passed 5,150 tests (39 skips), all 13 build/install stages and
+both profiles' six existing native IPC gates. The native .53 DLL remains from
+source `490cba79e7804b27948e182996d8e2bab2d1f050`. The native-tree comparison
+separately accounts for PR #89's exact standalone, excluded-from-default-build
+probe and CMake block; runtime build inputs are unchanged, not the entire tree.
+
+| Host artifact | SHA-256 |
+| --- | --- |
+| Wheel | `8d9f947acf52e66a1250b92517e576e68207949652b5366cfe682f3b8e322d1c` |
+| Source archive | `2ca9420efd38384ad82d240d0e5d54606c733c38af827a8a2e657fd5fc10823d` |
+| Qualification receipt | `36fe65ba2b2d5202e279976233e5bbbde667e0080168b89cef3b099ea22de277` |
+
+Apply and activation verified 467 modules, 9,614 retained files and zero client
+inventory changes. Five shortcuts passed. Manager 1092, creation
+`134358635794891713`, is healthy with one paused, healthy worker. Client PID 4308,
+creation `134358592076268529`, HWND 2228630 and the exact .53 DLL remained alive
+and unchanged throughout this host-only update. Settings and jobs remained in place.
+
+Initial finalization failed with `Reservation identity differs`: the reservation
+still truthfully recorded unverified launcher 3868, while the healthy heartbeat
+belonged to its interpreter child 5612. The separate repair used repeated exact
+OS process lifetimes, parent relationships, executable paths, worker arguments,
+slot ownership and fresh heartbeat status to verify that pair. It neither rewrote
+the reservation as started nor restarted either process. Original failed logs
+remain preserved. The original finalizer's package, native, user-data and paused
+manager checks still ran. Thirty-two independent offline regressions passed.
+
+Private repair evidence under `artifacts/bot-deploy/20261007-host77`:
+
+- Repair source: `251d55555ce919b622d8dfb2913dbee4d618be798a86c3ac9d343ea8c364bc25`.
+- Four-file source/evidence manifest: `3a20de4d7fafc3a3bf7ee2604f8ec6b401194bad598c12db5a218d76bf1987c6`.
+- Observed reservation/process identities: `2b4f532fe304e11341b29d5510b3cd6337f84d60653643ef1a0fa523cff93ee9`.
+- Successful `finalize-repair-v1.json`: `9639001234608d760f424775a258c373d00296745465a78ffb20929f11058c92`.
+
+Retirement removed 2,124 old .76 host files and its one obsolete wheel, totaling
+49,853,969 bytes. The active native .53 DLL and its payload were retained; no
+rollback runtime was created. All ten compact exports were independently rehashed
+under `artifacts/bot-deploy/20261007-host77/receipts`; export-manifest SHA-256 is
+`cbef7a414614362d54b5bc3f99ee3799915e6fbea924d1bc86b2cd353e04362e`.
+Original apply, activation and removal receipt hashes are respectively
+`e664243aa6ca17ad3bee20dfa0e26209450037239faa35b831a9a256b8ac89bd`,
+`0b416f36b8e09679a40ee864304476fe62e9435a8f85e4e23da618bcfdc2a85d` and
+`0d1e326557e99069b41066caa4ea6b5e944e1a3f120ac0690563b7c5adc1adcf`.
+
+This activation does not reclassify the failed .76 run below. The next production
+architecture work is a coherent worker-activation snapshot and host-update
+transaction, with shared qualification validators, exact phase receipts and user
+data preservation. The separate repair does not complete that consolidation.
+
+### Host .77 production result
+
+Run `20630147a00047fe88b2c4de7efac6bb` returned exit code 0 and `ok=true`, with
+279 steps and five tracked NPC native health-zero results. Its initial deferred
+context admission remained a truthful `DEFERRED/CLOSED/NEVER_BOUND` receipt;
+the corresponding stop was positively confirmed and the runner continued.
+All five initially missing buff groups reached PRESENT, including new potion
+application. There was no observed expiry-and-renewal cycle or server kill-credit
+proof.
+
+The run stopped at 131.234 seconds with terminal reason `emergency_stop`.
+The invocation recorded no timer stop, hotkey stop or attack-list change. The
+specific cause remains unknown: the native operation also supplies the runner's
+stop signal, but current reporting discards any internal interruption reason
+behind the generic terminal label. A separate production change must retain that reason; this
+result is not a completed sustained-renewal test.
+
+Post-run passive preflight `11204de1fa004fcdb3b2aa23753b9db1` found the same
+client alive and ready in scene 1, native owner NONE and no pending cleanup.
+That later idle state does not retroactively supply an exact aggregate stop
+receipt absent from the run.
+
+Private evidence is under `bot-production-pve-20261007-host77`:
+
+- Invocation: `f7237cc14c2ebf8a7da4471ddbd6add430065afcd5e2a14b1a5cec1fa4f253e8`.
+- Production result: `a6e39e18ed0341bedaa24c1fc7432e2535395eedfce5ddcfb6fe8e306cceacb1`.
+- Production events: `dcf471e66aff875ec1967566d03b95c94282f46b18bee909603a1fc042f41650`.
+- Later passive preflight: `88256be8f313e3c920ca077c2d2ce2f10001087eaf5adf39cfec0c0f93999ba4`.
+
+## Historical host .76/native .53 deployment and cleanup failure - October 7
 
 PR #87 merged the reviewed peace-mode admission and owned-power diagnostics
 slices. Exact qualified source is `490cba79e7804b27948e182996d8e2bab2d1f050`.
@@ -84,7 +172,7 @@ At 72.437 seconds the host reported `action_resolution_timeout` and entered
 cleanup handling. Cleanup failed to produce a confirmed result before the
 terminal record at 187.547 seconds: request `0xc7`, `confirmed=false`,
 `owner_closed=false`, error `action_resolution_timeout`. The host cleanup
-liveness failure is being repaired separately; the original failed result is
+liveness repair is installed as host .77 above; the original failed result is
 not reclassified as a pass.
 
 Subsequent read-only preflight `d6865045f5c740428f5558781a1a19ff` found the same
@@ -98,8 +186,8 @@ Private evidence is under `bot-production-pve-20261007-b53`. Immutable hashes:
 - Production events: `f035ff57720f4e8e2ee76019dd80c315746d9b77089245e0015d70e439208642`.
 - Later passive preflight: `22f871864bdcfbb89ee6027c28d2d4548d0f8c762b5cb41a1ef8c11163e3d59d`.
 
-**Current next todo:** complete and qualify the host cleanup-liveness repair,
-then resume production validation with immutable cleanup receipts and sustained
+**Follow-up validation:** exercise the installed host cleanup-liveness repair
+with immutable cleanup receipts and sustained
 renewal evidence. This does not establish the cause of historical Beorc pending
 entry or enable automatic retaliation.
 

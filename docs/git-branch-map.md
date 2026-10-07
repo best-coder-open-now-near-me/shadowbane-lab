@@ -2,10 +2,11 @@
 
 ## Context cleanup progress - October 7
 
-`codex/context-cleanup-progress-20261007` in bot-integration starts from
-main `7770df3` and now includes main `7235c16` after PR #90 merged. It targets
-`main` through PR #91. This host .77 source candidate keeps native
-.53 unchanged. It finishes an already-started context stop within the original
+PR #91 merged at `cdaafb234cfe324cc1c750c77102cfcc76552f50` after all 15
+hosted checks passed on `0a8c75fd3895c33991a7aa549f715f42276707c0`.
+The qualified host source remains `60988faa2fa10a04fb739da8123d975f962c3fb1`;
+the later integration changed only three documentation files. This host .77
+update keeps native .53 unchanged. It finishes an already-started context stop within the original
 cleanup deadline, preserves correlated admission/stop receipts and native reasons,
 and terminates the runner on unconfirmed cleanup or closed aggregate ownership.
 Prior child proof cannot settle a newly allocated child.
@@ -16,9 +17,27 @@ context admission and stop. The host polling defect is reproduced offline; the
 original admission cause and sustained buff renewal remain unproved. Checkpoint
 `60988fa` passed independent source review, 5,150 host tests (39 skips) and host-only
 package qualification. The subsequent main integration changes documentation only;
-runtime sources are identical to that checkpoint. Next: pass the updated PR #91
-checks, integrate and install the reviewed host update before live validation.
+runtime sources are identical to that checkpoint. Installation and activation
+verified 467 modules, 9,614 retained files and zero client inventory changes.
+Manager 1092 is healthy with the same client 4308/native .53 lifetime; a separate
+reviewed finalization repair preserved the legitimate unverified launcher record
+while proving its exact live interpreter lineage. Retirement removed the old .76
+host and wheel (49,853,969 bytes), preserving native .53. Run `20630147` recovered
+deferred context admission/cleanup, recorded five native health-zero results and
+all five initial buff groups PRESENT. It stopped at 131.234 seconds with an
+unattributed `emergency_stop`; renewal remains unproved. Later ready/owner NONE
+is recovery evidence, not a missing aggregate cleanup receipt.
 No new native admission rule or gameplay authority is introduced.
+
+`codex/host-cleanup-deployment-20261007` in bot-command-ownership starts from
+that merged main and owns this receipt-only checkpoint, targeting `main`.
+Next: preserve the real operation-interruption reason, then resume sustained
+renewal validation and consolidate the host updater
+into a production transaction with a public coherent worker-activation snapshot
+and shared package/installation validators. The current repair is not that
+consolidation. Startup registration recovery and the separate offline participant
+fixture remain independently reviewed follow-on source; neither is part of the
+installed `60988fa` artifact.
 
 
 ## Offline hostile health consumer fixture - October 7
@@ -37,7 +56,7 @@ The probe is separate from the qualified .76/.53 runtime package.
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Installed .76/.53 delivery checkpoint - October 7
+## Historical .76/.53 delivery checkpoint - October 7
 
 Start from freshly fetched `origin/main`, including merged PRs #87 and #89.
 The exact qualified release source is `490cba79e7804b27948e182996d8e2bab2d1f050`.

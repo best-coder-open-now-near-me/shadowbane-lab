@@ -5,7 +5,7 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 ## Finding the current code
 
 Start from freshly fetched `origin/main`; the [branch map](docs/git-branch-map.md)
-records active source ownership and exact delivery receipts. Installed host **.76**
+records active source ownership and exact delivery receipts. Installed host **.77**
 and native **.53** use the reviewed official/prepared **1.3.38.14** executable,
 with the October 7 official data-only cache update. Settings and jobs are preserved.
 
@@ -15,11 +15,23 @@ potion-response paths. After login and fresh readiness, the .76 production run
 observed three native NPC health-zero results with confirmed child cleanup and
 all five buff groups PRESENT. It still failed when fourth-context admission and
 cleanup remained unconfirmed. Later native-idle readiness does not establish
-that missing cleanup receipt. A host cleanup-liveness repair is the next step;
-sustained refresh remains unproven and concoction coverage was pre-existing.
+that missing cleanup receipt. PR #91's host cleanup-liveness repair is now
+qualified, installed and activation-verified with the same native .53 client.
+Old-host retirement is complete. The .77 run recovered deferred context
+admission/cleanup, recorded five native NPC health-zero results and applied the
+initial five buff groups. It stopped at 131.234 seconds with an unattributed
+`emergency_stop`; sustained expiry/renewal remains unproven. Concoction coverage
+was pre-existing in the earlier .76 run.
 Historical .75 evidence and the unresolved Beorc request remain recorded.
 Diagnostics do not supply application authority, and the peace-mode fix does
 not explain the pending Beorc request.
+
+The host update also exposed a deployment-verifier assumption about an
+unverified Python launcher reservation. A separately reviewed repair proved the
+live interpreter's exact process lineage without changing that reservation or
+restarting the manager. Preserving the actual operation-interruption reason and
+consolidating deployment into a production transaction
+with a coherent worker-activation snapshot remains a follow-on, not completed work.
 
 The earlier authorized .74 Praeda test passed one native ATTACK queue/cancel,
 exact child cleanup, later SEEKING and parent release. This does not prove server
