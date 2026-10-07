@@ -1,6 +1,109 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
-## Host .75/native .52 installed and ready - October 7
+## Host .76/native .53 installed; production cleanup failure - October 7
+
+PR #87 merged the reviewed peace-mode admission and owned-power diagnostics
+slices. Exact qualified source is `490cba79e7804b27948e182996d8e2bab2d1f050`.
+Package `artifacts/b53/faf7a2b4` passed 5,140 host tests (38 skips), 88 stages
+and independent verification of all 116 artifacts. Each native profile passed
+231 tests, all 133 required gates, 74 movement/86 combat/146 actor IPC cases and
+50 real item/power trace-reader cases with zero skips. Original/prepared .14
+decoder probes passed in both profiles. The skipped movement/cue/sky CTest
+wrappers have separate actual-image probes; optional transparency findings remain
+separate and unchanged.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Full DLL | `d79df0c046503eff1d68c9a58de0b77a40f065c882163568f279b76a949da6a6` |
+| Host wheel | `d5baa383bc41f7cb8c77d1d0035aabe3d3d604e35cf1f555b0ae726a615c478e` |
+| Package archive | `0bfe218f73f5b5b530c2458d394015a26df7bc16e99bdf21c55a75a065169ca7` |
+| Package receipt | `867f179f1eed6100df3e338b1ea24b7b68d59de7420938a6b151b96ce006f7c5` |
+
+Peace-only powers now decline direct native entry if current mode is ineligible,
+including the context-bound path. Existing buff publication already applied the
+mode rule. No stance is forced; this is not a diagnosis of Beorc's unresolved
+pending request. Optional copied power-entry records expose native return,
+send/append/followup and pre-entry metadata without authorizing actions, clearing
+application history or turning uncertain entry into completion.
+
+Apply and activation verified 467 host modules, 9,615 retained files and exactly
+one changed client inventory entry (the DLL). Manager PID 5820 activated healthy;
+all five shortcuts and launch preflight passed. The .14 executable and October 7
+cache `08c115…` remain unchanged. Settings, saved jobs and journals stayed in
+place without rollback copies. Exact old manager/worker shutdown preceded the
+replacement; fresh closed-client checks and current settings hashes fenced it.
+
+Launch at `2026-10-07T15:06:55.7045506Z` verified PID 4308, creation
+`134358592076268529`, HWND 2228630 and the qualified DLL. The following passive
+receipt was **not ready**, with actor/movement data unavailable at login/loading.
+That initial receipt establishes launch, not in-world readiness. The user later
+logged in; fresh passive readiness passed before the production run below.
+
+All twelve compact exports and seven installed-file hashes were independently
+checked under `artifacts/bot-deploy/20261007-b53/receipts`. Export-manifest SHA-256
+is `4a56c106d0da85529afa0ad2866efb47e0a964b7a657cecde1669b9359e37a11`.
+Original guest receipt hashes (distinct from normalized export hashes) are:
+
+- Apply: `262b7edd65f8ad9683fc5be087ecbef6cbfda82994192f8f58c545f7547c787f`.
+- Activation: `2fb1fc22440cbc6a55ef2fc651d5856456afb6f94bf33d1a6bede4b9ede755ff`.
+- Launch: `c7268b51ddb21435c213f6b15b32b3e522acb0e5f002080249085a5b37519e7b`.
+- Obsolete runtime removal: `3a567b2b7919e4d814f22811fa432ecac5f88fd279bef5dca2019276fe396d80`.
+
+Verified retirement removed 2,124 old .75 host files and two obsolete .75/.52
+guest payloads, totaling 50,991,883 bytes. Four exact old local/share staging
+binaries totaled 5,682,766 bytes; removal receipt SHA-256 is
+`ab765bb5880ec23a340667b72712ef0c920b90a7a037f64232cf948ce7114a57`.
+No user settings, job records or diagnostic evidence were retired.
+
+PR #89 separately merged the offline consumer fixture at `7770df3`. Its 20 cases
+on each exact .14 image qualify constructor/conditional health-write behavior
+with named substitutes, not live hostile attribution. Automatic retaliation
+remains disabled. Potion-overlap testing remains canceled by the user.
+
+### B53 production result and host cleanup liveness
+
+Production run `63ff90fb6506473c859cc5e7a6d4277f` remains **failed**. It exited
+with code 2 and `combat_cleanup_unconfirmed` at 187.547 seconds. The configured
+stop timer, emergency hotkey and attack-list change did not trigger termination.
+Before the failure, three tracked NPCs reached native health zero and each had
+a positive child cleanup receipt:
+
+| NPC key | Native health zero | Child cleanup confirmed |
+| --- | --- | --- |
+| `23885/37` | 4.406 s | 5.468 s, request `0x10` |
+| `23886/37` | 36.500 s | 37.562 s, request `0x66` |
+| `23887/37` | 61.765 s | 62.906 s, request `0xb8` |
+
+All five canonical native buff coverage groups were PRESENT by 31.922 seconds.
+Concoction coverage was already present at the first observation, so this is not
+evidence of a new potion use. Neither these observations nor the three native
+health-zero results prove sustained expiry/renewal or server kill credit.
+
+The fourth NPC, `23884/37`, had unconfirmed context admission at 67.422 seconds.
+At 72.437 seconds the host reported `action_resolution_timeout` and entered
+cleanup handling. Cleanup failed to produce a confirmed result before the
+terminal record at 187.547 seconds: request `0xc7`, `confirmed=false`,
+`owner_closed=false`, error `action_resolution_timeout`. The host cleanup
+liveness failure is being repaired separately; the original failed result is
+not reclassified as a pass.
+
+Subsequent read-only preflight `d6865045f5c740428f5558781a1a19ff` found the same
+live client ready, player alive, native owner NONE and `cleanup_pending=false`.
+That later state is useful recovery evidence, but it does **not** retroactively
+confirm request `0xc7` or establish exact child/parent cleanup for the failed run.
+
+Private evidence is under `bot-production-pve-20261007-b53`. Immutable hashes:
+
+- Invocation: `cc80439f881c097d6592c980fd8f5444d85921f9ddf02a43cbddb87d23271176`.
+- Production events: `f035ff57720f4e8e2ee76019dd80c315746d9b77089245e0015d70e439208642`.
+- Later passive preflight: `22f871864bdcfbb89ee6027c28d2d4548d0f8c762b5cb41a1ef8c11163e3d59d`.
+
+**Current next todo:** complete and qualify the host cleanup-liveness repair,
+then resume production validation with immutable cleanup receipts and sustained
+renewal evidence. This does not establish the cause of historical Beorc pending
+entry or enable automatic retaliation.
+
+## Historical host .75/native .52 deployment - October 7
 
 PR #81 merged into main at `acb1ba7f41875a567654dbdcb5182857bba05679`.
 Exact source `733b5fecb862c6d9421b8c2d20f8b8aee5c6db18` combines aggregate
