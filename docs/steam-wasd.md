@@ -6,10 +6,10 @@ WonderBane host .75/native .52 and must not replace its x86 runtime.
 
 ## Qualification status
 
-The input policy and exact-image native queue tests pass. Runtime integration
-and live movement validation are unfinished; there is not yet an installed pack.
-Next: connect the game-thread hook, qualify stop/scene/input boundaries, and test
-WASD with the user in the Steam client before describing it as usable.
+The x64 DLL and launcher build with warnings treated as errors. Input policy and
+exact-image native queue tests pass. Live attachment and user movement validation
+are pending. Next: attach disabled, verify the frame callback, then test WASD and
+release/chat/focus boundaries with the user before calling this pack qualified.
 
 ## Exact client boundary
 
@@ -53,3 +53,27 @@ The optional image test requires the official local executable and never uploads
 it. Private disassembly/live observations and generated binaries stay ignored
 under `artifacts/steam-wasd`. Follow [deployment policy](deployment-policy.md):
 no retained deployment rollback copies; recover from committed source.
+
+## Runtime and use
+
+`steam_wasd_launcher.exe --attach [PID]` attaches with movement disabled.
+`--status`, `--enable`, and `--disable` report/control the same exact process
+creation. With no arguments, the launcher starts Steam app 4371680 if necessary,
+attaches, and enables WASD. Keep `steam_wasd.dll` beside the launcher.
+Ctrl+Alt+F10 toggles movement; always release the keys once after enabling.
+W/S move forward/backward and A/D move left/right relative to the camera.
+Opposing directions cancel; diagonal directions have unit length.
+
+The add-on is currently limited to open ground (no parent-local coordinate
+frame). It yields while typing, using modifiers, inactive/minimized, in modal UI,
+or outside idle/moving states. A mouse click stops owned WASD movement before
+normal native click handling. Native movement preserves game collision and speed.
+It has no route playback, bot workflow, or packet construction.
+
+Status gate codes: 0 available, 1 disabled, 2 not foreground, 3 parent frame,
+4 modal/native window blocked, 5 modifiers/input inhibition, 6 typing,
+7 actor state/restriction, 8 no active world scene, 9 fault.
+A fault disables further native operations. Restart the game before trying a
+rebuilt DLL; uncertain operations are not replayed. Disabling leaves the pinned
+callback loaded until exit. The original executable and client settings are not
+patched on disk, and the launcher never terminates the game.

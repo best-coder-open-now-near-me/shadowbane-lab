@@ -17,3 +17,7 @@ set(STEAM_CLIENT "" CACHE FILEPATH "Official Steam client for private exact-imag
 if(STEAM_CLIENT)
   add_test(NAME steam_wasd_image COMMAND steam_wasd_image_test "${STEAM_CLIENT}")
 endif()
+add_library(steam_wasd SHARED runtime.cpp)
+target_link_libraries(steam_wasd PRIVATE bcrypt comctl32)
+add_executable(steam_wasd_launcher launcher.cpp)
+target_link_libraries(steam_wasd_launcher PRIVATE bcrypt shell32)
