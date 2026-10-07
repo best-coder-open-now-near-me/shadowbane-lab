@@ -486,6 +486,10 @@ class PvERunner:
                         input_reason=None if accepted else update.acknowledgement.disposition.value,
                         native_combat=update))
                     consecutive_observation_failures = 0
+                    if update.terminal_reason is not None:
+                        terminal = self._controller.stop(update.terminal_reason, now_ms=now_ms)
+                        record(self._trace(terminal, observation=observation))
+                        break
                     if (update.receipt is not None
                             and update.receipt.context_phase is NativeCombatPhase.RETIRED):
                         terminal = self._controller.stop("native_scene_retired", now_ms=now_ms)

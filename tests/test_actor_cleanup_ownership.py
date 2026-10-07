@@ -120,7 +120,8 @@ def test_child_blocked_by_parent_action_stops_aggregate_with_original_budget(
     assert owner.finish("terminal") == (confirmed, receipt, None)
     assert owner.preparation_step() is None
     following = owner.advance_combat(replace(attack, proposal_id=2), observation)
-    assert following.acknowledgement.disposition.value == "uncertain"
+    assert following.acknowledgement.disposition.value == "rejected"
+    assert following.terminal_reason == "actor_owner_closed"
     assert session.actor_action.call_count == before
     assert len([c for v, c in calls if v is Verb.SUBMIT]) == 2
     for ticket in tickets:

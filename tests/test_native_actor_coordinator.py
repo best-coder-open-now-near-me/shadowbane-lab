@@ -274,12 +274,9 @@ def test_scene_retirement_context_reply_closes_aggregate_owner_never_rearms(setu
     assert owner.stop_context("retired")[0]
     assert owner._closed and owner._obligation.released
     assert owner.finish("again")[0]
-    assert (
-        owner.advance_combat(
-            replace(proposal, proposal_id=2), observation
-        ).acknowledgement.disposition
-        is PvECombatDisposition.UNCERTAIN
-    )
+    update = owner.advance_combat(replace(proposal, proposal_id=2), observation)
+    assert update.acknowledgement.disposition is PvECombatDisposition.REJECTED
+    assert update.terminal_reason == "native_scene_retired"
 
 
 def test_parent_cancel_child_ack_keeps_terminal_deadline_until_owner_stop(setup):

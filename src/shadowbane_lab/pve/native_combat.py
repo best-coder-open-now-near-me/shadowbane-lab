@@ -27,6 +27,8 @@ class NativeCombatUpdate:
     receipt: Receipt | None = None
     detail: str | None = None
     command: Command | None = None
+    terminal_reason: str | None = None
+    preceding_replies: tuple[NativeCombatUpdate, ...] = ()
 
     def as_dict(self):
         r = self.receipt
@@ -45,6 +47,7 @@ class NativeCombatUpdate:
             "action": None if r is None else r.action.name.lower(),
             "power_id": None if self.command is None else self.command.power_id,
             "outcome": None if r is None else r.outcome.name.lower(),
+            "native_reason": None if r is None else r.reason.name.lower(),
             "flags": None if r is None else r.flags,
             "entry_state": None if r is None else r.entry.name.lower(),
             "local_settlement": None if r is None else r.local_settlement.name.lower(),
@@ -54,7 +57,12 @@ class NativeCombatUpdate:
             "closure": None if r is None else r.closure.name.lower(),
             "closure_scope": None if r is None else r.closure_scope.name.lower(),
             "outbound_queued": None if r is None else bool(r.flags & OUTBOUND_QUEUED),
-            "command_digest": None if r is None else r.command_digest.hex(),
+            "command_digest": (self.command.digest.hex() if self.command is not None
+                               else None if r is None else r.command_digest.hex()),
+            "command_request": (None if self.command is None
+                                else self.command.request.encode().hex()),
+            "terminal_reason": self.terminal_reason,
+            "preceding_replies": [reply.as_dict() for reply in self.preceding_replies],
             "detail": self.detail,
         }
 

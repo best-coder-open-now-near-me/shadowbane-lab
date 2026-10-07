@@ -1,5 +1,22 @@
 # Git branch map
 
+## Context cleanup progress - October 7
+
+`codex/context-cleanup-progress-20261007` in bot-integration starts from
+main `7770df3` and targets `main`. This host .77 source candidate keeps native
+.53 unchanged. It finishes an already-started context stop within the original
+cleanup deadline, preserves correlated admission/stop receipts and native reasons,
+and terminates the runner on unconfirmed cleanup or closed aggregate ownership.
+Prior child proof cannot settle a newly allocated child.
+
+The installed .76/.53 production run `63ff90fb` recorded three native health-zero
+encounters and all five buff groups PRESENT, then stalled after unconfirmed fourth
+context admission and stop. The host polling defect is reproduced offline; the
+original admission cause and sustained buff renewal remain unproved. The current
+next todo is host-only qualification after independent source review, before live
+validation. No new native admission rule or gameplay authority is introduced.
+
+
 ## Offline hostile health consumer fixture - October 7
 
 `codex/hostile-health-consumer-probe-20261007` starts at freshly fetched main

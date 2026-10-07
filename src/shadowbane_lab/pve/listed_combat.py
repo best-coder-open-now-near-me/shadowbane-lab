@@ -168,6 +168,13 @@ class ListedCombatCoordinator:
             elif receipt.context_phase is not Phase.BOUND:
                 self._cancel_reason = "listed_engagement_closed"
             return self._update(self._cancel_reason or "listed_combat_engaged", receipt, detail)
+        if update.terminal_reason is not None:
+            if update.terminal_reason in ("actor_owner_closed", "native_scene_retired"):
+                return self._cancel_complete(True, update.receipt, update.detail,
+                                             update.terminal_reason)
+            self._cancel_reason = update.terminal_reason
+            return self._update("listed_combat_cleanup_unconfirmed",
+                                update.receipt, update.detail)
         if update.acknowledgement.disposition in (
             PvECombatDisposition.REJECTED, PvECombatDisposition.DEFERRED,
         ):
