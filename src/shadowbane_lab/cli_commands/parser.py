@@ -905,7 +905,10 @@ def _parser() -> argparse.ArgumentParser:
         "run-pve",
         help="run native-observation PvE against nearby mobiles",
     )
-    run_pve.add_argument("--client-profile", type=Path, required=True)
+    run_pve.add_argument(
+        "--client-profile", type=Path,
+        help="Deprecated; ignored by native PvE (no screen calibration required).",
+    )
     run_pve.add_argument(
         "--combat-source",
         choices=("state", "hud", "log"),
@@ -988,7 +991,7 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument(
         "--live",
         action="store_true",
-        help="required in addition to a profile with live_input_enabled=true",
+        help="explicitly allow native client actions",
     )
     run_pve.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
@@ -1039,7 +1042,8 @@ def _parser() -> argparse.ArgumentParser:
         default=Path.home() / ".shadowbane-lab" / "last-travel-destination.json",
         help="local state file used to remember the last explicit destination",
     )
-    go.add_argument("--client-profile", type=Path, required=True)
+    go.add_argument("--client-profile", type=Path,
+                    help="Deprecated; ignored by native travel.")
     go.add_argument("--native-position-profile", type=Path)
     go.add_argument("--native-vitals-profile", type=Path)
     go.add_argument(
@@ -1054,7 +1058,7 @@ def _parser() -> argparse.ArgumentParser:
     go.add_argument(
         "--live",
         action="store_true",
-        help="required in addition to a profile with live_input_enabled=true",
+        help="explicitly allow native client actions",
     )
     go.add_argument("--json", action="store_true", help="emit machine-readable JSON")
 
@@ -1068,7 +1072,8 @@ def _parser() -> argparse.ArgumentParser:
         default=Path.home() / ".shadowbane-lab" / "last-travel-destination.json",
         help="local state file used to remember the last explicit destination",
     )
-    listen_go.add_argument("--client-profile", type=Path, required=True)
+    listen_go.add_argument("--client-profile", type=Path,
+                           help="Calibration for optional legacy pixel/input commands only.")
     listen_go.add_argument("--native-position-profile", type=Path)
     listen_go.add_argument("--native-vitals-profile", type=Path)
     listen_go.add_argument("--native-runegate-profile", type=Path)
@@ -1091,7 +1096,7 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument(
         "--pve-client-profile",
         type=Path,
-        help="live PvE input profile; enables the in-game /pve command",
+        help="Deprecated; ignored by native /pve.",
     )
     listen_go.add_argument(
         "--pve-hotbar-config",
@@ -1144,7 +1149,7 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument(
         "--live",
         action="store_true",
-        help="required in addition to a profile with live_input_enabled=true",
+        help="explicitly allow native client actions",
     )
     listen_go.add_argument("--json", action="store_true", help="emit JSON Lines events")
 

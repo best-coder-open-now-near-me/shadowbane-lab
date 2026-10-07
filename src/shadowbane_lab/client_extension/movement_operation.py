@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import uuid
 
-from shadowbane_lab.client_input import ForegroundWindowGuard, StopSignal
+from shadowbane_lab.client_input import StopSignal
 from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.travel.model import TravelDecision
 
@@ -14,6 +14,7 @@ from .action_channel import (
     NativeActionChannelTimeout,
     NativeClientProcessIdentity,
 )
+from .client_guard import NativeClientTarget
 from .movement_dispatcher import NativeMovementTravelDispatcher
 from .movement_session import (
     NativeMovementCleanupPending,
@@ -31,7 +32,7 @@ class NativeMovementOperation:
     A cancelled operation is never rearmed or reacquired.
     """
 
-    def __init__(self, guard: ForegroundWindowGuard, parent: StopSignal):
+    def __init__(self, guard: NativeClientTarget, parent: StopSignal):
         self.guard, self.parent = guard, parent
         self._wake = threading.Event()
         self._cancelled = threading.Event()

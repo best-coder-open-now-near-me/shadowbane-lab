@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from shadowbane_lab.client_extension import ExtensionWorldMapDestinationEvent
+from shadowbane_lab.client_extension.client_guard import NativeClientWindowSelector
 from shadowbane_lab.client_input import (
     AnyStopSignal,
     CalibrationLoadError,
@@ -122,10 +123,28 @@ def _load_world_map_close_plan(
     )
 
 
+def _listener_pixel_input(profile_path, client, stop_signal):
+    """Resolve calibration only for the listener's actual legacy input branches."""
+    if profile_path is None:
+        raise ValueError("this pixel/input command requires --client-profile")
+    profile = load_calibration(profile_path)
+    if not profile.live_input_enabled:
+        raise ValueError("client profile is not enabled for live input")
+    guard = ForegroundWindowGuard(
+        profile, WindowsForegroundWindowInspector(),
+        expected_process_id=client.process_id,
+        expected_process_started_at_100ns=client.process_started_at_100ns,
+        expected_window_handle=client.window_handle,
+    )
+    return profile, GuardedInputExecutor(
+        guard=guard, backend=PyAutoGuiBackend(), stop_signal=stop_signal,
+    )
+
+
 def _listen_for_go_commands(
     *,
     destination_state_path: Path,
-    client_profile_path: Path,
+    client_profile_path: Path | None,
     native_position_profile_path: Path | None,
     native_vitals_profile_path: Path | None,
     native_runegate_profile_path: Path | None,
@@ -158,10 +177,7 @@ def _listen_for_go_commands(
     if not live:
         return _error("chat travel requires the explicit --live flag", as_json=as_json)
     try:
-        client_profile = load_calibration(client_profile_path)
-        if not client_profile.live_input_enabled:
-            raise ValueError("client profile is not enabled for live input")
-        guard = ForegroundWindowGuard(client_profile, WindowsForegroundWindowInspector())
+        guard = NativeClientWindowSelector(WindowsForegroundWindowInspector())
         if (manager_manifest_path is None) != (worker_state_directory is None):
             raise ValueError(
                 "--manager-manifest and --worker-state-directory must be supplied together"
@@ -208,13 +224,6 @@ def _listen_for_go_commands(
             else load_bundled_native_world_map_profile()
         )
         world_map_config_directory = None if world_def_path is None else world_def_path.parent
-        pve_profile = None
-        if pve_client_profile_path is not None:
-            pve_profile = load_calibration(pve_client_profile_path)
-            if not pve_profile.live_input_enabled:
-                raise ValueError("PvE client profile is not enabled for live input")
-            if pve_profile.target != client_profile.target:
-                raise ValueError("travel and PvE profiles target different client windows")
         if pve_evidence_directory is not None:
             pve_evidence_directory.mkdir(parents=True, exist_ok=True)
         if pve_continuous and pve_evidence_directory is None:
@@ -241,6 +250,7 @@ def _listen_for_go_commands(
     commands = ListenerCommandIngress(guard)
     active_lock = threading.Lock()
     active_operation_stop: EventEmergencyStop | None = None
+    active_operation_client: ListenerClientIdentity | None = None
 
     def cancel_active_operation() -> None:
         if worker_ingress is not None:
@@ -254,6 +264,23 @@ def _listen_for_go_commands(
                 active_operation_stop.trip()
 
     def submit_command(command: str) -> None:
+        if command.strip().casefold() == "/stop" and worker_ingress is None:
+            try:
+                client = ListenerClientIdentity.capture(guard.require_target())
+                with active_lock:
+                    if active_operation_stop is not None:
+                        if client != active_operation_client:
+                            raise ValueError("stop belongs to a different active client")
+                        active_operation_stop.trip()
+                        _print_go_listener_event(
+                            "cancellation_requested", as_json=as_json, command=command,
+                        )
+                        return
+            except (OSError, RuntimeError, ValueError) as exc:
+                _print_go_listener_event(
+                    "rejected", as_json=as_json, command=command, reason=str(exc),
+                )
+                return
         words = command.strip().split(maxsplit=1)
         if words and words[0].casefold() == "/blacklist":
             # Runs on the existing command processor, outside the long-running
@@ -419,22 +446,13 @@ def _listen_for_go_commands(
                         hotkey_config_path,
                         config_directory=world_map_config_directory,
                     )
-                    exact_guard = ForegroundWindowGuard(
-                        client_profile,
-                        WindowsForegroundWindowInspector(),
-                        expected_process_id=client.process_id,
-                        expected_process_started_at_100ns=client.process_started_at_100ns,
-                        expected_window_handle=client.window_handle,
+                    _, executor = _listener_pixel_input(
+                        client_profile_path, client, service_stop,
                     )
-                    # The in-process extension publishes only after resolving an open
-                    # map and consumes both physical button messages. The event is
-                    # therefore the exact map-open proof; rescanning here can see
-                    # equivalent HUD instances created later in the client lifetime.
-                    GuardedInputExecutor(
-                        guard=exact_guard,
-                        backend=PyAutoGuiBackend(),
-                        stop_signal=service_stop,
-                    ).execute(close_plan)
+                    # The in-process extension publishes after resolving an open map
+                    # and consumes both physical button messages. That exact event
+                    # is the map-open proof; a later HUD rescan can see another instance.
+                    executor.execute(close_plan)
                     time.sleep(0.1)
 
                 extension_router = ExactExtensionEventRouter(
@@ -508,30 +526,27 @@ def _listen_for_go_commands(
                     continue
                 command_process_id = admitted.client.process_id
                 ownership_stop = ListenerOwnershipStop(admitted.client, guard)
-                command_guard = ForegroundWindowGuard(
-                    client_profile,
-                    WindowsForegroundWindowInspector(),
-                    expected_process_id=admitted.client.process_id,
-                    expected_process_started_at_100ns=admitted.client.process_started_at_100ns,
-                    expected_window_handle=admitted.client.window_handle,
-                )
-                world_map_executor = GuardedInputExecutor(
-                    guard=command_guard,
-                    backend=PyAutoGuiBackend(),
-                    stop_signal=AnyStopSignal(service_stop, ownership_stop),
-                )
                 if normalized == "/stop" and worker_ingress is None:
                     stop_sequence += 1
-                    stop_adapter = ClientInputAdapter(
-                        DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
-                        world_map_executor,
-                    )
-                    result = stop_adapter.dispatch_movement_stop(
-                        correlation_id=f"travel:chat-stop:{stop_sequence}"
-                    )
-                    _print_go_stop_result(
-                        accepted=result.accepted, reason=result.reason, as_json=as_json,
-                    )
+                    try:
+                        client_profile, world_map_executor = _listener_pixel_input(
+                            client_profile_path, admitted.client,
+                            AnyStopSignal(service_stop, ownership_stop),
+                        )
+                        stop_adapter = ClientInputAdapter(
+                            DecisionInputCompiler(client_profile, StaticBindingPointResolver()),
+                            world_map_executor,
+                        )
+                        result = stop_adapter.dispatch_movement_stop(
+                            correlation_id=f"travel:chat-stop:{stop_sequence}"
+                        )
+                        _print_go_stop_result(
+                            accepted=result.accepted, reason=result.reason, as_json=as_json,
+                        )
+                    except (InputExecutionError, OSError, RuntimeError, ValueError) as exc:
+                        _print_go_listener_event(
+                            "rejected", as_json=as_json, command=command, reason=str(exc),
+                        )
                     continue
                 if normalized == "/stop":
                     dispatch_to_exact_worker(
@@ -646,17 +661,10 @@ def _listen_for_go_commands(
                             client=admitted.client,
                         )
                         continue
-                    if pve_client_profile_path is None or pve_profile is None:
-                        _print_go_listener_event(
-                            "rejected",
-                            as_json=as_json,
-                            command=command,
-                            reason="the listener was started without a PvE profile",
-                        )
-                        continue
                     operation_stop = EventEmergencyStop()
                     with active_lock:
                         active_operation_stop = operation_stop
+                        active_operation_client = admitted.client
                     evidence_output = (
                         None
                         if pve_evidence_directory is None
@@ -706,6 +714,7 @@ def _listen_for_go_commands(
                         with active_lock:
                             if active_operation_stop is operation_stop:
                                 active_operation_stop = None
+                                active_operation_client = None
                     continue
                 if pointer_destination is not None:
                     destination = pointer_destination
@@ -782,6 +791,10 @@ def _listen_for_go_commands(
                         continue
                     if pointer_destination is not None:
                         try:
+                            _, world_map_executor = _listener_pixel_input(
+                                client_profile_path, admitted.client,
+                                AnyStopSignal(service_stop, ownership_stop),
+                            )
                             world_map_executor.execute(
                                 _load_world_map_close_plan(
                                     hotkey_config_path,
@@ -823,9 +836,14 @@ def _listen_for_go_commands(
                 route_stop = EventEmergencyStop()
                 with active_lock:
                     active_operation_stop = route_stop
+                    active_operation_client = admitted.client
                 try:
                     if pointer_destination is not None:
                         try:
+                            _, world_map_executor = _listener_pixel_input(
+                                client_profile_path, admitted.client,
+                                AnyStopSignal(service_stop, ownership_stop),
+                            )
                             world_map_executor.execute(
                                 _load_world_map_close_plan(
                                     hotkey_config_path,
@@ -887,6 +905,7 @@ def _listen_for_go_commands(
                     with active_lock:
                         if active_operation_stop is route_stop:
                             active_operation_stop = None
+                            active_operation_client = None
     except KeyboardInterrupt:
         pass
     except (OSError, RuntimeError, ValueError) as exc:

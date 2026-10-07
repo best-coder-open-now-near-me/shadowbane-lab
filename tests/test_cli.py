@@ -40,6 +40,13 @@ from tests.test_client_input_executor import _valid_snapshot
 
 
 class ClientCliTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        # The compatibility facade propagates patched globals into domain modules.
+        # Restore them after patch contexts close, before direct-domain test suites.
+        from shadowbane_lab.cli import _sync_domain_compatibility
+
+        _sync_domain_compatibility(None)
+
     def test_world_map_close_plan_discovers_matching_character_configs(self) -> None:
         config = 'BEGINHOTKEYS\nKEY= "M" FALSE FALSE FALSE 48 0 0 "WorldMap"\nENDHOTKEYS\n'
         with tempfile.TemporaryDirectory() as directory:
@@ -523,13 +530,14 @@ class ClientCliTests(unittest.TestCase):
             client_bounds=WindowBounds(
                 left=0,
                 top=0,
-                width=profile.target.reference_width,
-                height=profile.target.reference_height,
+                width=800,
+                height=600,
             ),
-            dpi_scale=profile.target.dpi_scale,
+            dpi_scale=1.75,
             is_foreground=True,
             is_visible=True,
             process_id=4320,
+            executable_path=r"C:\Wonderbane\sb.exe",
             process_started_at_100ns=1000,
             window_handle=20,
         )
@@ -558,7 +566,8 @@ class ClientCliTests(unittest.TestCase):
         output = io.StringIO()
         with (
             tempfile.TemporaryDirectory() as directory,
-            patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+            patch("shadowbane_lab.cli.load_calibration",
+                  side_effect=AssertionError("native listener must not load calibration")),
             patch(
                 "shadowbane_lab.cli.WindowsForegroundWindowInspector",
                 return_value=StaticWindowInspector(snapshot),
@@ -574,20 +583,20 @@ class ClientCliTests(unittest.TestCase):
             patch("shadowbane_lab.cli._run_pve", side_effect=run_pve),
             patch(
                 "shadowbane_lab.cli.PyAutoGuiBackend",
-                return_value=RecordingInputBackend(),
+                side_effect=AssertionError("native /pve must not create an input backend"),
             ),
             redirect_stdout(output),
         ):
             evidence_directory = Path(directory) / "evidence"
             result = _listen_for_go_commands(
                 destination_state_path=Path(directory) / "travel.json",
-                client_profile_path=template,
+                client_profile_path=None,
                 native_position_profile_path=None,
                 native_vitals_profile_path=None,
                 native_runegate_profile_path=None,
                 world_def_path=None,
                 named_destination_overrides_path=None,
-                pve_client_profile_path=Path(directory) / "pve.json",
+                pve_client_profile_path=None,
                 pve_hotbar_config_path=None,
                 pve_evidence_directory=evidence_directory,
                 navigation_cache_directory=Path(directory) / "cache",
@@ -638,6 +647,7 @@ class ClientCliTests(unittest.TestCase):
             is_foreground=True,
             is_visible=True,
             process_id=4320,
+            executable_path=r"C:\Wonderbane\sb.exe",
             process_started_at_100ns=1000,
             window_handle=20,
         )
@@ -788,6 +798,7 @@ class ClientCliTests(unittest.TestCase):
             is_foreground=True,
             is_visible=True,
             process_id=4320,
+            executable_path=r"C:\Wonderbane\sb.exe",
             process_started_at_100ns=1000,
             window_handle=20,
         )
@@ -907,6 +918,7 @@ class ClientCliTests(unittest.TestCase):
             is_foreground=True,
             is_visible=True,
             process_id=4320,
+            executable_path=r"C:\Wonderbane\sb.exe",
             process_started_at_100ns=1000,
             window_handle=20,
         )
@@ -1059,13 +1071,16 @@ class ClientCliTests(unittest.TestCase):
             dpi_scale=profile.target.dpi_scale,
             is_foreground=True,
             is_visible=True,
-            process_id=4320,
+            process_id=4320, executable_path=r"C:\Wonderbane\sb.exe",
+            process_started_at_100ns=1000, window_handle=1234,
         )
         position_profile = SimpleNamespace(executable_sha256="ab" * 32)
         vitals_profile = SimpleNamespace(executable_sha256="ab" * 32)
         position_reader = MagicMock()
         position_reader.process_id = 4320
         position_reader.executable_sha256 = "cd" * 32
+        position_reader.process_creation_filetime_utc = 1000
+        position_reader.executable_path = Path(r"C:\Wonderbane\sb.exe")
         position_reader.__enter__.return_value = position_reader
         vitals_reader = MagicMock()
         vitals_reader.process_id = 4320
@@ -1168,10 +1183,13 @@ class ClientCliTests(unittest.TestCase):
             dpi_scale=profile.target.dpi_scale,
             is_foreground=True,
             is_visible=True,
-            process_id=4320,
+            process_id=4320, executable_path=r"C:\Wonderbane\sb.exe",
+            process_started_at_100ns=1000, window_handle=1234,
         )
         native_profile = SimpleNamespace(executable_sha256="ab" * 32)
         position_reader = MagicMock(process_id=4320)
+        position_reader.process_creation_filetime_utc = 1000
+        position_reader.executable_path = Path(r"C:\Wonderbane\sb.exe")
         position_reader.__enter__.return_value = position_reader
         vitals_reader = MagicMock(process_id=4320)
         vitals_reader.__enter__.return_value = vitals_reader
@@ -1302,6 +1320,14 @@ class ClientCliTests(unittest.TestCase):
     def test_pve_binds_every_native_reader_to_the_guarded_client_process(self) -> None:
         self._assert_pve_process_binding(policy="basic")
 
+    def test_pve_native_entry_ignores_screen_calibration(self) -> None:
+        self._assert_pve_process_binding(policy="basic", geometry_independent=True)
+
+    def test_pve_cli_does_not_require_client_profile(self) -> None:
+        with patch("shadowbane_lab.cli._run_pve", return_value=0) as run:
+            self.assertEqual(0, main(("client", "run-pve", "--live")))
+        self.assertIsNone(run.call_args.kwargs["client_profile_path"])
+
     def test_pve_auto_resolves_character_and_records_binding_before_starting(self) -> None:
         self._assert_pve_process_binding(policy="proc-assassin")
 
@@ -1327,7 +1353,9 @@ class ClientCliTests(unittest.TestCase):
                 )
 
     def test_pve_revalidates_identity_after_preparation(self) -> None:
-        for failure in ("client_replaced", "character_replaced"):
+        for failure in (
+            "client_replaced", "character_replaced", "window_replaced", "path_replaced",
+        ):
             with self.subTest(failure=failure):
                 self._assert_pve_process_binding(
                     policy="basic", check_preparation=True, preparation_failure=failure,
@@ -1363,7 +1391,7 @@ class ClientCliTests(unittest.TestCase):
         self, *, policy: str | None, native_movement: bool = False,
         opening_skill: str | None = None, suppress_opening_skill: bool = False,
         saved_opening: str | None = None, skill_failure: bool = False, saved_buffs: bool = False,
-        captured_creation: int | None = None,
+        captured_creation: int | None = None, geometry_independent: bool = False,
         check_preparation: bool = False, preparation_failure: str | None = None,
     ) -> None:
         import struct
@@ -1484,6 +1512,12 @@ class ClientCliTests(unittest.TestCase):
         load_terrain = MagicMock(return_value=terrain_navigation)
         with tempfile.TemporaryDirectory() as directory:
             character_memory = CharacterMemory(Path(directory))
+            snapshot = replace(snapshot, window_handle=123456,
+                               executable_path=str(character_memory.executable_path))
+            if geometry_independent:
+                snapshot = replace(snapshot, client_bounds=WindowBounds(71, 29, 800, 600),
+                                   dpi_scale=1.75, title="Different native window title")
+            inspector.snapshot = snapshot
             character_memory.executable_sha256 = (
                 REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1].executable_sha256
             )
@@ -1516,8 +1550,16 @@ class ClientCliTests(unittest.TestCase):
                     inspector.snapshot = replace(
                         snapshot, process_started_at_100ns=snapshot.process_started_at_100ns + 1,
                     )
+                elif preparation_failure == "window_replaced":
+                    inspector.snapshot = replace(snapshot, window_handle=123457)
+                elif preparation_failure == "path_replaced":
+                    inspector.snapshot = replace(snapshot, executable_path=r"C:\other\sb.exe")
                 elif preparation_failure == "character_replaced":
                     character_memory.set_identity("replacement", "Wonderbane")
+                if geometry_independent:
+                    inspector.snapshot = replace(snapshot,
+                        client_bounds=WindowBounds(0, 0, 2560, 1440), dpi_scale=1.0,
+                        title="Changed title while preparing")
                 try:
                     yield None
                 finally:
@@ -1526,7 +1568,8 @@ class ClientCliTests(unittest.TestCase):
             @contextmanager
             def prepare_skill_config():
                 with (
-                    patch("shadowbane_lab.cli.load_calibration", return_value=profile),
+                    patch("shadowbane_lab.cli.load_calibration",
+                          side_effect=AssertionError("native PvE must not read calibration")),
                     patch("shadowbane_lab.cli_commands.client_pve.load_pve_settings",
                           return_value=PvESettings(opening_skill=saved_opening, buffs=buffs)),
                     patch("shadowbane_lab.cli_commands.client_pve.resolve_learned_ability",
@@ -1641,7 +1684,8 @@ class ClientCliTests(unittest.TestCase):
 
                 pve_runner.return_value.run.side_effect = run_pve_fixture
                 result = _run_pve(
-                    client_profile_path=template,
+                    client_profile_path=(Path(directory) / "absent-profile.json"
+                                         if geometry_independent else None),
                     combat_log_path=None,
                     hotbar_config_path=None,
                     native_health_profile_path=None,
@@ -1660,7 +1704,7 @@ class ClientCliTests(unittest.TestCase):
                     as_json=True,
                     evidence_output_path=evidence_output,
                     stop_signal=injected_stop,
-                    client_process_id=4320,
+                    client_process_id=None if geometry_independent else 4320,
                     movement_dispatcher=movement_dispatcher,
                     continuous=check_preparation,
                 )
@@ -1674,11 +1718,15 @@ class ClientCliTests(unittest.TestCase):
                     return
                 if captured_creation is not None:
                     self.assertEqual(2, result, output.getvalue())
-                    self.assertIn("client lifetime changed", output.getvalue())
+                    self.assertIn("identity is unavailable" if captured_creation == 0
+                                  else "client lifetime changed", output.getvalue())
                     open_health.assert_not_called()
                     native_operation.assert_not_called()
                     listed_coordinator.assert_not_called()
                     pve_runner.assert_not_called()
+                    if captured_creation == 0:
+                        open_character.assert_not_called()
+                        character_session.close()
                     self.assertTrue(character_memory.closed)
                     return
                 if preparation_failure is not None:
@@ -1691,9 +1739,14 @@ class ClientCliTests(unittest.TestCase):
                         self.assertIn(
                             f"{preparation_failure} preparation failed", output.getvalue(),
                         )
-                    if preparation_failure in ("observer", "client_replaced", "character_replaced"):
+                    if preparation_failure in (
+                        "observer", "client_replaced", "character_replaced",
+                        "window_replaced", "path_replaced",
+                    ):
                         self.assertIn("journal_closed", preparation_events)
-                    if preparation_failure in ("client_replaced", "character_replaced"):
+                    if preparation_failure in (
+                        "client_replaced", "character_replaced", "window_replaced", "path_replaced",
+                    ):
                         self.assertIn("observer_closed", preparation_events)
                     return
                 if check_preparation:

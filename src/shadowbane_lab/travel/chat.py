@@ -8,7 +8,8 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from shadowbane_lab.client_input import ForegroundWindowGuard, WindowGuardError
+from shadowbane_lab.client_extension.client_guard import NativeClientTarget
+from shadowbane_lab.client_input import WindowGuardError
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,15 +207,15 @@ class WindowsGoChatCommandListener:
 
     def __init__(
         self,
-        guard: ForegroundWindowGuard,
+        guard: NativeClientTarget,
         *,
         on_command: Callable[[str], None],
         on_interaction: Callable[[], None] | None = None,
         on_pointer: Callable[[PhysicalPointerInteraction], None] | None = None,
         pointer_claims_interaction: Callable[[PhysicalPointerInteraction], bool] | None = None,
     ) -> None:
-        if not isinstance(guard, ForegroundWindowGuard):
-            raise ValueError("guard must be ForegroundWindowGuard")
+        if not isinstance(guard, NativeClientTarget):
+            raise ValueError("guard must provide require_target")
         if not callable(on_command):
             raise ValueError("on_command must be callable")
         if on_interaction is not None and not callable(on_interaction):

@@ -3,20 +3,18 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
 
+from shadowbane_lab.client_extension.client_guard import NativeClientIdentityGuard
 from shadowbane_lab.client_extension.movement_operation import NativeMovementOperation
 from shadowbane_lab.client_input import (
-    CalibrationLoadError,
-    ForegroundWindowGuard,
     StopSignal,
     WindowGuardError,
     WindowsForegroundWindowInspector,
     WindowsHotkeyEmergencyStop,
-    load_calibration,
 )
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationError,
@@ -88,6 +86,7 @@ from shadowbane_lab.pve.listed_combat import ListedCombatCoordinator
 from shadowbane_lab.pve.model import PvEAbility, PvEAbilityRecipient
 from shadowbane_lab.pve.native_actor import NativeActorCoordinator
 from shadowbane_lab.pve.native_combat import NativeCombatCoordinator
+from shadowbane_lab.pve.preparation_status import PvEProgress
 from shadowbane_lab.pve.settings import load_pve_settings
 from shadowbane_lab.travel import (
     SparseNavigationMap,
@@ -105,7 +104,7 @@ from .common import _error
 
 def _run_pve(
     *,
-    client_profile_path: Path,
+    client_profile_path: Path | None = None,
     combat_log_path: Path | None,
     hotbar_config_path: Path | None,
     native_health_profile_path: Path | None,
@@ -140,6 +139,7 @@ def _run_pve(
     native_character_population_profile_path: Path | None = None,
     navigation_map: SparseNavigationMap | None = None,
     movement_dispatcher: TravelDecisionDispatcher | None = None,
+    progress_sink: Callable[[PvEProgress], None] | None = None,
 ) -> int:
     if movement_dispatcher is not None and not isinstance(
         movement_dispatcher, TravelDecisionDispatcher
@@ -218,9 +218,8 @@ def _run_pve(
         "status": "not_configured",
     }
     try:
-        client_profile = load_calibration(client_profile_path)
-        if not client_profile.live_input_enabled:
-            raise ValueError("client profile is not enabled for live input")
+        # Legacy CLI argument is accepted but never grants native action authority.
+        # Native readers and the exact process/window guard establish that authority.
         health_profile = (
             load_native_health_profile(native_health_profile_path)
             if native_health_profile_path is not None
@@ -279,7 +278,7 @@ def _run_pve(
         if len(native_profile_hashes) != 1:
             raise ValueError("native PvE profiles target different client builds")
         inspector = WindowsForegroundWindowInspector()
-        selection_guard = ForegroundWindowGuard(client_profile, inspector)
+        selection_guard = NativeClientIdentityGuard(inspector)
         if client_process_id is None:
             selected_window = _wait_for_guarded_client(
                 selection_guard,
@@ -288,8 +287,7 @@ def _run_pve(
             process_id = _require_window_process_id(selected_window)
         else:
             process_id = client_process_id
-        guard = ForegroundWindowGuard(
-            client_profile,
+        guard = NativeClientIdentityGuard(
             inspector,
             expected_process_id=process_id,
         )
@@ -344,11 +342,12 @@ def _run_pve(
                     opening_definition.power_id, PvEAbilityRecipient(opening_definition.recipient),
                 ))
             controller = PvEController(controller_config)
-            guard = ForegroundWindowGuard(
-                client_profile,
+            guard = NativeClientIdentityGuard(
                 inspector,
                 expected_process_id=process_id,
                 expected_process_started_at_100ns=binding.process_creation_filetime_utc,
+                expected_window_handle=selected_window.window_handle,
+                expected_executable_path=str(binding.executable_path),
             )
             guard.require_target()
             attack_list = AttackListStore(
@@ -559,6 +558,7 @@ def _run_pve(
                 poll_interval_ms=poll_ms,
                 maximum_retained_trace_steps=(retained_trace_steps if continuous else None),
                 trace_sink=pve_trace_sink(journal, navigation_observer),
+                progress_sink=progress_sink,
             ).run()
             if journal is not None:
                 journal.finish(
@@ -570,7 +570,6 @@ def _run_pve(
                     }
                 )
     except (
-        CalibrationLoadError,
         NativeHealthProfileLoadError,
         NativeCharacterPopulationError,
         NativeCharacterPopulationProfileLoadError,

@@ -6,15 +6,13 @@ import json
 from contextlib import ExitStack
 from pathlib import Path
 
+from shadowbane_lab.client_extension.client_guard import NativeClientIdentityGuard
 from shadowbane_lab.client_extension.movement_operation import NativeMovementOperation
 from shadowbane_lab.client_input import (
-    CalibrationLoadError,
-    ForegroundWindowGuard,
     StopSignal,
     WindowGuardError,
     WindowsForegroundWindowInspector,
     WindowsHotkeyEmergencyStop,
-    load_calibration,
 )
 from shadowbane_lab.client_observation import (
     NativePlayerPositionError,
@@ -62,7 +60,7 @@ def _run_travel(
     lg: float | None,
     radius: float | None,
     destination_state_path: Path,
-    client_profile_path: Path,
+    client_profile_path: Path | None = None,
     native_position_profile_path: Path | None,
     native_vitals_profile_path: Path | None,
     max_seconds: float,
@@ -112,9 +110,7 @@ def _run_travel(
     if isinstance(click_interval_ms, bool) or not 500 <= click_interval_ms <= 30_000:
         return _error("click-interval-ms must be in [500, 30000]", as_json=as_json)
     try:
-        client_profile = load_calibration(client_profile_path)
-        if not client_profile.live_input_enabled:
-            raise ValueError("client profile is not enabled for live input")
+        # Deprecated calibration argument is intentionally unused: dispatch is native-only.
         position_profile = (
             load_native_position_profile(native_position_profile_path)
             if native_position_profile_path is not None
@@ -154,22 +150,11 @@ def _run_travel(
             maximum_no_progress_clicks=2,
         )
         inspector = WindowsForegroundWindowInspector()
-        selection_guard = ForegroundWindowGuard(client_profile, inspector)
-        if client_process_id is None:
-            selected_window = _wait_for_guarded_client(
-                selection_guard,
-                wait_seconds=wait_for_client_seconds,
-            )
-            selected_process_id = _require_window_process_id(selected_window)
-        else:
-            selected_process_id = client_process_id
-        guard = ForegroundWindowGuard(
-            client_profile,
-            inspector,
-            expected_process_id=selected_process_id,
+        guard = NativeClientIdentityGuard(inspector, expected_process_id=client_process_id)
+        selected_window = _wait_for_guarded_client(
+            guard, wait_seconds=wait_for_client_seconds,
         )
-        if client_process_id is not None:
-            _wait_for_guarded_client(guard, wait_seconds=wait_for_client_seconds)
+        selected_process_id = _require_window_process_id(selected_window)
         with ExitStack() as stack:
             position_reader = stack.enter_context(
                 open_windows_native_player_position_reader(
@@ -177,12 +162,26 @@ def _run_travel(
                     process_id=selected_process_id,
                 )
             )
+            if (position_reader.process_id != selected_process_id
+                    or position_reader.process_creation_filetime_utc
+                    != selected_window.process_started_at_100ns):
+                raise ValueError("client lifetime changed before travel initialization")
+            guard.require_target()
+            guard = NativeClientIdentityGuard(
+                inspector,
+                expected_process_id=selected_process_id,
+                expected_process_started_at_100ns=selected_window.process_started_at_100ns,
+                expected_window_handle=selected_window.window_handle,
+                expected_executable_path=str(position_reader.executable_path),
+            )
+            guard.require_target()
             player_vitals_reader = stack.enter_context(
                 open_windows_native_player_vitals_reader(
                     vitals_profile,
                     process_id=selected_process_id,
                 )
             )
+            guard.require_target()
             active_stop_signal = stop_signal
             if active_stop_signal is None:
                 active_stop_signal = stack.enter_context(WindowsHotkeyEmergencyStop())
@@ -228,6 +227,7 @@ def _run_travel(
                     plan_id=plan.plan_id,
                 )
                 controller = astar_controller
+            guard.require_target()
             if movement_dispatcher is None:
                 native_operation = stack.enter_context(
                     NativeMovementOperation(guard, active_stop_signal)
@@ -244,7 +244,6 @@ def _run_travel(
                 observer=navigation_observer,
             ).run()
     except (
-        CalibrationLoadError,
         NativePlayerPositionError,
         NativePlayerVitalsError,
         NativePositionProfileLoadError,
@@ -319,7 +318,7 @@ def _run_travel(
         print(f"Reason: {result.terminal_reason}")
         if final_position is not None:
             print(f"Position: LT {final_position.lt:.2f}, LG {final_position.lg:.2f}")
-        print(f"Guarded minimap clicks: {result.clicks}")
+        print(f"Native movement requests: {result.clicks}")
         if result.stop_input_accepted is not None:
             print(f"Movement stop accepted: {result.stop_input_accepted}")
     return 0 if payload["ok"] else 2
