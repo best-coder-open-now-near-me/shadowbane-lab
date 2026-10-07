@@ -14,6 +14,24 @@ The separate peace-mode entry prerequisite work is not a Beorc failure diagnosis
 and must be merged deliberately where it shares the power entry source.
 Installed .75/.52 and the completed package remain unchanged.
 
+## Combined .76/.53 candidate - October 7
+
+`codex/power-diagnostics-release-20261007` in bot-integration is the single
+release candidate, based on main `a84f010`. It includes PR #85 at
+`7c34c9473dcd37ba2b8a929be52c21b60e15a053` and PR #86 at
+`3f578eca873128ed653e3f98b5d5a10d7999b956` by ancestry. Both focused slices
+passed independent review; combined package qualification is next. The source
+PRs remain published until combined integration is verified.
+
+Peace-only direct power entry now defers before entering native code when the
+current mode is ineligible. Normal buff publication already enforces this rule;
+this is not an explanation for the unresolved Beorc request. Optional owned-power
+records expose native return, send/append/followup, initiation epoch and copied
+pre-entry metadata without changing action authority or settlement.
+
+Host .75/native .52 from `733b5fe` remain installed. No .76/.53 package has been
+installed. The next todo is exact-source combined qualification, then one update
+and a focused native diagnosis of the production pending-power failure.
 ## Installed .75/.52 and deployment closeout - October 7
 
 Start from freshly fetched `origin/main`, now
