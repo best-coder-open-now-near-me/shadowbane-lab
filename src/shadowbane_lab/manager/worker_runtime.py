@@ -592,6 +592,7 @@ class SubprocessWorkerLauncher:
         log_directory: Path,
         python_executable: Path | None = None,
         heartbeat_interval_ms: int = 1_000,
+        startup_timeout_seconds: float = 5.0,
     ) -> None:
         if (
             isinstance(heartbeat_interval_ms, bool)
@@ -599,6 +600,16 @@ class SubprocessWorkerLauncher:
             or not 100 <= heartbeat_interval_ms <= 4_000
         ):
             raise ValueError("heartbeat_interval_ms must be in [100, 4000]")
+        if (
+            isinstance(startup_timeout_seconds, bool)
+            or not isinstance(startup_timeout_seconds, (int, float))
+            or not isfinite(startup_timeout_seconds)
+            or startup_timeout_seconds <= 0
+        ):
+            raise ValueError("startup_timeout_seconds must be finite and positive")
+        self._startup_timeout = float(startup_timeout_seconds)
+        self._bindings: dict[str, ExactClientWorkerBinding] = {}
+        self._worker_processes: dict[str, ProcessLifetimeSnapshot] = {}
         self._manifest_path = Path(manifest_path).resolve(strict=False)
         self._worker_state_directory = Path(worker_state_directory).resolve(strict=False)
         self._log_directory = Path(log_directory).resolve(strict=False)
@@ -669,28 +680,90 @@ class SubprocessWorkerLauncher:
             }
             for token in finished:
                 del self._children[token]
+                self._bindings.pop(token, None)
+                self._worker_processes.pop(token, None)
             self._durable_children.difference_update(finished)
-            self._children[binding.worker_id or f"unreserved-{uuid.uuid4().hex}"] = process
+            token = binding.worker_id or f"unreserved-{uuid.uuid4().hex}"
+            self._children[token] = process
+            self._bindings[token] = binding
         return process.pid
 
     def recover(
-        self, process_id: int, inspector: ProcessLifetimeInspector, *, worker_id: str
+        self,
+        process_id: int,
+        inspector: ProcessLifetimeInspector,
+        *,
+        worker_id: str,
+        ledger: WorkerHeartbeatLedger,
     ) -> ProcessLifetimeSnapshot | None:
-        """Reinspect a retained child; None proves that this child exited."""
+        """Bind the launch nonce to the interpreter's first verified heartbeat.
+
+        Windows venv launchers can be redirector processes. Their Popen PID is
+        retained launch ownership, never evidence of the worker's stop address.
+        A timeout keeps that ownership available for recovery without relaunch.
+        """
         with self._children_lock:
             child = self._children.get(worker_id)
-        if child is None or child.pid != process_id:
+            binding = self._bindings.get(worker_id)
+            verified = self._worker_processes.get(worker_id)
+        if child is None or binding is None or process_id not in {
+            child.pid, None if verified is None else verified.process_id,
+        }:
             raise ExactClientWorkerError("worker launch has no retained process ownership")
-        if child.poll() is not None:
-            return None
-        process = inspector.inspect(process_id)
-        if child.poll() is not None:
-            return None
-        if not isinstance(process, ProcessLifetimeSnapshot) or process.process_id != process_id:
-            raise ExactClientWorkerError(
-                f"launched worker {process_id} requires attachment recovery"
-            )
-        return process
+        deadline = time.monotonic() + self._startup_timeout
+        while True:
+            snapshot = ledger.inspect(binding.client_id)
+            if snapshot.issues:
+                raise ExactClientWorkerError("invalid worker startup heartbeat")
+            matches = [record for record in snapshot.records if record.worker_id == worker_id]
+            if child.poll() is not None:
+                # A redirector may exit before its interpreter publishes anything.
+                # Only an already verified interpreter lifetime can prove exit.
+                if verified is None:
+                    raise ExactClientWorkerError(
+                        "unverified worker outlived or lost its launcher; "
+                        "requires attachment recovery"
+                    )
+                current = inspector.inspect(verified.process_id)
+                if current is None or (
+                    current.process_started_at_100ns != verified.process_started_at_100ns
+                ):
+                    return None
+                return verified
+            if matches:
+                if len(matches) != 1 or matches[0].instance_id != binding.instance_id:
+                    raise ExactClientWorkerError("worker startup heartbeat identity mismatch")
+                record = matches[0]
+                process = inspector.inspect(record.process_id)
+                launch = inspector.inspect(child.pid)
+                if (
+                    not isinstance(process, ProcessLifetimeSnapshot)
+                    or process.process_id != record.process_id
+                    or process.process_started_at_100ns != record.process_started_at_100ns
+                    or (verified is not None and process != verified)
+                    or not isinstance(launch, ProcessLifetimeSnapshot)
+                    or launch.process_id != child.pid
+                    or (
+                        process.process_id != child.pid
+                        and (
+                            process.parent_process_id != child.pid
+                            or process.process_started_at_100ns < launch.process_started_at_100ns
+                        )
+                    )
+                ):
+                    raise ExactClientWorkerError("worker startup requires attachment recovery")
+                if child.poll() is not None:
+                    raise ExactClientWorkerError(
+                        "worker launcher exited during attachment recovery"
+                    )
+                with self._children_lock:
+                    self._worker_processes[worker_id] = process
+                return process
+            if time.monotonic() >= deadline:
+                raise ExactClientWorkerError(
+                    "worker startup heartbeat requires attachment recovery"
+                )
+            time.sleep(min(0.025, max(0.0, deadline - time.monotonic())))
 
     def acknowledge_reservation(self, worker_id: str) -> None:
         """Allow reaping only after the controller durably recorded or retired ownership."""
@@ -741,6 +814,7 @@ class ManagedWorkerController:
         client_id: str,
         client: ClientInstanceSnapshot,
     ) -> int | None:
+        """Return an existing/new worker PID, or None while predecessor exit is pending."""
         directory = self._ledger.root / self._manifest.node_id / client_id
         # Validate the slot before constructing any filesystem transaction path.
         ExactClientWorkerBinding.from_client(client_id, client).validate_for(self._manifest)
@@ -755,6 +829,7 @@ class ManagedWorkerController:
     ) -> int | None:
         binding = ExactClientWorkerBinding.from_client(client_id, client)
         binding.validate_for(self._manifest)
+        self._recover_unverified_reservation(reservation_path)
         snapshot = self._ledger.inspect(client_id)
         if snapshot.issues:
             raise ExactClientWorkerError(
@@ -769,7 +844,8 @@ class ManagedWorkerController:
         reusable = tuple(
             record
             for record in exact
-            if not record.emergency_stop
+            if self._ledger.inspect_stop_request(client_id, record.worker_id) is None
+            and not record.emergency_stop
             and record.runtime_state
             in {
                 WorkerRuntimeState.STARTING,
@@ -784,31 +860,11 @@ class ManagedWorkerController:
                     reason="worker is bound to a replaced or stopping game instance",
                 )
         if live:
-            return None
+            return reusable[0].process_id if reusable and len(live) == 1 else None
         if reservation_path.exists():
             reservation = self._read_reservation(reservation_path)
             process_id = reservation["process_id"]
             started = reservation["process_started_at_100ns"]
-            if process_id is not None and started is None:
-                recover = getattr(self._launcher, "recover", None)
-                if callable(recover):
-                    process = recover(
-                        process_id, self._process_inspector, worker_id=reservation["worker_id"]
-                    )
-                    if process is not None:
-                        reservation["process_started_at_100ns"] = process.process_started_at_100ns
-                        reservation["state"] = "started"
-                        publish_atomic_record(
-                            reservation_path,
-                            json.dumps(reservation).encode(),
-                            temporary_label="worker-launch",
-                        )
-                        self._acknowledge_reservation(reservation["worker_id"])
-                        return None
-                    # Only the retained child handle can establish exit before attachment.
-                    reservation_path.unlink()
-                    self._acknowledge_reservation(reservation["worker_id"])
-                    return self._ensure_started_owned(client_id, client, reservation_path)
             if process_id is None or started is None:
                 raise ExactClientWorkerError("previous worker launch requires explicit recovery")
             process = self._process_inspector.inspect(process_id)
@@ -841,21 +897,54 @@ class ManagedWorkerController:
         )
         recover = getattr(self._launcher, "recover", None)
         process = (
-            recover(process_id, self._process_inspector, worker_id=reservation["worker_id"])
+            recover(
+                process_id, self._process_inspector,
+                worker_id=reservation["worker_id"], ledger=self._ledger,
+            )
             if callable(recover)
             else self._process_inspector.inspect(process_id)
         )
-        if not isinstance(process, ProcessLifetimeSnapshot) or process.process_id != process_id:
+        if not isinstance(process, ProcessLifetimeSnapshot) or (
+            not callable(recover) and process.process_id != process_id
+        ):
             raise ExactClientWorkerError(
                 f"launched worker {process_id} requires attachment recovery"
             )
+        reservation["process_id"] = process.process_id
         reservation["process_started_at_100ns"] = process.process_started_at_100ns
         reservation["state"] = "started"
         publish_atomic_record(
             reservation_path, json.dumps(reservation).encode(), temporary_label="worker-launch"
         )
         self._acknowledge_reservation(reservation["worker_id"])
-        return process_id
+        return process.process_id
+
+    def _recover_unverified_reservation(self, path: Path) -> None:
+        if not path.exists():
+            return
+        reservation = self._read_reservation(path)
+        if reservation["process_started_at_100ns"] is not None:
+            return
+        recover = getattr(self._launcher, "recover", None)
+        if reservation["process_id"] is None or not callable(recover):
+            raise ExactClientWorkerError("previous worker launch requires explicit recovery")
+        process = recover(
+            reservation["process_id"], self._process_inspector,
+            worker_id=reservation["worker_id"], ledger=self._ledger,
+        )
+        if process is None:
+            # The retained launcher handle positively established exit.
+            path.unlink()
+        else:
+            reservation.update(
+                process_id=process.process_id,
+                process_started_at_100ns=process.process_started_at_100ns,
+                state="started",
+            )
+            publish_atomic_record(
+                path, json.dumps(reservation).encode(), temporary_label="worker-launch",
+            )
+        self._acknowledge_reservation(reservation["worker_id"])
 
     def _acknowledge_reservation(self, worker_id: str) -> None:
         acknowledge = getattr(self._launcher, "acknowledge_reservation", None)
@@ -873,6 +962,10 @@ class ManagedWorkerController:
             return self._request_stop_owned(canonical, reason=reason)
 
     def _request_stop_owned(self, client_id: str, *, reason: str) -> int:
+        path = self._ledger.root / self._manifest.node_id / client_id / ".launch-reservation"
+        # Resolve an in-flight interpreter handshake before issuing any stop.
+        # Failure is explicit and retains ownership; a redirector PID is never used.
+        self._recover_unverified_reservation(path)
         snapshot = self._ledger.inspect(client_id)
         if snapshot.issues:
             raise ExactClientWorkerError(

@@ -4,6 +4,20 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Active worker interpreter identity repair - October 7
+
+Start from freshly fetched `origin/main` (PR #75 merged at `a435a06`).
+`codex/worker-startup-identity-20261007` in bot-runtime repairs the manager's
+worker startup handshake: a Windows venv launcher PID is not necessarily the
+worker interpreter PID. A retained launch nonce, canonical heartbeat and OS
+process ancestry/lifetime establish the exact stop address. Explicit replacement
+requests wait for predecessor exit and are cancelled by pause, detach or binding
+change; this does not automatically restart arbitrary failed workers.
+
+This source lane targets `main` through its own reviewed PR. Runtime installation
+and game validation remain separate; no native DLL or gameplay change is included.
+Next: independent review and hosted checks, then integrate and qualify the host.
+
 ## Active native client admission repair - October 7
 
 Start from freshly fetched `origin/main`. The shared merge destination remains
