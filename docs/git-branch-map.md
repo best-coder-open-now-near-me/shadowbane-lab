@@ -19,14 +19,15 @@ inventory changes. Manager 7548 is healthy with one paused worker. Exact old
 manager/worker shutdown used the production stop ledger before the host switch;
 settings/jobs stayed in place and no rollback runtime was created.
 
-Eleven compact receipts were exported. The .74 bounded NPC run observed exact
+Twelve compact receipts were exported. The .74 bounded NPC run observed exact
 health zero after one positive ATTACK but failed with child STOPPING and parent
 cleanup unconfirmed; final membership is unavailable. It is not a gameplay or
-buff-suite pass. No verified .72 retirement receipt exists yet.
+buff-suite pass. Verified obsolete .72 retirement removed 2,122 host files and
+one wheel (49,799,696 bytes), without rollback copies.
 
 **Current next todo:** qualify the newly requested official client patch before
 continuing gameplay. Preserve the unconfirmed cleanup and potion response
-investigations and verified obsolete .72 retirement as follow-up work.
+investigations as follow-up work.
 See the [deployment record](client-update-20261004.md).
 
 ## Merged registry observation churn handling - October 7

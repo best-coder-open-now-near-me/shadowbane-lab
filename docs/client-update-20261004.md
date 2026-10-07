@@ -33,13 +33,16 @@ worker kill, game stop, replayed job or rollback runtime was introduced. The old
 .72 launcher wrapper's historical completion error is closed, with no pending
 process or new mutation from it.
 
-Eleven compact receipts were exported to the private diagnostic share
+Twelve compact receipts were exported to the private diagnostic share
 `host-update-20261007-0.3.74/receipts`. Activation receipt SHA-256 is
 `2b735ff71be49119bf43bd0233e8148fb08733f7a29dabe54b2444023ab0034b`;
 apply receipt SHA-256 is
 `cffcb8d10be8444f9a52284d7dbdd442c79748043d577808de185c8b9e8e0e06`.
-The obsolete .72 host has no verified retirement receipt yet and is not recorded
-as removed or retained for rollback.
+Verified retirement removed the obsolete .72 host (2,122 files) and its wheel,
+totaling 49,799,696 bytes. Removal receipt SHA-256 is
+`e5304c21e1ff26615bbadf307dbacb86caca9d8273265de6b484ecb5ecb7795b`.
+A receipt-copy path typo was corrected without repeating retirement. User data
+remained in place and no rollback runtime was retained.
 
 Bounded run `1760e2eb1aa14762938a138ea3aec4c9` is **not passed**. Exact NPC
 `23888/37` reached native health zero in trace sequences 88/89 after one positive
@@ -59,7 +62,7 @@ The original evidence remains unchanged.
 
 **Current next todo:** qualify the newly requested official client patch before
 continuing gameplay. Keep the unconfirmed .74 cleanup and potion response
-investigations, plus verified obsolete .72 retirement, as explicit follow-up work.
+investigations as explicit follow-up work.
 The new patch is not covered by the preceding .14 installation receipt.
 
 ## Historical host .72 delivery - October 7
