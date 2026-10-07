@@ -429,7 +429,7 @@ def test_listener_edits_list_and_cancels_while_pve_is_blocked(tmp_path, monkeypa
     entered, edited, release = Event(), Event(), Event()
     errors = []
     window = WindowSnapshot("sb.exe", "Shadowbane", WindowBounds(0, 0, 1920, 955),
-                            1.0, True, True, process_id=42,
+                            1.0, True, True, process_id=42, executable_path=r"C:\Wonderbane\sb.exe",
                             process_started_at_100ns=1000, window_handle=20)
     session = MagicMock()
     session.__enter__.return_value = session

@@ -33,6 +33,7 @@ def client():
     snapshot = WindowSnapshot(
         "sb.exe", "Shadowbane", WindowBounds(0, 0, 1920, 955), 1.0, True, True,
         process_id=42, process_started_at_100ns=1000, window_handle=20,
+        executable_path=r"C:\Wonderbane\sb.exe",
     )
     inspector = StaticWindowInspector(snapshot)
     return template, profile, inspector, ForegroundWindowGuard(profile, inspector)
@@ -107,7 +108,7 @@ def _patch_listener(monkeypatch, profile, inspector, stop, callback_type):
 
 
 @pytest.mark.parametrize("command", [
-    "/pve", "/go 12 34", "/stop", PhysicalPointerInteraction(100, 200, "right"),
+    "/pve", "/go 12 34", PhysicalPointerInteraction(100, 200, "right"),
 ])
 @pytest.mark.parametrize("field", ["process_id", "process_started_at_100ns", "window_handle"])
 def test_real_listener_rejects_queued_command_after_client_change(
@@ -316,3 +317,109 @@ def test_map_resolution_client_change_cannot_close_map_or_start_travel(
     assert "could not close world map" in rejections[0]["reason"]
     assert backend.invocations == ()
     listener._run_travel.assert_not_called()
+
+
+@pytest.mark.parametrize("command", ["/pve", "/go 12 34"])
+def test_missing_pixel_profile_rejects_only_stop_then_native_command_runs(
+    tmp_path, monkeypatch, client, command,
+):
+    _, profile, inspector, _ = client
+    inspector.snapshot = replace(inspector.snapshot,
+        client_bounds=WindowBounds(4, 7, 800, 600), dpi_scale=1.75, title="Native title")
+    stop = EventEmergencyStop()
+    events, calls = [], []
+
+    class Commands:
+        is_alive = True
+
+        def __init__(self, _guard, *, on_command, **_kwargs):
+            self.submit = on_command
+
+        def __enter__(self):
+            self.submit("/stop")
+            self.submit(command)
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+    def run(**kwargs):
+        calls.append(kwargs)
+        stop.trip()
+
+    _patch_listener(monkeypatch, profile, inspector, stop, Commands)
+    monkeypatch.setattr(listener, "load_calibration", MagicMock(
+        side_effect=AssertionError("native command read calibration")))
+    monkeypatch.setattr(listener, "PyAutoGuiBackend", MagicMock(
+        side_effect=AssertionError("native command created input backend")))
+    monkeypatch.setattr(listener, "_run_pve", run)
+    monkeypatch.setattr(listener, "_run_travel", run)
+    monkeypatch.setattr(listener, "_print_go_listener_event",
+                        lambda event, **data: events.append((event, data)))
+    assert _run_listener(tmp_path, None) == 0
+    assert len(calls) == 1
+    assert calls[0]["client_process_id"] == 42
+    assert calls[0]["client_profile_path"] is None
+    assert any(event == "rejected" and "requires --client-profile" in data["reason"]
+               for event, data in events)
+    assert not any(event == "cancellation_requested" for event, _ in events)
+
+
+@pytest.mark.parametrize("changed", [
+    None, "process_id", "process_started_at_100ns", "window_handle",
+])
+def test_explicit_stop_cancels_only_exact_owned_native_operation(
+    tmp_path, monkeypatch, client, changed,
+):
+    _, profile, inspector, _ = client
+    stop = EventEmergencyStop()
+    events, callbacks = [], {}
+
+    class Commands:
+        is_alive = True
+
+        def __init__(self, _guard, *, on_command, **_kwargs):
+            callbacks["submit"] = on_command
+
+        def __enter__(self):
+            callbacks["submit"]("/pve")
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+    def run(**kwargs):
+        original = inspector.snapshot
+        if changed is not None:
+            inspector.snapshot = replace(original, **{changed: getattr(original, changed) + 1})
+        callbacks["submit"]("/stop")
+        inspector.snapshot = original
+        # Restore the foreground before polling: this tests explicit cancellation,
+        # independently of the operation's permanent ownership-loss stop signal.
+        assert kwargs["stop_signal"].is_set() is (changed is None)
+        stop.trip()
+
+    _patch_listener(monkeypatch, profile, inspector, stop, Commands)
+    monkeypatch.setattr(listener, "load_calibration", MagicMock(
+        side_effect=AssertionError("owned stop read calibration")))
+    monkeypatch.setattr(listener, "PyAutoGuiBackend", MagicMock(
+        side_effect=AssertionError("owned stop created input backend")))
+    monkeypatch.setattr(listener, "_run_pve", run)
+    monkeypatch.setattr(listener, "_print_go_listener_event",
+                        lambda event, **data: events.append((event, data)))
+    assert _run_listener(tmp_path, None) == 0
+    assert sum(event == "cancellation_requested" for event, _ in events) == (changed is None)
+    assert sum(event == "rejected" for event, _ in events) == (changed is not None)
+
+
+def test_real_hook_listener_accepts_native_selector_without_installing_hooks(client):
+    from shadowbane_lab.client_extension.client_guard import NativeClientWindowSelector
+    from shadowbane_lab.travel import WindowsGoChatCommandListener
+
+    _, _, inspector, _ = client
+    selector = NativeClientWindowSelector(inspector)
+    hook = WindowsGoChatCommandListener(selector, on_command=lambda _: None)
+    assert not hook.is_alive
+    assert selector.require_target() == inspector.snapshot
+    with pytest.raises(ValueError, match="require_target"):
+        WindowsGoChatCommandListener(object(), on_command=lambda _: None)

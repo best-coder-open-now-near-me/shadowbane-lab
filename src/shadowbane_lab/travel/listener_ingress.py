@@ -7,7 +7,8 @@ import threading
 import time
 from dataclasses import dataclass
 
-from shadowbane_lab.client_input import ForegroundWindowGuard, WindowGuardError, WindowSnapshot
+from shadowbane_lab.client_extension.client_guard import NativeClientTarget
+from shadowbane_lab.client_input import WindowGuardError, WindowSnapshot
 from shadowbane_lab.travel.chat import PhysicalPointerInteraction
 
 
@@ -26,7 +27,7 @@ class ListenerClientIdentity:
             )
         return cls(*values)
 
-    def require_current(self, guard: ForegroundWindowGuard) -> None:
+    def require_current(self, guard: NativeClientTarget) -> None:
         if self.capture(guard.require_target()) != self:
             raise WindowGuardError(
                 "queued interaction belongs to a different client lifetime or window"
@@ -44,7 +45,7 @@ class ListenerInteraction:
 class ListenerCommandIngress:
     """Capture ownership at callback admission and coalesce cancellation per owner."""
 
-    def __init__(self, guard: ForegroundWindowGuard) -> None:
+    def __init__(self, guard: NativeClientTarget) -> None:
         self._guard = guard
         self._queue: queue.Queue[ListenerInteraction] = queue.Queue()
         self._pending_cancellations: set[ListenerClientIdentity] = set()
@@ -71,7 +72,7 @@ class ListenerCommandIngress:
 class ListenerOwnershipStop:
     """Permanently revoke a local operation when its captured client is no longer current."""
 
-    def __init__(self, client: ListenerClientIdentity, guard: ForegroundWindowGuard) -> None:
+    def __init__(self, client: ListenerClientIdentity, guard: NativeClientTarget) -> None:
         self._client = client
         self._guard = guard
         self._revoked = threading.Event()

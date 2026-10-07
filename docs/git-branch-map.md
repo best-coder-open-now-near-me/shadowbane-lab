@@ -4,7 +4,25 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active actor settlement ownership repair - October 6
+## Active native client admission repair - October 7
+
+Start from freshly fetched `origin/main`. The shared merge destination remains
+`main`; the installed runtime is host .71 / native .51 from `2d1c928`.
+`codex/native-client-identity-20261007` in bot-command-ownership removes an
+inherited screen-calibration dependency from native PvE and travel. Native
+operations retain exact process creation, executable path, window identity,
+foreground ownership, character binding and native leases; screen size, DPI,
+window title and mapped input actions are not their admission criteria.
+
+Deployment documentation is published in PR #72. Passive dashboard status is
+published in PR #74 at `21c14a313b33ce2666e4647c848ef6b09f8cf502`;
+its full host suite passed after correcting an outdated test fixture. Neither
+dashboard status nor this admission repair is installed. Complete source review
+and qualification together before resuming the controlled DayOwl test. The
+prior passive PvP preflight stopped at the obsolete geometry check; no attack
+was sent. Buff renewal and combined combat handoff remain live validation todos.
+
+## Historical actor settlement ownership repair - October 6
 
 Start new work from freshly fetched `origin/main`, currently
 `578f5f933cf5770764c79c5c5dc0ceea19e786ec` after PR #71. Host .70 / native .50

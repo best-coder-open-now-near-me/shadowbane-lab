@@ -332,6 +332,9 @@ def test_pve_ambiguous_or_unavailable_identity_never_opens_input_backend():
         is_foreground=True,
         is_visible=True,
         process_id=4320,
+        process_started_at_100ns=123456,
+        window_handle=500,
+        executable_path=r"C:\Games\sb.exe",
     )
     output = io.StringIO()
     with (
