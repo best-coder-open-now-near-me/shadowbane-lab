@@ -4,7 +4,31 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Active automatic buff renewal repair - October 6
+## Active actor settlement ownership repair - October 6
+
+Start new work from freshly fetched `origin/main`, currently
+`578f5f933cf5770764c79c5c5dc0ceea19e786ec` after PR #71. Host .70 / native .50
+are installed and activated; installation and clean bounded buff-only evidence
+are tracked by deployment PR #72. No expiry/renewal or transform alternation was
+witnessed in that observation window.
+
+`codex/actor-settlement-ownership-20261006` in bot-command-ownership fixes a
+reproduced production handoff defect: polling a prior buff to settlement from
+the combat lane must reconcile its original policy and cannot clear a newer
+attack's local ownership. Correlated pending action replies count as progress
+while another proposal waits; unavailable replies retain bounded cleanup.
+Candidate .71/.51 needs exact-source package qualification before installation.
+
+Parallel `codex/pve-buff-status-20261006` in bot-runtime implements passive
+status through the existing PvE runner, worker and dashboard. It remains an
+unfinished source lane; no replacement runner or action authority is introduced.
+The user reenabled controlled PvP testing against native `DayOwl` on Wonderbane,
+observed nearby by the passive census. Revalidate identity before any action.
+Next: qualify the ownership repair, complete passive status integration, then
+validate combined combat/buff handoff and agreed-player attack/cancel behavior.
+No manual overlap test or automatic retaliation is enabled.
+
+## Historical automatic buff renewal repair - October 6
 
 Start from freshly fetched `origin/main`, now
 `27b76007ea065049a98f1dfb84a3becbb8d3c082` after deployment PR #70 merged
