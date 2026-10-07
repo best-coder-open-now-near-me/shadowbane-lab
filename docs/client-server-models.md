@@ -152,3 +152,30 @@ Continue PvE/PvP bot work owns this inventory and alignment. Find Wonderbane fix
 notes owns server bootstrap and client connection qualification. The server source
 repository is `best-coder-open-now-near-me/shadowbane-server`; this lab owns the
 collector, offline audit and evidence summaries. Detailed live records stay local.
+
+## Starter inventory observation
+
+`scripts/watch-wonderbane-inventory.py --pid PID --output NEW_DIRECTORY` waits at
+character selection and binds to the first stable Wonderbane character inventory.
+It polls every half second for up to two hours, stopping on a confirmed character
+change, `STOP`, or an 8 MiB journal limit. It opens the process read-only and never
+calls native functions or performs game input. Prepared client 1.3.38.14 is the
+reviewed executable for this census.
+
+The two actor-owned container trees and item classes follow
+`native/wonderbane_extension/actor_inventory_native.cpp`. Each observation checks
+actor identity, tree ownership/order/endpoints, duplicate keys and exact item
+classes, then rereads dependencies. It records instance keys, template keys,
+container membership and raw quantities for exact ArcItem objects. Derived item
+classes retain their identities with unknown quantity. No inventory window is
+required. External reads cannot lock objects or prove absence of transient changes.
+
+`inventory.jsonl` distinguishes initial inventory from later first-observed items,
+quantity/container changes and items no longer observed. Failed reads preserve the
+previous successful snapshot; identical samples and errors are suppressed. Samples
+have local sequence numbers and timestamps, not network sequence numbers. If starter
+items arrive before the first stable sample, the evidence establishes initial item
+presence only, not the grant's ordering, cause or packet contents. The known bot
+concentration-potion template is not assumed to be the starter potion's template.
+`latest-inventory.json` preserves the latest successful state; `status.json` reports
+waiting/recording/unavailable/stopped. These live records remain private.

@@ -5,8 +5,7 @@
 `codex/client-server-models-20261007` starts from refreshed main `cdaafb2` and
 reuses bot-integration. It owns the passive model watcher, cache categorization,
 server resource audit and [alignment inventory](client-server-models.md).
-Watcher source checkpoint `55cc1c7` is pushed; subsequent audit changes remain on
-the same branch for main integration. The old client-harness todos below are
+PR #98 contains the model watcher, resource audit, character-bound deduplication and passive starter-inventory census; it targets main. The old client-harness todos below are
 superseded by the own-server pivot in PR #95. Gameplay service work now follows
 model alignment; server code belongs in the separate shadowbane-server repository.
 Next: confirm the identified object-type wire difference and trace absent resource
