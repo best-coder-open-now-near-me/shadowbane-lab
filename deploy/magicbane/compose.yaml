@@ -1,7 +1,7 @@
 name: shadowbane-local
 services:
   server:
-    image: shadowbane-private:65952a25-bloodline-costs
+    image: shadowbane-private:65952a25-starter-potion
     build:
       context: .
       additional_contexts:

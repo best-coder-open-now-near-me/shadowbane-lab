@@ -48,6 +48,7 @@ tables=$(sudo mysql --batch --skip-column-names -e "SELECT COUNT(*) FROM informa
 # Apply verified client cost compatibility before either Java process caches runes.
 sudo mysql --batch --skip-column-names magicbane < /opt/shadowbane/bloodline-costs.sql >/dev/null
 echo "Human/Elven bloodline creation costs verified"
+bash /opt/shadowbane/install-starter-potion.sh
 
 set -a
 source mb.data/magicbane.conf

@@ -36,7 +36,7 @@ SQL and dependency hashes before compiling with networking disabled. It checks
 verifies value preservation, missing-key rejection and absence of values in logs.
 It never invokes the upstream mutable build/entrypoint scripts.
 
-The image is `shadowbane-private:65952a25-bloodline-costs`; its OCI revision and
+The image is `shadowbane-private:65952a25-starter-potion`; its OCI revision and
 `/opt/shadowbane/build-receipt.txt` record the installed source. Record the actual
 image identity and JAR hash from each build. Build timestamps can change JAR
 bytes; a revision tag alone is not an installed-image receipt.
@@ -172,3 +172,43 @@ VPN policy, firewall and port-publication guards passed. Temporary test
 containers and the superseded runtime image were removed. Client build retry,
 world entry/reconnect, remote port-isolation checks and reboot startup remain
 pending.
+
+## New-character starter potion
+
+New characters receive one Greater Concoction Potion (template 980066) in
+inventory, with quantity one and five charges. This is a creation grant only:
+existing characters are not backfilled, and login, activation, inventory reload
+or restart do not grant or refill it.
+
+The pinned Java source already loads inventory after successful character
+creation. The image adds `starter-potion.sql`, an `AFTER INSERT` hook on
+`obj_character`, inside the existing `character_CREATE` InnoDB transaction.
+It creates the ordinary parented item/object rows with the same inventory flags
+as normal item creation. If the item insert or template validation fails, the
+existing procedure rolls back the character and item rows. The procedure's
+returned character ID remains correct.
+
+Startup runs `install-starter-potion.sh` before Java begins. It verifies the
+template and transactional tables, installs the hook once, and checks the exact
+stored trigger body and metadata. Unknown character-insertion hooks or a changed
+grant definition stop startup; the installer does not overwrite them. The
+original seed SQL and credential-safe Java source remain pinned, and the build
+receipt records both new file hashes. The image tag is
+`shadowbane-private:65952a25-starter-potion`.
+
+`test-starter-potion.sh` requires `SHADOWBANE_DISPOSABLE_TEST=1`, zero accounts
+and zero characters, and must run in an isolated disposable image container
+without live volumes or published ports. It exercises the actual
+`character_CREATE` procedure and checks:
+
+- Existing characters remain untouched; each later character gets its own
+  single five-charge inventory potion.
+- Reload/activation changes and repeated installation do not duplicate or refill
+  an item. A consumed charge survives a clean database restart.
+- Item insertion failure rolls back character and orphan item-object rows.
+- Invalid template data rejects startup and creation without partial rows.
+- Unknown or modified triggers are rejected without replacement.
+
+The integration checks passed. Full login/world startup and live deployment
+validation must complete before declaring the feature installed. A real new
+character's inventory display/use still requires client validation.
