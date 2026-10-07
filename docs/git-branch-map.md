@@ -29,6 +29,21 @@ continuing gameplay. Preserve the unconfirmed cleanup and potion response
 investigations and verified obsolete .72 retirement as follow-up work.
 See the [deployment record](client-update-20261004.md).
 
+## Merged registry observation churn handling - October 7
+
+PR #78 merged after independent review and hosted checks. Its host .74 source
+includes PR #76's worker identity repair and is installed as recorded above;
+native .51 is unchanged.
+
+A successful native registry reread that disagrees with the captured snapshot is
+a distinct unavailable-observation result. Preparation discards current coverage
+and rechecks local actor/session identity; the failed census cannot authorize a
+new action. An already-submitted action retains its immutable request and polls
+native status while unrelated registry membership changes. Structural/read-budget
+failures and confirmed actor/session changes remain errors; missing status replies
+still request bounded exact cleanup. Independent review passed 145 focused tests.
+These semantics do not convert the later unconfirmed .74 cleanup into a pass.
+
 ## Merged worker interpreter identity repair - October 7
 
 PR #76 merged into `main` at `1ee3d6b` after all 15 hosted checks passed.
