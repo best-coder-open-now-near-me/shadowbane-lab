@@ -1,5 +1,189 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
+## Official data-only patch verified and launched - October 7
+
+The official manifest contains 211 files; its only change is
+`cache/CObjects.cache`, from SHA-256
+`5979b544426669e1ffd89fdf95a7a7800d1b42a6cfc7840c942efed1656ff2f7` to
+`08c115baeef5da811f7ee2802ccdc1002cfeba29cf1818956c452e3e594efef6`
+(5,433,065 bytes). Manifest SHA-256 is
+`22e083d1ef09aa94ced7380cc7e2bf994e69b3a3d8450f319c8f19c4dabbb95c`.
+The official/prepared .14 executables, host .74 and native .51 are unchanged.
+
+With both games closed, preflight recorded 10,044 protected files. Apply wrote
+both normal and bot caches and verified the resealed bot package, then failed
+preservation checking on the manager's changing `dispatch.permit`. Independent
+comparison found that sole difference: the exact slot was denied and unbound;
+all 10,043 other protected files matched. The reviewed finalizer rechecked those
+facts and completed at `2026-10-07T08:46:57.666772Z`, preserving the original
+failure receipt. All 10,043 other protected files remained unchanged; the one
+reconciled permit was explicitly denied/unbound. No rollback copies were created.
+
+Finalization receipt SHA-256 is
+`052a48aafe2480b0c2a5213f4e17674fcd19441f0d2fa2455f1fbf313f359628`;
+resealed package SHA-256 is
+`b3f8c213eafc7235d53a89cf06459dbd0ace16dcf2204742242e297c58fd3c57`.
+The original failure receipt remains
+`b865bd3e0b9e0fe89c7c0c3aca54061f41bb2d6dfb1b4a269dda8451b85dc35b`.
+
+Fresh launch succeeded at `2026-10-07T08:47:19.0223372Z`: PID 1612, creation
+`134358364309881895`, HWND 4063778, with the unchanged qualified native DLL.
+Launch receipt SHA-256 is
+`c3cba3c62bd44fc478f52121f7a508a58bbe7bb7083a3c77566fd6f3ba3a09a9`.
+The compact receipts are retained privately under
+`artifacts/guard-deploy/client-update-20261007/receipts`. Login and fresh
+in-world readiness remain pending; this receipt makes no live-attack claim.
+
+## Host .74 activated; bounded NPC cleanup unconfirmed - October 7
+
+PR #78 merged after all 15 hosted checks passed, advancing main to
+`f2ea8012876fd3624d813bd2b9c8cc80c5d6fdb8`. Exact installed host source is
+`18769f1d8228c64503a773fc42e145ec6eca94b0` (0.3.74). It includes the worker
+interpreter identity repair and bounded registry-read repair. Host .73 was not
+installed separately. Native 1.8.51/source `2d1c928c5d9b3d130728dc936873df99de2edb51`,
+the extension DLL and prepared client .14 remain unchanged.
+
+Exact-source qualification passed 5,056 host tests (37 skips), all 13 stages,
+466 installed-module checks and both native-profile IPC suites: 74 movement,
+86 combat and 146 actor cases per profile. Qualification SHA-256 is
+`59d687e3a85bad344e0527d68feaa543a2fdaecd4a3bff987c1b20e96c262ebd`;
+wheel SHA-256 is
+`e60eff219ee68b9fdbacccbb7d7eb558630afeee90194b773e1c1ef6057d353c`.
+
+Apply and activation succeeded with 466 modules, 9,588 retained files, eight
+validated generated worker records and zero client inventory changes. Manager
+7548 (creation `134358189279629173`, parent 8780 creation
+`134358189279033602`) is healthy with one paused worker and dispatch disabled.
+The original game stayed open: PID 4128, creation `134358106481261509`, HWND
+197180. These are receipt identities; actions still require fresh validation.
+
+The installer now distinguishes pause from worker shutdown. After proving idle
+operations and denied dispatch, it stopped the exact old manager handles before
+publishing the production stop request to actual worker PID 5588/creation
+`134358147964338484`. The worker and launch parent exited before apply. A narrowly
+reviewed repair changed only two shutdown helpers and the plan, preserving the
+prepared venv and original preparation receipt; 107 offline tests passed. No
+worker kill, game stop, replayed job or rollback runtime was introduced. The old
+.72 launcher wrapper's historical completion error is closed, with no pending
+process or new mutation from it.
+
+Twelve compact receipts were exported to the private diagnostic share
+`host-update-20261007-0.3.74/receipts`. Activation receipt SHA-256 is
+`2b735ff71be49119bf43bd0233e8148fb08733f7a29dabe54b2444023ab0034b`;
+apply receipt SHA-256 is
+`cffcb8d10be8444f9a52284d7dbdd442c79748043d577808de185c8b9e8e0e06`.
+Verified retirement removed the obsolete .72 host (2,122 files) and its wheel,
+totaling 49,799,696 bytes. Removal receipt SHA-256 is
+`e5304c21e1ff26615bbadf307dbacb86caca9d8273265de6b484ecb5ecb7795b`.
+A receipt-copy path typo was corrected without repeating retirement. User data
+remained in place and no rollback runtime was retained.
+
+Bounded run `1760e2eb1aa14762938a138ea3aec4c9` is **not passed**. Exact NPC
+`23888/37` reached native health zero in trace sequences 88/89 after one positive
+ATTACK queue. Shot to the Leg was queued; a later Beorc request entered with an
+UNCERTAIN/PENDING result. Child STOP request 21 still reported PENDING/STOPPING
+with closure NONE at sequence 91. Parent cleanup at sequence 92 remained
+unconfirmed without a receipt. The helper reported `native actor cleanup remains
+unconfirmed`; final list membership is unavailable. No watchdog or unexpected
+interruption was reported. Native health zero does not establish kill credit,
+completed cleanup, potion consumption or a complete buff-suite pass.
+
+Private acceptance SHA-256 is
+`245dcb935ace1465a7afbcdfb4514d449e19e76c7ae57aec580236a3b568b44c`;
+events SHA-256 is
+`ee9b74c0d616c25eb3befc494041397bcc71cd9d40f1490771505e8676fb4e27`.
+The original evidence remains unchanged.
+
+**Current next todo:** resolve the unconfirmed cleanup before further gameplay;
+login and fresh in-world readiness also remain required. The cleanup source lane
+is `codex/actor-cleanup-ownership-20261007` in bot-command-ownership. Potion
+response diagnostics remain separate follow-up work.
+
+## Historical host .72 delivery - October 7
+
+PRs #74 and #75 are merged; subsequent PR #76 also passed all 15 checks and
+merged, advancing main to `1ee3d6b`. The installed host remains the exact .72
+source below; newer source is not installed by this receipt.
+Exact source `6d5abe5f74fd057fcf08c844027b6f58be9c5967` combines passive
+PvE/buff dashboard status and exact native client admission. Native PvE and
+travel no longer depend on screen calibration; process creation, executable,
+window, foreground and native ownership checks remain required.
+
+Host-only package `artifacts/host72/6d5abe5` passed 5,022 host tests (39 skips,
+790 subtests), six required movement/combat/actor IPC validators across both B51
+native profiles, and 466 installed-module checks. Independent review verified
+the exact Git archive, wheel RECORD/source hashes and all 13 qualification steps.
+Native source `2d1c928c5d9b3d130728dc936873df99de2edb51`, extension .51 and
+prepared client .14 are unchanged; no native rebuild or game restart is needed.
+
+Qualified SHA-256 identities:
+
+- Host wheel: `027c50a8fe5c9db7127b0461907ca01d360e06888cf4c7338ca356232a93d730`.
+- Source archive: `d3016ac7678387b42081c2d08224dd4d1224599d5a1c813f432267a1575090b9`.
+- Qualification: `c7042663c3a92f62515555fe3d1140f75d076582e5142baed0426692e90f06b5`.
+- Unchanged native DLL: `ce2f598e05bc696f3d9b3a4922f8a16ec2d6fba13dc7e62695026f0fa8edba0a`.
+
+The corrected installer passed independent review and 59 offline tests.
+Baseline validation required an explicit 32-bit module census and omission of
+exactly two recognized running-engine outputs (`DoubleFusion/Engine.Log` and
+`DoubleFusion/dfts.dat`) from byte equality. Native/static inventory, settings
+and lifetime checks remain; failed diagnostics are preserved. No reinstall or
+runtime rollback was performed.
+
+The existing new .72 host then validated all 466 module files and produced
+`host_prepared_not_switched` under final plan SHA-256
+`5256906f229b6ee0ccbd1a9de00a33f9cd12e5addc9d6cb4f47707ac667bf44a`.
+Apply and shortcuts then passed, verifying 466 modules and 9,586 retained files.
+Manager .72 is running (PID 2740); the original game remains open. Manager
+reconciliation keeps the exact client attached, so the reviewed installer now
+pauses that binding and verifies idle operations/worker ownership instead of
+requiring an empty slot list. An early activation postcheck saw an older heartbeat
+than the new launch reservation; fresh settled status confirms their matching
+worker UUID. A separately reviewed finalizer rechecks the existing manager
+without restarting it. **Activation is now verified**: the finalizer wrote
+`activation.json` (SHA-256
+`347b395ef9a81c680b3a8da6381afca5640029bf93f1ae992ff07eaf5bc4d628`),
+verifying 466 modules, 9,586 retained files and eight exact generated worker
+records. Manager 2740 and one paused worker are healthy; game PID 4128 is
+unchanged. The launcher misreported process completion after the Python verifier
+succeeded; saved JSON matched its stdout and stderr was empty. The finalizer was
+not rerun. Twelve compact receipts are retained locally under
+`artifacts/bot-deploy/20261007-host72/receipts`. Verified retirement removed the
+obsolete .71 host (2,116 files) and its old wheel, totaling 49,711,497 bytes;
+removal receipt SHA-256 is
+`053acac21d451db96a00169b5d2c52fa901c9ab69603a02d0d1c9de7100fcf46`.
+Settings and jobs remain in place; no rollback runtime was retained.
+
+Bounded player run `manual-pvp-a02f9c1042904e58bf44a8c225978ece` passed after
+fresh native identity/readiness checks: one ATTACK, same-child NATIVE_STOPPED,
+later SEEKING and parent LOCAL_RELEASED, with no errors, watchdog, unexpected
+stop or residual list membership. The native path did not require selected-target
+or screen-calibration authority. This establishes bounded action/cleanup behavior,
+not damage, kill credit or automatic retaliation. Manual overlap testing remains
+canceled.
+
+The first NPC/buff attempt (`4fff8a61820046a38c0a0d6bb5deca95`) found no
+eligible NPC and ended at its 30-second bound without a child context. Four buff
+groups became PRESENT. Concoction request 4 was positively queued and locally
+settled, but its native application journal remained pending, coverage MISSING
+and the observed stack quantity five. These facts do not prove consumption or
+remote application. Pending history prevented a duplicate potion request.
+
+A later radius-200 run (`64a84fa23c01494395c0db6a18eb61ad`) observed exact NPC
+`23884/37` health zero in trace sequence 114, followed by the recorded child
+NATIVE_STOPPED receipt at sequence 116. A subsequent registry read raised
+`NativeCharacterPopulationReadError: registry membership changed during read`;
+the complete acceptance result is **not passed**, despite the earlier combat
+and cleanup evidence. Parent LOCAL_RELEASED was confirmed at sequence 204;
+there was no watchdog or unexpected interruption. The failed post-read leaves
+final membership unavailable. Concoction application remains unresolved; neither
+kill credit nor a complete buff-suite pass is claimed.
+
+The subsequent combined .74 installation is recorded above. Potion response and
+application remain a distinct unresolved investigation; no blind replay or
+manual-overlap requirement is introduced.
+
+
 ## Installed .71/.51 shared ownership repair - October 7
 
 PR #73 merged at `b17b003649fb927c5e5ef4ba0dec28d0a4968ff6` after all 15
