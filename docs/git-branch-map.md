@@ -1,5 +1,18 @@
 # Git branch map
 
+## Client/server model alignment - October 7
+
+`codex/client-server-models-20261007` starts from refreshed main `cdaafb2` and
+reuses bot-integration. It owns the passive model watcher, cache categorization,
+server resource audit and [alignment inventory](client-server-models.md).
+Watcher source checkpoint `55cc1c7` is pushed; subsequent audit changes remain on
+the same branch for main integration. The old client-harness todos below are
+superseded by the own-server pivot in PR #95. Gameplay service work now follows
+model alignment; server code belongs in the separate shadowbane-server repository.
+Next: confirm the identified object-type wire difference and trace absent resource
+references before changing server protocol/content. Find Wonderbane fix notes owns
+bootstrap and connection qualification; live watcher observations remain private.
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from
