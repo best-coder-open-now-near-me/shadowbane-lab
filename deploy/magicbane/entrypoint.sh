@@ -46,8 +46,8 @@ tables=$(sudo mysql --batch --skip-column-names -e "SELECT COUNT(*) FROM informa
 [[ "$tables" -ge 125 ]] || { echo "Database seed is incomplete" >&2; exit 3; }
 
 # Apply verified client cost compatibility before either Java process caches runes.
-sudo mysql --batch --skip-column-names magicbane < /opt/shadowbane/human-bloodline-costs.sql >/dev/null
-echo "Human bloodline creation costs verified"
+sudo mysql --batch --skip-column-names magicbane < /opt/shadowbane/bloodline-costs.sql >/dev/null
+echo "Human/Elven bloodline creation costs verified"
 
 set -a
 source mb.data/magicbane.conf

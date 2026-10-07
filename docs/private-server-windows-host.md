@@ -36,7 +36,7 @@ SQL and dependency hashes before compiling with networking disabled. It checks
 verifies value preservation, missing-key rejection and absence of values in logs.
 It never invokes the upstream mutable build/entrypoint scripts.
 
-The image is `shadowbane-private:65952a25-human-costs`; its OCI revision and
+The image is `shadowbane-private:65952a25-bloodline-costs`; its OCI revision and
 `/opt/shadowbane/build-receipt.txt` record the installed source. Record the actual
 image identity and JAR hash from each build. Build timestamps can change JAR
 bytes; a revision tag alone is not an installed-image receipt.
@@ -119,29 +119,30 @@ and `PORT= 6000`, launching `sb.exe` directly. Preserve user settings; verify th
 full official client hash and manifest before deployment. Additional launcher
 server-menu entries have not been qualified by this checkpoint.
 
-## Human bloodline creation costs
+## Human and Elven bloodline creation costs
 
 A valid build with Born of the Taripontor showed nine points remaining in the
 client but was rejected with minus one by the paired server. Its seed charged
 ten points for each Human bloodline. The qualified official client charges zero
-for all five: Ethyri (252129), Taripontor (252130), Gwendannen (252131),
-Invorri (252132), and Irydnu (252133). Male and female Human starting allowances
-remain unchanged.
+for all five Human bloodlines: Ethyri (252129), Taripontor (252130), Gwendannen
+(252131), Invorri (252132), and Irydnu (252133). The same mismatch also affects
+all three Elven bloodlines: Dar Khelegeur (252134), Gwaridorn (252135), and
+Twathedilion (252136). Race starting allowances remain unchanged.
 
 Evidence is the [official manifest](http://87.99.132.84/manifest.json), SHA-256
 `22e083d1ef09aa94ced7380cc7e2bf994e69b3a3d8450f319c8f19c4dabbb95c`, and
 its [CObjects.cache](http://87.99.132.84/client/cache/CObjects.cache), SHA-256
 `08c115baeef5da811f7ee2802ccdc1002cfeba29cf1818956c452e3e594efef6`.
 The [official ArcRune decoder](https://repo.magicbane.com/MagicBane/mbEditorPro/src/commit/75efa29012592d7d0e35ebfd0703990f90f10995/mbEditorPro2.0/arcane/objects/ArcRune.py)
-decoded all five records completely and returned `rune_creation_cost = 0`.
+decoded all eight records completely and returned `rune_creation_cost = 0`.
 The same decode confirmed unchanged comparison costs: Fleet of Foot 10,
 Lightning Reflexes 12, Lucky 8, Precise 8, Taught by Master Thief 8, Tough Hide 12.
 Client assets and private gameplay logs are not included in source control.
 
-The `65952a25-human-costs` image retains the exact credential-safe Java source,
+The `65952a25-bloodline-costs` image retains the exact credential-safe Java source,
 libraries and original seed SQL. Before starting either Java process, it runs
-`human-bloodline-costs.sql` against the existing database. This transaction
-changes only the five cost attributes, so creation, later rune application and
+`bloodline-costs.sql` against the existing database. This transaction
+changes only the eight cost attributes, so creation, later rune application and
 point recalculation use the same corrected values. It leaves character rows,
 race allowances, other costs, prerequisites and overspending checks intact.
 
@@ -151,9 +152,10 @@ missing/duplicate rows or a failed update abort startup. The batch client must
 never use `--force`; connection closure rolls back an incomplete transaction.
 Repeated startup is idempotent. The build receipt includes the migration hash.
 
-Run `test-human-bloodline-costs.sh` in a disposable image container with MySQL
-started, no live data mounts and no published ports. It verifies the five-row
-change, all unrelated static rows, repeat application, the reported nine-point
+Run `test-bloodline-costs.sh` in a disposable image container with MySQL
+started, no live data mounts and no published ports. It verifies the eight-row
+change, all unrelated static rows, repeat application, upgrade from an already
+corrected Human-only database, the reported nine-point
 balance, rejection cases and transaction failure. It uses only a synthetic test
 database seeded from the image's static tables.
 
@@ -161,10 +163,13 @@ Deploy after a clean save/logout and verify the same existing character and the
 previously rejected build after restart. Do not reseed populated volumes or keep
 the superseded image/container for rollback.
 
-Qualification passed for the guarded migration, a full isolated boot and clean
-restart, and the live private-host update. Account, character and item table
+The earlier Human-only correction passed qualification for its guarded migration,
+a full isolated boot and clean restart, and the live private-host update. Account, character and item table
 checksums were identical before and after the update; the existing character
 was preserved. The new image was healthy with only the two intended VPN port
 bindings, and the database secret was absent from the startup log. Temporary
 test containers and the superseded runtime image were removed. Client retry,
 world entry, remote port-isolation checks and reboot startup remain pending.
+
+The expanded Elven correction is prepared with the same transaction guards;
+its new image must pass migration, startup and preservation checks before use.
