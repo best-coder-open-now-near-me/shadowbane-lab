@@ -17,6 +17,7 @@ from shadowbane_lab.client_extension.movement_session import (
 )
 from shadowbane_lab.client_extension.movement_wire import CLEANUP_PENDING, Outcome
 from shadowbane_lab.client_input import StopSignal
+from shadowbane_lab.client_input.stop import StopCause, observed_stop_cause
 
 from .operation import WorkerOperation
 
@@ -42,14 +43,21 @@ class OperationMovement:
         self._cleanup_pause_key = str(uuid.uuid5(uuid.UUID(self.request_key), "cleanup-pause"))
         self.dispatcher: NativeMovementTravelDispatcher | None = None
         self.reason: str | None = None
+        self._stop_cause: StopCause | None = None
         self._interrupted = threading.Event()
         self._lock = threading.RLock()
         self._closed = False
 
-    def interrupt(self, reason: str) -> None:
+    @property
+    def stop_cause(self) -> StopCause | None:
+        with self._lock:
+            return self._stop_cause
+
+    def interrupt(self, reason: str, *, cause: StopCause | None = None) -> None:
         with self._lock:
             if not self._interrupted.is_set():
                 self.reason = reason
+                self._stop_cause = cause or StopCause(reason, "interrupted")
                 self._interrupted.set()
 
     def is_set(self) -> bool:
@@ -58,7 +66,8 @@ class OperationMovement:
         if self.parent.is_set():
             if self.dispatcher is not None:
                 self.session.cleanup.request_terminal(self.dispatcher.grant)
-            self.interrupt("worker dispatch permission revoked")
+            cause = observed_stop_cause(self.parent)
+            self.interrupt(cause.reason, cause=cause)
         dispatcher = self.dispatcher
         try:
             if dispatcher is not None and dispatcher.is_set():

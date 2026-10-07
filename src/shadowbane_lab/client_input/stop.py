@@ -4,8 +4,38 @@ from __future__ import annotations
 
 import os
 import threading
+from dataclasses import dataclass
 from time import sleep
 from typing import Protocol, runtime_checkable
+
+
+@dataclass(frozen=True, slots=True)
+class StopCause:
+    """Evidence observed at a stop boundary, without inferring its underlying cause."""
+
+    reason: str
+    kind: str  # requested cancellation or an interruption of the operation
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.reason, str) or not self.reason.strip():
+            raise ValueError("stop reason must be nonempty")
+        if self.kind not in ("requested", "interrupted"):
+            raise ValueError("stop kind must be requested or interrupted")
+
+    def as_dict(self) -> dict[str, str]:
+        return {"reason": self.reason, "kind": self.kind}
+
+
+def observed_stop_cause(signal: StopSignal) -> StopCause:
+    """Copy evidence after is_set; never poll, dispatch or infer a user/hotkey."""
+    cause = getattr(signal, "stop_cause", None)
+    if isinstance(cause, StopCause):
+        return cause
+    reason = getattr(signal, "interruption_reason", None)
+    if isinstance(reason, str) and reason.strip():
+        return StopCause(reason, "interrupted")
+    # Existing event/hotkey/caller signals only promise an external stop request.
+    return StopCause("emergency_stop", "requested")
 
 
 @runtime_checkable
@@ -35,9 +65,20 @@ class AnyStopSignal:
         if any(not isinstance(signal, StopSignal) for signal in signals):
             raise ValueError("signals must implement StopSignal")
         self._signals = signals
+        self._stop_cause: StopCause | None = None
+
+    @property
+    def stop_cause(self) -> StopCause | None:
+        return self._stop_cause
 
     def is_set(self) -> bool:
-        return any(signal.is_set() for signal in self._signals)
+        for signal in self._signals:
+            if signal.is_set():
+                if self._stop_cause is None:
+                    self._stop_cause = observed_stop_cause(signal)
+                return True
+        self._stop_cause = None
+        return False
 
 
 class WindowsHotkeyEmergencyStop(EventEmergencyStop):

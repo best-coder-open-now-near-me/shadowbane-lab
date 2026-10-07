@@ -1,24 +1,37 @@
 # Git branch map
 
-## Initial preparation capture recovery - October 7
+## Preparation recovery and interruption evidence - October 7
 
-`codex/preparation-registration-recovery-20261007` in bot-integration starts at
-PR #91 head `0a8c75f` without modifying that branch or its qualified artifacts.
-A correlated initial selector-registration UNAVAILABLE response now leaves buff
-coverage unknown and retries the same read-only command. It cannot open an owner
-or submit a buff from cached evidence, and does not make buff availability a PvE
-startup prerequisite. Invalid identity and incompatible pending-manifest refusals
-still fail closed. Offline tests cover later recovery, imported potion history
-and ordinary NPC progress; this is not a diagnosed cause of the prior live stall.
-The isolated slice passed 182 related tests and independent review with 101
-focused tests. Draft PR #92 targets `main`; it is not merged or deployed. Next: review and qualify a later release after current host .77
-validation; its existing package pins remain unchanged.
+Draft PR #92 from `codex/preparation-registration-recovery-20261007` in
+bot-integration targets `main`. It began at PR #91 head `0a8c75f`; the qualified
+host .77 package and private helper pins remain unchanged.
+
+A correlated initial selector-registration UNAVAILABLE response leaves buff
+coverage unknown and retries the same read-only command, without owner/action
+admission or stale coverage. Invalid identity and pending-manifest refusals still
+fail closed. That slice passed 182 related tests and independent review with 101.
+It is not a diagnosed cause of an earlier live stall.
+
+The follow-up preserves the first observed native operation interruption through
+runner trace, final result and journal footer. Continuous CLI cancellation is
+successful only when the signal reports a requested stop; native status, guard,
+renewal and ownership interruptions retain their exact available reason and fail.
+Cleanup failure remains the terminal result while preserving the initiating cause
+separately. Existing event signals do not identify a particular human, timer or
+hotkey. The historical .77 stop remains unattributed. The manager also retains its existing distinction between an exact pending
+CANCEL/STOP request and a permission/inbox failure, instead of treating every
+interruption as cancellation. Cleanup failure overrides requested cancellation.
+Focused validation passed 312 tests, with three optional native fixture skips.
+
+Neither PR #92 slice is installed. Next: finish source review and qualify the
+combined source for a later release; no native change or version bump is included.
 
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` starts from
-main `7770df3` and now includes main `7235c16` after PR #90 merged. It targets
-`main` through PR #91. This host .77 source candidate keeps native
+main `7770df3` and includes main `7235c16` after PR #90 merged. PR #91
+subsequently merged at `cdaafb234cfe324cc1c750c77102cfcc76552f50`; its qualified
+host .77 source is installed and keeps native
 .53 unchanged. It finishes an already-started context stop within the original
 cleanup deadline, preserves correlated admission/stop receipts and native reasons,
 and terminates the runner on unconfirmed cleanup or closed aggregate ownership.
@@ -30,8 +43,10 @@ context admission and stop. The host polling defect is reproduced offline; the
 original admission cause and sustained buff renewal remain unproved. Checkpoint
 `60988fa` passed independent source review, 5,150 host tests (39 skips) and host-only
 package qualification. The subsequent main integration changes documentation only;
-runtime sources are identical to that checkpoint. Next: pass the updated PR #91
-checks, integrate and install the reviewed host update before live validation.
+runtime sources are identical to that checkpoint. The later installed .77 run
+recorded five native health-zero encounters and all five initial buff groups
+PRESENT, then ended with an unattributed emergency stop; sustained renewal remains
+unproved. PR #92 above addresses reporting without guessing that stop's cause.
 No new native admission rule or gameplay authority is introduced.
 
 
