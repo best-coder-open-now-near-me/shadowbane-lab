@@ -1,5 +1,11 @@
 # Git branch map
 
+## Dedicated host handoff - October 7
+
+[Private server PC handoff](handoffs/private-server-pc-20261007.md) records the
+published bootstrap/server tips, private VPN setup, and preservation requirements
+for the chat on the user's non-work PC. No public ports have been opened.
+
 ## Client/server model alignment - October 7
 
 `codex/client-server-models-20261007` starts from refreshed main `cdaafb2` and
