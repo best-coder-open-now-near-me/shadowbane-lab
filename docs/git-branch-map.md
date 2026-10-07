@@ -18,7 +18,11 @@ main. Keep this managed worktree while its local bootstrap inputs remain active.
 Dedicated host client C:/Games/ShadowbaneLocal now has all 211 official files
 verified and the localhost route configured; its window opens and responds.
 User reports successful local world entry, play and death after correcting the
-version gate. Next: respawn and saved-character/inventory/location reload.
+version gate. A granted five-charge Greater Concoction Potion persisted across
+restart; the user confirmed inventory visibility and use. The initial no-loot
+report was clarified as an expectation of automatic pickup; manual corpse loot
+remains to be tested. Next: manual looting and the unresolved health-display
+alignment, plus broader respawn/character/location persistence validation.
 PR #97 includes the pinned startup and client-install receipts.
 
 

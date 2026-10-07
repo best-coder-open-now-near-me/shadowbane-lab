@@ -227,19 +227,24 @@ is not that proof.
   effect-data and client calculation alignment remain open; no measured server
   in-memory maximum or exact flat-offset cause has been established. Do not add
   1,000 HP merely to make the display agree.
-- **Loot:** the user reports no drops from Hulda, Winter Harpy and White Wolf.
+- **Loot:** the initial no-drop report covered Hulda, Winter Harpy and White
+  Wolf. The user then clarified they had expected automatic pickup and had not
+  realized corpses remained. Empty corpse inventories have not been confirmed.
   The running database contains 614 generator rows, 3,099 item rows and 22,745
   drop-set rows. Mob loot is enabled, normal drop/gold multipliers are 1.0, and
   all three mob bases reference populated drop sets. Their gold roll is about
-  60%, with additional item rolls; not every kill must drop something. No
-  source-type rejection was found in the inspected loot logs. Next establish
-  whether a corpse window is empty or fails to open, then trace that request.
+  60%, with additional item rolls; not every kill must drop something. The paired
+  source handles explicit corpse-window and item-loot requests; no automatic
+  pickup setting or implementation was found. Next verify manual corpse looting
+  in play before treating this as a loot-generation or protocol defect.
 
 One user-requested Greater Concoction Potion was created through the server's
 existing `item_CREATE` procedure with its template's five charges. The user
 returned to character selection before a clean restart reloaded inventory.
 The exact character/item receipt remains private in the main checkout's
 `artifacts/magicbane-local-runtime/potion-grant-20261007.json`; do not replay the
-grant. The item row was verified after restart; client visibility is pending user
-confirmation. No loot-rate, character-stat or administrator-privilege changes
-were made during these checks.
+grant. The item row was verified after restart. The user confirmed the potion
+appeared in inventory, was usable and seemed to apply buffs correctly. This
+confirms delivery and observed use, not full buff coefficient compatibility.
+No loot-rate, character-stat or administrator-privilege changes were made during
+these checks.
