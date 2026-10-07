@@ -4,72 +4,118 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
-## Optional potion diagnostics — October 7
+## Optional potion diagnostics - October 7
 
-`codex/potion-application-diagnostics-20261007` in bot-runtime starts from merged
-`origin/main` at `f2ea801` and targets `main`. It adds optional native item/power
-message observations; installed host .74/native .51 and their receipts are
-unchanged. See [the exact diagnostic boundary](item-application-diagnostics-20261007.md).
-The native slice builds and passes nine focused CTests plus eight real decoder
-cases on each original/prepared .14 image. The read-only exporter and mandatory
-package proof gates are in the same source task (draft PR #79); deployment remains separate.
+`codex/potion-application-diagnostics-20261007` in bot-runtime targets `main`
+through PR #79 and includes current main `b313a63` (merged deployment PR #77).
+It adds optional native item/power observations without changing the installed
+host .74/native .51 or their receipts. See [the diagnostic boundary](item-application-diagnostics-20261007.md).
+The native slice passes nine focused CTests and eight real decoder cases on each
+original/prepared .14 image. The read-only exporter and mandatory package gates
+passed independent review and 607 related tests. Release qualification and native
+installation remain separate from this source PR.
 
-## Registry observation churn handling - October 7
+## Active .74 host and official data-patch closeout - October 7
 
-New work starts from `origin/main` at `1ee3d6b`, including merged PR #76's
-host .73 worker identity repair. The focused source branch
-`codex/registry-observation-churn-20261007` in bot-command-ownership targets
-`main`; host .74 includes the merged worker repair plus this observation fix.
-Native .51 remains unchanged; no deployment has occurred.
+Start from freshly fetched `origin/main`, now
+`b313a63` after deployment records in PR #77 merged; PR #78 previously
+passed all 15 checks and merged. Exact source `18769f1d8228c64503a773fc42e145ec6eca94b0` is installed
+as host .74; native .51 and the prepared executable remain unchanged. Host .73 was not
+installed separately. PR #77 from `codex/native-identity-deployment-20261007`
+merged the deployment receipts into main.
+
+Qualification passed 5,056 host tests (37 skips), six native IPC suites and 466
+module checks. Apply/activation verified 9,588 retained files and zero client
+inventory changes. Manager 7548 is healthy with one paused worker. Exact old
+manager/worker shutdown used the production stop ledger before the host switch;
+settings/jobs stayed in place and no rollback runtime was created.
+
+Twelve compact receipts were exported. The .74 bounded NPC run observed exact
+health zero after one positive ATTACK but failed with child STOPPING and parent
+cleanup unconfirmed; final membership is unavailable. It is not a gameplay or
+buff-suite pass. Verified obsolete .72 retirement removed 2,122 host files and
+one wheel (49,799,696 bytes), without rollback copies.
+
+The later official data-only update changes just `cache/CObjects.cache` in a
+211-file manifest. Both cache writes and the bot package reseal verified, but
+final preservation checking caught the sole changing denied/unbound dispatch
+permit among 10,044 protected files. Reviewed finalization then verified all
+10,043 other files and reconciled only that denied record, preserving the initial
+failure receipt. Fresh launch succeeded with PID 1612, creation
+`134358364309881895`, HWND 4063778; host .74, native .51 and executable .14
+remain unchanged. Finalization receipt is `052a48aafe2480b0c2a5213f4e17674fcd19441f0d2fa2455f1fbf313f359628`.
+
+**Current next todo:** resolve the unconfirmed cleanup before further gameplay;
+login and fresh in-world readiness also remain required. The source repair lane
+is `codex/actor-cleanup-ownership-20261007` in bot-command-ownership; potion
+response diagnostics remain separate in bot-runtime.
+See the [deployment record](client-update-20261004.md).
+
+## Merged registry observation churn handling - October 7
+
+PR #78 merged after independent review and hosted checks. Its host .74 source
+includes PR #76's worker identity repair and is installed as recorded above;
+native .51 is unchanged.
 
 A successful native registry reread that disagrees with the captured snapshot is
-now a distinct unavailable-observation result. Preparation discards current
-coverage and rechecks the local actor/session identity; it cannot authorize a new
-action from the failed census. An already-submitted action retains its immutable
-request and polls native status while unrelated registry membership changes.
-Structural/read-budget failures and confirmed actor or session changes remain
-errors; missing status responses still request bounded exact cleanup.
+a distinct unavailable-observation result. Preparation discards current coverage
+and rechecks local actor/session identity; the failed census cannot authorize a
+new action. An already-submitted action retains its immutable request and polls
+native status while unrelated registry membership changes. Structural/read-budget
+failures and confirmed actor/session changes remain errors; missing status replies
+still request bounded exact cleanup. Independent review passed 145 focused tests.
+These semantics do not convert the later unconfirmed .74 cleanup into a pass.
 
-Independent review passed, including 145 focused tests. Next: exact-source host
-qualification and hosted checks, then merge this focused source PR.
-Runtime qualification and installation are separate; this source is not yet
-installed. The older sections below describe their dated development states.
+## Merged worker interpreter identity repair - October 7
 
-## Active worker interpreter identity repair - October 7
+PR #76 merged into `main` at `1ee3d6b` after all 15 hosted checks passed.
+Its host .73 source repairs the manager's worker startup handshake: a Windows
+venv launcher PID is not necessarily the worker interpreter PID. A retained launch
+nonce, canonical heartbeat and OS process ancestry/lifetime establish the exact
+stop address. Explicit replacement requests wait for predecessor exit and are
+cancelled by pause, detach or binding change; arbitrary failed workers are not
+automatically restarted. Native .51 is unchanged. This repair was delivered
+with the registry-read repair in one .74 update from installed .72; .73 was not
+installed separately.
 
-Start from freshly fetched `origin/main` (PR #75 merged at `a435a06`).
-`codex/worker-startup-identity-20261007` in bot-runtime repairs the manager's
-worker startup handshake: a Windows venv launcher PID is not necessarily the
-worker interpreter PID. A retained launch nonce, canonical heartbeat and OS
-process ancestry/lifetime establish the exact stop address. Explicit replacement
-requests wait for predecessor exit and are cancelled by pause, detach or binding
-change; this does not automatically restart arbitrary failed workers.
+## Historical .72 host-only identity and status delivery - October 7
 
-PR #76 targets `main`; candidate host .73 retains native .51 unchanged. Runtime
-installation and game validation remain separate; no native DLL or gameplay
-change is included.
-Next: independent review and hosted checks, then integrate and qualify the host.
+Start from freshly fetched `origin/main`; `main` remains the integration
+destination. PRs #74, #75 and #76 are merged; current main is `1ee3d6b`.
+The installed host remains exact .72 source below. PR #72 deployment records are
+merged at `2ad6b6c`. Exact combined
+host source `6d5abe5f74fd057fcf08c844027b6f58be9c5967` includes passive dashboard
+status from PR #74 and native client admission from PR #75. It removes screen
+calibration from native PvE/travel while retaining exact process, window,
+foreground, executable, character and native ownership checks.
 
-## Active native client admission repair - October 7
+The bot-integration checkout owns `codex/native-identity-deployment-20261007`,
+based on that exact source, for the delivery receipt checkpoint. **Host .72 is
+switched and its manager is running; native .51 is unchanged.** Apply verified
+466 modules and 9,586 retained files; shortcut updates passed. The running game
+was not restarted. Final activation independently verified the existing manager,
+one healthy paused worker and eight exact generated worker records. Twelve compact
+receipts were exported; verified retirement removed the old .71 host and wheel
+(49,711,497 bytes), preserving settings/jobs without rollback copies. A fresh bounded authorized player attack/cancel passed with one ATTACK,
+scoped NATIVE_STOPPED, later SEEKING and parent LOCAL_RELEASED; no errors,
+watchdog, unexpected stop or residual list membership. A subsequent NPC run
+observed exact-target health zero and child NATIVE_STOPPED, then failed during a
+later registry membership read; its overall result remains not passed. Parent
+LOCAL_RELEASED was confirmed. The earlier potion request remains remotely pending
+without consumption/application proof; no complete buff-suite pass is claimed.
 
-Start from freshly fetched `origin/main`. The shared merge destination remains
-`main`; the installed runtime is host .71 / native .51 from `2d1c928`.
-`codex/native-client-identity-20261007` in bot-command-ownership removes an
-inherited screen-calibration dependency from native PvE and travel. Native
-operations retain exact process creation, executable path, window identity,
-foreground ownership, character binding and native leases; screen size, DPI,
-window title and mapped input actions are not their admission criteria.
+Host-only package `artifacts/host72/6d5abe5` passed 5,022 host tests (39 skips,
+790 subtests), all six required movement/combat/actor IPC gates against both
+unchanged B51 native profiles, and 466 installed-module checks. Native source
+`2d1c928c5d9b3d130728dc936873df99de2edb51`, DLL and prepared client .14 remain
+unchanged. The procedure preserves the running game lifetime and user data;
+only idle host workers/manager may be stopped. No rollback runtime is retained.
 
-Deployment records are integrated through PR #72 at `2ad6b6c`. Passive dashboard
-status from PR #74 (`21c14a313b33ce2666e4647c848ef6b09f8cf502`) is included
-in this branch; all 15 hosted status checks passed. Host .72 combines status and
-identity admission while retaining the unchanged .51 native source/DLL. Neither
-host change is installed. Qualify and activate the combined host update before
-resuming the controlled DayOwl test. The
-prior passive PvP preflight stopped at the obsolete geometry check; no attack
-was sent. Buff renewal and combined combat handoff remain live validation todos.
+The subsequent .74 installation is recorded above; the unresolved potion
+response investigation remains distinct from registry-read/worker startup repair.
+See the [qualification and delivery record](client-update-20261004.md).
 
-## Active actor ownership deployment and passive status - October 7
+## Historical actor ownership deployment and passive status - October 7
 
 Start new work from freshly fetched `origin/main`, now
 `b17b003649fb927c5e5ef4ba0dec28d0a4968ff6` after PR #73 merged with all 15

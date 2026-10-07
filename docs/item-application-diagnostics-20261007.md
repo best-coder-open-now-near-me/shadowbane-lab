@@ -1,4 +1,4 @@
-# Optional item application diagnostics — October 7, 2026
+# Optional item application diagnostics - October 7, 2026
 
 The native recorder distinguishes a returned local item operation from incoming
 item and power messages. These observations cannot settle the application journal,
