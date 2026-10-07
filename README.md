@@ -11,13 +11,15 @@ with the October 7 official data-only cache update. Settings and jobs are preser
 
 PR #87's release is merged, qualified and installed. It adds peace-only direct
 power admission and optional owned-power diagnostics to the existing cleanup and
-potion-response paths. Launch is verified; passive readiness is not ready at
-login/loading, so user login and fresh readiness precede gameplay. No .76 live
-acceptance is claimed. Historical .75 runs reached all five native buff groups
-and a bounded NPC health-zero/cleanup pass; a later production run timed out with
-Beorc pending but confirmed aggregate owner cleanup. Sustained refresh remains
-unproven. Diagnostics do not supply application authority, and the peace-mode
-fix does not explain the pending Beorc request.
+potion-response paths. After login and fresh readiness, the .76 production run
+observed three native NPC health-zero results with confirmed child cleanup and
+all five buff groups PRESENT. It still failed when fourth-context admission and
+cleanup remained unconfirmed. Later native-idle readiness does not establish
+that missing cleanup receipt. A host cleanup-liveness repair is the next step;
+sustained refresh remains unproven and concoction coverage was pre-existing.
+Historical .75 evidence and the unresolved Beorc request remain recorded.
+Diagnostics do not supply application authority, and the peace-mode fix does
+not explain the pending Beorc request.
 
 The earlier authorized .74 Praeda test passed one native ATTACK queue/cancel,
 exact child cleanup, later SEEKING and parent release. This does not prove server

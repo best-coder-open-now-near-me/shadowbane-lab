@@ -37,13 +37,20 @@ receipt-only delivery checkpoint from main `7770df3`, targeting `main`.
 Installation/activation verified 467 modules, 9,615 retained files, one DLL
 inventory change and healthy manager 5820. Five shortcuts/preflight passed.
 Launch PID 4308, creation `134358592076268529`, HWND 2228630 verified the exact
-DLL; passive readiness remains not ready at login/loading. No .76 gameplay
-action or acceptance pass is claimed. Old .75 host and two payloads were removed
+DLL. Initial login/loading readiness was unavailable; later in-world readiness
+passed before production run `63ff90fb`. That run remains failed: three native
+health-zero/confirmed child-cleanup results and all five buff groups PRESENT did
+not prevent fourth-context admission/cleanup from remaining unconfirmed through
+187.547 seconds. Concoction was pre-existing; renewal remains unproven. Later
+owner NONE/no pending cleanup does not confirm the missing request receipt.
+Old .75 host and two payloads were removed
 (50,991,883 bytes), followed by four staging files (5,682,766 bytes); no rollback
 runtime was retained. See [the compact receipt record](client-update-20261004.md).
 Source branches remain until a separate ancestry/ownership cleanup; no active
-checkout is retired here. Next: user login and fresh readiness, focused native
-diagnosis of the pending-power failure, then sustained renewal evidence.
+checkout is retired here. Next: qualify the separately owned host cleanup-liveness
+repair, then resume production and sustained renewal validation. The receipt-doc
+commits are retained locally while GitHub ordinary pushes return server errors;
+their integration destination remains `main`.
 
 ## Historical .75/.52 deployment closeout - October 7
 

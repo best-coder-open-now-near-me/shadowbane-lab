@@ -1,6 +1,6 @@
 # Official client 1.3.38.14 update — October 4, 2026
 
-## Host .76/native .53 installed; login pending - October 7
+## Host .76/native .53 installed; production cleanup failure - October 7
 
 PR #87 merged the reviewed peace-mode admission and owned-power diagnostics
 slices. Exact qualified source is `490cba79e7804b27948e182996d8e2bab2d1f050`.
@@ -36,8 +36,8 @@ replacement; fresh closed-client checks and current settings hashes fenced it.
 Launch at `2026-10-07T15:06:55.7045506Z` verified PID 4308, creation
 `134358592076268529`, HWND 2228630 and the qualified DLL. The following passive
 receipt was **not ready**, with actor/movement data unavailable at login/loading.
-This is a verified launch, not in-world readiness. No gameplay action was sent
-on this runtime before this checkpoint; user login and fresh readiness are next.
+That initial receipt establishes launch, not in-world readiness. The user later
+logged in; fresh passive readiness passed before the production run below.
 
 All twelve compact exports and seven installed-file hashes were independently
 checked under `artifacts/bot-deploy/20261007-b53/receipts`. Export-manifest SHA-256
@@ -58,9 +58,50 @@ No user settings, job records or diagnostic evidence were retired.
 PR #89 separately merged the offline consumer fixture at `7770df3`. Its 20 cases
 on each exact .14 image qualify constructor/conditional health-write behavior
 with named substitutes, not live hostile attribution. Automatic retaliation
-remains disabled. The next gameplay todo is diagnosis of the pending Beorc
-action, followed by sustained renewal evidence; potion-overlap testing remains
-canceled by the user.
+remains disabled. Potion-overlap testing remains canceled by the user.
+
+### B53 production result and host cleanup liveness
+
+Production run `63ff90fb6506473c859cc5e7a6d4277f` remains **failed**. It exited
+with code 2 and `combat_cleanup_unconfirmed` at 187.547 seconds. The configured
+stop timer, emergency hotkey and attack-list change did not trigger termination.
+Before the failure, three tracked NPCs reached native health zero and each had
+a positive child cleanup receipt:
+
+| NPC key | Native health zero | Child cleanup confirmed |
+| --- | --- | --- |
+| `23885/37` | 4.406 s | 5.468 s, request `0x10` |
+| `23886/37` | 36.500 s | 37.562 s, request `0x66` |
+| `23887/37` | 61.765 s | 62.906 s, request `0xb8` |
+
+All five canonical native buff coverage groups were PRESENT by 31.922 seconds.
+Concoction coverage was already present at the first observation, so this is not
+evidence of a new potion use. Neither these observations nor the three native
+health-zero results prove sustained expiry/renewal or server kill credit.
+
+The fourth NPC, `23884/37`, had unconfirmed context admission at 67.422 seconds.
+At 72.437 seconds the host reported `action_resolution_timeout` and entered
+cleanup handling. Cleanup failed to produce a confirmed result before the
+terminal record at 187.547 seconds: request `0xc7`, `confirmed=false`,
+`owner_closed=false`, error `action_resolution_timeout`. The host cleanup
+liveness failure is being repaired separately; the original failed result is
+not reclassified as a pass.
+
+Subsequent read-only preflight `d6865045f5c740428f5558781a1a19ff` found the same
+live client ready, player alive, native owner NONE and `cleanup_pending=false`.
+That later state is useful recovery evidence, but it does **not** retroactively
+confirm request `0xc7` or establish exact child/parent cleanup for the failed run.
+
+Private evidence is under `bot-production-pve-20261007-b53`. Immutable hashes:
+
+- Invocation: `cc80439f881c097d6592c980fd8f5444d85921f9ddf02a43cbddb87d23271176`.
+- Production events: `f035ff57720f4e8e2ee76019dd80c315746d9b77089245e0015d70e439208642`.
+- Later passive preflight: `22f871864bdcfbb89ee6027c28d2d4548d0f8c762b5cb41a1ef8c11163e3d59d`.
+
+**Current next todo:** complete and qualify the host cleanup-liveness repair,
+then resume production validation with immutable cleanup receipts and sustained
+renewal evidence. This does not establish the cause of historical Beorc pending
+entry or enable automatic retaliation.
 
 ## Historical host .75/native .52 deployment - October 7
 
