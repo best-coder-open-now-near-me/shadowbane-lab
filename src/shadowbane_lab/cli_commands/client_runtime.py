@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import time
 
+from shadowbane_lab.client_extension.client_guard import NativeClientTarget
 from shadowbane_lab.client_input import (
     ArcaneClientAction,
-    ForegroundWindowGuard,
     WindowGuardError,
     WindowSnapshot,
 )
@@ -31,7 +31,7 @@ _PVE_TARGET_ACTIONS = (
 
 
 def _wait_for_guarded_client(
-    guard: ForegroundWindowGuard,
+    guard: NativeClientTarget,
     *,
     wait_seconds: float,
 ) -> WindowSnapshot:

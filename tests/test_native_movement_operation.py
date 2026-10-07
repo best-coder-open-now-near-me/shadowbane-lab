@@ -346,3 +346,28 @@ def test_real_parent_cancel_preserves_pending_native_owner_until_cleanup_ack():
         if process.poll() is None:
             process.kill()
             process.communicate()
+
+
+def test_native_operation_resize_does_not_revoke_but_replacement_does(setup):
+    from dataclasses import replace
+
+    from shadowbane_lab.client_extension.client_guard import NativeClientIdentityGuard
+    from shadowbane_lab.client_input import StaticWindowInspector, WindowBounds, WindowSnapshot
+
+    operation, session, _, _, decision, _ = setup
+    original = WindowSnapshot(
+        "sb.exe", "Shadowbane", WindowBounds(0, 0, 1920, 1080), 1.0, True, True,
+        r"C:\Games\sb.exe", 123, 789, 456,
+    )
+    inspector = StaticWindowInspector(original)
+    operation.guard = NativeClientIdentityGuard(inspector)
+    with operation:
+        inspector.snapshot = replace(original, client_bounds=WindowBounds(5, 10, 800, 600),
+                                     dpi_scale=1.5)
+        assert not operation.is_set()
+        assert operation.dispatch(decision).accepted
+        inspector.snapshot = replace(original, process_started_at_100ns=457)
+        assert operation.is_set()
+        inspector.snapshot = original
+        assert operation.is_set()
+    session.acquire.assert_called_once()
