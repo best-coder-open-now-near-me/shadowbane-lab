@@ -14,11 +14,12 @@ operations retain exact process creation, executable path, window identity,
 foreground ownership, character binding and native leases; screen size, DPI,
 window title and mapped input actions are not their admission criteria.
 
-Deployment documentation is published in PR #72. Passive dashboard status is
-published in PR #74 at `21c14a313b33ce2666e4647c848ef6b09f8cf502`;
-its full host suite passed after correcting an outdated test fixture. Neither
-dashboard status nor this admission repair is installed. Complete source review
-and qualification together before resuming the controlled DayOwl test. The
+Deployment records are integrated through PR #72 at `2ad6b6c`. Passive dashboard
+status from PR #74 (`21c14a313b33ce2666e4647c848ef6b09f8cf502`) is included
+in this branch; all 15 hosted status checks passed. Host .72 combines status and
+identity admission while retaining the unchanged .51 native source/DLL. Neither
+host change is installed. Qualify and activate the combined host update before
+resuming the controlled DayOwl test. The
 prior passive PvP preflight stopped at the obsolete geometry check; no attack
 was sent. Buff renewal and combined combat handoff remain live validation todos.
 

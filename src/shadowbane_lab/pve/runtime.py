@@ -45,6 +45,7 @@ from shadowbane_lab.pve.model import (
 )
 from shadowbane_lab.pve.native_actor import NativePreparationStatus
 from shadowbane_lab.pve.native_combat import NativeCombatUpdate
+from shadowbane_lab.pve.preparation_status import PreparationStatus, PvEProgress, capture_status
 from shadowbane_lab.travel.arrival import ArrivalTracker
 from shadowbane_lab.travel.runtime import TravelDecisionDispatcher
 
@@ -153,6 +154,7 @@ class PvERunner:
         maximum_consecutive_observation_failures: int = 3,
         maximum_retained_trace_steps: int | None = None,
         trace_sink: Callable[[PvERunTraceStep], None] | None = None,
+        progress_sink: Callable[[PvEProgress], None] | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
@@ -259,6 +261,9 @@ class PvERunner:
         self._poll_interval_seconds = poll_interval_ms / 1000.0
         self._maximum_consecutive_observation_failures = maximum_consecutive_observation_failures
         self._maximum_retained_trace_steps = maximum_retained_trace_steps
+        if progress_sink is not None and not callable(progress_sink):
+            raise ValueError("progress_sink must be callable")
+        self._progress_sink = progress_sink
         self._trace_sink = trace_sink
         self._clock = clock
         self._sleeper = sleeper
@@ -312,6 +317,19 @@ class PvERunner:
             status = getattr(self._actor_preparation, "latest_preparation_status", None)
             if step.preparation is None and isinstance(status, NativePreparationStatus):
                 step = replace(step, preparation=status)
+            if self._progress_sink is not None:
+                # Presentation failures cannot change native scheduling or cleanup.
+                try:
+                    preparation = (PreparationStatus.disabled() if self._actor_preparation is None
+                        else getattr(self._actor_preparation, "preparation_status", None))
+                    if not isinstance(preparation, PreparationStatus):
+                        preparation = capture_status((), None, None, captured_at=None,
+                                                     local_pending=False)
+                    self._progress_sink(PvEProgress(time.time(), step.decision.phase.value,
+                        step.decision.terminal_reason or step.decision.phase.value,
+                        step.decision.kills, preparation))
+                except Exception:
+                    pass
             trace.append(step)
             total_steps += 1
             if self._trace_sink is not None:

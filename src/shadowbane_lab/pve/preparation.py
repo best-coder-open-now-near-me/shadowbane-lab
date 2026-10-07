@@ -315,6 +315,11 @@ class PreparationPolicy:
         self._fault: str | None = None
 
     @property
+    def application_pending_groups(self) -> frozenset[str]:
+        """Presentation copy of retained application obligations; no policy advance."""
+        return frozenset(self._applications)
+
+    @property
     def pending_proposal(self) -> PreparationProposal | None:
         return self._pending
 

@@ -673,6 +673,7 @@ class PvERunner(_BasePvERunner):
         maximum_consecutive_observation_failures: int = 3,
         maximum_retained_trace_steps: int | None = None,
         trace_sink=None,
+        progress_sink=None,
         clock=time.monotonic,
         sleeper=time.sleep,
     ) -> None:
@@ -746,6 +747,7 @@ class PvERunner(_BasePvERunner):
             ),
             maximum_retained_trace_steps=maximum_retained_trace_steps,
             trace_sink=trace_sink,
+            progress_sink=progress_sink,
             clock=clock,
             sleeper=sleeper,
         )

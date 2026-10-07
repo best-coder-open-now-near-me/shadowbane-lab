@@ -425,6 +425,9 @@ class ManagerDashboardApplication:
                     slot.client_id,
                     instance_id=None if binding is None else binding.instance_id,
                 )
+                payload["pve"] = self._pve_summary(
+                    slot.client_id, payload["operation"], worker,
+                    None if binding is None else binding.instance_id)
                 payload["vendor"] = (
                     None if self._vendor_control is None else self._vendor_control.summary(
                         slot.client_id, None if binding is None else binding.instance_id,
@@ -491,6 +494,35 @@ class ManagerDashboardApplication:
         if not isinstance(result, ExtensionRuntimeSnapshot):
             raise RuntimeError("extension status provider returned an invalid snapshot")
         return result
+
+    def _pve_summary(self, client_id, operation_summary, worker, instance_id):
+        from .operation import WorkerOperationKind, parse_worker_operation_receipt
+        from .pve_status import project_status
+
+        unavailable = {"state": "unavailable", "current": False, "progress": None}
+        selected = operation_summary.get("active") or operation_summary.get("latest_result")
+        if selected is None or selected["operation"]["kind"] != WorkerOperationKind.PVE.value:
+            return unavailable
+        unavailable.update(
+            operation_id=selected["operation"]["operation_id"],
+            operation_state=(None if selected["receipt"] is None
+                             else selected["receipt"]["state"]),
+        )
+        provider = self._operation_status
+        if provider is None or not callable(getattr(provider, "inspect_pve_progress", None)):
+            return unavailable
+        try:
+            record = provider.inspect_pve_progress(client_id)
+            if record is None or selected["operation"] != record.operation.to_dict():
+                return unavailable
+            receipt = selected["receipt"]
+            snapshot = WorkerOperationSnapshot(
+                record.operation,
+                None if receipt is None else parse_worker_operation_receipt(receipt),
+            )
+            return project_status(record, snapshot, worker, instance_id)
+        except (OSError, RuntimeError, ValueError, TypeError, KeyError):
+            return unavailable
 
     def _operation_summary(
         self,

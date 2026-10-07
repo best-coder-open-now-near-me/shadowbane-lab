@@ -178,15 +178,20 @@ def test_worker_uses_current_character_settings_instead_of_assassin_default(tmp_
     from threading import Event
 
     from test_manager_movement import context, make_executor
+    from test_manager_operation import _permit
 
     from shadowbane_lab.cli_commands import manager
+    from shadowbane_lab.manager.operation import WorkerOperationKind, new_worker_operation
 
     _, session, _ = context()
     executor = make_executor(tmp_path, session)
     run = Mock(return_value=0)
     monkeypatch.setattr(manager, "_run_pve", run)
     dispatcher = object()
-    executor._execute_pve(stop_signal=Event(), movement_dispatcher=dispatcher)
+    operation = new_worker_operation(_permit(), WorkerOperationKind.PVE, "/pve", now=100.0)
+    executor._execute_pve(
+        operation=operation, stop_signal=Event(), movement_dispatcher=dispatcher
+    )
     assert run.call_args.kwargs["policy"] is None
     assert run.call_args.kwargs["client_process_id"] == 123
     assert run.call_args.kwargs["movement_dispatcher"] is dispatcher
