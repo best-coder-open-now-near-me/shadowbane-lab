@@ -163,13 +163,12 @@ Deploy after a clean save/logout and verify the same existing character and the
 previously rejected build after restart. Do not reseed populated volumes or keep
 the superseded image/container for rollback.
 
-The earlier Human-only correction passed qualification for its guarded migration,
-a full isolated boot and clean restart, and the live private-host update. Account, character and item table
-checksums were identical before and after the update; the existing character
-was preserved. The new image was healthy with only the two intended VPN port
-bindings, and the database secret was absent from the startup log. Temporary
-test containers and the superseded runtime image were removed. Client retry,
-world entry, remote port-isolation checks and reboot startup remain pending.
-
-The expanded Elven correction is prepared with the same transaction guards;
-its new image must pass migration, startup and preservation checks before use.
+The full Human/Elven correction passed isolated migration tests, including
+upgrading the previously corrected Human-only database, and a complete
+login/world startup. The live update returned healthy. Account, character and
+item table checksums were identical before and after deployment; the existing
+character was preserved. The database secret was absent from startup logs, and
+VPN policy, firewall and port-publication guards passed. Temporary test
+containers and the superseded runtime image were removed. Client build retry,
+world entry/reconnect, remote port-isolation checks and reboot startup remain
+pending.
