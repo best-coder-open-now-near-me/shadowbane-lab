@@ -1,5 +1,16 @@
 # Git branch map
 
+## Offline hostile health consumer fixture - October 7
+
+`codex/hostile-health-consumer-probe-20261007` starts at freshly fetched main
+`a84f010` and targets `main`. Its standalone native probe executes exact .14
+constructor/field-transfer and conditional health-update code, with named
+instrumented dependencies. Twenty cases pass on both original and prepared
+images. It adds no runtime hook or automatic response authority. The next work
+is real participant/dispatcher and connection/message/action lifetime
+qualification; see [the evidence limits](hostile-consumer-evidence-20261007.md).
+The separate .76/.53 release candidate and installed .75/.52 are unchanged.
+
 **Deployment policy:** [No retained rollback artifacts](deployment-policy.md).
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
