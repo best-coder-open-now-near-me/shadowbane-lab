@@ -103,7 +103,7 @@ jobs:
         run: cmake -S native/steam_wasd -B build/steam-wasd -A x64
       - name: Build Steam add-on and launcher
         run: cmake --build build/steam-wasd --config Release
-      - name: Test Steam input ownership and camera basis
+      - name: Test Steam input ownership, camera basis, and parent frames
         run: ctest --test-dir build/steam-wasd -C Release --output-on-failure
 
   powershell-syntax:

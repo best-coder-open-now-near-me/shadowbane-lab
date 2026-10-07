@@ -12,8 +12,11 @@ inline Direction direction(unsigned keys, CameraBasis basis) {
     const float length = std::hypot(forward, right);
     if (!length || !basis.valid) return {};
     forward /= length; right /= length;
-    return {basis.forward.x*forward + basis.right.x*right,
-            basis.forward.z*forward + basis.right.z*right};
+    const Direction local{basis.forward.x*forward+basis.right.x*right,
+                          basis.forward.z*forward+basis.right.z*right};
+    const float local_length=std::hypot(local.x,local.z);
+    if(!std::isfinite(local_length) || local_length<1e-6F) return {};
+    return {local.x/local_length,local.z/local_length};
 }
 struct Controls {
     bool armed = false, moving = false;

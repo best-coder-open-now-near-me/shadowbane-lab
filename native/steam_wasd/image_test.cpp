@@ -1,5 +1,7 @@
 #include "image.h"
 #include "camera_fixture.h"
+#include "parent_frame.h"
+#include "controls.h"
 #include <map>
 #include <random>
 #include <algorithm>
@@ -58,6 +60,34 @@ int main(int argc, char** argv) {
         }
     }
     puts("216 screen rays matched the exact native Steam unprojection code.");
+    auto invert=reinterpret_cast<steam_wasd::InvertTransform>(reinterpret_cast<std::uintptr_t>(module)+steam_wasd::profile::invert_transform);
+    auto apply=reinterpret_cast<steam_wasd::ApplyTransform>(reinterpret_cast<std::uintptr_t>(module)+steam_wasd::profile::apply_transform);
+    unsigned parent_cases=0;
+    for(int parent_degrees=0;parent_degrees<360;parent_degrees+=15) for(float scale:{0.25F,1.0F,4.0F}) {
+        const double angle=parent_degrees*3.141592653589793/180;
+        steam_wasd::ParentTransform transform{{90000,40,-50000},{float(std::cos(angle/2)),0,float(std::sin(angle/2)),0},{scale,scale,scale}};
+        for(int view_degrees=0;view_degrees<360;view_degrees+=15) {
+            auto fixture=steam_wasd::test::camera(view_degrees*3.141592653589793/180,0.6,0.001);
+            auto world=steam_wasd::camera_basis(fixture.matrix,fixture.eye);
+            auto local=steam_wasd::parent_basis(world,transform,invert,apply);
+            check(local.valid,"native parent inverse conversion admitted");
+            for(unsigned keys:{unsigned(steam_wasd::w),unsigned(steam_wasd::a),unsigned(steam_wasd::s),unsigned(steam_wasd::d),unsigned(steam_wasd::w|steam_wasd::d)}) {
+                auto direction=steam_wasd::direction(keys,local);auto expected=steam_wasd::direction(keys,world);
+                steam_wasd::NativePoint input{direction.x,0,direction.z},output{};
+                auto rotation_only=transform;rotation_only.position={};apply(&rotation_only,&output,&input);
+                auto length=std::hypot(output.x,output.z);
+                check(length>0 && std::abs(output.x/length-expected.x)<0.0002F
+                    && std::abs(output.z/length-expected.z)<0.0002F,"parent-local step maps back to intended world direction");
+                ++parent_cases;
+            }
+        }
+    }
+    // Anisotropic native inverse scale must survive until key combination.
+    steam_wasd::ParentTransform scaled{{90000,40,-50000},{1,0,0,0},{2,1,0.5F}};
+    auto local=steam_wasd::parent_basis({{0,-1},{1,0},true},scaled,invert,apply);
+    auto diagonal=steam_wasd::direction(steam_wasd::w|steam_wasd::d,local);
+    check(local.valid && std::abs(diagonal.z/diagonal.x+4)<0.0001F,"native nonuniform scale retained");
+    printf("%u native parent-frame directions matched their intended world bearings.\n",parent_cases);
     FreeLibrary(module);
     puts("Exact Steam image and 12,800 native tree erases passed.");
 }

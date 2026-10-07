@@ -14,5 +14,6 @@ inline constexpr std::uintptr_t connection = 0x5a4a50, send = 0x5a56e0;
 inline constexpr std::uintptr_t text_input = 0xdf800, focus = 0x9f1090, inhibited = 0x73c0c0;
 // Native screen-ray origin and inverse screen-to-world matrix (a25d40).
 inline constexpr std::uintptr_t camera_eye = 0x105a904, camera_matrix = 0x105aa70;
+inline constexpr std::uintptr_t invert_transform = 0xc61b00, apply_transform = 0xc61ba0;
 inline constexpr std::uintptr_t unproject = 0x235df0;
 }

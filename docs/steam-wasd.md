@@ -6,6 +6,15 @@ WonderBane host .75/native .52 and must not replace its x86 runtime.
 
 ## Qualification status
 
+Version 0.1.2 adds object-local movement and same-character doorway continuity.
+All four local suites pass, including 8,640 native parent-transform direction
+checks, camera regressions, queue erases, and entry/exit/release ownership cases.
+The build is ready; installation awaits client exit, then live interior and
+boundary-crossing acceptance. The installed receipt below still describes 0.1.1
+until that replacement completes.
+
+### Accepted 0.1.1 camera baseline
+
 The user confirmed basic movement but found W pointing approximately screen-left
 and inconsistent behavior with auto-track. The attached `418bd22` runtime used a
 yaw assumption that does not represent the final rendered view. Its live status
@@ -80,13 +89,13 @@ Ctrl+Alt+F10 toggles movement; always release the keys once after enabling.
 W/S move forward/backward and A/D move left/right relative to the camera.
 Opposing directions cancel; diagonal directions have unit length.
 
-The add-on is currently limited to open ground (no parent-local coordinate
-frame). It yields while typing, using modifiers, inactive/minimized, in modal UI,
+Version 0.1.2 supports open ground and valid object-local coordinate frames.
+It yields while typing, using modifiers, inactive/minimized, in modal UI,
 or outside idle/moving states. A mouse click stops owned WASD movement before
 normal native click handling. Native movement preserves game collision and speed.
 It has no route playback, bot workflow, or packet construction.
 
-Status gate codes: 0 available, 1 disabled, 2 not foreground, 3 parent frame,
+Status gate codes: 0 available, 1 disabled, 2 not foreground, 3 invalid parent transform,
 4 modal/native window blocked, 5 modifiers/input inhibition, 6 typing,
 7 actor state/restriction, 8 no active world scene, 9 fault, 10 invalid camera basis.
 A fault disables further native operations. Restart the game before trying a
@@ -118,7 +127,7 @@ away from the camera eye and projected to the ground. Screen-right fixes the
 handedness. The exactly overhead case uses projected screen-up. Double precision
 scratch avoids cancellation at large world coordinates. Invalid/degenerate views
 stop owned movement and require a fresh key release before resuming. No camera
-setting is changed. Parent-local coordinate frames remain outside qualification.
+setting is changed. Version 0.1.2 adds the parent-frame conversion described below.
 
 The previously blocked camera-fix commits were pushed successfully. Private
 camera-corrected session evidence is `artifacts/steam-wasd/live-camera-status.log`.
@@ -127,3 +136,24 @@ The user also reported improved middle-mouse camera behavior. No native
 middle-mouse camera handler was changed. The existing input hook stops owned WASD
 on middle-button press; any benefit from corrected camera alignment is an
 unverified side effect, not a separately qualified camera feature.
+
+## Object-local movement (0.1.2)
+
+The actor pose's parent at +10 changes when it enters an ArcAssetStructureObject.
+Native picking at a25fbc resolves that parent's virtual transform interface using
+the vbtable entry at +10 and getter slot +8, then copies a 40-byte world transform
+(position, wxyz quaternion, scale). The add-on follows that same getter while
+holding a native reference and rechecks scene identity before and after the call.
+Native c61b00 inverts the copied transform and c61ba0 applies it to direction
+vectors; the source transform and client camera settings are never modified.
+Translation is removed before inversion to avoid cancellation at large world
+coordinates. Inverse scale is retained until the combined key direction is
+normalized in the actor's local ground plane.
+
+A parent change alone rebases the existing same-character movement owner, clears
+its previous pending route, and submits a fresh local destination. Held keys
+remain armed. Key-up on that same boundary cancels the owned actor in its current
+frame. Actor identity, world, or window changes still retire ownership and require
+neutral keys; no stop command transfers to the replacement actor. Degenerate or
+non-finite transforms block movement. Existing native pathfinding/collision and
+movement speed remain authoritative.

@@ -1,5 +1,7 @@
 #include "controls.h"
 #include "status.h"
+#include "parent_frame.h"
+#include "scene.h"
 #include <commctrl.h>
 #include <cmath>
 namespace steam_wasd {
@@ -19,13 +21,14 @@ unsigned captured{}, char_keys{};
 LONG initialized{};
 using Update = void(*)(void*, double);
 Update original{};
-struct Vec { float x{},y{},z{}; };
+using Vec = NativePoint;
 struct Ground { Vec point; unsigned pad{}; void* actor{}; void* parent{}; };
 static_assert(sizeof(Ground)==32);
-struct Scene { Ptr actor{}, window{}, world{}, parent{}; std::uint64_t id{}; } owner{};
+Scene owner{};
 Scene observed{};
 bool have_scene{};
 void* retained{};
+void* conversion_parent{};
 void* message{};
 ULONGLONG last_move{};
 Direction last_direction{};
@@ -40,9 +43,6 @@ bool capture(Scene& s) {
         || at<Ptr>(s.window)!=base+profile::window_vtable || at<unsigned>(s.window+0xb8)!=2) return false;
     s.id=at<std::uint64_t>(s.actor+0x18); s.parent=parent(s.actor);
     return s.id && finite(position(s.actor));
-}
-bool same(const Scene& a, const Scene& b) {
-    return a.actor==b.actor && a.window==b.window && a.world==b.world && a.id==b.id && a.parent==b.parent;
 }
 bool current() { Scene s; return capture(s) && same(s,owner); }
 void release_owner() {
@@ -102,9 +102,18 @@ bool cancel() {
     return current() && !find(at<Map>(owner.world+0x1a0),owner.id)
         && !find(at<Map>(owner.world+0x148),owner.id) && !at<Ptr>(owner.actor+0xf78);
 }
+bool refresh_owner(const Scene& scene) {
+    const auto result=rebase(owner,scene);
+    if(result==Rebase::retired) return false;
+    if(result==Rebase::parent_changed) {++stats.scene_changes;last_move=0;}
+    return true;
+}
 void stop() {
     if (!retained) return;
-    if (!current()) { ++stats.scene_changes; release_owner(); return; }
+    Scene scene;
+    // A doorway can change the frame before key-up is dispatched. Stop the same
+    // owned actor in its new frame; never transfer ownership to another actor.
+    if (!capture(scene) || !refresh_owner(scene)) { ++stats.scene_changes; release_owner(); return; }
     if (!cancel()) throw 1;
     Vec p=position(owner.actor);
     call<void(*)(void*,const Vec*)>(profile::destination)(retained,&p);
@@ -128,7 +137,6 @@ bool modified() { return (GetAsyncKeyState(VK_CONTROL)|GetAsyncKeyState(VK_MENU)
 unsigned gate(const Scene& scene) {
     if (!enabled) return 1;
     if (GetForegroundWindow()!=hwnd || IsIconic(hwnd)) return 2;
-    if (scene.parent) return 3; // Parent-local camera conversion not yet qualified.
     if (global<Ptr>(profile::modal) || !at<unsigned char>(scene.window+0xc9)) return 4;
     Ptr input=global<Ptr>(profile::input);
     if (!input || at<unsigned>(input+0x44)!=0 || modified()) return 5;
@@ -165,6 +173,25 @@ void steer(const Scene& scene,Direction vector) {
     if (!current()) { release_message(); release_owner(); controls.block(); return; }
     send_message(); ++stats.moves; last_move=now; last_direction=vector;
 }
+CameraBasis local_camera(const Scene& scene,CameraBasis basis) {
+    if(!scene.parent || !basis.valid) return basis;
+    call<void**(*)(void**,void*)>(profile::actor_ref)(&conversion_parent,reinterpret_cast<void*>(scene.parent));
+    Scene check;
+    if(!capture(check) || !same(check,scene)) {
+        call<void**(*)(void**,void*)>(profile::actor_ref)(&conversion_parent,nullptr);return {};
+    }
+    // Follow the native screen-ray conversion's virtual-base adjustment. This
+    // getter returns the parent's composed world transform, including ancestors.
+    const Ptr vb=at<Ptr>(scene.parent+8);
+    const Ptr iface=scene.parent+8+at<std::int32_t>(vb+0x10);
+    const Ptr getter=at<Ptr>(at<Ptr>(iface)+8);
+    if(getter<base+0x1000 || getter>=base+0xd71000) throw 1;
+    const auto* transform=reinterpret_cast<const ParentTransform*(*)(void*)>(getter)(reinterpret_cast<void*>(iface));
+    const ParentTransform copy=*transform;
+    call<void**(*)(void**,void*)>(profile::actor_ref)(&conversion_parent,nullptr);
+    if(!capture(check) || !same(check,scene)) return {};
+    return parent_basis(basis,copy,call<InvertTransform>(profile::invert_transform),call<ApplyTransform>(profile::apply_transform));
+}
 void tick() {
     ++stats.frames;
     Scene scene;
@@ -173,14 +200,21 @@ void tick() {
         if(retained) { ++stats.scene_changes; release_owner(); }
         publish(); return;
     }
-    bool same_scene=have_scene && same(scene,observed) && (!retained || same(scene,owner));
+    bool same_scene=have_scene && same_identity(scene,observed) && (!retained || same_identity(scene,owner));
+    if(same_scene && retained && scene.parent!=owner.parent) {
+        // Retire the previous frame's pending route, then compute a fresh local
+        // destination this tick. Held keys remain armed across this same-actor hop.
+        if(!refresh_owner(scene) || !cancel()) throw 1;
+    }
     observed=scene; have_scene=true;
     stats.keys=physical_keys(); stats.gate=gate(scene);
     const auto eye=global<Vec>(profile::camera_eye);
     const auto basis=camera_basis(global<CameraMatrix>(profile::camera_matrix),{eye.x,eye.y,eye.z});
     stats.yaw=basis.valid ? std::atan2(basis.forward.x,-basis.forward.z):0;
     if(!basis.valid && !stats.gate) stats.gate=10;
-    auto result=controls.sample(stats.keys,basis,stats.gate==0,same_scene);
+    const auto local=local_camera(scene,basis);
+    if(basis.valid && !local.valid && !stats.gate) stats.gate=3;
+    auto result=controls.sample(stats.keys,local,stats.gate==0,same_scene);
     if (!same_scene && retained) { ++stats.scene_changes; release_owner(); }
     if (result.stop) stop();
     if (result.steer) steer(scene,result.vector);

@@ -24,8 +24,10 @@ The user accepted WASD direction and release stopping with auto-track on and off
 Post-test status showed 265 move calls, 22 stop completions, idle state, no retained
 movement owner and no fault. Source publication succeeded after the GitHub outage.
 [Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
-targets main and includes main `7235c16`. Remaining: explicit chat/focus edge-case
-acceptance and final CI/review; it is not merged. See [Steam WASD](steam-wasd.md).
+targets main and includes main `7235c16`. Version 0.1.2 adds parent-local movement
+and same-character doorway continuity; all four local suites pass and the build
+awaits client exit for replacement. Remaining: live interior/boundary acceptance,
+explicit chat/focus edge checks and final CI/review; it is not merged. See [Steam WASD](steam-wasd.md).
 
 ## Installed .76/.53 delivery checkpoint - October 7
 
