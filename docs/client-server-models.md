@@ -107,6 +107,25 @@ python scripts/watch-wonderbane-models.py --pid PID --output NEW_DIRECTORY
 python scripts/audit-client-server-models.py --catalog CACHE_JSONL --sql PINNED_SQL --output NEW_JSON
 ```
 
+Schema 2 checks the native character name/server and local key before collection;
+`--character umbra --server Wonderbane` pins the requested character. A confirmed
+switch stops collection. Transient identity errors omit that sample's population.
+The live run was verified as Umbra on Wonderbane with the same key as the initial
+watcher. Names are private local metadata, not part of the published catalog.
+
+Before writing, duplicate filtering keeps first sightings, changes in kind/roles,
+owner, maximum health or alive/dead state, departures/returns, zone changes and
+error/recovery transitions. Position movement and ordinary current-health changes
+only update the compact last observation. This is a model-discovery journal, not
+a complete movement/damage trace. `entity-summary.json` keeps first/last seen,
+sighting/appearance/change counts and latest state; it updates every 15 samples
+and on stop. `status.json` exposes suppression and written-record counts. Population
+order does not matter, and failed reads do not mark objects as departed. Instance
+keys remain distinct from template IDs; duplicate-looking actors are not assumed
+to share an asset. The ledger stops at 10,000 distinct entity keys.
+
+Use `--skip-cache` when this same client catalog is already recorded; retain the
+original catalog reference beside the new run instead of copying it again.
 Defaults: one sample every two seconds, two hours, maximum 64 MiB of live JSONL.
 The one-time static catalog is separate (about 18 MB for this client). The output
 directory must be new; it is never reused or cleared. Create an empty `STOP` file in
