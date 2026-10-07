@@ -35,15 +35,15 @@ copies were retained. Four old .50 host/share staging binaries were also removed
 totaling 5,635,834 bytes. Twelve compact receipts and seven independently verified
 installed-file hashes are retained under `artifacts/bot-deploy/20261006-b51/receipts`.
 
-Draft PR #74 publishes passive production PvE/buff status at
+Open PR #74 publishes passive production PvE/buff status at
 `5da11d111cdbca81cc65ed25147ee75ed09a67d3`. Independent review and 335 affected
 tests passed, including exact-operation storage, stale capture/worker handling,
 missing-status presentation and dashboard rendering. Hosted CI found an outdated
 test call missing the required operation argument; a fixture-only correction is
 in progress. Hosted checks are not yet reported passing, and this status feature
-is not part of the installed package. Next: fresh login/readiness and bounded shared buff/combat
-handoff validation, followed by authorized player attack/cancel validation if that
-player is available. Sustained renewal and alternate-form reuse remain unproved;
+is not part of the installed package. Next: fresh exact-identity preflight and
+bounded authorized player attack/cancel validation while `DayOwl` is available,
+followed by shared buff/combat handoff validation. Sustained renewal and alternate-form reuse remain unproved;
 manual overlap testing is canceled and automatic retaliation remains disabled.
 
 ## Installed .70/.50 renewal repair - October 6
@@ -109,7 +109,7 @@ The user then reenabled controlled PvP: read-only native census uniquely observe
 `DayOwl` on Wonderbane, key `5845459/53`, approximately 8.55 units away. Census
 identity must be refreshed before action. At that checkpoint, ownership repair
 PR #73 and passive dashboard status were still in progress. PR #73 is now merged
-and installed as .71/.51 above; dashboard status is published separately in draft
+and installed as .71/.51 above; dashboard status is published separately in open
 PR #74. The historical B50 observation does not prove a renewal cycle.
 
 ## Installed .69/.49 buff scheduling repair - October 6

@@ -27,11 +27,12 @@ These are receipt identities, not continuing action authority.
 The obsolete .70 host and two .50 guest payloads were removed after verification,
 totaling 50,839,643 bytes. Four old .50 host/share staging binaries were removed
 (5,635,834 bytes). Twelve compact receipts and seven independently verified
-installed-file hashes are retained under B51 `receipts`. No rollback runtime is retained. The bot-integration checkout remains on
+installed-file hashes are retained under B51 `receipts`. No rollback runtime is
+retained. The bot-integration checkout remains on
 `codex/buff-renewal-deployment-20261006` for this deployment record and the B50
 evidence below.
 
-Passive production PvE/buff status is published separately in draft PR #74,
+Passive production PvE/buff status is published separately in open PR #74,
 `codex/pve-buff-status-20261006` at
 `5da11d111cdbca81cc65ed25147ee75ed09a67d3`, targeting main. Its 335 affected
 regressions and independent review passed. It projects existing observations to
@@ -40,9 +41,9 @@ states; it adds no runner or action controls. It is **not installed**. Hosted CI
 found an outdated test call missing the operation argument; its fixture correction
 is in progress, so hosted checks are not yet reported passing.
 
-Next: fresh in-world readiness and bounded combined buff/combat handoff validation,
-then agreed-player attack/cancel testing if the authorized player remains available.
-The previously observed `DayOwl` identity must be revalidated before any action.
+Next: fresh exact-identity preflight and bounded authorized player attack/cancel
+testing while `DayOwl` is available, followed by combined buff/combat handoff
+validation. The observed player identity must be revalidated before any action.
 Sustained renewal/alternate-form proof remains outstanding. Manual overlap testing
 is canceled; automatic retaliation is not enabled. See the
 [patch record](client-update-20261004.md).
@@ -84,7 +85,7 @@ renewal transition occurred, so that gate remains inconclusive.
 At this B50 checkpoint, the user reenabled controlled PvP against native `DayOwl`
 on Wonderbane and passive census found one matching player nearby. That historical
 sample is not current action authority. Ownership repair PR #73 was subsequently
-merged and installed as recorded above; passive status is now draft PR #74.
+merged and installed as recorded above; passive status is now open PR #74.
 The B50 run did not establish expiry, renewal or transform alternation.
 
 ## Installed buff capture freshness deployment - October 6
