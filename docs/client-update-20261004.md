@@ -60,7 +60,8 @@ failed and unchanged.
 
 **Current next todo:** once NPCs are available, perform bounded NPC/buff validation
 on .75/.52, including exact cleanup and diagnostic evidence for unresolved potion application.
-Automatic retaliation remains disabled; PR #82 is a separate source review.
+Automatic retaliation remains disabled. PR #83 also incorporates reviewed
+PR #82's client-evidence qualification plan, without runtime changes.
 
 ## Official data-only patch verified and launched - October 7
 

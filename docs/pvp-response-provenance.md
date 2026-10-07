@@ -55,9 +55,10 @@ generic fight traces cannot prove missing ownership or absence of stale events.
 The next source task is hostile-consumption and receive/action lineage
 qualification, with explicit rejection of transition/reuse counterexamples.
 
-This documentation correction is published separately on
-`codex/retaliation-client-provenance-20261007`, targeting `main`. It does not
-change the frozen combined .75/.52 release candidate or qualify a receiver.
+This documentation correction was reviewed in PR #82 on
+`codex/retaliation-client-provenance-20261007`. Its tip `d996c8a` is incorporated
+by ancestry into deployment closeout PR #83 for one combined documentation
+merge. It does not change the installed .75/.52 runtime or qualify a receiver.
 
 ## Historical finding - September 28, 2026
 

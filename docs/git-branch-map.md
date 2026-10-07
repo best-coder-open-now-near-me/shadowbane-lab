@@ -30,8 +30,11 @@ native queue/cancel and cleanup, without a server-damage or buff-suite claim.
 See the [deployment record](client-update-20261004.md) for original receipt hashes.
 
 `codex/buff-cleanup-deployment-20261007` in bot-integration owns this documentation
-checkpoint, based on merged main. PR #82's retaliation provenance work remains a
-separate open source review in bot-command-ownership; retaliation stays disabled.
+checkpoint in PR #83, based on merged main. It incorporates reviewed PR #82's
+remote tip `d996c8ac9b36a7534d9bf554adb748b8fff55c59` by ancestry so both
+documentation records can ship together. PR #82 can close after this combined
+PR merges; its client-evidence qualification remains source work, with automatic
+retaliation disabled. Neither document changes the installed runtime.
 **Current next todo:** once NPCs are available, bounded NPC/buff validation on
 .75/.52 with exact cleanup and evidence for unresolved potion application.
 
