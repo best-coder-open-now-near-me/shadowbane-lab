@@ -323,6 +323,7 @@ NativeActor::Operation NativeActor::SubmitImpl(){
                 ||power::InitiationEpoch()!=receipt.availability_epoch)){return Result(O::deferred);}
             if(receipt.availability==power::Availability::reuse_blocked){result=Result(O::power_reuse_blocked);result.reason=wire::Reason::power_reuse;return result;}
             if(receipt.availability==power::Availability::global_recovery){result=Result(O::deferred);result.reason=wire::Reason::recovery;return result;}
+            if(receipt.availability==power::Availability::stance_ineligible){result=Result(O::deferred);result.reason=wire::Reason::observation;return result;}
             return Result(receipt.availability==power::Availability::unknown?O::unavailable:O::rejected);
         }
         const bool good=receipt.append_observed&&receipt.followup_entered&&receipt.initiation_epoch
