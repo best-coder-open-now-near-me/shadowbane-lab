@@ -18,7 +18,8 @@ permissions:
   contents: read
 jobs:
   desktop-startup:
-    runs-on: windows-latest
+    # Match the reviewed VS 2022 generator; windows-latest now uses VS 2026.
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

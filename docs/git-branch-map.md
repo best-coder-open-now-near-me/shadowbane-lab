@@ -14,7 +14,10 @@ rejects the currently running exclusive-mode client as intended. No runtime has
 been installed; the next step is a live launch after the user closes that client,
 then mouse/Alt-Tab/Discord acceptance. The existing bootstrap checkout remains on
 `codex/magicbane-runtime-pairing`; the normal project checkout remains on `main`.
-This branch is published for review; it is not merged or live-qualified yet.
+Implementation `fe500a7c2ae2f467b57933464a6cf97a5830f8e0` is published in
+[draft PR #100](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/100).
+Hosted launcher validation uses the VS 2022 runner. This branch is not merged or
+live-qualified yet; retain its worktree for the pending acceptance check.
 
 ## Independent client baseline - October 7
 
