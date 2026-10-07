@@ -16,6 +16,7 @@ from shadowbane_lab.client_observation.native_population import (
 from shadowbane_lab.client_observation.native_registry import (
     NativeObjectRegistryReader,
     NativeObjectRegistryReadError,
+    NativeObjectRegistrySnapshotChanged,
 )
 
 
@@ -117,7 +118,7 @@ def test_final_verification_covers_every_membership_structure(part):
         block = bytearray(process.memory[process.crab])
         struct.pack_into("<I", block, 0 if part == "vtable" else 0x10, 999)
         process.memory[process.crab] = bytes(block)
-    with pytest.raises(NativeObjectRegistryReadError, match="changed"):
+    with pytest.raises(NativeObjectRegistrySnapshotChanged, match="changed"):
         reader.verify(snapshot)
 
 

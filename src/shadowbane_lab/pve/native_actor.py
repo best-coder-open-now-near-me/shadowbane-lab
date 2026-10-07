@@ -32,6 +32,9 @@ from shadowbane_lab.client_extension.actor_action_wire import (
     Verb,
 )
 from shadowbane_lab.client_extension.combat_wire_v2 import identity_digest, operation_digest
+from shadowbane_lab.client_observation.native_population import (
+    NativeCharacterPopulationSnapshotChanged,
+)
 from shadowbane_lab.pve.model import (
     PvECombatAcknowledgement,
     PvECombatCleanupResult,
@@ -173,12 +176,21 @@ class NativeActorCoordinator:
     def engagement(self):
         return None if self.context is None else self.context.context_id
 
-    def _current(self):
+    def _current_actor_identity(self):
         self.character_session.require_current()
         token, key, _ = self.population.observe_actor_identity()
         if (token, key) != (self.actor_token, self.actor_key):
             raise ValueError("parent actor lifetime changed")
-        hint = self.population.resolve_actor_address(local_key=key, token=token)
+        return token, key
+
+    def _current(self):
+        token, key = self._current_actor_identity()
+        try:
+            hint = self.population.resolve_actor_address(local_key=key, token=token)
+        except NativeCharacterPopulationSnapshotChanged:
+            # Unrelated membership churn must not conceal a changed local lifetime.
+            self._current_actor_identity()
+            raise
         if hint != self.parent.actor_hint:
             raise ValueError("parent actor address changed")
 
@@ -705,7 +717,10 @@ class NativeActorCoordinator:
 
         if self._settings is None:
             raise RuntimeError("preparation requires configured canonical selectors")
-        self._current()
+        try:
+            self._current()
+        except NativeCharacterPopulationSnapshotChanged:
+            return None
         if self._preparation_capture_revoked:
             raise native.PublicationError("preparation capture lifetime was revoked")
         if not self._registered:
@@ -843,80 +858,91 @@ class NativeActorCoordinator:
             self._preparation_publication = self._publication
             self._preparation_last_response = self.session.cleanup.clock()
 
-        if not self._ensure_open():
+        if self._preparation_command is not None:
+            # Query existing ownership without requiring a coherent unrelated-world census.
+            # The original command and native parent fence still validate every response.
+            if self._closed or self._terminal or not self._opened:
+                raise RuntimeError("pending preparation owner is not open")
+            self._current_actor_identity()
+            result = self._send(Verb.ACTION_STATUS, self._preparation_command)
+            return self._preparation_result(result, proposal, self._preparation_command)
+        try:
+            opened = self._ensure_open()
+        except NativeCharacterPopulationSnapshotChanged:
+            # This is unavailable observation, not native refusal or local settlement.
             self._require_preparation_response()
             return ack()
-        if self._preparation_command is None:
-            if not self._local_ready():
-                self._require_preparation_response()
-                return ack()
-            pub = self._preparation_publication
-            expected = policy.ActorIdentity(
-                self.parent.client_pid,
-                self.parent.client_creation,
-                self.parent.scene,
-                self.parent.actor_key,
-                self.actor_token,
+        if not opened:
+            self._require_preparation_response()
+            return ack()
+        if not self._local_ready():
+            self._require_preparation_response()
+            return ack()
+        pub = self._preparation_publication
+        expected = policy.ActorIdentity(
+            self.parent.client_pid,
+            self.parent.client_creation,
+            self.parent.scene,
+            self.parent.actor_key,
+            self.actor_token,
+        )
+        if (
+            pub is None
+            or not pub.complete
+            or proposal.actor != expected
+            or proposal.publication_epoch != pub.revision
+            or proposal.admission_revision != pub.admission_revision
+            or pub.admission_blocks
+        ):
+            raise ValueError("preparation proposal has no exact current publication")
+        group_index = next(
+            (i for i, g in enumerate(self._settings.groups) if g.group_id == proposal.group_id),
+            None,
+        )
+        choices = [
+            (s, a.action)
+            for s in self.manifest.selectors
+            if s.group == group_index
+            for a in self._settings.groups[group_index].alternatives
+            if a.action == proposal.action
+            and (
+                (s.kind == 3 and s.power_id == a.action.power_id)
+                or (s.kind == 4 and s.template_id == a.action.item_template[0])
             )
-            if (
-                pub is None
-                or not pub.complete
-                or proposal.actor != expected
-                or proposal.publication_epoch != pub.revision
-                or proposal.admission_revision != pub.admission_revision
-                or pub.admission_blocks
-            ):
-                raise ValueError("preparation proposal has no exact current publication")
-            group_index = next(
-                (i for i, g in enumerate(self._settings.groups) if g.group_id == proposal.group_id),
-                None,
-            )
-            choices = [
-                (s, a.action)
-                for s in self.manifest.selectors
-                if s.group == group_index
-                for a in self._settings.groups[group_index].alternatives
-                if a.action == proposal.action
-                and (
-                    (s.kind == 3 and s.power_id == a.action.power_id)
-                    or (s.kind == 4 and s.template_id == a.action.item_template[0])
-                )
-            ]
-            if len(choices) != 1 or not proposal.action.matches(proposal.operand):
-                raise ValueError("preparation action differs from canonical intent")
-            selector, _ = choices[0]
-            facts = next(x for x in pub.actions if x.selector == selector)
-            from shadowbane_lab.client_extension.actor_publication import Readiness
+        ]
+        if len(choices) != 1 or not proposal.action.matches(proposal.operand):
+            raise ValueError("preparation action differs from canonical intent")
+        selector, _ = choices[0]
+        facts = next(x for x in pub.actions if x.selector == selector)
+        from shadowbane_lab.client_extension.actor_publication import Readiness
 
-            if facts.readiness is not Readiness.READY:
-                raise ValueError("preparation action lacks native ready evidence")
-            kwargs = dict(
-                selector_index=selector.index,
-                manifest_digest=self.manifest.digest,
-                publication_revision=pub.revision,
-                snapshot_id=pub.snapshot_id,
+        if facts.readiness is not Readiness.READY:
+            raise ValueError("preparation action lacks native ready evidence")
+        kwargs = dict(
+            selector_index=selector.index,
+            manifest_digest=self.manifest.digest,
+            publication_revision=pub.revision,
+            snapshot_id=pub.snapshot_id,
+        )
+        if isinstance(proposal.operand, policy.ItemOperand):
+            if (
+                proposal.operand.item_key != facts.item_key
+                or proposal.operand.item_token != self._item_token(facts, pub)
+                or proposal.operand.template_key != facts.template_key
+            ):
+                raise ValueError("preparation item differs from exact published instance")
+            kwargs.update(
+                item_key=facts.item_key,
+                template_key=facts.template_key,
+                item_hint=facts.item_hint,
+                template_hint=facts.template_hint,
             )
-            if isinstance(proposal.operand, policy.ItemOperand):
-                if (
-                    proposal.operand.item_key != facts.item_key
-                    or proposal.operand.item_token != self._item_token(facts, pub)
-                    or proposal.operand.template_key != facts.template_key
-                ):
-                    raise ValueError("preparation item differs from exact published instance")
-                kwargs.update(
-                    item_key=facts.item_key,
-                    template_key=facts.template_key,
-                    item_hint=facts.item_hint,
-                    template_hint=facts.template_hint,
-                )
-            self._preparation_command = self._command(
-                action=Action(selector.kind), power_id=selector.power_id, **kwargs
-            )
-            self._preparation_proposal = proposal
-            self._local_command = self._preparation_command
-            result = self._send(Verb.SUBMIT, self._preparation_command)
-        else:
-            result = self._send(Verb.ACTION_STATUS, self._preparation_command)
+        self._preparation_command = self._command(
+            action=Action(selector.kind), power_id=selector.power_id, **kwargs
+        )
+        self._preparation_proposal = proposal
+        self._local_command = self._preparation_command
+        result = self._send(Verb.SUBMIT, self._preparation_command)
         return self._preparation_result(result, proposal, self._preparation_command)
 
     def _require_preparation_response(self):

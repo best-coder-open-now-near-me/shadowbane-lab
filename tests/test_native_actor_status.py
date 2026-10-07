@@ -53,7 +53,7 @@ def test_capture_age_not_renewed_by_same_native_capture_or_property_access(setup
     assert owner.preparation_status.captured_at == 150
 
 
-@pytest.mark.parametrize("failure", ["unavailable", "exception"])
+@pytest.mark.parametrize("failure", ["unavailable", "exception", "registry"])
 def test_failed_refresh_hides_coverage_but_preserves_real_local_pending(
     setup, monkeypatch, failure
 ):
@@ -75,6 +75,12 @@ def test_failed_refresh_hides_coverage_but_preserves_real_local_pending(
     owner.preparation_step()
     assert owner.preparation_status.local_pending
     fail = True
+    if failure == "registry":
+        from shadowbane_lab.client_observation import NativeCharacterPopulationSnapshotChanged
+
+        owner.population.resolve_actor_address.side_effect = (
+            NativeCharacterPopulationSnapshotChanged("membership changed")
+        )
     if failure == "exception":
         with pytest.raises(RuntimeError):
             owner.observe_preparation()

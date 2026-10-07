@@ -4,6 +4,27 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Registry observation churn handling - October 7
+
+New work starts from `origin/main` at `1ee3d6b`, including merged PR #76's
+host .73 worker identity repair. The focused source branch
+`codex/registry-observation-churn-20261007` in bot-command-ownership targets
+`main`; host .74 includes the merged worker repair plus this observation fix.
+Native .51 remains unchanged; no deployment has occurred.
+
+A successful native registry reread that disagrees with the captured snapshot is
+now a distinct unavailable-observation result. Preparation discards current
+coverage and rechecks the local actor/session identity; it cannot authorize a new
+action from the failed census. An already-submitted action retains its immutable
+request and polls native status while unrelated registry membership changes.
+Structural/read-budget failures and confirmed actor or session changes remain
+errors; missing status responses still request bounded exact cleanup.
+
+Independent review passed, including 145 focused tests. Next: exact-source host
+qualification and hosted checks, then merge this focused source PR.
+Runtime qualification and installation are separate; this source is not yet
+installed. The older sections below describe their dated development states.
+
 ## Active worker interpreter identity repair - October 7
 
 Start from freshly fetched `origin/main` (PR #75 merged at `a435a06`).

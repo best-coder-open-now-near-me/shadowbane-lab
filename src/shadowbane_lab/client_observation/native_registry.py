@@ -20,6 +20,10 @@ class NativeObjectRegistryReadError(RuntimeError):
     """No complete, stable registry membership observation is available."""
 
 
+class NativeObjectRegistrySnapshotChanged(NativeObjectRegistryReadError):
+    """Successful reads disagreed within one complete membership transaction."""
+
+
 @dataclass(frozen=True, slots=True)
 class NativeObjectRegistryProfile:
     executable_name: str
@@ -248,8 +252,10 @@ class NativeObjectRegistryReader:
     def verify(self, snapshot: NativeRegistrySnapshot) -> None:
         for address, expected in snapshot.evidence:
             if self._read(address, len(expected), snapshot.budget) != expected:
-                raise NativeObjectRegistryReadError("registry membership changed during read")
+                raise NativeObjectRegistrySnapshotChanged("registry membership changed during read")
         # Recheck roots after object reads as well as before them.
         for address, expected in snapshot.evidence[:4]:
             if self._read(address, len(expected), snapshot.budget) != expected:
-                raise NativeObjectRegistryReadError("registry roots changed during verification")
+                raise NativeObjectRegistrySnapshotChanged(
+                    "registry roots changed during verification"
+                )
