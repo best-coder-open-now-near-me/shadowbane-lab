@@ -15,6 +15,9 @@ REFERENCES = (
     ("items", "static_itembase", "ID", "CObjects.cache"),
     ("mob_loads", "static_npc_mobbase", "loadID", "CObjects.cache"),
     ("race_definitions", "static_rune_race", "ID", "CObjects.cache"),
+    ("base_class_definitions", "static_rune_baseclass", "ID", "CObjects.cache"),
+    ("profession_definitions", "static_rune_promotion", "ID", "CObjects.cache"),
+    ("rune_definitions", "static_rune_runebase", "ID", "CObjects.cache"),
     ("placed_buildings", "obj_building", "meshUUID", "CObjects.cache"),
     ("placed_zones", "obj_zone", "LoadNum", "CZone.cache"),
     ("zone_sizes", "static_zone_size", "loadNum", "CZone.cache"),
@@ -130,15 +133,96 @@ def analyze(catalog, sql):
     }
 
 
+def audit_inventory(records, catalog, sql):
+    """Aggregate template alignment only; do not export character or instance identities."""
+    templates = {}
+    for record in records:
+        event = record.get("delta") if record.get("kind") == "observation_recovered" else record
+        if not event:
+            continue
+        items = list(event.get("items", [])) + list(event.get("first_observed", []))
+        items += list(event.get("no_longer_observed", []))
+        for change in event.get("changed", []):
+            items.extend((change["before"], change["after"]))
+        for item in items:
+            key = tuple(item["template_key"])
+            if len(key) != 2 or key[1] != 0 or type(key[0]) is not int or key[0] <= 0:
+                raise ValueError("unsupported observed template namespace")
+            entry = templates.setdefault(key[0], {"instances": set(), "classes": set(),
+                                                   "raw_counts": set(), "instance_types": set()})
+            entry["instances"].add(tuple(item["item_key"]))
+            entry["instance_types"].add(item["item_key"][1])
+            entry["classes"].add(item["class"])
+            if item["quantity_raw"] is not None:
+                entry["raw_counts"].add(item["quantity_raw"])
+    client = defaultdict(list)
+    for row in catalog:
+        if row["archive"] == "CObjects.cache" and row["group_id"] == 0:
+            client[row["resource_id"]].append(row)
+    names = columns(sql, "static_itembase")
+    server = defaultdict(list)
+    for row in sql_rows(sql, "static_itembase"):
+        if len(row) != len(names):
+            raise ValueError("item database schema mismatch")
+        entry = dict(zip(names, row, strict=True))
+        server[entry["ID"]].append(entry)
+    rows = []
+    for template, evidence in sorted(templates.items()):
+        matches = client[template]
+        db_matches = server[template]
+        result = {
+            "template_id": template, "distinct_observed_instances": len(evidence["instances"]),
+            "native_classes": sorted(evidence["classes"]),
+            "native_instance_types": sorted(evidence["instance_types"]),
+            "observed_raw_counts": sorted(evidence["raw_counts"]),
+            "client_resource_matches": len(matches), "server_item_matches": len(db_matches),
+        }
+        if len(matches) == 1:
+            prefix = matches[0].get("object_prefix", {})
+            name = prefix.get("name")
+            result["client_prefix_type"] = prefix.get("object_type")
+            if name is not None and all(ord(c) >= 32 for c in name):
+                result["client_prefix_name"] = name
+        if len(db_matches) == 1:
+            result["server_definition"] = {
+                key: db_matches[0][key]
+                for key in ("name", "type", "numCharges", "useID", "useAmount")
+            }
+        rows.append(result)
+    return {
+        "templates": rows,
+        "unique_templates": len(rows),
+        "distinct_instances": sum(row["distinct_observed_instances"] for row in rows),
+        "missing_client_templates": [r["template_id"] for r in rows
+                                     if not r["client_resource_matches"]],
+        "missing_server_items": [r["template_id"] for r in rows if not r["server_item_matches"]],
+        "limitations": [
+            "Initial inventory is presence evidence, not a captured starter grant.",
+            "Raw counts are not assumed to mean stack size; some items have charges.",
+            "Instance types are runtime observations, not independently verified wire tags.",
+            "Template presence does not prove effect, appearance, or profession compatibility.",
+        ],
+    }
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--catalog", type=Path, required=True)
     parser.add_argument("--sql", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--inventory", type=Path, help="Optional passive inventory JSONL")
     args = parser.parse_args()
     sql_bytes = args.sql.read_bytes()
     with args.catalog.open(encoding="utf-8") as stream:
-        report = analyze((json.loads(line) for line in stream), sql_bytes.decode("utf-8"))
+        catalog = [json.loads(line) for line in stream]
+    report = analyze(catalog, sql_bytes.decode("utf-8"))
+    if args.inventory:
+        captured = args.inventory.read_bytes()
+        # A live journal may end mid-write. Only complete newline-terminated records count.
+        captured = captured[:captured.rfind(b"\n") + 1]
+        records = [json.loads(line) for line in captured.splitlines()]
+        report["observed_inventory"] = audit_inventory(records, catalog, sql_bytes.decode("utf-8"))
+        report["inventory_prefix_sha256"] = hashlib.sha256(captured).hexdigest()
+        report["inventory_prefix_bytes"] = len(captured)
     report["database_sha256"] = hashlib.sha256(sql_bytes).hexdigest()
     with args.catalog.open("rb") as stream:
         report["catalog_sha256"] = hashlib.file_digest(stream, "sha256").hexdigest()

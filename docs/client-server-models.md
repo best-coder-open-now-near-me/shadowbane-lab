@@ -179,3 +179,33 @@ presence only, not the grant's ordering, cause or packet contents. The known bot
 concentration-potion template is not assumed to be the starter potion's template.
 `latest-inventory.json` preserves the latest successful state; `status.json` reports
 waiting/recording/unavailable/stopped. These live records remain private.
+
+## Inventory and profession checkpoint
+
+The [October 7 inventory/profession report](../research/client-models/starter-inventory-and-professions-20261007.json)
+joins a fixed, hashed prefix of the private live inventory journal to the same
+client catalog and pinned SQL. All 31 observed item templates (66 distinct native
+instances) have exactly one CObjects group-zero resource and one server item row.
+The report exports template aggregates only, omitting character names, native
+instance IDs, positions and event timestamps. The optional `--inventory` audit
+argument consumes complete JSONL records only, so collection can continue.
+
+The known Greater Concoction Potion is one observed object with raw count 5 then
+4; its SQL definition has `numCharges=5`, `useID=429021400`, `useAmount=35`. It
+must not be reported as five separate potion objects. Uncharged equipment and
+gold can have this raw field zero, so it is not a universal stack-size field.
+The server Item serializer explicitly writes `chargesRemaining` separately from
+its item-count behavior; exact client field transfer remains to be aligned.
+
+All four base-class IDs, 33 promotion IDs and 315 rune-base IDs in the pinned
+server SQL exist in CObjects group zero, with no ambiguous joins. This proves
+resource availability, not matching promotion rules, stat formulas or effects.
+The running model/inventory watchers do not yet decode the character's learned
+profession/rune list; profession transition interpretation requires that evidence
+or a separately verified server event. Continue collection through promotion.
+
+The upstream Petition insertion is confirmed at `e2add187`, but no ordinal
+migration is justified from native object class numbers alone. The local old
+server already loads a client character. Resolve wire tags versus constructed
+native class identities before changing the 435 enum-related use sites or stored
+heraldry types.
