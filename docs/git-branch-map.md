@@ -11,8 +11,7 @@ startup prerequisite. Invalid identity and incompatible pending-manifest refusal
 still fail closed. Offline tests cover later recovery, imported potion history
 and ordinary NPC progress; this is not a diagnosed cause of the prior live stall.
 The isolated slice passed 182 related tests and independent review with 101
-focused tests. It awaits a separate draft PR targeting `main`; it is not merged
-or deployed. Next: review and qualify a later release after current host .77
+focused tests. Draft PR #92 targets `main`; it is not merged or deployed. Next: review and qualify a later release after current host .77
 validation; its existing package pins remain unchanged.
 
 ## Context cleanup progress - October 7
