@@ -1,5 +1,23 @@
 # Git branch map
 
+## Magicbane runtime pairing — October 7
+
+`codex/magicbane-runtime-pairing` reuses the clean `client-api-baseline` managed
+worktree and targets `main` from `cdaafb234cfe324cc1c750c77102cfcc76552f50`.
+Its [bootstrap receipt](magicbane-bootstrap.md) identifies the public image's
+actual source `bafb48fe14e5356a64137954cf2d79205835a204`, SQL and libraries.
+All 821 Java files matched Git after line-ending normalization and compiled to
+970 classes with those libraries. Runtime/database/client qualification remains
+pending behind the Docker stale-socket failure. Newer source `9866632` requires
+inputs absent from the inspected public SQL/library/data bundle.
+
+This source/documentation checkpoint is pending review and integration into main.
+PR #96 retains the separate client baseline; PR #95 owns server gameplay migration.
+Preserve all three lane notices during integration. The normal checkout stays on
+main. Keep this managed worktree while its local bootstrap inputs remain active.
+Next: recover Docker startup and qualify a pinned, persistent login/world server.
+
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from

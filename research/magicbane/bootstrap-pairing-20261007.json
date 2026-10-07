@@ -1,0 +1,207 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-10-07",
+  "purpose": "Pinned source/build/input provenance for initial server bootstrap; not live qualification",
+  "image": {
+    "repository": "docker.io/magicbane/magicbox",
+    "manifest_sha256": "20050d2a9a1e59deb83a270f78e5cd2111c5fc0a786651de0f0c1c39c56214a2",
+    "config_sha256": "914b44d019597f0e20b9181a6429576948913670a301b7a79114356c69074ed8",
+    "created_at": "2023-08-10T10:55:56.550499991-04:00"
+  },
+  "source": {
+    "repository": "https://repo.magicbane.com/MagicBane/Server.git",
+    "revision": "bafb48fe14e5356a64137954cf2d79205835a204",
+    "comparison": {
+      "embedded_java_files": 821,
+      "git_java_files": 821,
+      "exact_match_count": 0,
+      "lf_normalized_match_count": 821,
+      "substantive_mismatches": []
+    }
+  },
+  "database": {
+    "layer_index": 10,
+    "path": "home/mbbox/magicbane/mb.data/magicbane.sql",
+    "size": 13115683,
+    "sha256": "cbc0bb3607d6ba9fafa4b7ad5270ff2086cfb9814012d9671a2087e330a37226",
+    "create_table_count": 125
+  },
+  "application_libraries": [
+    {
+      "layer_index": 8,
+      "path": "usr/share/java/EnumBitSet.jar",
+      "size": 124955,
+      "sha256": "b00efa2272b2f9d78a07952015ace9d5aba61b5cf00b63fb0e6740bfe0c51255"
+    },
+    {
+      "layer_index": 8,
+      "path": "usr/share/java/HikariCP-4.0.3.jar",
+      "size": 159222,
+      "sha256": "7c024aeff1c1063576d74453513f9de6447d8e624d17f8e27f30a2e97688c6c9"
+    },
+    {
+      "layer_index": 8,
+      "path": "usr/share/java/JDA-4.2.0_168-withDependencies-min.jar",
+      "size": 4483880,
+      "sha256": "4d70172d225c28d787195f37bd0567d39ede9a8132d2162e0d4f4f461a0911ee"
+    },
+    {
+      "layer_index": 8,
+      "path": "usr/share/java/joda-time-2.3.jar",
+      "size": 581571,
+      "sha256": "602fd8006641f8b3afd589acbd9c9b356712bdcf0f9323557ec8648cd234983b"
+    },
+    {
+      "layer_index": 8,
+      "path": "usr/share/java/mysql-connector-java-8.0.23.jar",
+      "size": 2415211,
+      "sha256": "ff7d5b402afd39c12787471505a33a304103b238ec1b7a44e8936d3329da7535"
+    },
+    {
+      "layer_index": 8,
+      "path": "usr/share/java/slf4j-api-1.7.7.jar",
+      "size": 29257,
+      "sha256": "3c5b5c3411e1cf2d1f44513d7280eb72180875cbb5d4c924bb378cf3b7968267"
+    },
+    {
+      "layer_index": 8,
+      "path": "usr/share/java/slf4j-simple-1.7.7.jar",
+      "size": 10683,
+      "sha256": "3d191e7516dbb90f29025077e4d8a1efbb936ce387697783544764b654feb6b1"
+    },
+    {
+      "layer_index": 8,
+      "path": "usr/share/java/tinylog-1.3.5.jar",
+      "size": 107263,
+      "sha256": "d992bbe6ee974fb4ed93623c7b8de84cd37f7a2234d059203597da2c6fa1b31d"
+    }
+  ],
+  "build": {
+    "source_revision": "bafb48fe14e5356a64137954cf2d79205835a204",
+    "source_file_count": 821,
+    "jdk_version": "8.504.04.1",
+    "jdk_url": "https://corretto.aws/downloads/resources/8.504.04.1/amazon-corretto-8.504.04.1-windows-x64-jdk.zip",
+    "jdk_sha256": "7eaaa3fdc72fe39b466f6d18d1e30ada75cad21363c7c2544f2177c9bb090de6",
+    "exit_code": 0,
+    "class_file_count": 970,
+    "log_sha256": "66bcca1c459c184393ca1ea31a078957c7f00ee39c306aba62c0f924af7bc171"
+  },
+  "qualification": {
+    "source_compiles_with_image_application_libraries": true,
+    "database_import_tested": false,
+    "login_world_startup_tested": false,
+    "wonderbane_client_pairing_tested": false,
+    "production_ready": false
+  },
+  "newer_source_comparison": {
+    "revision": "9866632ad5aa083165170202d508a95e2bc556ba",
+    "required_table_absent_from_dump": "static_item_templates",
+    "required_class_absent_from_eight_application_jars": "org/json/JSONObject.class",
+    "required_asset_absent_from_data_layer": "home/mbbox/magicbane/mb.data/wpak/Powers.cfg",
+    "result": "not_a_drop_in_pairing"
+  },
+  "input_layers": [
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 28566230,
+      "digest": "sha256:d5fd17ec1767521cf97f61568096bfc9a7cd9c2d149576a7b43930c5a97062b0"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 16030281,
+      "digest": "sha256:d6c278c61debfbe9f611c21016f64c44a82024f8cbaec7a75cab80da024fab07"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 116514394,
+      "digest": "sha256:c338a75c1cfbb3f85cdedd8d9b07ab89ddb2e972dbe8523ccf9123677d55c5c3"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 4163474,
+      "digest": "sha256:598cb3a182affae74d10a2393b3d19e354d1a935a11c91c078c7e0507e721059"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 226571416,
+      "digest": "sha256:8d708b4fb216c1b0be1fdf259dffbe109dd07b57bec64b4889ac2bb57de910ea"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 4748,
+      "digest": "sha256:8c2abcc53e6fbbbe3f118242d485c52f45bac591113a247600a2ede25142ca82"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 1936,
+      "digest": "sha256:0c296c8150e45a892b6d79c5e34e076c9e7c25b4fe6b1abf7fc568573254eeab"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 6880081,
+      "digest": "sha256:0a182e16b7aa14f355ae8a16d3008b1754c425066753c9eff40301e1c784055e"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 7292733,
+      "digest": "sha256:843fb025821ce5c1dbc3204fdc431fea687c1b95d6445c4c630f5b222a6e7a80"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 2874,
+      "digest": "sha256:e87c748750d7a7b66158c6d9480a4f435abde5a7a273dab6da4d5f2590263e58"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 19915724,
+      "digest": "sha256:7275e5608da5b07188e4ab81a2e66a3947c940378b73dfce1a59c83c9a55225b"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 246,
+      "digest": "sha256:a29d6df3568080110d7ca380ec40db44b865a1f6240fe0456f382f95cd7dfa34"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 291,
+      "digest": "sha256:96ebd0d7a2cf0358327e620d8fa8c5c82b3bd644f35931fbe1e3bf0ba5bb99a8"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 125,
+      "digest": "sha256:905bf4fbd8a36b370e568e189e5c9b41f441b2d08094d14bd75f9d445d70b0ad"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 20287341,
+      "digest": "sha256:ae83192cd930f6c5e7b27bda572f337becc843178d353a4403922b245cedb677"
+    },
+    {
+      "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip",
+      "size": 32,
+      "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1"
+    }
+  ],
+  "data_assets": [
+    {
+      "name": "heightmaps.tar.gz",
+      "size": 12479358,
+      "sha256": "48db6a8040c0d3b9b6fbd70896d5f0319fa892cac30dfb712594b4b8a5cc3ea2"
+    },
+    {
+      "name": "3000000.png",
+      "size": 12575,
+      "sha256": "fa2863512530a6c5c8d021923c395b15604f403a6f35b460757943e67f963628"
+    },
+    {
+      "name": "3000001.png",
+      "size": 11237,
+      "sha256": "789de03fa492f349527a576641ad22395116aff0815ef6be720fd7815f85dd6c"
+    },
+    {
+      "name": "3000002.png",
+      "size": 10122,
+      "sha256": "31e16a52f95c965eeb83300438a972b9f32a5346750663d4ddc4832026ffb9e3"
+    }
+  ]
+}
