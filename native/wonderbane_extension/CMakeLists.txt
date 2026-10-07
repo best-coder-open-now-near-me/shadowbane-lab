@@ -30,6 +30,7 @@ add_library(
   movement_boundary_trace.cpp
   targeted_action_trace.cpp
   condemn_responses.cpp
+  item_application_trace.cpp
   condemn_native.cpp
   movement_controls.cpp
   movement_windows_input.cpp
@@ -1764,3 +1765,23 @@ if(BUILD_TESTING)
   add_test(NAME wonderbane_extension_actor_action_runtime COMMAND wonderbane_extension_actor_action_runtime_test)
   set_tests_properties(wonderbane_extension_actor_action_runtime PROPERTIES TIMEOUT 15)
 endif()
+
+if(BUILD_TESTING)
+  add_executable(wonderbane_extension_item_application_trace_test item_application_trace_test.cpp)
+  target_compile_features(wonderbane_extension_item_application_trace_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_item_application_trace_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_item_application_trace_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_item_application_trace_test PRIVATE advapi32 bcrypt)
+  set_property(TARGET wonderbane_extension_item_application_trace_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_test(NAME wonderbane_extension_item_application_trace COMMAND wonderbane_extension_item_application_trace_test)
+  foreach(step RANGE 1 6)
+    add_test(NAME wonderbane_extension_item_trace_install_${step} COMMAND wonderbane_extension_item_application_trace_test ${step})
+  endforeach()
+endif()
+
+add_executable(wonderbane_extension_item_application_trace_probe EXCLUDE_FROM_ALL item_application_trace_probe.cpp)
+target_compile_features(wonderbane_extension_item_application_trace_probe PRIVATE cxx_std_20)
+target_compile_definitions(wonderbane_extension_item_application_trace_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+target_compile_options(wonderbane_extension_item_application_trace_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+target_link_libraries(wonderbane_extension_item_application_trace_probe PRIVATE advapi32 bcrypt)
+set_property(TARGET wonderbane_extension_item_application_trace_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)

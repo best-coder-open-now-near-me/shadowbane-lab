@@ -265,3 +265,8 @@ int main(){
     live=false;Tick();Check(released==1&&!a::runtime.has_manifest&&!a::runtime.journal.LocalPending(),"confirmed actor retirement releases publication and lifetime journal");
     std::printf("actor runtime: %u checks, %u native submits, no failures\n",checks,calls);return 0;
 }
+
+namespace wonderbane::extension::item_trace {
+void OwnedReturn(const actor::wire::Command&,const movement::NativeScene&,actor::wire::Outcome,
+    actor::wire::Entry,actor::wire::LocalSettlement,std::uint32_t) noexcept {}
+}

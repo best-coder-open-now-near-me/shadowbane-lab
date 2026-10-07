@@ -4,6 +4,16 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Optional potion diagnostics — October 7
+
+`codex/potion-application-diagnostics-20261007` in bot-runtime starts from merged
+`origin/main` at `f2ea801` and targets `main`. It adds optional native item/power
+message observations; installed host .74/native .51 and their receipts are
+unchanged. See [the exact diagnostic boundary](item-application-diagnostics-20261007.md).
+The native slice builds and passes nine focused CTests plus eight real decoder
+cases on each original/prepared .14 image. A read-only exporter and mandatory
+package proof gates follow in the same task; deployment remains separate.
+
 ## Registry observation churn handling - October 7
 
 New work starts from `origin/main` at `1ee3d6b`, including merged PR #76's
