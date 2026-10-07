@@ -58,3 +58,12 @@ that is safe. Do not switch a checkout another active task is modifying.
 Publish the branch and provide its exact SHA, PR destination, validation, and
 remaining work. Before retiring a branch, verify reachability and preserve every
 dirty or untracked file; clean worktrees may still be referenced by other tasks.
+
+## Private-server small updates
+
+On October 7, 2026, the user authorized quick normal server restarts for small,
+already-authorized private-server changes. After validation, use a prompt
+graceful restart without an extra five-minute idle hold or another permission
+prompt for that scope. Preserve existing saved data and settings, keep private
+network restrictions, verify the deployed result, and remove superseded runtime
+artifacts. This supersedes the earlier idle-window maintenance procedure.

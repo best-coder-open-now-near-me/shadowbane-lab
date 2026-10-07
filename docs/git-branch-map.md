@@ -1,5 +1,31 @@
 # Git branch map
 
+## Magicbane runtime pairing — October 7
+
+`codex/magicbane-runtime-pairing` reuses the clean `client-api-baseline` managed
+worktree and targets `main` from `cdaafb234cfe324cc1c750c77102cfcc76552f50`.
+Its [bootstrap receipt](magicbane-bootstrap.md) identifies the public image's
+actual source `bafb48fe14e5356a64137954cf2d79205835a204`, SQL and libraries.
+All 821 Java files matched Git after line-ending normalization and compiled to
+970 classes with those libraries. The pinned Linux build and persistent login/world startup now pass, including
+a clean restart. Wonderbane client qualification remains pending. Newer source `9866632` requires
+inputs absent from the inspected public SQL/library/data bundle.
+
+This source/documentation checkpoint is pending review and integration into main.
+PR #96 retains the separate client baseline; PR #95 owns server gameplay migration.
+Preserve all three lane notices during integration. The normal checkout stays on
+main. Keep this managed worktree while its local bootstrap inputs remain active.
+Dedicated host client C:/Games/ShadowbaneLocal now has all 211 official files
+verified and the localhost route configured; its window opens and responds.
+User reports successful local world entry, play and death after correcting the
+version gate. A granted five-charge Greater Concoction Potion persisted across
+restart; the user confirmed inventory visibility and use. The initial no-loot
+report was clarified as an expectation of automatic pickup; manual corpse loot
+remains to be tested. Next: manual looting and the unresolved health-display
+alignment, plus broader respawn/character/location persistence validation.
+PR #97 includes the pinned startup and client-install receipts.
+
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from
