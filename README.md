@@ -5,17 +5,21 @@ Navigation diagnostics: [inspector usage, review branch and acceptance status](d
 ## Finding the current code
 
 Start from freshly fetched `origin/main`; the [branch map](docs/git-branch-map.md)
-records active source ownership and exact delivery receipts. Installed host **.75**
-and native **.52** use the reviewed official/prepared **1.3.38.14** executable,
+records active source ownership and exact delivery receipts. Installed host **.76**
+and native **.53** use the reviewed official/prepared **1.3.38.14** executable,
 with the October 7 official data-only cache update. Settings and jobs are preserved.
 
-PR #81's combined release is merged, qualified and installed. It includes aggregate
-cleanup ownership repair and optional potion-response diagnostics. Passive readiness
-is clean and in-world. The first bounded run reached all five native buff groups
-but timed out before NPC completion; the second passed exact NPC health-zero
-and cleanup checks. A later production run timed out with Beorc pending, but
-confirmed aggregate owner cleanup. Sustained refresh remains unproven.
-Diagnostics do not supply application authority.
+PR #87's release is merged, qualified and installed. It adds peace-only direct
+power admission and optional owned-power diagnostics to the existing cleanup and
+potion-response paths. After login and fresh readiness, the .76 production run
+observed three native NPC health-zero results with confirmed child cleanup and
+all five buff groups PRESENT. It still failed when fourth-context admission and
+cleanup remained unconfirmed. Later native-idle readiness does not establish
+that missing cleanup receipt. A host cleanup-liveness repair is the next step;
+sustained refresh remains unproven and concoction coverage was pre-existing.
+Historical .75 evidence and the unresolved Beorc request remain recorded.
+Diagnostics do not supply application authority, and the peace-mode fix does
+not explain the pending Beorc request.
 
 The earlier authorized .74 Praeda test passed one native ATTACK queue/cancel,
 exact child cleanup, later SEEKING and parent release. This does not prove server
