@@ -257,6 +257,7 @@ class ManagerDashboardApplication:
         self._lock = threading.RLock()
         self._slot_locks = {key: threading.RLock() for key in self._configs}
         self._stopping = False
+        self._pending_worker_starts: dict[str, str] = {}
         self._renewal_lock = threading.RLock()
 
     def reconcile_instances(self) -> dict[str, object]:
@@ -311,6 +312,22 @@ class ManagerDashboardApplication:
                 raise RuntimeError("manifest registry returned an invalid snapshot")
             if registry.node_id != self._manifest.node_id:
                 raise RuntimeError("manifest registry returned the wrong node")
+
+            # Retry only a start explicitly requested by this application. A
+            # stopping predecessor must exit before its replacement can launch;
+            # ordinary failed workers are not implicitly restarted.
+            for client_id, instance_id in tuple(self._pending_worker_starts.items()):
+                slot = current_by_id.get(client_id)
+                if (
+                    self._stopping or slot is None or not slot.dispatch_enabled
+                    or slot.instance_id != instance_id
+                ):
+                    self._pending_worker_starts.pop(client_id, None)
+                    continue
+                try:
+                    self._ensure_worker_for_slot(client_id)
+                except (ManagerSessionError, OSError, RuntimeError, ValueError) as exc:
+                    issues.append({"client_id": client_id, "detail": str(exc)})
 
             owned_instance_ids = {
                 slot.instance_id for slot in current.slots if slot.instance_id is not None
@@ -725,6 +742,7 @@ class ManagerDashboardApplication:
             )
             return
         if action in {"pause", "detach", "close"}:
+            self._pending_worker_starts.pop(client_id, None)
             self._worker_supervisor.revoke(
                 client_id,
                 reason=f"manager {action} action revoked worker dispatch",
@@ -754,6 +772,7 @@ class ManagerDashboardApplication:
 
         with self._renewal_lock:
             self._stopping = True
+            self._pending_worker_starts.clear()
             for config in self._manifest.clients:
                 self._worker_supervisor.revoke(config.client_id, reason=reason)
 
@@ -800,7 +819,10 @@ class ManagerDashboardApplication:
             raise RuntimeError(
                 "exact bound process/window identity is unavailable for worker bootstrap"
             )
-        self._worker_controller.ensure_started(client_id, matches[0])
+        self._pending_worker_starts[client_id] = slot.instance_id
+        process_id = self._worker_controller.ensure_started(client_id, matches[0])
+        if process_id is not None:
+            self._pending_worker_starts.pop(client_id, None)
 
     def _require_clear_launch_baseline(self, *, client_id: str | None = None) -> None:
         registry = self._registry.inspect()

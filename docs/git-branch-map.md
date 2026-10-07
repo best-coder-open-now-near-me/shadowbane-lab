@@ -4,6 +4,18 @@
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Merged worker interpreter identity repair - October 7
+
+PR #76 merged into `main` at `1ee3d6b` after all 15 hosted checks passed.
+Its host .73 source repairs the manager's worker startup handshake: a Windows
+venv launcher PID is not necessarily the worker interpreter PID. A retained launch
+nonce, canonical heartbeat and OS process ancestry/lifetime establish the exact
+stop address. Explicit replacement requests wait for predecessor exit and are
+cancelled by pause, detach or binding change; arbitrary failed workers are not
+automatically restarted. Native .51 is unchanged. This repair will be delivered
+with the registry-read repair in one .74 update from installed .72; .73 will not
+be installed separately.
+
 ## Active host-only identity and status delivery - October 7
 
 Start from freshly fetched `origin/main`; `main` remains the integration

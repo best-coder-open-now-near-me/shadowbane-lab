@@ -338,7 +338,9 @@ def test_stale_but_running_worker_is_not_replaced(tmp_path):
     controller = ManagedWorkerController(
         worker_fixture._manifest(), ledger, inspector, launcher, clock=lambda: 10000.0
     )
-    assert controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client()) is None
+    assert controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client()) == (
+        worker_fixture.WORKER_PROCESS_ID
+    )
     assert launcher.bindings == []
 
 
@@ -667,18 +669,28 @@ def test_retained_worker_child_recovers_failed_attachment_without_relaunch(tmp_p
             with pytest.raises(ExactClientWorkerError, match="attachment recovery"):
                 controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client())
             inspector.unavailable = False
+            token = json.loads(next(tmp_path.rglob(".launch-reservation")).read_text())["worker_id"]
+            publisher = WorkerHeartbeatPublisher(
+                controller._ledger, node_id=worker_fixture.NODE_ID,
+                client_id=worker_fixture.CLIENT_ID,
+                instance_id=worker_fixture._client().instance_id,
+                process=inspector.inspect(child.pid), worker_id=token,
+            )
+            publisher.publish(WorkerRuntimeState.STARTING)
             assert (
                 controller.ensure_started(worker_fixture.CLIENT_ID, worker_fixture._client())
-                is None
+                == child.pid
             )
             assert popen.call_count == 1
         assert controller.request_stop(worker_fixture.CLIENT_ID, reason="recovered stop") == 1
         token = json.loads(next(tmp_path.rglob(".launch-reservation")).read_text())["worker_id"]
         child.stdin.close()
         child.wait(10)
-        assert launcher.recover(child.pid, inspector, worker_id=token) is None
+        assert launcher.recover(
+            child.pid, inspector, worker_id=token, ledger=controller._ledger
+        ) is None
         with pytest.raises(ExactClientWorkerError, match="no retained"):
-            launcher.recover(os.getpid(), inspector, worker_id=token)
+            launcher.recover(os.getpid(), inspector, worker_id=token, ledger=controller._ledger)
     finally:
         if not child.stdin.closed:
             child.stdin.close()
@@ -796,7 +808,7 @@ def test_interprocess_semantic_retry_retains_first_envelope_and_deadline(tmp_pat
         ledger.submit(replace(later, worker_process_started_at_100ns=999))
 
 
-def test_unverified_child_exit_evidence_survives_another_worker_launch(tmp_path):
+def test_unverified_launcher_exit_stays_unresolved_across_another_launch(tmp_path):
     import subprocess
     import sys
     from dataclasses import replace
@@ -830,11 +842,16 @@ def test_unverified_child_exit_evidence_survives_another_worker_launch(tmp_path)
             children[0].stdin.close()
             children[0].wait(10)
             launcher.launch(replace(binding, worker_id="worker-22222222222222222222222222222222"))
-        # The first launch never durably acquired a creation time. Reaping it on
-        # another slot's launch would destroy the only safe proof of its exit.
-        assert launcher.recover(first, ProcessInspector(), worker_id=binding.worker_id) is None
+        # A launcher can exit before a redirected interpreter publishes. Retain
+        # this unverified ownership; another slot's launch must not erase it.
+        with pytest.raises(ExactClientWorkerError, match="attachment recovery"):
+            launcher.recover(
+                first, ProcessInspector(), worker_id=binding.worker_id,
+                ledger=WorkerHeartbeatLedger(worker_fixture._manifest(), tmp_path),
+            )
         with pytest.raises(ExactClientWorkerError, match="no retained"):
-            launcher.recover(children[1].pid, ProcessInspector(), worker_id=binding.worker_id)
+            launcher.recover(children[1].pid, ProcessInspector(), worker_id=binding.worker_id,
+                            ledger=WorkerHeartbeatLedger(worker_fixture._manifest(), tmp_path))
     finally:
         for child in children:
             if not child.stdin.closed:
