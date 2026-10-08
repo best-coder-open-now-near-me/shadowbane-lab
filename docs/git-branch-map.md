@@ -10,9 +10,10 @@ See [capture evidence](automatic-character-build.md) and
 [tester instructions](character-recorder.txt).
 Original .14 private-server native/diagnostic capture passed a three-sample live
 session. Offline dashboard/disabled-hook and synthetic-audio dictation checks pass.
-Source remains outside main pending review. Next: qualify the portable executable;
-have a tester validate Wonderbane gear, button correlation and actual microphone
-dictation. Destination content mapping/database import and authoritative private
+Portable source dc7b10851237 passed its embedded package checks; its exact
+archive receipt is in automatic-character-build.md. Source remains outside main
+pending review. Next: have a tester validate Wonderbane gear, button correlation
+and actual microphone dictation. Destination content mapping/database import and authoritative private
 server trace instrumentation remain separate unfinished work.
 
 

@@ -58,3 +58,31 @@ are unfinished and database_import_ready remains false.
 
 No raw memory dump, process write, debugger attachment, input automation,
 server credential, client binary or capture is included in source delivery.
+
+
+## Recorder package qualification
+
+The portable recorder built from source dc7b10851237b835ba8a417dd1e0c2ea7297bd41
+passed its embedded Windows widget, disabled-hook lifecycle, native-profile
+resource, dictation-helper resource and verified-evidence-bundle checks.
+Local deliverable:
+E:/Projects/shadowbane/artifacts/character-recorder/ShadowbaneRecorder-dc7b10851237.zip
+SHA-256: 5ace8e3c3f564cf572b489a6a731b46f4652df8867e02f26274efd13567b6e43.
+The adjacent qualification-dc7b10851237.json retains the embedded check receipt.
+The package directory includes its source revision and hashed file inventory.
+Failed intermediate build output and successful build scratch were removed;
+the current distributable and its expanded runnable folder remain.
+
+An installed MS-1033-80-DESK en-US recognizer transcribed two synthetic WAV phrases
+through both the PowerShell helper and Python bridge. This used no microphone.
+Real microphone accuracy and game vocabulary remain a tester acceptance item.
+Implementation uses the documented [System.Speech dictation API](https://learn.microsoft.com/en-us/dotnet/api/system.speech.recognition.speechrecognitionengine.-ctor?view=netframework-4.8).
+Transcripts retain confidence and audio-stream offsets; stream alignment is
+approximate, and corrected notes are separate records linked to the original
+transcript IDs. Dictation does not interpret speech as commands.
+
+135 focused automated tests passed before packaging. No real input was injected.
+The task worktree retains ignored research evidence in artifacts/watcher-layout
+at its original paths (static disassembly, scripts and synthetic-audio receipts),
+an isolated build toolchain in artifacts/recorder-build/venv, and the private live
+capture under captures/recorder-acceptance. These are not pushed or packaged.
