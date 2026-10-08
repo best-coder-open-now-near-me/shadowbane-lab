@@ -252,3 +252,6 @@ void TerrainTraceDraw(TerrainSubmission submission,std::uintptr_t caller,unsigne
     ++traces;if(!safe)++unsafe_traces;
 }
 }
+
+#include "moonfire.h"
+namespace wonderbane::extension::weapon {unsigned DrawMoonfire(const FireSettings&,double) noexcept {return 3;}}
