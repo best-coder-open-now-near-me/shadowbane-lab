@@ -286,7 +286,7 @@ bool Ready() noexcept {
 bool StartAtBootstrap(std::uintptr_t image, std::uintptr_t caller) noexcept {
     const DWORD error = GetLastError(); std::uintptr_t verified{}; HMODULE pinned{};
     const bool ok = StartupCurrent(image, caller)
-        && (GraphicsExecutableSha256Matches("0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d") || GraphicsExecutableSha256Matches("78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903"))
+        && (GraphicsExecutableSha256Matches("0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d") || (GraphicsExecutableSha256Matches("78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903") || GraphicsExecutableSha256Matches("e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437")))
         && movement::VerifyNativeMovementImage(verified) && verified == image
         && GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
             reinterpret_cast<LPCWSTR>(&StartAtBootstrap), &pinned)

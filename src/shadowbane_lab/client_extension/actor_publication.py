@@ -489,7 +489,8 @@ class Reader:
             and binding.process_creation_filetime_utc == self.manifest.client_creation
             and binding.executable_sha256
             in ("0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d",
-                "78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903"),
+                "78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903",
+                "e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437"),
             "unqualified publication session",
         )
         header, payload = _copy_mapping(mapping_name(self.manifest))

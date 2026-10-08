@@ -188,8 +188,8 @@ int main(int argc,char** argv) {
         std::vector<unsigned char> file(static_cast<std::size_t>(length));input.seekg(0);
         if(!input.read(reinterpret_cast<char*>(file.data()),length)){throw std::runtime_error("short executable");}
         const auto hash=Digest(file.data(),file.size());
-        if(hash!="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e"
-            &&hash!="78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903"){
+        if((hash!="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e" && hash!="381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5")
+            &&(hash!="78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903" && hash!="e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437")){
             throw std::runtime_error("unreviewed image");}
         Arena arena;if(!arena.bytes){throw std::runtime_error("arena allocation failed");}
         arena_base=reinterpret_cast<std::uintptr_t>(arena.bytes);

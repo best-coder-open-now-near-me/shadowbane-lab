@@ -107,7 +107,9 @@ def test_generic_name_or_id_reads_native_rank_and_names_on_same_handle(setup, se
 
 
 @pytest.mark.parametrize("image", [ORIGINAL, PREPARED,
+    "381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5",
     "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
+    "e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437",
     "78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903"])
 def test_only_exact_reviewed_original_and_prepared_images_are_admitted(setup, image):
     session, process, _, _ = setup

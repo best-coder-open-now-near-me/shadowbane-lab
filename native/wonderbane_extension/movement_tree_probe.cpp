@@ -242,7 +242,7 @@ int RunProbe(int argc, wchar_t** argv) {
             || digest == "cae5311b5b6134bf25155b16c70b1743c1216c0bd0c88f1240d7e92388211d26"
             || digest == "6347b420c6c151995f168f16fd1624408dd8911698d11a4a74b26d211fb49f19"
             || digest == "3891fcab09dac06d858ac55911046448e75f3519e2f58e1d7c2ccc954aa410b7"
-            || (digest == "e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8" || digest=="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e"),
+            || (digest == "e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8" || (digest=="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e" || digest=="381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5")),
             "unsupported executable");
         struct Segment { std::size_t offset; std::size_t size; const char* sha256; };
         constexpr std::array segments{
