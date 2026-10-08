@@ -1,5 +1,24 @@
 # Git branch map
 
+## Character transfer capture - October 8
+
+codex/character-transfer-capture owns an isolated managed worktree and targets
+main through PR #101. It now adds the user-friendly Companion installer,
+automatic character discovery, reviewed report delivery and private ingestion
+sidecar to the original recorder/dictation work.
+See [delivery operations](character-report-delivery.md), [capture evidence](automatic-character-build.md)
+and [tester instructions](character-recorder.txt).
+The original client identity profile is confined to capture; shared bot readers
+retain the existing original-image rejection gate. The CI regression is fixed.
+Source remains outside main pending review. The per-user installer and installed
+app passed qualification. Private HTTPS upload/retry passed using the installed
+connection, and the SYSTEM startup task is running with an AtStartup trigger.
+The user now intends personal use; the former friend is outside the acceptance
+plan. Next: a real personal recording with microphone/game-control correlation.
+A second computer needs separate delivery qualification if used. Database import
+and authoritative gameplay server instrumentation remain unfinished.
+
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from

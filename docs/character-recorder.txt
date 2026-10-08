@@ -1,0 +1,58 @@
+SHADOWBANE COMPANION
+
+Run ShadowbaneCompanion-Setup.exe once, then open Shadowbane Companion from
+your Start menu or desktop. You do not need Python or administrator access.
+
+1. Log into your character in the game.
+2. Click Find characters, choose your character, and Start recording.
+3. When something happens, click Mark this moment. Add typed notes or select
+   Start dictation, wait for MIC ON, speak, then Stop dictation.
+4. Correct any misunderstood words and Save explanation.
+5. Click Finish report. Review it in My reports, then click Send report.
+   Keep Tailscale connected. The app confirms when the private server receives it.
+   If delivery fails, your report is saved: select it and try again.
+
+The configured installer includes report delivery. Reports send only when you
+click Send report, and retries do not create duplicate reports. The installer
+and its upload connection are for the intended tester; share them privately.
+The optional portable ZIP remains available for developers.
+
+Recordings default to %LOCALAPPDATA%\ShadowbaneRecorder\captures.
+The dashboard accepts --output-root for a different local destination.
+Each session is limited to two hours and 128 MiB of timeline records. Evidence
+sealing and ZIP export require additional disk space. Earlier sessions are never
+silently deleted or overwritten.
+
+WHAT IT RECORDS
+- Current equipment slots, item identities, durability, charges/stack counts,
+  effect tokens, applied rune identities, attribute components, training and vitals.
+- Approximately one native/process sample per second and endpoints every five.
+- Optional foreground game key/button codes, mouse buttons/wheel and mouse motion
+  coalesced to at most 20 samples/sec. Inputs do not prove game actions occurred.
+- Incident marks, typed explanations, optional local speech transcripts/confidence.
+
+PRIVACY AND CONTROLS
+Input recording defaults off. Codes can expose in-game typing even though they
+are not decoded to text: pause before chat. Other foreground applications are
+excluded. Pause suspends native/input collection and stops dictation. The game
+must stay on the same character; logout or replacement ends the session.
+Dictation uses the default microphone only after you start it. It uses an installed
+Windows System.Speech dictation recognizer; missing recognizers/devices produce an
+error, and typed notes remain available. No microphone audio file is retained.
+Speech timing is approximate. Check names, abilities and item terms carefully.
+A speech transcript never triggers game controls, SQL or another action.
+No screenshots, memory dumps, packet payloads, credentials or automatic uploads.
+
+COMPATIBILITY AND LIMITS
+Native build capture requires exact original/prepared Wonderbane .14 images and
+matching code receipts. Private SB uses an explicit type-52 source protocol; the
+Wonderbane profile requires type 53. Unknown images are rejected.
+Source item/rune IDs need destination-content mapping. Attribute components may
+include buffs and equipment; base allocations remain unresolved. This is evidence,
+not a database import. Inventory, bank and vault are not comprehensively captured.
+A private-server gameplay recorder is included; authoritative server trace
+instrumentation and importing into the destination database are separate work.
+A full duration does not guarantee every event: focus, pause, input drops, read
+failures and early termination are represented in the evidence. Low-level Windows
+hook health cannot certify delivery of every hardware event.
+Source: PR #101, https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/101

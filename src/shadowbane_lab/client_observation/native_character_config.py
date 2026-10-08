@@ -92,12 +92,14 @@ class SelectedPlayerIdentity:
 class NativeCharacterConfigReader:
     """Bounded reads through an already-open, read-only process handle."""
 
+    reviewed_layouts = REVIEWED_CHARACTER_CONFIG_LAYOUTS
+
     def __init__(self, process: ReadOnlyProcessMemory) -> None:
         self.process = process
         layout = next(
             (
                 item
-                for item in REVIEWED_CHARACTER_CONFIG_LAYOUTS
+                for item in self.reviewed_layouts
                 if item.executable_sha256 == process.executable_sha256.lower()
             ),
             None,
@@ -124,7 +126,7 @@ class NativeCharacterConfigReader:
     def observe_local_key(self) -> NativeObjectKey:
         """Read the calibrated local typed key, bracketed by full character identity."""
         if self.process.executable_sha256.lower() not in {
-            layout.executable_sha256 for layout in REVIEWED_CHARACTER_CONFIG_LAYOUTS[1:]
+            layout.executable_sha256 for layout in self.reviewed_layouts[1:]
         }:
             raise ActiveCharacterError("local player key is not reviewed for this image")
         before = self.observe()
@@ -139,7 +141,7 @@ class NativeCharacterConfigReader:
     def observe_selected_player(self) -> SelectedPlayerIdentity:
         """Exact-image remote-player identity, bracketed by local and selection reads."""
         if self.process.executable_sha256.lower() not in {
-            layout.executable_sha256 for layout in REVIEWED_CHARACTER_CONFIG_LAYOUTS[1:]
+            layout.executable_sha256 for layout in self.reviewed_layouts[1:]
         }:
             raise ActiveCharacterError("selected-player identity is not reviewed for this image")
         local = self.observe()
