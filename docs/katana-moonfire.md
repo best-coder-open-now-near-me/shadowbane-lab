@@ -261,3 +261,39 @@ then post-install package verification and settings-preservation checks passed.
 The obsolete failed candidate was removed; compact diagnostic receipts remain.
 Next: user login to confirm native loading and both hand grips. No successful
 in-game result is claimed yet.
+
+
+## Live proportions and remaining demo work
+
+The user confirmed successful native loading and the katana appearance in game.
+The next demo slice adds a Katana tab to Graphics Lab: overall length from 60 to
+120 percent, Try 85 percent, and Reset to 100 percent. Width remains unchanged;
+the transform is anchored at the existing model origin used for the hand grip.
+Only the local character's two verified katana render instances qualify. The
+native callback restores matrix and enable state after each supported draw; it
+does not write actor, equipment, or render-object fields.
+
+The process-specific channel validates identity, sequence and finite bounds.
+The control begins at 100 percent on each game launch. Source tests cover both
+hands, foreign instances, changed actor/context, malformed controls, bounded
+render traversal and restoration. Native and host builds/tests are recorded with
+the candidate; installation and live visual acceptance remain pending.
+
+Active next step: qualify and install live proportions, then verify both hands
+while changing length in the panel. After that, finish the approved sparse white
+moon-fire and capture the katana demo. Keep draft PR #106 targeting main until
+those live results are established.
+
+After the katana demo: add a general Visual Inspector to Graphics Lab. Begin
+with self/current-target render trees and resolve mesh, texture and effect
+references through cache readers. Equipment slot/name mapping and door/scenery
+selection need separate validation. This is deferred follow-up work, not part
+of the current demo delivery.
+
+Validation checkpoint: 47 focused host tests, panel construction/range checks,
+and the full native build passed. Of 242 CTest entries, 237 passed, three private
+image checks skipped without arguments, and the two documented transparency
+diagnostics reproduced their reviewed counterexamples. The diagnostic classifier
+passed; all three private image checks passed when supplied the reviewed images.
+The final renderer/callback tests passed again after the lifecycle adjustment.
+These results qualify a local demo candidate, not live visual acceptance.

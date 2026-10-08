@@ -4,16 +4,13 @@
 
 codex/katana-moonfire includes main 500fe40 in its own managed worktree.
 It owns one local katana cosmetic experiment, not a general equipment system.
-Native visual inspection/tinting is validated. The model-only appearance swap is
-installed with the compression compatibility correction; live acceptance remains
-pending and moon-fire is uninstalled.
-Archon's Blade was found in the patched test VM and its actual mesh/texture
-preview, white square chain, adjustable hilt diamond and blade glow are verified in draft
-PR #106 targeting main. The user-approved six-slider preset is saved as the
-preview default in docs/katana-moonfire.md. Source is unfinished
-and remains outside main. The selected stand-in item now points to the katana
-render. The source-compression preservation correction is installed and
-package verification passes; a new login and hand-attachment check remain. Native effect work remains pending.
+Native visual inspection/tinting is validated. The model-only appearance swap
+is installed with the compression correction, and the user confirmed it renders
+in game. The approved mesh/texture and six-slider moon-fire preset are preserved
+in the preview. Live proportions controls are being qualified for Graphics Lab;
+they are not installed yet. Native moon-fire and the final demo remain pending.
+Draft PR #106 targets main; this unfinished source remains outside main. The
+general object Visual Inspector is deferred until after the katana demo.
 See [scope, evidence and next steps](katana-moonfire.md).
 
 ## Current Wonderbane client update — October 8

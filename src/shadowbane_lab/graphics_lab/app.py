@@ -26,6 +26,7 @@ from .control import (
     target_process_is_alive,
 )
 from .effects_panel import EffectsPanel
+from .katana import KatanaPanel
 from .presets import GraphicsPresetStore
 from .selected_cue import CuePanel
 from .sky_panel import SkyPanel
@@ -186,6 +187,7 @@ class GraphicsLabApp:
         notebook.add(preset_tab, text="Presets")
         self.effects_panel = EffectsPanel(notebook)
         self.sky_panel = SkyPanel(notebook)
+        self.katana_panel = KatanaPanel(notebook)
         self._build_outline_tab(outline_tab)
         self._build_lighting_tab(lighting_tab)
         self._build_preset_tab(preset_tab)
@@ -418,6 +420,7 @@ class GraphicsLabApp:
             self.client = GraphicsControlClient(target)
             self.effects_panel.connect(target)
             self.sky_panel.connect(target)
+            self.katana_panel.connect(target)
         except (OSError, RuntimeError, ValueError) as error:
             self.client = None
             self._show_status(f"Attach failed: {error}", error=True)
@@ -449,6 +452,7 @@ class GraphicsLabApp:
     def _disconnect(self) -> None:
         self.effects_panel.disconnect()
         self.sky_panel.disconnect()
+        self.katana_panel.disconnect()
         if hasattr(self, "cue_panel"):
             self.cue_panel.disconnect()
         if self.client is not None:
