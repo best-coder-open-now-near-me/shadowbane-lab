@@ -160,3 +160,52 @@ File Explorer. No second/headless game process or matching recent crash event
 was found; the evidence does not establish why another instance disappeared.
 The bounded invocation stopped before reaching its explicit Umbra identity check
 and sent no gameplay actions. Do not weaken that check to continue implicitly.
+
+
+## Live PvE and buffs after multi-client repair
+
+PR #110 merged the verified launcher delivery record at `230bfe7`. The subsequent
+production runs bound native **Umbra / Wonderbane**, PID 4100, creation FILETIME
+134359627798514406, HWND 329000, actor key `[4050960, 53]`, scene 1. The other
+client (Ictus, PID 264) was not controlled. Both invocations used native population,
+object identity, action and health evidence; no geometry profile or system-message
+parsing was used. Saved buff intent and the empty player attack list were preserved.
+
+Installed host .78 source is `6c8ea10aa34d9f585a8d6d8166a1af8707687ec7`.
+The separate cosmetic native overlay is
+`0f808385d83c731306021b38109e623bde265be1`, DLL SHA-256
+`e6dcdef161abac62b91c5275b3334c07f0a77d6755ef48c7dd950fa21689a2c7`.
+The overlay delta leaves actor/combat/movement/lease and IPC guard sources
+unchanged. This is not a claim that its DLL is the original B54 package DLL.
+
+- Run `a553c5d59c114237976da1afb1b32733`: one native health-zero NPC kill,
+  28.125 seconds, confirmed child cleanup, exit 0. Concoction, Precision,
+  Beorc Rune and defensive stance were PRESENT. Transform was missing.
+- Run `064d880f130a4e9e8626cd679a48c5ca`: two native health-zero NPC kills,
+  37.515 seconds, confirmed cleanup between encounters and at the kill limit,
+  exit 0. Rat Shape queued once, settled locally at 6.859 seconds, and canonical
+  coverage subsequently reported all five groups PRESENT.
+- Neither run reached its stop timer, received a hotkey stop, or changed the
+  attack list. Fresh read-only inspection after each run found native owner NONE,
+  no pending cleanup, a fresh ready scene, and Umbra alive.
+
+The first run's missing Transform was not a failed cast. Both alternatives were
+ready before Shot to the Leg entered combat mode. Their native definitions
+require peace mode, and later progress reported them not ready while mode was 2.
+This explanation is inferred from the native predicate and recorded mode; progress
+retains generic `not_ready`, not the raw native refusal enum. The next run began
+in peace mode and applied Rat Shape without a forced mode toggle or an all-buffs
+barrier. There is no demonstrated Transform scheduler defect from these runs.
+
+Private evidence remains under the diagnostics share's
+`bot-production-pve-20261008-multi/production-pve-<run-id>` directories. The second
+run's `production.json` SHA-256 is
+`0cc792b3873948dbbe914f3b7e03be73ccdda91fd26ccc5ebf9229c3bd776f43`;
+`progress.jsonl` is
+`908985f4ab16c03e208fcd50e0fca7f7030d28a1a69549365a4608ad2fa462b4`.
+Full captures and executable assets remain private; no fallback runtime was kept.
+
+Next: consolidate the pending preparation-registration and worker-attachment
+recovery source from PRs #92 and #94 into one qualified host-only update. Sustained
+buff expiry/reuse and alternating transformations remain unverified by these short
+runs; automatic PvP retaliation remains outside this acceptance result.
