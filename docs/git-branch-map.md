@@ -68,6 +68,19 @@ The probe is separate from the qualified .76/.53 runtime package.
 Recover from committed Git and official client assets; preserve settings and job
 records in place. Historical backup/rollback requirements below are superseded.
 
+## Steam WASD lane - October 7
+
+`codex/steam-wasd` targets the x64 Steam client independently of the x86 runtime.
+Version 0.1.1, exact installed source `60f7305`, uses the rendered camera matrix.
+The user accepted WASD direction and release stopping with auto-track on and off.
+Post-test status showed 265 move calls, 22 stop completions, idle state, no retained
+movement owner and no fault. Source publication succeeded after the GitHub outage.
+[Draft PR #88](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/88)
+targets main and includes main `7235c16`. Version 0.1.2 adds parent-local movement
+and same-character doorway continuity; all four local suites pass. Exact source
+`b7d7534` is installed with verified file hashes after confirmed client exit. Remaining: live interior/boundary acceptance,
+explicit chat/focus edge checks and final CI/review; it is not merged. See [Steam WASD](steam-wasd.md).
+
 ## Installed .76/.53 delivery checkpoint - October 7
 
 Start from freshly fetched `origin/main`, including merged PRs #87 and #89.
