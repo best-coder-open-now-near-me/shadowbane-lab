@@ -21,13 +21,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from shadowbane_lab.client_input.window import WindowsForegroundWindowInspector
-from shadowbane_lab.client_observation.native_character_config import NativeCharacterConfigReader
 from shadowbane_lab.client_observation.native_character_session import NativeCharacterSession
 from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
 from shadowbane_lab.client_observation.native_snapshot import (
     NativePlayerSnapshotReader,
     load_bundled_native_player_snapshot_profiles,
 )
+
+from .binding import CaptureCharacterReader as NativeCharacterConfigReader
 
 UNRESOLVED = [
     "race_base_class_promotion",

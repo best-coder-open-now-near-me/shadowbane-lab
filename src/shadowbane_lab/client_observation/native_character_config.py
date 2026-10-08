@@ -66,9 +66,6 @@ REVIEWED_CHARACTER_CONFIG_LAYOUTS += (
             executable_sha256="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d"),
     replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
             executable_sha256="78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903"),
-    # Original .14: identical exact load/save and UTF-16 encoder receipts.
-    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
-            executable_sha256="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e"),
 )
 
 
@@ -95,12 +92,14 @@ class SelectedPlayerIdentity:
 class NativeCharacterConfigReader:
     """Bounded reads through an already-open, read-only process handle."""
 
+    reviewed_layouts = REVIEWED_CHARACTER_CONFIG_LAYOUTS
+
     def __init__(self, process: ReadOnlyProcessMemory) -> None:
         self.process = process
         layout = next(
             (
                 item
-                for item in REVIEWED_CHARACTER_CONFIG_LAYOUTS
+                for item in self.reviewed_layouts
                 if item.executable_sha256 == process.executable_sha256.lower()
             ),
             None,
@@ -127,7 +126,7 @@ class NativeCharacterConfigReader:
     def observe_local_key(self) -> NativeObjectKey:
         """Read the calibrated local typed key, bracketed by full character identity."""
         if self.process.executable_sha256.lower() not in {
-            layout.executable_sha256 for layout in REVIEWED_CHARACTER_CONFIG_LAYOUTS[1:]
+            layout.executable_sha256 for layout in self.reviewed_layouts[1:]
         }:
             raise ActiveCharacterError("local player key is not reviewed for this image")
         before = self.observe()
@@ -142,7 +141,7 @@ class NativeCharacterConfigReader:
     def observe_selected_player(self) -> SelectedPlayerIdentity:
         """Exact-image remote-player identity, bracketed by local and selection reads."""
         if self.process.executable_sha256.lower() not in {
-            layout.executable_sha256 for layout in REVIEWED_CHARACTER_CONFIG_LAYOUTS[1:]
+            layout.executable_sha256 for layout in self.reviewed_layouts[1:]
         }:
             raise ActiveCharacterError("selected-player identity is not reviewed for this image")
         local = self.observe()

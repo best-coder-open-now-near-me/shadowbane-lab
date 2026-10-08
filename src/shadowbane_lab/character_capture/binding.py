@@ -1,17 +1,26 @@
 """Explicit source-protocol binding for the private server's own-player captures."""
 
 import struct
+from dataclasses import replace
 
 from shadowbane_lab.client_observation.native_character_config import (
+    REVIEWED_CHARACTER_CONFIG_LAYOUTS,
     ActiveCharacterError,
     NativeCharacterConfigReader,
 )
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
 
-from .build import SUPPORTED_IMAGES
+from .build import ORIGINAL_14, SUPPORTED_IMAGES
 
 
-class PrivateServerCharacterReader(NativeCharacterConfigReader):
+class CaptureCharacterReader(NativeCharacterConfigReader):
+    """Original .14 identity review belongs to read-only capture, not bot admission."""
+    reviewed_layouts = REVIEWED_CHARACTER_CONFIG_LAYOUTS + (
+        replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1], executable_sha256=ORIGINAL_14),
+    )
+
+
+class PrivateServerCharacterReader(CaptureCharacterReader):
     """Magicbane-derived GameObjectType.PlayerCharacter is wire type 52.
 
     Wonderbane's existing reader continues to require 53. This reader is used only

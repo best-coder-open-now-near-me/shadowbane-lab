@@ -8,7 +8,6 @@ import time
 
 from shadowbane_lab.cases.capture import CaptureQuality, CaptureRecordKind
 from shadowbane_lab.client_input.window import WindowsForegroundWindowInspector
-from shadowbane_lab.client_observation.native_character_config import NativeCharacterConfigReader
 from shadowbane_lab.client_observation.native_character_session import NativeCharacterSession
 from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
 from shadowbane_lab.client_observation.native_snapshot import (
@@ -17,6 +16,7 @@ from shadowbane_lab.client_observation.native_snapshot import (
 )
 from shadowbane_vanilla_diagnostics.windows import WindowsNetworkProbe, WindowsProcessProbe
 
+from .binding import CaptureCharacterReader as NativeCharacterConfigReader
 from .binding import PrivateServerCharacterReader
 from .build import BuildReadError, NativeCharacterBuildReader
 from .input import WindowsGameInput
