@@ -12,6 +12,7 @@ Install it as `launch-reviewed.ps1` beside a `reviewed-launch.json` configuratio
 {
   "schema_version": 1,
   "source_revision": "<qualified runtime source SHA>",
+  "prepared_source_revision": "<optional original base SHA when an installed overlay is active>",
   "client_sha256": "<prepared executable SHA-256>",
   "extension_sha256": "<qualified DLL SHA-256>",
   "official_executable": "<absolute official sb.exe path>",
@@ -44,5 +45,10 @@ in place; this change does not duplicate client assets or create rollback runtim
 
 Branch `codex/multiple-client-launch-20261008` starts from refreshed main
 `500fe40` and targets `main`. The deployed .78/.54 runtime source remains `6c8ea10`;
-this change updates launcher source/configuration only. Qualification, review and
-installation results will be recorded here before delivery completes.
+this change updates launcher source/configuration only. PR #108 merged the launcher after all 15 hosted checks passed on `4a6da9f`;
+29 executable assertions passed under both 32-bit and 64-bit Windows PowerShell.
+Installation detected a concurrently installed katana overlay before any writes.
+The follow-up `codex/multiple-client-overlay-20261008` retains that update by
+separating the prepared base source from the extension/receipt source. When the
+optional prepared source is present, its installed overlay receipt must match
+both the new source and DLL hash. Installation/live concurrency remain pending.

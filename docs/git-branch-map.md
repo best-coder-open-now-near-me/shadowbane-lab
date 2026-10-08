@@ -2,7 +2,9 @@
 
 ## Multiple client launch repair - October 8
 
-`codex/multiple-client-launch-20261008` owns bot-integration and targets `main`.
+`codex/multiple-client-launch-20261008` merged through PR #108. The follow-up
+`codex/multiple-client-overlay-20261008` owns bot-integration and targets `main`,
+preserving the concurrently installed katana overlay during launcher installation.
 It removes the private deployment launcher's global process-count gate and
 publishes separate process-lifetime receipts. See
 [the launcher delivery record](multiple-client-launch-20261008.md).

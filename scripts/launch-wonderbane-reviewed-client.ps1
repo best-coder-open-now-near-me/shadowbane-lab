@@ -72,6 +72,19 @@ function Write-LaunchRecord {
     return [pscustomobject]@{receipt_path=$individualPath;primary_preserved=[bool]$retainPrimary}
 }
 
+function Assert-ReviewedLaunchSource {
+    param($Config, $Status)
+    $preparedSource = [string]$config.source_revision
+    if ($config.PSObject.Properties.Name -contains 'prepared_source_revision') {
+        $preparedSource = [string]$config.prepared_source_revision
+        if ($preparedSource -cnotmatch '^[0-9a-f]{40}$') { throw 'Invalid prepared base source' }
+        if ($status.cosmetic_overlay.source_revision -cne $config.source_revision -or $status.cosmetic_overlay.dll_sha256 -cne $config.extension_sha256) {
+            throw 'Installed overlay differs from reviewed launch configuration'
+        }
+    }
+    if ($status.state -ne 'prepared_verified' -or $status.source_revision -ne $preparedSource) { throw 'Runtime differs from reviewed launch configuration' }
+}
+
 function Invoke-ReviewedClientLaunch {
     param([string] $RuntimeRoot)
     $ErrorActionPreference = 'Stop'
@@ -85,7 +98,7 @@ function Invoke-ReviewedClientLaunch {
     }
     if ([string]$config.source_revision -cnotmatch '^[0-9a-f]{40}$') { throw 'Invalid reviewed source' }
     $status = Get-Content -LiteralPath (Join-Path $RuntimeRoot 'prepare-status.json') -Raw | ConvertFrom-Json
-    if ($status.state -ne 'prepared_verified' -or $status.source_revision -ne $config.source_revision) { throw 'Runtime differs from reviewed launch configuration' }
+    Assert-ReviewedLaunchSource -Config $config -Status $status
     if ([string]$status.host_version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Invalid prepared host version' }
     $python = Join-Path $RuntimeRoot ('host-' + $status.host_version + '/Scripts/python.exe')
     $client = Join-Path $RuntimeRoot 'client'
