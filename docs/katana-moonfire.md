@@ -61,7 +61,7 @@ client binaries, credentials or captures. The active client was not changed.
 
 The user has designated a logged-in test character. Read-only inspection confirms
 the running test installation has the model/render/effect assets used by the preview.
-The equipped stand-in sword still needs identification before selecting a replacement. Do not infer bone semantics from
+The exact equipped stand-in item has been identified and an offline appearance candidate verified. Do not infer bone semantics from
 numeric values alone.
 Source is published on codex/katana-moonfire as unfinished work targeting main.
 The normal project checkout stays on main; this branch is isolated from the
@@ -193,3 +193,31 @@ Live baseline check: no client files, process memory or gameplay state were chan
 Detailed process provenance and screenshots remain private diagnostic evidence.
 Next: identify the equipped sword resource, qualify the local appearance swap,
 and then validate attachment and motion in-game.
+
+
+## Qualified offline appearance candidate
+
+`client_extension.item_appearance.build_item_appearance_cache` builds an exclusive
+new CObjects candidate, bound to the source digest. It changes one item primary
+render key to another item's key; all other target bytes and untargeted resource
+payloads are verified unchanged. It rejects non-item donors, scale differences,
+missing render references, duplicate resource keys, stale sources and existing
+output paths. A failed candidate is removed; the source stays read-only.
+The caller must qualify render dependencies, alternate render fields and attachment
+before installation. This API neither installs nor modifies a running process.
+
+The user named the same affixed sword in both hands. The exact item was found;
+its primary render and the katana share the attachment label, scale and location.
+Neither item has a female or low-detail alternate render. The candidate redirects
+only that named subtype, including both equipped copies and any other copy of
+that subtype rendered by this client. It is not a per-character override.
+An independent full item decode confirms that only the primary render field
+changes: stats and animation fields are identical. All 10,691 cache resources
+were checked. This is a model/attachment qualification candidate; the approved
+moon-fire still requires native effect work, not merely this reference swap.
+
+Ten focused appearance/cache navigation tests and Ruff passed. The generated
+candidate, receipts and exact target mapping remain private diagnostic artifacts.
+Source is delivered through draft PR #106; no game files have changed. Next:
+close the test client normally, apply the verified candidate against a fresh
+baseline, then log back in to verify both hand attachments before effect work.

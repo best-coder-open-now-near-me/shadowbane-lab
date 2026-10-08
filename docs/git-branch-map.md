@@ -9,8 +9,9 @@ Archon's Blade was found in the patched test VM and its actual mesh/texture
 preview, white square chain, adjustable hilt diamond and blade glow are verified in draft
 PR #106 targeting main. The user-approved six-slider preset is saved as the
 preview default in docs/katana-moonfire.md. Source is unfinished
-and remains outside main. Next is proving the native effect attachment and
-translating the study into an in-game override.
+and remains outside main. An offline model appearance candidate is verified for
+the selected stand-in item; client restart and live hand-attachment acceptance
+remain before native effect integration.
 See [scope, evidence and next steps](katana-moonfire.md).
 
 ## Context cleanup progress - October 7
