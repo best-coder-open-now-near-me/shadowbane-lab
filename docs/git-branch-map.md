@@ -1,5 +1,14 @@
 # Git branch map
 
+## Selected-object Visual Inspector — October 8
+
+`codex/selected-visual-inspector` continues from katana integration `e1e0527`
+in the existing katana worktree. It owns the now-authorized Visual Inspector:
+on-demand selected/self render snapshots, cache references and Graphics Lab UI.
+PR #106 remains unchanged; this lane targets main after that dependency.
+The native capture/cache checkpoint is validated; panel integration is active.
+No runtime has been replaced. The normal checkout remains on main.
+
 ## Katana and bot integration â€” October 8
 
 Start combined cosmetics/bot work from `codex/katana-moonfire`. Merge `9146542`

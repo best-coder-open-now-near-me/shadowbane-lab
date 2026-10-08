@@ -92,7 +92,7 @@ target_compile_definitions(
 if(WONDERBANE_EXTENSION_PROFILE STREQUAL "full")
   target_sources(wonderbane_extension PRIVATE
     navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
-    selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp weapon_appearance.cpp moonfire.cpp scene_context.cpp
+    selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp weapon_appearance.cpp visual_inspector.cpp moonfire.cpp scene_context.cpp
     scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp
     sky.cpp sky_draw.cpp sky_runtime.cpp sky_asset.rc)
   target_link_libraries(wonderbane_extension PRIVATE opengl32)
@@ -166,7 +166,7 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_scene_context_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_scene_context COMMAND wonderbane_extension_scene_context_test)
   add_executable(wonderbane_extension_selected_cue_runtime_test
-    selected_cue.cpp effects_attachment.cpp import_hook.cpp weapon_appearance.cpp selected_cue_runtime_test.cpp)
+    selected_cue.cpp effects_attachment.cpp import_hook.cpp weapon_appearance.cpp visual_inspector.cpp selected_cue_runtime_test.cpp)
   target_compile_features(wonderbane_extension_selected_cue_runtime_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_selected_cue_runtime_test PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
@@ -888,7 +888,7 @@ if(BUILD_TESTING)
   foreach(renderer_test wonderbane_extension_cel_shading_test wonderbane_extension_performance_telemetry_test)
     target_sources(${renderer_test} PRIVATE
       navigation_protocol.cpp navigation_channel.cpp navigation_draw.cpp navigation_viewer.cpp
-    selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp weapon_appearance.cpp moonfire.cpp scene_context.cpp
+    selected_cue.cpp selected_cue_gpu.cpp selected_cue_runtime.cpp weapon_appearance.cpp visual_inspector.cpp moonfire.cpp scene_context.cpp
     scene_draw.cpp effects.cpp effects_attachment.cpp effects_runtime.cpp effects_draw.cpp
     sky.cpp sky_draw.cpp sky_runtime.cpp sky_asset.rc)
     target_link_libraries(${renderer_test} PRIVATE opengl32)
@@ -1824,4 +1824,12 @@ if(BUILD_TESTING AND WONDERBANE_EXTENSION_PROFILE STREQUAL "full")
   set_property(TARGET wonderbane_extension_moonfire_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_moonfire COMMAND wonderbane_extension_moonfire_test)
   add_test(NAME wonderbane_extension_moonfire_gdi COMMAND wonderbane_extension_moonfire_test --gdi)
+endif()
+
+if(BUILD_TESTING AND WONDERBANE_EXTENSION_PROFILE STREQUAL "full")
+  add_executable(wonderbane_extension_visual_inspector_test visual_inspector_test.cpp)
+  target_compile_features(wonderbane_extension_visual_inspector_test PRIVATE cxx_std_17)
+  target_compile_definitions(wonderbane_extension_visual_inspector_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+  set_property(TARGET wonderbane_extension_visual_inspector_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_visual_inspector COMMAND wonderbane_extension_visual_inspector_test)
 endif()
