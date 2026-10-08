@@ -138,8 +138,8 @@ The preview adds a narrow white band at mesh Y 0.18–0.208 and a larger diamond
 at Y 0.29. The band wraps the blade root with four model-space faces and softly
 faded edges. The anchor diamond is 1.3 times the chain width and pulses every
 3.6 seconds, half the chain frequency. Both use the existing effect toggle,
-pause and depth-tested pass; size/pulse controls include the anchor. No new
-controls or original mesh/texture edits are needed.
+pause and depth-tested pass; the pulse control includes the anchor. The anchor
+now has its own size control. Original mesh/texture assets remain unchanged.
 
 Chrome acceptance still passes. Additional checks confirm finite bounded
 geometry, a steady collar while the anchor pulses, and error-free angled
@@ -147,3 +147,22 @@ rendering. Front and angled screenshots were visually inspected; private
 evidence is check-collar.cjs and preview/archon-collar-angle.png under
 artifacts/moonfire. This remains a browser study in draft PR #106 targeting
 main. Next: prove native attachment and transfer the effect into the test client.
+
+## Blade glow and hilt sizing controls
+
+The hilt diamond has an independent 25–250 percent size slider (100 percent
+preserves the previous default). Square size now adjusts only the blade chain.
+Glow strength spans 0–150 percent with a default of 45; width spans 40–400 percent
+with a default of 100. Strength zero disables both the blade surface emission
+and its soft additive halo. The master moon-fire checkbox disables all accents.
+Emission is masked above the guard using model-space height; it is independent
+of texture exposure. The six-vertex halo follows the projected blade and scales
+with zoom. This is an artistic browser approximation, not native bloom.
+
+Chrome acceptance passed independent hilt sizing with unchanged collar/chain,
+glow off/on and width pixel differences, slider extremes, front/back/edge views,
+finite geometry, narrow sidebar access and zero WebGL/page errors. Existing
+animation/control acceptance also passes. Front and angled screenshots were
+inspected. Private evidence: artifacts/moonfire/check-glow.cjs and
+preview/archon-glow-angle.png. Next remains native attachment and in-game transfer;
+source is pushed through draft PR #106, outside main.
