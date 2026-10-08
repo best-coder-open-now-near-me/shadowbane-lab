@@ -6,11 +6,12 @@ PR #105 merged the reviewed source `6c8ea10aa34d9f585a8d6d8166a1af8707687ec7`
 into `main` at `500fe40df1ed5d12218368fb076c4957eefd68ce` after all 15 hosted
 checks passed on that exact head. Package B54/40841b71 contains host 0.3.78 and
 native 1.8.54 from the same source. Independent review and qualification passed;
-installation and first-launch verification passed. Umbra is now in-world and
-fresh native readiness passes;
+installation and first-launch verification passed. Fresh native in-world readiness
+passes, but the later character identity read reports `ictus`, not Umbra;
 live attack and buff behavior is not yet validated. The bounded-run preflight
 stopped at the existing foreground-client guard before dispatch because another
-window was foreground. The user has been asked to foreground the game.
+window was foreground. No gameplay was started. Before any retry, resolve the
+intended character; foregrounding alone does not satisfy the Umbra identity check.
 
 The delivery record branch is `codex/client-update-delivery-20261008`, based on
 that merge and targeting `main`. Pending recovery PRs #92 and #94 remain
@@ -147,3 +148,15 @@ Twenty-four focused invocation tests and PowerShell parsing passed. The initial
 PowerShell wrapper cut off Python stderr; error capture was corrected without
 changing control logic. The resulting traceback identifies only the foreground
 client precondition; no production run or attack was started.
+
+## Character/window correction at 18:44 UTC
+
+The initial readiness reader verified process lifetime, native capabilities and
+local-player liveness, but did not verify the character name. Calling that result
+Umbra readiness was incorrect. A subsequent native character-session read reports
+`ictus` on Wonderbane in the same PID 5608. Window enumeration finds one game
+process in the testing VM, with its visible, non-minimized main window behind
+File Explorer. No second/headless game process or matching recent crash event
+was found; the evidence does not establish why another instance disappeared.
+The bounded invocation stopped before reaching its explicit Umbra identity check
+and sent no gameplay actions. Do not weaken that check to continue implicitly.

@@ -6,8 +6,9 @@ Start new bot work from refreshed `origin/main`. PR #105 merged exact client
 1.3.38.15 support at `500fe40`, retaining qualified source `6c8ea10`. Host .78 /
 native .54 package B54/40841b71 passed both native profiles and full host/IPC
 qualification. Installation, manager activation and all five shortcuts passed;
-Umbra is in-world with fresh native readiness passing. Live attack/buff checks
-await the game being foreground; preflight sent no actions. Obsolete runtime
+Native in-world readiness passes, but the verified character is `ictus`, not
+Umbra. Resolve the intended character before live attack/buff checks; the
+preflight stopped before dispatch and sent no actions. Obsolete runtime
 cleanup is complete. See
 [the delivery record](client-update-20261008.md).
 The receipt-only branch `codex/client-update-delivery-20261008` owns bot-integration
