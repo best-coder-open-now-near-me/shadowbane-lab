@@ -1,5 +1,48 @@
 # Git branch map
 
+## Client desktop fullscreen - October 7
+
+`codex/client-desktop-fullscreen` uses the dedicated managed
+`client-desktop-fullscreen` worktree. It starts from client baseline PR #96 at
+`b8654f07888ecd28b329d8c5848fb39cd0738c00` and targets `main` with that dependency.
+The [startup policy](client-desktop-fullscreen.md) preserves the desktop display
+mode and separates fullscreen presentation from the client's exclusive mode.
+The standalone native launcher is installed and live-verified at source
+`f665f106a72b29e69fbd7a489b6562271cc09925`; implementation is
+`fe500a7c2ae2f467b57933464a6cf97a5830f8e0`. All 17 hosted checks passed at that
+source revision. The first launch verified a 1920x1080 physical client area with
+all three desktop modes unchanged; other preferences and client assets were
+preserved. The user accepted the live result. The existing launch entry now uses
+the new launcher; see the startup document for exact binary identity and limits.
+
+[PR #100](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/100)
+is ready for review, not merged. Next: review/integrate dependency #96, then #100
+into `main`; retain the task worktree until integration. No startup implementation
+todo remains. The bootstrap checkout remains on `codex/magicbane-runtime-pairing`,
+and the normal project checkout remains clean on `main`.
+
+## Independent client baseline - October 7
+
+`codex/client-api-baseline` starts from `origin/main` at `cdaafb234cfe324cc1c750c77102cfcc76552f50`
+in the managed `client-api-baseline` worktree and targets `main`. It adds read-only
+Wonderbane .14/October 7 cache identification and the [independent client policy](client-distribution.md).
+It changes no live runtime, client assets or endpoint. This lane is separate from
+the coordinated authoritative server adapter mapping in Continue PvE/PvP bot work.
+Further client-circumvention harness development is on hold for the server pivot;
+the historical bot follow-ons are not own-server prerequisites.
+
+Source checkpoint `e3d8229ebd271a13e91c698f1f44a0d4694f0700` is pushed in
+[PR #96](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/96),
+pending integration. It passed 59 focused/CLI tests and 10 subtests, Ruff and diff
+checks; hosted checks are pending at publication. Use its feature branch until
+reviewed and merged, and continue other product work from fetched `origin/main`.
+The server migration mapping is published separately in
+[PR #95](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/95).
+Preserve both direction/ownership notices when integrating these parallel lanes.
+Next: complete baseline review, then resolve Docker startup and qualify a selected
+Magicbane source/data/runtime with this client. The normal project checkout stays
+on `main`; this worktree is retained for review, not as a deployment fallback.
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from
