@@ -124,10 +124,18 @@ class VisualInspectorClient:
     def read(self):
         if not self.address or not control.target_process_is_alive(self.target):
             raise OSError("Game closed or changed")
+        request_before = ctypes.c_uint32.from_address(self.address + 24).value
         first = ctypes.c_uint32.from_address(self.address + 32).value
         data = ctypes.string_at(self.address, SIZE)
         last = ctypes.c_uint32.from_address(self.address + 32).value
-        if first != last or HEADER.unpack_from(data)[7] != first:
+        request_after = ctypes.c_uint32.from_address(self.address + 24).value
+        header = HEADER.unpack_from(data)
+        if (
+            first != last
+            or header[7] != first
+            or request_before != request_after
+            or header[5] != request_before
+        ):
             raise ValueError("Visual snapshot is being published")
         return unpack(data, self.target)
 

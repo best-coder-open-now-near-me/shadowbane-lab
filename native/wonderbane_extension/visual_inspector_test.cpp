@@ -3,6 +3,7 @@
 #undef NDEBUG
 #include <cassert>
 #include <array>
+#include <fstream>
 namespace {wonderbane::extension::effects::Attachment owner{};bool change=false;unsigned resolves=0;}
 namespace wonderbane::extension::effects {
 Attachment Resolve(Reader,void*,std::uint32_t,std::uint32_t selection) noexcept {
@@ -14,7 +15,7 @@ bool SameIdentity(const Attachment& a,const Attachment& b) noexcept {
 }
 }
 #include "visual_inspector.cpp"
-int main(){
+int main(int argc,char** argv){
     using namespace wonderbane::extension::visual;
     std::array<std::uint32_t,128> actor{},root{},left{},right{};
     auto ptr=[](auto& v){return static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(v.data()));};
@@ -44,6 +45,7 @@ int main(){
     root[0x3c/4]=ptr(children);root[0x40/4]=ptr(children)+8;
     Start(0x400000);assert(channel);channel->request=2;Poll(true);
     assert(channel->applied==2&&!channel->status&&channel->count==3&&channel->publication==2);
+    if(argc==2){std::ofstream out(argv[1],std::ios::binary);out.write(reinterpret_cast<const char*>(channel),sizeof(Channel));assert(out.good());}
     Poll(true);assert(channel->publication==2); // No per-frame capture unless requested.
     channel->request=3;Poll(true);assert(channel->publication==2);
     channel->request=4;owner.valid=false;Poll(true);assert(channel->count==0&&channel->status==1&&channel->nodes[1].resource==0);

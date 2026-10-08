@@ -113,3 +113,73 @@ def test_request_changes_only_request_fields(monkeypatch):
     assert struct.unpack_from("<2I", after, 24) == (4, 0)
     with pytest.raises(ValueError):
         client.request(True)
+
+
+@pytest.fixture
+def panel():
+    import os
+    import tkinter as tk
+    from tkinter import ttk
+
+    from shadowbane_lab.graphics_lab.visual_panel import VisualPanel
+
+    if os.name != "nt":
+        pytest.skip("Native Tk panel qualification runs on Windows")
+    root = tk.Tk()
+    root.withdraw()
+    notebook = ttk.Notebook(root)
+    notebook.pack(fill="both", expand=True)
+    instance = VisualPanel(notebook)
+    yield instance
+    root.destroy()
+
+
+def test_panel_tree_details_and_export(tmp_path, panel, monkeypatch):
+    from shadowbane_lab.graphics_lab import visual_panel
+
+    _write_cache(
+        tmp_path / "Render.cache",
+        [
+            (0, 20, _render_payload(mesh_ids=(30,), collides=False, texture=True)),
+        ],
+    )
+    report = vi.enrich(vi.unpack(wire(), TARGET), tmp_path)
+    panel.display(report)
+    assert panel.tree.get_children("") == ("0",)
+    assert panel.tree.get_children("0") == ("1",)
+    assert "0:901" in panel.details.get("1.0", "end")
+    path = tmp_path / "snapshot.json"
+    monkeypatch.setattr(visual_panel.filedialog, "asksaveasfilename", lambda **_: str(path))
+    panel.export()
+    import json
+
+    assert json.loads(path.read_text())["nodes"] == json.loads(json.dumps(report["nodes"]))
+    panel.export()
+    assert "Could not save" in panel.status.get()
+    panel.disconnect()
+    assert not panel.tree.get_children() and panel.report is None
+
+
+def test_panel_rejects_replaced_request_and_timeout(panel, monkeypatch):
+    from shadowbane_lab.graphics_lab import visual_panel
+
+    snap = vi.unpack(wire(), TARGET)
+    client = SimpleNamespace(request=lambda _: 4, read=lambda: snap, close=lambda: None)
+    panel.client = client
+    panel.capture()
+    panel.poll()
+    assert "Another panel" in panel.status.get() and panel.report is None
+    snap.update(request=4)
+    panel.capture()
+    monkeypatch.setattr(visual_panel.time, "monotonic", lambda: float("inf"))
+    panel.poll()
+    assert "No game scene" in panel.status.get() and panel.pending is None
+
+
+def test_disconnect_discards_background_results(panel):
+    from concurrent.futures import Future
+
+    pending = Future()
+    panel.future = pending
+    panel.disconnect()
+    assert pending.cancelled() and panel.future is None and panel.report is None
