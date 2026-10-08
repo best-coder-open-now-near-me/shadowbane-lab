@@ -111,7 +111,7 @@ only that preview directory. Source game files were not modified.
 
 The self-contained preview now overlays one strand of camera-facing diamond
 sprites along the blade, with staggered 1.8-second size pulses. Defaults are
-100 percent size/spacing and 15 percent pulse; three bounded sliders, pause/resume,
+100 percent size, 80 percent spacing and 35 percent pulse; bounded sliders, pause/resume,
 and an effect toggle allow one visual comparison without an effect editor.
 The blade chain runs from mesh Y 0.415 to 2.28, above the collar accent and below
 the tip, with a small centerline adjustment. They are inspection coordinates,
@@ -136,7 +136,7 @@ artifacts/moonfire/preview/archon-moonfire.png. No client installation occurred.
 
 The preview adds a narrow white band at mesh Y 0.18–0.208 and a larger diamond
 at Y 0.29. The band wraps the blade root with four model-space faces and softly
-faded edges. The anchor diamond is 1.3 times the chain width and pulses every
+faded edges. At 100 percent sizing the anchor is 1.3 times the base chain width and pulses every
 3.6 seconds, half the chain frequency. Both use the existing effect toggle,
 pause and depth-tested pass; the pulse control includes the anchor. The anchor
 now has its own size control. Original mesh/texture assets remain unchanged.
@@ -152,8 +152,8 @@ main. Next: prove native attachment and transfer the effect into the test client
 
 The hilt diamond has an independent 25–250 percent size slider (100 percent
 preserves the previous default). Square size now adjusts only the blade chain.
-Glow strength spans 0–150 percent with a default of 45; width spans 40–400 percent
-with a default of 100. Strength zero disables both the blade surface emission
+Glow strength spans 0–150 percent with a selected default of 111; width spans 40–400 percent
+with a selected default of 86. Strength zero disables both the blade surface emission
 and its soft additive halo. The master moon-fire checkbox disables all accents.
 Emission is masked above the guard using model-space height; it is independent
 of texture exposure. The six-vertex halo follows the projected blade and scales
@@ -166,3 +166,23 @@ animation/control acceptance also passes. Front and angled screenshots were
 inspected. Private evidence: artifacts/moonfire/check-glow.cjs and
 preview/archon-glow-angle.png. Next remains native attachment and in-game transfer;
 source is pushed through draft PR #106, outside main.
+
+## Approved visual preset — October 8
+
+The user approved the look and supplied a screenshot of all six controls.
+These values are now the saved HTML defaults and the target for native translation:
+
+| Control | Percent |
+| --- | ---: |
+| Square size | 100 |
+| Spacing | 80 |
+| Pulse | 35 |
+| Hilt diamond size | 125 |
+| Glow strength | 111 |
+| Glow width | 86 |
+
+A freshly loaded generated preview was checked against all six values and labels,
+rendered without page/WebGL errors, and captured for visual inspection. Refreshing
+now restores this preset. Native effect values will need calibration against this
+appearance; browser glow percentages are not native particle parameters. Next:
+prove weapon attachment in the test VM and implement the approved appearance.
