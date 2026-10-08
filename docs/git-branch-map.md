@@ -1,5 +1,14 @@
 # Git branch map
 
+## Multiple client launch repair - October 8
+
+`codex/multiple-client-launch-20261008` owns bot-integration and targets `main`.
+It removes the private deployment launcher's global process-count gate and
+publishes separate process-lifetime receipts. See
+[the launcher delivery record](multiple-client-launch-20261008.md).
+PR #107's installed client-update record and corrected ictus identity are now
+merged at `d00234b`. The earlier receipt branch no longer owns this checkout.
+
 ## Current Wonderbane client update — October 8
 
 Start new bot work from refreshed `origin/main`. PR #105 merged exact client
@@ -11,8 +20,8 @@ Umbra. Resolve the intended character before live attack/buff checks; the
 preflight stopped before dispatch and sent no actions. Obsolete runtime
 cleanup is complete. See
 [the delivery record](client-update-20261008.md).
-The receipt-only branch `codex/client-update-delivery-20261008` owns bot-integration
-and targets `main`; do not switch its active checkout.
+The receipt-only branch `codex/client-update-delivery-20261008` merged through
+PR #107; current checkout ownership is recorded above.
 
 The user returned to Wonderbane and parked the own-server project. Published
 client/server model work on PR #98 remains separate. Pending bot recovery PRs

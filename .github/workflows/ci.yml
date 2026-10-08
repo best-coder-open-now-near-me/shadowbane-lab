@@ -117,3 +117,6 @@ jobs:
             $parseErrors | ForEach-Object { Write-Error $_.Message }
             exit 1
           }
+      - name: Verify multi-client launch bookkeeping
+        shell: powershell
+        run: ./scripts/tests/test-reviewed-client-launch.ps1
