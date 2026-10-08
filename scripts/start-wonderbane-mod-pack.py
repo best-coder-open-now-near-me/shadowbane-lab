@@ -119,6 +119,20 @@ def main() -> int:
         timeout_seconds=30,
     )
     args.config.with_name("last-graphics-status.json").write_text(json.dumps(status, indent=2))
+    startup = config.get("katana_startup")
+    if startup is not None:
+        from shadowbane_lab.graphics_lab.control import discover_graphics_targets
+        from shadowbane_lab.graphics_lab.katana import FireSettings, KatanaClient
+
+        target = next(t for t in discover_graphics_targets() if t.process_id == game.pid)
+        controls = KatanaClient(target)
+        try:
+            controls.write(
+                startup["length_percent"], FireSettings(**startup["fire"]),
+                startup.get("selection", 0),
+            )
+        finally:
+            controls.close()
     pythonw = Path(sys.executable).with_name("pythonw.exe")
     subprocess.Popen(
         [

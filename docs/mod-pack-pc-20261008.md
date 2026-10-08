@@ -7,8 +7,8 @@ environment overrides for that child process, waits for an exact-process full
 renderer status, and opens Graphics Lab on the Katana tab. The normal client is
 independently usable. This is not a rollback copy.
 
-Source is based on the new-machine handoff at `e404d06` from PR #106. The exact
-native candidate is built from `e0bc03e64775042121512ccac0b14f2cacb40805`:
+Source is based on the new-machine handoff at `e404d06` from PR #106. The initial
+native candidate was built from `e0bc03e64775042121512ccac0b14f2cacb40805`:
 
 - Native DLL SHA-256: `27c31699f7c3e27be415e6a129528f79e823efbde247c4de18042d6fa3cc8d60`.
 - Official executable SHA-256: `381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5`.
@@ -82,5 +82,31 @@ Katana channel schema 3 uses the first reserved word at byte 84 for owner mode
 extension reject older schema versions and invalid owner values. Native tests
 cover wrong-owner exclusion, selection loss and identity change, switching back
 to self, malformed mode and old schema rejection. Python protocol and cosmetic
-asset checks pass (20 tests); native build and installation are pending for this
-update. No asset override changes are needed.
+asset checks pass (20 tests), as do 59 package/status/control tests and two
+subtests. The updated Tk panel constructs successfully; lint passes.
+
+Installed native source: `8dce4031eb8e463ffdf3cef6514079db3e2f90ce`.
+Installed DLL SHA-256: `73d39571a7ccd3461a7617c97b45dce61b400121075642a43dfc1150c69975dd`.
+GitHub run `37840764690` compiled this candidate successfully. Its selected-owner
+test passed; its combat-power-entry optional-state fixture and moon-fire
+visible-pixel test failed. The hosted job remains failed and its full test log
+is retained locally. The uploaded LastTest.log was overwritten by the inventory
+query, so the failure evidence was retrieved from the Actions job log itself.
+
+On this PC, all 238 required native tests passed, including those two hosted
+failures, plus all three checks against the actual original/prepared client
+executables. Three private-image tests skip in the generic suite and pass when
+provided the exact client images. No assertions or native behavior were relaxed.
+The candidate was installed after normal logout; all 79 Config/wasd files were
+preserved. No cache or executable change was needed. Superseded native binaries
+and the download archive were removed; validation receipts remain.
+
+The launcher accepts optional local `katana_startup` settings and applies them
+before opening the panel. This installation restores the user's saved six fire
+sliders, 80% length and selected-character mode. The updated client and panel
+have reopened. After the user reselected the intended remote character, an
+identity-checked live read confirmed selected mode 1, the requested/applied
+sequence in agreement, 80% length, two matching katanas, two weapon draws and
+two moon-fire draws with error 0 and suppression 0. Exact character identity and
+runtime captures remain private. This verifies the selected render path; visual
+tuning remains available through the panel.
