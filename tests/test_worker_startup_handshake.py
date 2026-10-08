@@ -156,9 +156,10 @@ def test_verified_handshake_rejects_same_uuid_new_process_lifetime(tmp_path):
 
 def test_reattach_waits_for_real_exit_then_starts_one_replacement(tmp_path):
     ledger, inspector, launcher, controller, child = setup(tmp_path)
+    # The logical slot is detached; its prior exact worker has not exited yet.
     session = app._RecordingSession(
         app.ManagerSessionSnapshot(
-            node_id=f.NODE_ID, slots=(app._slot(f.CLIENT_ID, instance_id=f._client().instance_id),)
+            node_id=f.NODE_ID, slots=(app._slot(f.CLIENT_ID),)
         )
     )
     application, _ = app._application(session, f._client(), worker_controller=controller)
@@ -190,9 +191,10 @@ def test_reattach_waits_for_real_exit_then_starts_one_replacement(tmp_path):
 @pytest.mark.parametrize("cancel", ["pause", "detach", "close", "lifetime", "shutdown"])
 def test_pending_replacement_is_cancelled_by_exact_lifecycle(tmp_path, cancel):
     ledger, inspector, launcher, controller, child = setup(tmp_path)
+    # The logical slot is detached; its prior exact worker has not exited yet.
     session = app._RecordingSession(
         app.ManagerSessionSnapshot(
-            node_id=f.NODE_ID, slots=(app._slot(f.CLIENT_ID, instance_id=f._client().instance_id),)
+            node_id=f.NODE_ID, slots=(app._slot(f.CLIENT_ID),)
         )
     )
     application, _ = app._application(session, f._client(), worker_controller=controller)

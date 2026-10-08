@@ -233,7 +233,7 @@ def _validate_action_payload(
                   "condemn-pause", "condemn-resume", "condemn-stop"}:
         expected_fields.add("job_id")
     if (action in {"condemn-start", "vendor-recipe-save"}
-            or action == "vendor-start" and "selection" in payload):
+            or action in {"vendor-start", "attach"} and "selection" in payload):
         expected_fields.add("selection")
     actual_fields = set(payload)
     if actual_fields != expected_fields:
@@ -267,6 +267,12 @@ def _validate_action_payload(
     ):
         _request_error(HTTPStatus.BAD_REQUEST, "invalid-job", "An exact job selection is required.")
     selection = payload.get("selection")
+    if action == "attach" and "selection" in payload:
+        if (not isinstance(selection, dict) or set(selection) != {"character_token"}
+                or not isinstance(selection["character_token"], str)
+                or re.fullmatch(r"[0-9a-f]{64}", selection["character_token"]) is None):
+            _request_error(HTTPStatus.BAD_REQUEST, "invalid-selection",
+                           "Choose a character from the current list.")
     if action == "condemn-start":
         valid = isinstance(selection, dict) and set(selection) == {
             "preparation_id", "sha256", "crests", "buildings"}

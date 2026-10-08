@@ -172,7 +172,10 @@ class LiveConfiguredManagerApplication:
                 for slot in all_slots
                 if isinstance(slot, dict) and isinstance(slot.get("instance_id"), str)
             ]
-            status["slots"] = active_slots
+            status["slots"] = [
+                slot for slot in all_slots if isinstance(slot, dict)
+                and (slot.get("instance_id") is not None or slot.get("candidates"))
+            ]
             status["open_count"] = len(active_slots)
             status["available_slot_count"] = sum(
                 isinstance(slot, dict) and slot.get("instance_id") is None for slot in all_slots
@@ -220,7 +223,7 @@ class LiveConfiguredManagerApplication:
         selection: dict | None = None,
     ) -> dict[str, object]:
         if selection is not None and action not in {
-            "condemn-start", "vendor-recipe-save", "vendor-start",
+            "attach", "condemn-start", "vendor-recipe-save", "vendor-start",
         }:
             raise DashboardError(
                 "invalid-action-fields", "This action does not accept a selection.")
