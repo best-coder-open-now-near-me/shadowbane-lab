@@ -43,8 +43,9 @@ jobs:
             architecture = 'x86'
             files = @($files)
           } | ConvertTo-Json -Depth 5 | Set-Content build/mod-pack/Release/build-receipt.json -Encoding utf8
-          ctest --test-dir build/mod-pack -C Release --show-only=json-v1 | Set-Content build/mod-pack/Release/ctest-inventory.json -Encoding utf8
+          # Inventory generation replaces LastTest.log; preserve the actual run first.
           Copy-Item build/mod-pack/Testing/Temporary/LastTest.log build/mod-pack/Release/hosted-tests.log
+          ctest --test-dir build/mod-pack -C Release --show-only=json-v1 | Set-Content build/mod-pack/Release/ctest-inventory.json -Encoding utf8
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         with:

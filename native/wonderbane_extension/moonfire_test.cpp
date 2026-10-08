@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include <fstream>
+#include <cstring>
 #undef NDEBUG
 #include <cassert>
 namespace {
@@ -26,15 +27,43 @@ int main(int argc,char** argv){
  HWND window=CreateWindowW(cls.lpszClassName,L"Moonfire qualification",WS_POPUP,0,0,width,height,nullptr,nullptr,cls.hInstance,nullptr);assert(window);
  HDC dc=GetDC(window);PIXELFORMATDESCRIPTOR pfd{};pfd.nSize=sizeof(pfd);pfd.nVersion=1;
  pfd.dwFlags=PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL;pfd.iPixelType=PFD_TYPE_RGBA;pfd.cColorBits=24;pfd.cDepthBits=24;pfd.cStencilBits=8;
- int format=ChoosePixelFormat(dc,&pfd);assert(format && SetPixelFormat(dc,format,&pfd));
+ int format=ChoosePixelFormat(dc,&pfd);
+ const bool force_gdi=argc>1 && std::strcmp(argv[1],"--gdi")==0;
+ if(force_gdi){
+  const int total=DescribePixelFormat(dc,1,sizeof(pfd),&pfd);format=0;
+  for(int n=1;n<=total;++n){PIXELFORMATDESCRIPTOR candidate{};
+   if(DescribePixelFormat(dc,n,sizeof(candidate),&candidate)
+      && (candidate.dwFlags&(PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_GENERIC_FORMAT))==(PFD_DRAW_TO_WINDOW|PFD_SUPPORT_OPENGL|PFD_GENERIC_FORMAT)
+      && !(candidate.dwFlags&(PFD_DOUBLEBUFFER|PFD_GENERIC_ACCELERATED)) && candidate.iPixelType==PFD_TYPE_RGBA
+      && candidate.cColorBits>=24 && candidate.cDepthBits>=16 && candidate.cStencilBits>=8){format=n;pfd=candidate;break;}
+  }
+ }
+ // GDI's window framebuffer follows visible window clipping. A hidden/occluded
+ // window can therefore return black despite successful draws. Its bitmap pixel
+ // format supplies a real offscreen framebuffer for exactly the same assertions.
+ HDC window_dc=dc,bitmap_dc=nullptr;HBITMAP bitmap=nullptr;HGDIOBJ previous_bitmap=nullptr;
+ PIXELFORMATDESCRIPTOR actual{};assert(format && DescribePixelFormat(dc,format,sizeof(actual),&actual));
+ if(actual.dwFlags&PFD_GENERIC_FORMAT){
+  BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=width;
+  info.bmiHeader.biHeight=height;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=24;info.bmiHeader.biCompression=BI_RGB;
+  void* bits=nullptr;bitmap=CreateDIBSection(window_dc,&info,DIB_RGB_COLORS,&bits,nullptr,0);assert(bitmap && bits);
+  bitmap_dc=CreateCompatibleDC(window_dc);assert(bitmap_dc);previous_bitmap=SelectObject(bitmap_dc,bitmap);assert(previous_bitmap);
+  dc=bitmap_dc;pfd.dwFlags=PFD_DRAW_TO_BITMAP|PFD_SUPPORT_OPENGL;pfd.iPixelType=PFD_TYPE_RGBA;
+  pfd.cColorBits=24;pfd.cDepthBits=24;pfd.cStencilBits=8;
+  format=ChoosePixelFormat(dc,&pfd);assert(format && DescribePixelFormat(dc,format,sizeof(actual),&actual));
+  assert(actual.cStencilBits>=8 && actual.cDepthBits>=16);
+ }
+ const auto set=SetPixelFormat(dc,format,&pfd);
+ if(!set)std::fprintf(stderr,"SetPixelFormat format=%d error=%lu bits=%u depth=%u stencil=%u flags=%lu\n",format,GetLastError(),actual.cColorBits,actual.cDepthBits,actual.cStencilBits,actual.dwFlags);
+ assert(format && set);
  HGLRC context=wglCreateContext(dc);assert(context && wglMakeCurrent(dc,context));
  glViewport(0,0,width,height);glMatrixMode(GL_PROJECTION);glLoadIdentity();glOrtho(-.4,.4,-.2,2.6,-10,10);
  glMatrixMode(GL_MODELVIEW);glLoadIdentity();glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDepthMask(GL_TRUE);
  glColor4f(.2F,.3F,.4F,.5F);glClearColor(0,0,0,0);glClearDepth(1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT|GL_STENCIL_BUFFER_BIT);
  const auto before=State();const auto depth=Depth();FireSettings settings{};
  assert(DrawMoonfire(settings,0)==0);assert(State()==before);assert(Depth()==depth);assert(glGetError()==GL_NO_ERROR);
- const auto first=Pixels();assert(std::count_if(first.begin(),first.end(),[](auto c){return c>20;})>500);
- if(argc==2){std::ofstream out(argv[1],std::ios::binary);out<<"P6\n"<<width<<" "<<height<<"\n255\n";for(int y=height-1;y>=0;--y)out.write(reinterpret_cast<const char*>(first.data()+y*width*3),width*3);}
+ const auto first=Pixels();std::printf("Renderer: %s; bright channels: %llu\n",glGetString(GL_RENDERER),static_cast<unsigned long long>(std::count_if(first.begin(),first.end(),[](auto c){return c>20;})));std::fflush(stdout);assert(std::count_if(first.begin(),first.end(),[](auto c){return c>20;})>500);
+ if(argc==2 && !force_gdi){std::ofstream out(argv[1],std::ios::binary);out<<"P6\n"<<width<<" "<<height<<"\n255\n";for(int y=height-1;y>=0;--y)out.write(reinterpret_cast<const char*>(first.data()+y*width*3),width*3);}
  glClear(GL_COLOR_BUFFER_BIT);assert(DrawMoonfire(settings,.9)==0);assert(Pixels()!=first);
  settings.pulse=0;glClear(GL_COLOR_BUFFER_BIT);assert(DrawMoonfire(settings,0)==0);const auto still=Pixels();
  glClear(GL_COLOR_BUFFER_BIT);assert(DrawMoonfire(settings,.9)==0);assert(Pixels()==still);
@@ -54,6 +83,8 @@ int main(int argc,char** argv){
  glMatrixMode(GL_PROJECTION);assert(DrawMoonfire(settings,0)==2);glMatrixMode(GL_MODELVIEW);
  for(float length:{.6F,.8F,1.F,1.2F}){glLoadIdentity();glScalef(-.9F,length,1.F);glRotatef(40,0,1,0);assert(DrawMoonfire(settings,.3)==0);}
  assert(glGetError()==GL_NO_ERROR);
- wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);ReleaseDC(window,dc);DestroyWindow(window);
+ wglMakeCurrent(nullptr,nullptr);wglDeleteContext(context);
+ if(bitmap_dc){SelectObject(bitmap_dc,previous_bitmap);DeleteObject(bitmap);DeleteDC(bitmap_dc);}
+ ReleaseDC(window,window_dc);DestroyWindow(window);
  std::puts("Moon-fire pixels, pulse, occlusion, clipping, stencil/depth preservation, mirrored scale and GL state passed.");
 }
