@@ -15,6 +15,9 @@ clean demo capture remain.
 Draft PR #106 targets main; this unfinished source remains outside main. The
 general object Visual Inspector is deferred until after the katana demo.
 See [scope, evidence and next steps](katana-moonfire.md).
+The user is moving this demo to another computer via a new Codex chat. Start
+with [the new-machine handoff](handoffs/katana-demo-new-machine.md); the VM
+software-rendering profile must not be copied as a hardware-PC default.
 
 ## Current Wonderbane client update — October 8
 
