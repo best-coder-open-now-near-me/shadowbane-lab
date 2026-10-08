@@ -469,7 +469,9 @@ def test_ready_item_requires_full_qualified_operand():
         item_and_power_frame(p.Readiness.READY, [5802955, 30, 980066, 0, 0x12500000, 0, 3, 8, 10])
 
 @pytest.mark.parametrize("digest,allowed", [
+    ("e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437", True),
     ("78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903", True),
+    ("381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5", False),
     ("e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e", False),
     ("ff" * 32, False),
 ])
