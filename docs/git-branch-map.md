@@ -6,8 +6,9 @@ codex/katana-moonfire starts from main cdaafb2 in its own managed worktree.
 It owns one local katana cosmetic experiment, not a general equipment system.
 Native visual inspection/tinting is validated; no game cache or runtime changed.
 Archon's Blade was found in the patched test VM and its actual mesh/texture
-preview is verified. Source is unfinished and remains outside main. Next is
-proving the native effect attachment and building the sparse square treatment.
+preview and animated white square-chain study are verified. Source is unfinished
+and remains outside main. Next is proving the native effect attachment and
+translating the study into an in-game override.
 See [scope, evidence and next steps](katana-moonfire.md).
 
 ## Context cleanup progress - October 7

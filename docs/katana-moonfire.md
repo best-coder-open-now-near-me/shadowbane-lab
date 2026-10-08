@@ -55,8 +55,9 @@ client binaries, credentials or captures. The active client was not changed.
 ## Next work
 
 1. Complete: identify Archon's Blade in the patched test VM and preview its mesh/texture.
-2. Active: correlate native particle attachment and build the sparse square effect.
-3. Validate in-game appearance, occlusion and movement; capture the actual result.
+2. Complete: build and inspect an animated sparse square-chain browser study.
+3. Active: correlate native particle attachment and translate the study into the client.
+4. Validate in-game appearance, occlusion and movement; capture the actual result.
 
 The user identified the patched test VM as the target. An equipped test item and
 character are still needed for live acceptance. Do not infer bone semantics from
@@ -105,3 +106,28 @@ rendered the generated page with zero page errors and GL error 0; the screenshot
 was visually inspected. Private preview: artifacts/moonfire/preview/archon.html
 in the katana-moonfire worktree. A temporary loopback server on port 8876 serves
 only that preview directory. Source game files were not modified.
+
+## Animated square-chain study
+
+The self-contained preview now overlays one strand of camera-facing diamond
+sprites along the blade, with staggered 1.8-second size pulses. Defaults are
+100 percent size/spacing and 15 percent pulse; three bounded sliders, pause/resume,
+and an effect toggle allow one visual comparison without an effect editor.
+Preview anchor coordinates run from mesh Y 0.25 to 2.28, above the guard and below
+the tip, with a small centerline adjustment. They are inspection coordinates,
+not a claim about the game's bone coordinate system. The depth-tested pass does
+not write depth and uses ordinary alpha blending; browser rendering does not
+qualify native sorting, attachment, lighting or additive bloom.
+
+The original mesh and texture are unchanged. Changing exposure affects only the
+model inspection; it does not brighten the proposed moon-fire sprites. Animation
+uses bounded geometry (at most 64 sprites), limits elapsed-time jumps, and pauses
+advancement while the page is hidden. Context loss displays a reload message.
+
+Headless Chrome acceptance passed animated-geometry change, pause/resume,
+effect on/off pixel difference, size/spacing range controls, zero-pulse stability,
+orbit/zoom/reset, lighting toggle, and zero WebGL/page errors. The screenshot was
+visually inspected at 1200 by 850. The first old browser smoke test timed out on
+the now-collapsed lighting section; opening that section in the updated acceptance
+script resolved it. Evidence: artifacts/moonfire/check-moonfire.cjs and
+artifacts/moonfire/preview/archon-moonfire.png. No client installation occurred.
