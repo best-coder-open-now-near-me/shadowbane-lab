@@ -418,6 +418,21 @@
           workerDetail.textContent = text(worker.detail);
           workerPanel.append(workerDetail);
         }
+        const activation = slot?.worker_activation;
+        if (activation) {
+          const attachmentDetail = document.createElement("p");
+          attachmentDetail.className = "detail";
+          const connectionLabels = {
+            absent: "not connected", pending: "starting", attached: "ready",
+            stopping: "stopping", exited: "stopped", recovery_required: "needs attention",
+            unavailable: "could not verify"
+          };
+          attachmentDetail.textContent = `Worker connection: ${connectionLabels[activation.state] || "could not verify"}`;
+          if (activation.state === "recovery_required") {
+            attachmentDetail.textContent += ". Dispatch is blocked until the worker connection is recovered.";
+          }
+          workerPanel.append(attachmentDetail);
+        }
         const operation = slot?.operation;
         const activeOperation = operation?.active;
         const latestResult = operation?.latest_result;

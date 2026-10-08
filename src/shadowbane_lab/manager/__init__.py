@@ -168,6 +168,8 @@ from .worker_runtime import (
     ExactClientWorkerRuntime,
     ManagedWorkerController,
     SubprocessWorkerLauncher,
+    WorkerActivationSnapshot,
+    WorkerActivationState,
     WorkerOperationExecutor,
 )
 
@@ -224,6 +226,8 @@ __all__ = [
     "ManagerSlotSnapshot",
     "ManagerSlotState",
     "ManagedWorkerController",
+    "WorkerActivationSnapshot",
+    "WorkerActivationState",
     "ManifestClientRegistryProvider",
     "NoMatchingClientError",
     "ProcessLifetimeInspector",

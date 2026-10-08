@@ -150,7 +150,8 @@ def test_verified_handshake_rejects_same_uuid_new_process_lifetime(tmp_path):
     publish(ledger, binding, creation=201, sequence=2)
     inspector.processes[7028] = ProcessLifetimeSnapshot(7028, 201)
     with pytest.raises(ExactClientWorkerError, match="attachment recovery"):
-        launcher.recover(1736, inspector, worker_id=binding.worker_id, ledger=ledger)
+        launcher.recover(1736, inspector, worker_id=binding.worker_id, ledger=ledger,
+                         client_id=f.CLIENT_ID, instance_id=binding.instance_id)
 
 
 def test_reattach_waits_for_real_exit_then_starts_one_replacement(tmp_path):
@@ -369,9 +370,11 @@ def test_verified_worker_retains_stop_identity_after_redirector_exit(tmp_path):
         controller.ensure_started(f.CLIENT_ID, f._client())
     binding = next(iter(launcher._bindings.values()))
     child.poll = lambda: 0
-    actual = launcher.recover(1736, inspector, worker_id=binding.worker_id, ledger=ledger)
+    actual = launcher.recover(1736, inspector, worker_id=binding.worker_id, ledger=ledger,
+                         client_id=f.CLIENT_ID, instance_id=binding.instance_id)
     assert actual.process_id == 7028
     assert controller.request_stop(f.CLIENT_ID, reason="stop orphaned exact worker") == 1
     assert ledger.inspect_stop_request(f.CLIENT_ID, binding.worker_id).process_id == 7028
     del inspector.processes[7028]
-    assert launcher.recover(1736, inspector, worker_id=binding.worker_id, ledger=ledger) is None
+    assert launcher.recover(1736, inspector, worker_id=binding.worker_id, ledger=ledger,
+                         client_id=f.CLIENT_ID, instance_id=binding.instance_id) is None

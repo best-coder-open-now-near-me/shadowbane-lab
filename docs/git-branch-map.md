@@ -3,11 +3,11 @@
 ## Combined production recovery - October 8
 
 `codex/combined-recovery-20261008` owns the independent bot-runtime checkout,
-starting from main `230bfe7`. It is consolidating reviewed PR #92 at
+starting from main `230bfe7`. It contains reviewed PR #92 at
 `193f14f8` (registration recovery and preserved interruption causes) and PR #94
 at `1d73f300` (explicit worker attachment and bounded recovery). The original
 PR branches remain published and unchanged. The combined host .79 candidate
-will retain native .54 and the qualified .15 client; package qualification and
+retains native .54 and the qualified .15 client; package qualification and
 installation remain pending. Main remains the shared integration destination.
 Bot-integration is independently owned for current .78 live-validation records.
 
@@ -39,9 +39,9 @@ The receipt-only branch `codex/client-update-delivery-20261008` merged through
 PR #107; current checkout ownership is recorded above.
 
 The user returned to Wonderbane and parked the own-server project. Published
-client/server model work on PR #98 remains separate. Pending bot recovery PRs
-#92 and #94 remain outside this compatibility delivery and are the next
-consolidation work after live patch validation. Merged source branches remain
+client/server model work on PR #98 remains separate. Bot recovery PRs
+#92 and #94 remain outside this compatibility delivery; the combined .79
+source candidate is recorded above and awaits its own qualification. Merged source branches remain
 until a separate ownership/ancestry cleanup; no active checkout is retired here.
 
 ## Context cleanup progress - October 7
