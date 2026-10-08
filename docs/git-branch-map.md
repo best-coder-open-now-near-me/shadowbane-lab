@@ -1,5 +1,19 @@
 # Git branch map
 
+## Persistent preparation worker — October 8
+
+`codex/persistent-buff-worker-20261008` owns bot-command-ownership, atop
+reviewed picker `405cf104` (PR #112, now merged into main `f0b8eb45`).
+The first source checkpoint contains exact-instance explicit Stop/Resume ordering
+and the dedicated native-service handoff core. It is a draft integration target
+for `main`, not an enabled or deployed background service. Worker/executor wiring,
+canonical native resource lifetime, exact cleanup handback, and status presentation
+remain active work. PVP owns the separate preparation-only native capability and
+coordinator APIs; combine and qualify both lanes before enabling this behavior.
+Ordinary manual input must defer new buffs without changing saved intent; explicit
+Pause/Stop stays latched. Background attacks are not authorized by this work.
+
+
 ## Existing character picker - October 8
 
 `codex/existing-character-picker-20261008` owns bot-command-ownership and starts
