@@ -14,8 +14,8 @@ composition gate on to manufacture a successful demo.
 Native client visuals offer another candidate route. The shipped Visual.cache
 contains particle color curves, texture references and numeric attachment values.
 Those values are not yet correlated with the test sword's live attachment. The
-inspected local CObjects cache has no name containing Katana or Archon's Blade.
-Names such as Minatoan Broadsword are candidates, not established katana identity.
+initial host-local cache lacked Archon's Blade; the patched test VM now contains
+it, as established below. The host-local installation is not the test target.
 
 ## Delivered tool
 
@@ -54,12 +54,54 @@ client binaries, credentials or captures. The active client was not changed.
 
 ## Next work
 
-1. Active: identify the user's test katana/client and its native render/effect binding.
-2. Establish the exact texture and blade attachment, then build the narrow local override.
+1. Complete: identify Archon's Blade in the patched test VM and preview its mesh/texture.
+2. Active: correlate native particle attachment and build the sparse square effect.
 3. Validate in-game appearance, occlusion and movement; capture the actual result.
 
-Awaiting the user's weapon choice (Archon's Blade, an ordinary owned katana, or
-no katana yet). Do not assume an arbitrary numeric particle bone is a sword bone.
+The user identified the patched test VM as the target. An equipped test item and
+character are still needed for live acceptance. Do not infer bone semantics from
+numeric values alone.
 Source is published on codex/katana-moonfire as unfinished work targeting main.
 The normal project checkout stays on main; this branch is isolated from the
 Companion/report work in PR #101.
+
+## Patched test VM asset and preview
+
+Read-only inspection of the official client at
+C:/Users/tester/Downloads/WonderbaneClient/Wonderbane in shadowbane-testing found:
+
+- CObject 0:7307: Archon's Blade; primary render 0:9996101.
+- Render 0:9996101: RHELD target, mesh 0:29243, texture 0:8029210, no children.
+- Mesh: 40 vertices, 41 triangles. Its payload is unchanged from the host-local cache.
+- Blade texture: 256 by 512 RGBA; particle texture 0:9996401: 256 by 256 RGBA.
+- Visual records 0:16503 and 0:16504 changed alongside this item/render. Both have
+  twelve particle entries referencing texture 9996401, with attachment values
+  4/3 and 15/14 respectively. Their runtime association remains to be verified.
+
+Input receipts (hashes before/after read agreed):
+
+| Cache | SHA-256 |
+| --- | --- |
+| CObjects | 4df20426f0809779b28a4a9769ebf94fc1a02d6598e216f3a1b199ffb08b4804 |
+| Render | 9c8be6cc6e1b766c4a2e005460fc6bad4ef46e453a7b151770ca6c45e700564e |
+| Mesh | 136f6625faa98a13378274d044d2d5f6920babbb1cb84f2547ecdacbc24e4993 |
+| Visual | d27e52b056060975bd95cf8bb1baefde98765ca2ddaf8a80de1380ed0931aafb |
+
+Existing ignored graphics-work scripts support GLB exports, texture extraction
+and Blender reference renders. Graphics Lab is an in-game control panel, not a
+model browser; the Texture Lab UI described in the facade doc is unfinished.
+No Blender executable was available at the checked locations in this session.
+
+scripts/weapon-preview/build.py and archon.html provide a narrow self-contained
+WebGL preview for this specific asset. Run with PYTHONPATH=src and three arguments:
+Mesh.cache, the decoded texture-8029210.bin payload, and an output HTML path.
+It needs Pillow while building; viewing needs only a browser with WebGL. It has
+rotation, zoom, a lighting toggle and an explicitly preview-only exposure slider.
+It does not reproduce native effects or lighting. No CDN or network asset is used.
+Keep generated HTML private because it embeds original client mesh/texture data.
+
+Geometry, UVs and indices matched the pinned independent decoder. Headless Chrome
+rendered the generated page with zero page errors and GL error 0; the screenshot
+was visually inspected. Private preview: artifacts/moonfire/preview/archon.html
+in the katana-moonfire worktree. A temporary loopback server on port 8876 serves
+only that preview directory. Source game files were not modified.
