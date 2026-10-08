@@ -64,6 +64,26 @@ classification correction preserves its launcher/interpreter identity and leaves
 the console to exit naturally; its repair is in progress. Neither failed attempt
 stopped or restarted a game.
 
-Next: finish the manager switch and activation, then a bounded native NPC check.
+## Superseded live deployment baseline
+
+Before the console correction could mutate the prepared deployment, both game
+processes exited during its read-only validation. That attempt made no changes.
+A subsequent inspection found a separately authorized Visual Inspector deployment:
+cosmetic source `2f14379eb1bfccdbb9e138915c4ed07cd7ceadcd`, native DLL
+`52ac0004d1d2645f8f42e40005d3b78e856a4d40269ccbca4bd914374875bea5`.
+The graphics chat reopened a new client and panel. Its source is draft PR #113,
+which depends on PR #106. The active manager remains host .78, PID 2560.
+
+The bot .79 host remains prepared against the earlier overlay; its manager was
+never stopped or switched. Do not execute the old repair/apply wrappers against
+this new baseline. The original console correction and failed read-only attempt
+remain diagnostic evidence, not approval to overwrite the newer graphics work.
+Current overlay preservation requires its matching app, katana, visual inspector,
+visual panel and object-navigation modules as well as the native DLL.
+
+Next: coordinate the shared installation, requalify preservation of the current
+graphics overlay, and activate the bot update only against a fresh baseline.
+The earlier Umbra PID/readiness has expired. A live NPC check requires a fresh
+native character binding and login.
 Persistent background buff upkeep and the existing-character picker are separate
 source work and are not capabilities of this .79 update.

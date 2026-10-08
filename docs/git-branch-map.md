@@ -11,11 +11,14 @@ process lifetime without launching a game or replacing an occupied binding.
 Concurrent logical-slot creation is outside this slice.
 
 Qualified host .79 source is `7cd5d22`; native .54 and client .15 stay unchanged.
-The VM has prepared and verified .79, while its manager still runs .78 pending
-shutdown-helper repair and activation. The picker is newer than that package and
-is not installed. The graphics panel actively depends on .78, so only retirement
-waits for that exact panel to exit. The cosmetic overlay `0f80838` remains separate
-from main. See [the recovery delivery record](host-recovery-delivery-20261008.md)
+The VM has prepared .79 against the earlier `0f80838` cosmetic overlay, while its
+manager still runs .78. A separate Visual Inspector installation has since
+replaced that overlay with source `2f14379` / DLL `52ac0004` and reopened the
+client/panel. No bot manager switch occurred. The old prepared deployment baseline
+is superseded: coordinate and requalify preservation of the new overlay before
+applying any host update. The picker is newer than the .79 package and remains
+source-only. The active graphics panel still uses .78. Cosmetic PRs #106 and #113
+remain separate from main. See [the recovery delivery record](host-recovery-delivery-20261008.md)
 and [the prior live evidence](client-update-20261008.md#live-pve-and-buffs-after-multi-client-repair).
 
 Active checkout ownership:
