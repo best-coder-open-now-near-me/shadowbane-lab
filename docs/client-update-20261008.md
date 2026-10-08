@@ -2,13 +2,20 @@
 
 ## Delivery status
 
-`codex/wonderbane-client-update-20261008` starts from refreshed `origin/main`
-`cdaafb234cfe324cc1c750c77102cfcc76552f50` and targets `main`. The candidate is
-host 0.3.78 / native 1.8.54. Source review, exact-source package qualification,
-hosted checks and installation must finish before this candidate is usable.
-Pending recovery PRs #92 and #94 remain separate; this update does not claim to
-resolve their startup or worker-attachment defects. Own-server work is parked
-at the user's request; this delivery serves the Wonderbane bot.
+PR #105 merged the reviewed source `6c8ea10aa34d9f585a8d6d8166a1af8707687ec7`
+into `main` at `500fe40df1ed5d12218368fb076c4957eefd68ce` after all 15 hosted
+checks passed on that exact head. Package B54/40841b71 contains host 0.3.78 and
+native 1.8.54 from the same source. Independent review and qualification passed;
+installation and first-launch verification passed. Umbra is now in-world and
+fresh native readiness passes;
+live attack and buff behavior is not yet validated. The bounded-run preflight
+stopped at the existing foreground-client guard before dispatch because another
+window was foreground. The user has been asked to foreground the game.
+
+The delivery record branch is `codex/client-update-delivery-20261008`, based on
+that merge and targeting `main`. Pending recovery PRs #92 and #94 remain
+separate; this compatibility update does not resolve their startup/attachment
+defects. Own-server work is parked at the user's request.
 
 ## Official update and exact identities
 
@@ -45,23 +52,98 @@ byte-exact and have zero changed intersections. All seven loader writes align at
 their original locations, with no relocated, missing or ambiguous sites. Exact
 original/prepared hashes are added to the existing guards; signature, loaded-image,
 character-session, ownership and unknown-image rejection checks remain in force.
-Executable probes on both candidate images are still required for qualification.
+Executable probes on both candidate images passed final qualification.
 
-## Validation and next steps
+## Qualification
 
-The initial host compatibility regression run passed 231 tests with one skip.
-It covers exact bootstrap admission, prepared-only publication/readers, native
-character-session revocation, object registry, ability/target readers, unknown
-image denial and unchanged conservative item-disposal policy.
+Independent binary, host and native source reviews passed. The final package
+was built using the configured project environment: 5,165 host tests passed
+(39 skips), and each native profile passed 236 tests and all 138 required gates.
+Each profile also passed 74 movement IPC, 86 combat IPC and 148 actor IPC cases.
+All original/prepared executable probes and installed-wheel checks passed.
+Independent verification checked 116 artifacts and 88 stages. The three optional
+CTest binding wrappers were skipped; corresponding actual-image probes executed.
+Existing selected-cue/effects transparency stretch diagnostics remain unresolved
+and recorded separately, with no failed required acceptance gate.
 
-Independent host/native source review passed. The production DLL compiles, 29
-focused native cases pass, and 510 package-gate/version tests pass.
+| Qualified artifact | SHA-256 |
+| --- | --- |
+| Full native DLL | `1168f696e9d7b77915aa44b076dbcaec1e5c760321e13a777efa9eb2cba02b9a` |
+| Host wheel | `f386d6249e68b95875c422c9b3e94880a42537ba3b0d6ce478bc5c6847b14b90` |
+| Package archive | `39b23f62e4cf2f14459087c5cb5f0c998b04e398dac7a212a250e22f57f27b3a` |
+| Build receipt | `1734932862c33766a6beaf91bc93034923d19d8a81ddfc3c2c92ff6a874f2897` |
 
-Next: commit/push the coherent source checkpoint,
-qualify that exact revision, then merge and install the qualified runtime under
-the standing bot approval. Verify the current deployment baseline and retain
-settings, jobs and journals in place. Keep compact source/hash receipts, not
-rollback runtimes; see [deployment policy](deployment-policy.md).
+The first local package attempt completed host/native checks but failed while
+building the wheel because system Python lacked the build dependency. That
+attempt is unqualified. The successful package above was rebuilt from the same
+committed source using the existing project build environment.
 
-Private binary/disassembly evidence is under the local task artifact directory
+## Official assets and release-note follow-up
+
+All 211 official paths were inspected in both guest client directories. Exactly
+six bot assets required replacement: `sb.exe`, `Config/Config.wpak`, and the
+`CObjects`, `Render`, `Textures` and `Visual` caches. The updated normal client
+matches all 209 immutable manifest entries. Two mutable DoubleFusion files are
+preserved as user/runtime state. The 1,772,431,675-byte texture file is streamed
+from the verified official client through one temporary replacement; no retained
+rollback copy or duplicate large payload is needed.
+
+The user supplied the release notes. They describe Archon's Blade with a white
+flame both drawn and sheathed, reduced Archon health, non-initiating Mine
+Commanders, siege-engine lifecycle fixes, corrected promotion lists, safer
+teleport arrival locations, warehouse cap changes and a one-active-bane limit.
+They also say auras visibly end on stealth, logout and unequip. These are product
+notes, not server-source evidence. Connecting the new attachment/timing code to
+the sword effect is a plausible inference, not a proved identification.
+
+After launch, prioritize native aura observation across stealth/logout/unequip,
+position/session transitions after teleport, and explicit target policy for Mine
+Commanders. Sustained PvE/buff renewal and pending recovery PR consolidation are
+still unfinished; this patch qualification does not claim live gameplay success.
+
+## Installation
+
+The fresh baseline had host .77 source `60988fa`, native .53/package source
+`490cba7`, both clients and manager stopped, and 2,861,375,488 free bytes. The
+32-member payload was 31,624,328 bytes; required working space, including the
+single large atomic replacement, was 1,949,010,331 bytes.
+
+Preparation verified all 467 installed module files. Apply changed six official
+files plus the DLL, verified the complete client package and 10,063 preserved
+files, and updated launcher/dashboard identities. Activation started healthy,
+unbound manager PID 2560; only the expected worker dispatch permit changed to
+revoked/unbound. All five shortcuts and the launcher's read-only preflight passed.
+No deployment rollback copies were created.
+
+The first launch produced PID 5608, creation `134359570353507178`, HWND 983522,
+with the exact DLL `1168f696…` loaded. A read-only VM screenshot subsequently
+confirmed the login screen. Initial passive readiness correctly remained
+unavailable at login/loading, with no observable local player; it is not an
+in-world combat acceptance result. After login, fresh readiness observed a live
+readable player, fresh ready movement in scene 5, actor-action capability, and
+no pending cleanup. No gameplay actions had been sent at this checkpoint.
+
+The running core transaction used reviewed payload plan `b8bec074…`. A separately
+reviewed retirement helper added a scheduled-task reference check after staging;
+all preparation/apply/activation/launch bytes stayed identical. Its updated
+helper is staged independently; the in-flight core plan was not rewritten.
+Installer review covered 39 offline tests and 10 PowerShell parses.
+
+Obsolete runtime retirement completed after exact inventory, process, configuration,
+shortcut and scheduled-task checks. Removal reclaimed 51,006,279 guest bytes and
+5,688,888 host/share bytes, totaling 56,695,167 bytes. Current processes and user
+data were preserved. No cleanup todos remain. Recover software from committed
+source and official assets; preserve settings/jobs/journals in place. See [deployment policy](deployment-policy.md).
+
+Private binary/disassembly and deployment evidence lives under
 `artifacts/client-update-20261008`; client binaries and captures are not published.
+
+## Next live check
+
+The production invocation retains saved buff intent and native Umbra/Wonderbane
+identity, uses no geometry profile, and runs a finite one-kill/90-second session
+with a 60-second encounter limit. Its 120-second timer requests normal cleanup.
+Twenty-four focused invocation tests and PowerShell parsing passed. The initial
+PowerShell wrapper cut off Python stderr; error capture was corrected without
+changing control logic. The resulting traceback identifies only the foreground
+client precondition; no production run or attack was started.
