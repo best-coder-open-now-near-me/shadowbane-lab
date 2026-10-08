@@ -687,10 +687,13 @@ def test_retained_worker_child_recovers_failed_attachment_without_relaunch(tmp_p
         child.stdin.close()
         child.wait(10)
         assert launcher.recover(
-            child.pid, inspector, worker_id=token, ledger=controller._ledger
+            child.pid, inspector, worker_id=token, ledger=controller._ledger,
+            client_id=worker_fixture.CLIENT_ID, instance_id=worker_fixture._client().instance_id,
         ) is None
         with pytest.raises(ExactClientWorkerError, match="no retained"):
-            launcher.recover(os.getpid(), inspector, worker_id=token, ledger=controller._ledger)
+            launcher.recover(os.getpid(), inspector, worker_id=token, ledger=controller._ledger,
+                             client_id=worker_fixture.CLIENT_ID,
+                             instance_id=worker_fixture._client().instance_id)
     finally:
         if not child.stdin.closed:
             child.stdin.close()
@@ -848,10 +851,12 @@ def test_unverified_launcher_exit_stays_unresolved_across_another_launch(tmp_pat
             launcher.recover(
                 first, ProcessInspector(), worker_id=binding.worker_id,
                 ledger=WorkerHeartbeatLedger(worker_fixture._manifest(), tmp_path),
+                client_id=binding.client_id, instance_id=binding.instance_id,
             )
         with pytest.raises(ExactClientWorkerError, match="no retained"):
             launcher.recover(children[1].pid, ProcessInspector(), worker_id=binding.worker_id,
-                            ledger=WorkerHeartbeatLedger(worker_fixture._manifest(), tmp_path))
+                            ledger=WorkerHeartbeatLedger(worker_fixture._manifest(), tmp_path),
+                            client_id=binding.client_id, instance_id=binding.instance_id)
     finally:
         for child in children:
             if not child.stdin.closed:

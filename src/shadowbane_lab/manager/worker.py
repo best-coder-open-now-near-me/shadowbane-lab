@@ -1042,6 +1042,8 @@ class WorkerSupervisor:
         instance_id: str | None,
         lifecycle_dispatch_enabled: bool,
         renew_permit: bool = True,
+        attached_worker: tuple[str, int, int] | None = None,
+        attachment_required: bool = False,
     ) -> WorkerSlotHealthSnapshot:
         """Return health; effective dispatch is a conjunction, never an assumption."""
 
@@ -1049,6 +1051,14 @@ class WorkerSupervisor:
             _require_identifier(instance_id, "instance_id")
         if not isinstance(lifecycle_dispatch_enabled, bool):
             raise ValueError("lifecycle_dispatch_enabled must be a boolean")
+        if not isinstance(attachment_required, bool):
+            raise ValueError("attachment_required must be a boolean")
+        if attached_worker is not None:
+            if not isinstance(attached_worker, tuple) or len(attached_worker) != 3:
+                raise ValueError("attached_worker must be an exact worker lifetime tuple")
+            _require_worker_id(attached_worker[0])
+            _require_positive_integer(attached_worker[1], "attached worker process ID")
+            _require_positive_integer(attached_worker[2], "attached worker creation time")
         with self._lock:
             now = _require_time(self._clock(), "clock result")
             ledger = self._ledger.inspect(client_id)
@@ -1112,12 +1122,22 @@ class WorkerSupervisor:
                     renew_permit=renew_permit,
                 )
             selected = active[0] if active else assessments[0]
+            attachment_matches = (
+                (attached_worker is None and not attachment_required)
+                or attached_worker == (
+                    selected.heartbeat.worker_id, selected.heartbeat.process_id,
+                    selected.heartbeat.process_started_at_100ns,
+                )
+            )
             dispatch_allowed = (
                 lifecycle_dispatch_enabled
+                and attachment_matches
                 and selected.state is WorkerHealthState.HEALTHY
                 and selected.heartbeat.instance_id == instance_id
             )
             detail = selected.detail
+            if not attachment_matches:
+                detail = "worker connection does not match verified controller attachment ownership"
             if selected.state is WorkerHealthState.HEALTHY and not lifecycle_dispatch_enabled:
                 detail = "worker is healthy, but client lifecycle dispatch is paused"
             return self._publish_health(

@@ -23,6 +23,7 @@ from shadowbane_lab.client_extension.action_channel import (
 )
 from shadowbane_lab.client_extension.movement_session import NativeMovementSession
 from shadowbane_lab.client_input import StopSignal, WindowsVisibleWindowInspector
+from shadowbane_lab.client_input.stop import observed_stop_cause
 from shadowbane_lab.manager import (
     ClientLifecycleSupervisor,
     ClientRegistrySnapshot,
@@ -1033,9 +1034,14 @@ class _ExactWorkerEngineExecutor:
             if publisher is not None:
                 publisher.close()
         if stop_signal.is_set():
+            cause = observed_stop_cause(stop_signal)
+            # Exact CANCEL/STOP inbox evidence permits cancellation; permission
+            # loss/native failure is not a user request. Cleanup failure still wins.
+            cancelled = cause.kind == "requested" and result == 0
             return WorkerOperationExecution(
-                WorkerOperationState.CANCELLED,
-                "PvE stopped by priority or dispatch revocation",
+                WorkerOperationState.CANCELLED if cancelled else WorkerOperationState.FAILED,
+                cause.reason if result == 0 or cause.kind == "interrupted"
+                else f"{cause.reason}; PvE exited with status {result}",
             )
         return WorkerOperationExecution(
             WorkerOperationState.SUCCEEDED if result == 0 else WorkerOperationState.FAILED,

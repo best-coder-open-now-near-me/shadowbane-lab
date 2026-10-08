@@ -6,6 +6,7 @@ import threading
 import uuid
 
 from shadowbane_lab.client_input import StopSignal
+from shadowbane_lab.client_input.stop import StopCause, observed_stop_cause
 from shadowbane_lab.protocol import DispatchResult
 from shadowbane_lab.travel.model import TravelDecision
 
@@ -41,6 +42,8 @@ class NativeMovementOperation:
         self._native = None
         self._entered = False
         self._reason = None
+        self._stop_cause: StopCause | None = None
+        self._interruption_lock = threading.Lock()
         self._stop_lock = threading.Lock()
         self._stopped = False
         self._cleanup_error = None
@@ -52,6 +55,10 @@ class NativeMovementOperation:
     @property
     def interruption_reason(self):
         return self._reason
+
+    @property
+    def stop_cause(self) -> StopCause | None:
+        return self._stop_cause
 
     @property
     def dispatcher(self):
@@ -69,10 +76,12 @@ class NativeMovementOperation:
             raise NativeActionChannelError("native movement operation is not acquired")
         return self._native.grant
 
-    def _interrupt(self, reason):
-        if not self._cancelled.is_set():
-            self._reason = reason
-            self._cancelled.set()
+    def _interrupt(self, reason, *, cause: StopCause | None = None):
+        with self._interruption_lock:
+            if not self._cancelled.is_set():
+                self._reason = reason
+                self._stop_cause = cause or StopCause(reason, "interrupted")
+                self._cancelled.set()
 
     def _check_window(self):
         window = self.guard.require_target()
@@ -128,11 +137,17 @@ class NativeMovementOperation:
             if self.parent.is_set():
                 if self._native is not None:
                     self._session.cleanup.request_terminal(self._native.grant)
-                self._interrupt("parent_operation_cancelled")
+                self._interrupt(
+                    "parent_operation_cancelled", cause=observed_stop_cause(self.parent)
+                )
             else:
                 self._check_window()
-                if self._native is None or self._native.is_set():
-                    self._interrupt("native_movement_owner_revoked")
+                if self._native is None:
+                    self._interrupt("native_movement_unavailable")
+                elif self._native.is_set():
+                    self._interrupt(
+                        self._native.interruption_reason or "native_movement_unavailable"
+                    )
         except (RuntimeError, ValueError, OSError) as exc:
             self._interrupt(f"native_movement_guard:{type(exc).__name__}")
         return self._cancelled.is_set()

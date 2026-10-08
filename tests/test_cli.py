@@ -1393,6 +1393,7 @@ class ClientCliTests(unittest.TestCase):
         saved_opening: str | None = None, skill_failure: bool = False, saved_buffs: bool = False,
         captured_creation: int | None = None, geometry_independent: bool = False,
         check_preparation: bool = False, preparation_failure: str | None = None,
+        run_result=None, expected_exit: int = 0,
     ) -> None:
         import struct
 
@@ -1492,7 +1493,8 @@ class ClientCliTests(unittest.TestCase):
                 costs=(((2, 3), 1.5),),
             ),
         )
-        completed_run = SimpleNamespace(
+        completed_run = run_result or SimpleNamespace(
+            stop_cause=None,
             final_phase=PvEPhase.COMPLETE,
             terminal_reason="kill_limit_reached",
             kills=1,
@@ -1758,11 +1760,21 @@ class ClientCliTests(unittest.TestCase):
                         + ["observer_closed", "journal_closed"],
                         preparation_events,
                     )
-                self.assertEqual(0, result, output.getvalue())
+                self.assertEqual(expected_exit, result, output.getvalue())
                 inspector_session.assert_called_once_with(
                     open_position.return_value.__enter__.return_value
                 )
                 saved_evidence = json.loads(evidence_output.read_text(encoding="utf-8"))
+                if run_result is not None:
+                    cause = run_result.stop_cause.as_dict() if run_result.stop_cause else None
+                    self.assertEqual(expected_exit == 0, saved_evidence["ok"])
+                    self.assertEqual(cause, saved_evidence["stop_cause"])
+                    self.assertEqual(run_result.terminal_reason, saved_evidence["terminal_reason"])
+                    journal_rows = [json.loads(line) for line in
+                        Path(saved_evidence["journal_path"]).read_text(encoding="utf-8").splitlines()]
+                    self.assertEqual(cause, journal_rows[-1]["summary"]["stop_cause"])
+                    self.assertEqual(run_result.terminal_reason,
+                                     journal_rows[-1]["summary"]["terminal_reason"])
 
                 open_character.assert_called_once_with(process_id=4320)
                 self.assertEqual(
@@ -1828,7 +1840,7 @@ class ClientCliTests(unittest.TestCase):
         self.assertIs(pve_runner.call_args.kwargs["group_reader"], group_reader)
         self.assertEqual(pve_runner.call_args.kwargs["party_group_id"], "client:4320:party")
         group_reader.__exit__.assert_called_once()
-        self.assertEqual(0, result)
+        self.assertEqual(expected_exit, result)
         self.assertEqual(1, saved_evidence["trace_schema_version"])
         self.assertEqual(4320, saved_evidence["native_observation"]["process_id"])
         if check_preparation:

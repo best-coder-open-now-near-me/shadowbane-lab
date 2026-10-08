@@ -213,6 +213,8 @@ class _StaticWorkerSupervisor:
         instance_id: str | None,
         lifecycle_dispatch_enabled: bool,
         renew_permit: bool = True,
+        attached_worker: tuple[str, int, int] | None = None,
+        attachment_required: bool = False,
     ) -> WorkerSlotHealthSnapshot:
         if instance_id is None:
             return WorkerSlotHealthSnapshot(
@@ -246,6 +248,21 @@ class _RecordingWorkerController:
     def request_stop(self, client_id: str, *, reason: str) -> int:
         self.stops.append((client_id, reason))
         return 1
+
+    def inspect_activation(self, client_id, client):
+        from shadowbane_lab.manager.worker_runtime import (
+            WorkerActivationSnapshot,
+            WorkerActivationState,
+        )
+        return WorkerActivationSnapshot(
+            client_id, None if client is None else client.instance_id,
+            WorkerActivationState.ABSENT if client is None else WorkerActivationState.ATTACHED,
+            worker_id="worker-" + "a" * 32,
+            worker_process_id=7001, worker_started_at_100ns=100,
+        )
+
+    def recover_activation(self, client_id, client):
+        return self.inspect_activation(client_id, client)
 
 
 class _StaticOperationStatus:
