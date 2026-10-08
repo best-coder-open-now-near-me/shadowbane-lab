@@ -3,8 +3,9 @@
 ## Scope and current state
 
 One locally rendered katana with white moon-fire; no sheath/combat mode switch,
-cosmetic equipment manager, or server gameplay change. This work is **not an
-installed or visually accepted weapon effect**.
+cosmetic equipment manager, or server gameplay change. The model-only appearance
+swap is installed in the designated test client; hand alignment is not yet visually
+accepted. The moon-fire effect is not installed.
 
 The main checkout's extension particles attach to an actor root, not a weapon.
 Its scene-composition authority still returns false. The unmerged particle branch
@@ -221,3 +222,25 @@ candidate, receipts and exact target mapping remain private diagnostic artifacts
 Source is delivered through draft PR #106; no game files have changed. Next:
 close the test client normally, apply the verified candidate against a fresh
 baseline, then log back in to verify both hand attachments before effect work.
+
+
+## Model-only installation checkpoint
+
+After the user confirmed a normal game exit, installation rechecked that no game
+process was running, matched the fresh source baseline, verified the donor texture,
+and compared every candidate resource with the current guest cache. Only the
+selected item's primary render reference differs. The cache was replaced via a
+same-directory temporary file; no rollback copy was created.
+
+The existing launcher pins package contents. Its package inventory was explicitly
+updated for this one authorized cache replacement, with a recomputed tree digest;
+all unrelated file records and executable/extension provenance were preserved.
+A separate private overlay receipt records the derivation and source revision.
+The installed runtime package verifier passes. Settings under Config and wasd
+were hashed before/after and match. Temporary publication files were removed.
+Exact deployment paths, hashes and diagnostic scripts remain private.
+
+The model swap is installed but the game was left stopped for user login through
+the same prepared-client launcher. Next: check both hand grips and movement on
+the named character, then wire the approved native moon-fire. Restart success and
+in-game appearance remain unverified until that login; no effect delivery is claimed.

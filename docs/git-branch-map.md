@@ -4,14 +4,15 @@
 
 codex/katana-moonfire starts from main cdaafb2 in its own managed worktree.
 It owns one local katana cosmetic experiment, not a general equipment system.
-Native visual inspection/tinting is validated; no game cache or runtime changed.
+Native visual inspection/tinting is validated. The model-only appearance swap is
+installed in the designated test client; the moon-fire effect remains uninstalled.
 Archon's Blade was found in the patched test VM and its actual mesh/texture
 preview, white square chain, adjustable hilt diamond and blade glow are verified in draft
 PR #106 targeting main. The user-approved six-slider preset is saved as the
 preview default in docs/katana-moonfire.md. Source is unfinished
-and remains outside main. An offline model appearance candidate is verified for
-the selected stand-in item; client restart and live hand-attachment acceptance
-remain before native effect integration.
+and remains outside main. The selected stand-in item now points to the katana
+render, with package verification passed and settings preserved. User login and
+live hand-attachment acceptance remain before native effect integration.
 See [scope, evidence and next steps](katana-moonfire.md).
 
 ## Context cleanup progress - October 7
