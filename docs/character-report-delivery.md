@@ -48,3 +48,35 @@ intended tester, never in a source repository or public download.
 Acceptance requires authenticated send, repeated-send same receipt, failed-send
 local preservation, rejected bad auth/checksum/ZIP, and a remote tester upload.
 A successful local HTTPS request does not prove the friend's Tailscale access.
+
+## Installed qualification — October 7, 2026
+
+The app payload is source a2635f09f927. Its portable ZIP SHA-256 is
+94e35c31581000e574ebde662283d5d70c79f04bc32e9d4ceeddb431d5fbafaa.
+The Inno Setup 6.7.3 installer recipe is committed in 625680a77ea91c4789739e237aaf47905cf33edd.
+The privately configured ShadowbaneCompanion-Setup.exe SHA-256 is
+356489ed92b28536ef2b1b0cf5bd5d6ab9e26434d06ebae208d40cd1fde2894c.
+It installed per-user with exit 0, and its installed executable passed all five
+frozen self-tests: dashboard widgets, disabled Windows hooks, native profiles,
+dictation helper resource, and sealed evidence. The installer is unsigned;
+Windows may show an unknown-publisher or reputation warning on download.
+
+The private receiver is installed in E:\Services\ShadowbaneReports from
+769734e3d538 (receiver code unchanged in the later app payload). A synthetic
+report uploaded through loopback and its repeat returned the same durable receipt.
+Private configuration, reports, SQLite index and client connection capabilities
+remain outside Git. The local receipt and installation logs are under the
+ignored character-recorder and watcher-layout artifact directories.
+
+Windows denied both private HTTPS route setup and SYSTEM startup-task registration
+without administrator rights. At this checkpoint the receiver runs on loopback
+and starts at user sign-in; remote delivery is not activated or qualified.
+The committed scripts/enable-private-report-delivery.ps1 provides the one-time
+PowerShell 7 administrator setup, preserving the existing update route. After
+approval, verify HTTPS health and authenticated upload/retry, then qualify access
+from the friend's actual Tailscale device. Do not label loopback acceptance as
+remote delivery success.
+
+Obsolete dc7b10851237 and 769734e3d538 application packages were removed after the
+current installed app passed. Compact qualification receipts and original capture
+sessions remain; no deployment rollback package is retained.

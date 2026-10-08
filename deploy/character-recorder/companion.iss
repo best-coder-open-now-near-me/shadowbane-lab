@@ -54,4 +54,3 @@ begin
   end;
 end;
 // Captures and delivery receipts live outside {app}; uninstall never removes them.
-

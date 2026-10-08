@@ -10,9 +10,10 @@ See [delivery operations](character-report-delivery.md), [capture evidence](auto
 and [tester instructions](character-recorder.txt).
 The original client identity profile is confined to capture; shared bot readers
 retain the existing original-image rejection gate. The CI regression is fixed.
-Source remains outside main pending review. Next: deploy/verify private report
-ingestion, qualify the configured installer, then have the friend validate
-remote delivery and real microphone/game-control correlation. Database import
+Source remains outside main pending review. The per-user installer and installed
+app passed qualification; loopback ingestion and duplicate receipts passed.
+Next: administrator activation of private HTTPS and boot startup, HTTPS upload
+qualification, then friend-side delivery and real microphone/game-control correlation. Database import
 and authoritative gameplay server instrumentation remain unfinished.
 
 
