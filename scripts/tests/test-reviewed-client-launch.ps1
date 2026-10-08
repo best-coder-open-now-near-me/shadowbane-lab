@@ -46,6 +46,24 @@ function Get-LiveLaunchProcess {
 $script:testRoot = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetTempPath()) ('reviewed-launch-tests-' + [Guid]::NewGuid().ToString('N'))))
 [void][IO.Directory]::CreateDirectory($script:testRoot)
 try {
+    $config = [pscustomobject]@{source_revision=('a'*40);extension_sha256=('b'*64)}
+    $status = [pscustomobject]@{state='prepared_verified';source_revision=('a'*40)}
+    Assert-ReviewedLaunchSource -Config $config -Status $status
+    $script:checks++
+    $status.source_revision = ('c'*40)
+    Assert-Rejected { Assert-ReviewedLaunchSource -Config $config -Status $status } 'Wrong prepared base accepted'
+    $config | Add-Member prepared_source_revision ('c'*40)
+    $status | Add-Member cosmetic_overlay ([pscustomobject]@{source_revision=('a'*40);dll_sha256=('b'*64)})
+    Assert-ReviewedLaunchSource -Config $config -Status $status
+    $script:checks++
+    $status.cosmetic_overlay.dll_sha256 = ('d'*64)
+    Assert-Rejected { Assert-ReviewedLaunchSource -Config $config -Status $status } 'Wrong overlay DLL accepted'
+    $status.cosmetic_overlay.dll_sha256 = ('b'*64)
+    $status.cosmetic_overlay.source_revision = ('e'*40)
+    Assert-Rejected { Assert-ReviewedLaunchSource -Config $config -Status $status } 'Wrong overlay source accepted'
+    $config.prepared_source_revision = '../invalid'
+    Assert-Rejected { Assert-ReviewedLaunchSource -Config $config -Status $status } 'Invalid prepared source accepted'
+
     $first = New-Receipt 101 134359570353507178
     $second = New-Receipt 202 134359570353507999
     $firstKey = [string]$first.process_id + '-' + [string]$first.creation_filetime
