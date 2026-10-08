@@ -113,7 +113,7 @@ The self-contained preview now overlays one strand of camera-facing diamond
 sprites along the blade, with staggered 1.8-second size pulses. Defaults are
 100 percent size/spacing and 15 percent pulse; three bounded sliders, pause/resume,
 and an effect toggle allow one visual comparison without an effect editor.
-Preview anchor coordinates run from mesh Y 0.25 to 2.28, above the guard and below
+The blade chain runs from mesh Y 0.415 to 2.28, above the collar accent and below
 the tip, with a small centerline adjustment. They are inspection coordinates,
 not a claim about the game's bone coordinate system. The depth-tested pass does
 not write depth and uses ordinary alpha blending; browser rendering does not
@@ -121,7 +121,7 @@ qualify native sorting, attachment, lighting or additive bloom.
 
 The original mesh and texture are unchanged. Changing exposure affects only the
 model inspection; it does not brighten the proposed moon-fire sprites. Animation
-uses bounded geometry (at most 64 sprites), limits elapsed-time jumps, and pauses
+uses bounded geometry (at most 65 sprites and four collar faces), limits elapsed-time jumps, and pauses
 advancement while the page is hidden. Context loss displays a reload message.
 
 Headless Chrome acceptance passed animated-geometry change, pause/resume,
@@ -131,3 +131,19 @@ visually inspected at 1200 by 850. The first old browser smoke test timed out on
 the now-collapsed lighting section; opening that section in the updated acceptance
 script resolved it. Evidence: artifacts/moonfire/check-moonfire.cjs and
 artifacts/moonfire/preview/archon-moonfire.png. No client installation occurred.
+
+## Collar accent
+
+The preview adds a narrow white band at mesh Y 0.18–0.208 and a larger diamond
+at Y 0.29. The band wraps the blade root with four model-space faces and softly
+faded edges. The anchor diamond is 1.3 times the chain width and pulses every
+3.6 seconds, half the chain frequency. Both use the existing effect toggle,
+pause and depth-tested pass; size/pulse controls include the anchor. No new
+controls or original mesh/texture edits are needed.
+
+Chrome acceptance still passes. Additional checks confirm finite bounded
+geometry, a steady collar while the anchor pulses, and error-free angled
+rendering. Front and angled screenshots were visually inspected; private
+evidence is check-collar.cjs and preview/archon-collar-angle.png under
+artifacts/moonfire. This remains a browser study in draft PR #106 targeting
+main. Next: prove native attachment and transfer the effect into the test client.
