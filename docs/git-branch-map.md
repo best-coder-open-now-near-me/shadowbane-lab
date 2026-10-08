@@ -5,14 +5,15 @@
 codex/katana-moonfire starts from main cdaafb2 in its own managed worktree.
 It owns one local katana cosmetic experiment, not a general equipment system.
 Native visual inspection/tinting is validated. The model-only appearance swap is
-awaiting compression compatibility repair and live acceptance; moon-fire is uninstalled.
+installed with the compression compatibility correction; live acceptance remains
+pending and moon-fire is uninstalled.
 Archon's Blade was found in the patched test VM and its actual mesh/texture
 preview, white square chain, adjustable hilt diamond and blade glow are verified in draft
 PR #106 targeting main. The user-approved six-slider preset is saved as the
 preview default in docs/katana-moonfire.md. Source is unfinished
 and remains outside main. The selected stand-in item now points to the katana
-render. A source-compression preservation correction must be installed before
-new login and live hand-attachment acceptance. Native effect work remains pending.
+render. The source-compression preservation correction is installed and
+package verification passes; a new login and hand-attachment check remain. Native effect work remains pending.
 See [scope, evidence and next steps](katana-moonfire.md).
 
 ## Context cleanup progress - October 7

@@ -4,8 +4,8 @@
 
 One locally rendered katana with white moon-fire; no sheath/combat mode switch,
 cosmetic equipment manager, or server gameplay change. The model-only appearance
-swap requires a compression compatibility repair before another live check;
-hand alignment is not yet visually accepted. The moon-fire effect is not installed.
+swap has received the compression compatibility repair and is installed for a
+new live check; hand alignment is not yet visually accepted. The moon-fire effect is not installed.
 
 The main checkout's extension particles attach to an actor root, not a weapon.
 Its scene-composition authority still returns false. The unmerged particle branch
@@ -253,3 +253,11 @@ Offline payload equivalence alone does not establish native loader compatibility
 The regression test directly inflates stored target bytes, in addition to checking
 all payloads and source preservation. Ten focused tests and Ruff pass. Live
 acceptance remains pending; detailed diagnostic evidence is kept private.
+
+
+The compression correction is now installed. Guest-side verification directly
+inflated the replacement's stored bytes and checked the complete candidate,
+then post-install package verification and settings-preservation checks passed.
+The obsolete failed candidate was removed; compact diagnostic receipts remain.
+Next: user login to confirm native loading and both hand grips. No successful
+in-game result is claimed yet.
