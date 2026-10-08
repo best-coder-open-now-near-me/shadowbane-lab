@@ -7,6 +7,7 @@ from enum import StrEnum
 from math import hypot, isfinite
 from typing import TYPE_CHECKING
 
+from shadowbane_lab.client_input.stop import StopCause
 from shadowbane_lab.client_observation import (
     NativeCharacterObservation,
     NativeCharacterPopulationObservation,
@@ -871,8 +872,11 @@ class PvERunTraceStep:
     preparation: NativePreparationUpdate | NativePreparationStatus | None = None
     listed_combat: ListedCombatUpdate | None = None
     combat_cleanup: PvECombatCleanupResult | None = None
+    stop_cause: StopCause | None = None
 
     def __post_init__(self) -> None:
+        if self.stop_cause is not None and not isinstance(self.stop_cause, StopCause):
+            raise ValueError("stop_cause must be StopCause when present")
         if self.movement_arrival_confirmed is not None:
             if type(self.movement_arrival_confirmed) is not bool:
                 raise ValueError("movement_arrival_confirmed must be boolean when present")
@@ -963,6 +967,7 @@ class PvERunTraceStep:
 
     def as_dict(self) -> dict[str, object]:
         return {
+            "stop_cause": None if self.stop_cause is None else self.stop_cause.as_dict(),
             "native_combat": None if self.native_combat is None else self.native_combat.as_dict(),
             "preparation": None if self.preparation is None else self.preparation.as_dict(),
             "listed_combat": None if self.listed_combat is None else self.listed_combat.as_dict(),
@@ -1162,8 +1167,11 @@ class PvERunResult:
     trace: tuple[PvERunTraceStep, ...]
     total_steps: int
     trace_truncated: bool
+    stop_cause: StopCause | None = None
 
     def __post_init__(self) -> None:
+        if self.stop_cause is not None and not isinstance(self.stop_cause, StopCause):
+            raise ValueError("stop_cause must be StopCause when present")
         if self.final_phase not in (PvEPhase.COMPLETE, PvEPhase.STOPPED):
             raise ValueError("PvE run result must be terminal")
         if not isinstance(self.terminal_reason, str) or not self.terminal_reason.strip():

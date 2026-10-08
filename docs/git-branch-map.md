@@ -1,5 +1,16 @@
 # Git branch map
 
+## Combined production recovery - October 8
+
+`codex/combined-recovery-20261008` owns the independent bot-runtime checkout,
+starting from main `230bfe7`. It is consolidating reviewed PR #92 at
+`193f14f8` (registration recovery and preserved interruption causes) and PR #94
+at `1d73f300` (explicit worker attachment and bounded recovery). The original
+PR branches remain published and unchanged. The combined host .79 candidate
+will retain native .54 and the qualified .15 client; package qualification and
+installation remain pending. Main remains the shared integration destination.
+Bot-integration is independently owned for current .78 live-validation records.
+
 ## Multiple client launch delivery - October 8
 
 Start from refreshed `origin/main`, including merged PRs #108 and #109.

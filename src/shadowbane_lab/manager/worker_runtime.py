@@ -22,6 +22,7 @@ from math import isfinite
 from pathlib import Path
 from typing import Protocol
 
+from shadowbane_lab.client_input.stop import StopCause
 from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
 
 from .manifest import ManagerManifest
@@ -145,16 +146,27 @@ class _OperationStopSignal:
         self._local = threading.Event()
         self._reason_lock = threading.Lock()
         self._reason: str | None = None
+        self._stop_cause: StopCause | None = None
+
+    @property
+    def stop_cause(self) -> StopCause | None:
+        with self._reason_lock:
+            return self._stop_cause
 
     @property
     def reason(self) -> str | None:
         with self._reason_lock:
             return self._reason
 
-    def trip(self, reason: str = "worker operation stopped locally") -> None:
+    def trip(
+        self, reason: str = "worker operation stopped locally", *, requested: bool = False,
+    ) -> None:
         with self._reason_lock:
             if self._reason is None:
                 self._reason = reason[:256]
+                self._stop_cause = StopCause(
+                    self._reason, "requested" if requested else "interrupted",
+                )
             self._local.set()
 
     def is_set(self) -> bool:
@@ -188,7 +200,7 @@ class _OperationStopSignal:
             for operation in pending
         )
         if interrupted:
-            self.trip("explicit cancel or stop operation is pending")
+            self.trip("explicit cancel or stop operation is pending", requested=True)
         return interrupted
 
 
