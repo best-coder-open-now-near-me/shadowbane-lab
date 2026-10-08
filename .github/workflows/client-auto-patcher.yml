@@ -1,0 +1,30 @@
+name: Client auto patcher
+on:
+  push:
+    paths:
+      - 'native/client_patcher/**'
+      - 'scripts/build-client-patcher.ps1'
+      - 'scripts/build-client-release.py'
+      - '.github/workflows/client-auto-patcher.yml'
+  pull_request:
+    paths:
+      - 'native/client_patcher/**'
+      - 'scripts/build-client-patcher.ps1'
+      - 'scripts/build-client-release.py'
+      - '.github/workflows/client-auto-patcher.yml'
+permissions:
+  contents: read
+jobs:
+  patcher:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Windows patcher and test update behavior
+        shell: powershell
+        run: ./scripts/build-client-patcher.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShadowbanePatcher
+          path: build/client-patcher/ShadowbanePatcher.exe
+          if-no-files-found: error
+          retention-days: 3

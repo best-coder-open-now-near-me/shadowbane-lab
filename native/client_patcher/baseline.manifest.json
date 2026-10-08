@@ -1,0 +1,1062 @@
+{
+  "version": "20260518-185052",
+  "gameVersion": "1.0.5",
+  "baseUrl": "client/",
+  "files": [
+    {
+      "path": "mssmp3.asi",
+      "sha256": "f5f058f35bf6ee64c0dfd08da11915c4ed647456313a20c116da915d783286fd",
+      "size": 149504
+    },
+    {
+      "path": "Gamemanual_ToO.pdf",
+      "sha256": "289666277c203388cbba83fc0d86aad42e2570089ef203700517d3ff6d9cd539",
+      "size": 642733
+    },
+    {
+      "path": "Gamemanual.pdf",
+      "sha256": "2369f6e8093a311eb086acc541b95e43cd9e69b00b717070d25f1de9ed3c6607",
+      "size": 561502
+    },
+    {
+      "path": "AGC.exe",
+      "sha256": "54a5e5eb61c0002ab8fa7acb1016ceff9bd0477207efbec83458c8003d5e02b8",
+      "size": 811008
+    },
+    {
+      "path": "SBConfig.exe",
+      "sha256": "f230ad34715cb1464b3ab97af8e0a69daa31ffd2427244cbfc797bed3c9b097a",
+      "size": 159744
+    },
+    {
+      "path": "dbghelp.dll",
+      "sha256": "d07c3a15c4ce55327cd9a505265fbab302febef50e0c60886bf59e96021a0b6b",
+      "size": 163088
+    },
+    {
+      "path": "Readme.txt",
+      "sha256": "ede33d06879b60fe2ad89e3e3db2a73e254a80f2eb822d8e110fcd0d72a1dd2d",
+      "size": 12790
+    },
+    {
+      "path": "mssa3d.m3d",
+      "sha256": "82ff1898f5a02abc8e0ac3e094c7f59f21e97c8a0b9fa7fa5212dacbd236596f",
+      "size": 100352
+    },
+    {
+      "path": "mssdx7.m3d",
+      "sha256": "ba00c543a160a9d15012dade101dd93066137ab4b8608bf8a29005db23d88ee7",
+      "size": 92672
+    },
+    {
+      "path": "Skin.dll",
+      "sha256": "63cf32fd563fcd4c8716b1963fc0acb4c51565f4ce5cf9394c3ccc1a774ab18a",
+      "size": 1593344
+    },
+    {
+      "path": "sb.exe",
+      "sha256": "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
+      "size": 21143613
+    },
+    {
+      "path": "EULA_TOO.txt",
+      "sha256": "ee87859db5212d792710e7da6d8a41e446ad0a37efe98cfce257009ed50ea817",
+      "size": 7585
+    },
+    {
+      "path": "DFEngine.dll",
+      "sha256": "0902d6573505c8de4a894437b99ae5a195def821af6365ee349fec4ed06ca53b",
+      "size": 704512
+    },
+    {
+      "path": "CodeOfConduct.htm",
+      "sha256": "0aba8733cea181b4d6f6219cd54d65d9754d85a95432463d8da60a6ca79c70f4",
+      "size": 13599
+    },
+    {
+      "path": "unicows.dll",
+      "sha256": "71f76548b10974c46b69063dc7ee9d3c19dd3fec408c7720deb00c9fcbdcc0a7",
+      "size": 237936
+    },
+    {
+      "path": "mssdsp.flt",
+      "sha256": "da589ef842ba67a4412bc09464b9c09c9f62b0702870b45986827923d2ce9c3e",
+      "size": 111104
+    },
+    {
+      "path": "mss32.dll",
+      "sha256": "a1a8e8abf9d5b1991b8691b46b6fba3d9236e185e21d0632bb5b5ea51c7b5789",
+      "size": 372736
+    },
+    {
+      "path": "TermsOfUse.htm",
+      "sha256": "4d10fe5cb3d32c67ae4440c01a0bc4e5bac403296e13c1013f675bd8e9f528dd",
+      "size": 53625
+    },
+    {
+      "path": "Math.dll",
+      "sha256": "3e1608f6ca23cd17320ab9817c22d79379b8cc40a4081b61bfbd2ac405f47cfc",
+      "size": 94208
+    },
+    {
+      "path": "mssrsx.m3d",
+      "sha256": "4bc9d53016f54ab7a9cc17cb73a508af80aecf1827c2502e6bb5fe73b9b475bf",
+      "size": 372224
+    },
+    {
+      "path": "Tutorial.html",
+      "sha256": "44243c7dd1877ebd6d01fdfab264cc6f3909d2681234fe953d049ae5a58a70fc",
+      "size": 1362241
+    },
+    {
+      "path": "mssds3d.m3d",
+      "sha256": "590d9fbd09b1aa5eabe9a1d04cb5c024e7d7f98730c5d00d1a1d4721a56b537a",
+      "size": 83456
+    },
+    {
+      "path": "d3d9.dll",
+      "sha256": "3d6b529dc4f7f55639aad580e81b2939ab1489cdbb9f1550dce74e41656bbf5b",
+      "size": 4284430
+    },
+    {
+      "path": "binkw32.dll",
+      "sha256": "aad5bc6765cb44f6a97b1ff1b0a721115112383c9f46e14867e568d99f2b975a",
+      "size": 377856
+    },
+    {
+      "path": "Core.dll",
+      "sha256": "60039be6ca5bfb8d9bb0e3d01032a97217f113c97574e3618b80b5ffc1d880d6",
+      "size": 270336
+    },
+    {
+      "path": "Sound.dll",
+      "sha256": "f1751a917f99e15956d70fd88aa5e76bb84b0ee8eb339ce93a08180d3912fb34",
+      "size": 65536
+    },
+    {
+      "path": "msssoft.m3d",
+      "sha256": "f0d01fd66b46f1943eb78051b584745f033983f172dd71bdfc47e120e84ece50",
+      "size": 79360
+    },
+    {
+      "path": "Gamemanual_RoC.pdf",
+      "sha256": "c79f0baec16b9e461a0e228e9fa22be548548584b5c4b0903ce819c5bf6a8bcc",
+      "size": 431129
+    },
+    {
+      "path": "mssvoice.asi",
+      "sha256": "cbec9a07693987a2ac2b0c64ae4696c654c4ff5183fafad8a88e044d976b79df",
+      "size": 214528
+    },
+    {
+      "path": "msseax.m3d",
+      "sha256": "a9cf3eff2e209b6366751e3775b1937255faa6c5b63401caf2c2aee084a891c5",
+      "size": 140800
+    },
+    {
+      "path": "Shadowbane.exe",
+      "sha256": "0bc19747ebc5f5f821eea7b0a5e4cecdf685ddf6d7fed84e24bac1f18b66e555",
+      "size": 421888
+    },
+    {
+      "path": "d3d8.dll",
+      "sha256": "59e15e4ee8596cdef2194275b05ded3c6f8590aa68f483e4daec6a6c99ec2b2d",
+      "size": 124416
+    },
+    {
+      "path": "Skins/Patcher-Meekskin.zip",
+      "sha256": "c6f4544ebc249a7d3046e73e4b2d22454099875a0493ece6e1787fa16fabf79c",
+      "size": 4222056
+    },
+    {
+      "path": "Skins/Patcher-Meekskin_4K.zip",
+      "sha256": "974dd617bc44e0d80f6be5b2fa5d415df45c36c3578468d765e37c3e013db7fe",
+      "size": 5538740
+    },
+    {
+      "path": "Skins/Login.zip",
+      "sha256": "6b9cd00e94d31f5f77a1d1f6fd2c7d60c212221682d34cc10b0d03b7628026e7",
+      "size": 21639216
+    },
+    {
+      "path": "Skins/Patcher-VengeanceGrey.zip",
+      "sha256": "78258cb5caede8339f26317575751019be0e86e79a7ff9643b3af04b2cbd6cec",
+      "size": 2285209
+    },
+    {
+      "path": "Skins/Default.zip",
+      "sha256": "f717d14e73518b2748a104e87cb55d783f836cfb54287508e0b106d2928477af",
+      "size": 10564820
+    },
+    {
+      "path": "Skins/Patcher-MeekskinGold.zip",
+      "sha256": "f357e7a549516292fe6678c6273d169abeca57800bbd6f912324618b6c0aafc3",
+      "size": 4222599
+    },
+    {
+      "path": "Skins/Patcher-MeekskinGreen.zip",
+      "sha256": "35187b595365fd76dea059ee72caca601ecf2a55872e4a9e48ed89348d536b1a",
+      "size": 4255124
+    },
+    {
+      "path": "Skins/Patcher-MeekskinOrange.zip",
+      "sha256": "b6ed0efa7f2aa1dcbfb6c37947376578d82314e8e1180e8b6fdf8c11f0add8cb",
+      "size": 4233786
+    },
+    {
+      "path": "Skins/Patcher-Diablobane.zip",
+      "sha256": "d1a51c9cfe30322b6e2a8eeea5ff1f38605cf7a026f50fc9072bf1537a729f05",
+      "size": 1270765
+    },
+    {
+      "path": "Skins/Patcher-MeekskinTeal.zip",
+      "sha256": "1eea540f42692c7db1321cce7d7412eade5708b7e6b2f43940999fe9c7c4ee1e",
+      "size": 4221624
+    },
+    {
+      "path": "Skins/Patcher-VengeanceRed.zip",
+      "sha256": "6a544b27f86f430cb733063d8e808c6c0036d052612341798a4b1a34552838cc",
+      "size": 2285375
+    },
+    {
+      "path": "Skins/Patcher-Meekskin_4K_blue.zip",
+      "sha256": "144301e031503478edfaf0928f9ea4621cf3371c509179d3c724acfe436c1148",
+      "size": 5684497
+    },
+    {
+      "path": "Skins/Patcher-Minimal.zip",
+      "sha256": "3c30da4a5bcf2687b0ee34b6eebf4b42acd0f4cab856f522966791a9e35f7002",
+      "size": 1442742
+    },
+    {
+      "path": "Skins/Patcher-VengeanceBlue.zip",
+      "sha256": "f6001b79d8ef9ee75da655224d6e80dcaba5761ac1e99e4446a470fec1a30ea3",
+      "size": 2286454
+    },
+    {
+      "path": "Skins/Patcher-Madsage.zip",
+      "sha256": "fb944ed8a630d86d06d83c52fdfdd4a5528149d746f8d2462b370d5184fabd2b",
+      "size": 5143149
+    },
+    {
+      "path": "Skins/Patcher-MeekskinBrown.zip",
+      "sha256": "f0d0e32e26167e6e3177eb85f3ac98cb9caa6bfb3d599472910795cc002a3818",
+      "size": 4236820
+    },
+    {
+      "path": "Cinematics/Publisher.bik",
+      "sha256": "58cc529a521d5d9f17728726d702133ddafffc167aa546ecda5835c61377cd8b",
+      "size": 24833040
+    },
+    {
+      "path": "Cinematics/Wolfpack.bik",
+      "sha256": "507b521fc1bec35aa5f54084d5f2bbee8c9f4361169eced3936a0d191ef2e8e6",
+      "size": 3721180
+    },
+    {
+      "path": "Config/CodeStringENGLISH.txt",
+      "sha256": "50bbc326bf67e6a3b56a1b34b44e5fb0e59f8c143a33f1261af4ffa8a84c0d5c",
+      "size": 349906
+    },
+    {
+      "path": "Config/ServerSelection.cfg",
+      "sha256": "6217c67e4a238968c7401ba159813b6a4e3c82de21057570aac2891455500c65",
+      "size": 241
+    },
+    {
+      "path": "Config/WorldDescENGLISH.txt",
+      "sha256": "e91b42c7361412d7552b6ce067de69ba02e6adc9879cf50b91d9744b3d5c3df1",
+      "size": 56854
+    },
+    {
+      "path": "Config/rand.stuff",
+      "sha256": "5fa1118f911a846b12b3a90b8444fdfc63166267122967b6079a21ba2284b011",
+      "size": 1024
+    },
+    {
+      "path": "Config/PublisherCredits.cfg",
+      "sha256": "5d0e18698778fc96842a849d52d25d772428136547b52803a633aa8f810e0aed",
+      "size": 5887
+    },
+    {
+      "path": "Config/WorldDef.txt",
+      "sha256": "9e42d9288eea054ae9a1221c1dd71588d735a067b14abbbde1d8f983a8fcc8b9",
+      "size": 18989
+    },
+    {
+      "path": "Config/LightFlicker.cfg",
+      "sha256": "cc06607dcaebbc040a83a7e07de9ec7dc149062a367073c858aa12397cff5259",
+      "size": 1438
+    },
+    {
+      "path": "Config/Target.cur",
+      "sha256": "de76aa405e735d342e82127f00768664df0c24eda7aa3c129e8d87a8343703b0",
+      "size": 2238
+    },
+    {
+      "path": "Config/Config.wpak",
+      "sha256": "4afb2ca2c9532f23739a2d809f9e22033cd986c3dff6ca05758edc8377dc9d1f",
+      "size": 2954695
+    },
+    {
+      "path": "Config/pointer.cur",
+      "sha256": "22b5a122df5ccbecda8852de31bda881409c3711999f94985d96187617fcc6b3",
+      "size": 2238
+    },
+    {
+      "path": "Config/CursorDecline.cur",
+      "sha256": "ec52895304ee17d43b22e64cc1d273c780831d6df7b4ca8a7ef7479ac1e3d92b",
+      "size": 6518
+    },
+    {
+      "path": "Config/Chaos.cfg",
+      "sha256": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+      "size": 2
+    },
+    {
+      "path": "Config/CursorAccept.cur",
+      "sha256": "442f4cf14301579b4bd0076abac47bb9af382b15215668fae0d9013034b65288",
+      "size": 6518
+    },
+    {
+      "path": "Config/ItemENGLISH.txt",
+      "sha256": "d1923e53eb6341d4c0a3892c66771f03ede86d7f1a82e2e9ff7bb3cd657802aa",
+      "size": 536424
+    },
+    {
+      "path": "Config/CursorTarget.cur",
+      "sha256": "de76aa405e735d342e82127f00768664df0c24eda7aa3c129e8d87a8343703b0",
+      "size": 2238
+    },
+    {
+      "path": "Config/Transitions.wpak",
+      "sha256": "508d53821cb7529098de33f2e93c7349bffc8934f0a5e09f610d8a43d90b94bd",
+      "size": 26847
+    },
+    {
+      "path": "Config/PublisherXPCredits.cfg",
+      "sha256": "33c84413f714679548393049ff8bfee263cb9a4f2236a9ff0106cf24f14d116b",
+      "size": 4832
+    },
+    {
+      "path": "Config/LightCubeMaps.cfg",
+      "sha256": "a62beade89b091e45186546e266b679cb16aee18164a5f9414d41f269caebeea",
+      "size": 1061
+    },
+    {
+      "path": "Config/EffectsENGLISH.txt",
+      "sha256": "2f9a68e28cd8cc478b9aceeab571deac7de044f57b007f78e9e98429b6a59a2b",
+      "size": 84780
+    },
+    {
+      "path": "Config/DataStringENGLISH.txt",
+      "sha256": "4919261e7c9f9887bde63d128717849062eea7ce37214891676992c832b26845",
+      "size": 2843608
+    },
+    {
+      "path": "Config/WorldDef.cfg",
+      "sha256": "9e42d9288eea054ae9a1221c1dd71588d735a067b14abbbde1d8f983a8fcc8b9",
+      "size": 18989
+    },
+    {
+      "path": "Config/CursorNormal.cur",
+      "sha256": "d61e6e7285de50cbfb56138853b7014ca4d551c4e9f4d433b0e319191c1798b5",
+      "size": 6518
+    },
+    {
+      "path": "Config/ArcaneIP.cfg",
+      "sha256": "7505ff3dc2cdeb32b11a43f8e04fa8a513b7e620b19952c5cd3e429430890b44",
+      "size": 32
+    },
+    {
+      "path": "Config/Environment.wpak",
+      "sha256": "db5bf72c15044f0143af627c9fc6b7cf83d758b6a9e6bd8deb0813769e664381",
+      "size": 59085
+    },
+    {
+      "path": "Lore/VendorENGLISH.wpak",
+      "sha256": "c58165bd5ab565cbbb6be0942b3451f0159454d629649061d4608299bb70e2b8",
+      "size": 977457
+    },
+    {
+      "path": "Fonts/Octavian.fnt",
+      "sha256": "9e47ef4e3392adc2f7e65e0fd13d100f03224faaf052b898b807116bbe515b74",
+      "size": 6303
+    },
+    {
+      "path": "Fonts/AsianFont.zip",
+      "sha256": "980c74be10238d5b2a6831142c4f8405c78f3bc91c21b613355247855b725904",
+      "size": 715095
+    },
+    {
+      "path": "Fonts/CJKExtraFont.zip",
+      "sha256": "1bfea5e2c1df99da5b046598339c86be2cf3ae759dae6492591e8b43fe6353a9",
+      "size": 7821
+    },
+    {
+      "path": "Fonts/Abaddon.fnt",
+      "sha256": "55c97c4685af61b3bedd288e8841addecee3038e0c985e8e9dde5023835269eb",
+      "size": 6295
+    },
+    {
+      "path": "Fonts/PunctSymbolFont.zip",
+      "sha256": "f43ab66f39068e84b2138631b7244abd83f512cb26586ff1f47c352f9cf84e06",
+      "size": 6271
+    },
+    {
+      "path": "Fonts/Fonts.zip",
+      "sha256": "77cd7006ace258fb6547d2ef08c3230fdfea8639babfa45b9d2cea635892a5f4",
+      "size": 118064
+    },
+    {
+      "path": "Fonts/Bentham.fnt",
+      "sha256": "56fc67924d35b0582d3acc9168879fa051fa641f64d310e6c7f4c6894002f1df",
+      "size": 6304
+    },
+    {
+      "path": "Fonts/Gaiseric.fnt",
+      "sha256": "9b35c394c2a102842c1ccd4dacb904fa13aa0381e700939c50bfec18f0880aeb",
+      "size": 6193
+    },
+    {
+      "path": "Fonts/KoreanFont.zip",
+      "sha256": "63b3355f51d26f00d1737e95e199996d4ba13174c86f57a8012a3d368012a8dc",
+      "size": 166229
+    },
+    {
+      "path": "Fonts/ThaiFont.zip",
+      "sha256": "82987c12b63ef95752277bf562246839f526e00c2cd1562b67b8202de6858ea7",
+      "size": 1284
+    },
+    {
+      "path": "Fonts/LEBtoGreekFont.zip",
+      "sha256": "3442ba89be0467c36a04d95c2c53e43decc2ba208270ac8ceb2ea4845fc1e80f",
+      "size": 4597
+    },
+    {
+      "path": "Fonts/Onuava.fnt",
+      "sha256": "1db92dab72ffdaed5ae4eaaf93e127612b571e010a82ff6311b029d136923ea8",
+      "size": 6329
+    },
+    {
+      "path": "Fonts/Procopius.fnt",
+      "sha256": "1bbf7626e485a723fb336114d5da35b06cc1dd45acf6c2dbcbcc0f8e01abd2d5",
+      "size": 6242
+    },
+    {
+      "path": "Fonts/Futhark.fnt",
+      "sha256": "285bb175aad9c538049cb718de10ccb9f7bbfc95902f2e602af779f44a09730c",
+      "size": 6285
+    },
+    {
+      "path": "Fonts/FullHalfWidthFont.zip",
+      "sha256": "0e32e0d037a67ed1104b8adf38affd3c92fecb142daafeb145089383f4aecbd0",
+      "size": 6773
+    },
+    {
+      "path": "Fonts/ChineseFont.zip",
+      "sha256": "3bde15f2a5d7db814012ba5fdd478ccb1802bf18f768b0e4d2c314626ea50ce7",
+      "size": 715249
+    },
+    {
+      "path": "Maps/VorringiaHighlight.tga",
+      "sha256": "06072caae7e39a24c2372105245059bd7e0c7a6bd3506e07d8b3aeabd55daadc",
+      "size": 65580
+    },
+    {
+      "path": "Maps/VorringiaIcons.wpak",
+      "sha256": "18377304e403b31ca8e678244ec4fe1096b0740fbefbcdd60d65c52d434901a9",
+      "size": 115791
+    },
+    {
+      "path": "Maps/Dalgoth.TGA",
+      "sha256": "c5ce6bc1f4666932af06907a9a96fd1f1d545df05bc0cbc7b82ba663104f613d",
+      "size": 1572908
+    },
+    {
+      "path": "Maps/DalgothIcons.wpak",
+      "sha256": "d14ea7e7c4b716e04e52475555bfa15dec7a70af35cae5a2393a5783209613e1",
+      "size": 128511
+    },
+    {
+      "path": "Maps/AerynthTerritories.tga",
+      "sha256": "eb77f4ca2595d8acff6e7ccf28f17459a8080c52fca88c1f5a999aeb357fe9d1",
+      "size": 2097196
+    },
+    {
+      "path": "Maps/DalgothHighlight.tga",
+      "sha256": "a63b6700381bb2be1fabb03ab7c0538a0033ae855785c2e4706d968f2bc3aaee",
+      "size": 131116
+    },
+    {
+      "path": "Maps/AerynthIcons.wpak",
+      "sha256": "da5d44aca3bd05e83e7e0696dcbe9ce6ff35f2152d9ea0b8ed0cabca8cdb5296",
+      "size": 127241
+    },
+    {
+      "path": "Maps/AerynthHighlight.tga",
+      "sha256": "3f4902c1f2e7b5de4dd4ebc4a5e42a2515772bd6efd57342b06f184a901a7712",
+      "size": 131116
+    },
+    {
+      "path": "Maps/VorringiaTerritories.tga",
+      "sha256": "d70ef5537a12738a62ee303333456aa54dad62d6310d809f8a43ceba7e2542a8",
+      "size": 1048620
+    },
+    {
+      "path": "Maps/DalgothTerritories.tga",
+      "sha256": "c4a728802d2e617b42e5ee4d5c6a7319242577de0e8f8a8ead65594aee52cb2d",
+      "size": 2097196
+    },
+    {
+      "path": "Maps/Vorringia.TGA",
+      "sha256": "fae9390bb50199a76122bb9e5d5d0496cf6016eb899686e5d4262c14894f0f2b",
+      "size": 1574403
+    },
+    {
+      "path": "Maps/Aerynth.TGA",
+      "sha256": "27935a6222580be0ccd44e550806d622c754ab1f0d26b8dac682f91245af9b54",
+      "size": 1572908
+    },
+    {
+      "path": "cache/Tile.cache",
+      "sha256": "c584ef025e9de7dc69c80470dcdab365b70d056ce1f2277ba95bfd5f133317c0",
+      "size": 29448
+    },
+    {
+      "path": "cache/Mesh.cache",
+      "sha256": "136f6625faa98a13378274d044d2d5f6920babbb1cb84f2547ecdacbc24e4993",
+      "size": 37149862
+    },
+    {
+      "path": "cache/CZone.cache",
+      "sha256": "8ab48ad02f41c839c9c3969e698b57f002c1fa495595872884eed8ea727fc086",
+      "size": 1232841
+    },
+    {
+      "path": "cache/Dungeon.cache",
+      "sha256": "edaeac525a2004ee8f2509d3144d1dc9f2f5319b8bd0766842cc224de6e179d4",
+      "size": 512
+    },
+    {
+      "path": "cache/Textures.cache",
+      "sha256": "1a142d73f8e1ef9bed8b56ef3a238203bc16a1da6df9c69b5ca625652d0d968a",
+      "size": 1772784689
+    },
+    {
+      "path": "cache/Visual.cache",
+      "sha256": "cf25abc2af9dd0d5818b3882506569f7809aa0799574f9cf01fdcf2f3ce47465",
+      "size": 141098
+    },
+    {
+      "path": "cache/Render.cache",
+      "sha256": "5dd78baa0c5ae867e720ec05ba184624ad6dff363a576f48f941100d2e7d3667",
+      "size": 2880938
+    },
+    {
+      "path": "cache/Skeleton.cache",
+      "sha256": "21a3a7b8e6059b8c0d2cd715e4fda0add9478dc2ee207e14cff60e09c09836ee",
+      "size": 99765
+    },
+    {
+      "path": "cache/Motion.cache",
+      "sha256": "3f7074b9ece0856ca831ff67fa0d7b72c8df07af3ad0c571365fa88c62f956e0",
+      "size": 26580492
+    },
+    {
+      "path": "cache/Sound.cache",
+      "sha256": "cd0720bae7094808646381568ae6443cf9bda894c7a91d47662cf9b3d7418ee4",
+      "size": 166165512
+    },
+    {
+      "path": "cache/Palette.cache",
+      "sha256": "62212a626ccebfb19b97b47bf7ed291976d267e92d010afb0537a160c03b4a12",
+      "size": 512
+    },
+    {
+      "path": "cache/TerrainAlpha.cache",
+      "sha256": "85155b9f620f9d636e10f78a0a2e0ac6cca382a01cd52a3ded63091543132f28",
+      "size": 122482336
+    },
+    {
+      "path": "cache/CObjects.cache",
+      "sha256": "08c115baeef5da811f7ee2802ccdc1002cfeba29cf1818956c452e3e594efef6",
+      "size": 5433065
+    },
+    {
+      "path": "DoubleFusion/Engine.Var",
+      "sha256": "faf459eeb7f2fda74b6ba109d807b07be35410d4d6240a5e86352969dde5ad36",
+      "size": 368
+    },
+    {
+      "path": "DoubleFusion/User.var",
+      "sha256": "3ea49fbca74f6e7b5ebb39d439de4e0fc4e1fc22635e4f117856717cf56a83ae",
+      "size": 760
+    },
+    {
+      "path": "DoubleFusion/cache/cache.dat",
+      "sha256": "db39ce2216edc040434c5d5422fc3d5ad3af1b98d3c1beec14edb6c53778d3d2",
+      "size": 400
+    },
+    {
+      "path": "DoubleFusion/cache/cache.dat.debug",
+      "sha256": "1053a1e9d7dffe12e2eb3b245949427bdcb47cae26233fdefd184a66e1385efa",
+      "size": 273
+    },
+    {
+      "path": "DoubleFusion/cache/Objects.dfo",
+      "sha256": "ac40c80697d7f2136b18e6bf5f441e43789ae89742841c3bb8a245b31620d997",
+      "size": 614
+    },
+    {
+      "path": "DoubleFusion/cache/data/forcampaignstop/df.dat",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "DoubleFusion/cache/data/forcampaignstop/forcampaignstop.jpg",
+      "sha256": "d8eb571ab82010b97591e6af1e04818966f9a2bb5655a07944c63d7c1617da4c",
+      "size": 61474
+    },
+    {
+      "path": "DoubleFusion/cache/data/Video_Blank_intro/Video_Blank_intro.bik",
+      "sha256": "7aa354c7430def9813beb5d33cb2c16ac628c02230385c75fbd9e7d915bd3292",
+      "size": 14572
+    },
+    {
+      "path": "DoubleFusion/cache/data/Video_Blank_intro/df.dat",
+      "sha256": "226f8b6d04b5754e4f94b9437ad18b4bb02bc894c92f2d02a0f59273ca6e1d66",
+      "size": 80
+    },
+    {
+      "path": "DoubleFusion/cache/data/Video_Blank_inter/Video_Blank_inter.bik",
+      "sha256": "7aa354c7430def9813beb5d33cb2c16ac628c02230385c75fbd9e7d915bd3292",
+      "size": 14572
+    },
+    {
+      "path": "DoubleFusion/cache/data/Video_Blank_inter/df.dat",
+      "sha256": "c33a86bc1e17ea19cae48a361ae8a5584a44b081a7b3110aa0fb1f04a1027ffa",
+      "size": 80
+    },
+    {
+      "path": "DoubleFusion/cache/data/66163-640-480/66163-640-480.bik",
+      "sha256": "104643bb3db20006c8c9bcc62d5fe7d1edcc7d011dd6ae72149bf171cc47e8e8",
+      "size": 6061776
+    },
+    {
+      "path": "DoubleFusion/cache/data/66163-640-480/df.dat",
+      "sha256": "5990df96555c4d351ab746c2d37e8124147c0de553c392e23c9a08ffcc356f24",
+      "size": 72
+    },
+    {
+      "path": "DoubleFusion/cache/data/Video_Blank_exit/Video_Blank_exit.bik",
+      "sha256": "7aa354c7430def9813beb5d33cb2c16ac628c02230385c75fbd9e7d915bd3292",
+      "size": 14572
+    },
+    {
+      "path": "DoubleFusion/cache/data/Video_Blank_exit/df.dat",
+      "sha256": "11e566359b5c67308a1694f071e0ceea849cc5bdd465cb4e5922aca0a9d6c1a1",
+      "size": 80
+    },
+    {
+      "path": "TreasureTables/ModTables.wpak",
+      "sha256": "fa91745caf39b6a719118cd0ed759f0f22cc95aadf3caa4e82850a2ed2a204bd",
+      "size": 51276
+    },
+    {
+      "path": "TreasureTables/ItemTables.wpak",
+      "sha256": "bf5c9bcde12cd8f231e9e315274f95601908c2713a6ec048a824b2f7d6aa2714",
+      "size": 154778
+    },
+    {
+      "path": "TreasureTables/GeneralItemTables.wpak",
+      "sha256": "5cead38f930f608359ea47b2dfc4b74122fabee07cd90779175848a1d338fa85",
+      "size": 34651
+    },
+    {
+      "path": "TreasureTables/ModTypeTables.wpak",
+      "sha256": "9450b70132de254d7ac02600c52729d0efe0ec3687af27dd40af80293d3ace52",
+      "size": 173574
+    },
+    {
+      "path": "verscache/Gamemanual_ToO.pdf.ver",
+      "sha256": "b570f00ac905465ac8b28793b1e4d4e4cd9be172fc879774ea32190c87ec9f72",
+      "size": 71
+    },
+    {
+      "path": "verscache/Tutorial.html.ver",
+      "sha256": "8e67c6d1ef1cf8d397face59b35c3c835d575491fee462d16f318cc322cf04c3",
+      "size": 66
+    },
+    {
+      "path": "verscache/Gamemanual_RoC.pdf.ver",
+      "sha256": "1973cbda2030464b119af454ce0d0390c975ea5c1620da8ea660c97054cfa4ef",
+      "size": 71
+    },
+    {
+      "path": "verscache/CodeOfConduct.htm.ver",
+      "sha256": "556c7a9fc0d4e537c803549c2c0810f84501adb81d0fd125ac81f7e7a3a378e8",
+      "size": 71
+    },
+    {
+      "path": "verscache/Readme.txt.ver",
+      "sha256": "670220acff4dff5af29e1d5965bcf59bc158e44d99d325c1f65d9cbd8ab63bbc",
+      "size": 63
+    },
+    {
+      "path": "verscache/PatchLog.txt.ver",
+      "sha256": "8cb0a8fd2834a1b9ddf8ff1b6a319c23a8f3b62d80f20c4324d3d1d6b144b24c",
+      "size": 65
+    },
+    {
+      "path": "verscache/Gamemanual.pdf.ver",
+      "sha256": "aa848892b6c7438ddc4128b4cd8ade8b1474102f2d30b9e74e2bf43ac9ae6f52",
+      "size": 67
+    },
+    {
+      "path": "verscache/SBConfig.exe.ver",
+      "sha256": "2f72055e1b922b9c816f43e14f27f359b4c949f2007091b59ea5fafb11b26562",
+      "size": 65
+    },
+    {
+      "path": "verscache/Shadowbane.exe.ver",
+      "sha256": "6f84dc30fb23a15f7e4de77b4d70924a46cce660fd70856e5bef3dcd4799103d",
+      "size": 68
+    },
+    {
+      "path": "verscache/Skin.dll.ver",
+      "sha256": "daa6630d839f5dc2ce0c059e94a3c5ffc9cbebbec45465cba4a20dbbaab88989",
+      "size": 62
+    },
+    {
+      "path": "verscache/EULA_TOO.txt.ver",
+      "sha256": "d8c16f5d63db1d79100d540fe3c74282c9cbd1fd6bfd487ff4d5e86483f9ecaa",
+      "size": 65
+    },
+    {
+      "path": "verscache/TermsOfUse.htm.ver",
+      "sha256": "0de33b80a82b8c6b65354ac3ad3c3e54a3d44c7707689509fdb483465cfd79a9",
+      "size": 67
+    },
+    {
+      "path": "verscache/Cinematics/Publisher.bik.ver",
+      "sha256": "db81af600f1f1a4bf99b831626da475fda8a59c71006e1887fed1541f203f170",
+      "size": 77
+    },
+    {
+      "path": "verscache/Config/ArcaneLanguage.cfg.ver",
+      "sha256": "3b6d9074cd952212fb444eec42bd59f7c49581c8df2ba3ac78581f657c2a1aec",
+      "size": 77
+    },
+    {
+      "path": "verscache/Config/pointer.cur.ver",
+      "sha256": "f3749cfe74c749beadc02ac069b89d1e36d26203d86a133f26ae03da98a2f2d7",
+      "size": 72
+    },
+    {
+      "path": "verscache/Config/PublisherXPCredits.cfg.ver",
+      "sha256": "9072971ce0abad3c62bbb89cf60ee75b7270cabff793cbbf26d48b16280fc133",
+      "size": 81
+    },
+    {
+      "path": "verscache/Config/CursorAccept.cur.ver",
+      "sha256": "ffa75a5203971c8ece6b3ed8bb20f5dffdb50d1b0a6e856bcf144028d908cc4d",
+      "size": 77
+    },
+    {
+      "path": "verscache/Config/Environment.wpak.ver",
+      "sha256": "caa2a4d675b1a70634caaaf18eaaa1fdb16084f3be128d732158504c176381aa",
+      "size": 77
+    },
+    {
+      "path": "verscache/Config/CursorTarget.cur.ver",
+      "sha256": "810b0cda916b13cba86400de65cabc421a784c78cb04640813ca06eead3a016a",
+      "size": 77
+    },
+    {
+      "path": "verscache/Config/Target.cur.ver",
+      "sha256": "be221d34689a6b7755b244ad3f92c31130b79b74bb822bd68b5fc97a113745bb",
+      "size": 71
+    },
+    {
+      "path": "verscache/Config/EffectsENGLISH.txt.ver",
+      "sha256": "96f94e4d5618667ae449b26047f5e047c33b1a28c657c895660e1919eff6a11d",
+      "size": 79
+    },
+    {
+      "path": "verscache/Config/CursorDecline.cur.ver",
+      "sha256": "9f0f90b490500bd603b19087eee01b7f79e275af55fc1e1c14aaaea7062ee87b",
+      "size": 78
+    },
+    {
+      "path": "verscache/Config/Chaos.cfg.ver",
+      "sha256": "0049e782a4e61ef6086093f2c0e6a415960fb47269af0273664551c5f39de7e6",
+      "size": 70
+    },
+    {
+      "path": "verscache/Config/PublisherCredits.cfg.ver",
+      "sha256": "2fb6c82bcbdf9ab667775cb0191e183bce350087deb55fed0d0705ff5810dc7c",
+      "size": 79
+    },
+    {
+      "path": "verscache/Config/LightCubeMaps.cfg.ver",
+      "sha256": "7836a054f97556663e006d2cf8cbc82730f15322ba956380cfb1be04c0c9f0ec",
+      "size": 78
+    },
+    {
+      "path": "verscache/Config/ServerSelection.cfg.ver",
+      "sha256": "f8e184b3c927e97794f67efc9fb477582da433caaf0199d66cfaca5acd40f66f",
+      "size": 78
+    },
+    {
+      "path": "verscache/Config/LightFlicker.cfg.ver",
+      "sha256": "6c21e956ea68c21697f28fcf97fa6b4b3b58e2e5b51600021080e38374473551",
+      "size": 77
+    },
+    {
+      "path": "verscache/Config/ItemENGLISH.txt.ver",
+      "sha256": "7c02c74bc4f642f944326c31a70fe8443dafb3b3ef52dc4ed188b96e98d1829b",
+      "size": 76
+    },
+    {
+      "path": "verscache/Config/CursorNormal.cur.ver",
+      "sha256": "043edf6b14a586024180159721cb8d7ba91ccc23832c791d3a626303a38b8fa1",
+      "size": 77
+    },
+    {
+      "path": "verscache/Fonts/FullHalfWidthFont.zip.ver",
+      "sha256": "9443c6b20302bdd113b4a1193343e73cb2cb6a67607aeb4ca02692bb331f4cd7",
+      "size": 80
+    },
+    {
+      "path": "verscache/Fonts/KoreanFont.zip.ver",
+      "sha256": "3a7cb6adc0494d5c15d4d8ace5df012fee3b8f5214525caf5e376d96d0fc1c50",
+      "size": 73
+    },
+    {
+      "path": "verscache/Fonts/LEBtoGreekFont.zip.ver",
+      "sha256": "eb19e924e268bba4a0164636a93f6a18c19cdacc3c7bca10adb9e57e66aa2667",
+      "size": 77
+    },
+    {
+      "path": "verscache/Fonts/AsianFont.zip.ver",
+      "sha256": "c91b2fa75b9b9e7b83fca648eeb6390bd82bbe830d318c3d8e4c94edd01cafd7",
+      "size": 72
+    },
+    {
+      "path": "verscache/Fonts/Fonts.zip.ver",
+      "sha256": "c772b058a2d78820b346598d813919f77f72168335de2856ee9733524cf1132c",
+      "size": 68
+    },
+    {
+      "path": "verscache/Fonts/Bentham.fnt.ver",
+      "sha256": "d5a607f380a4b69640bb7e55ffaee6eca26967ae567f9f6cf13e55d64fb9d076",
+      "size": 70
+    },
+    {
+      "path": "verscache/Fonts/Gaiseric.fnt.ver",
+      "sha256": "535f53f04c3bb8c4aa5a265d7bbaa38ceee7261d28f26676f71b04fc4805a27a",
+      "size": 71
+    },
+    {
+      "path": "verscache/Fonts/PunctSymbolFont.zip.ver",
+      "sha256": "dd59b666d8dc3ad0c6002327eb320f255aa8f19e15da4f52bf3d0cf446c79b4c",
+      "size": 78
+    },
+    {
+      "path": "verscache/Fonts/Octavian.fnt.ver",
+      "sha256": "31d9bc5f08bb9dd7d62dd2f7c752281a82a4e9e74791ed2fb8c9da2acc46bf49",
+      "size": 71
+    },
+    {
+      "path": "verscache/Fonts/Procopius.fnt.ver",
+      "sha256": "354f8a7813528d15befd2f4e2b3b4d5a0135a70f9dca1223bb7ee49df8e7aa18",
+      "size": 72
+    },
+    {
+      "path": "verscache/Fonts/ThaiFont.zip.ver",
+      "sha256": "309dd1bcda64e4c6cfa3c1caa156122296c00fbbf03b949aa35c0f36ad281539",
+      "size": 71
+    },
+    {
+      "path": "verscache/Fonts/Onuava.fnt.ver",
+      "sha256": "3eacd25632daeea867f53c7bb2ae2bab5e061eca503fc677351a61c4171ee3f4",
+      "size": 69
+    },
+    {
+      "path": "verscache/Fonts/Abaddon.fnt.ver",
+      "sha256": "8807acf561e7d50fb516caf76a7fe4c28cdcf8d2824a53505b032277ed7350af",
+      "size": 70
+    },
+    {
+      "path": "verscache/Fonts/CJKExtraFont.zip.ver",
+      "sha256": "447f9909dc7ba638b5f5b2d754819f9f993d35b1991d6d06a7f175938556da2e",
+      "size": 75
+    },
+    {
+      "path": "verscache/Fonts/Futhark.fnt.ver",
+      "sha256": "83c29d347dd8dfedbeec90e276408724c01e2d912f46918e97e2532aad9bf75e",
+      "size": 70
+    },
+    {
+      "path": "verscache/Fonts/ChineseFont.zip.ver",
+      "sha256": "1a51daa03d055c813dab8a665cb6743bccb78b4866a63d274089946b8a07b035",
+      "size": 74
+    },
+    {
+      "path": "verscache/Maps/AerynthHighlight.tga.ver",
+      "sha256": "2b5ccd8aa2f99221e4a049d8ef2c04ae3e65829249d8ee4876509bc964a24a9d",
+      "size": 78
+    },
+    {
+      "path": "verscache/Maps/VorringiaTerritories.tga.ver",
+      "sha256": "41ce2cc44d8b477718b28c11650106ad5954c46f4041b5e384cf9c374c4dab16",
+      "size": 82
+    },
+    {
+      "path": "verscache/Maps/AerynthIcons.wpak.ver",
+      "sha256": "a69f38b30d72c83f7bfeb8de7a6dd8ef6367bb02190d7f6276c9a581cfb65877",
+      "size": 75
+    },
+    {
+      "path": "verscache/Maps/DalgothTerritories.tga.ver",
+      "sha256": "f27527f544dd3d1fb1dba505bcacb1663417eec05db1375cf2ddf843ae8306f9",
+      "size": 80
+    },
+    {
+      "path": "verscache/Maps/VorringiaIcons.wpak.ver",
+      "sha256": "a8f60dd4b799c025331f42edf023f145082be0dddff663fdf9cafc2f640aa678",
+      "size": 77
+    },
+    {
+      "path": "verscache/Maps/DalgothHighlight.tga.ver",
+      "sha256": "2ff5d7f60b0669f15176d843949e19998f3b6754b812dc5814b5391015430ad0",
+      "size": 78
+    },
+    {
+      "path": "verscache/Maps/AerynthTerritories.tga.ver",
+      "sha256": "5ac5dde76c5365d14f9fcbdc1401dec9fcc00360f8114621e5618c6dcdef8809",
+      "size": 80
+    },
+    {
+      "path": "verscache/Maps/Dalgoth.TGA.ver",
+      "sha256": "dbdd702a752e67852b395acb48db952deb94e284b34c9899e409aaa75bf4462c",
+      "size": 69
+    },
+    {
+      "path": "verscache/Maps/Aerynth.TGA.ver",
+      "sha256": "5a655d617da5dfdd6a0acd61d4ddcc1d05626b374bd7c87ad92ef814a4864ba0",
+      "size": 69
+    },
+    {
+      "path": "verscache/Maps/VorringiaHighlight.tga.ver",
+      "sha256": "a6f6a5291c05da4ca3a4060d3eb8db8ded8029de08f62cb776e4b808c56e7062",
+      "size": 80
+    },
+    {
+      "path": "verscache/Maps/DalgothIcons.wpak.ver",
+      "sha256": "135383172e2371794a3c314d6cee26d3b52fbabe935f3ea248fac18aec628508",
+      "size": 75
+    },
+    {
+      "path": "verscache/cache/CZone.cache.ver",
+      "sha256": "4124022790810f8a6b643c7b239e1bfb9e73177bee8f7ffd7c0c8dd1f3eb5af7",
+      "size": 70
+    },
+    {
+      "path": "verscache/cache/TerrainAlpha.cache.ver",
+      "sha256": "10e7ebb2c01f0b1b615203263f3d06145d343b21d552fdadc456a74dfed594a4",
+      "size": 77
+    },
+    {
+      "path": "verscache/cache/Dungeon.cache.ver",
+      "sha256": "a7e69c910f59fec9e12639b1ff8f38daa00030d15286961ba7b1497f0d041cf9",
+      "size": 72
+    },
+    {
+      "path": "verscache/cache/Mesh.cache.ver",
+      "sha256": "422017ba0b684ef7879be0bb1edfcee8bbabfc75500a17c1f1d60b6efa9b643c",
+      "size": 69
+    },
+    {
+      "path": "verscache/cache/Palette.cache.ver",
+      "sha256": "3069bea2742a0dc16fb3c3d61e55ae593c147c3936528199642b5309a90bb1b5",
+      "size": 72
+    },
+    {
+      "path": "verscache/cache/Motion.cache.ver",
+      "sha256": "716535d1ecd567451fdb095b68b55c249fe2248cdb34be4de5a272830ed54b2c",
+      "size": 71
+    },
+    {
+      "path": "verscache/cache/Sound.cache.ver",
+      "sha256": "e3d6e29b9da47e03eb7666505643494af8c86672cd1e654af9b1e80ce983cddf",
+      "size": 70
+    },
+    {
+      "path": "verscache/DoubleFusion/Engine.Var.ver",
+      "sha256": "65807a77fd0ab52ec7b24d56da6bedce979aa4a70c8d8c60fa74906ce8cc08ef",
+      "size": 76
+    },
+    {
+      "path": "verscache/DoubleFusion/cache/Objects.dfo.ver",
+      "sha256": "47705234048b569d46cfb18828cdcfa927160bfa12bb0c80f8da8b905d67ae0b",
+      "size": 83
+    },
+    {
+      "path": "verscache/DoubleFusion/cache/data/Video_Blank_intro/df.dat.ver",
+      "sha256": "2988a33a76b8ac5449634939cb9a4afb275d497bb87cf407ad17c53362036a41",
+      "size": 101
+    },
+    {
+      "path": "verscache/DoubleFusion/cache/data/Video_Blank_intro/Video_Blank_intro.bik.ver",
+      "sha256": "0556c73807d7f3b82137629c00185b64c186e832c0d4018e18de7381745f96e1",
+      "size": 116
+    },
+    {
+      "path": "verscache/DoubleFusion/cache/data/Video_Blank_inter/df.dat.ver",
+      "sha256": "931d9af65e595f02859c704d3e335cb6ca8361ab0b311aa03926cd663f0e0661",
+      "size": 101
+    },
+    {
+      "path": "verscache/DoubleFusion/cache/data/Video_Blank_inter/Video_Blank_inter.bik.ver",
+      "sha256": "0e9e72eded953de2565ca1cc15eb34dbba00c1c1ec60e64eaae79fa30f54b539",
+      "size": 116
+    },
+    {
+      "path": "verscache/DoubleFusion/cache/data/Video_Blank_exit/df.dat.ver",
+      "sha256": "9a2ef0f6f788e84665a42b3df1c4af35ba516194cbcfeaac79582f7efec0cf4c",
+      "size": 100
+    },
+    {
+      "path": "verscache/DoubleFusion/cache/data/Video_Blank_exit/Video_Blank_exit.bik.ver",
+      "sha256": "872c6748093cbe1ae3c423ef56143c1b611ec04a575b30bd63a6ccd5aa8f9c69",
+      "size": 114
+    },
+    {
+      "path": "verscache/TreasureTables/ItemTables.wpak.ver",
+      "sha256": "90fb5643f31ee8517b117ae542f6a180ac3118dc0ea846b3d7c447d65512ab3a",
+      "size": 83
+    },
+    {
+      "path": "verscache/TreasureTables/ModTables.wpak.ver",
+      "sha256": "1422fe0fa351908c0fd3fde3178f974c868683c06da9916cf1daf328c4c83cdc",
+      "size": 82
+    },
+    {
+      "path": "verscache/TreasureTables/GeneralItemTables.wpak.ver",
+      "sha256": "b88cee56735280cf843f967a2dac96441bce316e6c8da9c129b39eebf7d750d9",
+      "size": 90
+    },
+    {
+      "path": "verscache/TreasureTables/ModTypeTables.wpak.ver",
+      "sha256": "f876cd2a723dc639c382e28a9eccca2abb1b4250fcc44ae026a193d2e8bcc57e",
+      "size": 86
+    },
+    {
+      "path": "FixGuiSettings.bat",
+      "sha256": "ff22726739d47ffda2ee2b711a0fb4c17ed5491ab387c76c4da45ccbe1432923",
+      "size": 919
+    }
+  ]
+}
