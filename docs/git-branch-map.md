@@ -3,18 +3,17 @@
 ## Character transfer capture - October 7
 
 codex/character-transfer-capture owns an isolated managed worktree and targets
-main through PR #101. It contains automatic .14 equipment/rune/stat capture,
-the shared Wonderbane/Private SB tester dashboard, incident timelines, optional
-game input and local speech-to-text, and portable package construction.
-See [capture evidence](automatic-character-build.md) and
-[tester instructions](character-recorder.txt).
-Original .14 private-server native/diagnostic capture passed a three-sample live
-session. Offline dashboard/disabled-hook and synthetic-audio dictation checks pass.
-Portable source dc7b10851237 passed its embedded package checks; its exact
-archive receipt is in automatic-character-build.md. Source remains outside main
-pending review. Next: have a tester validate Wonderbane gear, button correlation
-and actual microphone dictation. Destination content mapping/database import and authoritative private
-server trace instrumentation remain separate unfinished work.
+main through PR #101. It now adds the user-friendly Companion installer,
+automatic character discovery, reviewed report delivery and private ingestion
+sidecar to the original recorder/dictation work.
+See [delivery operations](character-report-delivery.md), [capture evidence](automatic-character-build.md)
+and [tester instructions](character-recorder.txt).
+The original client identity profile is confined to capture; shared bot readers
+retain the existing original-image rejection gate. The CI regression is fixed.
+Source remains outside main pending review. Next: deploy/verify private report
+ingestion, qualify the configured installer, then have the friend validate
+remote delivery and real microphone/game-control correlation. Database import
+and authoritative gameplay server instrumentation remain unfinished.
 
 
 ## Context cleanup progress - October 7

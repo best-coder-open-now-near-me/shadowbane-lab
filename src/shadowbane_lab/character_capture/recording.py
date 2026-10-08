@@ -23,7 +23,7 @@ from shadowbane_lab.integrity import create_only_json
 
 from .transfer import _now
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 
 class RecordingLimit(RuntimeError):

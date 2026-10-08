@@ -26,13 +26,24 @@ from .transfer import CaptureError, observe_character
 
 
 class Watcher:
-    def __init__(self, root, character, server, *, pid=None, inputs=False, profile="Wonderbane"):
+    def __init__(
+        self,
+        root,
+        character,
+        server,
+        *,
+        pid=None,
+        inputs=False,
+        profile="Wonderbane",
+        expected_creation=None,
+    ):
         if (
             not character.strip()
             or not server.strip()
             or profile not in ("Wonderbane", "Private SB")
         ):
             raise ValueError("Choose a profile and enter the character and server names.")
+        self.expected_creation = expected_creation
         self.root, self.character, self.server = root, character, server
         self.pid, self.inputs, self.profile = pid, inputs, profile
         self.commands = queue.Queue(maxsize=256)
@@ -106,6 +117,11 @@ class Watcher:
                 if self.pid is None
                 else WindowsReadOnlyProcessMemory.open_for_process("sb.exe", self.pid)
             )
+            if (
+                self.expected_creation is not None
+                and process.process_creation_filetime_utc != self.expected_creation
+            ):
+                raise CaptureError("The game restarted. Find your character again.")
             identity_reader = (
                 PrivateServerCharacterReader
                 if self.profile == "Private SB"

@@ -20,6 +20,7 @@ shadowbane-terrain-branch-hits = "shadowbane_lab.diagnostics.terrain_branch_hits
 shadowbane-terrain-material-poll = "shadowbane_lab.diagnostics.terrain_material_poll:main"
 
 [project.optional-dependencies]
+report-server = ["waitress==3.0.2"]
 simulation = [
     "numpy>=2.0",
     "numba>=0.60",

@@ -1,19 +1,21 @@
-SHADOWBANE TESTER RECORDER
+SHADOWBANE COMPANION
 
-Extract the entire ZIP, then run the ShadowbaneRecorder executable inside.
-Python is bundled. Keep the _internal directory beside the executable.
+Run ShadowbaneCompanion-Setup.exe once, then open Shadowbane Companion from
+your Start menu or desktop. You do not need Python or administrator access.
 
-1. Log into one of your own characters.
-2. Select Wonderbane or Private SB. Enter the exact character and server names.
-   Enter a PID if more than one game client is running.
-3. Optionally enable game input recording, then click Start session.
-4. When something happens, click Mark incident first. The timeline retains the
-   preceding 60 seconds and following 30 seconds where available.
-5. Explain your intent, expected result and actual result. Or select the incident
-   and click Start dictation. Wait for MIC ON, speak, then Stop dictation.
-   Correct the words and click Save explanation. Original transcripts are retained.
-6. Stop & export seals a verified evidence.zip. Open output folder to find it.
-   Nothing uploads automatically. Share only the intended evidence.zip.
+1. Log into your character in the game.
+2. Click Find characters, choose your character, and Start recording.
+3. When something happens, click Mark this moment. Add typed notes or select
+   Start dictation, wait for MIC ON, speak, then Stop dictation.
+4. Correct any misunderstood words and Save explanation.
+5. Click Finish report. Review it in My reports, then click Send report.
+   Keep Tailscale connected. The app confirms when the private server receives it.
+   If delivery fails, your report is saved: select it and try again.
+
+The configured installer includes report delivery. Reports send only when you
+click Send report, and retries do not create duplicate reports. The installer
+and its upload connection are for the intended tester; share them privately.
+The optional portable ZIP remains available for developers.
 
 Recordings default to %LOCALAPPDATA%\ShadowbaneRecorder\captures.
 The dashboard accepts --output-root for a different local destination.

@@ -40,7 +40,7 @@ if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed; inspect the retained build
 Copy-Item -LiteralPath (Join-Path $sourceRoot 'docs/character-recorder.txt') -Destination $package
 $metadata = [ordered]@{
     format = 'shadowbane.tester-recorder-package'
-    version = '1.0.0'
+    version = '1.1.0'
     source_revision = $revision
     built_at_utc = [DateTime]::UtcNow.ToString('o')
     pyinstaller = $toolVersion.Trim()

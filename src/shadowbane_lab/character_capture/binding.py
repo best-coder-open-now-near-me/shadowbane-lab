@@ -15,6 +15,7 @@ from .build import ORIGINAL_14, SUPPORTED_IMAGES
 
 class CaptureCharacterReader(NativeCharacterConfigReader):
     """Original .14 identity review belongs to read-only capture, not bot admission."""
+
     reviewed_layouts = REVIEWED_CHARACTER_CONFIG_LAYOUTS + (
         replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1], executable_sha256=ORIGINAL_14),
     )
