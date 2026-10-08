@@ -1,5 +1,16 @@
 # Git branch map
 
+## Hardware-PC mod pack — October 8
+
+`codex/mod-pack-client-20261008` starts from `codex/katana-moonfire` at
+`e404d06` and adds a dedicated, verified hardware-PC launcher and native
+candidate build workflow. Targets main after PR #106; it does not take over
+that feature branch. The separate client is installed and running with the
+NVIDIA driver and Katana panel. See [qualification and launch details](mod-pack-pc-20261008.md).
+In-world acceptance on this destination is pending; original demo acceptance
+remains recorded in PR #106. The hosted pixel-test failure is retained and
+local hardware qualification is documented explicitly.
+
 ## Katana moon-fire - October 8
 
 codex/katana-moonfire includes main 500fe40 in its own managed worktree.
