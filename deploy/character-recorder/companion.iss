@@ -53,4 +53,5 @@ begin
       Result := 'Please close Shadowbane Companion and try installing again.';
   end;
 end;
-; Captures and delivery receipts live outside {app}; uninstall never removes them.
+// Captures and delivery receipts live outside {app}; uninstall never removes them.
+
