@@ -1,19 +1,24 @@
 # Git branch map
 
-## Current Wonderbane client update — October 8
+## Current Wonderbane client update â€” October 8
 
-Start new bot work from refreshed `origin/main`. Client update branch
-`codex/wonderbane-client-update-20261008` in bot-integration starts at `cdaafb2`
-and targets `main`. It owns exact official 1.3.38.15 compatibility and the
-host .78/native .54 package. Qualification and deployment are pending; see
-[the current delivery record](client-update-20261008.md).
+Start new bot work from refreshed `origin/main`. PR #105 merged exact client
+1.3.38.15 support at `500fe40`, retaining qualified source `6c8ea10`. Host .78 /
+native .54 package B54/40841b71 passed both native profiles and full host/IPC
+qualification. Installation, manager activation and all five shortcuts passed;
+Native in-world readiness passes, but the verified character is `ictus`, not
+Umbra. Resolve the intended character before live attack/buff checks; the
+preflight stopped before dispatch and sent no actions. Obsolete runtime
+cleanup is complete. See
+[the delivery record](client-update-20261008.md).
+The receipt-only branch `codex/client-update-delivery-20261008` owns bot-integration
+and targets `main`; do not switch its active checkout.
 
 The user returned to Wonderbane and parked the own-server project. Published
 client/server model work on PR #98 remains separate. Pending bot recovery PRs
-#92 and #94 are not included in this compatibility branch and remain the next
-consolidation work after the official update. This worktree is actively owned;
-do not switch it for another task.
-
+#92 and #94 remain outside this compatibility delivery and are the next
+consolidation work after live patch validation. Merged source branches remain
+until a separate ownership/ancestry cleanup; no active checkout is retired here.
 
 ## Context cleanup progress - October 7
 
