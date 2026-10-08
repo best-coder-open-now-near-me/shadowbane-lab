@@ -2,17 +2,20 @@
 
 ## Start here
 
-The user is moving the working katana demo off the test VM because its frame rate
-is poor. They access the destination through **Chrome Remote Desktop** and will
-start a new Codex chat on that computer. The destination hostname, client path,
-installed client identity, GPU and build tools have not yet been inspected.
-Do not assume Windows Remote Desktop/RDP policy or a known remote shell.
+The katana demo has moved from the slow test VM to a hardware PC accessed through
+**Chrome Remote Desktop**. The destination chat qualified its NVIDIA rendering
+path and installed selected-character controls; see the
+[hardware-PC acceptance record](../mod-pack-pc-20261008.md). Machine paths and
+private receipts remain local to that computer. Do not assume an RDP policy or
+a remote shell.
 
 Fetch `origin` and use **`codex/katana-moonfire`**, targeting `main` through
 [draft PR #106](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/106).
-The native fire implementation installed in the VM is **0f80838**. Later commits
-on this branch document acceptance and this handoff. Main does not contain this
-feature yet. Preserve an existing checkout's user changes; use a separate
+The VM fire source is **0f80838**; the hardware-PC selected-character native
+source is **8dce403**. This integration branch now includes the hardware-PC tip
+**ab53a09** and main **85e3194** (reviewed bot recovery PR #111, host 0.3.79),
+combined at **9146542**. Main does not contain the katana feature yet. Preserve
+an existing checkout's user changes; use a separate
 checkout if it is already owned by another task. Read the applicable AGENTS.md,
 [deployment policy](../deployment-policy.md), [branch map](../git-branch-map.md)
 and [demo record](../katana-moonfire.md) before deployment.
@@ -20,8 +23,11 @@ and [demo record](../katana-moonfire.md) before deployment.
 ## What already works
 
 The actual Archon katana model replaces a selected stand-in item locally. The
-native extension identifies the local character's two owned katana render
-instances and transforms each at the existing hand-grip origin. The user chose
+native extension identifies the chosen character's two owned katana render
+instances and transforms each at the existing hand-grip origin. The panel offers
+**My character** and **Selected character**. Missing selection suppresses the
+effect rather than applying it to self; ownership is rechecked before each draw.
+The user chose
 **80% overall length**; width is unchanged. Both blades now show native moon-fire:
 a sparse white diamond chain, staggered pulses, a slower hilt diamond, a narrow
 collar and additive blade ribbon. Graphics Lab's **Katana** tab controls it live.
@@ -40,8 +46,8 @@ Preserve the approved starting values:
 | Glow width | 86% |
 
 These are compiled defaults in the current source. The process-specific control
-channel is schema 2; install the panel and DLL from the same feature revision.
-The package still reports host 0.3.78/native 1.8.54, so version labels alone are
+channel is schema 3; install the panel and DLL from the same feature revision.
+Combined source reports host 0.3.79/native 1.8.54, so version labels alone are
 insufficient: record the exact Git revision and artifact digests.
 
 VM acceptance: both owned weapons and both fire draws were observed in game,
@@ -111,9 +117,9 @@ Those are VM-specific choices. Do not copy the VM launcher or blindly inherit
 that software profile on the destination. Inspect any local OpenGL wrapper and
 its ownership before changing it; do not delete an official or unrelated DLL to
 force a renderer switch. Verify the **actual game renderer and loaded module**,
-not merely the GPU model listed by Windows. The effect has worked in the VM and
-in a native host OpenGL test, but hardware performance on this destination is
-still unknown.
+not merely the GPU model listed by Windows. Hardware rendering and the effect
+were verified on the destination; a measured before/after frame-rate comparison
+is not recorded.
 
 Measure actual game frame timing (existing `diagnostics.frame_timing` support is
 available), separately from the remote viewer's apparent smoothness. Compare
@@ -125,9 +131,11 @@ or a different GPU alone guarantees a particular frame rate.
 
 ## Next todos
 
-Active: qualify and install on the destination, verify its rendering path, and
-measure frame rate with the same katana demo. Then tune the final look and capture
-a clean frame or clip. Keep the general Visual Inspector (self/selected-object
+The hardware-PC installation and selected-character acceptance are complete.
+Active source integration targets PR #106; follow the branch map for its latest
+validation and inclusion status. No runtime is changed by the source merge.
+Next demo work is a measured fire-on/off frame-rate comparison and final capture.
+Keep the general Visual Inspector (self/selected-object
 render tree, mesh/texture/effect references, equipment mapping and door picking)
 **after** the katana demo. Do not expand the current task into that tool yet.
 

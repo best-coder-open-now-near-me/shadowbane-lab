@@ -2,11 +2,29 @@
 
 ## Katana and bot integration — October 8
 
-`codex/katana-moonfire` is combining selected-character source `ab53a09` from
-`codex/mod-pack-client-20261008` with main `85e3194`, which already includes
-reviewed bot recovery PR #111 and host 0.3.79. PR #106 remains the integration
-review targeting main. The hardware-PC branch remains published and independently
-owned; no runtime is changed by this source merge. Combined validation is active.
+Start combined cosmetics/bot work from `codex/katana-moonfire`. Merge `9146542`
+combines selected-character source `ab53a09` from `codex/mod-pack-client-20261008`
+with main `85e3194`, which already includes reviewed bot recovery PR #111 and
+host 0.3.79. Native remains 1.8.54; pin exact artifacts, not version labels alone.
+The hardware-PC branch remains published and independently owned. Main is the
+shared integration destination; katana changes remain outside it in draft PR #106.
+
+Combined source `4f07426` passes 5,233 host tests (38 skips), 234 explicit
+host/native IPC tests, lint, and the full native build: 239 required tests pass,
+with the three private-image entries separately passed against their actual
+inputs. Two deferred transparency diagnostics still exhibit only their reviewed
+counterexamples. The moon-fire fixture now uses an offscreen bitmap on GDI;
+both hardware and forced-GDI pixel/state assertions pass without relaxed checks.
+The mod-pack workflow preserves its test log before generating test inventory.
+Hosted CI for this fix is still running; the prior source failed the now-fixed
+hidden-window pixel assertion. Do not treat this local validation as a hosted
+pass or as acceptance of arbitrary translucent ordering.
+
+No runtime changed during integration. The normal checkout is clean on main;
+the integration worktree stays on its published feature branch for PR #106.
+Next: complete hosted CI/review, then integrate PR #106 into main. Demo follow-up
+is measured fire-on/off frame timing and final capture; Visual Inspector remains
+deferred. The older sections below record their historical deployment states.
 
 ## Hardware-PC mod pack — October 8
 
