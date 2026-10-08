@@ -450,7 +450,7 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
             extension_status.inspections,
         )
 
-    def test_reconciliation_adopts_each_safe_open_instance_once(self) -> None:
+    def test_reconciliation_leaves_multiple_candidates_for_explicit_choice(self) -> None:
         first = _client("instance-101", 101)
         second = _client("instance-202", 202)
         session = _RecordingSession(
@@ -469,16 +469,19 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
 
         result = application.reconcile_instances()
 
-        self.assertEqual(["client-01", "client-02"], result["adopted_client_ids"])
+        self.assertEqual([], result["adopted_client_ids"])
         self.assertEqual([], result["archived_client_ids"])
-        self.assertEqual(
-            {first.instance_id, second.instance_id},
-            {slot.instance_id for slot in session.snapshot().slots},
-        )
-        self.assertEqual(
-            [("client-01", first.instance_id), ("client-02", second.instance_id)],
-            controller.starts,
-        )
+        self.assertTrue(all(slot.instance_id is None for slot in session.snapshot().slots))
+        self.assertEqual([], controller.starts)
+
+    def test_reconciliation_adopts_one_unambiguous_instance(self) -> None:
+        first = _client("instance-101", 101)
+        session = _RecordingSession(ManagerSessionSnapshot(
+            node_id=NODE_ID, slots=(_slot("client-01"), _slot("client-02"))))
+        application, _ = _application(session, first)
+        result = application.reconcile_instances()
+        self.assertEqual(["client-01"], result["adopted_client_ids"])
+        self.assertEqual(first.instance_id, session.snapshot().slots[0].instance_id)
 
     def test_slow_reconciliation_does_not_starve_exact_worker_renewal(self) -> None:
         for scenario in ("healthy", "paused", "exited", "replaced"):
@@ -829,6 +832,8 @@ class ManagerDashboardApplicationTests(unittest.TestCase):
         application.execute("refresh")
         application.execute("tile-all")
         application.execute("start", client_id="client-02")
+        registry.snapshot = ClientRegistrySnapshot(
+            node_id=NODE_ID, clients=(_client("instance-existing", 202),))
         application.execute(
             "attach",
             client_id="client-02",

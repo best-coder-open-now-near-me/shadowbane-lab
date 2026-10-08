@@ -558,6 +558,8 @@ def _run_manager_app(
                 process_inspector=process_inspector,
             )
             session = ManagerSession(application_manifest, supervisor)
+            from shadowbane_lab.manager.character_choice import NativeCharacterChoices
+
             application = ManagerDashboardApplication(
                 application_manifest,
                 session,
@@ -581,6 +583,7 @@ def _run_manager_app(
                     WorkerOperationLedger(application_manifest, heartbeat_root),
                 ),
                 extension_status=extension_status,
+                character_choices=NativeCharacterChoices(),
                 launch_timeout_seconds=launch_timeout_seconds,
                 poll_seconds=poll_ms / 1_000.0,
             )

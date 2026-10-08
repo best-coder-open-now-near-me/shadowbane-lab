@@ -1,5 +1,17 @@
 # Git branch map
 
+## Existing character picker - October 8
+
+`codex/existing-character-picker-20261008` owns bot-command-ownership and starts
+from main `85e3194` (PR #111 merged). Host .79 is prepared; the manager still
+runs .78 while the separate shutdown-helper repair completes. This picker targets
+`main` through a draft review. The host-only slice exposes existing configured slots and native character
+choices without launching games, replacing an occupied binding, or changing focus
+authority. The actual one-slot/two-client path permits selecting Umbra while leaving
+Ictus independent. Concurrent logical-slot creation and persistent/background buff
+ownership are separate work; no deployment or native version change is included.
+
+
 ## Combined production recovery - October 8
 
 `codex/combined-recovery-20261008` owns the independent bot-runtime checkout,

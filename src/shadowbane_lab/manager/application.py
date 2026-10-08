@@ -14,6 +14,7 @@ from shadowbane_lab.client_extension.runtime_status import (
     unconfigured_extension_status,
 )
 
+from .character_choice import CharacterChoice
 from .dashboard import DashboardError
 from .manifest import ManagedClientConfig, ManagerManifest
 from .model import (
@@ -208,6 +209,7 @@ class ManagerDashboardApplication:
         guard_control=None,
         condemn_control=None,
         extension_status: ExtensionStatusProvider | None = None,
+        character_choices=None,
         launch_timeout_seconds: float = 30.0,
         poll_seconds: float = 0.5,
     ) -> None:
@@ -262,6 +264,7 @@ class ManagerDashboardApplication:
         self._guard_control = guard_control
         self._condemn_control = condemn_control
         self._extension_status = extension_status
+        self._character_choices = character_choices
         self._launch_timeout_seconds = _require_positive_finite(
             launch_timeout_seconds,
             "launch_timeout_seconds",
@@ -361,6 +364,13 @@ class ManagerDashboardApplication:
                 )
                 if client_id is None:
                     continue
+                # Preserve single-candidate adoption, but never choose by PID/order
+                # when a free slot can use several existing clients.
+                eligible = [c for c in registry.clients
+                            if c.instance_id not in owned_instance_ids
+                            and _matches_config(c, self._configs[client_id])]
+                if len(eligible) != 1:
+                    continue
                 try:
                     self._execute(
                         "attach",
@@ -402,6 +412,17 @@ class ManagerDashboardApplication:
                 raise RuntimeError("manager session returned the wrong node")
 
             clients_by_id = {client.instance_id: client for client in registry.clients}
+            character_labels = {
+                client.instance_id: self._character_choice(client).to_dict()
+                for client in registry.clients
+            }
+
+            def summarize(client):
+                return {
+                    **_client_summary(client),
+                    "character": character_labels[client.instance_id],
+                }
+
             current_bound_ids: set[str] = set()
             current_bindings: dict[str, ClientInstanceSnapshot] = {}
             for slot in session.slots:
@@ -492,9 +513,9 @@ class ManagerDashboardApplication:
                         slot.client_id, None if binding is None else binding.instance_id,
                     )
                 )
-                payload["binding"] = None if binding is None else _client_summary(binding)
+                payload["binding"] = None if binding is None else summarize(binding)
                 payload["candidates"] = [
-                    _client_summary(client)
+                    summarize(client)
                     for client in registry.clients
                     if client.instance_id not in current_bound_ids
                     and _matches_config(client, config)
@@ -517,6 +538,45 @@ class ManagerDashboardApplication:
                 "extension_ready_count": extension_ready_count,
                 "slots": slots,
             }
+
+    def _character_choice(self, client):
+        if self._character_choices is None:
+            return CharacterChoice()
+        result = self._character_choices.inspect(client)
+        if not isinstance(result, CharacterChoice):
+            raise RuntimeError("invalid native character choice")
+        return result
+
+    def _validate_attachment(self, client_id, instance_id, selection):
+        # Validate before revoking/stopping anything. A stale browser must never
+        # cancel an active worker merely by trying to replace its binding.
+        slots = self._session.snapshot().slots
+        if any(s.client_id == client_id and s.instance_id is not None for s in slots):
+            raise DashboardError("already-attached", "This client is already in use.")
+        if any(s.instance_id == instance_id for s in slots):
+            raise DashboardError("already-attached", "This character is already in use.")
+        if self._operation_status is not None and any(
+                operation.receipt is None or not operation.receipt.state.terminal
+                for operation in self._operation_status.inspect_slot(client_id)):
+            raise DashboardError("operation-active", "Finish the current operation first.")
+        registry = self._registry.inspect()
+        if registry.node_id != self._manifest.node_id:
+            raise DashboardError("selection-changed", "Refresh the character list.")
+        matches = [c for c in registry.clients if c.instance_id == instance_id
+                   and _matches_config(c, self._configs[client_id])]
+        if len(matches) != 1:
+            raise DashboardError(
+                "selection-changed", "That client changed. Refresh the character list.")
+        if selection is not None:
+            if (not isinstance(selection, dict) or set(selection) != {"character_token"}
+                    or not isinstance(selection["character_token"], str)
+                    or len(selection["character_token"]) != 64):
+                raise DashboardError("invalid-selection",
+                                     "Choose a character from the current list.")
+            current = self._character_choice(matches[0])
+            if current.token is None or current.token != selection["character_token"]:
+                raise DashboardError("selection-changed",
+                                     "That character changed. Refresh the character list.")
 
     def _extension_summary(
         self,
@@ -616,7 +676,7 @@ class ManagerDashboardApplication:
         """Execute one route-validated action and preserve exact binding ownership."""
 
         if selection is not None and action not in {
-            "condemn-start", "vendor-recipe-save", "vendor-start",
+            "condemn-start", "vendor-recipe-save", "vendor-start", "attach",
         }:
             raise DashboardError(
                 "invalid-action-fields", "This action does not accept a selection.")
@@ -703,7 +763,7 @@ class ManagerDashboardApplication:
         }:
             raise DashboardError("invalid-action-fields", "This action does not accept a batch.")
         if selection is not None and action not in {
-            "condemn-start", "vendor-recipe-save", "vendor-start",
+            "condemn-start", "vendor-recipe-save", "vendor-start", "attach",
         }:
             raise DashboardError(
                 "invalid-action-fields", "This action does not accept a selection.")
@@ -750,6 +810,7 @@ class ManagerDashboardApplication:
         if instance_id is None:
             raise DashboardError("invalid-action-fields", f"{action} requires instance_id")
         if action == "attach":
+            self._validate_attachment(client_id, instance_id, selection)
             self._worker_supervisor.revoke(
                 client_id,
                 reason="exact client attachment requires a new worker ownership lease",
