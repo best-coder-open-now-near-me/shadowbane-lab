@@ -47,6 +47,7 @@ test = [
 where = ["src"]
 
 [tool.setuptools.package-data]
+"shadowbane_lab.character_capture" = ["*.ps1"]
 "shadowbane_lab.navigation_inspector" = ["build_identity.json"]
 "shadowbane_lab.rulesets" = ["data/*.json"]
 "shadowbane_lab.differential" = ["data/*.json"]

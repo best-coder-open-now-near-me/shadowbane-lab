@@ -1,3 +1,5 @@
+For continuous capture, incident marks and speech-to-text, use [the tester recorder](character-recorder.txt).
+
 # Current automatic capture update
 
 The default now includes the exact .14 automatic build reader. See [coverage and acceptance limits](automatic-character-build.md). Use --guided-only for the earlier screenshot-led workflow described below. Automatic records still require destination mapping before database import.

@@ -31,11 +31,17 @@ be read as an equipment slot. Item 6B8 is stack count; 744 is remaining charges.
 Item durability is 5cc/5d0, and active item effect token/rank records use 58c.
 No prefix/suffix role is inferred from effect ordering.
 
-On October 7, bounded reads of a private-server character confirmed current
-equipment identities/slots and five stat-node shapes. The client then logged
-out/exited before end-to-end reader acceptance. Current-rune and populated-effect
-live acceptance remain required; synthetic corruption/change tests are not a
-substitute. Static code receipts may reject a prepared image whose code differs.
+On October 7, the live original .14 private-server reader captured seven current
+equipped items, eight applied runes and all five attributes. A complete watcher
+session then captured three native/diagnostic samples and sealed its verified
+evidence bundle, with input and microphone disabled. Raw evidence stays local in
+captures/recorder-acceptance/watch-0f027bf1fa7e4b2b90aa0111c36d4f3d.
+The private source's GameObjectType enum uses PlayerCharacter=52 and Item=30;
+Wonderbane's existing player guard remains 53. Only the explicit Private SB
+capture reader accepts 52. No bot/action authorization is changed.
+Populated item-effect and Wonderbane live acceptance remain required. Synthetic
+corruption/change tests do not replace those checks. The prepared-image code
+receipts are checked at startup; no live prepared-image acceptance is claimed.
 
 ## Guarantees and limits
 

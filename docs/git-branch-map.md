@@ -3,13 +3,17 @@
 ## Character transfer capture - October 7
 
 codex/character-transfer-capture owns an isolated managed worktree and targets
-main through PR #101. It adds read-only character transfer capture and the
-shared tester recorder. Automatic build capture is implemented for exact .14
-images with extra disk-code receipts; end-to-end live acceptance remains pending.
-See [automatic capture evidence](automatic-character-build.md).
-Source is outside main pending review. Next: finish the continuous watcher,
-incident dashboard and portable package; validate one live character and then
-map destination content before implementing any database import.
+main through PR #101. It contains automatic .14 equipment/rune/stat capture,
+the shared Wonderbane/Private SB tester dashboard, incident timelines, optional
+game input and local speech-to-text, and portable package construction.
+See [capture evidence](automatic-character-build.md) and
+[tester instructions](character-recorder.txt).
+Original .14 private-server native/diagnostic capture passed a three-sample live
+session. Offline dashboard/disabled-hook and synthetic-audio dictation checks pass.
+Source remains outside main pending review. Next: qualify the portable executable;
+have a tester validate Wonderbane gear, button correlation and actual microphone
+dictation. Destination content mapping/database import and authoritative private
+server trace instrumentation remain separate unfinished work.
 
 
 ## Context cleanup progress - October 7

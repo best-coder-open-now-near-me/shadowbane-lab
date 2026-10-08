@@ -285,4 +285,3 @@ def test_final_training_change_marks_saved_bundle_failed(tmp_path, monkeypatch):
     assert manifest["capture_status"] == "failed"
     assert not manifest["database_import_ready"]
     assert memory.closed
-

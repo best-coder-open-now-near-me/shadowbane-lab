@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$CharacterName,
@@ -8,7 +8,8 @@ param(
     [string]$PythonPath = "",
     [ValidateRange(3, 60)]
     [int]$CaptureDelaySeconds = 8,
-    [switch]$NativeOnly
+    [switch]$NativeOnly,
+    [switch]$GuidedOnly
 )
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
@@ -47,6 +48,7 @@ try {
     )
     if ($ProcessId -gt 0) { $captureArgs += @("--pid", $ProcessId) }
     if ($NativeOnly) { $captureArgs += "--native-only" }
+    if ($GuidedOnly) { $captureArgs += "--guided-only" }
     & $PythonPath @captureArgs
     if ($LASTEXITCODE -ne 0) { throw "Character capture failed (exit $LASTEXITCODE). See the message above." }
 }

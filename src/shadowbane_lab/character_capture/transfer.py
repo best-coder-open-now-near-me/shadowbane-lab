@@ -331,8 +331,11 @@ def main(argv=None):
     parser.add_argument("--pid", type=int, help="required when multiple sb.exe clients are running")
     parser.add_argument("--output-root", type=Path, default=Path("captures/character-transfer"))
     parser.add_argument("--delay", type=int, default=8, help="seconds to focus game (3-60)")
-    parser.add_argument("--guided-only", action="store_true",
-                        help="legacy guided evidence without the new exact .14 build reader")
+    parser.add_argument(
+        "--guided-only",
+        action="store_true",
+        help="legacy guided evidence without the new exact .14 build reader",
+    )
     parser.add_argument(
         "--native-only",
         action="store_true",

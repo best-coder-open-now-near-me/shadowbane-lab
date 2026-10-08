@@ -9,8 +9,10 @@ from shadowbane_lab.character_capture import build as b
 
 def fixture(tmp_path):
     m, session = setup_session(tmp_path)
+
     def words(a, *values):
         m.put(a, struct.pack("<" + "I" * len(values), *values))
+
     words(m.player + 0xBA8, *([0] * 19))
     head = 0x21000000
     words(m.player + 0xBF4, head, 0)
@@ -20,8 +22,20 @@ def fixture(tmp_path):
     words(m.player + 0xCB0, sh, 5)
     words(sh, 0, nodes[0], nodes[0], nodes[-1])
     for i, (node, token) in enumerate(zip(nodes, sorted(b.STAT_NAMES), strict=True)):
-        words(node, 0, nodes[i-1] if i else sh, 0, nodes[i+1] if i < 4 else 0,
-              token, 95, 100, 0, 0, 150, 0xFFFFFFFB)
+        words(
+            node,
+            0,
+            nodes[i - 1] if i else sh,
+            0,
+            nodes[i + 1] if i < 4 else 0,
+            token,
+            95,
+            100,
+            0,
+            0,
+            150,
+            0xFFFFFFFB,
+        )
     item = 0x22000000
     words(m.player + 0xBA8 + 4, item)
     words(item, m.base_address + 0x1142748)
@@ -72,8 +86,21 @@ def test_item_effect_token_and_rank(tmp_path):
     assert reader.observe()["equipment"][1]["item"]["effects"] == [{"token": 123, "rank": 20}]
 
 
-@pytest.mark.parametrize("fault", ["cycle", "count", "parent", "vtable", "nan",
-                                   "vector", "duplicate", "stat", "short", "changed"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "cycle",
+        "count",
+        "parent",
+        "vtable",
+        "nan",
+        "vector",
+        "duplicate",
+        "stat",
+        "short",
+        "changed",
+    ],
+)
 def test_invalid_or_changing_records_are_rejected(tmp_path, fault):
     m, reader, words, item, head, nodes = fixture(tmp_path)
     if fault == "cycle":
@@ -97,6 +124,7 @@ def test_invalid_or_changing_records_are_rejected(tmp_path, fault):
     elif fault == "changed":
         original = m.read
         calls = 0
+
         def changing(a, n):
             nonlocal calls
             if a == item + 0x744:
@@ -104,6 +132,7 @@ def test_invalid_or_changing_records_are_rejected(tmp_path, fault):
                 if calls > 1:
                     words(a, 8)
             return original(a, n)
+
         m.read = changing
     with pytest.raises(b.BuildReadError):
         reader.observe()
