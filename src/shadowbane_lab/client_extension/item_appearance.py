@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import struct
+import zlib
 from pathlib import Path
 
 from shadowbane_lab.world_data.cache import CacheArchive
@@ -73,7 +74,12 @@ def build_item_appearance_cache(
                 for entry in archive.entries:
                     key = (entry.group_id, entry.resource_id)
                     if key == target_key:
-                        stored, size = replacement, len(replacement)
+                        size = len(replacement)
+                        stored = zlib.compress(replacement) if entry.is_compressed else replacement
+                        # The native CObjects loader expects the source compression mode.
+                        # Our archive reader accepting raw entries is not native qualification.
+                        if entry.is_compressed and len(stored) >= size:
+                            raise ValueError("replacement cannot preserve compressed storage")
                     else:
                         raw.seek(entry.data_offset)
                         stored, size = raw.read(entry.stored_size), entry.uncompressed_size

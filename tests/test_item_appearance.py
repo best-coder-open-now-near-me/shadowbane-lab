@@ -56,6 +56,12 @@ def test_candidate_preserves_untargeted_and_source(tmp_path):
     assert hashlib.sha256(source.read_bytes()).hexdigest() == digest
     assert receipt["verified_resources"] == 3
     with CacheArchive(output) as c:
+        target = c.entries[0]
+        assert target.is_compressed
+        stored = output.read_bytes()[target.data_offset : target.data_offset + target.stored_size]
+        # Model the native loader, which calls zlib for this resource even when
+        # a permissive archive reader would accept equal stored/raw lengths.
+        assert zlib.decompress(stored) == item("a", 22)
         assert [c.read_resource(e) for e in c.entries] == [item("a", 22), rows[1][1], rows[2][1]]
     with pytest.raises(FileExistsError):
         build_item_appearance_cache(
