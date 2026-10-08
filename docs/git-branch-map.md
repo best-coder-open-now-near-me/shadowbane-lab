@@ -1,15 +1,17 @@
 # Git branch map
 
-## Multiple client launch repair - October 8
+## Multiple client launch delivery - October 8
 
-`codex/multiple-client-launch-20261008` merged through PR #108. The follow-up
-`codex/multiple-client-overlay-20261008` owns bot-integration and targets `main`,
-preserving the concurrently installed katana overlay during launcher installation.
-It removes the private deployment launcher's global process-count gate and
-publishes separate process-lifetime receipts. See
-[the launcher delivery record](multiple-client-launch-20261008.md).
-PR #107's installed client-update record and corrected ictus identity are now
-merged at `d00234b`. The earlier receipt branch no longer owns this checkout.
+Start from refreshed `origin/main`, including merged PRs #108 and #109.
+Launcher source `bac2ec3` is installed; both clients were verified concurrently
+visible with separate process-lifetime receipts and the original primary intact.
+The installed desktop shortcuts pass their runtime folder explicitly. The
+katana/moon-fire overlay `0f80838` from draft PR #106 is preserved separately
+from the bot base `6c8ea10`; do not mistake that overlay for main integration.
+See [the launcher delivery record](multiple-client-launch-20261008.md).
+`codex/multiple-client-delivery-20261008` owns bot-integration for the final
+receipt-only checkpoint targeting `main`. Next is explicit character selection
+for resumed bot validation; no combat acceptance is implied by client launch.
 
 ## Current Wonderbane client update — October 8
 
