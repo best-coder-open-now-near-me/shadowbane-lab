@@ -19,10 +19,13 @@ jobs:
       - name: Configure full Win32 extension
         run: cmake -S native/wonderbane_extension -B build/mod-pack -A Win32 -DWONDERBANE_EXTENSION_PROFILE=full
       - name: Build release
+        id: build
         run: cmake --build build/mod-pack --config Release --parallel 2
       - name: Run required native tests
+        id: tests
         run: ctest --test-dir build/mod-pack -C Release -LE stretch-diagnostic --output-on-failure
       - name: Record source and artifact identities
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         shell: pwsh
         run: |
           $files = Get-ChildItem build/mod-pack/Release -File | ForEach-Object {
@@ -35,11 +38,15 @@ jobs:
           [ordered]@{
             source_commit = $env:GITHUB_SHA
             workflow_run = $env:GITHUB_RUN_ID
+            hosted_tests = '${{ steps.tests.outcome }}'
             profile = 'full'
             architecture = 'x86'
             files = @($files)
           } | ConvertTo-Json -Depth 5 | Set-Content build/mod-pack/Release/build-receipt.json -Encoding utf8
+          ctest --test-dir build/mod-pack -C Release --show-only=json-v1 | Set-Content build/mod-pack/Release/ctest-inventory.json -Encoding utf8
+          Copy-Item build/mod-pack/Testing/Temporary/LastTest.log build/mod-pack/Release/hosted-tests.log
       - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         with:
           name: katana-mod-pack-native-${{ github.sha }}
           path: build/mod-pack/Release/
