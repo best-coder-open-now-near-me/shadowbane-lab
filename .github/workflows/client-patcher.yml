@@ -1,0 +1,34 @@
+name: Private client patcher
+on:
+  push:
+    paths:
+      - 'client/patcher/**'
+      - 'native/client_launcher/**'
+      - 'scripts/build-client-patcher.ps1'
+      - 'scripts/generate-client-patcher-profile.py'
+      - 'src/shadowbane_lab/client_extension/distribution.py'
+      - '.github/workflows/client-patcher.yml'
+  pull_request:
+    paths:
+      - 'client/patcher/**'
+      - 'native/client_launcher/**'
+      - 'scripts/build-client-patcher.ps1'
+      - 'scripts/generate-client-patcher-profile.py'
+      - 'src/shadowbane_lab/client_extension/distribution.py'
+      - '.github/workflows/client-patcher.yml'
+permissions:
+  contents: read
+jobs:
+  patcher:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Build, test, and package the private client patcher
+        shell: pwsh
+        run: ./scripts/build-client-patcher.ps1

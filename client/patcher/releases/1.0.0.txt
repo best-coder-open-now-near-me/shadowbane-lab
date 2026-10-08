@@ -1,0 +1,4 @@
+Automatic desktop fullscreen: Shadowbane starts at your desktop resolution without changing Windows display modes.
+Borderless presentation keeps Discord and other windows at their normal size while the game fills the screen.
+The launcher preserves your other game settings and applies the display setup at each startup.
+Signed client updates, file repair, and verified Play are now available in one patcher.

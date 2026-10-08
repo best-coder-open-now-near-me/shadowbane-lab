@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup>
+  <OutputType>WinExe</OutputType><UseWPF>true</UseWPF>
+  <AssemblyName>ShadowbanePatcher</AssemblyName>
+  <StartupObject>Shadowbane.Patcher.Program</StartupObject>
+  <ApplicationManifest>app.manifest</ApplicationManifest>
+  <DebugType>embedded</DebugType>
+</PropertyGroup>
+<ItemGroup>
+<ProjectReference Include="../Core/Patcher.Core.csproj" />
+<EmbeddedResource Include="../release-public.pem" LogicalName="release-public.pem" />
+</ItemGroup>
+</Project>

@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)..\..\build\client-patcher\$(MSBuildProjectName)\obj\</BaseIntermediateOutputPath>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)..\..\build\client-patcher\$(MSBuildProjectName)\bin\</BaseOutputPath>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+</Project>

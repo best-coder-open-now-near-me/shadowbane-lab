@@ -2,6 +2,19 @@
 
 Navigation diagnostics: [inspector usage, review branch and acceptance status](docs/navigation-inspector.md).
 
+## Own-server client direction
+
+Use the reviewed Wonderbane x86 baseline for our independent client distribution.
+[Client baseline, read-only verification and update policy](docs/client-distribution.md)
+records the exact files, API ownership and unverified server pairing. The own-server
+pivot puts further client-circumvention harness development on hold; historical
+bot-runtime status below remains evidence, not the new server's prerequisite list.
+
+[Automatic desktop fullscreen](docs/client-desktop-fullscreen.md) documents the
+installed native launcher, preserved settings and verified live startup.
+[Private client patcher](docs/client-patcher.md) records the installed signed 1.0.0
+release, player setup, release ownership and verified private Tailscale feed.
+
 ## Finding the current code
 
 Start from freshly fetched `origin/main`; the [branch map](docs/git-branch-map.md)

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<ItemGroup>
+<EmbeddedResource Include="../../../build/client-patcher/profile.json" LogicalName="baseline.json" />
+</ItemGroup>
+</Project>
