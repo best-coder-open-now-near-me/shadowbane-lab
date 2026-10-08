@@ -48,11 +48,20 @@ class Dashboard:
         ttk.Label(panel, text="Play normally. Tell us when something happens.").pack(anchor="w")
         self.tabs = ttk.Notebook(panel)
         self.tabs.pack(fill="both", expand=True, pady=(10, 0))
-        record_page, report_page = (
-            ttk.Frame(self.tabs, padding=12),
-            ttk.Frame(self.tabs, padding=12),
+        record_tab = ttk.Frame(self.tabs)
+        canvas = tk.Canvas(record_tab, background="#101827", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(record_tab, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        record_page = ttk.Frame(canvas, padding=12)
+        window_id = canvas.create_window((0, 0), window=record_page, anchor="nw")
+        record_page.bind(
+            "<Configure>", lambda _e: canvas.configure(scrollregion=canvas.bbox("all"))
         )
-        self.tabs.add(record_page, text="  Record a session  ")
+        canvas.bind("<Configure>", lambda e: canvas.itemconfigure(window_id, width=e.width))
+        report_page = ttk.Frame(self.tabs, padding=12)
+        self.tabs.add(record_tab, text="  Record a session  ")
         self.tabs.add(report_page, text="  My reports  ")
         self.report_page = report_page
         self.profile, self.character, self.server, self.pid = (
