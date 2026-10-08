@@ -61,8 +61,9 @@ No captures, third-party binaries or credentials belong in source delivery.
 A subsequent stop attempt also stopped before pause: it classified the manager's
 signed Windows console host as an independent workload. A separately reviewed
 classification correction preserves its launcher/interpreter identity and leaves
-the console to exit naturally; its repair is in progress. Neither failed attempt
-stopped or restarted a game.
+the console to exit naturally. That repair was prepared but not applied; the
+baseline was subsequently superseded below. Neither failed attempt stopped or
+restarted a game.
 
 ## Superseded live deployment baseline
 
