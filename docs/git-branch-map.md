@@ -7,8 +7,9 @@ It owns one local katana cosmetic experiment, not a general equipment system.
 Native visual inspection/tinting is validated. The model-only appearance swap
 is installed with the compression correction, and the user confirmed it renders
 in game. The approved mesh/texture and six-slider moon-fire preset are preserved
-in the preview. Live proportions controls are being qualified for Graphics Lab;
-they are not installed yet. Native moon-fire and the final demo remain pending.
+in the preview. Live proportions controls from 3c4c8c1 are installed in Graphics Lab and both
+owned katana draws respond. Visual grip/movement acceptance, native moon-fire
+and the final demo remain pending.
 Draft PR #106 targets main; this unfinished source remains outside main. The
 general object Visual Inspector is deferred until after the katana demo.
 See [scope, evidence and next steps](katana-moonfire.md).

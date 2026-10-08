@@ -297,3 +297,26 @@ diagnostics reproduced their reviewed counterexamples. The diagnostic classifier
 passed; all three private image checks passed when supplied the reviewed images.
 The final renderer/callback tests passed again after the lifecycle adjustment.
 These results qualify a local demo candidate, not live visual acceptance.
+
+
+## Live proportions installation checkpoint
+
+The local demo candidate from source commit 3c4c8c1 is installed in the designated
+test VM. Installation rechecked the stopped game, complete package inventory,
+original panel source and launcher pins, then atomically replaced the extension
+and panel modules and updated their manifests. Post-install package validation
+and panel imports passed; all 47 settings files were unchanged. No deployment
+rollback copies were created. Exact artifact and process identities stay in the
+private overlay and launch receipts.
+
+The game restarted with the expected extension and Graphics Lab opened on the
+Katana tab. Its native channel identified two owned katana instances. Scripted
+checks observed acknowledged 85 and 60 percent length and two adjusted draws.
+Panel input superseded the later scripted requests; those samples do not prove
+120 or 100 percent acceptance. The script restored its initial value and stopped
+writes. The user now has control of the live slider.
+
+Remaining: visual confirmation of length and grip during movement, followed by
+the native moon-fire implementation and demo capture. Automated checks establish
+control/renderer activity, not final visual quality or full-range acceptance.
+The general Visual Inspector remains deferred until after the katana demo.
