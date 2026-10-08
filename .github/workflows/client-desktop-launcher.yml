@@ -3,6 +3,9 @@ on:
   push:
     paths:
       - 'native/client_launcher/**'
+      - 'scripts/client-friend-update/**'
+      - 'scripts/package-client-friend-update.py'
+      - 'scripts/test-client-friend-update.ps1'
       - 'scripts/build-client-desktop-launcher.ps1'
       - 'scripts/generate-client-launcher-profile.py'
       - 'src/shadowbane_lab/client_extension/distribution.py'
@@ -10,6 +13,9 @@ on:
   pull_request:
     paths:
       - 'native/client_launcher/**'
+      - 'scripts/client-friend-update/**'
+      - 'scripts/package-client-friend-update.py'
+      - 'scripts/test-client-friend-update.ps1'
       - 'scripts/build-client-desktop-launcher.ps1'
       - 'scripts/generate-client-launcher-profile.py'
       - 'src/shadowbane_lab/client_extension/distribution.py'
@@ -28,3 +34,16 @@ jobs:
       - name: Build standalone launcher and run Windows tests
         shell: pwsh
         run: ./scripts/build-client-desktop-launcher.ps1
+      - name: Test installer on Windows PowerShell 5.1
+        shell: powershell
+        run: ./scripts/test-client-friend-update.ps1
+      - name: Package friend update
+        shell: pwsh
+        run: python scripts/package-client-friend-update.py --launcher build/client-launcher/Release/ShadowbaneLauncher.exe --output build/ShadowbaneLocal-FriendUpdate.zip
+      - name: Publish tested friend update
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShadowbaneLocal-FriendUpdate
+          path: build/ShadowbaneLocal-FriendUpdate.zip
+          if-no-files-found: error
+          retention-days: 3
