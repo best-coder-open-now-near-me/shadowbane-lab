@@ -1,5 +1,16 @@
 # Git branch map
 
+## Private client patcher - October 7
+
+`codex/client-patcher` in the dedicated `client-patcher` worktree starts from
+accepted launcher source `540c9a3af03f3f62da883426caf5029d30af7831` and targets
+`main` with PRs #96 and #100 included first. The signed updater core passes 39
+focused checks. [Patcher ownership and active todos](client-patcher.md) define
+private Tailscale distribution, preserved settings and interruption recovery.
+Next: finish the player window/release tools and native startup handoff, then
+publish and qualify the first private release. No patcher runtime is installed.
+The normal project checkout stays on `main`; this worktree owns patcher source.
+
 ## Client desktop fullscreen - October 7
 
 `codex/client-desktop-fullscreen` uses the dedicated managed
