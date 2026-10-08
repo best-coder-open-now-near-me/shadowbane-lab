@@ -52,10 +52,15 @@ public static class SafePaths
 
 public static class Baseline
 {
-    public const string Profile = "wonderbane-1.3.38.14-objects-20261007-v1";
-    public static readonly FileSpec[] Markers =
-    [
-        new("sb.exe", 21143613, "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e"),
-        new("cache/CObjects.cache", 5433065, "08c115baeef5da811f7ee2802ccdc1002cfeba29cf1818956c452e3e594efef6")
-    ];
+    private sealed record ProfileData(string Profile, FileSpec[] Markers);
+    private static readonly ProfileData Data = Load();
+    public static string Profile => Data.Profile;
+    public static IReadOnlyList<FileSpec> Markers => Array.AsReadOnly(Data.Markers);
+    private static ProfileData Load()
+    {
+        using var source = typeof(Baseline).Assembly.GetManifestResourceStream("baseline.json")
+            ?? throw new InvalidDataException("Missing compiled client profile.");
+        using var bytes = new MemoryStream(); source.CopyTo(bytes);
+        return ReleaseCodec.Parse<ProfileData>(bytes.ToArray());
+    }
 }

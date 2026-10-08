@@ -70,7 +70,9 @@ int main() {
         Check(!std::filesystem::exists(file.wstring() + L".desktop-" +
             std::to_wstring(GetCurrentProcessId()) + L".tmp"), "No replacement temporary remains");
         PrepareDesktopPreferences(file, test_display);
-        Check(std::filesystem::remove(file), "Remove generated fixture"); file.clear();
+        Reject([&] { RequireCompleteUpdate(file); });
+        Check(std::filesystem::remove(file), "Remove generated fixture");
+        RequireCompleteUpdate(file); file.clear();
         WNDCLASSW type{}; type.lpfnWndProc = DefWindowProcW;
         type.hInstance = GetModuleHandleW(nullptr); type.lpszClassName = L"ShadowbaneLauncherHiddenTest";
         Check(RegisterClassW(&type) != 0, "Register test window");

@@ -19,6 +19,7 @@ public:
 struct WindowIdentity { HWND window{}; DWORD process{}, thread{}; };
 std::vector<Display> Displays();
 std::wstring ExecutablePath();
+void RequireCompleteUpdate(const std::filesystem::path& journal);
 void RequireNoExistingClient(const std::filesystem::path& executable);
 Handle VerifyFile(const std::filesystem::path& path, unsigned long long size, const char* hash);
 void PrepareDesktopPreferences(const std::filesystem::path& path, const Display& display, bool apply = true);

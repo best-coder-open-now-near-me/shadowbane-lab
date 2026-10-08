@@ -46,8 +46,9 @@ public sealed class Updater(string root, string publicKey, IClientGuard? guard =
         if (File.Exists(pending))
         {
             var interrupted = ReleaseCodec.ReadVerified(pending, publicKey);
-            if (next.PayloadHash != interrupted.PayloadHash)
-                throw new InvalidDataException("Finish repairing the interrupted release before changing versions.");
+            if (next.Release.Sequence < interrupted.Release.Sequence ||
+                (next.Release.Sequence == interrupted.Release.Sequence && next.PayloadHash != interrupted.PayloadHash))
+                throw new InvalidDataException("Repair requires the same release or a newer signed release.");
         }
     }
     public UpdatePlan Check(IFeed feed, CancellationToken cancellation = default)
@@ -146,7 +147,11 @@ public sealed class Updater(string root, string publicKey, IClientGuard? guard =
         {
             var path = SafePaths.Within(Root, file.Path);
             if (File.Exists(path) && !ReleaseCodec.Matches(path, file))
-                throw new IOException("A retired fix has local changes; it was preserved: " + file.Path);
+            {
+                var prior = Installed()?.Release.Files.FirstOrDefault(f => f.Path == file.Path);
+                if (prior is null || !ReleaseCodec.Matches(path, prior))
+                    throw new IOException("A retired fix has local changes; it was preserved: " + file.Path);
+            }
         }
     }
     public int Play()

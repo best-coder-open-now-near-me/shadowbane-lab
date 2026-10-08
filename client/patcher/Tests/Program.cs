@@ -108,6 +108,62 @@ try
         catch (OperationCanceledException) { canceled = true; }
         Check(canceled && !File.Exists(Path.Combine(client, ".patcher/pending.json")), "cancellation before mutation is safe");
     }
+    var launcher4 = Record("ShadowbaneLauncher.exe", Encoding.UTF8.GetBytes("launcher-v4"));
+    var release4 = release3 with { Sequence = 4, Version = "1.3.0", Files = [launcher4, fix2], RetiredFiles = [] };
+    Blob(launcher4, "launcher-v4"); Publish(release4);
+    Reject(() => interrupted.Apply(feed, _ => {}), "second interrupted release remains recoverable");
+    var launcher5 = Record("ShadowbaneLauncher.exe", Encoding.UTF8.GetBytes("launcher-v5"));
+    var release5 = release4 with { Sequence = 5, Version = "1.4.0", Files = [launcher5], RetiredFiles = [fix2] };
+    Blob(launcher5, "launcher-v5"); Publish(release5);
+    File.Delete(Path.Combine(feedPath, "objects", launcher4.Sha256));
+    var scratch = Path.Combine(client, ".patcher", "staging");
+    var orphan = Path.Combine(scratch, Guid.NewGuid().ToString("N") + ".tmp");
+    File.WriteAllText(orphan, "interrupted current download");
+    File.WriteAllText(Path.Combine(scratch, "user-note.txt"), "preserve");
+    updater.Apply(feed, _ => {});
+    Check(updater.VerifyInstalled().Release.Sequence == 5, "new signed release repairs an interrupted older release");
+    Check(!File.Exists(orphan) && File.Exists(Path.Combine(scratch, "user-note.txt")), "only owned staging remnants are removed");
+    if (args.Length == 2)
+    {
+        (int Code, string Output) RunTool(string tool, params string[] arguments)
+        {
+            var info = new System.Diagnostics.ProcessStartInfo("dotnet")
+            { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+            info.ArgumentList.Add(tool);
+            foreach (var argument in arguments) info.ArgumentList.Add(argument);
+            using var child = System.Diagnostics.Process.Start(info)!;
+            var output = child.StandardOutput.ReadToEndAsync(); var errors = child.StandardError.ReadToEndAsync();
+            if (!child.WaitForExit(20000)) throw new IOException("CLI test timeout");
+            return (child.ExitCode, output.GetAwaiter().GetResult() + errors.GetAwaiter().GetResult());
+        }
+        var testKeyName = "ShadowbaneClientRelease-tests-" + Guid.NewGuid().ToString("N");
+        Check(!CngKey.Exists(testKeyName), "release CLI test key is fresh");
+        try
+        {
+            var pubPath = Path.Combine(root, "test-public.pem");
+            var init = RunTool(args[0], "init-key", "--key", testKeyName, "--public-key", pubPath);
+            Check(init.Code == 0 && File.Exists(pubPath), "release CLI creates protected signer and public key");
+            var releaseInput = Path.Combine(root, "release-input"); Directory.CreateDirectory(releaseInput);
+            File.WriteAllText(Path.Combine(releaseInput, "ShadowbaneLauncher.exe"), "published-launcher-1");
+            var notes = Path.Combine(root, "notes.txt"); File.WriteAllText(notes, "Actual test release notes.");
+            var published = Path.Combine(root, "published");
+            var publish1 = RunTool(args[0], "publish", "--key", testKeyName, "--input", releaseInput,
+                "--output", published, "--sequence", "1", "--version", "1.0.0", "--source", new string('b', 40), "--notes", notes);
+            Check(publish1.Code == 0, "release CLI publishes signed content-addressed payloads: " + publish1.Output.Trim());
+            var first = ReleaseCodec.ReadVerified(Path.Combine(published, "release.json"), File.ReadAllText(pubPath));
+            Check(first.Release.Notes[0] == "Actual test release notes.", "published notes are signed");
+            File.WriteAllText(Path.Combine(releaseInput, "ShadowbaneLauncher.exe"), "published-launcher-2");
+            var publish2 = RunTool(args[0], "publish", "--key", testKeyName, "--input", releaseInput,
+                "--output", published, "--sequence", "2", "--version", "1.1.0", "--source", new string('c', 40), "--notes", notes);
+            Check(publish2.Code == 0 && !File.Exists(Path.Combine(published, "objects", first.Release.Files[0].Sha256)) &&
+                File.Exists(Path.Combine(published, "receipts", "1.json")), "publisher retains receipts and removes obsolete payloads");
+            var inspect = RunTool(args[1], "--inspect", "--client-root", client, "--feed", published);
+            Check(inspect.Code == 1 && inspect.Output.Contains("not signed by our release key"), "player app rejects a foreign signed feed");
+            var invalid = RunTool(args[1], "--inspect", "--unknown");
+            Check(invalid.Code == 1 && invalid.Output.Contains("failed"), "headless CLI errors do not open a dialog");
+        }
+        finally { if (CngKey.Exists(testKeyName)) { using var testKey = CngKey.Open(testKeyName); testKey.Delete(); } }
+    }
     var nativeGuard = new ClientGuard();
     using (nativeGuard.Enter(client))
     {

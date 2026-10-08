@@ -86,6 +86,10 @@ std::wstring ExecutablePath() {
     Require(length > 0 && length < path.size(), "Read launcher path");
     return {path.data(), length};
 }
+void RequireCompleteUpdate(const std::filesystem::path& journal) {
+    if (std::filesystem::exists(journal))
+        throw std::runtime_error("A client update is incomplete. Open the patcher and use Update / Repair.");
+}
 void RequireNoExistingClient(const std::filesystem::path& executable) {
     Handle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
     Require(snapshot.get() != INVALID_HANDLE_VALUE, "Enumerate running processes");

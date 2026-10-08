@@ -142,6 +142,7 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
         std::string blocked;
         try {
             RequireNoExistingClient(executable);
+            RequireCompleteUpdate(options.root / L".patcher" / L"pending.json");
             ValidateDesktop(display);
             PrepareDesktopPreferences(options.root / L"Config" / L"ArcanePref.cfg", display, false);
         }
@@ -159,10 +160,11 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
             L"-" + std::to_wstring(identity.nFileIndexHigh) + L"-" + std::to_wstring(identity.nFileIndexLow);
         Handle mutex(CreateMutexW(nullptr, FALSE, mutex_name.c_str()));
         if (!mutex.get()) throw std::runtime_error("Cannot coordinate client startup.");
-        const auto ownership = WaitForSingleObject(mutex.get(), 0);
+        const auto ownership = WaitForSingleObject(mutex.get(), 10000);
         if (ownership != WAIT_OBJECT_0 && ownership != WAIT_ABANDONED)
             throw std::runtime_error("Another launcher is already starting this client.");
         RequireNoExistingClient(executable);
+        RequireCompleteUpdate(options.root / L".patcher" / L"pending.json");
         RequireUnchangedDisplays(displays);
         PrepareDesktopPreferences(options.root / L"Config" / L"ArcanePref.cfg", display);
         auto command = Arguments(executable.wstring(), display);
