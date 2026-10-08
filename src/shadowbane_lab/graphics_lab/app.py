@@ -30,6 +30,7 @@ from .katana import KatanaPanel
 from .presets import GraphicsPresetStore
 from .selected_cue import CuePanel
 from .sky_panel import SkyPanel
+from .visual_panel import VisualPanel
 
 _BACKGROUND = "#171b22"
 _PANEL = "#202630"
@@ -51,7 +52,7 @@ class GraphicsLabApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("WonderBane Graphics Lab")
-        self.root.geometry("640x790")
+        self.root.geometry("780x850")
         self.root.minsize(600, 700)
         self.root.configure(background=_BACKGROUND)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
@@ -188,6 +189,7 @@ class GraphicsLabApp:
         self.effects_panel = EffectsPanel(notebook)
         self.sky_panel = SkyPanel(notebook)
         self.katana_panel = KatanaPanel(notebook)
+        self.visual_panel = VisualPanel(notebook)
         self._build_outline_tab(outline_tab)
         self._build_lighting_tab(lighting_tab)
         self._build_preset_tab(preset_tab)
@@ -421,6 +423,7 @@ class GraphicsLabApp:
             self.effects_panel.connect(target)
             self.sky_panel.connect(target)
             self.katana_panel.connect(target)
+            self.visual_panel.connect(target)
         except (OSError, RuntimeError, ValueError) as error:
             self.client = None
             self._show_status(f"Attach failed: {error}", error=True)
@@ -453,6 +456,7 @@ class GraphicsLabApp:
         self.effects_panel.disconnect()
         self.sky_panel.disconnect()
         self.katana_panel.disconnect()
+        self.visual_panel.disconnect()
         if hasattr(self, "cue_panel"):
             self.cue_panel.disconnect()
         if self.client is not None:

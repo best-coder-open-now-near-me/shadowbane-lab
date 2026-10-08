@@ -1,3 +1,4 @@
+#include "visual_inspector.h"
 #include "selected_cue_runtime.h"
 #include "weapon_appearance.h"
 #include "selected_cue.h"
@@ -238,14 +239,14 @@ DWORD StartSelectedCue(std::uint8_t* image,std::size_t size,const char* hash) no
             if(error==ERROR_SUCCESS)slot=candidate_slot;
         }
         if(error==ERROR_SUCCESS){multi_slot=reinterpret_cast<std::uint32_t*>(image+0x16aa038);
-            InterlockedIncrement64(&generation);InterlockedExchange(&running,1);InterlockedExchange(&control->binding,1);weapon::Start(base);}
+            InterlockedIncrement64(&generation);InterlockedExchange(&running,1);InterlockedExchange(&control->binding,1);weapon::Start(base);visual::Start(base);}
     }
     InterlockedExchange(&control->error,static_cast<LONG>(error));
     ReleaseSRWLockExclusive(&lock);return error;
 }
 void StopSelectedCue() noexcept {
     RenderLifecycleMutation mutation;
-    weapon::Stop();
+    visual::Stop();weapon::Stop();
     InterlockedExchange(&running,0);InterlockedIncrement64(&generation);
     RestoreMultiDraw();
     if(slot){const auto replacement=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&OwnedRender));
@@ -266,6 +267,7 @@ void EndSelectedCueFrame() noexcept {RenderCallbackLease lease;weapon::EndScene(
 void ReleaseSelectedCueContext() noexcept {RenderCallbackLease lease;weapon::EndScene();DiscardSelectedCueScene();cue::ReleaseMask();}
 void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
+    visual::Poll(camera!=nullptr);
     weapon::BeginScene(camera!=nullptr);
     scene=false;owned=0;enhanced=0;material_status=0;mask_failed=false;glow_suppressed=false;cue::DiscardMask();
     // A bounded opt-in contributor trace must not require a selected target or
