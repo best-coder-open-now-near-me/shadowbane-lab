@@ -6,12 +6,13 @@ import ctypes
 import math
 import struct
 from dataclasses import dataclass
-from tkinter import BooleanVar, DoubleVar, StringVar, ttk
+from tkinter import BooleanVar, DoubleVar, IntVar, StringVar, ttk
 
 from . import control
 
 SIZE = 96
-HEADER = struct.Struct("<4IQ3If3I6f2I")
+HEADER = struct.Struct("<4IQ3If3I6f3I")
+OWNER_LABELS = ("My character", "Selected character")
 FIRE = struct.Struct("<I6f")
 FIRE_CONTROLS = (
     ("strength", "Glow strength", 0, 150, 111),
@@ -54,7 +55,7 @@ def unpack(data, target):
     ]
     if (magic, version, size, pid, creation) != (
         0x4B574257,
-        2,
+        3,
         SIZE,
         target.process_id,
         target.process_creation_filetime_utc,
@@ -64,7 +65,9 @@ def unpack(data, target):
         raise ValueError("Katana controls unavailable or being updated")
     fire = FireSettings(*values[11:18])
     fire.validate()
-    return length, desired, applied, error, matches, draws, fire, values[18], values[19]
+    if values[20] not in (0, 1):
+        raise ValueError("Invalid katana character selection")
+    return length, desired, applied, error, matches, draws, fire, values[18], values[19], values[20]
 
 
 class KatanaClient:
@@ -100,11 +103,13 @@ class KatanaClient:
             raise ValueError("Katana controls are being updated")
         return unpack(data, self.target)
 
-    def write(self, percent, fire=None):
+    def write(self, percent, fire=None, selection=None):
         if isinstance(percent, bool) or not math.isfinite(percent) or not 60 <= percent <= 120:
             raise ValueError("Overall length must be between 60 and 120 percent")
         if fire is not None:
             fire.validate()
+        if selection is not None and (type(selection) is not int or selection not in (0, 1)):
+            raise ValueError("Invalid katana character selection")
         api = control._kernel32
         if not self.mutex or api.WaitForSingleObject(self.mutex, 100) not in (0, 0x80):
             raise TimeoutError("Katana controls are busy")
@@ -112,6 +117,7 @@ class KatanaClient:
             snapshot = self.read()
             _, desired, applied, *_ = snapshot
             fire = fire if fire is not None else snapshot[6]
+            selection = selection if selection is not None else snapshot[9]
             sequence = max(desired, applied) + 2
             if sequence >= 0x7FFFFFFE:
                 sequence = 2
@@ -119,6 +125,7 @@ class KatanaClient:
             word.value = sequence - 1
             ctypes.memmove(self.address + 36, struct.pack("<f", percent / 100), 4)
             ctypes.memmove(self.address + 48, FIRE.pack(*fire.values()), FIRE.size)
+            ctypes.memmove(self.address + 84, struct.pack("<I", selection), 4)
             word.value = sequence
         finally:
             api.ReleaseMutex(self.mutex)
@@ -139,6 +146,7 @@ class KatanaPanel:
         notebook.add(self.frame, text="Katana")
         self.client = None
         self.pending = None
+        self.owner_selection = IntVar(value=0)
         self.value = DoubleVar(value=80)
         self.label = StringVar(value="Overall length: 80%")
         self.fire_enabled = BooleanVar(value=True)
@@ -148,6 +156,21 @@ class KatanaPanel:
         self.fire_labels = {name: StringVar() for name, *_ in FIRE_CONTROLS}
         self.fire_widgets = []
         self.status = StringVar(value="Connect a game instance to adjust its equipped katanas.")
+        ttk.Label(self.frame, text="Apply to").pack(anchor="w")
+        owners = ttk.Frame(self.frame)
+        owners.pack(fill="x", pady=4)
+        self.owner_widgets = []
+        for index, label in enumerate(OWNER_LABELS):
+            button = ttk.Radiobutton(
+                owners, text=label, variable=self.owner_selection, value=index,
+                command=self.change, state="disabled",
+            )
+            button.pack(side="left", padx=(0, 16))
+            self.owner_widgets.append(button)
+        ttk.Label(
+            self.frame, text="Selected character follows your current in-game selection.",
+            wraplength=480,
+        ).pack(anchor="w", pady=(0, 8))
         ttk.Label(self.frame, text="Katana proportions").pack(anchor="w")
         ttk.Label(
             self.frame,
@@ -223,7 +246,7 @@ class KatanaPanel:
                     int(self.fire_enabled.get()),
                     *(round(self.fire_vars[name].get()) / 100 for name, *_ in FIRE_CONTROLS),
                 )
-                self.client.write(round(self.value.get()), fire)
+                self.client.write(round(self.value.get()), fire, self.owner_selection.get())
             except (OSError, RuntimeError, ValueError) as error:
                 self.status.set(str(error))
 
@@ -233,12 +256,15 @@ class KatanaPanel:
             self.client = KatanaClient(target)
             snapshot = self.client.read()
             length, fire = snapshot[0], snapshot[6]
+            self.owner_selection.set(snapshot[9])
             self.value.set(length * 100)
             self.fire_enabled.set(bool(fire.enabled))
             for name, *_ in FIRE_CONTROLS:
                 self.fire_vars[name].set(getattr(fire, name) * 100)
             self.update_labels()
-            for widget in (self.slider, self.shorter, self.reset, *self.fire_widgets):
+            for widget in (
+                self.slider, self.shorter, self.reset, *self.fire_widgets, *self.owner_widgets
+            ):
                 widget.configure(state="normal")
         except (OSError, RuntimeError, ValueError) as error:
             self.disconnect()
@@ -251,30 +277,35 @@ class KatanaPanel:
         if self.client:
             self.client.close()
         self.client = None
-        for widget in (self.slider, self.shorter, self.reset, *self.fire_widgets):
+        for widget in (
+            self.slider, self.shorter, self.reset, *self.fire_widgets, *self.owner_widgets
+        ):
             widget.configure(state="disabled")
 
     def poll(self):
         if self.client:
             try:
-                length, desired, applied, error, matches, draws, fire, fire_draws, reason = (
-                    self.client.read()
-                )
+                (
+                    length, desired, applied, error, matches, draws, fire, fire_draws,
+                    reason, selection,
+                ) = self.client.read()
+                owner = OWNER_LABELS[selection]
                 if error:
-                    self.status.set(f"Waiting for equipped katana rendering (status {error}).")
+                    self.status.set(f"{owner}: waiting for equipped katanas (status {error}).")
                 elif desired != applied:
                     self.status.set("Waiting for the next game frame…")
                 elif fire.enabled and reason:
                     self.status.set(
-                        f"{matches} katanas; moon-fire waiting for supported draw state ({reason})."
+                        f"{owner}: {matches} katanas; moon-fire waiting "
+                        f"for supported draw state ({reason})."
                     )
                 elif (length != 1 or fire.enabled) and not draws:
                     self.status.set(
-                        f"Matched {matches} katanas; waiting for supported visible draws."
+                        f"{owner}: matched {matches} katanas; waiting for supported visible draws."
                     )
                 else:
                     self.status.set(
-                        f"{matches} katanas / {round(length * 100)}% / "
+                        f"{owner}: {matches} katanas / {round(length * 100)}% / "
                         + (f"moon-fire on {fire_draws} draws" if fire.enabled else "moon-fire off")
                     )
             except (OSError, RuntimeError, ValueError) as error:

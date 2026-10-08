@@ -7,10 +7,10 @@ import pytest
 from shadowbane_lab.graphics_lab import katana
 
 
-def block(length=1, desired=0, pid=7):
+def block(length=1, desired=0, pid=7, selection=0, version=3):
     return katana.HEADER.pack(
         0x4B574257,
-        2,
+        version,
         96,
         pid,
         1234,
@@ -23,7 +23,8 @@ def block(length=1, desired=0, pid=7):
         *katana.FireSettings().values(),
         0,
         0,
-    ) + bytes(12)
+        selection,
+    ) + bytes(8)
 
 
 def test_wire_identity_and_ranges():
@@ -87,3 +88,32 @@ def test_fire_writer_preserves_length_and_rejects_invalid_settings(monkeypatch):
         with pytest.raises(ValueError):
             client.write(80, settings)
     assert memory.raw == before
+
+
+def test_selected_character_protocol_and_writer(monkeypatch):
+    target = SimpleNamespace(process_id=7, process_creation_filetime_utc=1234)
+    assert katana.unpack(block(selection=1), target)[9] == 1
+    for data in (block(version=2), block(selection=2)):
+        with pytest.raises(ValueError):
+            katana.unpack(data, target)
+    memory = ctypes.create_string_buffer(block(0.8), 96)
+    client = katana.KatanaClient.__new__(katana.KatanaClient)
+    client.address = ctypes.addressof(memory)
+    client.mutex = 1
+    client.target = target
+    monkeypatch.setattr(katana.control, "target_process_is_alive", lambda _: True)
+    monkeypatch.setattr(katana.control, "_kernel32", SimpleNamespace(
+        WaitForSingleObject=lambda *_: 0, ReleaseMutex=lambda _: None,
+    ))
+    original_fire = client.read()[6]
+    client.write(80, selection=1)
+    assert client.read()[9] == 1 and client.read()[6] == original_fire
+    client.write(85)
+    assert client.read()[9] == 1
+    before = memory.raw
+    for selection in (True, -1, 2, 1.0, "1"):
+        with pytest.raises(ValueError):
+            client.write(80, selection=selection)
+    assert memory.raw == before
+    client.write(85, selection=0)
+    assert client.read()[9] == 0

@@ -20,13 +20,13 @@ void APIENTRY PopAttrib(){--mock_attrs;}
 void APIENTRY Enable(GLenum){}
 void APIENTRY Scale(GLfloat x,GLfloat y,GLfloat z){assert(x==1.F&&z==1.F);yscale*=y;}
 HGLRC WINAPI Context(){return current;}
-wonderbane::extension::effects::Attachment actor{};
+wonderbane::extension::effects::Attachment actor{},selected_actor{};
 }
 namespace wonderbane::extension::weapon {unsigned DrawMoonfire(const FireSettings&,double) noexcept {++fires;return 0;}}
 namespace wonderbane::extension {
 bool AreNativeDrawQueriesSafe() noexcept{return query_safe;}
 namespace effects {
-Attachment Resolve(Reader,void*,std::uint32_t,std::uint32_t) noexcept{return actor;}
+Attachment Resolve(Reader,void*,std::uint32_t,std::uint32_t selection) noexcept{return selection==1?selected_actor:actor;}
 bool SameIdentity(const Attachment& a,const Attachment& b) noexcept{return a.valid&&b.valid&&a.actor==b.actor&&a.uuid==b.uuid;}
 }}
 #define glGetIntegerv GetInt
@@ -71,5 +71,33 @@ int main(){
  submission[7]=ptr(right);{RenderScope scope(submission.data());DrawScale draw;}
  assert(fires==2 && control->fire_draws==2);
  control->fire.size=NAN;BeginScene(true);assert(control->error==ERROR_INVALID_DATA&&!WantsDraws());
+ // Selected mode never falls back to self and never decorates another actor's draw.
+ control->fire.size=1.F;control->length=.8F;
+ control->version=2;BeginScene(true);assert(control->error==ERROR_INVALID_DATA&&!WantsDraws());control->version=3;
+ control->selection=2;BeginScene(true);assert(control->error==ERROR_INVALID_DATA&&!WantsDraws());
+ control->selection=1;BeginScene(true);assert(control->error==ERROR_NOT_FOUND&&!WantsDraws());
+ std::array<std::uint32_t,128> selected_player{},selected_root{},selected_left{},selected_right{};
+ std::array<std::uint32_t,2> selected_children{ptr(selected_left),ptr(selected_right)};
+ selected_player[0xc0/4]=ptr(selected_root);
+ selected_root[0]=selected_left[0]=selected_right[0]=0x1549dbc;
+ selected_root[0x3c/4]=ptr(selected_children);selected_root[0x40/4]=ptr(selected_children)+8;
+ selected_left[4]=selected_right[4]=9996101;
+ selected_actor.valid=true;selected_actor.actor=ptr(selected_player);selected_actor.uuid=9;
+ BeginScene(true);assert(control->matches==2&&control->error==0);
+ const int selected_before=pushes;
+ submission[7]=ptr(left);{RenderScope scope(submission.data());DrawScale draw;assert(pushes==selected_before);}
+ submission[7]=ptr(selected_left);{RenderScope scope(submission.data());DrawScale draw;assert(yscale==.8F);}
+ submission[7]=ptr(selected_right);{RenderScope scope(submission.data());DrawScale draw;assert(yscale==.8F);}
+ assert(control->draws==2&&control->fire_draws==2);
+ // Selection identity changing mid-frame suppresses stale rendering.
+ const int changed_before=pushes;++selected_actor.uuid;
+ {RenderScope scope(submission.data());DrawScale draw;assert(pushes==changed_before);}--selected_actor.uuid;
+ const auto saved_actor=selected_actor;selected_actor=actor;
+ {RenderScope scope(submission.data());DrawScale draw;assert(pushes==changed_before);}selected_actor=saved_actor;
+ selected_actor.valid=false;BeginScene(true);assert(control->error==ERROR_NOT_FOUND&&!WantsDraws());
+ control->selection=0;BeginScene(true);assert(control->matches==2&&control->error==0);
+ {RenderScope scope(submission.data());DrawScale draw;assert(pushes==changed_before);}
+ submission[7]=ptr(left);{RenderScope scope(submission.data());DrawScale draw;assert(yscale==.8F);}
+ assert(control->fire_draws==1);
  Stop();assert(!control&&pushes==pops&&mock_attrs==0);
 }

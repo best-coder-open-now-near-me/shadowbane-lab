@@ -7,8 +7,9 @@
 candidate build workflow. Targets main after PR #106; it does not take over
 that feature branch. The separate client is installed and running with the
 NVIDIA driver and Katana panel. See [qualification and launch details](mod-pack-pc-20261008.md).
-In-world acceptance on this destination is pending; original demo acceptance
-remains recorded in PR #106. The hosted pixel-test failure is retained and
+In-world counters now confirm both owned blades and moon-fire draws. The branch
+also owns the requested selected-character mode; native qualification and
+installation of that update are pending. Original demo acceptance remains in PR #106. The hosted pixel-test failure is retained and
 local hardware qualification is documented explicitly.
 
 ## Katana moon-fire - October 8

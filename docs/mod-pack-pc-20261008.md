@@ -44,7 +44,10 @@ Complete package verification passed and all 79 Config/wasd settings files were
 preserved. The client started and published its identity-bound full-renderer
 status; its loaded modules include the expected DLL and NVIDIA `nvoglv32.dll`.
 The panel connected with the approved 80% length and six fire defaults. At this
-checkpoint login/in-world dual-weapon acceptance is still pending on this PC.
+checkpoint login/in-world dual-weapon acceptance was pending. A subsequent
+identity-checked read observed two owned Archon render instances, two weapon
+draws, two moon-fire draws and no suppression in the live hardware client.
+Visual tuning remains user-controlled.
 
 ## Launch and upkeep
 
@@ -63,3 +66,21 @@ remain private local artifacts.
 
 This branch targets main after dependency PR #106. It does not merge that draft
 or claim broader Visual Inspector, animation or transparency acceptance.
+
+## Selected-character moon-fire update
+
+The Katana tab now offers **My character** and **Selected character**. Both
+length and moon-fire follow the chosen owner. Selected mode uses the existing
+bounded attachment resolver and rechecks the selected actor identity before
+rendering; losing the selection suspends the effect without falling back to
+self. Only that actor's two matching Archon render instances are eligible.
+Changing the selection follows the newly selected actor on subsequent frames.
+The effect remains local to this client.
+
+Katana channel schema 3 uses the first reserved word at byte 84 for owner mode
+(0 self, 1 selected), retaining the 96-byte allocation. The panel and native
+extension reject older schema versions and invalid owner values. Native tests
+cover wrong-owner exclusion, selection loss and identity change, switching back
+to self, malformed mode and old schema rejection. Python protocol and cosmetic
+asset checks pass (20 tests); native build and installation are pending for this
+update. No asset override changes are needed.
