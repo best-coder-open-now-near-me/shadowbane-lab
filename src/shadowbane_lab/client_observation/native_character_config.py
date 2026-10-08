@@ -66,6 +66,9 @@ REVIEWED_CHARACTER_CONFIG_LAYOUTS += (
             executable_sha256="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d"),
     replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
             executable_sha256="78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903"),
+    # Original .14: identical exact load/save and UTF-16 encoder receipts.
+    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
+            executable_sha256="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e"),
 )
 
 

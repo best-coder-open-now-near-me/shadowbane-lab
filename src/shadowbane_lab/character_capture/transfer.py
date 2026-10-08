@@ -79,7 +79,7 @@ def _build_signature(snapshot):
     )
 
 
-def observe_character(session, reader):
+def observe_character(session, reader, build_reader=None):
     session.require_current()
     first = reader.observe()
     session.require_current()
@@ -95,13 +95,20 @@ def observe_character(session, reader):
             raise CaptureError("Snapshot belongs to a different process lifetime or executable.")
     if _build_signature(first.as_dict()) != _build_signature(second.as_dict()):
         raise CaptureError("Training or level changed during capture; stop training and retry.")
-    return {
+    result = {
         "schema_version": 1,
         "source": binding.as_dict(),
         "native_snapshot": second.as_dict(),
         "unresolved_structured_fields": list(UNRESOLVED),
         "database_import_ready": False,
     }
+
+    if build_reader is not None:
+        build = build_reader.observe()
+        session.require_current()
+        result["current_build"] = build
+        result["unresolved_structured_fields"] = build["unresolved"]
+    return result
 
 
 class CaptureBundle:
@@ -117,7 +124,7 @@ class CaptureBundle:
             "capture_status": "collecting",
             "database_import_ready": False,
             "source": character["source"],
-            "unresolved_structured_fields": list(UNRESOLVED),
+            "unresolved_structured_fields": character["unresolved_structured_fields"],
             "files": [],
             "sections": {},
             "notes": [
@@ -279,25 +286,30 @@ def run_capture(arguments):
                 f"Expected server {arguments.server!r}; found {identity.server_name!r}."
             )
         reader = NativePlayerSnapshotReader(load_bundled_native_player_snapshot_profiles(), process)
-        character = observe_character(session, reader)
+        from .build import NativeCharacterBuildReader
+
+        build_reader = None if arguments.guided_only else NativeCharacterBuildReader(session)
+        character = observe_character(session, reader, build_reader)
         bundle = CaptureBundle(arguments.output_root, character)
         print(f"Capturing {identity.character_name} on {identity.server_name}.")
         print(f"Local bundle: {bundle.path}")
         if not arguments.native_only:
             guided_evidence(bundle, session, arguments.delay)
-        final = observe_character(session, reader)
+        final = observe_character(session, reader, build_reader)
         if _build_signature(character["native_snapshot"]) != _build_signature(
             final["native_snapshot"]
         ):
             raise CaptureError(
                 "Build changed during the session. Capture it again without training."
             )
+        if character.get("current_build") != final.get("current_build"):
+            raise CaptureError("Equipment, runes or attributes changed; capture again.")
         bundle.add_file("character-final.json", _encoded(final), kind="native-character-final")
         bundle.finish("review_required")
         print(f"Capture saved: {bundle.path}")
         print(
-            "Transfer this entire folder. Gear/runes/base attributes require review and "
-            "transcription before database import; this is not an import-ready build."
+            "Transfer this entire folder. Review base allocations and destination content "
+            "mapping before import; this is not an import-ready build."
         )
         return 0
     except BaseException as exc:
@@ -319,10 +331,12 @@ def main(argv=None):
     parser.add_argument("--pid", type=int, help="required when multiple sb.exe clients are running")
     parser.add_argument("--output-root", type=Path, default=Path("captures/character-transfer"))
     parser.add_argument("--delay", type=int, default=8, help="seconds to focus game (3-60)")
+    parser.add_argument("--guided-only", action="store_true",
+                        help="legacy guided evidence without the new exact .14 build reader")
     parser.add_argument(
         "--native-only",
         action="store_true",
-        help="skip pictures; equipment/runes/attributes will remain uncaptured",
+        help="skip supplemental pictures; capture structured native records only",
     )
     arguments = parser.parse_args(argv)
     if not arguments.character.strip() or not arguments.server.strip():

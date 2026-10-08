@@ -172,7 +172,7 @@ def patch_run(tmp_path, monkeypatch, *, character="testercle", native_only=True)
         character=character,
         server="Wonderbane",
         output_root=tmp_path / "captures",
-        native_only=native_only,
+        native_only=native_only, guided_only=True,
         delay=3,
     )
     return memory, args
@@ -285,3 +285,4 @@ def test_final_training_change_marks_saved_bundle_failed(tmp_path, monkeypatch):
     assert manifest["capture_status"] == "failed"
     assert not manifest["database_import_ready"]
     assert memory.closed
+

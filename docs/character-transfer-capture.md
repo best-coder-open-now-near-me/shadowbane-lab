@@ -1,3 +1,7 @@
+# Current automatic capture update
+
+The default now includes the exact .14 automatic build reader. See [coverage and acceptance limits](automatic-character-build.md). Use --guided-only for the earlier screenshot-led workflow described below. Automatic records still require destination mapping before database import.
+
 # Capture a character for transfer
 
 Run `scripts/capture-wonderbane-character.ps1` **on the Windows machine/VM

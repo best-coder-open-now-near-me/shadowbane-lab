@@ -2,13 +2,14 @@
 
 ## Character transfer capture - October 7
 
-`codex/character-transfer-capture` owns an isolated managed worktree and targets
-`main`. It adds the read-only single-character capture launcher and versioned
-native JSON plus guided equipment/rune/attribute screenshot evidence. It changes
-no runtime or server database. Source remains outside main pending PR review.
-See [capture instructions and acceptance limits](character-transfer-capture.md).
-Next: capture one logged-in character, review/transcribe the missing gear/build
-fields, then implement the destination mapping/import against the server model.
+codex/character-transfer-capture owns an isolated managed worktree and targets
+main through PR #101. It adds read-only character transfer capture and the
+shared tester recorder. Automatic build capture is implemented for exact .14
+images with extra disk-code receipts; end-to-end live acceptance remains pending.
+See [automatic capture evidence](automatic-character-build.md).
+Source is outside main pending review. Next: finish the continuous watcher,
+incident dashboard and portable package; validate one live character and then
+map destination content before implementing any database import.
 
 
 ## Context cleanup progress - October 7
