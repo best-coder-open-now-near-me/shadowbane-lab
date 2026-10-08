@@ -347,3 +347,19 @@ stencil/depth preservation, mirrored transforms and state restoration. Host
 control tests validate joint writes, preserving fire while adjusting length, and
 invalid input rejection. This candidate is not installed yet. Next: integrated
 renderer checks, package qualification, then the in-game fire acceptance.
+
+
+Native fire qualification: the integrated full-profile build passed; 238 required
+native tests passed and three private-image entries skipped without explicit
+inputs. Their unchanged binding/image paths were qualified at the preceding
+length checkpoint. The separate, documented transparency counterexamples remain
+unresolved; this candidate does not claim arbitrary translucent-scene ordering.
+Forty-eight host tests and the actual Tk panel construction/range/layout check
+passed. The complete panel requires 459 pixels of content height. The new render
+test also generated a visually inspected effect-only capture.
+
+Candidate 0f80838 passed guest installation preflight against the installed length
+overlay, matching the exact DLL, launcher, panel and complete client inventory.
+The game and panel must close before installation. The candidate is staged but
+not installed; private receipts contain the exact identities. Next: install,
+verify both owned fire draws at 80 percent, and inspect the in-game result.
