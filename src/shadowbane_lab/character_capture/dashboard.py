@@ -364,7 +364,15 @@ def main(argv=None):
     if args.self_test:
         from .selftest import run_self_test
 
-        return run_self_test(args.self_test)
+        try:
+            return run_self_test(args.self_test)
+        except Exception as exc:
+            import json
+
+            args.self_test.write_text(
+                json.dumps({"passed": False, "error": str(exc)}, indent=2), encoding="utf-8"
+            )
+            return 1
     root = tk.Tk()
     Dashboard(root, args.output_root)
     root.mainloop()

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$PythonPath,
     [Parameter(Mandatory)][string]$OutputDirectory
@@ -17,7 +17,7 @@ if ($LASTEXITCODE -ne 0 -or $toolVersion.Trim() -ne '6.22.2') {
 $output = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $name = 'ShadowbaneRecorder-' + $revision.Substring(0,12)
-$buildRoot = Join-Path $output ($name + '-build')
+$buildRoot = Join-Path $output ('.build-' + $revision.Substring(0,12))
 $package = Join-Path $output $name
 $zip = Join-Path $output ($name + '.zip')
 foreach ($path in @($buildRoot, $package, $zip)) {
@@ -29,7 +29,8 @@ $arguments = @(
     '--name', $name, '--paths', (Join-Path $sourceRoot 'src'),
     '--distpath', $output, '--workpath', (Join-Path $buildRoot 'work'),
     '--specpath', $buildRoot,
-    '--collect-data', 'shadowbane_lab.client_observation',
+    '--add-data', ((Join-Path $sourceRoot 'src/shadowbane_lab/client_observation/data') +
+                   ';shadowbane_lab/client_observation/data'),
     '--add-data', ((Join-Path $sourceRoot 'src/shadowbane_lab/character_capture/dictation.ps1') +
                    ';shadowbane_lab/character_capture'),
     (Join-Path $sourceRoot 'scripts/run_character_recorder.py')
