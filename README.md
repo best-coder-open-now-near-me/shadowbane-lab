@@ -12,6 +12,8 @@ bot-runtime status below remains evidence, not the new server's prerequisite lis
 
 [Automatic desktop fullscreen](docs/client-desktop-fullscreen.md) documents the
 installed native launcher, preserved settings and verified live startup.
+[Private client patcher](docs/client-patcher.md) records the installed signed 1.0.0
+release, player setup, release ownership and pending Tailscale publication.
 
 ## Finding the current code
 

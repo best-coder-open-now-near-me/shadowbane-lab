@@ -8,8 +8,15 @@ accepted launcher source `540c9a3af03f3f62da883426caf5029d30af7831` and targets
 focused checks, and all three native launcher test groups pass. [Patcher ownership and active todos](client-patcher.md) define
 private Tailscale distribution, preserved settings and interruption recovery.
 The player window, standalone packaging, release tools and native startup handoff
-are implemented. Next: publish and qualify the first private release. No patcher runtime is installed.
-The normal project checkout stays on `main`; this worktree owns patcher source.
+are implemented. Release 1.0.0 from source
+`7b6a8810593834af9cbf7dc917a61c1d858c684e` is installed: signed Update and
+verified Play passed against the actual local client, with configuration hashes
+preserved and all three desktop display modes unchanged. Exact binary identities
+and private receipt locations are recorded in the patcher document.
+[Draft PR #102](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/102)
+is pushed, not merged. Next: enable Tailscale Serve and verify the prepared private
+HTTPS feed, then review/integrate #96, #100 and #102 into `main`.
+The normal project checkout stays on `main`; retain this worktree for review.
 
 ## Client desktop fullscreen - October 7
 
