@@ -1,5 +1,14 @@
 # Git branch map
 
+## Katana moon-fire - October 8
+
+codex/katana-moonfire starts from main cdaafb2 in its own managed worktree.
+It owns one local katana cosmetic experiment, not a general equipment system.
+Native visual inspection/tinting is validated; no game cache or runtime changed.
+Source is unfinished and remains outside main. Next is identifying the test
+weapon and proving its render/effect attachment before installing any override.
+See [scope, evidence and next steps](katana-moonfire.md).
+
 ## Context cleanup progress - October 7
 
 `codex/context-cleanup-progress-20261007` in bot-integration starts from
