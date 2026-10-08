@@ -9,8 +9,9 @@ is installed with the compression correction, and the user confirmed it renders
 in game. The approved mesh/texture and six-slider moon-fire preset are preserved
 in the preview. Live proportions controls from 3c4c8c1 are installed in Graphics Lab and both
 owned katana draws respond. The user selected 80% length. Native moon-fire and
-its six panel controls are implemented and being qualified, not installed yet;
-in-game fire acceptance and the final demo remain pending.
+its six panel controls from 0f80838 are installed; both weapon effects were
+observed in game with two fire draws and no suppression. Final tuning and a
+clean demo capture remain.
 Draft PR #106 targets main; this unfinished source remains outside main. The
 general object Visual Inspector is deferred until after the katana demo.
 See [scope, evidence and next steps](katana-moonfire.md).

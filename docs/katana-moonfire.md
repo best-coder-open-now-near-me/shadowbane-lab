@@ -363,3 +363,25 @@ overlay, matching the exact DLL, launcher, panel and complete client inventory.
 The game and panel must close before installation. The candidate is staged but
 not installed; private receipts contain the exact identities. Next: install,
 verify both owned fire draws at 80 percent, and inspect the in-game result.
+
+
+## Native fire installed and observed
+
+After the user closed the game and Graphics Lab, candidate 0f80838 was installed.
+Post-install package and panel validation passed, all 47 settings files matched,
+and the game restarted with the exact expected DLL. The panel connected using
+schema 2 at 80 percent with the approved fire preset enabled. Obsolete length-only
+staging binaries and completed inspection copies were removed; compact receipts
+and original diagnostic evidence remain private.
+
+The user entered the world with the designated character. A read-only channel
+check reported two owned katana instances, two weapon draws, two fire draws and
+zero error/suppression. A VM capture was visually inspected: the white chain and
+hilt accents are visible on both held blades in their different poses. No slider
+writes were performed during this fire acceptance check. This confirms live
+ownership, attachment and rendering at the chosen settings; it does not claim
+all possible animations or arbitrary translucent-scene ordering are qualified.
+
+The fire is ready for the user to tune through Graphics Lab's Katana tab. Next:
+choose the final look and capture a clean demo frame or clip. Keep PR #106 draft
+until final demo acceptance; the general Visual Inspector follows this demo.
