@@ -49,15 +49,16 @@ outside the patcher's update ownership.
 - Complete: 49 engine/publisher/player-CLI checks and three native test groups pass.
 - Complete: player window, native startup handoff and standalone release packaging.
 - Complete: install signed release 1.0.0 and launch the real client through verified Play.
-- Complete: publish source and delivery notes in draft PR #102.
-- Active: enable Tailscale Serve and verify the private HTTPS feed/download.
+- Complete: publish source and delivery notes in PR #102.
+- Complete: enable private Serve and verify HTTPS metadata, payload and player download.
+- Active: confirm download and first update from a friend's PC with access to the update host.
 - Next: review/integrate dependencies #96 and #100, then #102 into main.
 
 ## Qualified local release — October 7, 2026
 
 Release 1.0.0, sequence 1, was built from
 `7b6a8810593834af9cbf7dc917a61c1d858c684e`, committed and pushed on
-`codex/client-patcher`. [Draft PR #102](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/102)
+`codex/client-patcher`. [PR #102](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/102)
 targets `main`; it includes the unmerged baseline and launcher dependencies.
 Retain the dedicated worktree for review. The normal checkout remains clean on
 `main`; no unrelated changes are included.
@@ -77,12 +78,22 @@ journal. The existing play entry now opens the patcher. Private receipts remain
 under the normal project's ignored `artifacts/client-patcher/20261007/`, including
 `apply-1.0.0.json`, `play-1.0.0.json` and `live-startup-1.0.0.json`.
 
-The private feed and portable ZIP are prepared on the release host. Tailscale
-reported Serve disabled, so HTTPS publication and a friend's download remain
-unverified. The tailnet administrator must enable Serve before the maintainer
-can complete those checks. No public hosting or Funnel was enabled. This host
-must remain online while friends check for or download updates; an already
-verified installed release supports offline Play.
+The private HTTPS feed is published using persistent Tailscale Serve. After the
+user enabled HTTPS and approved the Windows administrator prompt for folder
+sharing, the download page, signed manifest, launcher payload and entire portable
+ZIP returned HTTP 200 over certificate-validated HTTPS. All three artifact hashes
+matched the qualified release. The installed patcher inspected its configured
+HTTPS feed successfully, verified release 1.0.0, reported no changed files and
+correctly detected the running game. No game restart or reinstallation was needed.
+The Serve configuration exposes only the intended update directory; Funnel is off.
+
+These network checks ran from the release host against its private HTTPS name.
+A separate friend's PC still needs a download/first-update check, including access
+to this update host as well as the game server. Network evidence stays private in
+`https-download-1.0.0.json` and `https-inspect-1.0.0.json` beside the other receipts.
+The release host must remain online while friends check for or download updates;
+an already verified installed release supports offline Play. PR #102 is ready
+for review, with its baseline/launcher dependencies still awaiting integration.
 
 ## Player setup
 

@@ -13,9 +13,11 @@ are implemented. Release 1.0.0 from source
 verified Play passed against the actual local client, with configuration hashes
 preserved and all three desktop display modes unchanged. Exact binary identities
 and private receipt locations are recorded in the patcher document.
-[Draft PR #102](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/102)
-is pushed, not merged. Next: enable Tailscale Serve and verify the prepared private
-HTTPS feed, then review/integrate #96, #100 and #102 into `main`.
+[PR #102](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/102)
+is pushed and ready for review, not merged. Private HTTPS publication is verified:
+metadata, launcher and player download hashes match, the installed patcher reads
+the live feed, and Funnel is off. Next: confirm a friend's first download/update,
+then review/integrate #96, #100 and #102 into `main`.
 The normal project checkout stays on `main`; retain this worktree for review.
 
 ## Client desktop fullscreen - October 7
