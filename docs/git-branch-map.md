@@ -1,6 +1,6 @@
 # Git branch map
 
-## Character transfer capture - October 7
+## Character transfer capture - October 8
 
 codex/character-transfer-capture owns an isolated managed worktree and targets
 main through PR #101. It now adds the user-friendly Companion installer,
@@ -11,9 +11,11 @@ and [tester instructions](character-recorder.txt).
 The original client identity profile is confined to capture; shared bot readers
 retain the existing original-image rejection gate. The CI regression is fixed.
 Source remains outside main pending review. The per-user installer and installed
-app passed qualification; loopback ingestion and duplicate receipts passed.
-Next: administrator activation of private HTTPS and boot startup, HTTPS upload
-qualification, then friend-side delivery and real microphone/game-control correlation. Database import
+app passed qualification. Private HTTPS upload/retry passed using the installed
+connection, and the SYSTEM startup task is running with an AtStartup trigger.
+The user now intends personal use; the former friend is outside the acceptance
+plan. Next: a real personal recording with microphone/game-control correlation.
+A second computer needs separate delivery qualification if used. Database import
 and authoritative gameplay server instrumentation remain unfinished.
 
 

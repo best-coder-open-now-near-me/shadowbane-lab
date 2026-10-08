@@ -80,3 +80,27 @@ remote delivery success.
 Obsolete dc7b10851237 and 769734e3d538 application packages were removed after the
 current installed app passed. Compact qualification receipts and original capture
 sessions remain; no deployment rollback package is retained.
+
+## Private activation — October 8, 2026
+
+The user continued this work for personal use; the former tester is no longer
+part of the acceptance plan. No installer or capability was sent to that person
+by this task. Existing private connection files retain their historical filenames.
+
+Administrator setup succeeded. The private /shadowbane-reports/ HTTPS proxy is
+active alongside the unchanged /shadowbane-updates/ file handler. An elevated
+readback confirmed the Shadowbane Report Receiver task is Running as SYSTEM with
+an AtStartup trigger and the expected installed Python executable. The former
+sign-in Run entry was removed. Startup after an actual reboot was not tested.
+
+Using the installed app's connection.json and the production HTTPS delivery
+client, a synthetic report passed HTTPS health, authenticated upload, server ZIP
+publication, local Sent state, and repeat-send identical-receipt checks. Local
+qualification is complete; this does not certify access from another computer.
+Private evidence is retained in artifacts/watcher-layout/https-delivery-receipt.json
+and E:\Services\ShadowbaneReports/startup-verification.json. No capability or
+captured character data is included in source control.
+
+Next: a real personal recording with microphone notes and game-control correlation.
+Qualify a second computer only if one is used. Character database import and
+authoritative private-game-server instrumentation remain separate unfinished work.
