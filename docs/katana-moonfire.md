@@ -59,8 +59,9 @@ client binaries, credentials or captures. The active client was not changed.
 3. Active: correlate native particle attachment and translate the study into the client.
 4. Validate in-game appearance, occlusion and movement; capture the actual result.
 
-The user identified the patched test VM as the target. An equipped test item and
-character are still needed for live acceptance. Do not infer bone semantics from
+The user has designated a logged-in test character. Read-only inspection confirms
+the running test installation has the model/render/effect assets used by the preview.
+The equipped stand-in sword still needs identification before selecting a replacement. Do not infer bone semantics from
 numeric values alone.
 Source is published on codex/katana-moonfire as unfinished work targeting main.
 The normal project checkout stays on main; this branch is isolated from the
@@ -186,3 +187,9 @@ rendered without page/WebGL errors, and captured for visual inspection. Refreshi
 now restores this preset. Native effect values will need calibration against this
 appearance; browser glow percentages are not native particle parameters. Next:
 prove weapon attachment in the test VM and implement the approved appearance.
+
+
+Live baseline check: no client files, process memory or gameplay state were changed.
+Detailed process provenance and screenshots remain private diagnostic evidence.
+Next: identify the equipped sword resource, qualify the local appearance swap,
+and then validate attachment and motion in-game.
