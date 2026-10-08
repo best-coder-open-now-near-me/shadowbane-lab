@@ -320,3 +320,30 @@ Remaining: visual confirmation of length and grip during movement, followed by
 the native moon-fire implementation and demo capture. Automated checks establish
 control/renderer activity, not final visual quality or full-range acceptance.
 The general Visual Inspector remains deferred until after the katana demo.
+
+
+## Native moon-fire candidate
+
+The user selected 80 percent overall length. The next channel revision starts at
+that length with the approved six-control fire preset and an explicit fire toggle.
+It adds the effect immediately after each owned native weapon submission, using
+the model matrix already carrying its hand attachment and length transform. Each
+owned katana receives at most one decoration per scene. No late world composite
+or global composition gate is enabled.
+
+The renderer uses depth-tested, camera-facing white diamonds with staggered
+pulses, a slower hilt diamond, a model-space collar and a feathered additive
+blade ribbon. It uses the existing guarded geometry state scope; native clipping
+is retained and neither depth nor stencil is written. Active custom shader,
+unsupported depth mode, malformed controls and unsafe draw states suppress fire.
+The ordinary weapon continues rendering. Browser material emission is represented
+by the native ribbon; visual parity still requires the in-game check.
+
+The process-specific control schema advances to version 2; old panels reject the
+new mapping instead of misreading it. Six controls retain the preview ranges.
+Native ownership/deduplication tests and a real OpenGL render test pass: visible
+pixels, animation versus zero pulse, foreground occlusion, scissor clipping,
+stencil/depth preservation, mirrored transforms and state restoration. Host
+control tests validate joint writes, preserving fire while adjusting length, and
+invalid input rejection. This candidate is not installed yet. Next: integrated
+renderer checks, package qualification, then the in-game fire acceptance.

@@ -9,12 +9,14 @@ void EndScene() noexcept;
 bool WantsDraws() noexcept;
 class RenderScope {
     float previous_;
+    int previous_index_;
 public:
     explicit RenderScope(void* submission) noexcept;
     ~RenderScope();
 };
 class DrawScale {
     bool pushed_=false;
+    int index_=-1;
 public:
     DrawScale() noexcept;
     ~DrawScale();

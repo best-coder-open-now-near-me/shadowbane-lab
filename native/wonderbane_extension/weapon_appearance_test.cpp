@@ -1,11 +1,13 @@
 #include <Windows.h>
 #include <gl/GL.h>
 #include "effects.h"
+#include "moonfire.h"
 #include <array>
 #include <cmath>
 #undef NDEBUG
 #include <cassert>
 namespace {
+int fires=0;
 bool query_safe=true;float yscale=1.F,saved=1.F;int pushes=0,pops=0,mock_attrs=0;
 HGLRC current=reinterpret_cast<HGLRC>(1);
 void APIENTRY GetInt(GLenum name,GLint* v){
@@ -20,6 +22,7 @@ void APIENTRY Scale(GLfloat x,GLfloat y,GLfloat z){assert(x==1.F&&z==1.F);yscale
 HGLRC WINAPI Context(){return current;}
 wonderbane::extension::effects::Attachment actor{};
 }
+namespace wonderbane::extension::weapon {unsigned DrawMoonfire(const FireSettings&,double) noexcept {++fires;return 0;}}
 namespace wonderbane::extension {
 bool AreNativeDrawQueriesSafe() noexcept{return query_safe;}
 namespace effects {
@@ -44,7 +47,7 @@ int main(){
  root[0x3c/4]=ptr(children);root[0x40/4]=ptr(children)+8;
  left[4]=right[4]=foreign[4]=9996101;
  actor.valid=true;actor.actor=ptr(player);actor.uuid=7;
- Start(0x400000);assert(control);
+ Start(0x400000);assert(control);control->fire.enabled=0;
  control->length=.85F;control->desired=2;BeginScene(true);
  assert(control->matches==2&&control->applied==2&&WantsDraws());
  submission[7]=ptr(left);
@@ -62,5 +65,11 @@ int main(){
  control->length=.85F;control->desired|=1;BeginScene(true);assert(control->error==ERROR_INVALID_DATA);++control->desired;
  children[1]=ptr(root);BeginScene(true);assert(!WantsDraws()&&control->error==ERROR_NOT_FOUND);children[1]=ptr(right);
  BeginScene(true);EndScene();{RenderScope scope(submission.data());DrawScale draw;assert(yscale==1.F);}
+ control->length=1.F;control->fire.enabled=1;BeginScene(true);
+ {RenderScope scope(submission.data());{DrawScale draw;} {DrawScale again;}}
+ assert(fires==1 && control->fire_draws==1);
+ submission[7]=ptr(right);{RenderScope scope(submission.data());DrawScale draw;}
+ assert(fires==2 && control->fire_draws==2);
+ control->fire.size=NAN;BeginScene(true);assert(control->error==ERROR_INVALID_DATA&&!WantsDraws());
  Stop();assert(!control&&pushes==pops&&mock_attrs==0);
 }
