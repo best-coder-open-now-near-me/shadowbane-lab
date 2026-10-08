@@ -28,6 +28,7 @@ from .session import (
     ManagerSlotSnapshot,
 )
 from .worker import WorkerHealthState, WorkerSlotHealthSnapshot
+from .worker_runtime import WorkerActivationSnapshot
 
 
 class SessionControl(Protocol):
@@ -85,6 +86,8 @@ class WorkerStatusProvider(Protocol):
         instance_id: str | None,
         lifecycle_dispatch_enabled: bool,
         renew_permit: bool = True,
+        attached_worker: tuple[str, int, int] | None = None,
+        attachment_required: bool = False,
     ) -> WorkerSlotHealthSnapshot: ...
 
     def revoke(self, client_id: str, *, reason: str) -> object: ...
@@ -100,6 +103,14 @@ class WorkerLifecycleControl(Protocol):
     ) -> int | None: ...
 
     def request_stop(self, client_id: str, *, reason: str) -> int: ...
+
+    def inspect_activation(
+        self, client_id: str, client: ClientInstanceSnapshot | None,
+    ) -> WorkerActivationSnapshot: ...
+
+    def recover_activation(
+        self, client_id: str, client: ClientInstanceSnapshot,
+    ) -> WorkerActivationSnapshot: ...
 
 
 class WorkerOperationStatusProvider(Protocol):
@@ -227,9 +238,12 @@ class ManagerDashboardApplication:
             raise ValueError("worker_supervisor must provide inspect() and revoke()")
         if worker_controller is not None and any(
             not callable(getattr(worker_controller, method, None))
-            for method in ("ensure_started", "request_stop")
+            for method in (
+                "ensure_started", "request_stop", "inspect_activation", "recover_activation",
+            )
         ):
-            raise ValueError("worker_controller must provide ensure_started() and request_stop()")
+            raise ValueError(
+                "worker_controller must provide launch, stop, and activation ownership APIs")
         if operation_status is not None and not callable(
             getattr(operation_status, "inspect_slot", None)
         ):
@@ -417,11 +431,16 @@ class ManagerDashboardApplication:
                         "exact bound process/window identity is absent from current registry"
                     )
                 lifecycle_dispatch_enabled = bool(payload["dispatch_enabled"])
+                activation = self._activation(slot.client_id, binding)
                 worker = self._worker_supervisor.inspect(
                     slot.client_id,
                     instance_id=None if binding is None else binding.instance_id,
                     lifecycle_dispatch_enabled=lifecycle_dispatch_enabled,
                     renew_permit=False,
+                    **({} if activation is None else {
+                        "attached_worker": activation.attached_worker,
+                        "attachment_required": True,
+                    }),
                 )
                 if not isinstance(worker, WorkerSlotHealthSnapshot):
                     raise RuntimeError("worker supervisor returned an invalid snapshot")
@@ -434,6 +453,7 @@ class ManagerDashboardApplication:
                 payload["lifecycle_dispatch_enabled"] = lifecycle_dispatch_enabled
                 payload["dispatch_enabled"] = worker.dispatch_allowed
                 payload["worker"] = worker.to_dict()
+                payload["worker_activation"] = None if activation is None else activation.to_dict()
                 extension = self._extension_summary(binding)
                 if extension.state is ExtensionRuntimeState.INITIALIZED:
                     extension_ready_count += 1
@@ -629,18 +649,42 @@ class ManagerDashboardApplication:
                     continue
                 try:
                     slot = self._session.status(client_id)
+                    current = clients.get(slot.instance_id)
+                    if (current is not None
+                            and not _matches_config(current, self._configs[client_id])):
+                        current = None
+                    activation = self._activation(
+                        client_id, current, recover=current is not None and not self._stopping,
+                    )
                     self._worker_supervisor.inspect(
                         client_id,
                         instance_id=slot.instance_id,
                         lifecycle_dispatch_enabled=(
-                            slot.dispatch_enabled
-                            and not self._stopping
-                            and slot.instance_id in clients
-                            and _matches_config(clients[slot.instance_id], self._configs[client_id])
+                            slot.dispatch_enabled and not self._stopping
+                            and current is not None
                         ),
+                        **({} if activation is None else {
+                            "attached_worker": activation.attached_worker,
+                            "attachment_required": True,
+                        }),
                     )
                 finally:
                     lock.release()
+
+    def _activation(
+        self, client_id: str, client: ClientInstanceSnapshot | None, *, recover: bool = False,
+    ) -> WorkerActivationSnapshot | None:
+        if self._worker_controller is None:
+            return None
+        value = (
+            self._worker_controller.recover_activation(client_id, client)
+            if recover and client is not None
+            else self._worker_controller.inspect_activation(client_id, client)
+        )
+        if (not isinstance(value, WorkerActivationSnapshot) or value.client_id != client_id
+                or value.instance_id != (None if client is None else client.instance_id)):
+            raise RuntimeError("worker controller returned invalid activation ownership")
+        return value
 
     def _execute(
         self,

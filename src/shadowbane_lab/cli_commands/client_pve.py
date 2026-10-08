@@ -565,6 +565,8 @@ def _run_pve(
                     {
                         "final_phase": result.final_phase.value,
                         "terminal_reason": result.terminal_reason,
+                        "stop_cause": (None if result.stop_cause is None
+                                       else result.stop_cause.as_dict()),
                         "kills": result.kills,
                         "total_steps": getattr(result, "total_steps", len(result.trace)),
                     }
@@ -608,12 +610,14 @@ def _run_pve(
     camp = controller.camp
     successful = result.final_phase.value == "complete" or (
         continuous and result.terminal_reason == "emergency_stop"
+        and result.stop_cause is not None and result.stop_cause.kind == "requested"
     )
     payload = {
         "trace_schema_version": PVE_TRACE_SCHEMA_VERSION,
         "ok": successful,
         "final_phase": result.final_phase.value,
         "terminal_reason": result.terminal_reason,
+        "stop_cause": None if result.stop_cause is None else result.stop_cause.as_dict(),
         "run_mode": "continuous" if continuous else "bounded",
         "policy": policy,
         "opening_skill": opening_payload,

@@ -10,6 +10,7 @@ from typing import Protocol, runtime_checkable
 
 from shadowbane_lab.client_extension.actor_action_wire import Phase as NativeCombatPhase
 from shadowbane_lab.client_input import ClientInputAdapter, StopSignal
+from shadowbane_lab.client_input.stop import StopCause, observed_stop_cause
 from shadowbane_lab.client_observation import (
     NativeCharacterPopulationObservation,
     NativePlayerActionObservation,
@@ -311,9 +312,18 @@ class PvERunner:
         else:
             trace = deque(maxlen=self._maximum_retained_trace_steps)
         total_steps = 0
+        stop_cause: StopCause | None = None
+
+        def stop_reason() -> str:
+            nonlocal stop_cause
+            if stop_cause is None:
+                stop_cause = observed_stop_cause(self._stop_signal)
+            return "emergency_stop" if stop_cause.kind == "requested" else stop_cause.reason
 
         def record(step: PvERunTraceStep) -> None:
             nonlocal total_steps
+            if stop_cause is not None:
+                step = replace(step, stop_cause=stop_cause)
             status = getattr(self._actor_preparation, "latest_preparation_status", None)
             if step.preparation is None and isinstance(status, NativePreparationStatus):
                 step = replace(step, preparation=status)
@@ -344,7 +354,7 @@ class PvERunner:
         while terminal is None:
             now_ms = round((self._clock() - started_at) * 1000)
             if self._stop_signal.is_set():
-                terminal = self._controller.stop("emergency_stop", now_ms=now_ms)
+                terminal = self._controller.stop(stop_reason(), now_ms=now_ms)
                 record(self._trace(terminal, observation=None))
                 break
             try:
@@ -567,12 +577,12 @@ class PvERunner:
                             approach_input_reason=approach_reason,
                         )
                     )
-                    stop_reason = (
-                        "emergency_stop"
+                    reason = (
+                        stop_reason()
                         if self._stop_signal.is_set()
                         else "guarded_movement_input_rejected"
                     )
-                    terminal = self._controller.stop(stop_reason, now_ms=now_ms)
+                    terminal = self._controller.stop(reason, now_ms=now_ms)
                     record(self._trace(terminal, observation=observation))
                     break
             if (
@@ -639,12 +649,12 @@ class PvERunner:
                                 movement_stop_reason=movement_stop_reason,
                             )
                         )
-                        stop_reason = (
-                            "emergency_stop"
+                        reason = (
+                            stop_reason()
                             if self._stop_signal.is_set()
                             else "movement_stop_rejected"
                         )
-                        terminal = self._controller.stop(stop_reason, now_ms=now_ms)
+                        terminal = self._controller.stop(reason, now_ms=now_ms)
                         record(self._trace(terminal, observation=observation))
                         break
             if approach is not None and approach.status is PvEApproachStatus.FAILED:
@@ -751,6 +761,7 @@ class PvERunner:
             trace=tuple(trace),
             total_steps=total_steps,
             trace_truncated=total_steps > len(trace),
+            stop_cause=stop_cause,
         )
 
     def _build_observation(self, **values) -> PvEObservation:

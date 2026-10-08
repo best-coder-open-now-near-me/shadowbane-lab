@@ -1,17 +1,34 @@
 # Git branch map
 
+## Combined production recovery - October 8
+
+`codex/combined-recovery-20261008` owns the independent bot-runtime checkout,
+starting from main `230bfe7`. It contains reviewed PR #92 at
+`193f14f8` (registration recovery and preserved interruption causes) and PR #94
+at `1d73f300` (explicit worker attachment and bounded recovery). The original
+PR branches remain published and unchanged. The combined host .79 candidate
+retains native .54 and the qualified .15 client; package qualification and
+installation remain pending. Main remains the shared integration destination.
+Bot-integration is independently owned for current .78 live-validation records.
+
 ## Multiple client launch delivery - October 8
 
-Start from refreshed `origin/main`, including merged PRs #108 and #109.
+Start from refreshed `origin/main`, including merged PRs #108, #109 and #110.
 Launcher source `bac2ec3` is installed; both clients were verified concurrently
 visible with separate process-lifetime receipts and the original primary intact.
 The installed desktop shortcuts pass their runtime folder explicitly. The
 katana/moon-fire overlay `0f80838` from draft PR #106 is preserved separately
 from the bot base `6c8ea10`; do not mistake that overlay for main integration.
 See [the launcher delivery record](multiple-client-launch-20261008.md).
-`codex/multiple-client-delivery-20261008` owns bot-integration for the final
-receipt-only checkpoint targeting `main`. Next is explicit character selection
-for resumed bot validation; no combat acceptance is implied by client launch.
+`codex/bot-live-validation-20261008` owns bot-integration for the live receipt
+checkpoint. Native Umbra is verified; two bounded production runs completed three
+NPC kills in total, all five buff groups were observed, and final native ownership
+was released. See [the live evidence](client-update-20261008.md#live-pve-and-buffs-after-multi-client-repair).
+This receipt branch targets `main` through the upcoming combined recovery review.
+`codex/combined-recovery-20261008` owns bot-runtime for integration of PRs #92 and
+#94, with a single host .79 stamp and native .54 unchanged. Qualification and
+installation remain pending; the VM still runs qualified host .78 plus the
+separately recorded cosmetic overlay.
 
 ## Current Wonderbane client update — October 8
 
@@ -19,18 +36,17 @@ Start new bot work from refreshed `origin/main`. PR #105 merged exact client
 1.3.38.15 support at `500fe40`, retaining qualified source `6c8ea10`. Host .78 /
 native .54 package B54/40841b71 passed both native profiles and full host/IPC
 qualification. Installation, manager activation and all five shortcuts passed;
-Native in-world readiness passes, but the verified character is `ictus`, not
-Umbra. Resolve the intended character before live attack/buff checks; the
-preflight stopped before dispatch and sent no actions. Obsolete runtime
-cleanup is complete. See
+The initial in-world readiness identified `ictus`; that preflight sent no
+commands. After the multi-client repair, native Umbra was identified separately
+and the live NPC/buff checks above passed. Obsolete runtime cleanup is complete. See
 [the delivery record](client-update-20261008.md).
 The receipt-only branch `codex/client-update-delivery-20261008` merged through
 PR #107; current checkout ownership is recorded above.
 
 The user returned to Wonderbane and parked the own-server project. Published
-client/server model work on PR #98 remains separate. Pending bot recovery PRs
-#92 and #94 remain outside this compatibility delivery and are the next
-consolidation work after live patch validation. Merged source branches remain
+client/server model work on PR #98 remains separate. Bot recovery PRs
+#92 and #94 remain outside this compatibility delivery; the combined .79
+source candidate is recorded above and awaits its own qualification. Merged source branches remain
 until a separate ownership/ancestry cleanup; no active checkout is retired here.
 
 ## Context cleanup progress - October 7
