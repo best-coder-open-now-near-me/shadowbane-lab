@@ -1,9 +1,8 @@
 # Git branch map
 
-<<<<<<< HEAD
 ## Katana moon-fire - October 8
 
-codex/katana-moonfire starts from main cdaafb2 in its own managed worktree.
+codex/katana-moonfire includes main 500fe40 in its own managed worktree.
 It owns one local katana cosmetic experiment, not a general equipment system.
 Native visual inspection/tinting is validated. The model-only appearance swap is
 installed with the compression compatibility correction; live acceptance remains
@@ -16,8 +15,8 @@ and remains outside main. The selected stand-in item now points to the katana
 render. The source-compression preservation correction is installed and
 package verification passes; a new login and hand-attachment check remain. Native effect work remains pending.
 See [scope, evidence and next steps](katana-moonfire.md).
-=======
-## Current Wonderbane client update — October 8
+
+## Current Wonderbane client update â€” October 8
 
 Start new bot work from refreshed `origin/main`. Client update branch
 `codex/wonderbane-client-update-20261008` in bot-integration starts at `cdaafb2`
@@ -31,7 +30,6 @@ client/server model work on PR #98 remains separate. Pending bot recovery PRs
 consolidation work after the official update. This worktree is actively owned;
 do not switch it for another task.
 
->>>>>>> origin/main
 
 ## Context cleanup progress - October 7
 
