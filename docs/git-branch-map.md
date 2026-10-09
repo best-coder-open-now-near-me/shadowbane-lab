@@ -1,5 +1,24 @@
 # Git branch map
 
+## Preparation recovery after an internal fault - October 9
+
+`codex/preparation-fault-recovery-20261009` in the dedicated
+`preparation-fault-recovery` worktree starts from refreshed main `b5ebb51`
+and targets main. The host .86 candidate separates internal preparation cleanup
+from an explicit finite-operation handoff. After positive native closure and
+resource disposal, it resumes only when current saved/control intent and worker
+authority allow; unresolved cleanup and explicit operation reservations remain
+blocking. The first internal fault remains visible through cleanup, and a real
+finite handoff reports yielding rather than disabled buffs.
+
+The service-loop regression reproduced the retained-handoff defect and lost
+fault detail before the fix. This does not identify which exception, if any,
+caused the live .85 disabled observation. Native .56 and installed software are
+unchanged by this source checkpoint. Next: independent review, main integration,
+exact host qualification, and normal live maintenance verification. See
+[the recovery contract](preparation-fault-recovery.md).
+
+
 ## Manager desktop startup ownership - October 9
 
 `codex/manager-desktop-readiness-20261009` in `buff-activation-observer`
