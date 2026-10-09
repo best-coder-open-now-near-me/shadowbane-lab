@@ -1,19 +1,27 @@
 # Git branch map
 
-## Hunt Foe player-awareness work - October 9
+## Hunt Foe player-awareness delivery - October 9
 
-Start from refreshed main `7646af6`. Root owns `codex/native-track-awareness-20261009`
-in the `native-track-awareness` worktree, targeting main through PR #133.
-Published checkpoints `73083d8`/`882f3d2` supply the learned Hunt Foe resolver,
-passive native reader and live ten-contact qualification; `e1c006c` publishes
-native response generations; `d56fe36` adds same-owner automatic queries, saved
-per-character intent and manager contact display. These source slices passed
-focused tests and independent reviews. Combined .87/.57 package and final hosted
-checks are active; merge and installation are next. No Track code is installed
-yet, and the .86/.56 runtime is unchanged. The root-owned `bot-integration`
-release checkout will preserve its installed graphics composition when combining
-the new bot source. The user parked conc-pot interruption testing; normal PvE
-and Hunt Foe awareness take priority. See [the Track contract](native-track.md).
+Start new bot work from refreshed main `9523d0e`, which merged PR #133 after all
+15 hosted checks passed at reviewed head `7593d06`. Native Hunt Foe queries,
+copied response generations, shared active/idle ownership, per-character settings
+and the manager contact display are integrated. Tracking never grants attack
+permission. Conc-pot interruption exercises remain parked by user direction.
+
+Root's qualified .87/.57 composition is `a7b210cb014d9380daa34eeb42d9d0382ca4e44c`,
+published on `codex/hunt-foe-release-20261009` in `bot-integration`. It preserves
+installed graphics drafts outside main and is the exact runtime build source,
+not a replacement shared development base. Qualification passed 5,849 host cases
+(40 optional skips), 253/249 native cases, both profiles' IPC and exact-client
+probes, six installed desktop cases and the real worker handshake. Independent
+verification checked all 136 artifacts and 108 package stages.
+
+Root owns `codex/hunt-foe-delivery-20261009` in `native-track-awareness` for this
+delivery record. The qualified update is staged; new-host preparation verified all
+484 modules and reports prepared_not_applied. The running .86/.56 runtime has not
+been replaced. Next: close the target client, install, enable Umbra's Track
+intent and check normal automatic refresh. The separate PvE movement-renewal stop
+is retained as the next host follow-up. See [the Track contract and receipts](native-track.md).
 
 ## Preparation recovery delivery - October 9
 
