@@ -18,19 +18,21 @@ probes, six installed desktop cases and the real worker handshake. Independent
 verification checked all 136 artifacts and 108 package stages.
 
 Root owns `codex/hunt-foe-delivery-20261009` in `native-track-awareness`, targeting
-main through draft PR #134 for this delivery record. The runtime is installed and
+main through PR #134 for this delivery record. The runtime is installed and
 activation-verified with 484 modules, 9,539 retained records and zero exclusions.
-The reviewed launcher verified the new game's DLL; automatic Track acceptance
-awaits login. Two narrow deployment-verifier corrections accounted for intended
+The reviewed launcher verified the new game's DLL. Normal automatic Hunt Foe
+refresh is live-qualified: four fresh responses about ten seconds apart, thirteen
+contacts, and uninterrupted five-group buff upkeep on the same healthy worker.
+Two narrow deployment-verifier corrections accounted for intended
 launch metadata and the empty visible-instance inventory while the game was
 closed. The original sealed payload remained unchanged.
 
 Obsolete .86 host/wheels and the staged .56 DLL are retired: 58,981,049 bytes,
 twelve paths verified absent; current game and worker remain healthy. The merged
 Track source branch was retired after origin/main reachability verification.
-The current release and delivery worktrees remain active. Next: enable Umbra's
-Track intent and check automatic refresh. The PvE movement-renewal stop remains
-a host follow-up. See [the Track contract and receipts](native-track.md).
+The current release and delivery worktrees remain active. Hunt Foe and buffs are
+enabled. Next: qualify the merged closed-game cleanup in a later host release,
+then address the PvE movement-renewal stop. See [the Track contract and receipts](native-track.md).
 
 ## Closed-game preparation cleanup follow-up - October 9
 
