@@ -929,7 +929,7 @@ class NativeActorCoordinator:
             self.parent.actor_key,
             self.actor_token,
         )
-        coverage, readiness, pending = [], [], set()
+        coverage, readiness, pending, history = [], [], set(), []
         by_index = {facts.selector.index: facts for facts in pub.actions}
         for index, group in enumerate(self._settings.groups):
             states = []
@@ -969,10 +969,25 @@ class NativeActorCoordinator:
             )
             coverage.append(policy.CoverageEvidence(group.group_id, covered))
             digest = self.manifest.group_digest(index)
-            if any(x.group_digest == digest and x.state == 1 for x in pub.applications):
-                pending.add(group.group_id)
+            for application in pub.applications:
+                if (application.group_digest != digest
+                        or application.state == native.ApplicationState.NONE):
+                    continue
+                state = policy.ApplicationState(
+                    native.ApplicationState(application.state).name.lower()
+                )
+                history.append(policy.ApplicationEvidence(
+                    group.group_id,
+                    policy.ApplicationSubmission(
+                        application.command_digest, application.submitted_revision
+                    ),
+                    state, application.observed_revision,
+                ))
+                if state is policy.ApplicationState.PENDING:
+                    pending.add(group.group_id)
         known_groups = {self.manifest.group_digest(i) for i in range(self.manifest.group_count)}
-        if any(x.state == 1 and x.group_digest not in known_groups for x in pub.applications):
+        if any(x.state == native.ApplicationState.PENDING and x.group_digest not in known_groups
+               for x in pub.applications):
             raise native.PublicationError("unmatched pending application prevents preparation")
         self._preparation_capture_identity = pub.identity
         self._preparation_capture_sequence = pub.sequence
@@ -987,6 +1002,7 @@ class NativeActorCoordinator:
             int(pub.admission_blocks),
             frozenset(pending),
             capture_sequence=pub.sequence,
+            application_history=tuple(history),
         )
 
     def advance_preparation(self, proposal):
@@ -1119,7 +1135,10 @@ class NativeActorCoordinator:
         def ack(
             disposition=policy.Disposition.UNCERTAIN, entry=policy.EntryState.UNKNOWN, settled=False
         ):
-            return policy.PreparationAcknowledgement(proposal, disposition, entry, settled)
+            return policy.PreparationAcknowledgement(
+                proposal, disposition, entry, settled,
+                policy.ApplicationSubmission(command.digest, command.publication_revision),
+            )
 
         r = result.receipt
         self._last_preparation_receipt = r

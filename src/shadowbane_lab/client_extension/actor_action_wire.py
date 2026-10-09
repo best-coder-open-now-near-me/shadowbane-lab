@@ -87,6 +87,7 @@ class Application(IntEnum):
     PENDING = 1
     OBSERVED = 2
     UNKNOWN = 3
+    INTERRUPTED = 4
 
 
 class Closure(IntEnum):
@@ -464,6 +465,10 @@ class Receipt:
             self.application in (Application.PENDING, Application.UNKNOWN)
         ):
             raise ValueError("application flag disagrees with remote history")
+        if self.application is Application.INTERRUPTED and (
+            self.entry is not Entry.ENTERED or not self.flags & OUTBOUND_QUEUED
+        ):
+            raise ValueError("interruption requires retained positive entry and queue history")
         if self.application is not Application.NONE and self.action not in (
             Action.SELF_POWER,
             Action.CAST,

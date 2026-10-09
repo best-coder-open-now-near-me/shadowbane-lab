@@ -182,6 +182,47 @@ class ReadinessEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class ApplicationSubmission:
+    """Immutable native submission, independent of host/parent reconstruction."""
+
+    command_digest: bytes
+    submitted_revision: int
+
+    def __post_init__(self):
+        if (type(self.command_digest) is not bytes or len(self.command_digest) != 32
+                or not any(self.command_digest)):
+            raise ValueError("application requires exact native command digest")
+        _positive(self.submitted_revision, "submitted_revision")
+
+
+class ApplicationState(StrEnum):
+    PENDING = "pending"
+    OBSERVED = "observed"
+    INTERRUPTED = "interrupted"
+
+
+@dataclass(frozen=True, slots=True)
+class ApplicationEvidence:
+    group_id: str
+    submission: ApplicationSubmission
+    state: ApplicationState
+    terminal_revision: int = 0
+
+    def __post_init__(self):
+        _text(self.group_id, "application group")
+        if (not isinstance(self.submission, ApplicationSubmission)
+                or not isinstance(self.state, ApplicationState)):
+            raise ValueError("application evidence requires typed submission and state")
+        if self.state is ApplicationState.PENDING:
+            if type(self.terminal_revision) is not int or self.terminal_revision != 0:
+                raise ValueError("pending application cannot assert terminal evidence")
+        else:
+            _positive(self.terminal_revision, "terminal_revision")
+            if self.terminal_revision <= self.submission.submitted_revision:
+                raise ValueError("terminal observation must follow original submission")
+
+
+@dataclass(frozen=True, slots=True)
 class PreparationObservation:
     actor: ActorIdentity
     publication_epoch: int
@@ -192,6 +233,7 @@ class PreparationObservation:
     admission_blocks: int
     pending_applications: frozenset[str] = frozenset()
     capture_sequence: int = field(kw_only=True)
+    application_history: tuple[ApplicationEvidence, ...] = field(default=(), kw_only=True)
 
     def __post_init__(self) -> None:
         if not isinstance(self.actor, ActorIdentity) or type(self.complete) is not bool:
@@ -220,6 +262,20 @@ class PreparationObservation:
             raise ValueError("pending application history must be an immutable bounded set")
         for group in self.pending_applications:
             _text(group, "pending group")
+        if (type(self.application_history) is not tuple or len(self.application_history) > 32
+                or any(not isinstance(v, ApplicationEvidence) for v in self.application_history)
+                or len({v.submission.command_digest for v in self.application_history})
+                != len(self.application_history)):
+            raise ValueError("application history must be bounded, typed and command-unique")
+        if not self.complete and self.application_history:
+            raise ValueError("unknown capture cannot assert application evidence")
+        for evidence in self.application_history:
+            if (evidence.submission.submitted_revision > self.publication_epoch
+                    or evidence.terminal_revision > self.publication_epoch):
+                raise ValueError("application evidence cannot postdate capture")
+        if any(v.state is ApplicationState.PENDING and v.group_id not in self.pending_applications
+               for v in self.application_history):
+            raise ValueError("pending history must retain group suppression")
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +303,7 @@ class PreparationAcknowledgement:
     disposition: Disposition
     entry_state: EntryState
     local_settled: bool
+    submission: ApplicationSubmission | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -256,6 +313,11 @@ class PreparationAcknowledgement:
             or type(self.local_settled) is not bool
         ):
             raise ValueError("acknowledgement requires typed receipt evidence")
+        if self.submission is not None and (
+            not isinstance(self.submission, ApplicationSubmission)
+            or self.submission.submitted_revision != self.proposal.publication_epoch
+        ):
+            raise ValueError("acknowledgement submission differs from proposal revision")
         if self.disposition is Disposition.QUEUED:
             if self.entry_state is not EntryState.ENTERED:
                 raise ValueError("queued requires positive native entry")
@@ -306,10 +368,14 @@ class PreparationPolicy:
         self._pending: PreparationProposal | None = None
         self._queued = False
         self._entered = False
-        self._application_observed = False
+        self._application_resolved = False
         self._rejected: set[str] = set()
         self._refused_at: dict[str, int] = {}
         self._applications: dict[str, int] = {}
+        self._application_submissions: dict[str, ApplicationSubmission] = {}
+        self._native_applications: dict[ApplicationSubmission, str] = {}
+        self._unidentified_applications: dict[str, int] = {}
+        self._pending_submission: ApplicationSubmission | None = None
         self._sequence = 0
         self._after_capture = 0
         self._fault: str | None = None
@@ -317,7 +383,8 @@ class PreparationPolicy:
     @property
     def application_pending_groups(self) -> frozenset[str]:
         """Presentation copy of retained application obligations; no policy advance."""
-        return frozenset(self._applications)
+        return (frozenset(self._applications) | frozenset(self._native_applications.values())
+                | frozenset(self._unidentified_applications))
 
     @property
     def pending_proposal(self) -> PreparationProposal | None:
@@ -349,6 +416,7 @@ class PreparationPolicy:
         if (
             any(e.group_id not in self._group_ids for e in observation.coverage)
             or not observation.pending_applications <= self._group_ids
+            or any(v.group_id not in self._group_ids for v in observation.application_history)
             or any(e.action_id not in self._actions for e in observation.readiness)
         ):
             self._fail("publication references unconfigured preparation intent")
@@ -361,14 +429,21 @@ class PreparationPolicy:
         coverage = (
             {e.group_id: e.state for e in observation.coverage} if observation.complete else {}
         )
-        for group in observation.pending_applications:
-            self._applications.setdefault(group, observation.publication_epoch)
+        for evidence in observation.application_history:
+            if evidence.state is ApplicationState.PENDING:
+                self._native_applications[evidence.submission] = evidence.group_id
+        identified = {v.group_id for v in observation.application_history
+                      if v.state is ApplicationState.PENDING}
+        for group in observation.pending_applications - identified:
+            # A legacy group-only observation can suppress, never identify a
+            # particular interrupted command. Presence can still resolve it.
+            self._unidentified_applications.setdefault(group, observation.publication_epoch)
         self._reconcile_applications(observation)
         status = tuple(
             GroupStatus(
                 g.group_id,
                 coverage.get(g.group_id, Coverage.UNKNOWN),
-                g.group_id in self._applications,
+                g.group_id in self.application_pending_groups,
             )
             for g in self.groups
         )
@@ -384,7 +459,7 @@ class PreparationPolicy:
         for group in self.groups:
             if (
                 coverage.get(group.group_id) is not Coverage.MISSING
-                or group.group_id in self._applications
+                or group.group_id in self.application_pending_groups
             ):
                 continue
             for action in group.alternatives:
@@ -407,7 +482,8 @@ class PreparationPolicy:
                     observation.admission_revision,
                 )
                 self._queued = self._entered = False
-                self._application_observed = False
+                self._application_resolved = False
+                self._pending_submission = None
                 return PreparationDecision(self._pending, False, status, "submit")
         reason = "covered" if all(s.coverage is Coverage.PRESENT for s in status) else "waiting"
         return PreparationDecision(None, False, status, reason)
@@ -423,15 +499,35 @@ class PreparationPolicy:
         for group, epoch in tuple(self._applications.items()):
             if group in present and observation.publication_epoch > epoch:
                 del self._applications[group]
+                self._application_submissions.pop(group, None)
+        for group, epoch in tuple(self._unidentified_applications.items()):
+            if group in present and observation.publication_epoch > epoch:
+                del self._unidentified_applications[group]
+        for submission, group in tuple(self._native_applications.items()):
+            if group in present and observation.publication_epoch > submission.submitted_revision:
+                del self._native_applications[submission]
+        for evidence in observation.application_history:
+            if evidence.state is ApplicationState.PENDING:
+                continue
+            # Native terminal evidence identifies one original submission. It
+            # never releases local ownership or a newer same-group application.
+            if self._native_applications.get(evidence.submission) == evidence.group_id:
+                del self._native_applications[evidence.submission]
+            if self._application_submissions.get(evidence.group_id) == evidence.submission:
+                self._applications.pop(evidence.group_id, None)
+                self._application_submissions.pop(evidence.group_id, None)
+            if (self._pending is not None and self._pending.group_id == evidence.group_id
+                    and self._pending_submission == evidence.submission):
+                self._application_resolved = True
         if (
             self._pending is not None
             and self._pending.group_id in present
             and observation.publication_epoch > self._pending.publication_epoch
         ):
-            # Remember application evidence for this immutable proposal even if
-            # coverage disappears before its local settlement reply arrives.
+            # Remember positive coverage for this immutable proposal even if
+            # it disappears before its local settlement reply arrives.
             # This does not release the pending local action.
-            self._application_observed = True
+            self._application_resolved = True
 
     def acknowledge(self, acknowledgement: PreparationAcknowledgement) -> None:
         if self._fault is not None:
@@ -443,6 +539,10 @@ class PreparationPolicy:
         ):
             self._fail("receipt does not match the exact pending preparation proposal")
         ack = acknowledgement
+        if ack.submission is not None:
+            if self._pending_submission is not None and ack.submission != self._pending_submission:
+                self._fail("application command changed within immutable proposal")
+            self._pending_submission = ack.submission
         if self._queued and ack.disposition not in (Disposition.QUEUED, Disposition.UNCERTAIN):
             self._fail("positive queue history cannot become never-entered refusal")
         if self._entered and ack.entry_state is EntryState.NEVER_ENTERED:
@@ -458,10 +558,12 @@ class PreparationPolicy:
         ):
             # Possible remote application suppresses duplicates independently of
             # proven local completion. Other groups need not wait for its effect.
-            if not self._application_observed:
+            if not self._application_resolved:
                 self._applications.setdefault(
                     self._pending.group_id, self._pending.publication_epoch
                 )
+                if self._pending_submission is not None:
+                    self._application_submissions[self._pending.group_id] = self._pending_submission
             self._reconcile_applications(self._last)
         if (
             ack.disposition in (Disposition.DEFERRED, Disposition.NOT_READY)

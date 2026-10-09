@@ -501,3 +501,29 @@ def test_exact_successor_image_preserves_publication_session_gate(monkeypatch, d
                             lambda _: pytest.fail("unqualified image read mapping"))
         with pytest.raises(p.PublicationError, match="unqualified publication session"):
             r.read()
+
+
+@pytest.mark.parametrize("local", [0, 1])
+def test_interrupted_application_preserves_submission_and_independent_local_state(local):
+    data = bytearray(frame(revision=2, sequence=4))
+    data[64:68] = (1).to_bytes(4, "little")
+    data[14592:14720] = p._APPLICATION.pack(
+        manifest().group_digest(0), b"i" * 32, 1, 2, 1, 3, local, 1, bytes(32))
+    application = decode(bytes(data)).applications[0]
+    assert application.state is p.ApplicationState.INTERRUPTED
+    assert application.command_digest == b"i" * 32
+    assert application.submitted_revision == 1 and application.observed_revision == 2
+    assert application.queued and application.entry == 1
+    assert application.local_settled is bool(local)
+
+
+@pytest.mark.parametrize(
+    "entry,queued,terminal", [(0, 0, 2), (2, 0, 2), (1, 0, 2), (1, 1, 1), (1, 1, 3)]
+)
+def test_interrupted_application_rejects_unproved_or_future_terminal(entry, queued, terminal):
+    data = bytearray(frame(revision=2, sequence=4))
+    data[64:68] = (1).to_bytes(4, "little")
+    data[14592:14720] = p._APPLICATION.pack(
+        manifest().group_digest(0), b"i" * 32, 1, terminal, entry, 3, 1, queued, bytes(32))
+    with pytest.raises(p.PublicationError):
+        decode(bytes(data))

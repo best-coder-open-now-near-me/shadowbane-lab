@@ -53,6 +53,22 @@ Background buff upkeep is not yet installed; combat focus policy is unchanged.
 Do not switch another lane's active checkout.
 The historical checkpoints below describe earlier state, superseded by this entry.
 
+## Host interrupted-application follow-up - October 8
+
+`codex/interrupted-application-host-20261008` owns bot-command-ownership for the
+host codec and policy follow-up based on combined `0eaa94e`. Its integration
+destination is PR #119, which already includes the reviewed PR #115 / #118
+ancestry. Those dependency drafts remain unmerged until the final combined
+interruption and local-cleanup behavior passes review and qualification.
+
+Canonical history carries the original command digest and submission revision.
+Interrupted evidence resolves only that submission's application suppression;
+it does not erase queued history, prove local cleanup, clear a newer application,
+or claim an active effect. Unknown observations remain conservative and complete
+PRESENT coverage still resolves independently. No blanket potion/attack gate or
+runtime deployment is included. Native interrupted-state production and local
+owned-power settlement remain the separate bot-runtime contribution to PR #119.
+
 ## Combined persistent preparation source - October 8
 
 PR #115 (`codex/persistent-buff-worker-20261008`, bot-command-ownership) is the
