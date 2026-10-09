@@ -30,6 +30,7 @@ WORKER_OPERATION_RECEIPT_SCHEMA_VERSION = 1
 DEFAULT_WORKER_OPERATION_TTL_SECONDS = 8.0
 DEFAULT_WORKER_OPERATION_ACK_TIMEOUT_SECONDS = 2.0
 DEFAULT_MAX_WORKER_OPERATION_BYTES = 16_384
+MAX_WORKER_STATUS_BYTES = 262_144
 DEFAULT_MAX_WORKER_OPERATIONS_PER_SLOT = 256
 DEFAULT_WORKER_OPERATION_TERMINAL_RETENTION_SECONDS = 7 * 24 * 60 * 60
 
@@ -747,8 +748,9 @@ class WorkerOperationLedger:
             target = directory / "pve-progress.json"
             if target.is_symlink():
                 raise WorkerOperationLedgerError("progress must not be a symlink")
-            publish_atomic_record(target, self._encode(record.to_dict(), max_bytes=65_536),
-                                  temporary_label="pve-progress")
+            publish_atomic_record(
+                target, self._encode(record.to_dict(), max_bytes=MAX_WORKER_STATUS_BYTES),
+                temporary_label="pve-progress")
 
     def inspect_pve_progress(self, client_id: str):
         from .pve_status import WorkerPvEProgress
@@ -759,7 +761,7 @@ class WorkerOperationLedger:
                 return None
             record = self._read(
                 path, lambda raw: _loads(raw, WorkerPvEProgress.parse, "PvE progress"),
-                max_bytes=65_536)
+                max_bytes=MAX_WORKER_STATUS_BYTES)
             if (record.operation.node_id != self._manifest.node_id
                     or record.operation.client_id != self._client_id(client_id)):
                 raise WorkerOperationLedgerError("progress record belongs to another slot")
@@ -777,14 +779,16 @@ class WorkerOperationLedger:
             target = directory / "preparation-status.json"
             if target.exists():
                 prior = self._read(target, lambda raw: _loads(
-                    raw, WorkerPreparationStatus.parse, "preparation status"))
+                    raw, WorkerPreparationStatus.parse, "preparation status"),
+                    max_bytes=MAX_WORKER_STATUS_BYTES)
                 old = prior.heartbeat
                 if (old.process_started_at_100ns > heartbeat.process_started_at_100ns
                         or (old.worker_id == heartbeat.worker_id
                             and old.sequence >= heartbeat.sequence)):
                     raise WorkerOperationLedgerError("preparation reporter was superseded")
-            publish_atomic_record(target, self._encode(record.to_dict()),
-                                  temporary_label="preparation-status")
+            publish_atomic_record(
+                target, self._encode(record.to_dict(), max_bytes=MAX_WORKER_STATUS_BYTES),
+                temporary_label="preparation-status")
 
     def inspect_preparation_status(self, client_id):
         from .preparation_status import WorkerPreparationStatus
@@ -794,7 +798,8 @@ class WorkerOperationLedger:
             if not target.exists():
                 return None
             record = self._read(target, lambda raw: _loads(
-                raw, WorkerPreparationStatus.parse, "preparation status"))
+                raw, WorkerPreparationStatus.parse, "preparation status"),
+                max_bytes=MAX_WORKER_STATUS_BYTES)
             if (record.heartbeat.node_id != self._manifest.node_id
                     or record.heartbeat.client_id != self._client_id(client_id)):
                 raise WorkerOperationLedgerError("preparation status belongs to another slot")

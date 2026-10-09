@@ -9,6 +9,7 @@ import threading
 from dataclasses import dataclass
 
 from shadowbane_lab.pve.preparation_status import PreparationStatus
+from shadowbane_lab.pve.tracking import TrackingStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +18,7 @@ class PreparationServiceSnapshot:
     control_revision: int
     preparation: PreparationStatus
     detail: str | None = None
+    tracking: TrackingStatus = TrackingStatus()
 
 
 class PersistentPreparationService:
@@ -128,7 +130,9 @@ class PersistentPreparationService:
                 state, revision,
                 PreparationStatus.disabled() if self._owner is None
                 else self._owner.preparation_status,
-                None if detail is None else str(detail)[:512])
+                None if detail is None else str(detail)[:512],
+                (getattr(self._owner, "tracking_status", TrackingStatus())
+                 if self._owner is not None and state == "maintaining" else TrackingStatus()))
 
     def _cycle(self):
         # Intent contains only explicit saved/control state and dispatch authority.
@@ -160,7 +164,7 @@ class PersistentPreparationService:
                     elif not self._supervision_allowed:
                         state, detail = "paused", "Worker dispatch is not currently allowed."
                     else:
-                        # Saved buff settings disabled the factory.
+                        # Saved buff and tracking settings disabled the factory.
                         state, detail = "disabled", None
                 self._publish(state, revision, detail)
                 return stopping

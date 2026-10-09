@@ -1,5 +1,20 @@
 # Git branch map
 
+## Hunt Foe player-awareness work - October 9
+
+Start from refreshed main `7646af6`. Root owns `codex/native-track-awareness-20261009`
+in the `native-track-awareness` worktree, targeting main through PR #133.
+Published checkpoints `73083d8`/`882f3d2` supply the learned Hunt Foe resolver,
+passive native reader and live ten-contact qualification; `e1c006c` publishes
+native response generations; `d56fe36` adds same-owner automatic queries, saved
+per-character intent and manager contact display. These source slices passed
+focused tests and independent reviews. Combined .87/.57 package and final hosted
+checks are active; merge and installation are next. No Track code is installed
+yet, and the .86/.56 runtime is unchanged. The root-owned `bot-integration`
+release checkout will preserve its installed graphics composition when combining
+the new bot source. The user parked conc-pot interruption testing; normal PvE
+and Hunt Foe awareness take priority. See [the Track contract](native-track.md).
+
 ## Preparation recovery delivery - October 9
 
 Start new work from refreshed main, including PR #131 at `abc4f3d`. Its independently

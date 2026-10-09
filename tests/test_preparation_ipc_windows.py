@@ -23,6 +23,7 @@ from shadowbane_lab.manager.preparation_service import PersistentPreparationServ
 from shadowbane_lab.pve.buff_intent import BuffAction, BuffGroup, BuffSettings
 from shadowbane_lab.pve.native_actor import NativeActorCoordinator
 from shadowbane_lab.pve.preparation import PreparationAction
+from shadowbane_lab.pve.settings import PvESettings
 
 
 class RawTargetCommand(NativeActorCommand):
@@ -76,7 +77,8 @@ def test_real_preparation_service_ipc_keeps_passive_ownership_and_manual_activit
         coordinator.configure_preparation(settings)
         resources = ExitStack()
         resources.callback(session.close)
-        owner = NativePreparationOwner(resources, session, lease, coordinator, character, settings)
+        owner = NativePreparationOwner(
+            resources, session, lease, coordinator, character, PvESettings(buffs=settings))
         owner.settings_changed = lambda: False  # Saved settings file is outside this fixture.
         service = PersistentPreparationService(
             owner_factory=lambda: owner, intent=lambda: (True, 1))

@@ -45,8 +45,8 @@ class NativePreparationFactory:
             if self.character is not None and identity != self.character:
                 raise RuntimeError("selected character changed; select the character again")
             self.character = identity
-            settings = load_pve_settings(binding.identity).buffs
-            if not settings.enabled:
+            settings = load_pve_settings(binding.identity)
+            if not settings.buffs.enabled and not settings.tracking.enabled:
                 stack.close()
                 return None
             population = stack.enter_context(open_windows_native_character_population_reader(
@@ -67,7 +67,10 @@ class NativePreparationFactory:
                 preparation_admission=self.admission,
                 character_session=character, store=AttackListStore(
                     default_attack_list_root(), AttackListOwner(*identity)))
-            coordinator.configure_preparation(settings)
+            if settings.buffs.enabled:
+                coordinator.configure_preparation(settings.buffs)
+            if settings.tracking.enabled:
+                coordinator.configure_tracking(settings.tracking)
             character.require_current()
             return NativePreparationOwner(stack, session, lease, coordinator, character, settings)
         except Exception:
@@ -91,6 +94,10 @@ class NativePreparationOwner:
         return self.coordinator.preparation_status
 
     @property
+    def tracking_status(self):
+        return self.coordinator.tracking_status
+
+    @property
     def local_pending(self):
         return self.coordinator.local_pending
 
@@ -98,10 +105,14 @@ class NativePreparationOwner:
         self.session.maintain_preparation(self.lease)
 
     def settings_changed(self):
-        return load_pve_settings(self.character.binding.identity).buffs != self.settings
+        current = load_pve_settings(self.character.binding.identity)
+        return (current.buffs, current.tracking) != (self.settings.buffs, self.settings.tracking)
 
     def step(self, *, allow_new):
-        return self.coordinator.preparation_step(allow_new=allow_new)
+        self.coordinator.tracking_step(allow_new=allow_new)
+        if self.settings.buffs.enabled:
+            return self.coordinator.preparation_step(allow_new=allow_new)
+        return None
 
     def _closure(self, call):
         try:

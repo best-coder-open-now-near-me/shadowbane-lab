@@ -53,6 +53,7 @@ class Action(IntEnum):
     CAST = 2
     SELF_POWER = 3
     USE_ITEM = 4
+    TRACK = 5
 
 
 class Recipient(IntEnum):
@@ -231,19 +232,21 @@ class Command:
             or self.template_hint
         ):
             raise ValueError("non-item has item operand")
-        if (self.power_id != 0) != (self.action in (Action.CAST, Action.SELF_POWER)):
+        if (self.power_id != 0) != (self.action in (Action.CAST, Action.SELF_POWER, Action.TRACK)):
             raise ValueError("action/power mismatch")
         expected = (
             Recipient.NONE
             if self.action is Action.NONE
             else Recipient.ACTOR
-            if self.action in (Action.SELF_POWER, Action.USE_ITEM)
+            if self.action in (Action.SELF_POWER, Action.USE_ITEM, Action.TRACK)
             else Recipient.TARGET
         )
         if self.recipient is not expected:
             raise ValueError("action recipient mismatch")
         if self.recipient is Recipient.TARGET and self.context_id is None:
             raise ValueError("target action has no target context")
+        if self.action is Action.TRACK and (self.context_id is not None or selected):
+            raise ValueError("tracking query cannot carry a context or selector")
         if item and self.context_id is not None:
             raise ValueError("item consumption is actor-scoped")
         if self.action is not Action.NONE and self.parent_id is None:
@@ -281,6 +284,8 @@ class Command:
             (verb in _ACTION_VERBS) != (self.action is not Action.NONE)
         ):
             raise ValueError("verb/action mismatch")
+        if self.action is Action.TRACK and verb is Verb.CANCEL_ACTION:
+            raise ValueError("tracking query has no action cancellation")
         if verb in _READ_VERBS:
             if self.parent_id is not None or self.grant is not None:
                 raise ValueError("observation cannot carry mutation authority")
@@ -427,10 +432,12 @@ class Receipt:
         if (
             self.action in (Action.ATTACK, Action.CAST)
             and self.context_id is None
-            or self.action is Action.USE_ITEM
+            or self.action in (Action.USE_ITEM, Action.TRACK)
             and self.context_id is not None
         ):
             raise ValueError("receipt action has wrong target scope")
+        if self.action is Action.TRACK and self.verb is Verb.CANCEL_ACTION:
+            raise ValueError("tracking query has no action cancellation")
         if self.grant is None and self.context_id is not None:
             raise ValueError("preparation receipt cannot own a target context")
         if self.context_id is None and self.context_phase is not Phase.UNKNOWN:

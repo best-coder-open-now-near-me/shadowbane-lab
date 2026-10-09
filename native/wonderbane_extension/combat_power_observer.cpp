@@ -41,7 +41,7 @@ struct Site {
 // Original .13 native caller census: all ordinary Use callers, both followup
 // callers, incoming init append and all four first-match remover calls. The
 // epoch deliberately invalidates on unrelated actors too; it is not a response ID.
-std::array<Site, 12> sites{{
+std::array<Site, 13> sites{{
     {0x9d3d4,{0xe8,0x8c,0x86,0xf6,0xff}},
     {0x9d3e0,{0xe8,0x74,0x92,0xf6,0xff}},
     {0x48191d,{0xe8,0x08,0xef,0xb8,0xff}},
@@ -53,7 +53,8 @@ std::array<Site, 12> sites{{
     {0x37e8ca,{0xe8,0xe8,0xe7,0xc8,0xff}},
     {0x384617,{0xe8,0x9b,0x8a,0xc8,0xff}},
     {0x384f2b,{0xe8,0x87,0x81,0xc8,0xff}},
-    {0x385761,{0xe8,0x51,0x79,0xc8,0xff}}
+    {0x385761,{0xe8,0x51,0x79,0xc8,0xff}},
+    {0x9bea0,{0xe8,0xc0,0x9b,0xf6,0xff}}
 }};
 alignas(8) volatile LONG64 initiation_epoch = 1;
 std::uint64_t Epoch() noexcept {
@@ -143,7 +144,7 @@ bool KeyAt(std::uintptr_t at, const Key& key) noexcept {
 }
 bool AuthorityValid(const Context& c) noexcept {
     if (c.authority == Authority::actor) {
-        return c.target_mode == TargetMode::self && !c.target && c.target_key == Key{}
+        return (c.target_mode == TargetMode::self || c.target_mode == TargetMode::track) && !c.target && c.target_key == Key{}
             && c.actor_key[0] && c.actor_key[1] == 53;
     }
     return c.authority == Authority::engagement && c.target && c.target != c.actor
@@ -183,6 +184,11 @@ struct Observer {
             && Copy(&caller, frame + 4, sizeof(caller)) && caller == base + 0x9bf09
             && Word(parent + 4, s->native_return_);
     }
+    static bool OwnsTrackFrame(std::uintptr_t frame) noexcept {
+        const auto* s=active;
+        return s&&s->active_&&s->context_.target_mode==TargetMode::track
+            &&s->native_frame_==frame&&s->native_return_&&Word(frame+4,s->native_return_);
+    }
     static void Publish(Scope& s) noexcept { if (s.context_.receipt) { *s.context_.receipt = s.receipt_; } }
     static void Block(Scope& s) noexcept {
         s.blocked_ = true;
@@ -191,6 +197,9 @@ struct Observer {
     }
     static bool Ticket(const Scope& s, void* message) noexcept {
         const auto p = reinterpret_cast<std::uintptr_t>(message);
+        if(s.context_.target_mode==TargetMode::track) {
+            return p&&Word(p,base+0x1158bf8)&&Word(p+0x60,s.context_.power_id);
+        }
         return p && Word(p, base + 0x1155fd8) && Word(p + 0x80, s.context_.power_id)
             && Word(p + 0x84, s.rank_) && KeyAt(p + 0x88, s.context_.actor_key)
             && KeyAt(p + 0x90, s.context_.RecipientKey())
@@ -318,6 +327,12 @@ LONG CALLBACK Trap(EXCEPTION_POINTERS* exception) noexcept {
         __try { *reinterpret_cast<DWORD*>(context.Esp - sizeof(DWORD)) = static_cast<DWORD>(address + 5); }
         __except(EXCEPTION_EXECUTE_HANDLER) { SetLastError(error); return EXCEPTION_CONTINUE_SEARCH; }
         context.Esp -= sizeof(DWORD);
+        if(i==12) {
+            context.Eip=static_cast<DWORD>(detail::Observer::OwnsTrackFrame(context.Ebp)
+                ? reinterpret_cast<std::uintptr_t>(&detail::Observer::SendHook)
+                : reinterpret_cast<std::uintptr_t>(original_send));
+            SetLastError(error);return EXCEPTION_CONTINUE_EXECUTION;
+        }
         if(i != 0) { AdvanceEpoch(); }
         // Qualified append receiver is &actor->protocol_ids; unscoped followup
         // is cdecl with actor first. Invalidate before native mutation, including
@@ -384,7 +399,7 @@ Scope::Scope(const Context& c) noexcept : context_(c), previous_(active) {
     const DWORD error = GetLastError(); active = this; active_ = true;
     if (!Ready() || c.image != base || !c.actor || !AuthorityValid(c) || !c.writer || !c.container
         || !c.power_id || !c.current || !c.append_current || !c.receipt
-        || (c.target_mode != TargetMode::engagement_object && c.target_mode != TargetMode::self)) { detail::Observer::Block(*this); }
+        || (c.target_mode != TargetMode::engagement_object && c.target_mode != TargetMode::self && c.target_mode != TargetMode::track)) { detail::Observer::Block(*this); }
     else { detail::Observer::Publish(*this); }
     SetLastError(error);
 }
@@ -405,8 +420,10 @@ bool Scope::AdmitAvailability(Availability value, std::uint64_t epoch) noexcept 
 }
 bool Scope::Enter(std::uintptr_t definition, std::uint32_t rank) noexcept {
     if (!definition || !rank || rank > 9999 || !CanEnter()) { detail::Observer::Block(*this); return false; }
-    InvalidateLocal(reinterpret_cast<void*>(context_.actor));
-    AdvanceEpoch(); // The extension bridge bypasses the four ordinary UI callers.
+    if(context_.target_mode!=TargetMode::track) {
+        InvalidateLocal(reinterpret_cast<void*>(context_.actor));
+        AdvanceEpoch(); // The extension bridge bypasses the four ordinary UI callers.
+    }
     preparation_epoch_=Epoch();
     definition_ = definition; rank_ = rank;
     receipt_.native_entered = true; receipt_.result = Result::uncertain;
@@ -427,7 +444,7 @@ Receipt Scope::Finish() noexcept {
         }
         native_frame_ = 0; native_return_ = 0;
         active_ = false;
-        if (receipt_.native_entered && (!Ready() || !receipt_.append_observed || !receipt_.followup_entered)) {
+        if (receipt_.native_entered && (!Ready() || !receipt_.append_observed || (context_.target_mode!=TargetMode::track&&!receipt_.followup_entered))) {
             detail::Observer::Block(*this);
         }
     }

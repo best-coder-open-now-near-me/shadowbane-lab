@@ -562,6 +562,11 @@ inline void RefreshCombatCapability(ClientActionChannelStorage& storage) noexcep
     constexpr auto supported = kNativeActorCapability | kNativeActorAdmissionCapability | kNativePreparationCapability;
     if (NativeCombatReady()) { InterlockedOr(flags, static_cast<LONG>(supported)); }
     else { InterlockedAnd(flags, ~static_cast<LONG>(supported)); }
+    if (NativeCombatReady() && NativeTrackingResponsesReady()) {
+        InterlockedOr(flags, static_cast<LONG>(kNativeActorTrackCapability));
+    } else {
+        InterlockedAnd(flags, ~static_cast<LONG>(kNativeActorTrackCapability));
+    }
 }
 inline bool CombatReceiptMatches(const actor::wire::Command& command,
     actor::wire::Verb verb, const actor::wire::Receipt& receipt) noexcept {
@@ -792,7 +797,8 @@ inline DWORD DrainCommands(
                 && movement::wire::Zero(snapshot.argument, sizeof(snapshot.argument))
                 && movement::wire::Zero(snapshot.power_identifier, sizeof(snapshot.power_identifier))
                 && actor::wire::Valid(verb,payload);
-            const bool available = (verb != actor::wire::Verb::open_owner && verb != actor::wire::Verb::attach_context && verb != actor::wire::Verb::submit) || NativeCombatReady();
+            const bool available = ((verb != actor::wire::Verb::open_owner && verb != actor::wire::Verb::attach_context && verb != actor::wire::Verb::submit) || NativeCombatReady())
+                && (verb != actor::wire::Verb::submit || payload.action != actor::wire::Action::track || NativeTrackingResponsesReady());
             if (valid && available && &storage == g_runtime.storage && g_runtime.backing) {
                 try {
                     auto lease = CaptureMovementLease(g_runtime.backing, payload.host, now);

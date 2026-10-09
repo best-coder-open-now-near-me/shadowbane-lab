@@ -780,6 +780,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             opening_skill=arguments.opening_skill,
             clear_opening_skill=arguments.clear_opening_skill, as_json=arguments.json,
             buff_config=arguments.buff_config, buffs_enabled=arguments.buffs_enabled,
+            tracking=arguments.tracking,
         )
     if arguments.command == "client" and arguments.client_command == "run-pve":
         return _run_pve(

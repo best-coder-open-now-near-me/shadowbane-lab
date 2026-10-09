@@ -601,3 +601,46 @@ def test_interrupted_receipt_cannot_forge_terminal_application(change):
         changes["flags"] |= APPLICATION_PENDING
     with pytest.raises(ValueError):
         replace(receipt, **changes).encode()
+
+
+def tracking_fixture():
+    parent, context, command, receipt = fixture()
+    command = replace(command, action=Action.TRACK, power_id=429578587,
+                      item_key=(0, 0), template_key=(0, 0), item_hint=0, template_hint=0,
+                      selector_index=2**32-1, manifest_digest=bytes(32),
+                      publication_revision=0, snapshot_id=bytes(16))
+    receipt = replace(receipt, action=Action.TRACK, command_digest=command.digest,
+                      application=Application.NONE, flags=OWNER_CLEANUP | OUTBOUND_QUEUED)
+    return parent, context, command, receipt
+
+
+def test_tracking_wire_is_context_free_actor_query_with_no_application():
+    parent, _, command, receipt = tracking_fixture()
+    command.require_bindings(parent)
+    for verb in (Verb.SUBMIT, Verb.ACTION_STATUS):
+        command.require_verb(verb)
+        replace(receipt, verb=verb).require_command(command, verb)
+    assert len(command.encode()) == 576
+    assert Command.decode(command.encode()) == command
+    with pytest.raises(ValueError, match="cancellation"):
+        command.require_verb(Verb.CANCEL_ACTION)
+    with pytest.raises(ValueError):
+        replace(receipt, application=Application.PENDING,
+                flags=receipt.flags | APPLICATION_PENDING).encode()
+
+
+@pytest.mark.parametrize("change", [
+    {"power_id": 0}, {"recipient": Recipient.TARGET},
+    {"selector_index": 0, "manifest_digest": b"m"*32},
+    {"item_hint": 0x12340000},
+])
+def test_tracking_command_rejects_other_action_operands(change):
+    _, _, command, _ = tracking_fixture()
+    with pytest.raises(ValueError):
+        replace(command, **change).encode()
+
+
+def test_tracking_cannot_borrow_context_authority():
+    _, context, command, _ = tracking_fixture()
+    with pytest.raises(ValueError):
+        replace(command, context_id=context.context_id, context_digest=context.digest).encode()

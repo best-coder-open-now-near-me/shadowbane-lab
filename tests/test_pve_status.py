@@ -451,3 +451,57 @@ def test_all_native_admission_bits_survive_policy_and_status_projection():
         replace(observation(), admission_blocks=unknown)
     with pytest.raises(ValueError):
         replace(progress().preparation, admission_blocks=unknown)
+
+def tracking_status(*, count=1, age=2):
+    from shadowbane_lab.pve.tracking import TrackingActor, TrackingContact, TrackingStatus
+    return TrackingStatus(
+        enabled=True, state='current', current=True, generation=3,
+        observed_at=100, response_age_seconds=age,
+        contacts=tuple(TrackingContact((i + 1, 53), 'Player ' + str(i), 0) for i in range(count)),
+        actor=TrackingActor(101, 1001, 1, (123, 53)),
+    )
+
+
+def test_tracking_remains_current_with_buffs_disabled_and_expires_independently():
+    op = operation()
+    sample = replace(
+        progress(), preparation=PreparationStatus.disabled(), tracking=tracking_status())
+    result = project_status(WorkerPvEProgress(op, sample), snapshot(op), health(op), op.instance_id,
+                            now=101)
+    assert not result['current']  # Existing buff projection is disabled.
+    assert result['tracking']['current']
+    assert result['tracking']['response_age_seconds'] == 3
+    old = replace(sample, tracking=tracking_status(age=20))
+    result = project_status(WorkerPvEProgress(op, old), snapshot(op), health(op), op.instance_id,
+                            now=101)
+    assert result['tracking']['state'] == 'stale'
+    assert result['tracking']['contacts'][0]['name'] == 'Player 0'
+
+
+@pytest.mark.parametrize('case', ['stopped', 'replaced', 'stale'])
+def test_tracking_cannot_outlive_its_exact_active_worker(case):
+    op = operation()
+    snap, worker, now = snapshot(op), health(op), 101
+    if case == 'stopped':
+        snap = snapshot(op, WorkerOperationState.CANCELLED)
+    elif case == 'replaced':
+        worker = replace(worker, state=WorkerHealthState.MISSING)
+    else:
+        now = 110
+    result = project_status(WorkerPvEProgress(op, replace(progress(), tracking=tracking_status())),
+                            snap, worker, op.instance_id, now=now)
+    assert not result['tracking']['current']
+    assert result['tracking']['contacts']
+
+
+def test_full_unicode_tracking_list_roundtrips_in_status_ledger(tmp_path):
+    from shadowbane_lab.pve.tracking import TrackingContact
+    op = operation()
+    ledger = WorkerOperationLedger(_manifest(), tmp_path, clock=lambda: 100)
+    ledger.submit(op)
+    ledger.claim_for_execution(op, now=100)
+    contacts = tuple(TrackingContact((i + 1, 53), '\u732b' * 96, 0) for i in range(256))
+    tracking = replace(tracking_status(), contacts=contacts)
+    record = WorkerPvEProgress(op, replace(progress(), tracking=tracking))
+    ledger.publish_pve_progress(record)
+    assert ledger.inspect_pve_progress(op.client_id) == record
