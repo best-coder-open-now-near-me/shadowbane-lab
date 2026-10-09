@@ -1,5 +1,18 @@
 # Git branch map
 
+## Closed-game preparation cleanup follow-up - October 9
+
+`codex/closed-game-preparation-cleanup-20261009` in `closed-game-cleanup` targets
+main from `9523d0e`. This separate host-only slice checks the existing exact OS
+process-lifetime retirement proof when native owner cleanup returns unconfirmed,
+not only when it raises. Native channel errors are converted into unavailable
+receipts, so the former exception-only fallback could leave a closed game's
+worker waiting indefinitely. Live or unreadable original processes retain their
+cleanup obligation; PID reuse releases only the old owner's local resources.
+Focused tests cover these boundaries and disposal failure. Independent review
+and draft PR checks precede integration; no version bump, runtime build or
+installation is part of this slice. The qualified .87/.57 release is unchanged.
+
 ## Hunt Foe player-awareness work - October 9
 
 Start from refreshed main `7646af6`. Root owns `codex/native-track-awareness-20261009`

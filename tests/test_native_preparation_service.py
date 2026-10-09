@@ -141,3 +141,51 @@ def test_mapping_loss_needs_positive_exact_process_retirement_before_disposal(re
     else:
         with pytest.raises(OSError, match="mapping unavailable"):
             owner.inspect_owner_closure()
+
+
+@pytest.mark.parametrize("method", ["finish", "inspect_owner_closure"])
+@pytest.mark.parametrize("retired", [False, True])
+def test_unconfirmed_cleanup_checks_exact_process_retirement(method, retired):
+    from unittest.mock import Mock
+
+    result = (False, None, "actor receipt unavailable:NativeActionChannelTimeout")
+    coordinator = Mock()
+    getattr(coordinator, method).return_value = result
+    coordinator.close_retired_process.return_value = retired
+    owner = module.NativePreparationOwner(None, None, None, coordinator, None, None)
+    actual = (owner.finish("shutdown") if method == "finish"
+              else owner.inspect_owner_closure())
+    assert actual[0] is retired
+    assert actual[1] is None
+    if not retired:
+        assert actual is result
+    coordinator.close_retired_process.assert_called_once_with()
+
+
+@pytest.mark.parametrize("method", ["finish", "inspect_owner_closure"])
+def test_disposal_failure_never_confirms_unresolved_cleanup(method):
+    from unittest.mock import Mock
+
+    coordinator = Mock()
+    getattr(coordinator, method).return_value = (False, None, "unavailable")
+    coordinator.close_retired_process.side_effect = OSError("ticket disposal failed")
+    resources = Mock()
+    owner = module.NativePreparationOwner(resources, None, None, coordinator, None, None)
+    with pytest.raises(OSError, match="ticket disposal failed"):
+        if method == "finish":
+            owner.finish("shutdown")
+        else:
+            owner.inspect_owner_closure()
+    coordinator.close_retired_process.assert_called_once_with()
+    resources.close.assert_not_called()
+
+
+def test_confirmed_native_cleanup_does_not_require_process_inspection():
+    from unittest.mock import Mock
+
+    result = (True, object(), "closed")
+    coordinator = Mock()
+    coordinator.inspect_owner_closure.return_value = result
+    owner = module.NativePreparationOwner(None, None, None, coordinator, None, None)
+    assert owner.inspect_owner_closure() is result
+    coordinator.close_retired_process.assert_not_called()

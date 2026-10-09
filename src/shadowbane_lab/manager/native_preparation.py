@@ -116,12 +116,18 @@ class NativePreparationOwner:
 
     def _closure(self, call):
         try:
-            return call()
+            result = call()
         except (NativeActionChannelError, OSError, RuntimeError, ValueError):
-            # OS retirement disposes local resources without a forged native receipt.
-            if self.coordinator.close_retired_process():
-                return True, None, "The exact game process lifetime has retired."
-            raise
+            if not self.coordinator.close_retired_process():
+                raise
+        else:
+            # The coordinator converts unavailable channel replies into an
+            # unconfirmed result. Process retirement must not depend on an
+            # exception escaping that boundary.
+            if result[0] or not self.coordinator.close_retired_process():
+                return result
+        # OS retirement disposes local resources without a forged native receipt.
+        return True, None, "The exact game process lifetime has retired."
 
     def finish(self, reason):
         return self._closure(lambda: self.coordinator.finish(reason))
