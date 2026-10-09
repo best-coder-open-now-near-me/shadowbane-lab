@@ -15,8 +15,8 @@ enum class LocalSettlement:std::uint32_t { unknown,pending,settled };
 enum class Application:std::uint32_t { none,pending,observed,unknown };
 enum class Closure:std::uint32_t { none,never_bound,native_stopped,scene_retired,history_expired,local_released };
 enum class ClosureScope:std::uint32_t { none,owner,context };
-enum class Reason:std::uint32_t { none,power_reuse,recovery,initiation,stance,observation,item,target_occupied,local_action,native_use,child_cleanup,admission_changed };
-constexpr std::uint32_t capability=0x80,admission_capability=0x100,no_selector=UINT32_MAX;
+enum class Reason:std::uint32_t { none,power_reuse,recovery,initiation,stance,observation,item,target_occupied,local_action,native_use,child_cleanup,admission_changed,manual_activity };
+constexpr std::uint32_t capability=0x80,admission_capability=0x100,preparation_capability=0x200,no_selector=UINT32_MAX;
 enum Flag:std::uint32_t { owner_cleanup=1,context_cleanup=2,outbound_queued=4,uncertain_history=8,application_pending=16 };
 #pragma pack(push,1)
 struct Command {
@@ -43,7 +43,7 @@ static_assert(offsetof(Command,manifest_digest)==392&&offsetof(Command,version)=
 static_assert(sizeof(Receipt)==384&&offsetof(Receipt,command_digest)==296&&offsetof(Receipt,version)==328);
 using fence::Any;
 inline Reason AdmissionReason(std::uint32_t blocks) noexcept {
-    return blocks&admission::child_cleanup?Reason::child_cleanup:blocks&admission::local_action?Reason::local_action:
+    return blocks&admission::manual_activity?Reason::manual_activity:blocks&admission::child_cleanup?Reason::child_cleanup:blocks&admission::local_action?Reason::local_action:
         blocks&admission::native_use?Reason::native_use:blocks&admission::foreign_target?Reason::target_occupied:
         blocks&admission::initiation?Reason::initiation:Reason::admission_changed;
 }
@@ -55,13 +55,13 @@ inline bool ReadVerb(Verb v) noexcept{return v==Verb::observe_actor||v==Verb::re
 inline bool ContextVerb(Verb v) noexcept{return v==Verb::attach_context||v==Verb::context_status||v==Verb::stop_context;}
 inline bool OwnerVerb(Verb v) noexcept{return v==Verb::open_owner||v==Verb::owner_status||v==Verb::stop_owner;}
 inline bool ValidGrant(const m::wire::Grant& g,bool parent) noexcept {
-    if(!parent){return Zero(g);}m::Grant decoded{};
+    if(!parent||Zero(g)){return Zero(g);}m::Grant decoded{};
     return m::wire::Decode(g,decoded)&&decoded.owner==m::Owner::automation;
 }
 inline bool Valid(const Command& c) noexcept {
     const bool parent=Any(c.parent_id),context=Any(c.context_id),selected=c.selector_index!=no_selector;
     if(c.version!=3||Any(c.reserved)||!m::wire::Valid(c.host)||!c.window||c.window>UINT32_MAX||!Any(c.request)
-        ||parent!=Any(c.parent_digest)||context!=Any(c.context_digest)||(context&&!parent)||!ValidGrant(c.grant,parent)
+        ||parent!=Any(c.parent_digest)||context!=Any(c.context_digest)||(context&&(!parent||Zero(c.grant)))||!ValidGrant(c.grant,parent)
         ||c.action>Action::use_item||c.recipient>Recipient::target
         ||selected!=Any(c.manifest_digest)||(selected&&c.selector_index>=32)
         ||(!selected&&(c.publication_revision||Any(c.snapshot_id)))
@@ -88,7 +88,11 @@ inline bool Bindings(const Command& c,const fence::ActorBinding& p,const fence::
     Digest hash{},operation{};
     if(!Valid(c)||!fence::HashBinding(p,hash)||c.parent_digest!=hash||c.parent_id!=p.owner_id
         ||c.host.process!=p.producer_pid||c.host.creation!=p.producer_creation||c.host.generation!=p.producer_generation
-        ||c.grant.generation!=p.movement_generation||c.grant.scene!=p.scene
+        ){return false;}
+    if(p.purpose==fence::Purpose::preparation){
+        if(!Zero(c.grant)||Any(c.context_id)||!fence::Hash(p.owner_id.data(),p.owner_id.size(),operation)
+            ||operation!=p.operation){return false;}
+    }else if(Zero(c.grant)||c.grant.generation!=p.movement_generation||c.grant.scene!=p.scene
         ||!fence::Hash(&c.grant.token,sizeof(c.grant.token),operation)||operation!=p.operation){return false;}
     if(!Any(c.context_id)){return !child;}
     return child&&fence::Parent(*child,p)&&fence::HashBinding(*child,hash)
@@ -96,10 +100,11 @@ inline bool Bindings(const Command& c,const fence::ActorBinding& p,const fence::
 }
 inline bool Valid(const Receipt& r) noexcept {
     const bool parent=Any(r.parent_id),context=Any(r.context_id);
+    if(context&&Zero(r.grant)){return false;}
     if(r.version!=3||r.verb<Verb::open_owner||r.verb>Verb::register_selectors||r.action>Action::use_item
         ||r.outcome>Outcome::power_reuse_blocked||r.entry>Entry::entered||r.local_settlement>LocalSettlement::settled
         ||r.owner_phase>Phase::blocked||r.context_phase>Phase::blocked||r.closure>Closure::local_released
-        ||r.application>Application::unknown||r.reason>Reason::admission_changed||r.closure_scope>ClosureScope::context
+        ||r.application>Application::unknown||r.reason>Reason::manual_activity||r.closure_scope>ClosureScope::context
         ||!m::wire::Valid(r.host)||!r.window||r.window>UINT32_MAX||!Any(r.request)||!Any(r.command_digest)
         ||r.flags&~31U||r.combat_target_present>1||!ValidGrant(r.grant,parent)
         ||ActionVerb(r.verb)!=(r.action!=Action::none)

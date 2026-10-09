@@ -14,7 +14,8 @@ namespace {
 unsigned checks{},calls{},stops{},child_stops{},begins{},pauses{},released{},revalidations{};
 bool live=true,read_scene=true,lease_live=true,stop_ok=true,native_activity=false,defer_child=false,poll_settled=false;
 unsigned fail_revalidation{},continuation_checks{};
-bool continuation_current=true,item_effect_present=false;
+bool continuation_current=true,item_effect_present=false,preparation_idle=true,preparation_owner_available=true;
+std::uint64_t preparation_epoch=1;
 m::NativeScene fixture_scene{0x10000,0x20000,0x30000,0x40000,{91,53},7};
 m::Grant owner{9,7,m::Owner::automation};
 void Check(bool value,const char* label){++checks;if(!value){std::fprintf(stderr,"FAILED: %s\n",label);std::abort();}}
@@ -85,6 +86,9 @@ namespace wonderbane::extension::movement {
 bool VerifyNativeMovementImage(std::uintptr_t& image)noexcept{image=0x400000;return true;}
 bool NativeMovementLifetimeCurrent(const NativeScene& scene)noexcept{return live&&scene.epoch==fixture_scene.epoch;}
 bool ReadNativeMovementLifetime(NativeScene& scene)noexcept{scene=fixture_scene;return live&&read_scene;}
+bool NativePreparationEntryCurrent(const NativeScene& scene,std::uint64_t& epoch)noexcept{epoch=preparation_epoch;return preparation_idle&&NativeMovementLifetimeCurrent(scene);}
+bool NativePreparationOwnerAvailable(const NativeScene& scene)noexcept{return preparation_owner_available&&NativeMovementLifetimeCurrent(scene);}
+bool NativePreparationUninterrupted(const NativeScene& scene,std::uint64_t epoch)noexcept{return epoch==preparation_epoch&&NativeMovementLifetimeCurrent(scene);}
 bool NativeOwnerActionCurrent(const NativeScene& scene,const Grant& grant,const wire::Host&)noexcept{return NativeMovementLifetimeCurrent(scene)&&grant==owner&&lease_live;}
 bool NativeOwnerStopCurrent(const NativeScene& scene,const Grant& grant)noexcept{return NativeMovementLifetimeCurrent(scene)&&grant==owner;}
 Result BeginNativeOwnerAction(const NativeScene& scene,const Grant& grant,const wire::Host& host)noexcept{
@@ -151,7 +155,7 @@ NativeActor::Operation NativeActor::StopContext(const fence::ContextBinding& chi
 }
 NativeActor::Operation NativeActor::StopOwner(const fence::ActorBinding&,Admission gate,void* owner_context)noexcept{
     ++stops;Operation result;result.outcome=wire::Outcome::pending;result.local_settlement=wire::LocalSettlement::pending;
-    if(gate(owner_context)&&stop_ok){parent_bound_=child_bound_=pending_=false;result.outcome=wire::Outcome::closed;result.closure=wire::Closure::native_stopped;result.local_settlement=wire::LocalSettlement::settled;}
+    if(gate(owner_context)&&stop_ok&&!(parent_.purpose==fence::Purpose::preparation&&pending_)){parent_bound_=child_bound_=pending_=false;result.outcome=wire::Outcome::closed;result.closure=parent_.purpose==fence::Purpose::preparation?wire::Closure::local_released:wire::Closure::native_stopped;result.local_settlement=wire::LocalSettlement::settled;}
     ReadState(result.state);return result;
 }
 void NativeActor::Revoke()noexcept{revoked_=true;}
@@ -255,6 +259,8 @@ int main(){
         "movement owner callback settles native cleanup outside actor Tick");
     result=Execute(w::Verb::owner_status,parent);Check(result.owner_phase==w::Phase::closed&&!a::runtime.active&&!native_activity,"exact cleanup callback publishes truthful closure after revocation");
     Check(Execute(w::Verb::action_status,power).application==w::Application::pending,"owner close preserves independent remote pending journal");
+    Check(!wonderbane::extension::PreparationBlocksAutomation(),
+        "remote application alone never manufactures preparation ownership");
     auto incompatible=manifest;incompatible.count=incompatible.groups=1;incompatible.records[0]=manifest.records[0];incompatible.records[0].index=incompatible.records[0].group=0;incompatible.records[1]={};
     ManifestMapping incompatible_map(incompatible);auto change=read;change.manifest_digest=incompatible_map.digest;
     Check(Execute(w::Verb::register_selectors,change).outcome==w::Outcome::deferred,"pending group cannot disappear through manifest replacement");
@@ -263,6 +269,50 @@ int main(){
     const auto floor=a::runtime.publisher.Revision();Check(Execute(w::Verb::register_selectors,change).outcome==w::Outcome::observed,"reordered canonical groups preserve pending history");
     Check(a::runtime.publisher.Current(frame)&&frame.revision>floor&&frame.application_count==2,"manifest migration keeps history and revision high-water");
     live=false;Tick();Check(released==1&&!a::runtime.has_manifest&&!a::runtime.journal.LocalPending(),"confirmed actor retirement releases publication and lifetime journal");
+
+    live=true;++fixture_scene.epoch;owner.scene=fixture_scene.epoch;poll_settled=false;Tick();
+    Check(Execute(w::Verb::register_selectors,read).outcome==w::Outcome::observed,"new exact scene publishes canonical maintenance facts");
+    f::ActorBinding blocked_binding{};auto blocked_preparation=Parent(2,blocked_binding);
+    blocked_binding.purpose=f::Purpose::preparation;blocked_binding.movement_generation=0;blocked_preparation.grant={};
+    Check(f::Hash(blocked_binding.owner_id.data(),blocked_binding.owner_id.size(),blocked_binding.operation)
+        &&f::HashBinding(blocked_binding,blocked_preparation.parent_digest),"blocked preparation exact binding");
+    Mapping blocked_map(blocked_binding);preparation_owner_available=false;
+    Check(Execute(w::Verb::open_owner,blocked_preparation).outcome!=w::Outcome::bound
+        &&!wonderbane::extension::PreparationBlocksAutomation(),"existing movement owner prevents preparation open without seizing actor arbiter");
+    preparation_owner_available=true;preparation_idle=false;
+    f::ActorBinding preparation_binding{};auto preparation=Parent(3,preparation_binding);
+    preparation_binding.purpose=f::Purpose::preparation;preparation_binding.movement_generation=0;preparation.grant={};
+    Check(f::Hash(preparation_binding.owner_id.data(),preparation_binding.owner_id.size(),preparation_binding.operation)
+        &&f::HashBinding(preparation_binding,preparation.parent_digest),"purpose-scoped immutable operation");
+    Mapping preparation_map(preparation_binding);const auto before_begins=begins,before_pauses=pauses,before_calls=calls;
+    Check(Execute(w::Verb::open_owner,preparation).outcome==w::Outcome::bound
+        &&begins==before_begins&&wonderbane::extension::PreparationBlocksAutomation(),
+        "preparation owns only actor arbiter, never acquires movement");
+    auto forbidden=preparation;forbidden.context_id=Id(7);forbidden.context_digest.fill(1);
+    Check(!w::Valid(w::Verb::attach_context,forbidden),"preparation cannot attach a target");
+    forbidden=preparation;forbidden.action=w::Action::attack;forbidden.recipient=w::Recipient::target;
+    Check(!w::Valid(w::Verb::submit,forbidden),"preparation cannot attack without combat authority");
+    preparation_idle=false;++preparation_epoch;
+    Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed&&a::runtime.publisher.Current(frame)
+        &&(frame.admission_blocks&a::admission::manual_activity),"manual activity is entry veto, not lifetime loss");
+    auto deferred=Buff(preparation,20,1);auto no_entry=Execute(w::Verb::submit,deferred);
+    Check(no_entry.outcome==w::Outcome::deferred&&no_entry.reason==w::Reason::manual_activity
+        &&no_entry.entry==w::Entry::never_entered&&calls==before_calls,"manual activity defers before native entry");
+    preparation_idle=true;
+    Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"fresh native idle permits re-admission");
+    auto maintenance=Buff(preparation,21,1);Check(Execute(w::Verb::submit,maintenance).local_settlement==w::LocalSettlement::pending
+        &&calls==before_calls+1,"background purpose enters exactly one qualified buff");
+    preparation_idle=false;++preparation_epoch;
+    Check(Execute(w::Verb::action_status,maintenance).local_settlement==w::LocalSettlement::pending,
+        "manual entry suspension retains immutable status responsibility");
+    auto closing=preparation;closing.request=Id(22);
+    Check(Execute(w::Verb::stop_owner,closing).owner_phase==w::Phase::stopping
+        &&wonderbane::extension::PreparationBlocksAutomation()&&pauses==before_pauses,
+        "passive preparation close preserves unresolved local ownership without movement stop");
+    poll_settled=true;Tick();const auto closed=Execute(w::Verb::owner_status,closing);
+    Check(closed.owner_phase==w::Phase::closed&&closed.closure==w::Closure::local_released
+        &&!wonderbane::extension::PreparationBlocksAutomation()&&pauses==before_pauses,
+        "exact late local settlement releases arbiter without combat-off");
     std::printf("actor runtime: %u checks, %u native submits, no failures\n",checks,calls);return 0;
 }
 

@@ -39,6 +39,18 @@ authority. The actual one-slot/two-client path permits selecting Umbra while lea
 Ictus independent. Concurrent logical-slot creation and persistent/background buff
 ownership are separate work; no deployment or native version change is included.
 
+## Persistent preparation core - October 8
+
+`codex/persistent-buff-maintenance-20261008` owns bot-runtime for the native
+PREPARATION purpose, exact local initiation proof and passive coordinator cleanup
+boundary. It starts from main `85e3194` and targets `main` as a draft source
+checkpoint. PR #115 owns the separate worker/saved-intent integration in
+bot-command-ownership; neither lane changes the live runtime. The provisional
+blanket potion coverage barrier is excluded. Exact movement-interruption evidence
+and safe item retry remain a separate qualification task. See
+[the ownership contract](persistent-preparation-ownership-20261008.md).
+Full combined release qualification, cosmetic-overlay preservation and installation
+remain pending; no native or host version stamp is changed here.
 
 ## Combined production recovery - October 8
 

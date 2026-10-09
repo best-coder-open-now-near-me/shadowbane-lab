@@ -91,7 +91,13 @@ int main() {
     Check(!ui.Snapshot(point, state) && !state.available && state.global_owned && state.keyboard_owned && state.pointer_owned, "native window transition inside hit callback fails closed");
     change_scene = false; Put(image + 0x16a7bfc, native_window);
     Check(ui.Snapshot(point, state), "new valid snapshot can recover after transition");
+    const auto preparation_hits=hits;
+    Check(ui.PreparationCurrent()&&hits==preparation_hits,"preparation checks UI gates without cursor hit testing");
+    text=true;Check(!ui.PreparationCurrent(),"native text ownership yields preparation");text=false;
+    Put(image+0x16a9ee8,std::uintptr_t{1});Check(!ui.PreparationCurrent(),"native modal yields preparation");
+    Put(image+0x16a9ee8,std::uintptr_t{0});
     Put(rect_table + 0x1c, image + 0x25168);
+    Check(ui.PreparationCurrent(),"preparation has no pixel geometry prerequisite");
     Check(!ui.Snapshot(point, state), "unverified geometry getter is unavailable");
     Put(rect_table + 0x1c, image + 0x25167); Put(image + 0x16a2fdc, LONG{0});
     Check(!ui.Snapshot(point, state), "invalid native resolution cannot invent coordinates");

@@ -559,7 +559,7 @@ inline void RefreshCombatCapability(ClientActionChannelStorage& storage) noexcep
     // current readiness; transport availability alone never promises execution.
     auto* flags = reinterpret_cast<volatile LONG*>(&storage.header.capability_flags);
     InterlockedAnd(flags, ~static_cast<LONG>((1U << 3U) | kNativeCombatCapability | kNativeSelfPowerCapability | kNativePowerReadinessCapability)); // Retired target-owner receivers are never advertised.
-    constexpr auto supported = kNativeActorCapability | kNativeActorAdmissionCapability;
+    constexpr auto supported = kNativeActorCapability | kNativeActorAdmissionCapability | kNativePreparationCapability;
     if (NativeCombatReady()) { InterlockedOr(flags, static_cast<LONG>(supported)); }
     else { InterlockedAnd(flags, ~static_cast<LONG>(supported)); }
 }

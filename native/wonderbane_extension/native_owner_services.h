@@ -15,6 +15,12 @@ using NativeOwnerReady = bool (*)() noexcept;
 // Readiness is absent in transport-only processes such as the probe. A service
 // publishes a process-pinned callback; callers never own or load that runtime.
 inline std::atomic<NativeOwnerReady> combat_owner_ready{nullptr};
+// Entry arbitration only. Manual control never consults this callback.
+inline std::atomic<NativeOwnerReady> preparation_owner_active{nullptr};
+inline bool PreparationBlocksAutomation() noexcept {
+    const auto active=preparation_owner_active.load(std::memory_order_acquire);
+    return active && active();
+}
 inline bool NativeCombatReady() noexcept {
     const auto ready = combat_owner_ready.load(std::memory_order_acquire);
     return ready && ready();

@@ -761,7 +761,7 @@ def test_public_runner_blocked_preparation_trace_does_not_gate_npc_attack(setup,
         (1, True, 8),
         (1, 1, False),
         (1, 1, 0),
-        (1, 1, 32),
+        (1, 1, 64),
         (1, 1, -1),
     ],
 )

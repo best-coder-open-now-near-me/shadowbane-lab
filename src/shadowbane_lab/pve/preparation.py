@@ -201,7 +201,7 @@ class PreparationObservation:
             raise ValueError("capture sequence requires a completed native publication")
         _positive(self.publication_epoch, "publication_epoch")
         _positive(self.admission_revision, "admission_revision")
-        if type(self.admission_blocks) is not int or not 0 <= self.admission_blocks <= 31:
+        if type(self.admission_blocks) is not int or not 0 <= self.admission_blocks <= 63:
             raise ValueError("admission blocks require known native flags")
         if not self.complete and self.admission_blocks:
             raise ValueError("unknown observation cannot assert admission facts")

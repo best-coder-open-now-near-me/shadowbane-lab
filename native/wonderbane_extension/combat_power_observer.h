@@ -1,6 +1,7 @@
 #pragma once
 #include "combat_submission.h"
 #include "combat_power_readiness.h"
+#include "combat_power_local.h"
 #include <array>
 #include <cstdint>
 #include <span>
@@ -14,6 +15,7 @@ struct Receipt {
     bool native_entered = false, send_observed = false, append_observed = false;
     bool followup_entered = false;
     std::uint64_t initiation_epoch = 0;
+    std::uint64_t local_initiation_token = 0;
     Availability availability = Availability::unknown;
     std::uint64_t availability_epoch = 0;
     // Optional copied diagnostics only. Never used for admission or settlement.
@@ -82,6 +84,7 @@ bool Ready() noexcept;
 // power preparation invalidates earlier epochs, including foreign actors.
 std::uint64_t InitiationEpoch() noexcept;
 bool NativeUseInFlight() noexcept;
+LocalInitiationState ReadLocalInitiation(std::uint64_t token,std::uintptr_t actor,const Key&,std::uint32_t power) noexcept;
 bool NormalizeOwnedCode(std::uintptr_t image, std::uint32_t text_rva,
     std::span<std::uint8_t> code, std::span<const std::uint8_t> disk) noexcept;
 }

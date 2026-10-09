@@ -147,6 +147,72 @@ bool RegisterAppendObserver(AppendObserverKind kind, const AppendObserver& obser
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
 #include "combat_power_probe_support.h"
 #endif
+namespace {
+bool remove_fault{},remove_reenter{};
+bool __fastcall RemoveFixture(void* object,void*,std::uint32_t id) {
+    auto* actor=static_cast<std::uint32_t*>(object);
+    if(remove_reenter) { pw::InvalidateLocal(object); }
+    if(remove_fault) { RaiseException(0xe0424244,0,0,nullptr); }
+    auto* begin=reinterpret_cast<std::uint32_t*>(actor[0x65c/4]);
+    auto* end=reinterpret_cast<std::uint32_t*>(actor[0x660/4]);
+    for(auto* at=begin;at!=end;++at) {
+        if(*at!=id){continue;}
+        std::memmove(at,at+1,static_cast<std::size_t>(end-at-1)*4);actor[0x660/4]-=4;
+        SetLastError(12345);return true;
+    }
+    SetLastError(54321);return false;
+}
+bool RemoveFault(void* object) {
+    __try { (void)pw::RemoveInitiationHook(object,nullptr,123); }
+    __except(GetExceptionCode()==0xe0424244?EXCEPTION_EXECUTE_HANDLER:EXCEPTION_CONTINUE_SEARCH) { return true; }
+    return false;
+}
+void LocalCases() {
+    std::array<std::uint32_t,0xae0/4> actor{};std::array<std::uint32_t,8> state{},ids{};
+    const auto object=reinterpret_cast<std::uintptr_t>(actor.data());const pw::Key key{333,53};
+    actor[6]=key[0];actor[7]=key[1];actor[0xad0/4]=reinterpret_cast<std::uintptr_t>(state.data());
+    actor[0x65c/4]=reinterpret_cast<std::uintptr_t>(ids.data());actor[0x664/4]=actor[0x65c/4]+sizeof(ids);state[4]=5;
+    pw::Context context{};context.actor=object;context.actor_key=key;context.power_id=123;
+    const auto begin=[&](unsigned count=1) {
+        const auto candidate=pw::ArmLocal(context);
+        actor[0x660/4]=actor[0x65c/4];pw::LocalVector before{};
+        Check(pw::LocalCapture(object,key,before),"coherent empty initiation capture");
+        ids[0]=ids[1]=123;actor[0x660/4]=actor[0x65c/4]+count*4;
+        return pw::BeginLocal(context,before,candidate);
+    };
+    const auto status=[&](std::uint64_t token){return pw::ReadLocalInitiation(token,object,key,123);};
+    Check(!begin(2),"duplicate owned followup does not create a local ownership token");
+    auto token=begin();Check(token&&status(token)==pw::LocalInitiationState::pending,"single owned protocol entry retained");
+    pw::InvalidateLocal(reinterpret_cast<void*>(object+4));Check(status(token)==pw::LocalInitiationState::pending,"foreign actor cannot invalidate token");
+    Check(!pw::RemoveInitiationHook(actor.data(),nullptr,321)&&GetLastError()==54321
+        &&status(token)==pw::LocalInitiationState::pending,"foreign ID removal remains unrelated");
+    Check(pw::RemoveInitiationHook(actor.data(),nullptr,123)&&GetLastError()==12345
+        &&status(token)==pw::LocalInitiationState::retired,"normal exact removal positively retires local token");
+    pw::InvalidateLocal(actor.data());Check(status(token)==pw::LocalInitiationState::retired,"later manual Use preserves prior terminal retirement");
+    token=begin();pw::InvalidateLocal(actor.data());
+    Check(pw::RemoveInitiationHook(actor.data(),nullptr,123)&&status(token)==pw::LocalInitiationState::unavailable,"manual replacement before removal loses owned proof");
+    token=begin();ids[1]=123;actor[0x660/4]+=4;
+    Check(pw::RemoveInitiationHook(actor.data(),nullptr,123)&&status(token)==pw::LocalInitiationState::unavailable,"same ID duplicate cannot be consumed as owned completion");
+    token=begin();actor[0x660/4]=actor[0x65c/4];
+    Check(!pw::RemoveInitiationHook(actor.data(),nullptr,123)&&status(token)==pw::LocalInitiationState::unavailable,"generic clear without qualified removal has no proof");
+    token=begin();remove_reenter=true;(void)pw::RemoveInitiationHook(actor.data(),nullptr,123);remove_reenter=false;
+    Check(status(token)==pw::LocalInitiationState::unavailable,"reentrant same-actor mutation invalidates removal capture");
+    token=begin();remove_fault=true;Check(RemoveFault(actor.data()),"remover SEH is preserved");remove_fault=false;
+    Check(status(token)==pw::LocalInitiationState::unavailable,"faulted remover cannot settle");
+    token=begin();++actor[6];(void)pw::RemoveInitiationHook(actor.data(),nullptr,123);--actor[6];
+    Check(status(token)==pw::LocalInitiationState::unavailable,"reused actor key invalidates local token");
+    token=begin();std::thread other([&]{(void)pw::RemoveInitiationHook(actor.data(),nullptr,123);});other.join();
+    Check(status(token)==pw::LocalInitiationState::unavailable,"wrong update thread cannot provide settlement");
+    actor[0x660/4]=actor[0x65c/4];const auto candidate=pw::ArmLocal(context);pw::LocalVector before{};
+    Check(pw::LocalCapture(object,key,before),"pre-publication capture");
+    ids[0]=123;actor[0x660/4]+=4;pw::InvalidateLocal(actor.data());
+    Check(!pw::BeginLocal(context,before,candidate),"same-ID mutation between capture and publication cannot seed ownership");
+    const auto later=pw::ArmLocal(context);
+    Check(!pw::BeginLocal(context,before,candidate)&&later!=candidate,"reentrant candidate generation cannot publish earlier capture");
+    token=begin();pw::local_initiation.generation=UINT64_MAX;
+    Check(!begin()&&status(token)==pw::LocalInitiationState::unavailable,"token saturation cannot wrap");
+}
+}
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
     auto* image = static_cast<unsigned char*>(VirtualAlloc(nullptr,0x16ac000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
@@ -175,6 +241,7 @@ int main(int argc, char** argv) {
     const auto byte=[](unsigned char*& at,std::initializer_list<unsigned char> bytes){for(auto v:bytes){*at++=v;}};
     const auto jump=[&](unsigned char*& at,std::uintptr_t target){*at++=0xe9;imm(at,target-reinterpret_cast<std::uintptr_t>(at)-4);};
     auto* ordinary=image+0x1082a;jump(ordinary,reinterpret_cast<std::uintptr_t>(&OrdinaryFixture));
+    auto* removal=image+0xd0b7;jump(removal,reinterpret_cast<std::uintptr_t>(&RemoveFixture));
     auto* at=image+0x6659;jump(at,reinterpret_cast<std::uintptr_t>(&Followup));
     at=image+0x9bbf0;
     byte(at,{0x55,0x8b,0xec});
@@ -434,7 +501,7 @@ int main(int argc, char** argv) {
         const auto epoch_before=pw::InitiationEpoch();SetLastError(1234);
         Check(pw::Trap(&e)==EXCEPTION_CONTINUE_EXECUTION,"qualified protocol CALL handled");
         std::int32_t displacement{};std::memcpy(&displacement,site.bytes.data()+1,4);
-        Check(c.Eip==(i<=5?reinterpret_cast<DWORD>(&pw::OrdinaryUseHook):base+site.rva+5+displacement) && c.Esp==reinterpret_cast<DWORD>(stack+1)
+        Check(c.Eip==(i<=5?reinterpret_cast<DWORD>(&pw::OrdinaryUseHook):i>=8?reinterpret_cast<DWORD>(&pw::RemoveInitiationHook):base+site.rva+5+displacement) && c.Esp==reinterpret_cast<DWORD>(stack+1)
             && stack[1]==base+site.rva+5 && c.Eax==11&&c.Ebx==22&&c.Ecx==33&&c.Edx==44
             &&c.Ebp==55&&c.Esi==66&&c.Edi==77&&c.EFlags==0x246&&GetLastError()==1234,
             "protocol CALL preserves register flags LastError and native return");
@@ -448,6 +515,7 @@ int main(int argc, char** argv) {
     pw::native_use_in_flight=true;
     std::thread independent([] { Check(!pw::NativeUseInFlight()&&OrdinaryCall()&&!pw::NativeUseInFlight(),"ordinary in-flight is thread-local"); });independent.join();
     Check(pw::NativeUseInFlight(),"other thread preserves parent in-flight state");pw::native_use_in_flight=false;
+    LocalCases();
     InterlockedExchange64(&pw::initiation_epoch,MAXLONGLONG-1);pw::AdvanceEpoch();
     Check(!pw::InitiationEpoch(),"epoch saturation disables allowance");pw::AdvanceEpoch();
     Check(!pw::InitiationEpoch(),"saturated epoch never wraps into an old request");

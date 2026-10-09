@@ -20,6 +20,7 @@ double initiation_seconds{};
 std::uint32_t learned_rank=20, definition_generation=1;
 bool definition_available=true; unsigned availability_change{};
 std::uint64_t epoch=1;
+p::LocalInitiationState local_initiation=p::LocalInitiationState::pending;
 bool mutate_after_definition=false, mutate_on_current=false;
 bool native_in_flight=false, mutate_before_entry=false, mutate_after_entry=false;
 std::function<void()> current_callback;
@@ -44,7 +45,7 @@ void Reset() {
     for(const auto& [object,count]:references) { (void)object; assert(!count); }
     std::memset(reinterpret_cast<void*>(base),0,0x10000); references.clear(); lookup_mode=0;
     mutate_after_definition=mutate_on_current=false; native_in_flight=mutate_before_entry=mutate_after_entry=false; epoch=1; initiation_seconds=0; learned_rank=20; definition_generation=1; definition_available=true;
-    availability_change=0; live=admitted=true; throw_attack=seh_attack=reject_cancel=false; attacks=casts=stops=lookups=0;
+    local_initiation=p::LocalInitiationState::pending;availability_change=0; live=admitted=true; throw_attack=seh_attack=reject_cancel=false; attacks=casts=stops=lookups=0;
     melee_receipt={s::Result::queued,true,true,true}; power_receipt={p::Result::queued,true,true,true,true,1};
     scene={}; scene.epoch=1; scene.actor=base+0x2000; scene.window=base+0x1000;
     scene.world=base+0x6000; scene.parent=0; scene.identity={100,53};
@@ -97,6 +98,7 @@ Receipt Scope::Finish() noexcept { if(melee_context.receipt) { *melee_context.re
 }
 namespace wonderbane::extension::combat::power {
 std::uint64_t InitiationEpoch() noexcept { return epoch; }
+LocalInitiationState ReadLocalInitiation(std::uint64_t token,std::uintptr_t,const Key&,std::uint32_t) noexcept { return token?local_initiation:LocalInitiationState::unavailable; }
 bool NativeUseInFlight() noexcept { return native_in_flight; }
 bool Ready() noexcept { return true; }
 Boundary::Boundary() noexcept {} void Boundary::Restore() noexcept { ++restores; }
@@ -168,6 +170,7 @@ a::wire::Command Typed(const a::fence::ActorBinding& parent,const a::fence::Cont
     a::wire::Command command{};command.host={parent.producer_pid,1,parent.producer_creation};
     command.window=reinterpret_cast<std::uintptr_t>(window);command.grant.generation=command.grant.scene=1;command.grant.owner=1;
     strcpy_s(command.grant.token.worker,"worker");strcpy_s(command.grant.token.operation,"operation");
+    if(parent.purpose==a::fence::Purpose::preparation){command.grant={};}
     command.request.back()=1;command.parent_id=parent.owner_id;assert(a::fence::HashBinding(parent,command.parent_digest));
     if(child){command.context_id=child->context_id;assert(a::fence::HashBinding(*child,command.context_digest));}
     command.action=action;
@@ -288,6 +291,35 @@ int main(){
     base=reinterpret_cast<std::uintptr_t>(VirtualAlloc(nullptr,0x1800000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));assert(base);
     window=CreateWindowExW(0,L"STATIC",L"actor-native",0,0,0,1,1,HWND_MESSAGE,nullptr,GetModuleHandleW(nullptr),nullptr);assert(window);
     AdmissionCases();
+    for(const bool replaced:{false,true}) {
+        ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));auto parent=Parent();
+        parent.purpose=a::fence::Purpose::preparation;parent.movement_generation=0;
+        assert(a::fence::Hash(parent.owner_id.data(),parent.owner_id.size(),parent.operation));
+        assert(actor.ValidateParent(parent,Gates()));Publish(actor,false);
+        power_receipt.local_initiation_token=7;
+        const auto command=Typed(parent,nullptr,a::wire::Action::self_power);
+        assert(actor.Submit(command).local_settlement==AL::pending&&casts==1&&!stops);
+        // Manual admission loss and a different epoch/idle are not completion.
+        admitted=false;++epoch;Protocol({});Put(base+0xc010,std::uint32_t{5});
+        Put(scene.actor+0xaf8,base+0x4000);
+        assert(actor.Poll().local_settlement==AL::pending);
+        if(replaced){local_initiation=p::LocalInitiationState::unavailable;}
+        assert(actor.StopOwner(parent,+[](void*)noexcept{return live;},nullptr).outcome==AO::pending&&!stops);
+        if(!replaced) {
+            local_initiation=p::LocalInitiationState::retired;
+            Protocol({999});Put(base+0xc010,std::uint32_t{6}); // Later manual cast is not our pending action.
+            assert(actor.Poll().local_settlement==AL::settled);
+            assert(actor.StopOwner(parent,+[](void*)noexcept{return live;},nullptr).closure==a::wire::Closure::local_released&&!stops);
+            std::uintptr_t target{};std::memcpy(&target,reinterpret_cast<void*>(scene.actor+0xaf8),sizeof(target));
+            assert(target==base+0x4000); // Manual target is untouched by passive close.
+            std::uint32_t manual{};std::memcpy(&manual,reinterpret_cast<void*>(base+0xf000),sizeof(manual));
+            assert(manual==999);std::memcpy(&manual,reinterpret_cast<void*>(base+0xc010),sizeof(manual));assert(manual==6);
+        } else {
+            assert(actor.Poll().local_settlement==AL::pending&&!stops);
+        }
+        CloseScene(actor);
+    }
+
     {
         ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();
         assert(actor.MatchesIdentity(parent.local_name,parent.server));auto wrong=parent.server;wrong[0]^=1;
