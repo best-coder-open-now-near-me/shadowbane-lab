@@ -25,13 +25,25 @@ transparency diagnostics remain recorded separately, not claimed as fixed.
 Package SHA-256: `4efe6cbfdece9b8155080301f9f593b0f04601b6e0bf8eb8891ac4e21b0c5344`.
 Full DLL SHA-256: `7063b8c0f5d3036178a1946ff61e429fcf90b08df46c225cf05000181d9b9bcc`.
 
-The .80 host is prepared and all 477 packaged files verified on the testing VM.
-The active manager/client remain .78/.54 with the installed graphics overlay;
-no DLL switch, gameplay action or backup was performed. Next: close the exact
-Vendor Test client, perform the reviewed manager/worker shutdown and .55 update,
-then validate persistent buffs in world. Preserve settings/jobs/journals and use
-no retained rollback artifacts. Earlier ownership and qualification entries below
-are historical and superseded by this entry.
+The .80/.55 runtime is installed on the testing VM, with all 477 packaged host
+files verified and 9,613 retained settings/history records checked. Exactly one
+client inventory entry changed: the extension DLL. Both manager shortcuts now
+use .80; the three client shortcuts and reviewed per-lifetime launcher are
+unchanged. No rollback copies were created.
+
+Installation exposed two verifier errors: CIM timestamps truncate the precision
+used by process-lifetime receipts, and denied unbound worker permits legitimately
+retain historical worker identity. The stop helper now uses exact process-handle
+timestamps. Startup finalization now verifies denied unbound permits against
+unchanged historical heartbeats. The manager passed finalization healthy and
+unbound, with all retained records preserved except that valid generated permit.
+The qualified runtime binaries are unchanged by either installer correction.
+Vendor Test reopened through that unchanged launcher and loaded the exact .55
+DLL. Passive inspection before login reports no observable local player yet;
+in-world readiness and live gameplay acceptance remain pending. Next: log Umbra
+in and validate persistent buff renewal and movement-interruption recovery.
+Earlier ownership and qualification entries below are historical and superseded
+by this entry.
 
 ## Movement interruption qualification - October 8
 
