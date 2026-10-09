@@ -21,8 +21,17 @@ owns this documentation lane from merged main. Preparation, exact shutdown,
 apply and shortcut updates passed, preserving 9,494 records and the same game/DLL
 without client writes or rollback copies. Activation is verified on manager 1776
 and worker 2784 with 480 modules, zero retained-record exclusions and ten expected
-generated changes. Normal Resume succeeded. Next are completed post-update
-observation and exact obsolete-.85 retirement.
+generated changes. Normal Resume succeeded. All five groups were present across
+101 valid native samples spanning 116.5 seconds, with three unavailable reads;
+no new application transition was captured. Exact obsolete-.85 retirement removed
+2,151 host files plus ten wheels (57,774,066 bytes); all eleven paths are absent.
+The independent post-check confirms unchanged game/DLL, healthy worker 2784,
+all five groups current and maintaining, and no active/queued operation.
+The merged recovery source branch was retired locally/remotely after ancestry
+verification; the previous .85 release branch was also retired after confirming
+its tip remains in current release `4724246`. The current release remains owned
+by root. This two-document delivery branch targets main after independent review
+and required checks.
 Natural Conc-pot renewal and movement-interruption acceptance remain. See the
 [delivery record](client-update-20261009.md) and [recovery contract](preparation-fault-recovery.md).
 

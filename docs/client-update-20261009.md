@@ -55,10 +55,35 @@ exclusions and ten expected generated-record changes. The exact synchronization
 marker bytes were read and hashed; no data-preservation exception was introduced.
 Activation receipt SHA-256:
 `c8ca2f8d9e6bb3d1520ceedc80ba2fec792eb4de60ff31c5b843f7d8d589ca77`.
-Normal Resume succeeded. The post-update passive capture and exact obsolete-.85
-retirement are still pending; this checkpoint does not certify those outcomes.
+Normal Resume succeeded. The completed post-update passive capture has 101 valid
+native samples and three unavailable publication reads on exact worker 2784,
+producer generation 9. All five groups were present in every valid sample across
+116.5 seconds. A queued, locally settled Beorc `OBSERVED` receipt at submitted/
+observed revisions 4557/4559 was already terminal in the first sample; no new
+application transition was seen within this capture. Conc-pot remained present
+with quantity five and no application row. This confirms sampled maintenance,
+not a live induced-fault recovery test, uninterrupted coverage, or Conc-pot renewal.
+Capture SHA-256 is
+`2233efd19d06d1d6827f3119344239e842b5f6016b69b08bbd37518f37e9238f`;
+compact summary SHA-256 is
+`cac32524269fa1794c112d319233c0b51322b53fdae6ddc50b1ed496b23e1232`.
+Fresh dependency and ownership inspection then permitted exact obsolete-.85
+retirement. The old host's 2,151 files occupied 48,683,791 bytes; ten superseded
+wheel files occupied 9,090,275 bytes. All eleven target paths are now absent,
+freeing 57,774,066 bytes. Settings, jobs, journals and diagnostic evidence remain;
+no native DLL or client asset was removed and no rollback runtime was retained.
+Retirement receipt SHA-256:
+`61bbf874f41aa7666e79a26b5e944b8031b4cdc038e0307fee2e44905eb87fba`.
+An independent post-check confirms the same game lifetime and DLL, healthy
+worker 2784, current maintaining preparation with all five groups present, and
+no active or queued operation. Post-check SHA-256:
+`4fe1a2b28f59c7ad2d40f8a78eb9d16560f0e6b99247c76437c66fdd9ec7cbeb`.
+
+Source, qualification, installation and obsolete-runtime cleanup are complete.
 Natural Conc-pot renewal and deliberate movement-interruption recovery remain
-separate live acceptance work.
+separate live acceptance work. The .86 automatic internal-fault recovery path is
+covered by deterministic regressions; these healthy live samples do not claim
+that an internal fault was induced or observed and recovered in the installed run.
 
 ## Host .85 installed and activation verified
 
