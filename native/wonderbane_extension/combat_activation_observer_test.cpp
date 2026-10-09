@@ -88,7 +88,7 @@ int main(int argc,char** argv){
   if(!f||n<=0||n>64*1024*1024){return 2;}
   original.resize(static_cast<std::size_t>(n));f.seekg(0);if(!f.read(reinterpret_cast<char*>(original.data()),n)){return 2;}
   const auto sha=Digest(original);
-  if(sha!="381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5"&&sha!="e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437"){return 2;}
+  if((sha!="381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5" && sha!="a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a")&&(sha!="e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437" && sha!="1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c")){return 2;}
   for(const auto& site:a::sites){assert(original.size()>site.rva+5);assert(!std::memcmp(original.data()+site.rva,site.bytes.data(),5));}
  }else if(argc!=1){return 2;}
  for(const auto& site:a::sites){std::memcpy(arena+site.rva,original.empty()?site.bytes.data():original.data()+site.rva,5);}
