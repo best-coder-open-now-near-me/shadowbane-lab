@@ -1,23 +1,30 @@
 # Git branch map
 
-## Preparation recovery after an internal fault - October 9
+## Preparation recovery delivery - October 9
 
-`codex/preparation-fault-recovery-20261009` in the dedicated
-`preparation-fault-recovery` worktree starts from refreshed main `b5ebb51`
-and targets main. The host .86 candidate separates internal preparation cleanup
-from an explicit finite-operation handoff. After positive native closure and
-resource disposal, it resumes only when current saved/control intent and worker
-authority allow; unresolved cleanup and explicit operation reservations remain
-blocking. The first internal fault remains visible through cleanup, and a real
-finite handoff reports yielding rather than disabled buffs.
+Start new work from refreshed main, including PR #131 at `abc4f3d`. Its independently
+reviewed .86 fix separates internal fault cleanup from finite-operation handoff;
+positive native closure and resource disposal precede automatic reacquisition.
+Explicit Stop/Pause and unresolved cleanup retain authority. The 65 focused tests
+reproduce the old defect without claiming the exact live .85 exception cause.
 
-The service-loop regression reproduced the retained-handoff defect and lost
-fault detail before the fix. This does not identify which exception, if any,
-caused the live .85 disabled observation. Native .56 and installed software are
-unchanged by this source checkpoint. Independent review passed all 65 focused tests. Next: main integration,
-exact host qualification, and normal live maintenance verification. See
-[the recovery contract](preparation-fault-recovery.md).
+Root's release `47242467adab1ee36d882dfe3ba9367050db8c8b` is qualified as host .86:
+5,705 host tests passed (39 optional skips), both IPC profiles, worker handshake
+and all six installed-wheel desktop cases passed; 480 module files agree. Native
+.56 source `df97e7b`, graphics and runtime inputs are preserved, with only the
+reviewed test-fixture exception. Pre-update normal Detach caused automatic rebind;
+Resume restored five-group upkeep and four native application receipts on worker
+5396. That sampled recovery does not prove Conc-pot renewal or the earlier cause.
 
+`codex/preparation-recovery-delivery-20261009` in `preparation-fault-recovery`
+owns this documentation lane from merged main. Preparation, exact shutdown,
+apply and shortcut updates passed, preserving 9,494 records and the same game/DLL
+without client writes or rollback copies. Activation is verified on manager 1776
+and worker 2784 with 480 modules, zero retained-record exclusions and ten expected
+generated changes. Normal Resume succeeded. Next are completed post-update
+observation and exact obsolete-.85 retirement.
+Natural Conc-pot renewal and movement-interruption acceptance remain. See the
+[delivery record](client-update-20261009.md) and [recovery contract](preparation-fault-recovery.md).
 
 ## Manager desktop startup delivery - October 9
 

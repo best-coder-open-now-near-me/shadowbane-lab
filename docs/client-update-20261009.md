@@ -1,5 +1,65 @@
 # Wonderbane official client update — October 9, 2026
 
+## Host .86 installed and activation verified
+
+PR #131 merged the automatic-preparation recovery fix at `abc4f3d` after all
+15 required checks passed. An internal exception no longer reserves the separate
+finite-operation handoff indefinitely. The service retains its owner and original
+fault, requests passive cleanup once, and waits for positive closure and disposal
+before rechecking current intent and authority. Explicit operation handoff,
+unresolved cleanup and Pause/Stop remain blocking. All 65 focused regression
+tests passed independent review. This fixes a reproduced source defect; it does
+not establish the initiating exception in the earlier live .85 observation.
+
+Qualified release `47242467adab1ee36d882dfe3ba9367050db8c8b` is host .86 with
+native .56 still from `df97e7b`. All 5,705 host tests passed, with 39 optional
+skips. Both native profiles' 74 movement / 86 combat / 170 actor IPC cases, the
+real worker handshake and six installed-wheel Windows desktop cases passed.
+All 480 source, wheel and installed module files agree. Native runtime inputs,
+assets and graphics remain unchanged; PR #125's test-only fixture correction
+remains the sole reviewed native-tree exception.
+
+| Host .86 artifact | SHA-256 |
+| --- | --- |
+| Qualification receipt | `f01d70fd1b3ea21697f5d9872315a432f8c675ed54895dafed7aa6f7e82d5826` |
+| Wheel | `ed91e162c5653c487549bb39e20f8888fdbc85dafcd5ad7fdc73bac3641a5fd9` |
+| Reviewed deployment plan | `4af580852ca66a8aac831c70bf670c998661ad012150a8cc0ee2d28f5887a40a` |
+
+Before the update, normal Detach positively stopped the old .85 worker. The
+configured manager automatically rebound Umbra; no manual Attach or client
+restart was needed. Normal Resume restored upkeep on worker 5396, creation
+FILETIME `134360353336218688`, native producer generation 8. A completed passive
+capture has 79 valid native samples and four unavailable samples. Precision,
+Beorc Rune and transform each progressed from queued pending to `OBSERVED` with
+local settlement; submitted/observed revisions were 3652/3654, 3656/3658 and
+3661/3665. Defensive stance also has queued, locally settled `OBSERVED` evidence
+at 3668/3669. All five groups remained present in valid samples for the final
+75.6 seconds. Conc-pot stayed present with quantity five and no new application;
+this is restoration evidence, not proof of Conc-pot expiry renewal or continuous
+coverage through unavailable samples. Capture SHA-256:
+`5d4283d17e44d3c18ffc85187e5dc6dd8de5ea771835a30539a9e36c3bb5c625`;
+compact recovery summary SHA-256:
+`35c126696c9428c4dc33c7d558e32c42a0f015c688f888ccd4ee81ddb682a78e`.
+
+Preparation, exact manager/worker shutdown, host apply and shortcut updates
+succeeded. Apply preserved 9,494 retained records and game PID 8480, creation
+FILETIME `134360273074287806`, HWND 197186 and native DLL `45d1a787...`.
+Client files were not written and no rollback copies were created. Apply receipt
+SHA-256 is `cde87c35cc2b460c5a7b5f753f087dc19d8cdc477cffa74bfe93a58f2f1979ec`.
+Activation passed with healthy manager 1776, creation FILETIME
+`134360368274685389`, parent 4520 and startup generation
+`248bc890995a47bda8fcc428d4e464da`. Worker 2784, creation FILETIME
+`134360368332945599`, is bound to the unchanged Umbra game lifetime. All 480
+installed modules and 9,494 retained records passed verification, with zero
+exclusions and ten expected generated-record changes. The exact synchronization
+marker bytes were read and hashed; no data-preservation exception was introduced.
+Activation receipt SHA-256:
+`c8ca2f8d9e6bb3d1520ceedc80ba2fec792eb4de60ff31c5b843f7d8d589ca77`.
+Normal Resume succeeded. The post-update passive capture and exact obsolete-.85
+retirement are still pending; this checkpoint does not certify those outcomes.
+Natural Conc-pot renewal and deliberate movement-interruption recovery remain
+separate live acceptance work.
+
 ## Host .85 installed and activation verified
 
 PR #129 merged reviewed desktop startup source
