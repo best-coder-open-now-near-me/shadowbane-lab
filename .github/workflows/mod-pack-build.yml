@@ -1,0 +1,55 @@
+name: Katana mod pack native build
+
+on:
+  push:
+    branches: [codex/mod-pack-client-20261008]
+    paths:
+      - .github/workflows/mod-pack-build.yml
+      - native/wonderbane_extension/**
+
+permissions:
+  contents: read
+
+jobs:
+  full-native:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure full Win32 extension
+        run: cmake -S native/wonderbane_extension -B build/mod-pack -A Win32 -DWONDERBANE_EXTENSION_PROFILE=full
+      - name: Build release
+        id: build
+        run: cmake --build build/mod-pack --config Release --parallel 2
+      - name: Run required native tests
+        id: tests
+        run: ctest --test-dir build/mod-pack -C Release -LE stretch-diagnostic --output-on-failure
+      - name: Record source and artifact identities
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem build/mod-pack/Release -File | ForEach-Object {
+            [ordered]@{
+              name = $_.Name
+              bytes = $_.Length
+              sha256 = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+          }
+          [ordered]@{
+            source_commit = $env:GITHUB_SHA
+            workflow_run = $env:GITHUB_RUN_ID
+            hosted_tests = '${{ steps.tests.outcome }}'
+            profile = 'full'
+            architecture = 'x86'
+            files = @($files)
+          } | ConvertTo-Json -Depth 5 | Set-Content build/mod-pack/Release/build-receipt.json -Encoding utf8
+          # Inventory generation replaces LastTest.log; preserve the actual run first.
+          Copy-Item build/mod-pack/Testing/Temporary/LastTest.log build/mod-pack/Release/hosted-tests.log
+          ctest --test-dir build/mod-pack -C Release --show-only=json-v1 | Set-Content build/mod-pack/Release/ctest-inventory.json -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        with:
+          name: katana-mod-pack-native-${{ github.sha }}
+          path: build/mod-pack/Release/
+          if-no-files-found: error
+          retention-days: 7

@@ -1,4 +1,6 @@
+#include "visual_inspector.h"
 #include "selected_cue_runtime.h"
+#include "weapon_appearance.h"
 #include "selected_cue.h"
 #include "selected_cue_gpu.h"
 #include "scene_draw.h"
@@ -138,6 +140,7 @@ MultiDraw NativeMultiDraw() noexcept {
 void APIENTRY OwnedMultiDraw(GLenum mode,const GLsizei* count,GLenum type,
                             const void* const* indices,GLsizei primitive_count) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
+    weapon::DrawScale weapon_scale;
     // Resolve on this current context; the native dispatch slot is global, but
     // extension procedure addresses need not be identical across contexts.
     auto draw=NativeMultiDraw();
@@ -188,6 +191,7 @@ void RestoreMultiDraw() noexcept {
 }
 void __fastcall OwnedRender(void* self,void*) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
+    weapon::RenderScope weapon_scope(self);
     const auto draw=reinterpret_cast<Render>(InterlockedCompareExchangePointer(&original,nullptr,nullptr));
     if(!draw)return;
     if(!scene || !InterlockedCompareExchange(&running,0,0) || nesting){draw(self);return;}
@@ -235,13 +239,14 @@ DWORD StartSelectedCue(std::uint8_t* image,std::size_t size,const char* hash) no
             if(error==ERROR_SUCCESS)slot=candidate_slot;
         }
         if(error==ERROR_SUCCESS){multi_slot=reinterpret_cast<std::uint32_t*>(image+0x16aa038);
-            InterlockedIncrement64(&generation);InterlockedExchange(&running,1);InterlockedExchange(&control->binding,1);}
+            InterlockedIncrement64(&generation);InterlockedExchange(&running,1);InterlockedExchange(&control->binding,1);weapon::Start(base);visual::Start(base);}
     }
     InterlockedExchange(&control->error,static_cast<LONG>(error));
     ReleaseSRWLockExclusive(&lock);return error;
 }
 void StopSelectedCue() noexcept {
     RenderLifecycleMutation mutation;
+    visual::Stop();weapon::Stop();
     InterlockedExchange(&running,0);InterlockedIncrement64(&generation);
     RestoreMultiDraw();
     if(slot){const auto replacement=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(&OwnedRender));
@@ -258,14 +263,16 @@ void StopSelectedCue() noexcept {
     DiscardSelectedCueScene();cue::ReleaseMask();
 }
 void DiscardSelectedCueScene() noexcept {RenderCallbackLease lease;SynchronizeGeneration();scene=false;attachment={};render_count=0;tracker.Reset();cue::DiscardMask();}
-void EndSelectedCueFrame() noexcept {RenderCallbackLease lease;SynchronizeGeneration();if(!finished){if(scene)Status(0,0,1);DiscardSelectedCueScene();}finished=false;}
-void ReleaseSelectedCueContext() noexcept {RenderCallbackLease lease;DiscardSelectedCueScene();cue::ReleaseMask();}
+void EndSelectedCueFrame() noexcept {RenderCallbackLease lease;weapon::EndScene();SynchronizeGeneration();if(!finished){if(scene)Status(0,0,1);DiscardSelectedCueScene();}finished=false;}
+void ReleaseSelectedCueContext() noexcept {RenderCallbackLease lease;weapon::EndScene();DiscardSelectedCueScene();cue::ReleaseMask();}
 void BeginSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
+    visual::Poll(camera!=nullptr);
+    weapon::BeginScene(camera!=nullptr);
     scene=false;owned=0;enhanced=0;material_status=0;mask_failed=false;glow_suppressed=false;cue::DiscardMask();
     // A bounded opt-in contributor trace must not require a selected target or
     // an enabled glow to observe the native optimized world submission path.
-    if(InterlockedCompareExchange(&running,0,0) && IsTerrainTraceCapturing())RefreshMultiDraw();
+    if(InterlockedCompareExchange(&running,0,0) && (IsTerrainTraceCapturing() || weapon::WantsDraws()))RefreshMultiDraw();
     if(!InterlockedCompareExchange(&running,0,0) || !Poll() || !settings.enabled){
         DiscardSelectedCueScene();cue::ReleaseMask();Status(0,0,0);return;}
     render_count=0;renders[0]=0;
@@ -297,6 +304,7 @@ void DrawSelectedCueGeometry(SelectedGeometryDraw draw,void* user) noexcept {
 }
 void FinishSelectedCueScene(const GraphicsCameraState* camera) noexcept {
     RenderCallbackLease lease;SynchronizeGeneration();
+    weapon::EndScene();
     if(!scene){DiscardSelectedCueScene();return;}
     if(!camera || !InterlockedCompareExchange(&running,0,0)
         || !StillSelected()){DiscardSelectedCueScene();Status(0,0,1);return;}

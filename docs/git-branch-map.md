@@ -1,5 +1,18 @@
 # Git branch map
 
+## Persistent buff release composition - October 8
+
+`codex/persistent-buff-release-20261008` owns bot-integration for combined
+qualification and deployment. It composes bot PR #119 checkpoint `2a7f921`
+with installed graphics source `2f14379`; final bot readiness and local-settlement
+slices are still being qualified in bot-runtime before inclusion here.
+The normal project checkout stays on main. Main is the bot integration destination;
+graphics PRs #106 and #113 remain separately owned drafts. Composing their source
+here preserves the installed graphics features without declaring those PRs merged.
+Publish the exact combined source before packaging. This composition has not yet
+passed final release qualification and has not changed the running client.
+Older branch ownership and qualification entries below are historical.
+
 ## Movement interruption qualification - October 8
 
 `codex/item-movement-renewal-20261008` follows preparation core `fcccaa5`
@@ -1360,3 +1373,75 @@ live Continue here retains 174 guards and schedules the 168 in fresh rosters.
 Native 1.8.22 is unchanged. Additional town coverage/rank completion remain.
 Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
 -> reviewed main. The ordinary main checkout is unchanged.
+
+## Graphics source history included in release composition
+
+## Selected-object Visual Inspector — October 8
+
+`codex/selected-visual-inspector` continues from katana integration `e1e0527`
+in the existing katana worktree. It owns the now-authorized Visual Inspector:
+on-demand selected/self render snapshots, cache references and Graphics Lab UI.
+PR #106 remains unchanged; this lane targets main after that dependency.
+Native capture, cache resolution and the panel pass local validation; see
+[usage and validation](visual-inspector.md). The user selected test-VM installation,
+which is now active. No runtime has been replaced yet. The normal checkout stays
+on main. PR #106 now has successful hosted checks; its review remains separate.
+
+## Katana and bot integration — October 8
+
+Start combined cosmetics/bot work from `codex/katana-moonfire`. Merge `9146542`
+combines selected-character source `ab53a09` from `codex/mod-pack-client-20261008`
+with main `85e3194`, which already includes reviewed bot recovery PR #111 and
+host 0.3.79. Native remains 1.8.54; pin exact artifacts, not version labels alone.
+The hardware-PC branch remains published and independently owned. Main is the
+shared integration destination; katana changes remain outside it in draft PR #106.
+
+Combined source `4f07426` passes 5,233 host tests (38 skips), 234 explicit
+host/native IPC tests, lint, and the full native build: 239 required tests pass,
+with the three private-image entries separately passed against their actual
+inputs. Two deferred transparency diagnostics still exhibit only their reviewed
+counterexamples. The moon-fire fixture now uses an offscreen bitmap on GDI;
+both hardware and forced-GDI pixel/state assertions pass without relaxed checks.
+The mod-pack workflow preserves its test log before generating test inventory.
+Hosted CI for this fix is still running; the prior source failed the now-fixed
+hidden-window pixel assertion. Do not treat this local validation as a hosted
+pass or as acceptance of arbitrary translucent ordering.
+
+No runtime changed during integration. The normal checkout is clean on main;
+the integration worktree stays on its published feature branch for PR #106.
+Next: complete hosted CI/review, then integrate PR #106 into main. Demo follow-up
+is measured fire-on/off frame timing and final capture; Visual Inspector remains
+deferred. The older sections below record their historical deployment states.
+
+## Hardware-PC mod pack — October 8
+
+`codex/mod-pack-client-20261008` starts from `codex/katana-moonfire` at
+`e404d06` and adds a dedicated, verified hardware-PC launcher and native
+candidate build workflow. Targets main after PR #106; it does not take over
+that feature branch. The separate client is installed and running with the
+NVIDIA driver and Katana panel. See [qualification and launch details](mod-pack-pc-20261008.md).
+In-world counters now confirm both owned blades and moon-fire draws. The branch
+also owns the requested selected-character mode, now qualified and installed
+from native source `8dce403`. Live selected-character telemetry confirms both
+katana and moon-fire draws with no errors or suppression. Original demo acceptance
+remains in PR #106. The hosted pixel-test failure is retained and
+local hardware qualification is documented explicitly.
+
+## Katana moon-fire - October 8
+
+codex/katana-moonfire includes main 500fe40 in its own managed worktree.
+It owns one local katana cosmetic experiment, not a general equipment system.
+Native visual inspection/tinting is validated. The model-only appearance swap
+is installed with the compression correction, and the user confirmed it renders
+in game. The approved mesh/texture and six-slider moon-fire preset are preserved
+in the preview. Live proportions controls from 3c4c8c1 are installed in Graphics Lab and both
+owned katana draws respond. The user selected 80% length. Native moon-fire and
+its six panel controls from 0f80838 are installed; both weapon effects were
+observed in game with two fire draws and no suppression. Final tuning and a
+clean demo capture remain.
+Draft PR #106 targets main; this unfinished source remains outside main. The
+general object Visual Inspector is deferred until after the katana demo.
+See [scope, evidence and next steps](katana-moonfire.md).
+The user is moving this demo to another computer via a new Codex chat. Start
+with [the new-machine handoff](handoffs/katana-demo-new-machine.md); the VM
+software-rendering profile must not be copied as a hardware-PC default.
