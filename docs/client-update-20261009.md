@@ -69,6 +69,20 @@ DoubleFusion files and user data were preserved. The normal client supplied the
 official assets and was not modified. Two manager shortcuts now reference .81;
 the client launcher is unchanged. No rollback copies were created.
 
+After activation, a fresh ownership and dependency inspection verified the old
+.80 host contained only reproducible build files and had no active references.
+The old host's 2,144 files and 11 pinned .55 payload files were removed, freeing
+58,787,243 bytes; absence was verified afterward. User data, journals and compact
+diagnostic receipts remain in place. The retirement receipt SHA-256 is
+`ec9baefa481237fd027c870b7dec7b94036ab9ee584fe3fd0b2e750e67956e6a`.
+
+The merged, unattached host topic branch was retired. The release composition
+remains published for graphics integration; the integrated native checkout is
+retained as the existing investigation workspace. Private qualification and
+deployment evidence remains under local `artifacts/client-update-20261009`,
+`artifacts/b56/02c9d75a` and `artifacts/bot-deploy/20261009-b56`; binaries and
+captures are not part of the source delivery.
+
 The new manager finalized healthy and unbound. Vendor Test reopened through the
 reviewed per-lifetime launcher at 10:34 UTC with the exact .56 DLL. Passive
 inspection before login reported no observable local player and no ready actor

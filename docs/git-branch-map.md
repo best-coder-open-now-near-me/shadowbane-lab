@@ -7,6 +7,8 @@ native compatibility source is merged. The qualified .81/.56 runtime and officia
 client 1.3.38.16 are installed; Vendor Test reopened with the verified DLL.
 All 477 packaged host files and 9,621 retained settings/history records passed
 installation checks. In-world buff renewal and interruption recovery remain.
+The obsolete .80 host and 11 old payload files were removed after dependency
+verification; user data and diagnostic records were preserved.
 
 Published `codex/client-release-20261009` at
 `df97e7b328626f74efe6a1fb5e17e926942e37b4` is the exact deployment composition,
