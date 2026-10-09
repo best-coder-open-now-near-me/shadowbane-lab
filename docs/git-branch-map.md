@@ -2,13 +2,20 @@
 
 ## Official client 1.3.38.16 update - October 9
 
-Start from refreshed main, now including PR #120 at `32651c4`. The user applied
-the next official patch; the installed .80/.55 bot runtime still contains the
-previous client. `codex/client-host-20261009` owns host compatibility and delivery,
-with native changes on `codex/client-native-20261009`. Both target main. The new
-.81/.56 package must preserve the graphics composition in published release
-`3e4d801`; those graphics drafts remain separately owned. Qualification and
-installation are pending. See [the current update record](client-update-20261009.md).
+Start from refreshed main, now including PR #121 at `6c3cd6d`. Reviewed host and
+native compatibility source is merged. The qualified .81/.56 runtime and official
+client 1.3.38.16 are installed; Vendor Test reopened with the verified DLL.
+All 477 packaged host files and 9,621 retained settings/history records passed
+installation checks. In-world buff renewal and interruption recovery remain.
+
+Published `codex/client-release-20261009` at
+`df97e7b328626f74efe6a1fb5e17e926942e37b4` is the exact deployment composition,
+owned in bot-integration. It preserves the previous graphics source byte-for-byte;
+graphics PRs #106/#113 remain separately owned drafts outside main. Retain the
+release branch until those graphics lanes are integrated, not as a development
+base. `codex/client-delivery-20261009` records this installation for main.
+See [the current update record](client-update-20261009.md). Older deployment
+entries below are historical and superseded by this entry.
 
 ## Qualified persistent buff delivery - October 9
 
