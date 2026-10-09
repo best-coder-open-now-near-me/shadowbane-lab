@@ -2,19 +2,31 @@
 
 ## Protected recycled worker PID recovery - October 9
 
-`codex/protected-process-lifetime-20261009` starts from main `417b8e2` in
-`buff-activation-observer`. Host .83 uses a bounded kernel process census only
-when Windows denies the ordinary process handle. It retains exact creation
-FILETIME and parent identity, and validates the complete census before crediting
-absence. Access denial, process names and old heartbeat age never prove exit.
-This fixes Attach when a historical worker PID now belongs to a protected service;
-historical worker/job records and native .56 remain unchanged. Parser negatives,
-actual Windows self-process FILETIME comparison and the real manager Attach path
-are tested. The source targets main; release composition must preserve graphics.
-Peer review and 110 focused tests passed. Next: exact-source host qualification
-and installation; no source-only
-checkpoint is a claim that current live buff maintenance has been validated.
+Start new work from refreshed main, which includes PR #124 at `99b7707` and
+PR #123 at `417b8e2`. Reviewed source `7a47361` on
+`codex/protected-process-lifetime-20261009` passed all 15 hosted checks.
+Host .83 uses a bounded kernel process census when Windows denies an ordinary
+process handle. Exact creation FILETIME remains authoritative; access denial,
+process names and old heartbeat age never prove exit.
 
+The exact qualified release is published at
+`0e0c6b9d3459f4b026598f8fdbe1855b2f2fc29c` on
+`codex/protected-process-release-20261009`, owned in bot-integration. It contains
+the previous .82 release `db8fd5c` and preserves installed graphics/native/assets.
+Graphics PRs #106/#113 remain separate drafts outside main. Native .56 continues
+to identify source `df97e7b`; host-only qualification does not rewrite native
+provenance. Keep the current release branch for reproducibility, not as a shared
+development base.
+
+Host .83 is installed and its worker attached to the existing Umbra game lifetime.
+All five automatic buff groups report present and maintaining. Final preservation
+verification is resolving active synchronization-marker reads; expiry renewal and
+movement-interruption recovery are not yet accepted. The delivery record is on
+`codex/worker-restart-delivery-20261009` for main. See
+[the current update record](client-update-20261009.md). PR #125 separately repairs
+a flaky unreadable-memory test fixture; it does not change the installed runtime.
+
+The entries below are historical and superseded by this entry.
 ## Worker reservation recovery after manager restart - October 9
 
 Start new work from refreshed main, which includes PR #123 at `417b8e2`.

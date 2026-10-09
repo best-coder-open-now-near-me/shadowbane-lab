@@ -2,6 +2,43 @@
 
 ## Current status
 
+PR #124 merged the protected-process recovery fix into main at
+`99b770742b4ceb6eccde1de95103ddb40db736c0` after all 15 hosted checks passed.
+Host .83 handles denied process handles through a bounded kernel process census,
+retaining exact creation FILETIME and parent identity. A validated complete census
+can prove that a historical worker lifetime is gone; access denial alone cannot.
+The real protected service that reused a historical worker PID and Umbra's exact
+live process both matched the read-only kernel probe.
+
+The qualified host-only composition is
+`0e0c6b9d3459f4b026598f8fdbe1855b2f2fc29c`, published on
+`codex/protected-process-release-20261009`. It preserves installed graphics,
+assets and native .56 from `df97e7b`; graphics PRs #106/#113 remain separate drafts.
+Qualification passed 5,665 host tests (39 optional skips), both profiles' real
+IPC checks (74 movement, 86 combat and 170 actor cases each), and the separate
+Windows worker-startup test. All 478 source, wheel and installed module files
+agree, and all 14 package stages passed. Independent review verified the package
+closure and the unchanged native artifacts.
+
+| Host .83 artifact | SHA-256 |
+| --- | --- |
+| Qualification receipt | `3d768a6c86d4465303897dca8a71787e9fa733f028f63c71c981b021cf21bd2f` |
+| Wheel | `19f457772369029867701b2011b0862506962ca2714992f91ce79a10b3147652` |
+| Source archive | `3cd6bc8a7b438885d1cde7643a2b4ef0f09c60d5f0ff5e6358c43edc3a2a8083` |
+| Reviewed installation plan | `84deafce11517eaeed257a97328c134e3843ed88701de89686b88db680f5ade1` |
+
+Preparation, exact old-manager shutdown, host switch and shortcut checks passed.
+The apply step preserved 9,550 settings/history records captured after manager
+shutdown. Umbra's original game lifetime stayed running, and no client files
+were written. Both manager shortcuts now use .83; all three game shortcuts are
+unchanged. The manager automatically attached one healthy worker to the existing
+Umbra process. All five automatic buff groups report present and maintaining.
+The final preservation check encountered two active one-byte synchronization
+markers; their read handling is being corrected without restarting the manager.
+Expiry renewal and movement-interruption recovery remain unverified.
+
+## Historical host .82 installation
+
 Host .82 recovery source is merged through PR #123 at
 `417b8e2c4dd24c198d721a441f52cb4b9f30642f`. It recovers an unverified worker
 reservation after manager restart only when matching historical worker identity
