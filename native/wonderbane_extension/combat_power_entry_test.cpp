@@ -316,10 +316,16 @@ int main(int argc, char** argv) {
             &&receipt.observation.use_called&&receipt.observation.use_returned&&!receipt.observation.use_value
             &&GetLastError()==7654,"false native return remains entered uncertainty with exact diagnostic and LastError");
         native_use=saved_use;
-        reset();actor[0xad0/4]=0x10000;
-        Check(Guarded(context)&&receipt.result==pw::Result::queued&&!receipt.observation.state_known,
-            "unreadable optional state never blocks ordinary queue");
+        // A low address can be mapped by Windows; own an explicitly unreadable
+        // page so this checks the optional-read failure, not address placement.
+        auto* unreadable=VirtualAlloc(nullptr,4096,MEM_RESERVE|MEM_COMMIT,PAGE_NOACCESS);
+        if(!unreadable) { std::fprintf(stderr,"unreadable state fixture allocation failed\n");return 2; }
+        reset();actor[0xad0/4]=reinterpret_cast<std::uint32_t>(unreadable);
+        Check(Guarded(context),"unreadable optional state preserves guarded invocation");
+        Check(receipt.result==pw::Result::queued,"unreadable optional state never blocks ordinary queue");
+        Check(!receipt.observation.state_known,"unreadable optional state remains unknown");
         actor[0xad0/4]=reinterpret_cast<std::uint32_t>(diagnostic_state.data());
+        Check(VirtualFree(unreadable,0,MEM_RELEASE)!=FALSE,"unreadable state fixture released");
     }
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
     Check(references==1,"real native sender preserves exactly one caller-owned reference");

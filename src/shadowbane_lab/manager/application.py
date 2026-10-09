@@ -453,6 +453,17 @@ class ManagerDashboardApplication:
                     )
                 lifecycle_dispatch_enabled = bool(payload["dispatch_enabled"])
                 activation = self._activation(slot.client_id, binding)
+                # Preparation is published asynchronously after its heartbeat. Read
+                # it first so the corresponding health snapshot cannot lag behind
+                # a newer preparation record published while health is inspected.
+                from .operation import WorkerOperationLedger
+                preparation_record = None
+                if isinstance(self._operation_status, WorkerOperationLedger):
+                    try:
+                        preparation_record = self._operation_status.inspect_preparation_status(
+                            slot.client_id)
+                    except (OSError, RuntimeError, ValueError):
+                        pass
                 worker = self._worker_supervisor.inspect(
                     slot.client_id,
                     instance_id=None if binding is None else binding.instance_id,
@@ -475,14 +486,8 @@ class ManagerDashboardApplication:
                 payload["dispatch_enabled"] = worker.dispatch_allowed
                 payload["worker"] = worker.to_dict()
                 payload["worker_activation"] = None if activation is None else activation.to_dict()
-                from .operation import WorkerOperationLedger
                 if isinstance(self._operation_status, WorkerOperationLedger):
                     from .preparation_status import project_status
-                    try:
-                        preparation_record = self._operation_status.inspect_preparation_status(
-                            slot.client_id)
-                    except (OSError, RuntimeError, ValueError):
-                        preparation_record = None
                     payload["automatic_buffs"] = project_status(preparation_record, worker, binding)
                 extension = self._extension_summary(binding)
                 if extension.state is ExtensionRuntimeState.INITIALIZED:
