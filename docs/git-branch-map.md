@@ -8,34 +8,67 @@ allocation. Invocation, queue success and unknown diagnostics have separate
 assertions. This is a native test-only change; it does not alter production
 code, PR #124, or the qualified host .83 package. Integration destination is
 main. The real diagnostics-profile test passed 20 consecutive executions and
-independent peer review; hosted checks and merge remain next.
+independent peer review. All 15 checks passed at final head `5d72644` before
+PR #125 merged as `c8d79ba`. Start new work from refreshed main.
 
 ## Protected recycled worker PID recovery - October 9
 
-`codex/protected-process-lifetime-20261009` starts from main `417b8e2` in
-`buff-activation-observer`. Host .83 uses a bounded kernel process census only
-when Windows denies the ordinary process handle. It retains exact creation
-FILETIME and parent identity, and validates the complete census before crediting
-absence. Access denial, process names and old heartbeat age never prove exit.
-This fixes Attach when a historical worker PID now belongs to a protected service;
-historical worker/job records and native .56 remain unchanged. Parser negatives,
-actual Windows self-process FILETIME comparison and the real manager Attach path
-are tested. The source targets main; release composition must preserve graphics.
-Peer review and 110 focused tests passed. Next: exact-source host qualification
-and installation; no source-only
-checkpoint is a claim that current live buff maintenance has been validated.
+Start new work from refreshed main, which includes PR #124 at `99b7707` and
+PR #123 at `417b8e2`. Reviewed source `7a47361` on
+`codex/protected-process-lifetime-20261009` passed all 15 hosted checks.
+Host .83 uses a bounded kernel process census when Windows denies an ordinary
+process handle. Exact creation FILETIME remains authoritative; access denial,
+process names and old heartbeat age never prove exit.
+
+The exact qualified release is published at
+`0e0c6b9d3459f4b026598f8fdbe1855b2f2fc29c` on
+`codex/protected-process-release-20261009`, owned in bot-integration. It contains
+the previous .82 release `db8fd5c` and preserves installed graphics/native/assets.
+Graphics PRs #106/#113 remain separate drafts outside main. Native .56 continues
+to identify source `df97e7b`; host-only qualification does not rewrite native
+provenance. Keep the current release branch for reproducibility, not as a shared
+development base.
+
+Host .83 is installed and its worker attached to the existing Umbra game lifetime.
+All five automatic buff groups report present and maintaining. Final activation
+verified all 478 modules and 9,550 retained records without excluding any records.
+Beorc renewal and Rat-to-Skree transform alternation are confirmed in native
+application/coverage transitions. Conc-pot/Precision renewal and movement-
+interruption recovery remain next. The obsolete .81/.82 hosts and their old
+wheel payloads are removed; user data and diagnostic records remain in place.
+The delivery record is on
+`codex/worker-restart-delivery-20261009` for main. See
+[the current update record](client-update-20261009.md). PR #125 separately repairs
+a flaky unreadable-memory test fixture; it does not change the installed runtime.
+
+The entries below are historical and superseded by this entry.
+
+The merged, unattached worker-restart and protected-process source branches were
+retired locally and remotely after verifying both exact tips remain in main.
+The fixture topic remains attached to its clean review workspace until delivery
+is complete; the current release composition stays published.
 
 ## Worker reservation recovery after manager restart - October 9
 
-`codex/worker-reservation-restart-20261009` starts from main `f7110e7` in
-`buff-activation-observer`. Host .82 adds exact historical interpreter-exit
+Start new work from refreshed main, which includes PR #123 at `417b8e2`.
+The reviewed source head was `45cebdd` on published
+`codex/worker-reservation-restart-20261009` in `buff-activation-observer`.
+Host .82 adds exact historical interpreter-exit
 recovery for an unverified launch reservation left across manager restart.
 The matching worker nonce, slot and old game instance must agree with a valid
 heartbeat, and repeated OS observations must prove that interpreter lifetime
 is absent or replaced. A live worker is never adopted through this recovery.
 Historical heartbeat, stop and job records remain intact. Native .56 is unchanged.
-The source targets main; release composition must preserve installed graphics.
-Next: peer review and exact-source qualification before installing the host fix.
+All 15 hosted checks passed before merge. The exact qualified release is
+`db8fd5c23b417d215f918064aa1d20e2ed9f3ba7` on published
+`codex/worker-restart-release-20261009`, owned in bot-integration. It preserves
+the installed graphics composition byte-for-byte; graphics PRs #106/#113 remain
+separate drafts outside main. Retain that release branch for reproducibility,
+not as a development base. `codex/worker-restart-delivery-20261009` records this
+installation for main. Host .82 is installed and verified, preserving the live
+game and 9,557 settings/history records. Stale-reservation recovery succeeded.
+Next: qualify the focused .83 protected-PID inspection fix discovered during
+attachment, then resume live buff checks. See the current update record.
 
 ## Official client 1.3.38.16 update - October 9
 

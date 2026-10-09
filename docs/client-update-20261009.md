@@ -2,6 +2,114 @@
 
 ## Current status
 
+PR #124 merged the protected-process recovery fix into main at
+`99b770742b4ceb6eccde1de95103ddb40db736c0` after all 15 hosted checks passed.
+Host .83 handles denied process handles through a bounded kernel process census,
+retaining exact creation FILETIME and parent identity. A validated complete census
+can prove that a historical worker lifetime is gone; access denial alone cannot.
+The real protected service that reused a historical worker PID and Umbra's exact
+live process both matched the read-only kernel probe.
+
+The qualified host-only composition is
+`0e0c6b9d3459f4b026598f8fdbe1855b2f2fc29c`, published on
+`codex/protected-process-release-20261009`. It preserves installed graphics,
+assets and native .56 from `df97e7b`; graphics PRs #106/#113 remain separate drafts.
+Qualification passed 5,665 host tests (39 optional skips), both profiles' real
+IPC checks (74 movement, 86 combat and 170 actor cases each), and the separate
+Windows worker-startup test. All 478 source, wheel and installed module files
+agree, and all 14 package stages passed. Independent review verified the package
+closure and the unchanged native artifacts.
+
+| Host .83 artifact | SHA-256 |
+| --- | --- |
+| Qualification receipt | `3d768a6c86d4465303897dca8a71787e9fa733f028f63c71c981b021cf21bd2f` |
+| Wheel | `19f457772369029867701b2011b0862506962ca2714992f91ce79a10b3147652` |
+| Source archive | `3cd6bc8a7b438885d1cde7643a2b4ef0f09c60d5f0ff5e6358c43edc3a2a8083` |
+| Reviewed installation plan | `84deafce11517eaeed257a97328c134e3843ed88701de89686b88db680f5ade1` |
+
+Preparation, exact old-manager shutdown, host switch and shortcut checks passed.
+The apply step preserved 9,550 settings/history records captured after manager
+shutdown. Umbra's original game lifetime stayed running, and no client files
+were written. Both manager shortcuts now use .83; all three game shortcuts are
+unchanged. The manager automatically attached one healthy worker to the existing
+Umbra process. All five automatic buff groups report present and maintaining.
+Final activation verified all 478 installed modules and all 9,550 retained records.
+The two active one-byte synchronization markers were read with bounded retries;
+their original hashes matched. The original verifier remained unchanged and
+zero records were excluded. Only the expected generated dispatch record changed.
+The activation receipt SHA-256 is
+`2f140610fdd5d926c6dc44d58123f103f458f9b935102f542225607f1a5c70c4`.
+
+Passive native captures confirmed all five groups present and a defensive-stance
+application queued, locally settled and observed (submitted revision 16, observed
+revision 17). A later capture proved Beorc coverage changed from present to missing,
+a new application was submitted at revision 22, and it settled observed at 24 with
+coverage restored. Rat Shape then expired while still on reuse. The alternate
+Skree'ekt Shape was queued at revision 28 and settled observed at 31, restoring
+transform coverage. These are actual native state/application transitions, not
+system-message or selected-target inference. Conc-pot and Precision coverage are
+confirmed; their expiry renewal and movement-interruption recovery remain next.
+
+Private observations remain under local `artifacts/bot-deploy/20261009-host83`
+and the testing VM diagnostic share `host-update-20261009-0.3.83`. The bounded
+reader retains native applications and coverage transitions; failed or incoherent
+samples are recorded as unavailable rather than credited as completion.
+
+PR #125 separately fixed the hosted test fixture that assumed address `0x10000`
+was unreadable. It now owns a `PAGE_NOACCESS` allocation. The exact final head
+`5d72644` passed all 15 hosted checks before merge `c8d79ba`; this test-only change
+does not change the qualified or installed runtime.
+
+## Obsolete runtime retirement
+
+After successful activation, fresh ownership/dependency inventories proved the
+old .81 and .82 hosts contained only reproducible files and had no active users.
+The .81 host and ten superseded wheel files were removed earlier in this update,
+freeing 57,588,774 bytes (receipt SHA-256
+`7115b3cd138cea94b7d4a93c115173c1e2d1e538ef3d4a6f431cff8c940fcf55`).
+The .82 host's 2,144 files and ten superseded wheels were then removed, freeing
+57,595,245 bytes. All eleven .82 targets were absent afterward and the current
+native DLL hash was unchanged. Its retirement receipt SHA-256 is
+`2a5cb5b47e6f1d4db62fd1037c0276c524f5581d863173cb8256fb866272875d`.
+Settings, jobs, journals and diagnostic evidence remain in place. No deployment
+rollback copies were created or retained.
+
+## Historical host .82 installation
+
+Host .82 recovery source is merged through PR #123 at
+`417b8e2c4dd24c198d721a441f52cb4b9f30642f`. It recovers an unverified worker
+reservation after manager restart only when matching historical worker identity
+and repeated OS observations prove that interpreter lifetime has exited. Live
+workers are never adopted through this path; historical records remain intact.
+
+The qualified host-only composition is
+`db8fd5c23b417d215f918064aa1d20e2ed9f3ba7` on published
+`codex/worker-restart-release-20261009`. It preserves the installed graphics,
+native and asset trees. Native .56 continues to identify source `df97e7b`; its
+per-client launch receipts are not rewritten to pretend it was rebuilt with .82.
+Qualification passed 5,632 host tests (39 optional skips), both profiles' real
+IPC checks (74 movement, 86 combat and 170 actor cases each), and the separate
+Windows worker-startup test. All 477 source, wheel and installed module files
+agree. Host qualification receipt SHA-256:
+`ec981249b76aea27ff13dafaf6819d390b883a3ce0c3fe23c74e320fbebe55f8`.
+
+Host .82 is installed and its manager is verified healthy. All 477 installed
+modules and 9,557 retained settings/history records passed verification. The
+same Umbra process remained open; the client executable, native DLL and launch
+receipts were not replaced. Both manager shortcuts now reference .82. The old
+unverified reservation was removed by production recovery, with its historical
+heartbeat preserved. The verifier separately proved that exact permitted
+removal before recording activation; no installed plan or helper was rewritten.
+
+Live attachment then exposed a second issue: a historical worker PID had been
+reused by a protected Windows service. Both ordinary and query-only process
+handles were denied, causing the old-worker stop check to reject attachment
+before binding Umbra. A read-only kernel process census established the
+different creation FILETIME and matched Umbra's existing exact lifetime. The
+focused .83 fix is under review; automatic buffs remain inactive pending it.
+
+The following .81 installation record is historical.
+
 Official client 1.3.38.16 is installed with qualified host 0.3.81/native 1.8.56
 on the testing VM. PR #121 merged the reviewed compatibility head `b5b6a6a`
 into main at `6c3cd6d65db88f0c213df0fadd583cc53cad7485` after all 15 hosted
