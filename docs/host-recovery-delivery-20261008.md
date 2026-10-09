@@ -88,3 +88,42 @@ The earlier Umbra PID/readiness has expired. A live NPC check requires a fresh
 native character binding and login.
 Persistent background buff upkeep and the existing-character picker are separate
 source work and are not capabilities of this .79 update.
+
+## Live NPC check with the Visual Inspector overlay
+
+A fresh native binding identified Umbra on Wonderbane in PID 3480, creation
+FILETIME `134359684345840809`, with the `2f14379` / `52ac0004` overlay above.
+The installed host remains .78 / native .54. All 439 installed Python source
+modules matched the qualified .78 wheel plus the five reviewed graphics modules;
+no runtime or saved-setting replacement was performed for this check.
+
+Bounded production run `bec183eccdaf4c4b9d72aa070d1c9525` completed one native
+health-zero NPC kill in 11,218 ms and exited normally at its one-kill limit.
+Cleanup was confirmed. A subsequent zero-action native preflight,
+`cfde04add416476e8a69910ac9f7d561`, confirmed movement owner 0, no pending cleanup,
+a fresh scene-1 observation (141 ms old), and a living local character.
+
+This is **not successful concoction validation**. Greater Concoction was queued
+at the start, but the item adapter immediately reported local settlement.
+Ordinary attack was accepted at 1,343 ms while the potion remained pending.
+The user observed that starting attack before application canceled the potion.
+Final publication still marked concoction missing/pending. Precision, Beorc Rune
+and defensive stance were present; both transform alternatives were not ready.
+Do not describe this run as all five buff groups present or infer successful
+potion application from a queued item-use acknowledgement.
+
+Source review confirms that the ordinary item-use adapter treats a normal
+outbound return as local settlement without proving completion of delayed,
+cancellable activation. Correct the native activation/combat-handoff boundary
+and cancellation reconciliation before repeating this potion-to-attack check.
+Do not substitute a fixed delay, inventory quantity change, or system-message
+parsing for the required native lifecycle evidence. Persistent buff-worker and
+native preparation lanes remain source-only and unfinished.
+
+Private evidence remains in `bot-production-pve-20261008-visual` on the testing
+VM diagnostics share and local `artifacts/bot-production-pve-20261008-visual`.
+The reviewed production wrapper SHA-256 is
+`685411ab98031f54d700a20f29b8deea4e0ac0d461af509059dbd22703d74f76`;
+its installed-module manifest is
+`fb2fe6280919e35fc321d7151bde4464e9ae9542ab66c174cbd9f861c7578eb0`.
+Only this compact receipt is published; private captures stay local.

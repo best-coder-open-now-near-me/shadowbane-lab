@@ -31,7 +31,11 @@ Active checkout ownership:
   persistent worker service and its controls, with picker `405cf10` as ancestry.
 
 Both buff lanes remain unfinished and unqualified. They target main after
-combined review and tests. Background buff upkeep is not yet installed; combat
+combined review and tests. The new-overlay one-NPC check completed, but user
+observation confirmed that
+attack canceled the pending concoction; its activation/handoff fix is now part
+of the native lane. See the recovery delivery record for the bounded result and
+fresh idle postflight. Background buff upkeep is not yet installed; combat
 focus policy is unchanged. Do not switch another lane's active checkout.
 The historical checkpoints below describe earlier state, superseded by this entry.
 
