@@ -505,7 +505,7 @@ def test_admission_unknown_never_claims_block_and_requires_positive_revision():
     for changes in (
         {"admission_revision": 0},
         {"admission_revision": True},
-        {"admission_blocks": 32},
+        {"admission_blocks": 64},
         {"admission_blocks": True},
         {"complete": False, "admission_blocks": 1},
     ):
