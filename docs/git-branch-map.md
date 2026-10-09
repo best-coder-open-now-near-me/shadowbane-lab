@@ -1,5 +1,17 @@
 # Git branch map
 
+## Worker reservation recovery after manager restart - October 9
+
+`codex/worker-reservation-restart-20261009` starts from main `f7110e7` in
+`buff-activation-observer`. Host .82 adds exact historical interpreter-exit
+recovery for an unverified launch reservation left across manager restart.
+The matching worker nonce, slot and old game instance must agree with a valid
+heartbeat, and repeated OS observations must prove that interpreter lifetime
+is absent or replaced. A live worker is never adopted through this recovery.
+Historical heartbeat, stop and job records remain intact. Native .56 is unchanged.
+The source targets main; release composition must preserve installed graphics.
+Next: peer review and exact-source qualification before installing the host fix.
+
 ## Official client 1.3.38.16 update - October 9
 
 Start from refreshed main, now including PR #121 at `6c3cd6d`. Reviewed host and
