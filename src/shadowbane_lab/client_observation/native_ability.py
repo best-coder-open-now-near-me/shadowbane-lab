@@ -221,7 +221,8 @@ class NativeAbilityResolver:
             rank,
         )
 
-    def resolve(self, selector: str) -> NativeAbilityDefinition:
+    def resolve_definition(self, selector: str) -> NativeAbilityDefinition:
+        """Observe a learned definition; this grants no action or recipient authority."""
         if not isinstance(selector, str) or not selector.strip():
             raise NativeAbilityError("ability selector must be a name or positive numeric ID")
         selector = selector.strip()
@@ -263,7 +264,10 @@ class NativeAbilityResolver:
         )
         _require(entries == self._training.observe().powers, "learned ability vector changed")
         self._current()
-        result = matches[0]
+        return matches[0]
+
+    def resolve(self, selector: str) -> NativeAbilityDefinition:
+        result = self.resolve_definition(selector)
         _ = result.recipient  # Validate routing without importing the PvE policy layer.
         return result
 

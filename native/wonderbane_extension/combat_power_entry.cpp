@@ -101,6 +101,7 @@ namespace {
 bool CurrentScope(void* scope) noexcept { return static_cast<Scope*>(scope)->Current(); }
 bool InvokeBound(Scope& scope, const Calls& calls) {
     const auto& c = scope.Binding();
+    if(c.target_mode==TargetMode::track){return false;}
     if (!scope.CanEnter()) { return false; }
     // The manager owns definitions. Lookup and use occur on one admitted native
     // owner callback; never retain them as ArcObjects or cache learned records.
@@ -152,6 +153,34 @@ bool InvokeBound(Scope& scope, const Calls& calls) {
     const float position[3]{};
     return detail::Entry::Call(scope, calls.use, rank, position);
 }
+}
+namespace {
+bool InvokeTrackBound(Scope& scope,const Calls& calls) {
+    const auto& c=scope.Binding();
+    if(c.target_mode!=TargetMode::track||c.authority!=Authority::actor
+        ||c.power_id!=429578587U||!scope.CanEnter()){return false;}
+    const auto definition=reinterpret_cast<std::uintptr_t>(calls.definition(c.power_id));
+    const int learned=calls.rank(reinterpret_cast<void*>(c.actor),c.power_id);
+    std::array<std::uint32_t,4> fields{},after{};
+    const auto capture=[&](auto& out){return definition&&Read(&out[0],definition+0x138,4)
+        &&Read(&out[1],definition+0x204,4)&&Read(&out[2],definition+0x1a8,4)
+        &&Read(&out[3],definition+0x1b4,4);};
+    if(learned<=0||!capture(fields)||fields!=std::array<std::uint32_t,4>{c.power_id,4,4,0}
+        ||!scope.CanEnter()||calls.definition(c.power_id)!=reinterpret_cast<void*>(definition)
+        ||calls.rank(reinterpret_cast<void*>(c.actor),c.power_id)!=learned||!capture(after)||fields!=after){return false;}
+    // Exact category-4 zero-Key branch 9bdf7..9bee4 sends TrackingListMsg
+    // before PreparePower. It has no stance/recovery/reuse or initiation work.
+    // Importing the generic cast predicate would block a harmless query during attack.
+    const auto rank=static_cast<std::uint32_t>(std::min(learned,9999));
+    if(!scope.Enter(definition,rank)){return false;}
+    const float position[3]{};
+    return detail::Entry::Call(scope,calls.use,rank,position);
+}
+}
+bool InvokeTrack(Scope& scope) {
+    const auto image=scope.Binding().image;
+    return InvokeTrackBound(scope,{reinterpret_cast<Definition>(image+0x16d8a0),
+        reinterpret_cast<Rank>(image+0x9b400),reinterpret_cast<Use>(image+0x9bbf0),{},nullptr});
 }
 bool ReadSelfInitiation(std::uintptr_t image, std::uintptr_t actor, std::uint32_t id,
     InitiationDefinition& out) {

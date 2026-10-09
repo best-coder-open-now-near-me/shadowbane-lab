@@ -1,6 +1,8 @@
 #include "movement_boundary_trace.h"
 #include "targeted_action_trace.h"
 #include "condemn_responses.h"
+#include "tracking_responses.h"
+#include "native_owner_services.h"
 #include "item_application_trace.h"
 #include "combat_runtime.h"
 #include "actor_effects_native.h"
@@ -35,7 +37,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.8.56";
+constexpr char kExtensionVersion[] = "1.8.57";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -428,6 +430,12 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             // Optional passive tracing cannot disable an otherwise working client.
             (void)wonderbane::extension::StartTargetedActionTrace(identity);
             (void)wonderbane::extension::condemn::Start(identity);
+            if (wonderbane::extension::tracking::Start(identity) == ERROR_SUCCESS) {
+                wonderbane::extension::tracking_response_ready.store(+[]() noexcept {
+                    wonderbane::extension::tracking::Cursor cursor{};
+                    return wonderbane::extension::tracking::ReadCursor(cursor);
+                }, std::memory_order_release);
+            }
             (void)wonderbane::extension::item_trace::Start(identity);
             const DWORD trace_result = wonderbane::extension::StartMovementBoundaryTrace(identity);
             movement_trace_started = trace_result == ERROR_SUCCESS;
@@ -489,6 +497,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result != ERROR_SUCCESS) {
             wonderbane::extension::StopTargetedActionTrace();
             wonderbane::extension::condemn::Stop();
+            wonderbane::extension::tracking::Stop();
             wonderbane::extension::item_trace::Stop();
             if (movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
             if (performance_telemetry_started) {

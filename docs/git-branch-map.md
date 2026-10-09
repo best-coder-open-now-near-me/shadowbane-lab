@@ -1,23 +1,56 @@
 # Git branch map
 
-## Preparation recovery after an internal fault - October 9
+## Hunt Foe player-awareness work - October 9
 
-`codex/preparation-fault-recovery-20261009` in the dedicated
-`preparation-fault-recovery` worktree starts from refreshed main `b5ebb51`
-and targets main. The host .86 candidate separates internal preparation cleanup
-from an explicit finite-operation handoff. After positive native closure and
-resource disposal, it resumes only when current saved/control intent and worker
-authority allow; unresolved cleanup and explicit operation reservations remain
-blocking. The first internal fault remains visible through cleanup, and a real
-finite handoff reports yielding rather than disabled buffs.
+Start from refreshed main `7646af6`. Root owns `codex/native-track-awareness-20261009`
+in the `native-track-awareness` worktree, targeting main through PR #133.
+Published checkpoints `73083d8`/`882f3d2` supply the learned Hunt Foe resolver,
+passive native reader and live ten-contact qualification; `e1c006c` publishes
+native response generations; `d56fe36` adds same-owner automatic queries, saved
+per-character intent and manager contact display. These source slices passed
+focused tests and independent reviews. Combined .87/.57 package and final hosted
+checks are active; merge and installation are next. No Track code is installed
+yet, and the .86/.56 runtime is unchanged. The root-owned `bot-integration`
+release checkout will preserve its installed graphics composition when combining
+the new bot source. The user parked conc-pot interruption testing; normal PvE
+and Hunt Foe awareness take priority. See [the Track contract](native-track.md).
 
-The service-loop regression reproduced the retained-handoff defect and lost
-fault detail before the fix. This does not identify which exception, if any,
-caused the live .85 disabled observation. Native .56 and installed software are
-unchanged by this source checkpoint. Independent review passed all 65 focused tests. Next: main integration,
-exact host qualification, and normal live maintenance verification. See
-[the recovery contract](preparation-fault-recovery.md).
+## Preparation recovery delivery - October 9
 
+Start new work from refreshed main, including PR #131 at `abc4f3d`. Its independently
+reviewed .86 fix separates internal fault cleanup from finite-operation handoff;
+positive native closure and resource disposal precede automatic reacquisition.
+Explicit Stop/Pause and unresolved cleanup retain authority. The 65 focused tests
+reproduce the old defect without claiming the exact live .85 exception cause.
+
+Root's release `47242467adab1ee36d882dfe3ba9367050db8c8b`, published on
+`codex/preparation-fault-release-20261009` in the root-owned `bot-integration`
+checkout, is qualified as host .86:
+5,705 host tests passed (39 optional skips), both IPC profiles, worker handshake
+and all six installed-wheel desktop cases passed; 480 module files agree. Native
+.56 source `df97e7b`, graphics and runtime inputs are preserved, with only the
+reviewed test-fixture exception. Pre-update normal Detach caused automatic rebind;
+Resume restored five-group upkeep and four native application receipts on worker
+5396. That sampled recovery does not prove Conc-pot renewal or the earlier cause.
+
+`codex/preparation-recovery-delivery-20261009` in `preparation-fault-recovery`
+owns this documentation lane from merged main. Preparation, exact shutdown,
+apply and shortcut updates passed, preserving 9,494 records and the same game/DLL
+without client writes or rollback copies. Activation is verified on manager 1776
+and worker 2784 with 480 modules, zero retained-record exclusions and ten expected
+generated changes. Normal Resume succeeded. All five groups were present across
+101 valid native samples spanning 116.5 seconds, with three unavailable reads;
+no new application transition was captured. Exact obsolete-.85 retirement removed
+2,151 host files plus ten wheels (57,774,066 bytes); all eleven paths are absent.
+The independent post-check confirms unchanged game/DLL, healthy worker 2784,
+all five groups current and maintaining, and no active/queued operation.
+The merged recovery source branch was retired locally/remotely after ancestry
+verification; the previous .85 release branch was also retired after confirming
+its tip remains in current release `4724246`. The current release remains owned
+by root. This two-document delivery branch targets main after independent review
+and required checks.
+Natural Conc-pot renewal and movement-interruption acceptance remain. See the
+[delivery record](client-update-20261009.md) and [recovery contract](preparation-fault-recovery.md).
 
 ## Manager desktop startup delivery - October 9
 
@@ -42,8 +75,9 @@ are absent, with unchanged game/DLL and healthy upkeep at that checked boundary.
 verifiers must retain Windows path identity semantics, not the old case-sensitive
 manifest comparison.
 
-`codex/manager-desktop-delivery-20261009` in `buff-activation-observer` owns the
-delivery documentation only. Root retired the merged source topic `codex/manager-desktop-readiness-20261009`
+The merged `codex/manager-desktop-delivery-20261009` tip `624669d` remains in main;
+its local/remote branch was retired and the clean, unowned `buff-activation-observer`
+worktree was archived after preserving its Git history. Root retired the merged source topic `codex/manager-desktop-readiness-20261009`
 and superseded `codex/preparation-status-release-20261009` locally and remotely
 after verifying no checkout ownership and tip reachability in main/current release.
 The exact current `7720bc5` release branch/worktree remains published. Qualification,

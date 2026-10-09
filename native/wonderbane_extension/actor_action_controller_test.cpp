@@ -13,7 +13,7 @@ template<class T> bool Read(const char* path,T& out){std::ifstream f(path);std::
 w::Command Plain(w::Command c){c.action=w::Action::none;c.power_id=0;c.item_key[0]=c.item_key[1]=c.template_key[0]=c.template_key[1]=0;c.item_hint=c.template_hint=0;c.recipient=w::Recipient::none;c.selector_index=w::no_selector;c.manifest_digest={};c.publication_revision=0;c.snapshot_id={};return c;}
 struct Fake final:a::Invoker {
     unsigned opens{},attaches{},submits{},stops{},revokes{};
-    bool local_pending{},stop_pending{},reuse{},reenter{};
+    bool local_pending{},stop_pending{},reuse{},reenter{},unknown_entry{};
     w::Reason admission_reason=w::Reason::none;
     a::Controller* controller{};
     a::Operation Open(const w::Command&) noexcept override {++opens;a::Operation r;r.outcome=w::Outcome::bound;r.state.phase=w::Phase::bound;return r;}
@@ -23,8 +23,10 @@ struct Fake final:a::Invoker {
         if(admission_reason!=w::Reason::none){r.outcome=w::Outcome::deferred;r.reason=admission_reason;return r;}
         if(reuse){r.outcome=w::Outcome::power_reuse_blocked;r.reason=w::Reason::power_reuse;return r;}
         r.outcome=w::Outcome::queued;r.entry=w::Entry::entered;r.history=w::outbound_queued;
-        r.local=local_pending?w::LocalSettlement::pending:w::LocalSettlement::settled;
-        r.application=c.action==w::Action::attack?w::Application::none:w::Application::pending;
+        r.local=local_pending&&c.action!=w::Action::track?w::LocalSettlement::pending:w::LocalSettlement::settled;
+        r.application=(c.action==w::Action::attack||c.action==w::Action::track)?w::Application::none:w::Application::pending;
+        if(unknown_entry){r.outcome=w::Outcome::uncertain;r.entry=w::Entry::unknown;
+            r.history=w::uncertain_history;r.local=w::LocalSettlement::pending;r.application=w::Application::unknown;}
         if(reenter){auto stop=Plain(c);stop.context_id={};stop.context_digest={};(void)controller->Execute(w::Verb::stop_owner,stop,true,true,true,*this);}
         return r;
     }
@@ -43,6 +45,43 @@ int main(int argc,char** argv){
     auto context=owner;context.context_id=child.context_id;Check(a::fence::HashBinding(child,context.context_digest),"context hash");
     auto attack=context;attack.request=Id(10);attack.action=w::Action::attack;attack.recipient=w::Recipient::target;
     item.request=Id(11);
+    {
+        a::Controller query_controller;Fake query_native;query_native.controller=&query_controller;
+        Run(query_controller,query_native,w::Verb::open_owner,owner);
+        Run(query_controller,query_native,w::Verb::attach_context,context);
+        auto casting=Plain(attack);casting.action=w::Action::cast;casting.power_id=111;
+        casting.recipient=w::Recipient::target;casting.request=Id(2);
+        query_native.local_pending=true;
+        const auto original=Run(query_controller,query_native,w::Verb::submit,casting);
+        Check(original.local_settlement==w::LocalSettlement::pending,"normal power remains locally pending");
+        auto query=owner;query.request=Id(3);query.action=w::Action::track;
+        query.power_id=429578587;query.recipient=w::Recipient::actor;
+        const auto receipt=Run(query_controller,query_native,w::Verb::submit,query);
+        Check(receipt.outcome==w::Outcome::queued&&receipt.application==w::Application::none
+            &&receipt.local_settlement==w::LocalSettlement::settled&&query_native.submits==2,
+            "query can run beside queued power without owning its child");
+        Run(query_controller,query_native,w::Verb::action_status,query);
+        const auto retained=Run(query_controller,query_native,w::Verb::action_status,casting);
+        Check(retained.local_settlement==w::LocalSettlement::pending&&retained.command_digest==original.command_digest,
+            "query status preserves original cast obligation");
+        Check(!w::Valid(w::Verb::cancel_action,query),"query cannot cancel owner combat");
+
+        query_native.stop_pending=true;Run(query_controller,query_native,w::Verb::stop_context,context);
+        query.request=Id(5);
+        Check(Run(query_controller,query_native,w::Verb::submit,query).entry==w::Entry::never_entered,
+            "query never bypasses exact child cleanup");
+    }
+    {
+        a::Controller unknown;Fake backend;backend.controller=&unknown;
+        Run(unknown,backend,w::Verb::open_owner,owner);Run(unknown,backend,w::Verb::attach_context,context);
+        auto casting=Plain(attack);casting.action=w::Action::cast;casting.power_id=111;
+        casting.recipient=w::Recipient::target;casting.request=Id(2);backend.unknown_entry=true;
+        Check(Run(unknown,backend,w::Verb::submit,casting).entry==w::Entry::unknown,"unknown native entry retained");
+        auto query=owner;query.request=Id(3);query.action=w::Action::track;query.power_id=429578587;
+        query.recipient=w::Recipient::actor;const auto calls=backend.submits;
+        Check(Run(unknown,backend,w::Verb::submit,query).entry==w::Entry::never_entered&&backend.submits==calls,
+            "tracking cannot bypass unknown native responsibility");
+    }
     a::Controller c;Fake f;f.controller=&c;
     Check(Run(c,f,w::Verb::open_owner,owner).outcome==w::Outcome::bound&&f.opens==1,"open one actor owner");
     Run(c,f,w::Verb::open_owner,owner);Check(f.opens==1,"repeated owner does not bind twice");

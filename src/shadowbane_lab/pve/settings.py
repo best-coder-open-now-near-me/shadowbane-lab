@@ -21,6 +21,7 @@ from shadowbane_lab.record_store import (
 )
 
 from .buff_intent import BuffSettings
+from .tracking import TrackingSettings
 
 _MAX_BYTES = 16_384
 
@@ -31,8 +32,11 @@ class PvESettings:
     opening_skill: str | None = None
     revision: int = 0
     buffs: BuffSettings = BuffSettings()
+    tracking: TrackingSettings = TrackingSettings()
 
     def __post_init__(self) -> None:
+        if not isinstance(self.tracking, TrackingSettings):
+            raise ValueError("tracking settings must be typed")
         if not isinstance(self.buffs, BuffSettings):
             raise ValueError("buff settings must be typed")
         if self.policy not in ("basic", "proc-assassin"):
@@ -57,6 +61,7 @@ class PvESettings:
             "opening_skill": self.opening_skill,
             "revision": self.revision,
             "buffs": self.buffs.as_dict(),
+            "tracking": self.tracking.as_dict(),
         }
 
 
@@ -107,8 +112,10 @@ def load_pve_settings(identity, *, root: Path | None = None) -> PvESettings:
     value = json.loads(raw, object_pairs_hook=_unique_object)
     fields = {"schema_version", "server", "character", "policy", "opening_skill", "revision"}
     if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
-            or value["schema_version"] not in (1, 2)
-            or set(value) != (fields if value["schema_version"] == 1 else fields | {"buffs"})):
+            or value["schema_version"] not in (1, 2, 3)
+            or set(value) != (fields if value["schema_version"] == 1 else
+                              fields | {"buffs"} if value["schema_version"] == 2 else
+                              fields | {"buffs", "tracking"})):
         raise ValueError("PvE settings schema is invalid")
 
     if (value["server"], value["character"]) != _owner(identity):
@@ -116,7 +123,9 @@ def load_pve_settings(identity, *, root: Path | None = None) -> PvESettings:
     # Loading schema 1 is a pure migration: no write, no implicit buff enablement.
     buffs = (BuffSettings() if value["schema_version"] == 1
              else BuffSettings.from_dict(value["buffs"]))
-    return PvESettings(value["policy"], value["opening_skill"], value["revision"], buffs)
+    tracking = (TrackingSettings() if value["schema_version"] < 3
+                else TrackingSettings.from_dict(value["tracking"]))
+    return PvESettings(value["policy"], value["opening_skill"], value["revision"], buffs, tracking)
 
 
 def save_pve_settings(
@@ -139,7 +148,7 @@ def save_pve_settings(
         updated = replace(settings, revision=expected.revision + 1)
         server, character = _owner(identity)
         payload = json.dumps(
-            {"schema_version": 2, "server": server, "character": character, **updated.as_dict()},
+            {"schema_version": 3, "server": server, "character": character, **updated.as_dict()},
             ensure_ascii=True,
             allow_nan=False,
         ).encode()

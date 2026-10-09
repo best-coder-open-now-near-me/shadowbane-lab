@@ -528,6 +528,8 @@ def _run_pve(
             ))
             if saved_settings.buffs.enabled:
                 actor_owner.configure_preparation(saved_settings.buffs)
+            if saved_settings.tracking.enabled:
+                actor_owner.configure_tracking(saved_settings.tracking)
             combat = stack.enter_context(NativeCombatCoordinator(owner=actor_owner))
             listed_combat = ListedCombatCoordinator(
                 store=attack_list, combat=combat,
@@ -554,6 +556,7 @@ def _run_pve(
                 listed_combat=listed_combat,
                 combat_cleanup=combat,
                 actor_preparation=actor_owner if saved_settings.buffs.enabled else None,
+                actor_tracking=actor_owner if saved_settings.tracking.enabled else None,
                 stop_signal=active_stop_signal,
                 poll_interval_ms=poll_ms,
                 maximum_retained_trace_steps=(retained_trace_steps if continuous else None),

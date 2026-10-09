@@ -128,7 +128,7 @@ bool NativeActor::BindScene(const movement::NativeScene& scene,HWND window,Admis
     calls_.lookup=reinterpret_cast<decltype(calls_.lookup)>(image_+0x1fcc80);
     calls_.release=reinterpret_cast<decltype(calls_.release)>(image_+0x89bd0);
     calls_.dispatch=reinterpret_cast<decltype(calls_.dispatch)>(image_+0x7ca9c0);
-    calls_.attack=melee::Invoke;calls_.power=power::Invoke;calls_.self_initiation=power::ReadSelfInitiation;calls_.item=combat::item::Invoke;
+    calls_.attack=melee::Invoke;calls_.power=power::Invoke;calls_.track=power::InvokeTrack;calls_.self_initiation=power::ReadSelfInitiation;calls_.item=combat::item::Invoke;
     running_=true;bool ok=false;
     __try{ok=BindCxx();}__except(EXCEPTION_EXECUTE_HANDLER){faulted_=true;}
     running_=false;
@@ -192,6 +192,15 @@ bool NativeActor::AppendGate(void* value) noexcept {
         &&self.parent_gates_.append_current&&self.parent_gates_.append_current(self.parent_gates_.context)
         &&(!wire::Any(self.command_.context_id)||(self.child_bound_&&self.child_gates_.append_current
             &&self.child_gates_.append_current(self.child_gates_.context)));
+}
+bool NativeActor::TrackGate(void* value) noexcept {
+    auto& self=*static_cast<NativeActor*>(value);
+    return !self.faulted_&&!power::NativeUseInFlight()&&!self.request_&&!self.transfer_&&self.Current(false);
+}
+bool NativeActor::TrackAppendGate(void* value) noexcept {
+    auto& self=*static_cast<NativeActor*>(value);
+    return !self.faulted_&&!self.revoked_&&self.parent_bound_&&self.RawCurrent()
+        &&self.parent_gates_.append_current&&self.parent_gates_.append_current(self.parent_gates_.context);
 }
 bool NativeActor::SceneGate(void* value) noexcept{return static_cast<NativeActor*>(value)->SceneCurrent();}
 void NativeActor::ClearInstant() noexcept {instant_self_id_=0;instant_self_epoch_=0;instant_definition_={};}
@@ -355,10 +364,38 @@ NativeActor::Operation NativeActor::SubmitImpl(){
     if(result.local_settlement==L::pending){pending_=true;pending_command_=command_;pending_operation_=result;}
     return result;
 }
+NativeActor::Operation NativeActor::TrackImpl() {
+    stage_="tracking_query";
+    if(!TrackGate(this)){return Blocked(power::NativeUseInFlight()?admission::native_use:0U);}
+    std::uintptr_t writer{},container{};
+    if(!Read(image_+0x16ab88c,writer)||!Read(writer+0x44,container)||!calls_.track){return Result(O::unavailable);}
+    power::Context context{image_,scene_.actor,0,writer,container,scene_.identity,{},track_command_.power_id,
+        TrackGate,TrackAppendGate,this,&track_receipt_,power::TargetMode::track,power::Authority::actor};
+    power::Scope scope(context);
+    (void)calls_.track(scope);
+    const auto receipt=scope.Finish();
+    Operation result=Result(receipt.native_entered?O::uncertain:O::deferred,
+        receipt.native_entered?E::entered:E::never_entered);
+    if(receipt.append_observed){result.history|=wire::outbound_queued;}
+    if(receipt.result==power::Result::queued&&receipt.native_entered&&receipt.append_observed
+        &&receipt.observation.use_returned&&TrackGate(this)){result.outcome=O::queued;}
+    else if(receipt.native_entered){result.history|=wire::uncertain_history;}
+    // The normal Use return released its local message references. No cast,
+    // initiation token or application is owned by this query. Existing pending
+    // combat state is deliberately untouched, including its exact receipt.
+    (void)ReadState(result.state);return result;
+}
 NativeActor::Operation NativeActor::Submit(const wire::Command& command,combat::activation::Handle activation) noexcept {
     if(running_||faulted_||!wire::Valid(wire::Verb::submit,command)||!parent_bound_
         ||!wire::Bindings(command,parent_,wire::Any(command.context_id)?&child_:nullptr)
         ||(wire::Any(command.context_id)&&!child_bound_)){return Result(O::invalid);}
+    if(command.action==wire::Action::track){
+        if(activation||request_||transfer_||(pending_&&(!pending_owned_followup_
+            ||pending_operation_.outcome!=O::queued||pending_operation_.entry!=E::entered
+            ||!(pending_operation_.history&wire::outbound_queued)))){return Blocked(admission::local_action);}
+        track_command_=command;track_receipt_={};running_=true;
+        const auto result=Guarded(9);running_=false;return result;
+    }
     if(pending_||request_||transfer_){return Blocked(admission::local_action);}
     if(activation&&activation.identity!=combat::activation::ActivationIdentity{scene_.actor,scene_.identity,scene_.epoch}){return Result(O::invalid);}
     command_=command;activation_=activation;running_=true;dispatched_=false;melee_receipt_={};power_receipt_={};item_receipt_={};item_state_={};
@@ -470,6 +507,7 @@ void NativeActor::Revoke() noexcept {revoked_=true;}
 NativeActor::Operation NativeActor::RunCxx(unsigned operation,Admission gate,void* context) noexcept {
     try{
         switch(operation){case 1:return AttachImpl();case 2:return SubmitImpl();case 3:return PollImpl();
+        case 9:return TrackImpl();
         case 4:return StopImpl(false,gate,context);case 5:return StopImpl(true,gate,context);
         case 6:if(!ReleaseTarget()){faulted_=true;}return Result(O::observed);
         case 7:if(!ReleaseMessages()){faulted_=true;}return Result(O::observed);
@@ -486,6 +524,11 @@ NativeActor::Operation NativeActor::Guarded(unsigned operation,Admission gate,vo
     submission::Boundary melee_boundary;power::Boundary power_boundary;Operation result{};
     __try{__try{result=RunCxx(operation,gate,context);}__finally{power_boundary.Restore();melee_boundary.Restore();}}
     __except(EXCEPTION_EXECUTE_HANDLER){faulted_=true;result=Result(O::uncertain,E::unknown,L::pending);}
+    if(faulted_&&operation==9){
+        result.entry=track_receipt_.native_entered?E::entered:E::unknown;
+        result.local_settlement=L::pending;
+        result.history|=wire::uncertain_history|(track_receipt_.append_observed?wire::outbound_queued:0U);
+    }
     if(faulted_&&(operation==2||operation==7)){
         const bool entered=command_.action==wire::Action::attack?melee_receipt_.native_entered:
             command_.action==wire::Action::use_item?item_receipt_.native_entered:power_receipt_.native_entered;

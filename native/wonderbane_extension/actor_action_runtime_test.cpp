@@ -401,6 +401,27 @@ int main(){
             "fresh native coverage reconciles each sequential group and permits next expiry cycle");
     }
     Check(Execute(w::Verb::stop_owner,resumed).closure==w::Closure::local_released,"interrupted item is not fabricated local ownership");
+    {
+        f::ActorBinding track_binding{};auto tracking_owner=Parent(90,track_binding);
+        track_binding.purpose=f::Purpose::preparation;track_binding.movement_generation=0;tracking_owner.grant={};
+        Check(f::Hash(track_binding.owner_id.data(),track_binding.owner_id.size(),track_binding.operation)
+            &&f::HashBinding(track_binding,tracking_owner.parent_digest),"tracking-only preparation identity");
+        Mapping track_map(track_binding);
+        Check(Execute(w::Verb::open_owner,tracking_owner).outcome==w::Outcome::bound,"tracking-only actor parent opens");
+        auto query=tracking_owner;query.request=Id(2);query.action=w::Action::track;
+        query.power_id=429578587;query.recipient=w::Recipient::actor;
+        const auto records=a::runtime.journal.Records();const auto has_manifest=a::runtime.has_manifest;
+        a::runtime.has_manifest=false;
+        const auto track_result=Execute(w::Verb::submit,query);
+        Check(track_result.outcome==w::Outcome::queued&&track_result.entry==w::Entry::entered
+            &&track_result.local_settlement==w::LocalSettlement::settled&&track_result.application==w::Application::none,
+            "Track has no selector publication or application barrier");
+        Check(!std::memcmp(&records,&a::runtime.journal.Records(),sizeof(records)),"Track never mutates buff journal");
+        preparation_idle=false;query.request=Id(3);
+        Check(Execute(w::Verb::submit,query).reason==w::Reason::manual_activity,"manual preparation veto remains");
+        preparation_idle=true;a::runtime.has_manifest=has_manifest;
+        Check(Execute(w::Verb::stop_owner,tracking_owner).closure==w::Closure::local_released,"query has no cast cleanup");
+    }
     std::printf("actor runtime: %u checks, %u native submits, no failures\n",checks,calls);return 0;
 }
 

@@ -50,6 +50,8 @@ from shadowbane_lab.pve.preparation_status import PreparationStatus, PvEProgress
 from shadowbane_lab.travel.arrival import ArrivalTracker
 from shadowbane_lab.travel.runtime import TravelDecisionDispatcher
 
+from .tracking import TrackingStatus
+
 
 @runtime_checkable
 class PvEIntentDispatcher(Protocol):
@@ -150,6 +152,7 @@ class PvERunner:
         listed_combat: ListedCombatCoordinator | None = None,
         combat_cleanup: PvECombatCleanup | None = None,
         actor_preparation=None,
+        actor_tracking=None,
         stop_signal: StopSignal,
         poll_interval_ms: int = 100,
         maximum_consecutive_observation_failures: int = 3,
@@ -252,6 +255,7 @@ class PvERunner:
         self._population_reader = population_reader
         self._combat_cleanup = combat_cleanup
         self._actor_preparation = actor_preparation
+        self._actor_tracking = actor_tracking
         self._cleanup_failed = False
         self._cleanup_result: PvECombatCleanupResult | None = None
         self._dispatcher = dispatcher
@@ -337,7 +341,9 @@ class PvERunner:
                                                      local_pending=False)
                     self._progress_sink(PvEProgress(time.time(), step.decision.phase.value,
                         step.decision.terminal_reason or step.decision.phase.value,
-                        step.decision.kills, preparation))
+                        step.decision.kills, preparation,
+                        TrackingStatus() if self._actor_tracking is None
+                        else self._actor_tracking.tracking_status))
                 except Exception:
                     pass
             trace.append(step)
@@ -418,6 +424,8 @@ class PvERunner:
                     population=population,
                 )
                 last_observation = observation
+                if self._actor_tracking is not None and not self._stop_signal.is_set():
+                    self._actor_tracking.tracking_step()
                 listed = self._listed_combat
                 camp = (None if listed is None
                         else self._controller.candidate_camp(observation))

@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 
 from shadowbane_lab.pve.preparation_status import PreparationStatus
+from shadowbane_lab.pve.tracking import TrackingStatus
 
 from .preparation_service import PreparationServiceSnapshot
 from .worker import WorkerHealthState, WorkerHeartbeat, parse_worker_heartbeat
@@ -18,12 +19,14 @@ class WorkerPreparationStatus:
         value = self.service
         return dict(schema_version=1, heartbeat=self.heartbeat.to_dict(),
                     state=value.state, control_revision=value.control_revision,
-                    preparation=value.preparation.to_dict(), detail=value.detail)
+                    preparation=value.preparation.to_dict(), detail=value.detail,
+                    tracking=value.tracking.to_dict())
 
     @classmethod
     def parse(cls, value):
-        if (not isinstance(value, dict) or set(value) != {
-                "schema_version", "heartbeat", "state", "control_revision", "preparation", "detail"}
+        old_fields = {
+            "schema_version", "heartbeat", "state", "control_revision", "preparation", "detail"}
+        if (not isinstance(value, dict) or set(value) not in (old_fields, old_fields | {"tracking"})
                 or type(value["schema_version"]) is not int or value["schema_version"] != 1
                 or value["state"] not in {"starting", "paused", "disabled", "idle",
                                           "maintaining", "yielding", "needs_attention"}
@@ -33,7 +36,9 @@ class WorkerPreparationStatus:
             raise ValueError("invalid worker preparation status")
         return cls(parse_worker_heartbeat(value["heartbeat"]), PreparationServiceSnapshot(
             value["state"], value["control_revision"],
-            PreparationStatus.from_dict(value["preparation"]), value["detail"]))
+            PreparationStatus.from_dict(value["preparation"]), value["detail"],
+            TrackingStatus.from_dict(value["tracking"])
+            if "tracking" in value else TrackingStatus()))
 
 
 class PreparationStatusPublisher:
@@ -96,8 +101,18 @@ def project_status(record, worker, binding, *, now=None):
     if actor is not None and (actor.process_id, actor.process_creation) != (
             binding.process_id, binding.process_started_at_100ns):
         return unavailable
+    tracking = record.service.tracking.at(now)
+    tracking_actor = tracking.actor
+    if tracking_actor is not None and (
+        tracking_actor.process_id, tracking_actor.process_creation_filetime_utc
+    ) != (binding.process_id, binding.process_started_at_100ns):
+        return unavailable
+    tracking_view = tracking.to_dict()
+    if tracking.enabled and record.service.state not in {"maintaining", "idle"}:
+        tracking_view.update(current=False, state=(
+            "paused" if record.service.state == "paused" else "unavailable"))
     fresh = (preparation.captured_at is not None
              and 0 <= now - preparation.captured_at <= 3)
     return dict(state=record.service.state, current=fresh,
                 preparation=preparation.to_dict(), detail=record.service.detail,
-                control_revision=record.service.control_revision)
+                control_revision=record.service.control_revision, tracking=tracking_view)

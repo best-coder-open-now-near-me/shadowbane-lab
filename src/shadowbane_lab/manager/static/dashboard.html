@@ -220,8 +220,44 @@
             panel.append(row);
           }
           workerPanel.append(panel);
+          renderTrackingStatus(workerPanel, pve.tracking);
         }
 
+      }
+
+      function renderTrackingStatus(workerPanel, tracking) {
+        if (!tracking || !tracking.enabled) return;
+        const panel = document.createElement("section");
+        panel.className = "worker-panel";
+        const heading = document.createElement("h3");
+        heading.textContent = "Player tracking · Hunt Foe";
+        panel.append(heading);
+        const detail = document.createElement("p");
+        detail.className = "detail";
+        const labels = {waiting: "Waiting for a Hunt Foe result", stale: "Last known contacts",
+          unavailable: "Tracking unavailable", ended: "Tracking stopped",
+          worker_unavailable: "Tracking unavailable", paused: "Tracking paused"};
+        const contacts = tracking.contacts || [];
+        detail.textContent = tracking.current ?
+          (contacts.length ? `${contacts.length} player${contacts.length === 1 ? "" : "s"} on track` :
+            "No players in the latest Hunt Foe result") :
+          (labels[tracking.state] || "Waiting for a current result");
+        if (Number.isFinite(tracking.response_age_seconds))
+          detail.textContent += ` · result ${Math.max(0, tracking.response_age_seconds).toFixed(1)}s ago`;
+        panel.append(detail);
+        for (const contact of contacts) {
+          const row = document.createElement("p");
+          row.className = "detail";
+          row.textContent = `${tracking.current ? "" : "Last seen: "}${text(contact.name)}`;
+          panel.append(row);
+        }
+        if (tracking.detail) {
+          const note = document.createElement("p");
+          note.className = "detail";
+          note.textContent = tracking.detail;
+          panel.append(note);
+        }
+        workerPanel.append(panel);
       }
 
       const text = (value, fallback = "—") => {
@@ -511,6 +547,8 @@
 
         renderPveStatus(workerPanel, slot?.pve);
         if (slot?.automatic_buffs) renderAutomaticBuffs(workerPanel, slot.automatic_buffs);
+        if (!["accepted", "active"].includes(slot?.pve?.operation_state))
+          renderTrackingStatus(workerPanel, slot?.automatic_buffs?.tracking);
 
         const controls = document.createElement("div");
         controls.className = "actions";

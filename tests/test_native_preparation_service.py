@@ -45,7 +45,8 @@ def resources(monkeypatch):
     monkeypatch.setattr(
         module, "load_bundled_native_character_population_profile", lambda: object())
     monkeypatch.setattr(module, "load_pve_settings",
-                        lambda _: SimpleNamespace(buffs=SimpleNamespace(enabled=True)))
+                        lambda _: SimpleNamespace(buffs=SimpleNamespace(enabled=True),
+                                                  tracking=SimpleNamespace(enabled=False)))
     monkeypatch.setattr(module, "NativeMovementSession", Session)
     monkeypatch.setattr(module, "NativeActorCoordinator", Coordinator)
     monkeypatch.setattr(module, "_WindowsKernel", lambda: SimpleNamespace(tick_count=lambda: 150))

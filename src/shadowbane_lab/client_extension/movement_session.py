@@ -504,6 +504,14 @@ class NativeMovementSession:
                     "background preparation is unavailable"
                 )
 
+    def require_actor_tracking(self, grant) -> None:
+        """Read-only exact producer/capability check before allocating a query."""
+        with self._session_lock:
+            self.require_actor_actions(grant)
+            if not (self._actor_transport(grant=grant).header.capability_flags
+                    & channel.ACTOR_TRACK_CAPABILITY):
+                raise channel.NativeActionChannelUnavailable("native tracking query is unavailable")
+
     def actor_ordinals(self, grant: NativeMovementGrant):
         with self._session_lock:
             self.require_actor_actions(grant)
@@ -516,6 +524,7 @@ class NativeMovementSession:
         but carry no movement Grant and cannot create actor ownership.
         """
         from .actor_action_channel import NativeActorCommand
+        from .actor_action_wire import Action as ActorAction
         from .actor_action_wire import Command as ActorCommand
         from .actor_action_wire import Receipt as ActorReceipt
         from .actor_action_wire import Verb as ActorVerb
@@ -545,6 +554,10 @@ class NativeMovementSession:
                         self._require_new_work_ready(grant)
             transport = self._actor_transport(grant=grant,
                                               require_capability=readonly or admission)
+            if verb is ActorVerb.SUBMIT and command.action is ActorAction.TRACK and not (
+                transport.header.capability_flags & channel.ACTOR_TRACK_CAPABILITY
+            ):
+                raise channel.NativeActionChannelUnavailable("native tracking query is unavailable")
             timeout = (self.cleanup.timeout_ms(grant, self.timeout_ms)
                        if verb in (ActorVerb.STOP_OWNER, ActorVerb.STOP_CONTEXT,
                                    ActorVerb.CANCEL_ACTION) else self.timeout_ms)

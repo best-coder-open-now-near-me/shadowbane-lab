@@ -75,8 +75,9 @@ jobs:
           $env:WONDERBANE_ACTOR_ACTION_TEST = (Resolve-Path "build/native-${{ matrix.profile }}/Release/wonderbane_extension_actor_action_wire_test.exe").Path
           $env:SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE = (Resolve-Path "build/native-${{ matrix.profile }}/Release/wonderbane_extension_actor_publication_test.exe").Path
           $env:WONDERBANE_PREPARATION_CHANNEL_TEST_EXE = (Resolve-Path "build/native-${{ matrix.profile }}/Release/wonderbane_extension_preparation_channel_test.exe").Path
+          $env:WONDERBANE_TRACKING_RESPONSES_TEST_EXE = (Resolve-Path "build/native-${{ matrix.profile }}/Release/wonderbane_extension_tracking_responses_test.exe").Path
           try {
-            python -m pytest tests/test_actor_action_wire.py tests/test_actor_publication.py tests/test_actor_action_session.py tests/test_actor_selector_manifest.py tests/test_preparation_ipc_windows.py -q --junitxml=actor-ipc.xml
+            python -m pytest tests/test_actor_action_wire.py tests/test_actor_publication.py tests/test_actor_action_session.py tests/test_actor_selector_manifest.py tests/test_preparation_ipc_windows.py tests/test_tracking_publication.py -q --junitxml=actor-ipc.xml
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             python -c "from pathlib import Path; from scripts.build_navigation_inspector_package import validate_actor_ipc_results; validate_actor_ipc_results(Path('actor-ipc.xml'), '${{ matrix.profile }}')"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -84,6 +85,7 @@ jobs:
             Remove-Item Env:WONDERBANE_ACTOR_ACTION_TEST -ErrorAction SilentlyContinue
             Remove-Item Env:SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE -ErrorAction SilentlyContinue
             Remove-Item Env:WONDERBANE_PREPARATION_CHANNEL_TEST_EXE -ErrorAction SilentlyContinue
+            Remove-Item Env:WONDERBANE_TRACKING_RESPONSES_TEST_EXE -ErrorAction SilentlyContinue
           }
       - name: Check deferred transparency diagnostic outcomes
         run: python scripts/check_transparency_diagnostics.py --build-dir build/native-${{ matrix.profile }}

@@ -261,13 +261,14 @@ public:
     }
     Operation Submit(const wire::Command& input) noexcept override {
         const bool targeted=wire::Any(input.context_id);
+        const bool tracking=input.action==wire::Action::track;
         if(!active||!wire::Bindings(input,parent,targeted?&child:nullptr)||!(targeted?ChildCurrent(this):Current(this))){return Refused();}
         // Child cleanup occupies the shared local arbiter even after its last
         // action settled. Actor-only preparation cannot bypass that obligation.
         if(journal.Faulted()){return AdmissionRefused(0);}
-        if(const auto blocks=ArbiterBlocks()){return AdmissionRefused(blocks);}
-        if(!targeted){
-            if(Preparation()&&!movement::NativePreparationEntryCurrent(scene,preparation_input_epoch)) { return AdmissionRefused(admission::manual_activity); }
+        if(const auto blocks=ArbiterBlocks()&~(tracking?admission::local_action:0U)){return AdmissionRefused(blocks);}
+        if(Preparation()&&!movement::NativePreparationEntryCurrent(scene,preparation_input_epoch)) { return AdmissionRefused(admission::manual_activity); }
+        if(!targeted&&!tracking){
             std::uint32_t blocks{};
             if(!native.ReadAdmission(blocks)){return AdmissionRefused(0);}
             if(blocks){return AdmissionRefused(blocks);}
@@ -302,7 +303,7 @@ public:
             const auto submitted=native.Submit(input,index<activations.size()?activations[index]:combat::activation::Handle{});result=Converted(submitted);
             // Observation after native return, outside the queue lock. Never application authority.
             item_trace::OwnedReturn(input,scene,result.outcome,result.entry,result.local,result.history,&submitted.power_diagnostic);
-            if(!targeted&&result.outcome==O::deferred&&result.entry==wire::Entry::never_entered){
+            if(!targeted&&!tracking&&result.outcome==O::deferred&&result.entry==wire::Entry::never_entered){
                 if(submitted.admission_blocks){(void)publisher.ObserveAdmission(submitted.admission_blocks);}
                 else if(result.reason==wire::Reason::admission_changed){(void)publisher.InvalidateAdmission();}
             }

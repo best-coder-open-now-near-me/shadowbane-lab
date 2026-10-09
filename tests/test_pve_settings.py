@@ -215,7 +215,7 @@ def test_schema1_migration_preserves_intent_and_revision_without_write(tmp_path,
     assert path.read_text() == original
     updated = save(owner, tmp_path, replace(loaded, buffs=buff_intent()), expected=loaded)
     stored = json.loads(path.read_text())
-    assert stored["schema_version"] == 2 and stored["revision"] == 10
+    assert stored["schema_version"] == 3 and stored["revision"] == 10
     assert stored["opening_skill"] == "563795161"
     assert settings.load_pve_settings(owner, root=tmp_path) == updated
     with pytest.raises(ValueError, match="changed"):

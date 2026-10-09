@@ -15,7 +15,7 @@ using O=c::wire::Outcome;
 namespace {
 std::uintptr_t base{}; HWND window{}; m::NativeScene scene{};
 bool live=true,admitted=true,throw_attack=false,seh_attack=false,reject_cancel=false;
-unsigned attacks{},casts{},stops{},lookups{},restores{},lookup_mode{};
+unsigned attacks{},casts{},tracks{},stops{},lookups{},restores{},lookup_mode{},track_fault{};
 double initiation_seconds{};
 std::uint32_t learned_rank=20, definition_generation=1;
 bool definition_available=true; unsigned availability_change{};
@@ -47,7 +47,7 @@ void Reset() {
     std::memset(reinterpret_cast<void*>(base),0,0x10000); references.clear(); lookup_mode=0;
     mutate_after_definition=mutate_on_current=false; native_in_flight=mutate_before_entry=mutate_after_entry=false; epoch=1; initiation_seconds=0; learned_rank=20; definition_generation=1; definition_available=true;
     local_initiation=p::LocalInitiationState::pending;activation_result=wonderbane::extension::combat::activation::Result::unknown;
-    availability_change=0; live=admitted=true; throw_attack=seh_attack=reject_cancel=false; attacks=casts=stops=lookups=0;
+    availability_change=0; live=admitted=true; throw_attack=seh_attack=reject_cancel=false; attacks=casts=tracks=stops=lookups=track_fault=0;
     melee_receipt={s::Result::queued,true,true,true}; power_receipt={p::Result::queued,true,true,true,true,1};
     scene={}; scene.epoch=1; scene.actor=base+0x2000; scene.window=base+0x1000;
     scene.world=base+0x6000; scene.parent=0; scene.identity={100,53};
@@ -112,6 +112,7 @@ bool ReadSelfInitiation(std::uintptr_t,std::uintptr_t,std::uint32_t,InitiationDe
     out={base+0x10000+definition_generation*4,learned_rank,initiation_seconds};
     if(mutate_after_definition) { mutate_on_current=true; } return true;
 }
+bool InvokeTrack(Scope&) { return false; }
 bool Invoke(Scope& scope) {
     ++casts; assert(scope.Binding().power_id==428918601);
     if(power_context.receipt) { *power_context.receipt=power_receipt; }
@@ -235,9 +236,21 @@ struct NativeActorTestAccess {
         value.image_=base;value.window_=window;value.thread_=GetCurrentThreadId();value.scene_=scene;
         value.scene_current_=SceneCurrent;value.calls_.lookup=reinterpret_cast<decltype(value.calls_.lookup)>(&Lookup);
         value.calls_.release=reinterpret_cast<decltype(value.calls_.release)>(&Drop);value.calls_.attack=melee::Invoke;
-        value.calls_.power=combat::power::Invoke;value.calls_.self_initiation=combat::power::ReadSelfInitiation;
+        value.calls_.power=combat::power::Invoke;value.calls_.track=Track;value.calls_.self_initiation=combat::power::ReadSelfInitiation;
         value.calls_.item=combat::item::Invoke;value.calls_.dispatch=Dispatch;
         return value.BindCxx();
+    }
+    static bool Track(combat::power::Scope& scope) {
+        ++tracks;const auto& binding=scope.Binding();
+        assert(binding.target_mode==p::TargetMode::track&&binding.authority==p::Authority::actor
+            &&binding.target==0&&binding.power_id==429578587);
+        assert(binding.current(binding.owner)&&binding.append_current(binding.owner));
+        power_receipt={p::Result::queued,true,true,true,false};
+        power_receipt.observation.use_called=power_receipt.observation.use_returned=true;
+        *binding.receipt=power_receipt;
+        if(track_fault==1){throw std::runtime_error("tracking sender fault");}
+        if(track_fault==2){RaiseException(0xe0424243,0,0,nullptr);}
+        return true;
     }
     static void Dispose(NativeActor& value){
         melee::Release(value.actor_);melee::Release(value.target_);melee::Release(value.request_);melee::Release(value.transfer_);
@@ -254,6 +267,35 @@ void Publish(a::NativeActor& actor,bool item){
     assert(actor.Publish(request,published)==wonderbane::extension::actor_buffs::Unknown::none&&published.Complete());
 }
 void CloseScene(a::NativeActor& actor){live=false;assert(actor.ReleaseScene());}
+}
+void TrackingCases(){
+    for(const bool prep:{false,true}){
+        ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));auto parent=Parent();
+        if(prep){parent.purpose=a::fence::Purpose::preparation;parent.movement_generation=0;
+            assert(a::fence::Hash(parent.owner_id.data(),parent.owner_id.size(),parent.operation));}
+        assert(actor.ValidateParent(parent,Gates()));
+        a::fence::ContextBinding child{};if(!prep){child=Child(parent);assert(actor.Attach(child,Gates()).outcome==AO::bound);}
+        Publish(actor,false);power_receipt.local_initiation_token=7;initiation_seconds=10;
+        const auto power=Typed(parent,prep?nullptr:&child,a::wire::Action::self_power);
+        assert(actor.Submit(power).local_settlement==AL::pending);
+        a::wire::Command before{};assert(actor.PendingCommand(before));
+        auto query=Typed(parent,nullptr,a::wire::Action::self_power);
+        query.action=a::wire::Action::track;query.power_id=429578587;query.request.back()=99;
+        query.selector_index=a::wire::no_selector;query.manifest_digest={};query.publication_revision=0;query.snapshot_id={};
+        const auto casts_before=casts,stops_before=stops;const auto result=actor.Submit(query);
+        assert(result.outcome==AO::queued&&result.entry==AE::entered&&result.local_settlement==AL::settled
+            &&(result.history&a::wire::outbound_queued)&&tracks==1);
+        a::wire::Command after{};assert(actor.PendingCommand(after)&&!std::memcmp(&before,&after,sizeof(before)));
+        assert(actor.Poll().local_settlement==AL::pending&&casts==casts_before&&stops==stops_before);
+        native_in_flight=true;assert(actor.Submit(query).entry==AE::never_entered&&tracks==1);native_in_flight=false;
+        admitted=false;assert(actor.Submit(query).entry==AE::never_entered&&tracks==1);admitted=true;
+        track_fault=prep?1:2;const auto failed=actor.Submit(query);
+        assert(failed.outcome==AO::uncertain&&failed.entry==AE::entered&&failed.local_settlement==AL::pending
+            &&(failed.history&a::wire::outbound_queued));
+        assert(actor.PendingCommand(after)&&!std::memcmp(&before,&after,sizeof(before)));
+        assert(actor.Submit(query).entry==AE::never_entered&&tracks==2); // Quarantine, never replay.
+        a::NativeActorTestAccess::Dispose(actor); // Test-owned arena references; no production closure credited.
+    }
 }
 void AdmissionCases(){
     for(bool owned:{false,true}){
@@ -296,6 +338,7 @@ void AdmissionCases(){
 int main(){
     base=reinterpret_cast<std::uintptr_t>(VirtualAlloc(nullptr,0x1800000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));assert(base);
     window=CreateWindowExW(0,L"STATIC",L"actor-native",0,0,0,1,1,HWND_MESSAGE,nullptr,GetModuleHandleW(nullptr),nullptr);assert(window);
+    TrackingCases();
     AdmissionCases();
     for(const auto activity:{5U,6U,7U}) {
         ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();
