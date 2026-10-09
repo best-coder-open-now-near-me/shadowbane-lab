@@ -8,7 +8,9 @@ positive native closure and resource disposal precede automatic reacquisition.
 Explicit Stop/Pause and unresolved cleanup retain authority. The 65 focused tests
 reproduce the old defect without claiming the exact live .85 exception cause.
 
-Root's release `47242467adab1ee36d882dfe3ba9367050db8c8b` is qualified as host .86:
+Root's release `47242467adab1ee36d882dfe3ba9367050db8c8b`, published on
+`codex/preparation-fault-release-20261009` in the root-owned `bot-integration`
+checkout, is qualified as host .86:
 5,705 host tests passed (39 optional skips), both IPC profiles, worker handshake
 and all six installed-wheel desktop cases passed; 480 module files agree. Native
 .56 source `df97e7b`, graphics and runtime inputs are preserved, with only the

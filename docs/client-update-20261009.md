@@ -11,8 +11,9 @@ unresolved cleanup and Pause/Stop remain blocking. All 65 focused regression
 tests passed independent review. This fixes a reproduced source defect; it does
 not establish the initiating exception in the earlier live .85 observation.
 
-Qualified release `47242467adab1ee36d882dfe3ba9367050db8c8b` is host .86 with
-native .56 still from `df97e7b`. All 5,705 host tests passed, with 39 optional
+Qualified release `47242467adab1ee36d882dfe3ba9367050db8c8b` is published on
+`codex/preparation-fault-release-20261009`, owned by root in `bot-integration`.
+It is host .86 with native .56 still from `df97e7b`. All 5,705 host tests passed, with 39 optional
 skips. Both native profiles' 74 movement / 86 combat / 170 actor IPC cases, the
 real worker handshake and six installed-wheel Windows desktop cases passed.
 All 480 source, wheel and installed module files agree. Native runtime inputs,
