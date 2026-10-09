@@ -17,7 +17,7 @@ unsigned checks{},calls{},stops{},child_stops{},begins{},pauses{},released{},rev
 bool live=true,read_scene=true,lease_live=true,stop_ok=true,native_activity=false,defer_child=false,poll_settled=false;
 unsigned fail_revalidation{},continuation_checks{};
 bool continuation_current=true,item_effect_present=false,power_effect_present=false,preparation_idle=true,preparation_owner_available=true;
-std::uint64_t preparation_epoch=1;
+std::uint64_t preparation_epoch=1,item_deadline{},item_second_deadline{};std::uint32_t item_remaining{};
 m::NativeScene fixture_scene{0x10000,0x20000,0x30000,0x40000,{91,53},7};
 m::Grant owner{9,7,m::Owner::automation};
 void Check(bool value,const char* label){++checks;if(!value){std::fprintf(stderr,"FAILED: %s\n",label);std::abort();}}
@@ -142,6 +142,8 @@ Unknown Capture(const actor_effects::Context&,const Request& request,State&,Publ
     for(std::uint32_t i=0;i<request.count;++i){if(request.actions[i].power_id?power_effect_present:item_effect_present){
         auto& effect=out.effects_.effects[out.effects_.count++];effect.descriptor_id=222+i;
         effect.action_id=333+i;effect.rank=35;effect.action_class=actor_effects::ActionClass::apply;
+        if(!request.actions[i].power_id&&item_second_deadline){auto& second=out.effects_.effects[out.effects_.count++];
+            second.descriptor_id=999;second.action_id=444;second.rank=35;second.action_class=actor_effects::ActionClass::apply;}
     }}return Unknown::none;
 }
 }
@@ -197,6 +199,10 @@ b::Unknown NativeActor::Publish(const b::Request& request,b::Publication& out)no
         fact.target_mode=2;fact.required_mode=3;fact.descriptor_count=1;fact.descriptors[0]={222+i,333+i,actor_effects::ActionClass::apply,0,false};
         fact.descriptors[0].present=fact.intent.power_id?power_effect_present:item_effect_present;
         fact.coverage=fact.descriptors[0].present?b::Coverage::present:b::Coverage::missing;fact.readiness=pending_?b::Readiness::initiation_pending:b::Readiness::ready;
+        if(!fact.intent.power_id&&fact.coverage==b::Coverage::present){fact.deadline_stamp=item_deadline;fact.remaining_ms=item_remaining;fact.descriptors[0].deadline_stamp=item_deadline;fact.descriptors[0].remaining_ms=item_remaining;
+            if(item_second_deadline){fact.descriptor_count=2;fact.descriptors[1]={999,444,actor_effects::ActionClass::apply,0,true,item_second_deadline,item_remaining};
+                if(item_second_deadline<fact.deadline_stamp){fact.deadline_stamp=item_second_deadline;}}
+        }
         if(!fact.intent.power_id){fact.item_key={55,30};fact.item_template={980066,0};fact.item_hint=0x70000;fact.template_hint=0x80000;fact.item_quantity=3;fact.item_type=8;fact.item_flags=10;}
     }(void)b::Capture({},request,observation_state_,out);publication_=out;return b::Unknown::none;
 }
@@ -421,6 +427,50 @@ int main(){
         Check(Execute(w::Verb::submit,query).reason==w::Reason::manual_activity,"manual preparation veto remains");
         preparation_idle=true;a::runtime.has_manifest=has_manifest;
         Check(Execute(w::Verb::stop_owner,tracking_owner).closure==w::Closure::local_released,"query has no cast cleanup");
+    }
+    {
+        f::ActorBinding renewal_binding{};auto renewal=Parent(100,renewal_binding);
+        renewal_binding.purpose=f::Purpose::preparation;renewal_binding.movement_generation=0;renewal.grant={};
+        Check(f::Hash(renewal_binding.owner_id.data(),renewal_binding.owner_id.size(),renewal_binding.operation)
+            &&f::HashBinding(renewal_binding,renewal.parent_digest),"early renewal parent identity");
+        Mapping renewal_map(renewal_binding);Check(Execute(w::Verb::open_owner,renewal).outcome==w::Outcome::bound,"early renewal same preparation owner");
+        item_effect_present=true;item_deadline=std::bit_cast<std::uint64_t>(115.0);item_second_deadline=std::bit_cast<std::uint64_t>(120.0);item_remaining=15001;
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"covered timer captured before lead");
+        Check(Execute(w::Verb::submit,Buff(renewal,2,0)).outcome==w::Outcome::deferred,"covered potion outside lead refuses");
+        item_remaining=15000;Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"lead boundary refresh");
+        auto refresh=Buff(renewal,3,0);const auto before=calls;
+        Check(Execute(w::Verb::submit,refresh).outcome==w::Outcome::queued&&calls==before+1,"covered exact conc queues once at native lead");
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+            &&Execute(w::Verb::action_status,refresh).application==w::Application::pending,"old PRESENT never confirms covered renewal");
+        Check(Execute(w::Verb::submit,Buff(renewal,4,0)).outcome==w::Outcome::deferred&&calls==before+1,"old deadline cannot consume another potion");
+        item_deadline=std::bit_cast<std::uint64_t>(215.0);item_remaining=115000;
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+            &&Execute(w::Verb::action_status,refresh).application==w::Application::pending,"only first descriptor renewed remains pending");
+        Check(Execute(w::Verb::submit,Buff(renewal,5,0)).outcome==w::Outcome::deferred&&calls==before+1,"partial deadline advancement cannot consume another potion");
+        item_second_deadline=std::bit_cast<std::uint64_t>(220.0);
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+            &&Execute(w::Verb::action_status,refresh).application==w::Application::observed,"advanced deadline confirms new coverage without missing frame");
+        Check(Execute(w::Verb::submit,Buff(renewal,6,0)).outcome==w::Outcome::deferred,"renewed coverage outside lead suppresses duplicate");
+        item_remaining=15000;Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"second natural lead reached");
+        auto second=Buff(renewal,7,0);Check(Execute(w::Verb::submit,second).outcome==w::Outcome::queued,"second covered cycle can renew");
+        item_deadline=std::bit_cast<std::uint64_t>(315.0);item_second_deadline=std::bit_cast<std::uint64_t>(320.0);item_remaining=115000;
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+            &&Execute(w::Verb::action_status,second).application==w::Application::observed,"second cycle exact application observed");
+        auto alternatives=manifest;alternatives.records[1].group=0;alternatives.groups=1;
+        ManifestMapping alternative_source(alternatives);auto alternative_read=read;alternative_read.manifest_digest=alternative_source.digest;
+        item_remaining=15000;power_effect_present=true;
+        Check(Execute(w::Verb::register_selectors,alternative_read).outcome==w::Outcome::observed,"same group alternatives published");
+        Check(Execute(w::Verb::submit,Buff(renewal,8,0)).outcome==w::Outcome::deferred,"other covered alternative prevents Concoction renewal");
+        power_effect_present=false;
+        Check(Execute(w::Verb::observe_actor,alternative_read).outcome==w::Outcome::observed,"other alternative missing but Concoction covereddue");
+        Check(Execute(w::Verb::submit,Buff(renewal,9,1)).outcome==w::Outcome::deferred,"missing other action cannot borrow covered Concoction renewal eligibility");
+        auto third=Buff(renewal,10,0);
+        Check(Execute(w::Verb::submit,third).outcome==w::Outcome::queued,"covered Concoction selected within mixed alternatives");
+        power_effect_present=true;item_deadline=std::bit_cast<std::uint64_t>(415.0);
+        item_second_deadline=std::bit_cast<std::uint64_t>(420.0);item_remaining=115000;
+        Check(Execute(w::Verb::observe_actor,alternative_read).outcome==w::Outcome::observed
+            &&Execute(w::Verb::action_status,third).application==w::Application::observed,"later untimed alternative does not obstruct exact Concoction descriptor advancement");
+        Check(Execute(w::Verb::stop_owner,renewal).closure==w::Closure::local_released,"renewal remote evidence does not invent local obligation");
     }
     std::printf("actor runtime: %u checks, %u native submits, no failures\n",checks,calls);return 0;
 }

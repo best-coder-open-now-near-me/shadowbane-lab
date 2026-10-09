@@ -2,6 +2,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <bit>
+#include <cmath>
+#include <span>
 
 namespace wonderbane::extension::actor_actions {
 using JournalDigest = std::array<std::uint8_t,32>;
@@ -9,12 +12,28 @@ using JournalDigest = std::array<std::uint8_t,32>;
 // context, host policy object or replay cache. No timeout can remove them.
 enum class ApplicationEntry { never_entered, entered, uncertain };
 enum class ApplicationState { none, pending, observed, interrupted };
+struct CoverageDeadline { std::uint32_t descriptor{}; std::uint64_t stamp{}; };
+struct CoverageDeadlines {
+    std::array<CoverageDeadline,64> values{};
+    std::size_t count{};
+    bool Add(std::uint32_t descriptor,std::uint64_t stamp) noexcept {
+        const auto value=std::bit_cast<double>(stamp);
+        if(!descriptor||!std::isfinite(value)||value<=0){return false;}
+        for(std::size_t i=0;i<count;++i){if(values[i].descriptor==descriptor){
+            if(stamp>values[i].stamp){values[i].stamp=stamp;}return true;
+        }}
+        if(count==values.size()){return false;}values[count++]={descriptor,stamp};return true;
+    }
+    std::span<const CoverageDeadline> View() const noexcept { return {values.data(),count}; }
+};
 struct ApplicationRecord {
     JournalDigest intent{}, command{};
     std::uint64_t submitted_revision{}, observed_revision{};
     ApplicationEntry entry = ApplicationEntry::never_entered;
     ApplicationState state = ApplicationState::none;
     bool reserved{}, local_settled{}, queued{};
+    // Private bounded renewal baseline; every required descriptor must advance.
+    CoverageDeadlines covered_deadlines{};
 };
 class ApplicationJournal final {
 public:
@@ -24,7 +43,9 @@ public:
     // across manifest ordering, Host, Grant and policy reconstruction). command
     // is the full immutable actor-action command digest, including request ID.
     std::size_t Reserve(const JournalDigest& intent,const JournalDigest& command,
-                        std::uint64_t publication_revision) noexcept {
+                        std::uint64_t publication_revision,std::span<const CoverageDeadline> covered_deadlines={}) noexcept {
+        CoverageDeadlines baseline{};
+        for(const auto& value:covered_deadlines){if(!baseline.Add(value.descriptor,value.stamp)){return invalid;}}
         if (faulted_ || Zero(intent) || Zero(command) || !publication_revision) { return invalid; }
         for (const auto& record:records_) {
             if (record.reserved && (record.command==command
@@ -37,7 +58,7 @@ public:
             // controller still owns immutable request replay/high-water history.
             if (!record.reserved || (record.local_settled && record.state!=ApplicationState::pending)) {
                 record={intent,command,publication_revision,0,ApplicationEntry::never_entered,
-                    ApplicationState::none,true,false,false};
+                    ApplicationState::none,true,false,false,baseline};
                 return i;
             }
         }
@@ -78,12 +99,14 @@ public:
     }
     // Called only with fresh complete native coverage for this exact semantic
     // intent. Presence settles remote observation, never local responsibility.
-    bool Observe(const JournalDigest& intent,std::uint64_t revision,bool complete,bool present) noexcept {
+    bool Observe(const JournalDigest& intent,std::uint64_t revision,bool complete,bool present,
+                 std::span<const CoverageDeadline> deadlines={}) noexcept {
         if (faulted_ || Zero(intent) || !revision) { return false; }
         if (!complete || !present) { return true; }
         for (auto& record:records_) {
             if (record.reserved && record.intent==intent && record.state==ApplicationState::pending
-                && revision>record.submitted_revision) {
+                && revision>record.submitted_revision
+                &&Advanced(record.covered_deadlines,deadlines)) {
                 record.state=ApplicationState::observed;record.observed_revision=revision;
             }
         }
@@ -105,6 +128,17 @@ public:
     // No public clear/reset: the containing owner destroys this journal only
     // after its exact actor lifetime is retired. Parent/target closure keeps it.
 private:
+    static bool Advanced(const CoverageDeadlines& baseline,std::span<const CoverageDeadline> current) noexcept {
+        for(const auto& old:baseline.View()){
+            bool advanced=false;
+            for(const auto& value:current){
+                const auto deadline=std::bit_cast<double>(value.stamp);
+                if(value.descriptor==old.descriptor&&std::isfinite(deadline)&&deadline>0&&value.stamp>old.stamp){advanced=true;break;}
+            }
+            if(!advanced){return false;}
+        }
+        return true;
+    }
     static bool Zero(const JournalDigest& value) noexcept {
         for (auto byte:value) { if (byte) { return false; } }return true;
     }

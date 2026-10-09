@@ -144,7 +144,16 @@ Unknown AddDescriptor(std::uintptr_t image,std::uint32_t id,std::uint32_t action
     if(!Read(path.matched,again) || again!=definition || !MapCurrent(image,0x1387098,false,path)){return Unknown::changed;}
     auto& descriptor=out.descriptors[out.descriptor_count++];descriptor.id=id;descriptor.action_id=action_id;
     descriptor.action_class=kind;descriptor.local_add_suppression=definition[0x4c];
-    for(std::uint32_t i=0;i<effects.count;++i){if(effects.effects[i].descriptor_id==id){descriptor.present=true;}}
+    bool timed=true;
+    for(std::uint32_t i=0;i<effects.count;++i){const auto& effect=effects.effects[i];if(effect.descriptor_id==id){
+        descriptor.present=true;timed&=actor_effects::ValidDeadline(effect.deadline_stamp);
+        // Repeated native records can cover the same descriptor. The longest
+        // positively timed coverage wins; unknown/untimed duplicates keep timing unknown.
+        if(effect.deadline_stamp>descriptor.deadline_stamp&&actor_effects::ValidDeadline(effect.deadline_stamp)){
+            descriptor.deadline_stamp=effect.deadline_stamp;descriptor.remaining_ms=effect.remaining_ms;
+        }
+    }}
+    if(!timed){descriptor.deadline_stamp=0;descriptor.remaining_ms=0;}
     return Unknown::none;
 }
 Unknown Selectors(std::uintptr_t image,std::uintptr_t definition,const Intent& intent,
@@ -179,6 +188,13 @@ Unknown Selectors(std::uintptr_t image,std::uintptr_t definition,const Intent& i
     unsigned present{};bool all_retained=true;
     for(std::uint32_t i=0;i<out.descriptor_count;++i){present+=out.descriptors[i].present?1U:0U;all_retained&=out.descriptors[i].local_add_suppression==0;}
     out.coverage=present==out.descriptor_count?Coverage::present:present?Coverage::partial:all_retained?Coverage::missing:Coverage::unknown;
+    if(out.coverage==Coverage::present){
+        out.deadline_stamp=UINT64_MAX;
+        for(std::uint32_t i=0;i<out.descriptor_count;++i){const auto& descriptor=out.descriptors[i];
+            if(!actor_effects::ValidDeadline(descriptor.deadline_stamp)){out.deadline_stamp=0;out.remaining_ms=0;break;}
+            if(descriptor.deadline_stamp<out.deadline_stamp){out.deadline_stamp=descriptor.deadline_stamp;out.remaining_ms=descriptor.remaining_ms;}
+        }
+    }
     return Unknown::none;
 }
 Unknown ResolvePower(const actor_effects::Context& c,const Intent& intent,

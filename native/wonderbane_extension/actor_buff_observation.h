@@ -36,6 +36,8 @@ struct Descriptor {
     actor_effects::ActionClass action_class{};
     std::uint8_t local_add_suppression{};
     bool present{};
+    std::uint64_t deadline_stamp{};
+    std::uint32_t remaining_ms{};
     bool operator==(const Descriptor&) const = default;
 };
 struct ActionFacts {
@@ -50,8 +52,19 @@ struct ActionFacts {
     // Echo-only hints: never sufficient authority. State owns the references;
     // ItemOperand revalidates that exact retained publication before dispatch.
     std::uint32_t item_hint{},template_hint{};
+    std::uint64_t deadline_stamp{};
+    std::uint32_t remaining_ms{};
     bool operator==(const ActionFacts&) const = default;
 };
+inline bool Concoction(const Intent& intent) noexcept {
+    return !intent.power_id&&intent.item_template==Key{980066,0}
+        &&intent.coverage_power_id==429021400&&intent.coverage_kind==CoverageKind::all_descriptors;
+}
+inline bool RenewalDue(const ActionFacts& facts) noexcept {
+    return Concoction(facts.intent)
+        &&facts.coverage==Coverage::present&&actor_effects::ValidDeadline(facts.deadline_stamp)
+        &&facts.remaining_ms<=15000;
+}
 struct State {
     State() noexcept = default;
     State(const State&) = delete;
