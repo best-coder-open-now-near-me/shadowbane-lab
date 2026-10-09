@@ -1,13 +1,29 @@
 # Git branch map
 
-## Worker restart recovery release composition - October 9
+## Protected process recovery release composition - October 9
 
-`codex/worker-restart-release-20261009` owns bot-integration for exact-source
-host .82 qualification. It combines reviewed recovery source `45cebdd` with
-installed release `df97e7b`, preserving the native/assets trees and installed
-graphics composition unchanged. Main remains the shared bot integration target;
-graphics PRs #106/#113 remain separately owned drafts. Qualification and host-only
-installation are pending. Use refreshed main for new development.
+`codex/protected-process-release-20261009` owns bot-integration for exact-source
+host .83 qualification. It combines reviewed source `7a47361` with installed
+release `db8fd5c`, preserving the native/assets trees and installed graphics.
+Main remains the shared bot integration destination; graphics PRs #106/#113
+remain separate drafts. Qualification and host-only installation are pending.
+Use refreshed main for new development.
+
+## Protected recycled worker PID recovery - October 9
+
+`codex/protected-process-lifetime-20261009` starts from main `417b8e2` in
+`buff-activation-observer`. Host .83 uses a bounded kernel process census only
+when Windows denies the ordinary process handle. It retains exact creation
+FILETIME and parent identity, and validates the complete census before crediting
+absence. Access denial, process names and old heartbeat age never prove exit.
+This fixes Attach when a historical worker PID now belongs to a protected service;
+historical worker/job records and native .56 remain unchanged. Parser negatives,
+actual Windows self-process FILETIME comparison and the real manager Attach path
+are tested. The source targets main; release composition must preserve graphics.
+Peer review and 110 focused tests passed. Next: exact-source host qualification
+and installation; no source-only
+checkpoint is a claim that current live buff maintenance has been validated.
+
 ## Worker reservation recovery after manager restart - October 9
 
 `codex/worker-reservation-restart-20261009` starts from main `f7110e7` in
