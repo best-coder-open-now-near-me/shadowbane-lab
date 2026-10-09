@@ -1,5 +1,50 @@
 # Git branch map
 
+## Qualified persistent buff delivery - October 9
+
+Main now includes bot PR #119 at merge `5b6c75e7af02a8109ab60fbaa694b3577900aebe`;
+PRs #115 and #118 merged by ancestry. The final reviewed bot head was `02a18db`,
+with all 15 hosted checks successful. Start new bot work from refreshed main.
+
+The qualified deployment source is `3e4d80199c9a99d7dd20d58b4ed6daec1250353d`
+on published `codex/persistent-buff-release-20261008`, owned in bot-integration.
+It combines the merged bot with installed graphics source `2f14379` and explicit
+graphics package checks. Graphics PRs #106/#113 remain separate drafts; their
+source and the additional graphics package checks are outside main. The release
+branch is retained for reproducible deployment, not a separate shared base.
+Integrate those graphics lanes through their existing review before retiring it.
+
+Host 0.3.80/native 1.8.55 passed exact-source qualification: 5,600 host tests
+(39 optional skips), 244/240 required-profile native test passes, and 74 movement,
+86 combat and 168 actor IPC cases per profile without skips. Original/prepared
+client 1.3.38.15 probes passed; the three generic image-argument skips were
+covered by explicit image runs. Independent verification covered 136 artifacts,
+108 stages and the installed graphics modules. Two pre-existing rendering
+transparency diagnostics remain recorded separately, not claimed as fixed.
+
+Package SHA-256: `4efe6cbfdece9b8155080301f9f593b0f04601b6e0bf8eb8891ac4e21b0c5344`.
+Full DLL SHA-256: `7063b8c0f5d3036178a1946ff61e429fcf90b08df46c225cf05000181d9b9bcc`.
+
+The .80/.55 runtime is installed on the testing VM, with all 477 packaged host
+files verified and 9,613 retained settings/history records checked. Exactly one
+client inventory entry changed: the extension DLL. Both manager shortcuts now
+use .80; the three client shortcuts and reviewed per-lifetime launcher are
+unchanged. No rollback copies were created.
+
+Installation exposed two verifier errors: CIM timestamps truncate the precision
+used by process-lifetime receipts, and denied unbound worker permits legitimately
+retain historical worker identity. The stop helper now uses exact process-handle
+timestamps. Startup finalization now verifies denied unbound permits against
+unchanged historical heartbeats. The manager passed finalization healthy and
+unbound, with all retained records preserved except that valid generated permit.
+The qualified runtime binaries are unchanged by either installer correction.
+Vendor Test reopened through that unchanged launcher and loaded the exact .55
+DLL. Passive inspection before login reports no observable local player yet;
+in-world readiness and live gameplay acceptance remain pending. Next: log Umbra
+in and validate persistent buff renewal and movement-interruption recovery.
+Earlier ownership and qualification entries below are historical and superseded
+by this entry.
+
 ## Movement interruption qualification - October 8
 
 `codex/item-movement-renewal-20261008` follows preparation core `fcccaa5`
