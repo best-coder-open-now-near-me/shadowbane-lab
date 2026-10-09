@@ -17,9 +17,9 @@ class PreparationControl:
     instance_id: str
     revision: int
     enabled: bool
-    worker_id: str
-    worker_process_id: int
-    worker_process_creation: int
+    worker_id: str | None
+    worker_process_id: int | None
+    worker_process_creation: int | None
     superseded_stops: tuple[str, ...] = ()
     schema_version: int = 1
 
@@ -31,10 +31,14 @@ class PreparationControl:
                 or type(self.enabled) is not bool
                 or type(self.revision) is not int or not 0 < self.revision < 2**63):
             raise ValueError("invalid preparation control state")
-        if not isinstance(self.worker_id, str) or not _WORKER.fullmatch(self.worker_id):
+        absent_worker = (self.worker_id is None and self.worker_process_id is None
+                         and self.worker_process_creation is None)
+        if absent_worker and not self.enabled:
+            pass  # Explicit Stop is valid even before a worker has started.
+        elif not isinstance(self.worker_id, str) or not _WORKER.fullmatch(self.worker_id):
             raise ValueError("preparation control requires an exact worker")
         for value in (self.worker_process_id, self.worker_process_creation):
-            if type(value) is not int or value <= 0:
+            if not (absent_worker and not self.enabled) and (type(value) is not int or value <= 0):
                 raise ValueError("preparation control requires worker process lifetime")
         if (type(self.superseded_stops) is not tuple or len(self.superseded_stops) > 256
                 or len(set(self.superseded_stops)) != len(self.superseded_stops)

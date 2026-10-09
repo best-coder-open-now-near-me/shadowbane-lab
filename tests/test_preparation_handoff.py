@@ -178,4 +178,3 @@ def test_missing_acquire_response_never_claims_no_ownership():
         movement.acquire()
     movement.finish()
     assert not movement.cleanup_confirmed
-

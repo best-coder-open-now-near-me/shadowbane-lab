@@ -9,8 +9,16 @@ native-service handoff core. The next reviewed slice adds typed exact movement
 cleanup proof: unchanged-grant refusals prove no acquisition, while ambiguous
 replies and retained actor obligations cannot authorize maintenance restart. It is a draft integration target
 for `main`, not an enabled or deployed background service. Worker/executor wiring,
-canonical native resource lifetime, exact cleanup handback, and status presentation
-remain active work. PVP owns the separate preparation-only native capability and
+canonical native resource lifetime, exact cleanup handback, and passive dashboard
+presentation are now implemented in the next source checkpoint. The service
+retains cleanup supervision after the native deadline; a timer never authorizes
+resource disposal. Fresh exact-worker controls gate each new proposal; explicit
+Stop/Pause is separate from ordinary manual admission deferral.
+
+Remaining integration work: qualify the separate native APIs together, complete
+entered vendor/guard/Condemn journal handback, and finalize native handoff readiness
+from actual potion cancellation evidence. The pending readiness interface does
+not establish that attacks cancel potions. No new background runtime is deployed. PVP owns the separate preparation-only native capability and
 coordinator APIs; combine and qualify both lanes before enabling this behavior.
 Ordinary manual input must defer new buffs without changing saved intent; explicit
 Pause/Stop stays latched. Background attacks are not authorized by this work.

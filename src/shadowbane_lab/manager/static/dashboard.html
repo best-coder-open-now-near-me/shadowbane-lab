@@ -169,7 +169,29 @@
         return payload;
       };
 
-      function renderPveStatus(workerPanel, pve) {
+      function renderAutomaticBuffs(workerPanel, buffs) {
+          const panel = document.createElement("section");
+          panel.className = "worker-panel";
+          const title = document.createElement("h3");
+          const labels = {awaiting_potion_outcome: "Waiting for potion outcome", maintaining: "Keeping buffs active", paused: "Paused",
+            disabled: "Disabled in character settings", needs_attention: "Needs attention",
+            idle: "Waiting", starting: "Starting", yielding: "Waiting for the current action"};
+          title.textContent = `Automatic buffs - ${labels[buffs.state] || "Unavailable"}`;
+          panel.append(title);
+          const detail = document.createElement("p");
+          detail.className = "detail";
+          detail.textContent = buffs.detail || "Uses this character's saved buff settings.";
+          panel.append(detail);
+          for (const group of buffs.preparation?.groups || []) {
+            const row = document.createElement("p");
+            row.className = "detail";
+            row.textContent = `${text(group.group_id)} - ${buffs.current ? text(group.coverage) : "Current state unavailable"}`;
+            panel.append(row);
+          }
+          workerPanel.append(panel);
+    }
+
+    function renderPveStatus(workerPanel, pve) {
         if (pve?.progress || pve?.operation_id) {
           const panel = document.createElement("section");
           panel.className = "worker-panel";
@@ -488,6 +510,7 @@
         }
 
         renderPveStatus(workerPanel, slot?.pve);
+        if (slot?.automatic_buffs) renderAutomaticBuffs(workerPanel, slot.automatic_buffs);
 
         const controls = document.createElement("div");
         controls.className = "actions";

@@ -283,6 +283,7 @@ class ExactClientWorkerRuntime:
         operation_executor: WorkerOperationExecutor | None = None,
         operation_maintenance: Callable[[WorkerOperation, StopSignal], None] | None = None,
         operation_initializer: Callable[[str, ProcessLifetimeSnapshot], None] | None = None,
+        preparation_factory: Callable | None = None,
         monotonic_clock: Callable[[], float] = time.monotonic,
         process_id: int | None = None,
         heartbeat_interval_seconds: float = 1.0,
@@ -346,6 +347,12 @@ class ExactClientWorkerRuntime:
         self._operation_maintenance = operation_maintenance
         self._operation_initializer = operation_initializer
         self._monotonic = monotonic_clock
+        if preparation_factory is not None and not callable(preparation_factory):
+            raise ValueError("preparation_factory must be callable")
+        self._preparation_factory = preparation_factory
+        self._preparation = None
+        self._preparation_reporter = None
+        self._preparation_waiting = False
 
     @property
     def process(self) -> ProcessLifetimeSnapshot:
@@ -373,6 +380,11 @@ class ExactClientWorkerRuntime:
         try:
             if self._operation_initializer is not None:
                 self._operation_initializer(publisher.worker_id, self._process)
+            if self._preparation_factory is not None:
+                self._preparation = self._preparation_factory(publisher, self._process)
+                self._preparation.start()
+                from .preparation_status import PreparationStatusPublisher
+                self._preparation_reporter = PreparationStatusPublisher(self._operation_ledger)
             while stop_signal is None or not stop_signal.is_set():
                 request = self._ledger.inspect_stop_request(
                     self._binding.client_id,
@@ -381,6 +393,7 @@ class ExactClientWorkerRuntime:
                 if request is not None:
                     self._require_matching_stop_request(request, publisher)
                     final_detail = request.reason
+                    self._freeze_preparation()
                     if active_operation is not None:
                         self._cancel_active_operation(
                             active_operation,
@@ -393,6 +406,8 @@ class ExactClientWorkerRuntime:
                     return 0
 
                 self._require_exact_game_identity()
+                if self._preparation is not None:
+                    self._preparation.supervise(allowed=not publisher.dispatch_gate().is_set())
                 if active_operation is not None and not active_operation.thread.is_alive():
                     self._complete_active_operation(active_operation)
                     evidence_sequence += 1
@@ -409,7 +424,7 @@ class ExactClientWorkerRuntime:
                         )
                 now = self._monotonic()
                 if self._operation_maintenance is None or now >= next_heartbeat:
-                    publisher.publish(
+                    heartbeat = publisher.publish(
                         WorkerRuntimeState.RUNNING,
                         dispatch_ready=True,
                         detail=(
@@ -422,11 +437,14 @@ class ExactClientWorkerRuntime:
                         ),
                         evidence_sequence=evidence_sequence,
                     )
+                    if self._preparation_reporter is not None:
+                        self._preparation_reporter.publish(heartbeat, self._preparation.snapshot)
                     next_heartbeat = now + self._interval
                 delay = self._interval if self._operation_maintenance is None else min(
                     0.25, max(0.0, next_heartbeat - self._monotonic())
                 )
                 self._sleep(delay)
+            self._freeze_preparation()
             final_detail = "local worker stop signal was set"
             if active_operation is not None:
                 self._cancel_active_operation(
@@ -439,6 +457,7 @@ class ExactClientWorkerRuntime:
             )
             return 0
         except KeyboardInterrupt:
+            self._freeze_preparation()
             final_detail = "worker interrupted locally"
             if active_operation is not None:
                 self._cancel_active_operation(
@@ -451,6 +470,7 @@ class ExactClientWorkerRuntime:
             )
             return 0
         except Exception as exc:
+            self._freeze_preparation()
             final_detail = str(exc)[:512] or "worker runtime failed"
             if active_operation is not None:
                 self._cancel_active_operation(
@@ -464,7 +484,28 @@ class ExactClientWorkerRuntime:
             )
             return 1
         finally:
+            self._stop_preparation(publisher)
             publisher.close(detail=final_detail)
+            if self._preparation_reporter is not None:
+                self._preparation_reporter.close()
+
+    def _freeze_preparation(self):
+        if self._preparation is not None:
+            self._preparation.request_stop()
+
+    def _stop_preparation(self, publisher):
+        if self._preparation is None:
+            return
+        self._preparation.request_stop()
+        # The native stop keeps its original deadline. After it expires the
+        # service only inspects that same obligation; a host timeout cannot
+        # turn an unresolved action into permission to discard its resources.
+        while not self._preparation.stopped:
+            heartbeat = publisher.publish(WorkerRuntimeState.STOPPING,
+                                          detail="waiting for native preparation cleanup")
+            if self._preparation_reporter is not None:
+                self._preparation_reporter.publish(heartbeat, self._preparation.snapshot)
+            self._sleep(.1)
 
     def _start_next_operation(
         self,
@@ -482,6 +523,21 @@ class ExactClientWorkerRuntime:
             worker_process_started_at_100ns=self._process.process_started_at_100ns,
             now=time.time(),
         )
+        service = self._preparation
+        if service is not None:
+            for item in pending:
+                if item.kind in {WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}:
+                    ledger.latch_preparation_stop(item)
+            if pending or self._preparation_waiting:
+                self._preparation_waiting = True
+                wait_preparation = bool(pending) and not any(
+                    item.kind in {WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}
+                    for item in pending)
+                if not service.request_handoff(wait_for_preparation=wait_preparation):
+                    return None
+                if not pending:
+                    service.release_handoff(cleanup_confirmed=True)
+                    self._preparation_waiting = False
         if not pending:
             return None
         operation = pending[0]
@@ -545,6 +601,9 @@ class ExactClientWorkerRuntime:
             raise ExactClientWorkerError(
                 "operation thread exited without a terminal result"
             ) from exc
+        if self._preparation is not None:
+            self._preparation.release_handoff(cleanup_confirmed=result.native_cleanup_confirmed)
+            self._preparation_waiting = False
         ledger.publish_receipt(
             WorkerOperationReceipt.for_operation(
                 active.operation,

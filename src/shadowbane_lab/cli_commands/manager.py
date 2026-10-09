@@ -11,6 +11,7 @@ import threading
 import time
 import webbrowser
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from shadowbane_lab.client_extension import (
@@ -750,6 +751,7 @@ def _run_manager_worker(
             travel_poll_ms=travel_poll_ms,
             travel_click_interval_ms=travel_click_interval_ms,
         )
+        from shadowbane_lab.manager.native_preparation import create_worker_preparation
         runtime = ExactClientWorkerRuntime(
             manifest,
             binding,
@@ -760,6 +762,8 @@ def _run_manager_worker(
             operation_executor=executor,
             operation_maintenance=executor.maintain,
             operation_initializer=executor.initialize,
+            preparation_factory=lambda publisher, process: create_worker_preparation(
+                binding, operation_ledger, publisher, process),
             heartbeat_interval_seconds=heartbeat_ms / 1_000.0,
         )
         return runtime.serve()
@@ -845,16 +849,19 @@ class _ExactWorkerEngineExecutor:
             return WorkerOperationExecution(
                 WorkerOperationState.FAILED,
                 "operation does not own this exact game instance",
+                native_cleanup_confirmed=True,
             )
         if operation.kind is WorkerOperationKind.CANCEL:
             return WorkerOperationExecution(
                 WorkerOperationState.SUCCEEDED,
                 "in-flight automation cancellation acknowledged without client input",
+                native_cleanup_confirmed=True,
             )
         if stop_signal.is_set():
             return WorkerOperationExecution(
                 WorkerOperationState.CANCELLED,
                 "worker dispatch gate closed before execution",
+                native_cleanup_confirmed=True,
             )
         if operation.kind is WorkerOperationKind.STOP:
             # The worker cancels and joins the old operation, whose finally block
@@ -862,22 +869,26 @@ class _ExactWorkerEngineExecutor:
             return WorkerOperationExecution(
                 WorkerOperationState.SUCCEEDED,
                 "owned automation stopped without acquiring another movement owner",
+                native_cleanup_confirmed=True,
             )
         if operation.kind is WorkerOperationKind.CONDEMN:
             if self._condemn_executor is None:
                 return WorkerOperationExecution(WorkerOperationState.FAILED,
-                                                "Condemn jobs are not configured.")
+                                                "Condemn jobs are not configured.",
+                                                native_cleanup_confirmed=True)
             return self._condemn_executor.execute(operation, stop_signal=stop_signal)
         if operation.kind is WorkerOperationKind.GUARD:
             if self._guard_executor is None:
                 return WorkerOperationExecution(
                     WorkerOperationState.FAILED, "Guard jobs are not configured.",
+                    native_cleanup_confirmed=True,
                 )
             return self._guard_executor.execute(operation, stop_signal=stop_signal)
         if operation.kind is WorkerOperationKind.VENDOR:
             if self._vendor_executor is None:
                 return WorkerOperationExecution(
                     WorkerOperationState.FAILED, "Vendor jobs are not configured.",
+                    native_cleanup_confirmed=True,
                 )
             return self._vendor_executor.execute(operation, stop_signal=stop_signal)
         with self._movement_lock:
@@ -885,17 +896,22 @@ class _ExactWorkerEngineExecutor:
                 return WorkerOperationExecution(
                     WorkerOperationState.FAILED, "another operation retains movement ownership"
                 )
-            movement = OperationMovement(
-                operation,
-                self._movement_session_factory(
+            try:
+                session = self._movement_session_factory(
                     NativeClientProcessIdentity(
                         self._binding.game_process_id,
                         self._binding.game_process_started_at_100ns,
                     ),
                     self._binding.game_window_handle,
-                ),
-                stop_signal,
-            )
+                )
+            except (NativeActionChannelError, OSError, ValueError) as exc:
+                # Session construction opens transport only; ACQUIRE has not run.
+                return WorkerOperationExecution(
+                    WorkerOperationState.FAILED,
+                    f"native session unavailable ({type(exc).__name__})",
+                    native_cleanup_confirmed=True,
+                )
+            movement = OperationMovement(operation, session, stop_signal)
             self._movement = movement
         cleanup_problem = None
         try:
@@ -932,7 +948,7 @@ class _ExactWorkerEngineExecutor:
             )
         if cleanup_problem:
             return WorkerOperationExecution(WorkerOperationState.FAILED, cleanup_problem)
-        return result
+        return replace(result, native_cleanup_confirmed=movement.cleanup_confirmed)
 
     def initialize(self, worker_id, process) -> None:
         if self._condemn_executor is not None:

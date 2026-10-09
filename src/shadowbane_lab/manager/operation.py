@@ -399,6 +399,7 @@ class WorkerOperationExecution:
 
     state: WorkerOperationState
     detail: str | None = None
+    native_cleanup_confirmed: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.state, WorkerOperationState) or not self.state.terminal:
@@ -409,6 +410,8 @@ class WorkerOperationExecution:
         }:
             raise ValueError("executor may return only succeeded, failed, or cancelled")
         _detail(self.detail)
+        if type(self.native_cleanup_confirmed) is not bool:
+            raise ValueError("native cleanup proof must be boolean")
 
 
 @dataclass(frozen=True, slots=True)
@@ -760,6 +763,41 @@ class WorkerOperationLedger:
             if (record.operation.node_id != self._manifest.node_id
                     or record.operation.client_id != self._client_id(client_id)):
                 raise WorkerOperationLedgerError("progress record belongs to another slot")
+            return record
+
+    def publish_preparation_status(self, record):
+        from .preparation_status import WorkerPreparationStatus
+        if not isinstance(record, WorkerPreparationStatus):
+            raise ValueError("preparation status must be typed")
+        heartbeat = record.heartbeat
+        if heartbeat.node_id != self._manifest.node_id:
+            raise WorkerOperationLedgerError("preparation status belongs to another node")
+        directory = self._directory(heartbeat.client_id)
+        with self._transaction(directory):
+            target = directory / "preparation-status.json"
+            if target.exists():
+                prior = self._read(target, lambda raw: _loads(
+                    raw, WorkerPreparationStatus.parse, "preparation status"))
+                old = prior.heartbeat
+                if (old.process_started_at_100ns > heartbeat.process_started_at_100ns
+                        or (old.worker_id == heartbeat.worker_id
+                            and old.sequence >= heartbeat.sequence)):
+                    raise WorkerOperationLedgerError("preparation reporter was superseded")
+            publish_atomic_record(target, self._encode(record.to_dict()),
+                                  temporary_label="preparation-status")
+
+    def inspect_preparation_status(self, client_id):
+        from .preparation_status import WorkerPreparationStatus
+        directory = self._directory(client_id)
+        with self._transaction(directory):
+            target = directory / "preparation-status.json"
+            if not target.exists():
+                return None
+            record = self._read(target, lambda raw: _loads(
+                raw, WorkerPreparationStatus.parse, "preparation status"))
+            if (record.heartbeat.node_id != self._manifest.node_id
+                    or record.heartbeat.client_id != self._client_id(client_id)):
+                raise WorkerOperationLedgerError("preparation status belongs to another slot")
             return record
 
     def _operation_paths(self, directory: Path) -> list[Path]:

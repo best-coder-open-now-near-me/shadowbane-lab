@@ -6,6 +6,7 @@ reads cached state; it never waits in a native call or invents cleanup evidence.
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import dataclass
 
 from shadowbane_lab.pve.preparation_status import PreparationStatus
@@ -20,19 +21,24 @@ class PreparationServiceSnapshot:
 
 
 class PersistentPreparationService:
-    def __init__(self, *, owner_factory, intent, interval=0.1):
+    def __init__(self, *, owner_factory, intent, handoff_ready=None, interval=0.1):
         self._factory = owner_factory
         self._intent = intent
+        self._handoff_ready = handoff_ready or (lambda: True)
+        self._handoff_wait = False
+        self._handoff_observed_at = None
         self._interval = interval
         self._lock = threading.Lock()
         self._wake = threading.Event()
         self._stopping = False
+        self._supervision_allowed = True
         self._handoff = False
         self._blocked = False
         self._inflight = False
         self._owner = None
         self._closing = False
         self._thread = None
+        self._intent_problem = None
         self._snapshot = PreparationServiceSnapshot(
             "starting", 0, PreparationStatus.disabled())
 
@@ -49,12 +55,56 @@ class PersistentPreparationService:
                 name="shadowbane-preparation", daemon=True)
             self._thread.start()
 
-    def request_handoff(self):
-        """Freeze fresh proposals now; return true only after native closure."""
+    def _read_intent(self):
+        try:
+            enabled, revision = self._intent()
+            if type(enabled) is not bool or type(revision) is not int or revision < 0:
+                raise ValueError("invalid preparation intent")
+        except Exception as exc:
+            with self._lock:
+                self._intent_problem = f"Preparation controls unavailable: {type(exc).__name__}"
+                return False, self._snapshot.control_revision
         with self._lock:
-            self._handoff = True
-            ready = not self._blocked and self._owner is None and not self._inflight
+            self._intent_problem = None
+        return enabled, revision
+
+    def admission_allowed(self):
+        """Fresh worker intent immediately before a new native proposal/entry."""
+        enabled, _ = self._read_intent()
+        with self._lock:
+            return bool(enabled and not (self._handoff or self._stopping
+                                         or self._blocked or self._closing)
+                        and self._supervision_allowed)
+
+    def supervise(self, *, allowed):
+        """Immediate host authority change; never a native call or explicit Resume."""
+        if type(allowed) is not bool:
+            raise ValueError("worker supervision must be boolean")
+        with self._lock:
+            self._supervision_allowed = allowed
         self._wake.set()
+
+    def request_handoff(self, *, wait_for_preparation=False):
+        """Freeze new entries; finite work also waits for native potion readiness."""
+        with self._lock:
+            if self._handoff_wait != wait_for_preparation:
+                self._handoff_observed_at = None
+            self._handoff_wait = wait_for_preparation
+            self._handoff = True
+            ready = (not self._blocked and self._owner is None and not self._inflight
+                     and (not wait_for_preparation or (
+                         self._handoff_observed_at is not None
+                         and 0 <= time.monotonic() - self._handoff_observed_at <= .25)))
+        self._wake.set()
+        return ready
+
+    def _observe_handoff(self):
+        try:
+            ready = self._handoff_ready() is True
+        except Exception:
+            ready = False
+        with self._lock:
+            self._handoff_observed_at = time.monotonic() if ready else None
         return ready
 
     def release_handoff(self, *, cleanup_confirmed):
@@ -63,6 +113,8 @@ class PersistentPreparationService:
         with self._lock:
             if not self._handoff:
                 raise RuntimeError("no finite-operation handoff is reserved")
+            if self._owner is not None or self._inflight:
+                raise RuntimeError("preparation owner has not handed off")
             if not cleanup_confirmed:
                 self._blocked = True
                 self._snapshot = PreparationServiceSnapshot(
@@ -71,6 +123,7 @@ class PersistentPreparationService:
                     "The previous operation has not confirmed native cleanup.")
             else:
                 self._handoff = False
+                self._handoff_observed_at = None
         self._wake.set()
 
     def request_stop(self):
@@ -85,6 +138,8 @@ class PersistentPreparationService:
 
     def _publish(self, state, revision, detail=None):
         with self._lock:
+            if self._intent_problem is not None:
+                state, detail = "needs_attention", self._intent_problem
             self._snapshot = PreparationServiceSnapshot(
                 state, revision,
                 PreparationStatus.disabled() if self._owner is None
@@ -94,12 +149,14 @@ class PersistentPreparationService:
     def _cycle(self):
         # Intent contains only explicit saved/control state and dispatch authority.
         # Temporary native manual/UI admission is handled by the coordinator.
-        enabled, revision = self._intent()
+        enabled, revision = self._read_intent()
         with self._lock:
             stopping, handoff, blocked = self._stopping, self._handoff, self._blocked
             if blocked:
-                return False
-            allow_new = enabled and not stopping and not handoff
+                # No service-owned resource exists after a failed finite handback.
+                # Exiting this thread does not credit that finite cleanup.
+                return stopping and self._owner is None and not self._inflight
+            allow_new = enabled and self._supervision_allowed and not stopping and not handoff
             self._inflight = True
         try:
             if self._owner is None and allow_new:
@@ -109,6 +166,12 @@ class PersistentPreparationService:
                 self._closing = False
             owner = self._owner
             if owner is None:
+                with self._lock:
+                    wait_preparation = self._handoff_wait and self._handoff and not self._stopping
+                if wait_preparation and not self._observe_handoff():
+                    self._publish("awaiting_potion_outcome", revision,
+                                  "Waiting for native preparation readiness.")
+                    return False
                 self._publish("paused" if not enabled else "disabled", revision)
                 return stopping
             renewal_failed = False
@@ -118,9 +181,22 @@ class PersistentPreparationService:
                 renewal_failed = True
             # Recheck after factory/maintenance: a concurrent handoff freezes the
             # first proposal too, not just proposals on later loop iterations.
+            enabled, revision = self._read_intent()
             with self._lock:
-                allow_new = enabled and not self._stopping and not self._handoff
-            if self._closing or renewal_failed or not allow_new or owner.settings_changed():
+                allow_new = (enabled and self._supervision_allowed
+                             and not self._stopping and not self._handoff)
+            settings_changed = owner.settings_changed()
+            with self._lock:
+                wait_preparation = (self._handoff and self._handoff_wait and enabled
+                                    and self._supervision_allowed and not self._stopping)
+            if (wait_preparation and not self._closing and not renewal_failed
+                    and not settings_changed):
+                owner.step(allow_new=False)
+                if not self._observe_handoff():
+                    self._publish("awaiting_potion_outcome", revision,
+                                  "Waiting for native preparation readiness.")
+                    return False
+            if self._closing or renewal_failed or not allow_new or settings_changed:
                 if not self._closing:
                     try:
                         owner.step(allow_new=False)
@@ -136,6 +212,7 @@ class PersistentPreparationService:
                 owner.close()
                 with self._lock:
                     self._owner = None
+                    self._handoff_observed_at = None
                 self._closing = False
                 self._publish("paused" if not enabled else "idle", revision)
                 return stopping

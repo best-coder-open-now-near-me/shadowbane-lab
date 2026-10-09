@@ -183,3 +183,119 @@ def test_renewal_failure_does_not_starve_passive_cleanup():
     assert owner.calls[-2][0] == "inspect"
     assert owner.calls[-1][0] == "close"
     assert [c[0] for c in owner.calls].count("finish") == 1
+
+
+def test_pause_during_factory_cannot_submit_first_action():
+    enabled = [True]
+    owner = Owner()
+    owner.finish_result = True
+    def factory():
+        enabled[0] = False
+        return owner
+    value = PersistentPreparationService(owner_factory=factory,
+        intent=lambda: (enabled[0], 2))
+    value._cycle()
+    assert not any(c[:2] == ("step", True) for c in owner.calls)
+    assert any(c[0] == "finish" for c in owner.calls)
+    assert not value.admission_allowed()
+
+
+def test_permit_loss_during_maintain_cannot_submit_new_action():
+    enabled = [True]
+    owner = Owner()
+    value = service(owner, intent=lambda: (enabled[0], 3))
+    value._cycle()
+    owner.calls.clear()
+    def maintain():
+        enabled[0] = False
+    owner.maintain = maintain
+    value._cycle()
+    assert not any(c[:2] == ("step", True) for c in owner.calls)
+    assert owner.calls[-1][0] == "finish"
+
+
+def test_entry_admission_observes_stop_after_cycle_check():
+    value = service(Owner())
+    assert value.admission_allowed()
+    value.request_stop()
+    assert not value.admission_allowed()
+
+
+def test_unreadable_control_forbids_entry_but_never_starves_closure():
+    failed = [False]
+    def intent():
+        if failed[0]:
+            raise ValueError("invalid control file")
+        return True, 1
+    owner = Owner()
+    value = service(owner, intent)
+    value._cycle()
+    failed[0] = True
+    assert not value.admission_allowed()
+    value._cycle()
+    assert owner.calls[-1][0] == "finish"
+    owner.closure = True
+    value._cycle()
+    assert owner.calls[-1][0] == "close"
+    assert value.snapshot.state == "needs_attention"
+
+
+
+def test_failed_finite_handoff_does_not_make_empty_service_unshutdownable():
+    owner = Owner()
+    value = service(owner)
+    assert value.request_handoff()
+    value.release_handoff(cleanup_confirmed=False)
+    value.request_stop()
+    assert value._cycle()
+    assert value.snapshot.state == "needs_attention"
+    assert not value.request_handoff()
+    assert owner.calls == []
+
+
+
+def test_finite_handoff_waits_for_potion_without_starting_cleanup_or_new_actions():
+    owner = Owner()
+    clear = [False]
+    value = PersistentPreparationService(owner_factory=lambda: owner,
+        intent=lambda: (True, 1), handoff_ready=lambda: clear[0])
+    value._cycle()
+    assert not value.request_handoff(wait_for_preparation=True)
+    value._cycle()
+    assert value.snapshot.state == "awaiting_potion_outcome"
+    assert [c[0] for c in owner.calls].count("finish") == 0
+    assert [c[:2] for c in owner.calls].count(("step", True)) == 1
+    clear[0] = True
+    owner.finish_result = True
+    value._cycle()
+    assert not value.request_handoff(wait_for_preparation=True)  # Must refresh after close.
+    value._cycle()
+    assert value.request_handoff(wait_for_preparation=True)
+    assert [c[0] for c in owner.calls].count("finish") == 1
+
+
+def test_explicit_stop_closes_passively_despite_unresolved_potion():
+    owner = Owner()
+    value = PersistentPreparationService(owner_factory=lambda: owner,
+        intent=lambda: (True, 1), handoff_ready=lambda: False)
+    value._cycle()
+    value.request_handoff(wait_for_preparation=True)
+    value._cycle()
+    owner.finish_result = True
+    value.request_stop()
+    assert value._cycle()
+    assert [c[0] for c in owner.calls].count("finish") == 1
+
+
+def test_startup_handoff_observes_native_barrier_without_opening_owner():
+    clear = [False]
+    def factory():
+        raise AssertionError("handoff observation must not create an owner")
+    value = PersistentPreparationService(owner_factory=factory,
+        intent=lambda: (False, 1), handoff_ready=lambda: clear[0])
+    assert not value.request_handoff(wait_for_preparation=True)
+    value._cycle()
+    assert not value.request_handoff(wait_for_preparation=True)
+    clear[0] = True
+    value._cycle()
+    assert value.request_handoff(wait_for_preparation=True)

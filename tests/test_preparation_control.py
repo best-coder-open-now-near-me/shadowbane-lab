@@ -109,3 +109,14 @@ def test_invalid_control_rejected(ledger, changes):
     item = control(ledger)
     with pytest.raises(ValueError):
         replace(item, **changes)
+
+
+def test_explicit_disabled_intent_does_not_need_an_old_worker_identity(ledger):
+    item = control(ledger, False, worker_id=None, worker_process_id=None,
+                   worker_process_creation=None)
+    assert not item.enabled
+    assert PreparationControl.loads(json.dumps(item.to_dict())) == item
+    with pytest.raises(ValueError):
+        replace(item, enabled=True)
+    with pytest.raises(ValueError):
+        replace(item, worker_process_id=10)
