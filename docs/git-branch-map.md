@@ -8,7 +8,8 @@ allocation. Invocation, queue success and unknown diagnostics have separate
 assertions. This is a native test-only change; it does not alter production
 code, PR #124, or the qualified host .83 package. Integration destination is
 main. The real diagnostics-profile test passed 20 consecutive executions and
-independent peer review; hosted checks and merge remain next.
+independent peer review. All 15 checks passed at final head `5d72644` before
+PR #125 merged as `c8d79ba`. Start new work from refreshed main.
 
 ## Protected recycled worker PID recovery - October 9
 
@@ -29,14 +30,24 @@ provenance. Keep the current release branch for reproducibility, not as a shared
 development base.
 
 Host .83 is installed and its worker attached to the existing Umbra game lifetime.
-All five automatic buff groups report present and maintaining. Final preservation
-verification is resolving active synchronization-marker reads; expiry renewal and
-movement-interruption recovery are not yet accepted. The delivery record is on
+All five automatic buff groups report present and maintaining. Final activation
+verified all 478 modules and 9,550 retained records without excluding any records.
+Beorc renewal and Rat-to-Skree transform alternation are confirmed in native
+application/coverage transitions. Conc-pot/Precision renewal and movement-
+interruption recovery remain next. The obsolete .81/.82 hosts and their old
+wheel payloads are removed; user data and diagnostic records remain in place.
+The delivery record is on
 `codex/worker-restart-delivery-20261009` for main. See
 [the current update record](client-update-20261009.md). PR #125 separately repairs
 a flaky unreadable-memory test fixture; it does not change the installed runtime.
 
 The entries below are historical and superseded by this entry.
+
+The merged, unattached worker-restart and protected-process source branches were
+retired locally and remotely after verifying both exact tips remain in main.
+The fixture topic remains attached to its clean review workspace until delivery
+is complete; the current release composition stays published.
+
 ## Worker reservation recovery after manager restart - October 9
 
 Start new work from refreshed main, which includes PR #123 at `417b8e2`.

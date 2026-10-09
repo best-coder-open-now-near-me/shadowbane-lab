@@ -33,9 +33,46 @@ shutdown. Umbra's original game lifetime stayed running, and no client files
 were written. Both manager shortcuts now use .83; all three game shortcuts are
 unchanged. The manager automatically attached one healthy worker to the existing
 Umbra process. All five automatic buff groups report present and maintaining.
-The final preservation check encountered two active one-byte synchronization
-markers; their read handling is being corrected without restarting the manager.
-Expiry renewal and movement-interruption recovery remain unverified.
+Final activation verified all 478 installed modules and all 9,550 retained records.
+The two active one-byte synchronization markers were read with bounded retries;
+their original hashes matched. The original verifier remained unchanged and
+zero records were excluded. Only the expected generated dispatch record changed.
+The activation receipt SHA-256 is
+`2f140610fdd5d926c6dc44d58123f103f458f9b935102f542225607f1a5c70c4`.
+
+Passive native captures confirmed all five groups present and a defensive-stance
+application queued, locally settled and observed (submitted revision 16, observed
+revision 17). A later capture proved Beorc coverage changed from present to missing,
+a new application was submitted at revision 22, and it settled observed at 24 with
+coverage restored. Rat Shape then expired while still on reuse. The alternate
+Skree'ekt Shape was queued at revision 28 and settled observed at 31, restoring
+transform coverage. These are actual native state/application transitions, not
+system-message or selected-target inference. Conc-pot and Precision coverage are
+confirmed; their expiry renewal and movement-interruption recovery remain next.
+
+Private observations remain under local `artifacts/bot-deploy/20261009-host83`
+and the testing VM diagnostic share `host-update-20261009-0.3.83`. The bounded
+reader retains native applications and coverage transitions; failed or incoherent
+samples are recorded as unavailable rather than credited as completion.
+
+PR #125 separately fixed the hosted test fixture that assumed address `0x10000`
+was unreadable. It now owns a `PAGE_NOACCESS` allocation. The exact final head
+`5d72644` passed all 15 hosted checks before merge `c8d79ba`; this test-only change
+does not change the qualified or installed runtime.
+
+## Obsolete runtime retirement
+
+After successful activation, fresh ownership/dependency inventories proved the
+old .81 and .82 hosts contained only reproducible files and had no active users.
+The .81 host and ten superseded wheel files were removed earlier in this update,
+freeing 57,588,774 bytes (receipt SHA-256
+`7115b3cd138cea94b7d4a93c115173c1e2d1e538ef3d4a6f431cff8c940fcf55`).
+The .82 host's 2,144 files and ten superseded wheels were then removed, freeing
+57,595,245 bytes. All eleven .82 targets were absent afterward and the current
+native DLL hash was unchanged. Its retirement receipt SHA-256 is
+`2a5cb5b47e6f1d4db62fd1037c0276c524f5581d863173cb8256fb866272875d`.
+Settings, jobs, journals and diagnostic evidence remain in place. No deployment
+rollback copies were created or retained.
 
 ## Historical host .82 installation
 
