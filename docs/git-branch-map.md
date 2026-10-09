@@ -1,5 +1,20 @@
 # Git branch map
 
+## Protected recycled worker PID recovery - October 9
+
+`codex/protected-process-lifetime-20261009` starts from main `417b8e2` in
+`buff-activation-observer`. Host .83 uses a bounded kernel process census only
+when Windows denies the ordinary process handle. It retains exact creation
+FILETIME and parent identity, and validates the complete census before crediting
+absence. Access denial, process names and old heartbeat age never prove exit.
+This fixes Attach when a historical worker PID now belongs to a protected service;
+historical worker/job records and native .56 remain unchanged. Parser negatives,
+actual Windows self-process FILETIME comparison and the real manager Attach path
+are tested. The source targets main; release composition must preserve graphics.
+Peer review and 110 focused tests passed. Next: exact-source host qualification
+and installation; no source-only
+checkpoint is a claim that current live buff maintenance has been validated.
+
 ## Worker reservation recovery after manager restart - October 9
 
 Start new work from refreshed main, which includes PR #123 at `417b8e2`.
