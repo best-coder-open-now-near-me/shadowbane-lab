@@ -1,5 +1,16 @@
 # Git branch map
 
+## Movement interruption qualification - October 8
+
+`codex/item-movement-renewal-20261008` follows preparation core `fcccaa5`
+(PR #118) in bot-runtime. Its first checkpoint adds required exact-image
+movement and ordinary item-caller probes without installing a runtime hook or
+changing application authority. See [the proof boundaries](native-movement-interruption-20261008.md).
+Typed activation interruption, retained journal reconciliation and renewal are
+unfinished; no blanket potion/attack gate is included. PR #115 owns the separate
+worker service and real preparation IPC fixture. Root combines reviewed source
+and the current cosmetic overlay before any native release qualification.
+
 ## Persistent preparation core - October 8
 
 `codex/persistent-buff-maintenance-20261008` owns bot-runtime for the native

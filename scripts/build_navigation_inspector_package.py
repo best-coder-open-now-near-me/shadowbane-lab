@@ -258,6 +258,12 @@ def validate_combat_power_readiness_steps(steps, *, reviewed_client):
     )
 
 
+def validate_combat_power_movement_steps(steps, *, reviewed_client):
+    return _validate_combat_power_probe_steps(
+        steps, reviewed_client=reviewed_client, feature="movement",
+    )
+
+
 REQUIRED_MOVEMENT_IPC_TESTS = frozenset({
     "test_real_service_only_update_gap_preserves_exact_owner_and_cleanup",
     "test_real_parent_cancel_preserves_pending_native_owner_until_cleanup_ack",
@@ -495,6 +501,7 @@ def main() -> int:
                                  "combat_melee_entry_test.cpp", "combat_power_entry_test.cpp",
                                  "combat_power_probe.cpp", "combat_power_mode_probe.cpp",
                                  "combat_power_initiation_probe.cpp", "combat_initiation_test.cpp",
+                                 "combat_power_movement_probe.cpp",
                                  "combat_power_readiness_probe.cpp",
                                  "combat_power_readiness_test.cpp",
                                  "combat_power_image_test_stub.cpp",
@@ -695,6 +702,7 @@ def main() -> int:
                  "wonderbane_extension_combat_power_probe",
                  "wonderbane_extension_combat_power_mode_probe",
                  "wonderbane_extension_combat_power_initiation_probe",
+                 "wonderbane_extension_combat_power_movement_probe",
                  "wonderbane_extension_combat_power_readiness_probe",
                  "wonderbane_extension_combat_item_probe",
                  "wonderbane_extension_item_application_trace_probe",
@@ -730,6 +738,11 @@ def main() -> int:
             run(
                 f"{profile}-combat-power-readiness-binding",
                 [build / "Release/wonderbane_extension_combat_power_readiness_probe.exe",
+                 arguments.reviewed_client.resolve()],
+            )
+            run(
+                f"{profile}-combat-power-movement-binding",
+                [build / "Release/wonderbane_extension_combat_power_movement_probe.exe",
                  arguments.reviewed_client.resolve()],
             )
             run(
@@ -796,6 +809,11 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             run(
                 f"{profile}-combat-power-readiness-prepared-binding",
                 [build / "Release/wonderbane_extension_combat_power_readiness_probe.exe",
+                 prepared_client],
+            )
+            run(
+                f"{profile}-combat-power-movement-prepared-binding",
+                [build / "Release/wonderbane_extension_combat_power_movement_probe.exe",
                  prepared_client],
             )
             for feature in ("combat_item", "actor_effects_native", "item_application_trace",
@@ -1159,6 +1177,9 @@ else:
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
         "combat_power_readiness_verified": validate_combat_power_readiness_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client),
+        ),
+        "combat_power_movement_transition_verified": validate_combat_power_movement_steps(
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
         "source_identity": metadata,

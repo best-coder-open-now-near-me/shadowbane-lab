@@ -229,7 +229,7 @@ def power_probe_steps(feature):
     ]
 
 
-@pytest.mark.parametrize("feature", ["initiation", "readiness"])
+@pytest.mark.parametrize("feature", ["initiation", "readiness", "movement"])
 def test_power_receipt_requires_all_four_executed_exact_image_gates(feature):
     validate = getattr(builder, f"validate_combat_power_{feature}_steps")
     assert validate(power_probe_steps(feature), reviewed_client=True)
@@ -238,7 +238,7 @@ def test_power_receipt_requires_all_four_executed_exact_image_gates(feature):
 
 @pytest.mark.parametrize("index", range(4))
 @pytest.mark.parametrize("failure", ["missing", "failed", "duplicate", "wrong_probe", "no_image"])
-@pytest.mark.parametrize("feature", ["initiation", "readiness"])
+@pytest.mark.parametrize("feature", ["initiation", "readiness", "movement"])
 def test_power_receipt_cannot_certify_missing_or_wrong_execution(index, failure, feature):
     steps = power_probe_steps(feature)
     if failure == "missing":
@@ -256,7 +256,7 @@ def test_power_receipt_cannot_certify_missing_or_wrong_execution(index, failure,
 
 
 @pytest.mark.parametrize("pair", [0, 2])
-@pytest.mark.parametrize("feature", ["initiation", "readiness"])
+@pytest.mark.parametrize("feature", ["initiation", "readiness", "movement"])
 def test_power_gate_cannot_count_one_image_twice(pair, feature):
     steps = power_probe_steps(feature)
     steps[pair+1]["command"][1] = steps[pair]["command"][1]
