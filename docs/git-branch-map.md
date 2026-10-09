@@ -1,5 +1,16 @@
 # Git branch map
 
+## Hunt Foe player-awareness work - October 9
+
+Start from refreshed main `7646af6`. Root owns `codex/native-track-awareness-20261009`
+in the `native-track-awareness` worktree, targeting main. Published checkpoint
+`73083d8` supplies the native Track contact reader and learned Hunt Foe resolver;
+92 focused tests and independent review passed. Live observation decoded ten player
+names/keys from Umbra's Hunt Foe list. The shared-worker native query, response
+generation and dashboard integration remain unfinished and outside main. Installed
+.86/.56 is unchanged. The user parked conc-pot interruption testing; normal PvE
+and Hunt Foe awareness take priority. See [the Track contract](native-track.md).
+
 ## Preparation recovery delivery - October 9
 
 Start new work from refreshed main, including PR #131 at `abc4f3d`. Its independently

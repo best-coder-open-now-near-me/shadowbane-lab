@@ -66,9 +66,11 @@ Private reproducible static evidence is under
 `artifacts/track-20261009/static/` (not committed): `findings.txt`,
 `qualification.json`, `disassemble_track.py`, and `qualify_spans.py`.
 The initial live read confirmed the exact learned definition and the absence path.
-After the user's first Hunt Foe use the active-stack reader still found no list;
-loaded-result observation and persistent-window lookup remain under investigation.
-That observation does not establish an empty player result or a failed skill use.
+The user then used Hunt Foe in town; the reader captured ten native player
+names/keys with selector 429578587. The earlier use away from players had no
+loaded HUD. Native lookup confirms root +20 is the in-world owner; no alternate
+persistent result cache is qualified. That earlier absence does not establish
+an empty response or a failed skill use.
 
 ## Remaining implementation
 
