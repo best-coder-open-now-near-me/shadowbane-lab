@@ -16,7 +16,7 @@ ac::ActivationHistory activation_history;
 unsigned checks{},calls{},stops{},child_stops{},begins{},pauses{},released{},revalidations{};
 bool live=true,read_scene=true,lease_live=true,stop_ok=true,native_activity=false,defer_child=false,poll_settled=false;
 unsigned fail_revalidation{},continuation_checks{};
-bool continuation_current=true,item_effect_present=false,preparation_idle=true,preparation_owner_available=true;
+bool continuation_current=true,item_effect_present=false,power_effect_present=false,preparation_idle=true,preparation_owner_available=true;
 std::uint64_t preparation_epoch=1;
 m::NativeScene fixture_scene{0x10000,0x20000,0x30000,0x40000,{91,53},7};
 m::Grant owner{9,7,m::Owner::automation};
@@ -75,13 +75,15 @@ w::Receipt Execute(w::Verb verb,const w::Command& input){
     Check(w::Correlated(input,verb,result),"correlated production receipt");a::Release(command);return result;
 }
 void Tick(){a::runtime.Tick(reinterpret_cast<void*>(fixture_scene.window),reinterpret_cast<HWND>(0x50000));}
-void InterruptActivation(const ac::Handle& handle){
+void StartActivation(const ac::Handle& handle){
     const auto record=activation_history.Read(handle.slot);
     const auto state=activation_history.BeginStart(handle.identity,record.power,1,2,3,GetCurrentThreadId());
     Check(state&&activation_history.StateReturned(state,true),"fixture exact incoming state transition");
     const auto append=activation_history.BeginAppend(handle.identity,record.power,1,2,3,GetCurrentThreadId());
     Check(append&&activation_history.AppendReturned(append,true)&&activation_history.StartProcessReturned(append,true),"fixture incoming append and normal Process return");
-    const auto movement=activation_history.BeginMovement(handle.identity);
+}
+void InterruptActivation(const ac::Handle& handle){
+    StartActivation(handle);const auto movement=activation_history.BeginMovement(handle.identity);
     Check(movement&&activation_history.MovementReturned(movement,true),"fixture exact movement transition");
 }
 w::Command Buff(const w::Command& parent,unsigned request,unsigned selector){
@@ -137,7 +139,7 @@ namespace wonderbane::extension::combat::inventory {bool Start(std::uintptr_t)no
 namespace wonderbane::extension::actor_buffs {
 Unknown Capture(const actor_effects::Context&,const Request& request,State&,Publication& out)noexcept{
     out.effects_.count=0;
-    for(std::uint32_t i=0;i<request.count;++i){if(item_effect_present&&!request.actions[i].power_id){
+    for(std::uint32_t i=0;i<request.count;++i){if(request.actions[i].power_id?power_effect_present:item_effect_present){
         auto& effect=out.effects_.effects[out.effects_.count++];effect.descriptor_id=222+i;
         effect.action_id=333+i;effect.rank=35;effect.action_class=actor_effects::ActionClass::apply;
     }}return Unknown::none;
@@ -193,7 +195,7 @@ b::Unknown NativeActor::Publish(const b::Request& request,b::Publication& out)no
     out.actor_key=scene_.identity;out.scene=scene_.epoch;out.effect_epoch=1;out.count=request.count;out.actor_mode=1;out.initiation_clear=!pending_;out.admission_blocks=pending_?admission::local_action:0;
     for(std::uint32_t i=0;i<out.count;++i){auto& fact=out.actions[i];fact.intent=request.actions[i];fact.learned_rank=fact.intent.power_id?40:0;
         fact.target_mode=2;fact.required_mode=3;fact.descriptor_count=1;fact.descriptors[0]={222+i,333+i,actor_effects::ActionClass::apply,0,false};
-        fact.descriptors[0].present=item_effect_present&&!fact.intent.power_id;
+        fact.descriptors[0].present=fact.intent.power_id?power_effect_present:item_effect_present;
         fact.coverage=fact.descriptors[0].present?b::Coverage::present:b::Coverage::missing;fact.readiness=pending_?b::Readiness::initiation_pending:b::Readiness::ready;
         if(!fact.intent.power_id){fact.item_key={55,30};fact.item_template={980066,0};fact.item_hint=0x70000;fact.template_hint=0x80000;fact.item_quantity=3;fact.item_type=8;fact.item_flags=10;}
     }(void)b::Capture({},request,observation_state_,out);publication_=out;return b::Unknown::none;
@@ -376,6 +378,28 @@ int main(){
     const auto relinquished_receipt=Execute(w::Verb::action_status,relinquished);
     Check(relinquished_receipt.application==w::Application::pending&&relinquished_receipt.local_settlement==w::LocalSettlement::settled,
         "manual takeover local release cannot imply application interruption or retry permission");
+    power_effect_present=true;
+    Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+        &&Execute(w::Verb::action_status,relinquished).application==w::Application::observed,
+        "positive effect presence independently resolves unknown remote interpretation");
+    for(unsigned cycle=0;cycle<2;++cycle){
+        item_effect_present=power_effect_present=false;
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"ordinary later expiry is freshly observed");
+        auto sequential_item=Buff(resumed,60+cycle*2,0);
+        Check(Execute(w::Verb::submit,sequential_item).local_settlement==w::LocalSettlement::settled,"item transaction settles without claiming effect");
+        StartActivation(a::runtime.activations[a::runtime.JournalIndex(sequential_item)]);
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"other configured group remains observable during item application");
+        auto sequential_power=Buff(resumed,61+cycle*2,1);
+        Check(Execute(w::Verb::submit,sequential_power).outcome==w::Outcome::queued,"ordinary sequential power proceeds without effect barrier");
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+            &&Execute(w::Verb::action_status,sequential_item).application==w::Application::pending,
+            "competing control activity never fabricates item interruption");
+        item_effect_present=power_effect_present=true;
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+            &&Execute(w::Verb::action_status,sequential_item).application==w::Application::observed
+            &&Execute(w::Verb::action_status,sequential_power).application==w::Application::observed,
+            "fresh native coverage reconciles each sequential group and permits next expiry cycle");
+    }
     Check(Execute(w::Verb::stop_owner,resumed).closure==w::Closure::local_released,"interrupted item is not fabricated local ownership");
     std::printf("actor runtime: %u checks, %u native submits, no failures\n",checks,calls);return 0;
 }

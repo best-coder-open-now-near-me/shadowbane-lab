@@ -239,6 +239,15 @@ int main(int argc, char** argv) {
     queue=reinterpret_cast<void*>(base+0x1600100); sender=reinterpret_cast<void*>(base+0x16ab888);
     definition[0x138/4]=428918601; definition[0x204/4]=0; definition[0x1a8/4]=1;
     for (const auto& site:pw::sites) { std::memcpy(image+site.rva,site.bytes.data(),5); }
+    // Supported-image startup also verifies the required activation observer.
+    // These synthetic entry bytes are never executed by image-admission cases.
+    const std::pair<std::uint32_t,std::array<std::uint8_t,5>> activation_sites[]{
+        {0x382df0,{0x55,0x8b,0xec,0x6a,0xff}},
+        {0x384057,{0xe8,0x77,0x18,0xca,0xff}},
+        {0x3849f2,{0xe8,0xdc,0x0e,0xca,0xff}},
+        {0x631a3,{0xe8,0x2b,0x27,0xfc,0xff}}
+    };
+    for(const auto& [rva,bytes]:activation_sites){std::memcpy(image+rva,bytes.data(),bytes.size());}
     // Synthetic bodies preserve the reviewed 9bbf0 -> 9c710 EBP chain and
     // genuine return site9bf09. The production bridge must identify THIS entry,
     // not merely a same-shaped message reached through an unrelated invocation.

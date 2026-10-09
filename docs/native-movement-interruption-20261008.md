@@ -88,8 +88,9 @@ observation revision is later than submission. An old interruption cannot clear
 a newer same-group command; a late local settlement cannot reinsert the old
 application. Complete native effect presence remains independent positive proof.
 Normal local completion alone does not assert remote application or permit a
-retry. Native observer wiring and host-policy integration are required before
-this model/journal checkpoint can be treated as a production renewal repair.
+retry. The combined source now includes required observer wiring, native journal
+projection and host-policy integration. Package qualification and live acceptance
+remain separate from these source tests.
 
 
 ## Stationary self-power readiness
@@ -141,5 +142,49 @@ The observation/publication slice passed both affected native tests and 288 host
 tests without skips, including the actual native publication mapping roundtrip.
 Tests cover state 5/6/7, zero/same/other retained IDs, auxiliary changes during
 capture, explicit stationary encoding and rejection of inconsistent authority.
-Final combined native submission and local-cleanup review is separate; no live
-runtime or application journal is changed by these qualification claims.
+The combined native submission gate also rechecks positive stationary state 5,
+exact current identity, input eligibility, native-use activity and local arbiter
+obligations before self-power entry. Targeted entry retains its prior constraints.
+
+## Local control completion and remaining evidence limits
+
+The required observer seals each native Process invocation, state transition,
+append/removal sequence and normal return. Its incoming and completion probes
+execute 19 and 27 bounded cases per exact image, respectively; intervening
+presentation/effect bodies remain outside those probe claims. Hook tests cover
+reentry, exceptions, repeated IDs, manual sends and exact lifetime changes.
+
+A positively observed newer manual activation can relinquish the old bot's local
+control responsibility after a normal owned self-power return. It does not mark
+the old application interrupted or successful, and never stops the newer cast.
+A rejected ordinary manual attempt with unchanged native state preserves the
+older generation rather than creating a permanent cleanup obligation.
+
+Special definitions with native flag `+0x274` do not enter state 6 on the
+qualified PreparePower branch. Their local-only completion requires positive
+stationary state before entry, stable definition identity and special flag,
+normal owned queue/followup and whole Use return, coherent native control fields
+and an unchanged mutation generation. Native request/transfer/in-flight checks
+still apply before releasing local ownership. The 38-case exact-image special
+probe executes that branch with named substitutes, not full PreparePower. This
+local completion leaves the application journal pending until independent
+coverage or qualified interruption evidence resolves it.
+
+Normal sequential item and power preparation is covered through repeated native
+journal publication and all-five-group policy cycles: local settlement permits
+the next eligible group, positive coverage resolves its own application record,
+and later fresh absence permits renewal. There is no blanket effect wait.
+Competing manual activity can make an older application association genuinely
+ambiguous. Such an outcome remains pending; neither missing packets, elapsed
+time, local relinquishment nor Resume permits duplicate consumption. Positive
+native coverage can still resolve it. Recovery from every ambiguous overlapping
+remote outcome is not claimed by this slice.
+
+The combined host `0.3.80` / native `1.8.55` source builds the full native DLL.
+Its focused host validation passed 863 tests without skips, including actual
+native preparation IPC and publication decoding; five release-identity tests
+also passed. The final observer and special probes passed 45 and 38 cases on
+each exact image. The generic native sweep passed 240 tests, skipped three
+image-argument fixtures and retained the two existing stretch transparency
+diagnostic failures. It is not a substitute for final both-profile package
+qualification, which supplies the required image and IPC fixtures.

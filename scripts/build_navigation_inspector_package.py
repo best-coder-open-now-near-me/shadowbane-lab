@@ -278,6 +278,12 @@ def validate_combat_power_movement_steps(steps, *, reviewed_client):
     )
 
 
+def validate_combat_power_special_steps(steps, *, reviewed_client):
+    return _validate_combat_power_probe_steps(
+        steps, reviewed_client=reviewed_client, feature="special",
+    )
+
+
 REQUIRED_MOVEMENT_IPC_TESTS = frozenset({
     "test_real_service_only_update_gap_preserves_exact_owner_and_cleanup",
     "test_real_parent_cancel_preserves_pending_native_owner_until_cleanup_ack",
@@ -522,6 +528,7 @@ def main() -> int:
                                  "combat_power_probe.cpp", "combat_power_mode_probe.cpp",
                                  "combat_power_initiation_probe.cpp", "combat_initiation_test.cpp",
                                  "combat_power_movement_probe.cpp",
+                                 "combat_power_special_probe.cpp",
                                  "combat_power_readiness_probe.cpp",
                                  "combat_power_readiness_test.cpp",
                                  "combat_power_image_test_stub.cpp",
@@ -727,6 +734,7 @@ def main() -> int:
                  "wonderbane_extension_combat_power_mode_probe",
                  "wonderbane_extension_combat_power_initiation_probe",
                  "wonderbane_extension_combat_power_movement_probe",
+                 "wonderbane_extension_combat_power_special_probe",
                  "wonderbane_extension_combat_activation_incoming_probe",
                  "wonderbane_extension_combat_activation_completion_probe",
                  "wonderbane_extension_combat_power_readiness_probe",
@@ -854,6 +862,8 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
                 run(f"{profile}-combat_activation_observer-{suffix}",
                     [build / "Release/wonderbane_extension_combat_activation_observer_test.exe",
                      image])
+                run(f"{profile}-combat-power-special-{suffix}",
+                    [build / "Release/wonderbane_extension_combat_power_special_probe.exe", image])
             for test in ("sky_binding", "sky_render"):
                 run(
                     f"{profile}-{test}",
@@ -1215,6 +1225,9 @@ else:
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
         "combat_activation_boundaries_verified": validate_activation_probe_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client),
+        ),
+        "combat_power_special_verified": validate_combat_power_special_steps(
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
         "source_identity": metadata,

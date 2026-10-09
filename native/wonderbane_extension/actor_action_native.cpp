@@ -383,7 +383,8 @@ NativeActor::Operation NativeActor::PollImpl(){
     // owned normal Use/followup can cross from local responsibility to clear.
     const auto activation=activation_?combat::activation::Read(activation_):combat::activation::Result::unknown;
     const bool terminal_activation=!request_&&!transfer_&&(activation==combat::activation::Result::completed
-        ||activation==combat::activation::Result::interrupted||activation==combat::activation::Result::relinquished);
+        ||activation==combat::activation::Result::interrupted||activation==combat::activation::Result::relinquished
+        ||activation==combat::activation::Result::locally_completed);
     if(pending_owned_followup_&&pending_saw_initiation_&&pending_epoch_
         &&(parent_.purpose==fence::Purpose::preparation
             ? terminal_activation||power::ReadLocalInitiation(power_receipt_.local_initiation_token,scene_.actor,scene_.identity,pending_command_.power_id)==power::LocalInitiationState::retired

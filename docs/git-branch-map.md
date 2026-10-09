@@ -13,9 +13,12 @@ Incoming/completion image probes and the observer are mandatory package gates.
 No blanket potion/attack gate is included. The branch now includes
 exact worker/IPC head `2ceeb701` from PR #115 by ancestry. Its stationary item
 readiness checkpoint is `1cbce71`; it does not clear pending application history.
-Final stationary self-power publication and special-definition local settlement
-remain in progress, followed by combined validation and independent review.
-This source has not been deployed or release-qualified.
+The combined candidate is host `0.3.80` / native `1.8.55`. It includes stationary
+self-power publication `004f0a3` and special-definition local settlement
+`b3f780f`, both independently reviewed. Final combined validation and package
+qualification remain; this source has not been deployed or release-qualified.
+Ambiguous overlapping application outcomes remain pending until positive native
+evidence resolves them; local control relinquishment never grants item replay.
 Root combines reviewed source
 and the current cosmetic overlay before any native release qualification.
 
