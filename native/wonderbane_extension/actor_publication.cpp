@@ -51,10 +51,11 @@ bool Facts(const Frame& f)noexcept{
     }
     for(std::size_t i=0;i<f.applications.size();++i){const auto& a=f.applications[i];
         if(i>=f.application_count){if(!Zero(a)){return false;}continue;}
-        if(!fence::Any(a.intent)||!fence::Any(a.command)||!a.submitted_revision||a.entry>2||a.state>2
+        if(!fence::Any(a.intent)||!fence::Any(a.command)||!a.submitted_revision||a.entry>2||a.state>3
             ||a.local_settled>1||a.queued>1||!Zero(a.reserved)||(a.queued&&a.entry!=1)
-            ||(a.state==1&&!a.entry)||(a.state==2&&(!a.entry||a.observed_revision<=a.submitted_revision))
-            ||(a.state!=2&&a.observed_revision)){return false;}
+            ||(a.state==1&&!a.entry)||((a.state==2||a.state==3)&&(!a.entry||a.observed_revision<=a.submitted_revision))
+            ||(a.state==3&&(!a.queued||a.entry!=1))
+            ||(a.state<2&&a.observed_revision)){return false;}
         for(std::size_t j=0;j<i;++j){if(f.applications[j].command==a.command){return false;}}
     }
     return true;

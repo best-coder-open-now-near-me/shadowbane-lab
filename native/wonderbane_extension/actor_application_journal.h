@@ -8,7 +8,7 @@ using JournalDigest = std::array<std::uint8_t,32>;
 // These records belong to the retained actor lifetime, not a Grant, target
 // context, host policy object or replay cache. No timeout can remove them.
 enum class ApplicationEntry { never_entered, entered, uncertain };
-enum class ApplicationState { none, pending, observed };
+enum class ApplicationState { none, pending, observed, interrupted };
 struct ApplicationRecord {
     JournalDigest intent{}, command{};
     std::uint64_t submitted_revision{}, observed_revision{};
@@ -57,10 +57,24 @@ public:
         }
         if (record->entry!=ApplicationEntry::entered) { record->entry=entry; }
         record->queued |= queued;record->local_settled |= local_settled;
-        if (entry!=ApplicationEntry::never_entered && record->state!=ApplicationState::observed) {
+        if (entry!=ApplicationEntry::never_entered && record->state!=ApplicationState::observed
+            && record->state!=ApplicationState::interrupted) {
             record->state=ApplicationState::pending;
         }
         return true;
+    }
+    // A positively observed interruption names one immutable queued command,
+    // not the current group or an inferred server failure. The owning observer
+    // supplies the exact activation generation. Local settlement is independent.
+    bool Interrupt(std::size_t index,const JournalDigest& command,std::uint64_t submitted_revision,
+                   std::uint64_t observation_revision) noexcept {
+        auto* record=Exact(index,command);
+        if(faulted_||!record||record->submitted_revision!=submitted_revision
+            ||observation_revision<=submitted_revision||!record->queued
+            ||record->entry!=ApplicationEntry::entered){return false;}
+        if(record->state==ApplicationState::observed||record->state==ApplicationState::interrupted){return true;}
+        if(record->state!=ApplicationState::pending){return false;}
+        record->state=ApplicationState::interrupted;record->observed_revision=observation_revision;return true;
     }
     // Called only with fresh complete native coverage for this exact semantic
     // intent. Presence settles remote observation, never local responsibility.

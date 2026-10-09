@@ -29,6 +29,11 @@ void EncodeCases(){
     p::Frame frame{};Check(p::Encode(manifest,source,journal,frame)&&p::Facts(frame),"canonical resolver and journal encode");
     Check(frame.applications[0].entry==2&&frame.applications[0].state==1&&frame.applications[0].local_settled
         &&!frame.applications[0].queued&&frame.applications[0].intent==intent,"exact pending application copied without invented receipt fields");
+    auto terminal=frame;auto& ended=terminal.applications[0];ended.entry=1;ended.queued=1;ended.state=3;ended.observed_revision=2;
+    Check(p::Facts(terminal),"exact interrupted application preserves independent local settlement");
+    for(unsigned bad=0;bad<4;++bad){auto invalid=terminal;auto& row=invalid.applications[0];
+        if(bad==0){row.queued=0;}if(bad==1){row.entry=2;}if(bad==2){row.observed_revision=row.submitted_revision;}if(bad==3){row.state=4;}
+        Check(!p::Facts(invalid),"interrupted publication rejects missing positive generation contract");}
     auto item=Sample();item.readiness[0].selector={0,0,4,0,980066,0,111,0};
     item.readiness[0].rank=0;item.readiness[0].readiness=0;
     Check(p::Facts(item),"unknown empty item with independently known coverage is representable");
@@ -70,6 +75,12 @@ int Ipc(){
             sample.application_count=1;auto& a=sample.applications[0];a.intent.fill(1);a.command.fill(2);
             ++a.command[0];a.submitted_revision=writer.Revision();a.local_settled=1;
             if(!writer.Publish(sample)){return 9;}
+        }
+        else if(command=="interrupted"){
+            sample.application_count=1;auto& a=sample.applications[0];a.intent.fill(1);a.command.fill(2);
+            a.submitted_revision=writer.Revision();a.observed_revision=writer.Revision()+1;
+            a.entry=1;a.state=3;a.local_settled=1;a.queued=1;
+            if(!writer.Publish(sample)){return 14;}
         }
         else if(command=="occupied"){sample.admission_blocks=8;if(!writer.Publish(sample)){return 10;}}
         else if(command=="clear"){sample.admission_blocks=0;if(!writer.Publish(sample)){return 11;}}

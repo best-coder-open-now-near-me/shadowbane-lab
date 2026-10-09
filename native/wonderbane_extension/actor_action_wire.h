@@ -12,7 +12,7 @@ enum class Outcome:std::uint32_t { observed,queued,stale,unavailable,invalid,pen
 enum class Phase:std::uint32_t { unknown,bound,stopping,closed,retired,blocked };
 enum class Entry:std::uint32_t { unknown,never_entered,entered };
 enum class LocalSettlement:std::uint32_t { unknown,pending,settled };
-enum class Application:std::uint32_t { none,pending,observed,unknown };
+enum class Application:std::uint32_t { none,pending,observed,unknown,interrupted };
 enum class Closure:std::uint32_t { none,never_bound,native_stopped,scene_retired,history_expired,local_released };
 enum class ClosureScope:std::uint32_t { none,owner,context };
 enum class Reason:std::uint32_t { none,power_reuse,recovery,initiation,stance,observation,item,target_occupied,local_action,native_use,child_cleanup,admission_changed,manual_activity };
@@ -104,7 +104,7 @@ inline bool Valid(const Receipt& r) noexcept {
     if(r.version!=3||r.verb<Verb::open_owner||r.verb>Verb::register_selectors||r.action>Action::use_item
         ||r.outcome>Outcome::power_reuse_blocked||r.entry>Entry::entered||r.local_settlement>LocalSettlement::settled
         ||r.owner_phase>Phase::blocked||r.context_phase>Phase::blocked||r.closure>Closure::local_released
-        ||r.application>Application::unknown||r.reason>Reason::manual_activity||r.closure_scope>ClosureScope::context
+        ||r.application>Application::interrupted||r.reason>Reason::manual_activity||r.closure_scope>ClosureScope::context
         ||!m::wire::Valid(r.host)||!r.window||r.window>UINT32_MAX||!Any(r.request)||!Any(r.command_digest)
         ||r.flags&~31U||r.combat_target_present>1||!ValidGrant(r.grant,parent)
         ||ActionVerb(r.verb)!=(r.action!=Action::none)
@@ -121,6 +121,7 @@ inline bool Valid(const Receipt& r) noexcept {
     if(r.entry==Entry::never_entered&&(history||r.application!=Application::none||r.local_settlement!=LocalSettlement::settled)){return false;}
     if(r.outcome==Outcome::queued&&!(r.flags&outbound_queued)){return false;}
     if(static_cast<bool>(r.flags&application_pending)!=(r.application==Application::pending||r.application==Application::unknown)){return false;}
+    if(r.application==Application::interrupted&&(r.entry!=Entry::entered||!(r.flags&outbound_queued))){return false;}
     if(r.application!=Application::none&&r.action!=Action::cast&&r.action!=Action::self_power&&r.action!=Action::use_item){return false;}
     if((r.outcome==Outcome::history_expired)!=(r.closure==Closure::history_expired)){return false;}
     if(r.closure_scope==ClosureScope::context&&Closed(r.owner_phase)){return false;}

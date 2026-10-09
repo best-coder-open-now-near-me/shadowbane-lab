@@ -62,3 +62,31 @@ Power readiness, power/attack submission and target attachment retain their
 strict initiation checks. Movement and active state 6 never qualify the item
 exception. The application journal still suppresses every unresolved queued
 use; this readiness change does not remove that history or implement retry.
+
+## Retained lifecycle contract (source integration in progress)
+
+The shared activation model retains an immutable journal slot and monotonically
+increasing ticket for the exact actor/key/scene. Positive owned queue evidence
+precedes association with an incoming activation. Qualified direct owned power
+followup can establish state 6 when its coherent capture actually observes it;
+the subsequent incoming start continues that generation. Otherwise the incoming
+state-setter and append must belong to one exact Process invocation, and the
+start becomes active only after its normal return. Reentrant native activity
+invalidates candidates even when memory bytes later match again.
+
+Movement interruption and normal completion are distinct terminal local facts.
+Normal completion requires the qualified successful message path, its state
+transition and both first-match remover sites, followed by normal Process return.
+Neither terminal fact requires the bookkeeping vector to be empty. Positive old
+terminal evidence survives later manual work without claiming ownership of it.
+
+Publication state `interrupted` is appended as value 3; actor-action receipt
+application value 4 denotes the same interpretation. Existing values and record
+layouts are unchanged. The record retains exact command digest, submitted
+revision, queued/entry history and independent local settlement. Its terminal
+observation revision is later than submission. An old interruption cannot clear
+a newer same-group command; a late local settlement cannot reinsert the old
+application. Complete native effect presence remains independent positive proof.
+Normal local completion alone does not assert remote application or permit a
+retry. Native observer wiring and host-policy integration are required before
+this model/journal checkpoint can be treated as a production renewal repair.

@@ -44,5 +44,23 @@ int main(){
     slot=refused.Reserve(potion,first,1);
     Check(refused.Record(slot,first,a::ApplicationEntry::never_entered,false,true)&&!refused.Pending(potion),"definitive pre-entry refusal has no remote obligation");
     Check(refused.Reserve(potion,second,2)!=a::ApplicationJournal::invalid,"fresh request after definitive refusal");
+    a::ApplicationJournal interrupted;
+    slot=interrupted.Reserve(potion,first,10);
+    Check(interrupted.Record(slot,first,a::ApplicationEntry::entered,true,false),"owned power queued with local responsibility");
+    Check(!interrupted.Interrupt(slot,second,10,11)&&!interrupted.Interrupt(slot,first,9,11)
+        &&!interrupted.Interrupt(slot,first,10,10),"terminal evidence cannot substitute command, submission or same observation");
+    Check(interrupted.Interrupt(slot,first,10,11)&&interrupted.LocalPending(),"semantic interruption does not itself settle local responsibility");
+    Check(interrupted.Reserve(potion,second,12)==a::ApplicationJournal::invalid,"unsettled local work still blocks retry");
+    Check(interrupted.Record(slot,first,a::ApplicationEntry::entered,true,true)
+        &&interrupted.Records()[slot].state==a::ApplicationState::interrupted,"late exact settlement cannot reinsert interrupted application");
+    Check(!interrupted.Pending(potion),"positive interruption permits fresh ordinary eligibility evaluation");
+    const auto replacement=interrupted.Reserve(potion,second,12);
+    Check(replacement!=a::ApplicationJournal::invalid&&interrupted.Record(replacement,second,a::ApplicationEntry::entered,true,true),"new generation reserved after settled interruption");
+    Check(!interrupted.Interrupt(slot,first,10,13)&&interrupted.Pending(potion),"old terminal cannot clear newer reused slot");
+    a::ApplicationJournal no_queue;
+    slot=no_queue.Reserve(potion,first,10);
+    Check(no_queue.Record(slot,first,a::ApplicationEntry::uncertain,false,true)
+        &&!no_queue.Interrupt(slot,first,10,11)&&no_queue.Pending(potion),"uncertain entry is not semantic queued activation proof");
+    Check(no_queue.Observe(potion,12,true,true)&&!no_queue.Pending(potion),"canonical presence independently resolves unknown association");
     std::printf("application journal: %u failures\n",failures);return failures?1:0;
 }
