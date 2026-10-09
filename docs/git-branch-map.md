@@ -60,8 +60,9 @@ are absent, with unchanged game/DLL and healthy upkeep at that checked boundary.
 verifiers must retain Windows path identity semantics, not the old case-sensitive
 manifest comparison.
 
-`codex/manager-desktop-delivery-20261009` in `buff-activation-observer` owns the
-delivery documentation only. Root retired the merged source topic `codex/manager-desktop-readiness-20261009`
+The merged `codex/manager-desktop-delivery-20261009` tip `624669d` remains in main;
+its local/remote branch was retired and the clean, unowned `buff-activation-observer`
+worktree was archived after preserving its Git history. Root retired the merged source topic `codex/manager-desktop-readiness-20261009`
 and superseded `codex/preparation-status-release-20261009` locally and remotely
 after verifying no checkout ownership and tip reachability in main/current release.
 The exact current `7720bc5` release branch/worktree remains published. Qualification,
