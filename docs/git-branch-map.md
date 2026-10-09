@@ -1,25 +1,43 @@
 # Git branch map
 
-## Client 1.3.38.16 release composition - October 9
+## Worker restart recovery release composition - October 9
 
-`codex/client-release-20261009` owns bot-integration for exact-source package
-qualification. It combines host checkpoint `feb4bb0` and native checkpoint
-`82e1b3c` through integration `b5b6a6a`, retaining the installed graphics source
-and mandatory graphics package checks from qualified release `3e4d801`.
-The bot integration destination remains main; graphics PRs #106/#113 remain
-separately owned drafts. This .81/.56 candidate is not yet qualified or installed.
-Use refreshed main for new bot development and this published composition only
-for reproducing the combined deployment. Earlier composition ownership is historical.
+`codex/worker-restart-release-20261009` owns bot-integration for exact-source
+host .82 qualification. It combines reviewed recovery source `45cebdd` with
+installed release `df97e7b`, preserving the native/assets trees and installed
+graphics composition unchanged. Main remains the shared bot integration target;
+graphics PRs #106/#113 remain separately owned drafts. Qualification and host-only
+installation are pending. Use refreshed main for new development.
+## Worker reservation recovery after manager restart - October 9
+
+`codex/worker-reservation-restart-20261009` starts from main `f7110e7` in
+`buff-activation-observer`. Host .82 adds exact historical interpreter-exit
+recovery for an unverified launch reservation left across manager restart.
+The matching worker nonce, slot and old game instance must agree with a valid
+heartbeat, and repeated OS observations must prove that interpreter lifetime
+is absent or replaced. A live worker is never adopted through this recovery.
+Historical heartbeat, stop and job records remain intact. Native .56 is unchanged.
+The source targets main; release composition must preserve installed graphics.
+Next: peer review and exact-source qualification before installing the host fix.
 
 ## Official client 1.3.38.16 update - October 9
 
-Start from refreshed main, now including PR #120 at `32651c4`. The user applied
-the next official patch; the installed .80/.55 bot runtime still contains the
-previous client. `codex/client-host-20261009` owns host compatibility and delivery,
-with native changes on `codex/client-native-20261009`. Both target main. The new
-.81/.56 package must preserve the graphics composition in published release
-`3e4d801`; those graphics drafts remain separately owned. Qualification and
-installation are pending. See [the current update record](client-update-20261009.md).
+Start from refreshed main, now including PR #121 at `6c3cd6d`. Reviewed host and
+native compatibility source is merged. The qualified .81/.56 runtime and official
+client 1.3.38.16 are installed; Vendor Test reopened with the verified DLL.
+All 477 packaged host files and 9,621 retained settings/history records passed
+installation checks. In-world buff renewal and interruption recovery remain.
+The obsolete .80 host and 11 old payload files were removed after dependency
+verification; user data and diagnostic records were preserved.
+
+Published `codex/client-release-20261009` at
+`df97e7b328626f74efe6a1fb5e17e926942e37b4` is the exact deployment composition,
+owned in bot-integration. It preserves the previous graphics source byte-for-byte;
+graphics PRs #106/#113 remain separately owned drafts outside main. Retain the
+release branch until those graphics lanes are integrated, not as a development
+base. `codex/client-delivery-20261009` records this installation for main.
+See [the current update record](client-update-20261009.md). Older deployment
+entries below are historical and superseded by this entry.
 
 ## Qualified persistent buff delivery - October 9
 
@@ -206,7 +224,7 @@ This receipt branch targets `main` through the upcoming combined recovery review
 installation remain pending; the VM still runs qualified host .78 plus the
 separately recorded cosmetic overlay.
 
-## Current Wonderbane client update â€” October 8
+## Current Wonderbane client update — October 8
 
 Start new bot work from refreshed `origin/main`. PR #105 merged exact client
 1.3.38.15 support at `500fe40`, retaining qualified source `6c8ea10`. Host .78 /
@@ -302,7 +320,7 @@ Start from freshly fetched `origin/main`, now
 `a84f010a752d91f61aa4366921729f3af3dc8074` after PRs #83 and #84 merged the deployment
 and provenance records. PR #81 integrated the combined release.
 Exact source `733b5fecb862c6d9421b8c2d20f8b8aee5c6db18` is installed
-as host .75/native .52; .14 executable and official cache `08c115â€¦` remain unchanged.
+as host .75/native .52; .14 executable and official cache `08c115…` remain unchanged.
 The release includes reviewed cleanup ownership repair and optional item-response
 diagnostics. Their source branches remain retained pending safe branch cleanup;
 no current checkout is repurposed by this documentation task.
@@ -846,7 +864,7 @@ Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
 
-## Current delivery status â€” September 12
+## Current delivery status — September 12
 
 Active priority: [PvE/PvP attack-list delivery](pve-pvp-attack-list-plan.md).
 Blacklist means attack list, populated by commands or attributed responses.
@@ -981,7 +999,7 @@ the diagnostic package does not claim visual or live Condemn acceptance.
 See the September 22 handoff for scope and recovery limits.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
-## Guard-upgrade detour â€” September 17
+## Guard-upgrade detour — September 17
 
 `codex/guard-upgrades` starts at vendor checkpoint `61e6fd8` in its own worktree.
 The user wants guards upgraded toward maximum rank as available gold permits.
@@ -1102,7 +1120,7 @@ destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.
 
-## Vendor overlay â€” September 14
+## Vendor overlay — September 14
 
 September 15: the correct full native 1.8.8 / host 0.3.17 is installed and its
 action mapping is verified. A live scan confirmed the selected-vacancy fix and
@@ -1397,7 +1415,7 @@ Blacklist means the attack list, populated manually or through attributed respon
 The plan retains applicable review follow-ups without making broad cleanup or unfinished
 visual/door features prerequisites. Identity changes through 8552552 are integrated; attack-list storage and chat editing are integrated. Durable player identity and command completion are active; response attribution and combat transitions remain pending.
 
-## Official client refresh â€” September 19
+## Official client refresh — September 19
 
 The guard lane now reviews official client 1.3.38.9 with native 1.8.21 / host
 0.3.31. [Exact client review and deployment todo](client-update-20260919.md).
@@ -1413,7 +1431,7 @@ and continue rank checks; outer coverage and maximum-rank completion remain open
 Keep the current carried-gold guard journals, including unresolved requests.
 This work remains outside the shared integration branch and main.
 
-## Guard travel controls â€” September 19
+## Guard travel controls — September 19
 
 The active `codex/guard-upgrades` worktree now owns the
 [dashboard Travel / Continue here feature](handoffs/guard-travel.md).
@@ -1427,11 +1445,11 @@ are verified. Fresh discovery retains 174 guards; Travel has live-paused safely
 after an active cycle with no spending or pending request. Next: user repositioning
 and Continue here to verify saved progress and new-area merging.
 Integration remains
-`codex/guard-upgrades` â†’ `codex/vendor-rolling` â†’
-`codex/native-lifecycle-hardening` â†’ reviewed `main`.
+`codex/guard-upgrades` → `codex/vendor-rolling` →
+`codex/native-lifecycle-hardening` → reviewed `main`.
 
 
-### Guard Travel host continuation â€” September 19
+### Guard Travel host continuation — September 19
 
 The active guard lane now contains host 0.3.33's same-character area continuation
 fix. Historical scenes stay immutable; only guards in fresh owned rosters gain
