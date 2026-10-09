@@ -571,6 +571,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             authorization_token_file=arguments.authorization_token_file,
             open_browser=not arguments.no_browser,
             live=arguments.live,
+            startup_generation=arguments.startup_generation,
         )
     if arguments.command == "manager" and arguments.manager_command == "worker":
         return _run_manager_worker(

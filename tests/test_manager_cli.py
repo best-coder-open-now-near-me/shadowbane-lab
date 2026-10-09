@@ -552,7 +552,12 @@ class ManagerCliTests(unittest.TestCase):
 
         class FakeProcessLifetimeInspector:
             def inspect(self, _process_id: int) -> object:
-                raise AssertionError("no process inspection expected")
+                from types import SimpleNamespace
+                if _process_id == os.getpid():
+                    return SimpleNamespace(process_id=_process_id,
+                                           process_started_at_100ns=123,
+                                           parent_process_id=os.getppid())
+                raise AssertionError("no other process inspection expected")
 
         created_servers: list[object] = []
 
@@ -563,6 +568,7 @@ class ManagerCliTests(unittest.TestCase):
                 *,
                 port: int,
                 authorization_token: str,
+                startup_record: dict,
             ) -> None:
                 self.service = service
                 self.port = port
@@ -661,6 +667,7 @@ class ManagerCliTests(unittest.TestCase):
         self.assertEqual(1, len(created_servers))
         server = created_servers[0]
         self.assertEqual(dashboard_token_payload, server.authorization_token)
+        self.assertNotIn(dashboard_token_payload, output.getvalue())
         self.assertTrue(server.exited)
         self.assertEqual("gaming-pc-east", server.service.status()["node_id"])
         self.assertIn("managed clients will remain open", output.getvalue())
