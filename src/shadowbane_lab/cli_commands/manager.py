@@ -641,9 +641,9 @@ def _run_manager_app(
                 if open_browser:
                     try:
                         if not webbrowser.open(server.suggested_url, new=1):
-                            print("Could not open a browser; use the printed dashboard URL.")
+                            print("Could not open a browser; open the desktop shortcut again.")
                     except (OSError, webbrowser.Error):
-                        print("Could not open a browser; use the printed dashboard URL.")
+                        print("Could not open a browser; open the desktop shortcut again.")
                 try:
                     _supervise_manager(application, server)
                 except KeyboardInterrupt:

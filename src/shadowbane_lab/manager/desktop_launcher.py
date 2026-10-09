@@ -24,6 +24,34 @@ class StartupPending(StartupError):
     """The owned process may still be starting. A later click resumes the same attempt."""
 
 
+def manager_interpreter() -> Path:
+    """A pythonw shortcut still starts the manager through its exact console interpreter."""
+    executable = Path(sys.executable)
+    if executable.name.lower() == "pythonw.exe":
+        executable = executable.with_name("python.exe")
+    if not executable.is_file():
+        raise StartupError("The installed manager interpreter is missing")
+    return executable
+
+
+def _message_box(message):
+    import ctypes
+    from ctypes import wintypes
+
+    show = ctypes.WinDLL("user32", use_last_error=True).MessageBoxW
+    show.argtypes = (wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.UINT)
+    show.restype = ctypes.c_int
+    show(None, message, "WonderBane Control Center", 0x10)
+
+
+def show_error(message):
+    # No authorization token, browser URL, or arbitrary exception text is displayed.
+    if sys.stderr is not None:
+        print(message, file=sys.stderr)
+    if os.name == "nt" and (sys.stderr is None or Path(sys.executable).stem.lower() == "pythonw"):
+        _message_box(message)
+
+
 def listener_present(port):
     with socket.socket() as probe:
         probe.settimeout(0.25)
@@ -118,7 +146,7 @@ def open_dashboard(
         worker_state_directory,
         token_file,
         pid_file,
-        Path(sys.executable),
+        manager_interpreter(),
     )
     store = StartupStore(
         worker_state_directory.parent, inspector or Win32ProcessLifetimeInspector()
@@ -127,7 +155,7 @@ def open_dashboard(
 
     def start(generation):
         args = [
-            sys.executable,
+            config.interpreter,
             "-m",
             "shadowbane_lab.cli",
             "manager",
@@ -173,7 +201,11 @@ def open_dashboard(
         store, config, record, token, deadline=deadline, clock=clock, sleep=sleep, request=request
     )
     # Browser receives a fragment token; neither process arguments nor stdout/logs do.
-    if not browser(f"http://127.0.0.1:{port}/#token={token}", new=1):
+    try:
+        opened = browser(f"http://127.0.0.1:{port}/#token={token}", new=1)
+    except (OSError, webbrowser.Error):
+        raise StartupError("The manager is ready, but the browser could not be opened") from None
+    if not opened:
         raise StartupError("The manager is ready, but the browser could not be opened")
     return record["generation"]
 
@@ -196,8 +228,11 @@ def main(argv=None):
             pid_file=args.pid_file,
             timeout_seconds=args.startup_timeout_seconds,
         )
-    except (OSError, RuntimeError, ValueError) as exc:
-        print(str(exc), file=sys.stderr)
+    except StartupError as exc:
+        show_error(str(exc))
+        return 1
+    except (OSError, RuntimeError, ValueError):
+        show_error("The dashboard could not be opened. Check its configuration and startup logs.")
         return 1
     return 0
 

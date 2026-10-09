@@ -244,3 +244,44 @@ def test_authenticated_startup_responds_while_status_is_blocked(case):
         finally:
             release.set()
         assert slow.result()["ok"]
+
+
+def test_pythonw_uses_sibling_console_interpreter(tmp_path, monkeypatch):
+    from shadowbane_lab.manager import desktop_launcher as desktop
+
+    console = tmp_path / "python.exe"
+    console.touch()
+    monkeypatch.setattr(desktop.sys, "executable", str(tmp_path / "pythonw.exe"))
+    assert desktop.manager_interpreter() == console
+    console.unlink()
+    with pytest.raises(StartupError, match="interpreter is missing"):
+        desktop.manager_interpreter()
+
+
+def test_windowless_errors_are_visible_and_do_not_echo_arbitrary_exception(monkeypatch):
+    from shadowbane_lab.manager import desktop_launcher as desktop
+
+    shown = []
+    monkeypatch.setattr(desktop.sys, "stderr", None)
+    monkeypatch.setattr(desktop, "_message_box", shown.append)
+
+    def fail(*a, **kw):
+        raise OSError("sensitive authorization material")
+
+    monkeypatch.setattr(desktop, "open_dashboard", fail)
+    assert (
+        desktop.main(
+            [
+                "manifest.json",
+                "--worker-state-directory",
+                "workers",
+                "--authorization-token-file",
+                "token",
+                "--pid-file",
+                "pid",
+            ]
+        )
+        == 1
+    )
+    if desktop.os.name == "nt":
+        assert len(shown) == 1 and "sensitive" not in shown[0]

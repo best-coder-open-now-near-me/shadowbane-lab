@@ -7,11 +7,14 @@ starts from main `2339e2a` and targets main. It replaces private desktop startup
 behavior with the packaged `shadowbane-manager` entrypoint and authenticated,
 immutable listener identity independent of full worker/status inspection.
 The host candidate is .85; native .56 and the installed .84 runtime are unchanged.
-The first source checkpoint covers exact launch ownership, delayed readiness,
-concurrent desktop clicks, and real HTTP startup during blocked status. Next:
-actual Windows packaged-entrypoint handshake, independent review, and host-only
-qualification before root-controlled installation. No native/game actions occur
-in this source lane.
+The source covers exact launch ownership, delayed readiness, concurrent desktop
+clicks, real HTTP startup during blocked status, and the actual Windows desktop
+entrypoint/CLI/OS-lifetime handshake with a named inactive gameplay application.
+All 56 focused tests pass. See [the public startup contract](manager-desktop-startup.md).
+Root composes `codex/manager-desktop-release-20261009` in `bot-integration` from
+installed `b74a97f` and the reviewed topic/main history, preserving graphics and
+native inputs. Exact-source host-only qualification and installation remain next.
+No native/game actions occur in this source lane.
 
 ## Coherent automatic-buff status snapshot - October 9
 
