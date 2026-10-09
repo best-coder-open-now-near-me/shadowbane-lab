@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 from test_manager_operation import _manifest, _permit
 
+from shadowbane_lab.client_extension.actor_publication import AdmissionBlock
 from shadowbane_lab.manager.operation import (
     WorkerOperationKind,
     WorkerOperationLedger,
@@ -129,7 +130,7 @@ def test_incomplete_and_failed_capture_do_not_retain_known_coverage():
         ("capture_sequence", 3),
         ("capture_sequence", True),
         ("publication_revision", 0),
-        ("admission_blocks", 32),
+        ("admission_blocks", 64),
         ("captured_at", float("nan")),
     ],
 )
@@ -436,3 +437,17 @@ def test_active_pve_without_snapshot_shows_unavailable_but_non_pve_has_no_card()
     selected["operation"]["kind"] = "travel"
     value = app._pve_summary(op.client_id, {"active": selected}, health(op), op.instance_id)
     assert "operation_id" not in value
+
+
+def test_all_native_admission_bits_survive_policy_and_status_projection():
+    supported = sum(int(flag) for flag in AdmissionBlock)
+    for blocks in [*(int(flag) for flag in AdmissionBlock), supported]:
+        observed = replace(observation(), admission_blocks=blocks)
+        status = capture_status(GROUPS, observed, None, captured_at=100, local_pending=False)
+        assert status.admission_blocks == blocks
+        assert PreparationStatus.from_dict(status.to_dict()) == status
+    unknown = 1 << supported.bit_length()
+    with pytest.raises(ValueError):
+        replace(observation(), admission_blocks=unknown)
+    with pytest.raises(ValueError):
+        replace(progress().preparation, admission_blocks=unknown)

@@ -59,9 +59,17 @@ manual input defers buffs without disabling saved intent; explicit Pause/Stop
 stays latched. Remote application history does not block every finite operation.
 The withdrawn blanket potion/PRESENT barrier is absent from both source lanes.
 
-Combined host regression is in progress. Full release qualification, versioning,
-cosmetic-overlay preservation and deployment remain pending. No background buff
-runtime or background attack authority has been installed by this source work.
+Combined host regression at `d18099d` passed 5,343 cases with 39 optional skips.
+The subsequent manual-admission status correction and mandatory preparation IPC
+slice passed 547 focused cases. Both compiled profiles passed 149 actor IPC cases
+without skips. The new case uses the real worker service/adapter, host transport,
+Controller and Runtime with explicitly substituted gameplay callbacks; it proves
+protocol ownership and passive cleanup, not live client execution. Package and
+hosted gates require this case to execute exactly once in each profile.
+
+Full release qualification, versioning, cosmetic-overlay preservation and
+deployment remain pending. No background buff runtime or background attack
+authority has been installed by this source work.
 
 ## Multiple client launch delivery - October 8
 
