@@ -84,8 +84,8 @@ int main(int argc,char** argv) {
         std::vector<unsigned char> bytes(static_cast<std::size_t>(size)); stream.seekg(0);
         if(!stream.read(reinterpret_cast<char*>(bytes.data()),size)){throw std::runtime_error("short executable");}
         const auto sha=Digest(bytes);
-        if((sha!="e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8" && (sha!="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e" && sha!="381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5"))
-            && (sha!="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d" && (sha!="78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903" && sha!="e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437"))){
+        if((sha!="e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8" && (sha!="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e" && (sha!="381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5" && sha!="a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a")))
+            && (sha!="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d" && (sha!="78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903" && (sha!="e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437" && sha!="1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c")))){
             throw std::runtime_error("unreviewed executable");}
         Arena arena;
         if(!arena.bytes){throw std::runtime_error("arena allocation failed");}
