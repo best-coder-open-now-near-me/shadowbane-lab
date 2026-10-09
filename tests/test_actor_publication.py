@@ -28,8 +28,8 @@ def manifest():
 def header(m=None, nonce=bytes([3]) * 16):
     m = m or manifest()
     return p._HEADER.pack(
-        b"WBAPUB2\0",
-        2,
+        b"WBAPUB3\0",
+        3,
         p.SIZE,
         m.client_pid,
         p.SLOT_SIZE,
@@ -338,6 +338,14 @@ def test_real_native_publication_mapping_roundtrip():
         reuse = reader.read()
         assert reuse.revision > second.revision
         assert reuse.actions[0].readiness is p.Readiness.POWER_REUSE
+        assert command("timing") == "published"
+        timing = reader.read()
+        assert timing.actions[0].coverage is p.Coverage.PRESENT
+        assert timing.actions[0].remaining_ms == 15000
+        assert timing.actions[0].deadline_stamp == int.from_bytes(
+            p.struct.pack("<d", 115.0), "little"
+        )
+        assert not timing.actions[0].renewal_due  # Generic timing is not a power-renewal policy.
         assert command("unknown") == "published"
         unknown = reader.read()
         assert not unknown.complete and not unknown.actions and unknown.revision > reuse.revision
@@ -360,7 +368,7 @@ def test_v1_publication_is_not_admission_authority():
     old[8:12] = (1).to_bytes(4, "little")
     with pytest.raises(p.PublicationError):
         p.Header.decode(bytes(old))
-    assert "ActorPublication.v2." in p.mapping_name(manifest())
+    assert "ActorPublication.v3." in p.mapping_name(manifest())
 
 
 @pytest.mark.parametrize("blocks", [1, 2, 4, 8, 16, 31])
@@ -573,3 +581,137 @@ def test_stationary_change_requires_fresh_admission_revision(monkeypatch):
     current[1] = bytes(data)
     with pytest.raises(p.PublicationError, match="admission revision changed eligibility"):
         r.read()
+
+
+def finite_timing_frame(*, remaining=15000, deadline=100000.0, item=True):
+    selector = (Selector(0, 0, 4, 0, 980066, 429021400, 0)
+                if item else manifest().selectors[0])
+    m = replace(manifest(), selectors=(selector,))
+    data = bytearray(frame())
+    data[56:60] = (1).to_bytes(4, "little")
+    data[256:296] = p._EFFECT.pack(222, 333, 1, 0, 0, 0, 0, 0, 0, 0)
+    data[18688:18704] = p._DESCRIPTOR.pack(222, 333, 0, 0, 1, bytes(2))
+    values = list(p._READY.unpack_from(data, 10496))
+    values[:8] = p._READY.unpack(selector.encode() + bytes(96))[:8]
+    values[13] = p.Coverage.PRESENT
+    if item:
+        values[8:13] = [0] * 5
+        values[17:26] = [5802955, 30, 980066, 0, 0x12500000, 0x12600000, 1, 8, 10]
+    stamp = int.from_bytes(p.struct.pack("<d", deadline), "little")
+    values[26] = p._TIMING.pack(1, remaining, stamp, bytes(8))
+    data[10496:10624] = p._READY.pack(*values)
+    return m, data
+
+
+@pytest.mark.parametrize("remaining,due", [(0, True), (14999, True), (15000, True),
+                                         (15001, False), (2**32-1, False)])
+def test_finite_remaining_is_scheduling_hint_not_coverage_expiry(remaining, due):
+    m, data = finite_timing_frame(remaining=remaining)
+    result = p.Publication.decode(p.Header.decode(header(m)), bytes(data), m)
+    action = result.actions[0]
+    assert action.remaining_ms == remaining
+    assert action.coverage is p.Coverage.PRESENT
+    assert action.renewal_due is due
+    assert action.deadline_stamp == int.from_bytes(p.struct.pack("<d", 100000.0), "little")
+
+
+@pytest.mark.parametrize("deadline", [0.0, -1.0, float("inf"), float("nan")])
+def test_nonpositive_or_nonfinite_native_deadline_refused(deadline):
+    m, data = finite_timing_frame(deadline=deadline)
+    with pytest.raises(p.PublicationError, match="finite timing"):
+        p.Publication.decode(p.Header.decode(header(m)), bytes(data), m)
+
+
+@pytest.mark.parametrize("flags,remaining,stamp,reserved", [
+    (0, 1, 0, bytes(8)), (0, 0, 1, bytes(8)),
+    (2, 0, 0, bytes(8)), (1, 0, 0, bytes(8)), (0, 0, 0, b"x" + bytes(7)),
+])
+def test_timing_flags_and_reserved_bytes_are_strict(flags, remaining, stamp, reserved):
+    m, data = finite_timing_frame()
+    data[10600:10624] = p._TIMING.pack(flags, remaining, stamp, reserved)
+    with pytest.raises(p.PublicationError, match="finite timing"):
+        p.Publication.decode(p.Header.decode(header(m)), bytes(data), m)
+
+
+def test_missing_coverage_cannot_claim_finite_duration():
+    data = bytearray(frame())
+    data[10600:10624] = p._TIMING.pack(
+        1, 0, int.from_bytes(p.struct.pack("<d", 1.0), "little"), bytes(8)
+    )
+    with pytest.raises(p.PublicationError, match="finite timing"):
+        decode(bytes(data))
+
+
+def test_countdown_eligibility_changes_only_at_exact_conc_lead_boundary():
+    def facts(remaining, *, item=True):
+        m, data = finite_timing_frame(remaining=remaining, item=item)
+        return p.Publication.decode(p.Header.decode(header(m)), bytes(data), m)
+    before = facts(15002)
+    assert before.eligibility_facts() == facts(15001).eligibility_facts()
+    assert before.eligibility_facts() != facts(15000).eligibility_facts()
+    assert facts(15000).eligibility_facts() == facts(0).eligibility_facts()
+    assert facts(15001, item=False).eligibility_facts() == facts(0, item=False).eligibility_facts()
+    assert not facts(0, item=False).actions[0].renewal_due
+
+
+def test_v2_publication_is_not_silently_treated_as_timing_capable():
+    data = bytearray(header())
+    data[:12] = b"WBAPUB2\0" + (2).to_bytes(4, "little")
+    with pytest.raises(p.PublicationError):
+        p.Header.decode(bytes(data))
+    assert "ActorPublication.v3." in p.mapping_name(manifest())
+
+
+@pytest.mark.parametrize("change", [{"kind": 3, "template_id": 0, "power_id": 429021400},
+                                  {"template_id": 980067}, {"coverage_power_id": 429021401}])
+def test_renewal_hint_requires_exact_qualified_conc_selector(change):
+    m, data = finite_timing_frame()
+    action = p.Publication.decode(p.Header.decode(header(m)), bytes(data), m).actions[0]
+    assert not replace(action, selector=replace(action.selector, **change)).renewal_due
+
+
+def test_reader_allows_countdown_but_requires_new_admission_at_due_boundary(monkeypatch):
+    m, data = finite_timing_frame(remaining=15002)
+    current = [p.Header.decode(header(m)), bytes(data)]
+    monkeypatch.setattr(p, "_copy_mapping", lambda _: tuple(current))
+    monkeypatch.setattr(p, "_tick", lambda: 110)
+    reader = p.Reader(Session(), m)
+    reader.read()
+
+    def advance(remaining, revision, admission):
+        _, data = finite_timing_frame(remaining=remaining)
+        data[:16] = p.struct.pack("<QQ", 2*revision, revision)
+        data[16:32] = bytes([revision])*16
+        data[80:88] = admission.to_bytes(8, "little")
+        current[1] = bytes(data)
+
+    advance(15001, 2, 1)
+    assert not reader.read().actions[0].renewal_due
+    advance(15000, 3, 1)
+    with pytest.raises(p.PublicationError, match="admission revision changed eligibility"):
+        reader.read()
+    advance(15000, 3, 2)
+    assert reader.read().actions[0].renewal_due
+
+
+@pytest.mark.parametrize("mutation", ["countdown", "due_boundary", "deadline", "validity"])
+def test_same_revision_allows_only_countdown_within_same_renewal_boundary(monkeypatch, mutation):
+    m, data = finite_timing_frame(remaining=16000)
+    current = [p.Header.decode(header(m)), bytes(data)]
+    monkeypatch.setattr(p, "_copy_mapping", lambda _: tuple(current))
+    monkeypatch.setattr(p, "_tick", lambda: 110)
+    reader = p.Reader(Session(), m)
+    reader.read()
+    _, data = finite_timing_frame(
+        remaining=15000 if mutation == "due_boundary" else 15500,
+        deadline=100001.0 if mutation == "deadline" else 100000.0,
+    )
+    data[:8] = (4).to_bytes(8, "little")
+    if mutation == "validity":
+        data[10600:10624] = bytes(24)
+    current[1] = bytes(data)
+    if mutation == "countdown":
+        assert reader.read().actions[0].remaining_ms == 15500
+    else:
+        with pytest.raises(p.PublicationError, match="same native revision changed facts"):
+            reader.read()

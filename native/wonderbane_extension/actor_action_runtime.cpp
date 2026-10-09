@@ -11,6 +11,14 @@
 namespace wonderbane::extension::actor {
 namespace {
 using O=wire::Outcome;using P=wire::Phase;using C=wire::Closure;
+bool CoveredDeadlines(const actor_buffs::ActionFacts& facts,actor_actions::CoverageDeadlines& out) noexcept {
+    if(facts.coverage!=actor_buffs::Coverage::present||!facts.descriptor_count
+        ||facts.descriptor_count>facts.descriptors.size()){return false;}
+    for(std::uint32_t i=0;i<facts.descriptor_count;++i){const auto& descriptor=facts.descriptors[i];
+        if(!descriptor.present||!out.Add(descriptor.id,descriptor.deadline_stamp)){return false;}
+    }
+    return true;
+}
 class Runtime final:public Invoker {
 public:
     Controller controller;
@@ -166,10 +174,15 @@ public:
         publication::Frame frame{};
         if(!publication::Encode(manifest,facts,journal,frame)||!publisher.Publish(frame)||!publisher.Current(frame)){(void)publisher.Unknown(6);return false;}
         for(std::uint32_t group=0;group<manifest.groups;++group){
-            bool present=false;
-            for(std::uint32_t i=0;i<facts.count;++i){if(facts.actions[i].intent.group_index==group&&facts.actions[i].coverage==actor_buffs::Coverage::present){present=true;}}
+            bool present=false,timing_complete=true;actor_actions::CoverageDeadlines deadlines{};
+            for(std::uint32_t i=0;i<facts.count;++i){const auto& action=facts.actions[i];
+                if(action.intent.group_index==group&&action.coverage==actor_buffs::Coverage::present){
+                    present=true;
+                    if(actor_buffs::Concoction(action.intent)){timing_complete=CoveredDeadlines(action,deadlines)&&timing_complete;}
+                }
+            }
             wire::Digest digest{};
-            if(!selectors::GroupDigest(manifest,group,digest)||!journal.Observe(digest,frame.revision,true,present)){(void)publisher.Unknown(10);return false;}
+            if(!selectors::GroupDigest(manifest,group,digest)||!journal.Observe(digest,frame.revision,true,present,timing_complete?deadlines.View():std::span<const actor_actions::CoverageDeadline>{})){(void)publisher.Unknown(10);return false;}
         }
         // A new terminal record changes factual revision. Reserve the next
         // revision, then publish it below; never relabel the submission capture.
@@ -279,13 +292,18 @@ public:
             const auto& facts=native.Publication();
             const auto group=manifest.records[input.selector_index].group;
             if(input.selector_index>=facts.count||facts.actions[input.selector_index].readiness!=actor_buffs::Readiness::ready){return Refused(O::deferred,wire::Reason::observation);}
-            for(std::uint32_t i=0;i<facts.count;++i){
-                if(facts.actions[i].intent.group_index==group&&facts.actions[i].coverage!=actor_buffs::Coverage::missing){return Refused(O::deferred,wire::Reason::observation);}
+            actor_actions::CoverageDeadlines covered_deadlines{};
+            for(std::uint32_t i=0;i<facts.count;++i){const auto& action=facts.actions[i];
+                if(action.intent.group_index!=group||action.coverage==actor_buffs::Coverage::missing){continue;}
+                // Existing coverage is never relabeled absent. All covered alternatives
+                // must be the exact qualified Concoction within its native countdown.
+                if(!actor_buffs::RenewalDue(facts.actions[input.selector_index])||!actor_buffs::RenewalDue(action)){return Refused(O::deferred,wire::Reason::observation);}
+                if(!CoveredDeadlines(action,covered_deadlines)){return Refused(O::deferred,wire::Reason::observation);}
             }
             wire::Digest intent{},command{};
             if(!selectors::GroupDigest(manifest,manifest.records[input.selector_index].group,intent)||!wire::HashCommand(input,command)){
                 return Refused(O::deferred,wire::Reason::observation);}
-            const auto index=journal.Reserve(intent,command,frame.revision);
+            const auto index=journal.Reserve(intent,command,frame.revision,covered_deadlines.View());
             if(index==actor_actions::ApplicationJournal::invalid){return Refused(O::deferred,wire::Reason::observation);}
             const auto& selector=manifest.records[input.selector_index];
             activations[index]=combat::activation::Arm(index,{scene.actor,scene.identity,scene.epoch},

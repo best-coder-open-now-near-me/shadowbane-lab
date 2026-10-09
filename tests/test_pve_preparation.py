@@ -6,6 +6,9 @@ import pytest
 
 from shadowbane_lab.pve.preparation import (
     ActorIdentity,
+    ApplicationEvidence,
+    ApplicationState,
+    ApplicationSubmission,
     Coverage,
     CoverageEvidence,
     Disposition,
@@ -49,6 +52,7 @@ def observe(
     admission=None,
     blocks=0,
     capture=None,
+    renewal_due=(),
 ):
     coverage = coverage or {}
     ready = ready or {}
@@ -70,7 +74,10 @@ def observe(
         epoch,
         complete,
         tuple(
-            CoverageEvidence(g.group_id, coverage.get(g.group_id, Coverage.MISSING)) for g in groups
+            CoverageEvidence(
+                g.group_id, coverage.get(g.group_id, Coverage.MISSING),
+                renewal_due=g.group_id in renewal_due,
+            ) for g in groups
         ),
         tuple(evidence),
         epoch if admission is None else admission,
@@ -169,6 +176,57 @@ def test_partial_potion_effects_suppress_reapplication_through_staggered_expiry(
             is None
         )
     assert policy.advance(observe(4, groups=(GROUPS[0],))).proposal.action is POTION
+
+
+def test_early_potion_renewal_keeps_coverage_present_and_requires_native_refresh():
+    groups = (GROUPS[0],)
+    policy = PreparationPolicy(ACTOR, groups)
+    current = dict(groups=groups, coverage={"concentration": Coverage.PRESENT})
+    assert policy.advance(observe(1, **current)).proposal is None
+    due = dict(**current, renewal_due=("concentration",))
+    decision = policy.advance(observe(2, **due))
+    proposal = decision.proposal
+    assert proposal.action is POTION
+    assert decision.groups[0].coverage is Coverage.PRESENT
+    submission = ApplicationSubmission(b"a" * 32, 2)
+    ack = PreparationAcknowledgement(
+        proposal, Disposition.QUEUED, EntryState.ENTERED, False, submission=submission,
+    )
+    policy.acknowledge(ack)
+    # The old buff persists while application runs. Even without a journal
+    # projection, a later PRESENT capture cannot confirm this early renewal.
+    old = policy.advance(observe(3, **due))
+    assert old.poll_pending and old.groups[0].application_pending
+    policy.acknowledge(replace(ack, local_settled=True))
+    for epoch in (4, 5):
+        old = policy.advance(observe(epoch, **due))
+        assert old.proposal is None and old.groups[0].application_pending
+    refreshed = replace(
+        observe(6, **current),
+        application_history=(ApplicationEvidence(
+            "concentration", submission, ApplicationState.OBSERVED, 6,
+        ),),
+    )
+    assert not policy.advance(refreshed).groups[0].application_pending
+    assert policy.advance(observe(7, **current)).proposal is None
+    assert policy.advance(observe(8, **due)).proposal.action is POTION
+
+
+@pytest.mark.parametrize("state", [Coverage.MISSING, Coverage.PARTIAL, Coverage.UNKNOWN])
+def test_renewal_due_does_not_fabricate_coverage(state):
+    with pytest.raises(ValueError, match="positively present"):
+        CoverageEvidence("concentration", state, renewal_due=True)
+
+
+@pytest.mark.parametrize("blocked", [True, False])
+def test_early_renewal_retains_native_admission_and_item_readiness(blocked):
+    decision = PreparationPolicy(ACTOR, (GROUPS[0],)).advance(observe(
+        groups=(GROUPS[0],), coverage={"concentration": Coverage.PRESENT},
+        renewal_due=("concentration",), blocks=1 if blocked else 0,
+        ready={} if blocked else {"potion": Readiness.NOT_READY},
+    ))
+    assert decision.proposal is None
+    assert decision.groups[0].coverage is Coverage.PRESENT
 
 
 def test_imported_application_history_survives_policy_reconstruction_and_missing_projection():

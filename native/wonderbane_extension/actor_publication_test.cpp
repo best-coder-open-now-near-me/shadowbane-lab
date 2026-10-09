@@ -55,6 +55,19 @@ void EncodeCases(){
     Check(p::Facts(forged),"qualified stationary item can be ready with retained initiation IDs");
     item.readiness[0].readiness=1;Check(!p::Facts(item),"empty item never ready");
     item.readiness[0].readiness=8;Check(p::Facts(item),"complete noeligible remains unavailable");
+    auto timing=Sample();timing.effect_count=1;timing.effects[0].descriptor=222;timing.effects[0].action=333;
+    timing.descriptors[0].present=1;auto& timed=timing.readiness[0];timed.coverage=3;
+    timed.selector={0,0,4,0,980066,0,429021400,0};timed.readiness=8;timed.timing_flags=1;
+    timed.deadline_stamp=std::bit_cast<std::uint64_t>(115.0);timed.remaining_ms=15001;
+    Check(p::Facts(timing),"PRESENT finite action countdown wire valid");
+    auto countdown=timing;countdown.readiness[0].remaining_ms=15002;
+    Check(p::SameEligibility(timing,countdown)&&p::Same(timing,countdown),"ordinary countdown cannot churn admission or factual revision");
+    countdown.readiness[0].remaining_ms=15000;
+    Check(!p::SameEligibility(timing,countdown)&&!p::Same(timing,countdown),"crossing exact Concoction lead advances factual and admission revision");
+    for(unsigned bad=0;bad<5;++bad){auto invalid=timing;auto& t=invalid.readiness[0];
+        if(bad==0){t.timing_flags=0;}if(bad==1){t.timing_flags=2;}if(bad==2){t.deadline_stamp=0;}
+        if(bad==3){t.deadline_stamp=std::bit_cast<std::uint64_t>(-1.0);}if(bad==4){t.deadline_stamp=std::bit_cast<std::uint64_t>(std::numeric_limits<double>::infinity());}
+        Check(!p::Facts(invalid),"invalid timing encoding cannot publish proactive authority");}
     action.intent.power_id=112;Check(!p::Encode(manifest,source,journal,frame),"foreign selector operand cannot publish");
     for(unsigned failure=0;failure<4;++failure){auto invalid=Sample();
         if(failure==0){invalid.readiness[0].rank=0;}
@@ -90,6 +103,12 @@ int Ipc(){
             a.submitted_revision=writer.Revision();a.observed_revision=writer.Revision()+1;
             a.entry=1;a.state=3;a.local_settled=1;a.queued=1;
             if(!writer.Publish(sample)){return 14;}
+        }
+        else if(command=="timing"){
+            sample.effect_count=1;sample.effects[0].descriptor=222;sample.effects[0].action=333;
+            sample.descriptors[0].present=1;sample.readiness[0].coverage=3;sample.readiness[0].timing_flags=1;
+            sample.readiness[0].remaining_ms=15000;sample.readiness[0].deadline_stamp=std::bit_cast<std::uint64_t>(115.0);
+            if(!writer.Publish(sample)){return 16;}
         }
         else if(command=="stationary"){
             sample.initiation_clear=0;sample.stationary=1;
@@ -150,6 +169,18 @@ int main(int argc,char** argv){
     Check(replacement.Open(h,100,200)&&replacement.Publish(Sample()),"new manifest preserves retained actor revision high-water");
     p::Frame migrated{};Check(replacement.Current(migrated)&&migrated.revision==101&&replacement.Revision()==101&&migrated.admission_revision==201,
         "new mapping revision follows prior application history");replacement.Close();
+    h.manifest[0]^=2;p::Writer timer_writer;auto timed=Sample();timed.effect_count=1;
+    timed.effects[0].descriptor=222;timed.effects[0].action=333;timed.descriptors[0].present=1;
+    auto& timing=timed.readiness[0];timing.coverage=3;timing.selector={0,0,4,0,980066,0,429021400,0};timing.readiness=8;
+    timing.timing_flags=1;timing.deadline_stamp=std::bit_cast<std::uint64_t>(115.0);timing.remaining_ms=15002;
+    Check(timer_writer.Open(h)&&timer_writer.Publish(timed),"finite covered countdown opens actual publication");
+    p::Frame first_timer{},next_timer{};timer_writer.Current(first_timer);timing.remaining_ms=15001;
+    Check(timer_writer.Publish(timed)&&timer_writer.Current(next_timer)&&next_timer.revision==first_timer.revision
+        &&next_timer.snapshot==first_timer.snapshot&&next_timer.admission_revision==first_timer.admission_revision
+        &&next_timer.sequence>first_timer.sequence,"fresh countdown preserves immutable dispatch facts within lead window");
+    timing.remaining_ms=15000;
+    Check(timer_writer.Publish(timed)&&timer_writer.Current(next_timer)&&next_timer.revision>first_timer.revision
+        &&next_timer.admission_revision>first_timer.admission_revision,"actual due boundary changes both factual and admission revisions");timer_writer.Close();
     p::Writer exhausted;Check(!exhausted.Open(h,0,UINT64_MAX),"admission generation overflow never wraps into an old permission");
     std::printf("publication: %u checks, %u failures\n",checks,failures);return failures?1:0;
 }

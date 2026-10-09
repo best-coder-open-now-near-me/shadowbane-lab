@@ -170,6 +170,22 @@ int main(int argc,char** argv) {
     e::Snapshot snapshot;Check(e::Capture(context,snapshot)==e::Unknown::none && snapshot.Complete() && snapshot.count==1,"complete copied primary census");
     Check(snapshot.effects[0].descriptor_id==123 && snapshot.effects[0].action_id==456 && snapshot.effects[0].source_words[2]==429021400,"values preserve descriptor/action/source distinction");
     Check(e::Revalidate(context,snapshot),"fresh same owner snapshot revalidates");
+    for(std::uint32_t kind:{0U,2U}){
+        Put(Address(record)+0x24,kind);Put(Address(record)+0x60,115.0);Put(context.image+0x16a2d70,100.0);
+        Check(e::Capture(context,snapshot)==e::Unknown::none&&snapshot.effects[0].remaining_ms==15000
+            &&snapshot.effects[0].deadline_stamp==std::bit_cast<std::uint64_t>(115.0),"native timed coverage captures deadline and15s countdown");
+        Put(context.image+0x16a2d70,116.0);
+        Check(e::Capture(context,snapshot)==e::Unknown::none&&snapshot.count==1&&snapshot.effects[0].remaining_ms==0
+            &&snapshot.effects[0].deadline_stamp,"past deadline remains present with due scheduling hint");
+    }
+    for(double deadline:{0.0,-1000.0,std::numeric_limits<double>::infinity(),std::numeric_limits<double>::quiet_NaN(),1e20}){
+        Put(Address(record)+0x60,deadline);
+        Check(e::Capture(context,snapshot)==e::Unknown::none&&snapshot.count==1&&!snapshot.effects[0].deadline_stamp
+            &&!snapshot.effects[0].remaining_ms,"invalid or unbounded timer preserves coverage without proactive authority");
+    }
+    Put(Address(record)+0x60,115.0);Put(Address(record)+0x24,std::uint32_t{1});
+    Check(e::Capture(context,snapshot)==e::Unknown::none&&!snapshot.effects[0].deadline_stamp,"untimed class remains present without countdown");
+    Fill();Check(e::Capture(context,snapshot)==e::Unknown::none,"restore ordinary effect fixture");
     auto substituted=context;substituted.owner=reinterpret_cast<void*>(1);
     Check(!e::Revalidate(substituted,snapshot),"same-key substituted owner rejected");
     substituted=context;substituted.current=OtherCurrent;

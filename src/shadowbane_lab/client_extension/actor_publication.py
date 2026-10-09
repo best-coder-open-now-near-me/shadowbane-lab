@@ -8,6 +8,7 @@ object memory, queue receipts, names, UI state, or timers.
 from __future__ import annotations
 
 import ctypes as c
+import math
 import struct
 from dataclasses import dataclass, replace
 from enum import IntEnum, IntFlag
@@ -22,6 +23,7 @@ _HEADER = struct.Struct("<8s6IQ16s32s4IQi140s")
 _FRAME = struct.Struct("<QQ16sQQ8IQI164s")
 _EFFECT = struct.Struct("<10I")
 _READY = struct.Struct("<26I24s")
+_TIMING = struct.Struct("<IIQ8s")
 _APPLICATION = struct.Struct("<32s32sQQ4I32s")
 _DESCRIPTOR = struct.Struct("<3IBB2s")
 assert (
@@ -99,7 +101,7 @@ class Header:
         )
         v = _HEADER.unpack(payload)
         _require(
-            v[:3] == (b"WBAPUB2\0", 2, SIZE)
+            v[:3] == (b"WBAPUB3\0", 3, SIZE)
             and v[3]
             and v[4:7] == (SLOT_SIZE, 2, 0)
             and v[7]
@@ -156,6 +158,22 @@ class ActionFacts:
     quantity: int
     item_type: int
     item_flags: int
+    remaining_ms: int | None = None
+    deadline_stamp: int | None = None
+
+    @property
+    def renewal_due(self):
+        """Scheduling hint for the one qualified early-renewal item, never expiry."""
+        return (
+            self.selector.kind == 4
+            and self.selector.template_id == 980066
+            and self.selector.coverage_power_id == 429021400
+            and self.selector.coverage_kind == 0
+            and self.coverage is Coverage.PRESENT
+            and self.remaining_ms is not None
+            and self.deadline_stamp is not None
+            and self.remaining_ms <= 15000
+        )
 
 
 class ApplicationState(IntEnum):
@@ -197,6 +215,13 @@ class Publication:
     admission_blocks: AdmissionBlock
     stationary: bool = False
 
+    def action_facts(self):
+        """Countdown is sampled; deadline identity and renewal boundary are facts."""
+        return tuple(
+            (replace(a, remaining_ms=0 if a.remaining_ms is not None else None), a.renewal_due)
+            for a in self.actions
+        )
+
     def eligibility_facts(self):
         """Exact native SameEligibility projection, excluding journal/effect history.
 
@@ -210,7 +235,16 @@ class Publication:
             self.initiation_clear,
             self.stationary,
             self.admission_blocks,
-            tuple((replace(a, descriptors=()), len(a.descriptors)) for a in self.actions),
+            tuple(
+                (
+                    replace(a, descriptors=(), remaining_ms=(
+                        0 if a.remaining_ms is not None else None
+                    )),
+                    len(a.descriptors),
+                    a.renewal_due,
+                )
+                for a in self.actions
+            ),
         )
 
     @classmethod
@@ -335,9 +369,20 @@ class Publication:
                 and r[14] <= 8
                 and r[15] == offset
                 and 1 <= r[16] <= 64
-                and r[16] <= dc - offset
-                and not any(r[26]),
+                and r[16] <= dc - offset,
                 "readiness selector/descriptor mismatch",
+            )
+            timing_flags, remaining_ms, deadline_stamp, timing_reserved = _TIMING.unpack(r[26])
+            deadline = struct.unpack("<d", struct.pack("<Q", deadline_stamp))[0]
+            _require(
+                timing_flags in (0, 1)
+                and not any(timing_reserved)
+                and (
+                    (timing_flags == 0 and remaining_ms == 0 and deadline_stamp == 0)
+                    or (timing_flags == 1 and math.isfinite(deadline) and deadline > 0
+                        and r[13] == Coverage.PRESENT)
+                ),
+                "invalid native finite timing",
             )
             selection = tuple(descriptors[offset : offset + r[16]])
             offset += r[16]
@@ -399,6 +444,8 @@ class Publication:
                     r[17:19],
                     r[19:21],
                     *r[21:26],
+                    remaining_ms if timing_flags else None,
+                    deadline_stamp if timing_flags else None,
                 )
             )
         _require(offset == dc, "unreferenced descriptor metadata")
@@ -451,7 +498,7 @@ def mapping_name(manifest):
     if not isinstance(manifest, Manifest):
         raise PublicationError("typed selector manifest required")
     return (
-        f"Local\\WonderBane.ActorPublication.v2.{manifest.client_pid}."
+        f"Local\\WonderBane.ActorPublication.v3.{manifest.client_pid}."
         f"{manifest.client_creation}.{manifest.digest.hex()}"
     )
 
@@ -543,7 +590,7 @@ class Reader:
                     and result.initiation_clear == self.last.initiation_clear
                     and result.stationary == self.last.stationary
                     and result.effects == self.last.effects
-                    and result.actions == self.last.actions
+                    and result.action_facts() == self.last.action_facts()
                     and result.applications == self.last.applications
                     and result.admission_revision == self.last.admission_revision
                     and result.admission_blocks == self.last.admission_blocks,

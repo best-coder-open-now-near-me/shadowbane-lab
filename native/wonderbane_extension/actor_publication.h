@@ -9,8 +9,8 @@ using Id=fence::Id;using Digest=fence::Digest;
 constexpr std::uint32_t slot_size=32768,mapping_size=256+2*slot_size;
 #pragma pack(push,8)
 struct Header {
-    char magic[8]{'W','B','A','P','U','B','2',0};
-    std::uint32_t version=2,bytes=mapping_size,client_pid{},slot_bytes=slot_size,slots=2,reserved{};
+    char magic[8]{'W','B','A','P','U','B','3',0};
+    std::uint32_t version=3,bytes=mapping_size,client_pid{},slot_bytes=slot_size,slots=2,reserved{};
     std::uint64_t client_creation{};Id actor_lifetime{};Digest manifest{};
     std::uint32_t actor_key[2]{},actor_address{},reserved2{};std::uint64_t scene{};
     volatile LONG active=-1;std::uint8_t padding[140]{};
@@ -23,7 +23,9 @@ struct Readiness {
     std::uint32_t rank{},category{},target_mode{},delivery{},required_mode{},coverage{},readiness{};
     std::uint32_t descriptor_offset{},descriptor_count{};
     std::uint32_t item_key[2]{},template_key[2]{},item_hint{},template_hint{},quantity{},type{},flags{};
-    std::uint8_t reserved[24]{};
+    std::uint32_t timing_flags{},remaining_ms{};
+    std::uint64_t deadline_stamp{};
+    std::uint8_t reserved[8]{};
 };
 struct Application {
     Digest intent{},command{};std::uint64_t submitted_revision{},observed_revision{};
@@ -47,6 +49,7 @@ struct Mapping {Header header{};std::array<Frame,2> frames{};};
 #pragma pack(pop)
 static_assert(sizeof(Header)==256 && offsetof(Header,active)==112);
 static_assert(sizeof(Effect)==40 && sizeof(Readiness)==128 && sizeof(Application)==128 && sizeof(Descriptor)==16);
+static_assert(offsetof(Readiness,timing_flags)==104&&offsetof(Readiness,remaining_ms)==108&&offsetof(Readiness,deadline_stamp)==112);
 static_assert(sizeof(Frame)==slot_size && offsetof(Frame,admission_revision)==80 && offsetof(Frame,admission_blocks)==88 && offsetof(Frame,stationary)==92 && offsetof(Frame,effects)==256 && offsetof(Frame,descriptors)==18688);
 static_assert(sizeof(Mapping)==mapping_size);
 bool Valid(const Header&) noexcept;

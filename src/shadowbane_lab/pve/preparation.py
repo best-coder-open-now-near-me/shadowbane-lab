@@ -158,11 +158,16 @@ class PreparationGroup:
 class CoverageEvidence:
     group_id: str
     state: Coverage
+    renewal_due: bool = field(default=False, kw_only=True)
 
     def __post_init__(self) -> None:
         _text(self.group_id, "group_id")
         if not isinstance(self.state, Coverage):
             raise ValueError("coverage must be typed")
+        if type(self.renewal_due) is not bool or (
+            self.renewal_due and self.state is not Coverage.PRESENT
+        ):
+            raise ValueError("early renewal requires positively present coverage")
 
 
 @dataclass(frozen=True, slots=True)
@@ -369,6 +374,8 @@ class PreparationPolicy:
         self._queued = False
         self._entered = False
         self._application_resolved = False
+        self._pending_renewal = False
+        self._renewal_applications: set[str] = set()
         self._rejected: set[str] = set()
         self._refused_at: dict[str, int] = {}
         self._applications: dict[str, int] = {}
@@ -456,11 +463,12 @@ class PreparationPolicy:
         if observation.capture_sequence <= self._after_capture:
             return PreparationDecision(None, False, status, "fresh_publication_required")
         ready = {e.action_id: e for e in observation.readiness}
+        renewal_due = {e.group_id for e in observation.coverage if e.renewal_due}
         for group in self.groups:
             if (
                 coverage.get(group.group_id) is not Coverage.MISSING
-                or group.group_id in self.application_pending_groups
-            ):
+                and group.group_id not in renewal_due
+            ) or group.group_id in self.application_pending_groups:
                 continue
             for action in group.alternatives:
                 evidence = ready.get(action.action_id)
@@ -483,6 +491,7 @@ class PreparationPolicy:
                 )
                 self._queued = self._entered = False
                 self._application_resolved = False
+                self._pending_renewal = group.group_id in renewal_due
                 self._pending_submission = None
                 return PreparationDecision(self._pending, False, status, "submit")
         reason = "covered" if all(s.coverage is Coverage.PRESENT for s in status) else "waiting"
@@ -495,6 +504,9 @@ class PreparationPolicy:
             e.group_id
             for e in observation.coverage
             if e.state is Coverage.PRESENT and e.group_id not in observation.pending_applications
+            and e.group_id not in self._renewal_applications
+            and not (self._pending_renewal and self._pending is not None
+                     and self._pending.group_id == e.group_id)
         }
         for group, epoch in tuple(self._applications.items()):
             if group in present and observation.publication_epoch > epoch:
@@ -516,6 +528,7 @@ class PreparationPolicy:
             if self._application_submissions.get(evidence.group_id) == evidence.submission:
                 self._applications.pop(evidence.group_id, None)
                 self._application_submissions.pop(evidence.group_id, None)
+                self._renewal_applications.discard(evidence.group_id)
             if (self._pending is not None and self._pending.group_id == evidence.group_id
                     and self._pending_submission == evidence.submission):
                 self._application_resolved = True
@@ -559,6 +572,10 @@ class PreparationPolicy:
             # Possible remote application suppresses duplicates independently of
             # proven local completion. Other groups need not wait for its effect.
             if not self._application_resolved:
+                # Old coverage is still present during early renewal. Only the
+                # journal's exact terminal evidence can confirm this application.
+                if self._pending_renewal:
+                    self._renewal_applications.add(self._pending.group_id)
                 self._applications.setdefault(
                     self._pending.group_id, self._pending.publication_epoch
                 )
@@ -579,4 +596,5 @@ class PreparationPolicy:
             # Require a later validated capture, not an unrelated fact mutation.
             self._after_capture = self._last.capture_sequence
             self._pending = None
+            self._pending_renewal = False
             self._queued = self._entered = False
