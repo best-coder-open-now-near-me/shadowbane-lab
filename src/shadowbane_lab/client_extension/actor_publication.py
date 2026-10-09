@@ -363,8 +363,8 @@ class Publication:
                 )
             present = sum(d.present for d in selection)
             _require(
-                r[14] != Readiness.READY or clear,
-                "pending native initiation cannot advertise ready",
+                selector.kind != 3 or r[14] != Readiness.READY or clear,
+                "pending native initiation cannot advertise ready power",
             )
             expected = (
                 Coverage.PRESENT

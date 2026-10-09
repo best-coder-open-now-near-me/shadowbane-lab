@@ -30,7 +30,7 @@ bool Facts(const Frame& f)noexcept{
         std::uint32_t present{};bool retained=true;
         for(std::uint32_t j=r.descriptor_offset;j<offset;++j){present+=f.descriptors[j].present;retained&=!f.descriptors[j].suppression;}
         const auto coverage=present==r.descriptor_count?3U:present?2U:retained?1U:0U;
-        if(r.coverage!=coverage || (r.readiness==1&&!f.initiation_clear)){return false;}
+        if(r.coverage!=coverage || (r.selector.kind==3&&r.readiness==1&&!f.initiation_clear)){return false;}
         if(r.selector.kind==3){
             if(!Zero(r.item_key)||!Zero(r.template_key)||r.item_hint||r.template_hint||r.quantity||r.type||r.flags){return false;}
             if(r.readiness==1&&(!r.rank||r.category>1||r.target_mode!=2||r.delivery||r.required_mode<1||r.required_mode>3

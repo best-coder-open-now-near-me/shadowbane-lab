@@ -59,9 +59,14 @@ NativeActor::Operation Blocked(std::uint32_t blocks,const NativeActor::Observati
     auto result=Result(O::deferred);result.admission_blocks=blocks;result.reason=wire::AdmissionReason(blocks);result.state=state;return result;
 }
 }
-std::uint32_t NativeActor::AdmissionBlocks(const Observation& state,bool owned_followup) noexcept {
+std::uint32_t NativeActor::AdmissionBlocks(const Observation& state,bool owned_followup,bool stationary_item) noexcept {
     std::uint32_t blocks{};
-    if(!state.ClearInitiation()&&!owned_followup){blocks|=admission::initiation;}
+    // Ordinary item caller 79040 rejects movement, not retained protocol IDs.
+    // Automation accepts its positively stationary state 5 only. Power/target
+    // entry keeps the stricter clear-vector requirement below and at its gate.
+    if(!state.ClearInitiation()&&!owned_followup
+        &&!(stationary_item&&state.initiation.state==5)){blocks|=admission::initiation;}
+    if(stationary_item&&state.initiation.state!=5){blocks|=admission::initiation;}
     if(power::NativeUseInFlight()){blocks|=admission::native_use;}
     if(pending_||request_||transfer_){blocks|=admission::local_action;}
     if(state.target&&(!child_bound_||state.target!=reinterpret_cast<std::uintptr_t>(target_)
@@ -77,9 +82,9 @@ bool NativeActor::ReadAdmission(std::uint32_t& blocks) noexcept {
 bool NativeActor::ReadAdmissionImpl(std::uint32_t& blocks) noexcept {
     blocks=0;Observation before{},after{};
     if(!SceneCurrent()||!ActorIdentity()||!ReadState(before)){return false;}
-    const auto first=AdmissionBlocks(before);
+    const auto first=AdmissionBlocks(before,false,before.initiation.state==5);
     if(!ReadState(after)||before.target!=after.target||before.mode!=after.mode||before.initiation!=after.initiation
-        ||first!=AdmissionBlocks(after)||!SceneCurrent()){return false;}
+        ||first!=AdmissionBlocks(after,false,after.initiation.state==5)||!SceneCurrent()){return false;}
     blocks=first;return true;
 }
 bool NativeActor::Owner() const noexcept {
@@ -175,9 +180,9 @@ bool NativeActor::Gate(void* value) noexcept {
     const bool entered=self.command_.action==wire::Action::attack?self.melee_receipt_.native_entered:
         self.command_.action==wire::Action::use_item?self.item_receipt_.native_entered:self.power_receipt_.native_entered;
     if(!entered){Observation state{};
-        if(!self.pre_entry_epoch_||power::InitiationEpoch()!=self.pre_entry_epoch_||!self.ReadState(state)
-            ||(!state.ClearInitiation()&&!state.initiation.Only(self.pre_entry_self_id_))){return false;}
-        const auto blocks=self.AdmissionBlocks(state,state.initiation.Only(self.pre_entry_self_id_));
+        if(!self.pre_entry_epoch_||power::InitiationEpoch()!=self.pre_entry_epoch_||!self.ReadState(state)){return false;}
+        const auto blocks=self.AdmissionBlocks(state,state.initiation.Only(self.pre_entry_self_id_),
+            self.command_.action==wire::Action::use_item);
         if(blocks&~admission::local_action){return false;}}
     return true;
 }
@@ -263,7 +268,8 @@ NativeActor::Operation NativeActor::SubmitImpl(){
             &&definition==instant_definition_&&definition.seconds==0
             &&power::InitiationEpoch()==instant_self_epoch_&&Current(true);
     }
-    const auto blocks=AdmissionBlocks(state,owned_followup);
+    const bool ordinary_item=command_.action==wire::Action::use_item;
+    const auto blocks=AdmissionBlocks(state,owned_followup,ordinary_item);
     if(blocks){return Blocked(blocks,state);}
     power::InitiationDefinition self_definition{};
     const bool instant=command_.action==wire::Action::self_power&&child&&state.ClearInitiation()
@@ -271,7 +277,7 @@ NativeActor::Operation NativeActor::SubmitImpl(){
     if(!Current(child)){return Result(O::stale);}
     Observation final{};
     if(!ReadState(final)||final!=state){return Blocked(0);}
-    const auto final_blocks=AdmissionBlocks(final,owned_followup);if(final_blocks){return Blocked(final_blocks,final);}
+    const auto final_blocks=AdmissionBlocks(final,owned_followup,ordinary_item);if(final_blocks){return Blocked(final_blocks,final);}
     pre_entry_epoch_=owned_followup?instant_self_epoch_:observed_epoch;
     pre_entry_self_id_=owned_followup?instant_self_id_:0;
     if(!pre_entry_epoch_||power::InitiationEpoch()!=pre_entry_epoch_){return Blocked(0);}

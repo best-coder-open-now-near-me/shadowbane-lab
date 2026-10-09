@@ -103,7 +103,7 @@ private:
     bool RevalidatePublicationImpl(const actor_buffs::Publication&) noexcept;
     bool ReadAdmissionImpl(std::uint32_t&) noexcept;
     void ClearInstant() noexcept;
-    std::uint32_t AdmissionBlocks(const Observation&,bool owned_followup=false) noexcept;
+    std::uint32_t AdmissionBlocks(const Observation&,bool owned_followup=false,bool stationary_item=false) noexcept;
     std::uintptr_t image_{};
     HWND window_{};
     DWORD thread_{};

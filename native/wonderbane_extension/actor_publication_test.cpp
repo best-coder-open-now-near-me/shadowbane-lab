@@ -37,6 +37,8 @@ void EncodeCases(){
     auto forged=item;auto& f=forged.readiness[0];f.item_key[0]=55;f.item_key[1]=30;f.template_key[0]=980066;
     f.item_hint=0x20000000;f.template_hint=0x20001000;f.quantity=3;f.type=8;f.flags=10;
     Check(!p::Facts(forged),"unknown item cannot advertise even otherwise valid operand");
+    forged.initiation_clear=0;f.readiness=1;
+    Check(p::Facts(forged),"qualified stationary item can be ready with retained initiation IDs");
     item.readiness[0].readiness=1;Check(!p::Facts(item),"empty item never ready");
     item.readiness[0].readiness=8;Check(p::Facts(item),"complete noeligible remains unavailable");
     action.intent.power_id=112;Check(!p::Encode(manifest,source,journal,frame),"foreign selector operand cannot publish");

@@ -52,7 +52,7 @@ struct Access {
             facts.item_key=item.item_key;facts.item_template=item.template_key;facts.item_quantity=item.quantity;
             facts.item_type=item.type;facts.item_flags=item.flags;
             facts.item_hint=static_cast<std::uint32_t>(item.item_address);facts.template_hint=static_cast<std::uint32_t>(item.template_address);
-            facts.readiness=out.initiation_clear?Readiness::ready:Readiness::initiation_pending;
+            facts.readiness=out.item_stationary?Readiness::ready:Readiness::initiation_pending;
         }
         return Unknown::none;
     }
@@ -229,7 +229,7 @@ Unknown CapturePowers(const actor_effects::Context& c,const Request& request,
     combat::power::readiness::Snapshot readiness{},readiness_after{};
     const auto read=[](std::uintptr_t at,auto& value)noexcept{return Read(at,value);};
     if(!combat::power::readiness::Capture(c.image,c.actor,read,readiness)){return Unknown::read_fault;}
-    out.actor_mode=mode;out.initiation_clear=initiation.Clear();
+    out.actor_mode=mode;out.initiation_clear=initiation.Clear();out.item_stationary=initiation.state==5;
     std::size_t total_descriptors{};
     for(std::uint32_t i=0;i<request.count;++i){
         auto reason=ResolvePower(c,request.actions[i],effects,mode,out.initiation_clear,readiness,out.actions[i]);if(reason!=Unknown::none){return reason;}
@@ -247,7 +247,8 @@ bool PowerFactsCurrent(const actor_effects::Context& c,const Request& request,
     const actor_effects::Snapshot& effects,const Publication& first)noexcept{
     Publication last{};
     if(CapturePowers(c,request,effects,last)!=Unknown::none || last.count!=first.count
-        || last.actor_mode!=first.actor_mode || last.initiation_clear!=first.initiation_clear){return false;}
+        || last.actor_mode!=first.actor_mode || last.initiation_clear!=first.initiation_clear
+        || last.item_stationary!=first.item_stationary){return false;}
     for(std::uint32_t i=0;i<first.count;++i){
         auto before=first.actions[i];
         // Item ownership is independently revalidated. Compare all power and
@@ -287,7 +288,8 @@ bool Revalidate(const actor_effects::Context& c,State& state,const Publication& 
         && publication.state_generation_==Access::Generation(state) && actor_effects::Revalidate(c,publication.effects_)
         && CapturePowers(c,publication.request_,publication.effects_,fresh)==Unknown::none
         && Access::Items(c,publication.request_,state,fresh,true)==Unknown::none && fresh.count==publication.count
-        && fresh.actor_mode==publication.actor_mode && fresh.initiation_clear==publication.initiation_clear && fresh.actions==publication.actions
+        && fresh.actor_mode==publication.actor_mode && fresh.initiation_clear==publication.initiation_clear
+        && fresh.item_stationary==publication.item_stationary && fresh.actions==publication.actions
         && PowerFactsCurrent(c,publication.request_,publication.effects_,fresh)
         && epoch && epoch==combat::power::InitiationEpoch() && actor_effects::Revalidate(c,publication.effects_)
         && !work.exhausted && GetTickCount64()-work.start<=100;

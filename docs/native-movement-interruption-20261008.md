@@ -25,7 +25,7 @@ fixture. The exception case proves rejection of abnormal return, not native
 C++ unwinding or destructor behavior.
 
 No live process is opened. No movement hook or application-journal authority is
-introduced by this probe checkpoint. A later observer must retain independently
+introduced by the probe checkpoint. A later observer must retain independently
 sealed actor/scene lifetime and shared mutation generation across callbacks;
 identical before/after bytes alone cannot exclude same-ID replacement.
 
@@ -52,4 +52,13 @@ This does not authorize arbitrary bot submissions during a cast. Interruption
 reconciliation must retain current activation generation and fresh actor/scene
 state, rather than assuming the vector contains only one ID. Repeated same-ID
 entries are native behavior; their count cannot establish a new activation or
-prove which pending use ended. These probes do not change runtime admission.
+prove which pending use ended. These probes do not themselves change runtime admission.
+
+The subsequent readiness correction separates the global active-initiation fact
+from per-action eligibility. A positively captured stationary state 5 can expose
+an item opportunity despite retained IDs. Item submission and its final native
+entry callback recheck this fact, exact operands and all existing arbiter gates.
+Power readiness, power/attack submission and target attachment retain their
+strict initiation checks. Movement and active state 6 never qualify the item
+exception. The application journal still suppresses every unresolved queued
+use; this readiness change does not remove that history or implement retry.

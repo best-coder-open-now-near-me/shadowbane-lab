@@ -291,6 +291,26 @@ int main(){
     base=reinterpret_cast<std::uintptr_t>(VirtualAlloc(nullptr,0x1800000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));assert(base);
     window=CreateWindowExW(0,L"STATIC",L"actor-native",0,0,0,1,1,HWND_MESSAGE,nullptr,GetModuleHandleW(nullptr),nullptr);assert(window);
     AdmissionCases();
+    for(const auto activity:{5U,6U,7U}) {
+        ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();
+        assert(actor.ValidateParent(parent,Gates()));
+        Protocol({429021400,429021400});Put(base+0xc010,activity);Publish(actor,true);
+        std::uint32_t blocks{};assert(actor.ReadAdmission(blocks));
+        if(activity==5){assert(!blocks);}
+        // The global observation is not authority to widen power or child entry.
+        Publish(actor,false);
+        assert(actor.Submit(Typed(parent,nullptr,a::wire::Action::self_power)).entry==AE::never_entered&&!casts);
+        const auto child=Child(parent);assert(actor.Attach(child,Gates()).outcome!=AO::bound&&!attacks);
+        Publish(actor,true);const auto result=actor.Submit(Typed(parent,nullptr,a::wire::Action::use_item));
+        assert((activity==5)==(result.outcome==AO::queued));assert(items==(activity==5?1U:0U)&&!stops);
+        // A later manual activation still blocks; returning stationary does not
+        // require the older bookkeeping ID to disappear.
+        if(activity==5){Put(base+0xc010,std::uint32_t{6});Protocol({429021400,123});Publish(actor,true);
+            assert(actor.Submit(Typed(parent,nullptr,a::wire::Action::use_item)).entry==AE::never_entered&&items==1);
+            Put(base+0xc010,std::uint32_t{5});Publish(actor,true);
+            assert(actor.Submit(Typed(parent,nullptr,a::wire::Action::use_item)).outcome==AO::queued&&items==2);}
+        CloseScene(actor);
+    }
     for(const bool replaced:{false,true}) {
         ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));auto parent=Parent();
         parent.purpose=a::fence::Purpose::preparation;parent.movement_generation=0;

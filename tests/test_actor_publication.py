@@ -413,18 +413,20 @@ def test_same_admission_revision_allows_descriptor_detail_and_effect_epoch(monke
     assert second.actions != first.actions and second.effect_epoch != first.effect_epoch
 
 
-def item_and_power_frame(readiness=p.Readiness.UNKNOWN, operand=None):
+def item_and_power_frame(readiness=p.Readiness.UNKNOWN, operand=None, *, clear=True, power_ready=1):
     m = replace(
         manifest(),
         group_count=2,
         selectors=(Selector(0, 0, 4, 0, 980066, 429021400, 0), Selector(1, 1, 3, 111, 0, 111, 0)),
     )
     data = bytearray(frame())
+    data[76:80] = int(clear).to_bytes(4, "little")
     data[60:64] = (2).to_bytes(4, "little")
     data[68:72] = (2).to_bytes(4, "little")
     power = list(p._READY.unpack_from(data, 10496))
     power[:8] = list(p._READY.unpack(m.selectors[1].encode() + bytes(96)))[:8]
     power[15] = 1
+    power[14] = power_ready
     data[10624:10752] = p._READY.pack(*power)
     item = list(power)
     item[:8] = list(p._READY.unpack(m.selectors[0].encode() + bytes(96)))[:8]
@@ -467,6 +469,18 @@ def test_ready_item_requires_full_qualified_operand():
         item_and_power_frame(p.Readiness.READY)
     with pytest.raises(p.PublicationError, match="unqualified retained item"):
         item_and_power_frame(p.Readiness.READY, [5802955, 30, 980066, 0, 0x12500000, 0, 3, 8, 10])
+
+
+def test_stationary_item_readiness_does_not_make_retained_id_power_ready():
+    operand = [5802955, 30, 980066, 0, 0x12500000, 0x12600000, 3, 8, 10]
+    result = item_and_power_frame(
+        p.Readiness.READY, operand, clear=False, power_ready=p.Readiness.INITIATION_PENDING
+    )
+    assert not result.initiation_clear
+    assert result.actions[0].readiness is p.Readiness.READY
+    assert result.actions[1].readiness is p.Readiness.INITIATION_PENDING
+    with pytest.raises(p.PublicationError, match="ready power"):
+        item_and_power_frame(p.Readiness.READY, operand, clear=False)
 
 @pytest.mark.parametrize("digest,allowed", [
     ("e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437", True),

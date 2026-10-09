@@ -108,6 +108,16 @@ int RunActorBuffFixtureCases(){
         && operand.template_address==publication.actions[0].template_hint,"retained item operand matches copied echo hints");
     Check(!b::ItemOperand(context,owner,publication,1,operand),"unpublished item selector refused");
     item_current=false;Check(!b::Revalidate(context,owner,publication),"native item membership loss rejects publication");b::Release(owner);
+    for(auto activity:{5U,6U,7U}) {
+        Reset();item_present=true;std::array<std::uint32_t,2> retained{429021400,429021400};
+        const auto begin=static_cast<std::uint32_t>(Address(retained));
+        Put(Address(actor)+0x65c,b::Header{begin,begin+8,begin+8});Put(Address(state)+0x10,activity);
+        Check(b::Capture(context,item,owner,publication)==b::Unknown::none,"retained IDs remain coherently observable");
+        Check(!publication.initiation_clear && (publication.actions[0].readiness==b::Readiness::ready)==(activity==5),
+            "stationary item readiness is independent of old protocol IDs; active/moving remain deferred");
+        Put(Address(state)+0x10,activity==5?6U:5U);
+        Check(!b::Revalidate(context,owner,publication),"activity change invalidates stationary item fact");b::Release(owner);
+    }
     for(unsigned mutation:std::array<unsigned,3>{2,3,4}){
         Reset();item_present=true;inventory_mutation=mutation;
         Check(b::Capture(context,item,owner,publication)==b::Unknown::changed&&!publication.Complete(),"inventory callback mutation invalidates complete publication");b::Release(owner);
