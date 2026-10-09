@@ -19,12 +19,19 @@ After the user restarted the game, the .84 manager attached a new exact worker;
 normal Resume succeeded and all five buff groups report present and maintaining.
 Recovery verification passed for all 478 modules and 9,561 retained records,
 with zero exclusions and eleven expected generated changes. Eight of eight fresh
-status samples reported current preparation. The old .83 host and wheels await
-safe retirement; no new PvE action has been issued.
+status samples reported current preparation. The old .83 host and ten wheel
+files were removed after fresh dependency checks, freeing 57,607,513 bytes; all
+eleven paths are absent and the current native DLL and runtime remain healthy. A brief production worker PvE run confirmed one exact NPC
+native-health-zero kill, explicit cancellation with no active/queued operation,
+and normal Resume restoring current automatic-buff maintenance. Opener reuse was
+respected; an earlier target stalled after taking damage. Further renewal and
+movement-interruption acceptance remain outstanding.
 
 `codex/preparation-status-delivery-20261009` owns this documentation update in
-`buff-activation-observer`, targeting main. Next: finish obsolete .83 retirement; [the update record](client-update-20261009.md) retains the
-prior live renewal evidence and outstanding validation.
+`buff-activation-observer`, targeting main through PR #128. Next: correct the
+launcher readiness timeout; full natural Conc-pot/Precision renewal and movement-
+interruption checks remain. [The update record](client-update-20261009.md)
+retains the exact deployment and live evidence.
 
 ## Deterministic optional-state fixture - October 9
 

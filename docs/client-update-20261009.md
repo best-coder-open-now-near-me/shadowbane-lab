@@ -65,13 +65,51 @@ previous game-instance path. Original deployment receipts and failed-attempt log
 remain unchanged. Recovery receipt SHA-256:
 `3d2f8dfa0c0fb867df6c70c26f8cbcd9e3a0d87af8c02cb0346db415b972ed8e`.
 
-Next: finish the fresh dependency inspection and retire the obsolete .83 host and
-wheels; they await safe retirement and are not retained for fallback. Automatic
-buffs are running. The nearby population census found merchants and a player;
-no PvE action was issued, and the user has been asked to move near an NPC.
-Outstanding checks include Conc-pot/Precision expiry renewal and movement-
-interruption recovery. The launcher readiness timeout also needs a future source
-correction so a slow healthy status response is not reported as startup failure.
+Fresh dependency inspection and retirement of the obsolete .83 host completed.
+Its 2,146 files occupied 48,524,452 bytes; ten superseded wheel files occupied
+9,083,061 bytes. The verified total removed is 57,607,513 bytes. A separate
+post-read confirmed all eleven target paths absent, the current .56 DLL unchanged,
+the same new game lifetime and a healthy worker, all five buff groups current and
+maintaining, and no active or queued operation. User data and diagnostic evidence
+remain in place. Retirement receipt SHA-256:
+`d97a889a29a940fc196f97d4b9a8bbf23d488ccae24c5516a59b93e1bbe98df7`;
+post-retirement check SHA-256:
+`7fd3a923c3bfb7d60a675c38f891035a01fbe42eb9abf38c09335aa0832325ce`.
+
+Next: correct the launcher readiness timeout so a slow healthy status response is
+not reported as startup failure. Full natural Conc-pot/Precision expiry renewal
+and movement-interruption recovery remain outstanding; current coverage does not
+complete those checks.
+
+## Brief production PvE and preparation handoff
+
+After the user moved near NPCs, the existing exact-worker operation ingress ran
+saved basic PvE with Shot to the Leg (`563795161`), without hotkeys, UI target
+selection or Shadow Touch. The 62-step native journal records the opener queued
+at 4.969 seconds and ordinary attack at 5.391 seconds. Initial target `[23887,37]`
+fell from 800 to 442.897 health before an `engagement_stalled` transition and
+confirmed exact-target cleanup. On the next target, the opener was rejected as
+`power_reuse_blocked`; ordinary attack followed without replaying the opener.
+Target `[23885,37]` reached 0/400 health at 20.704 seconds with
+`native_health_zero` confirmation. The final native kill count is one.
+
+Explicit cancellation ended the continuous run. The original PvE operation
+`operation-c0b57b1cc14f46d99b4b179165187390` became `cancelled`, the cancellation
+receipt succeeded, and the manager showed no active or queued operation. The
+journal confirms exact child cleanup; it does not independently claim aggregate
+parent closure. A later passive census found no player action target despite a
+different UI selection. Normal Resume succeeded and fresh status again reported
+all five groups present and maintaining. This verifies the controlled
+preparation-to-PvE-to-cancel/Resume workflow, not an indefinite farming run or
+additional buff expiry/interruption acceptance.
+
+The final evidence SHA-256 is
+`ba38403caa7fe98fc9e764cbab148914e459e035630f117ea223613510f812ba`;
+the append-only journal SHA-256 is
+`7f9639b003c8921026eab81a46e30c12f48f30924e518851ade349428b306b0e`.
+Both remain private under the diagnostic share's
+`pve-chat-20261009-101838-1791555518959991400` filenames. No further PvE run was
+needed to establish this bounded observation.
 
 ## Host .83 delivery history
 
