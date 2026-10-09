@@ -141,8 +141,8 @@ while their logs and compact receipts remain.
   shared-owner scheduling/display, package qualification, PR #133 merge, installation,
   manager activation and exact-DLL game launch (484 modules verified).
 - Active: enable Umbra's saved Track intent after login and verify automatic refresh.
-- Next: integrate the closed-game cleanup source fix in PR #135; Track remains
-  awareness only.
+- Next: qualify the merged closed-game cleanup fix in a later host release; Track
+  remains awareness only.
 - Follow-up: closing the old game left its worker waiting indefinitely for native
   preparation cleanup after the manager removed its binding. The owner adapter
   checked original-process retirement only when cleanup raised, while the actor
@@ -177,7 +177,8 @@ permit). The original sealed payload stayed unchanged. The reviewed launcher the
 verified the new game's loaded DLL against the qualified hash above. No rollback
 artifacts were created. The public cleanup fix is `7161148` on
 `codex/closed-game-preparation-cleanup-20261009`, targeting main through PR #135;
-53 focused tests and independent review passed, with hosted checks pending.
+53 focused tests, independent review and all 15 hosted checks passed. PR #135
+merged at `c3fbfef`; the installed .87/.57 release remains unchanged.
 
 Verified retirement removed the obsolete .86 host (2,151 files), ten staged
 wheels and the old staged .56 DLL: 58,981,049 bytes across twelve exact paths.

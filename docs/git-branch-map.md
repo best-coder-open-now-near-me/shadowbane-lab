@@ -2,13 +2,14 @@
 
 ## Hunt Foe player-awareness delivery - October 9
 
-Start new bot work from refreshed main `9523d0e`, which merged PR #133 after all
-15 hosted checks passed at reviewed head `7593d06`. Native Hunt Foe queries,
-copied response generations, shared active/idle ownership, per-character settings
+Start new bot work from refreshed main `c3fbfef`, which contains Hunt Foe PR #133
+and the closed-game preparation cleanup in PR #135. Both passed all 15 hosted
+checks at reviewed source heads `7593d06` and `7161148`, respectively. Native Hunt
+Foe queries, copied response generations, shared active/idle ownership, settings
 and the manager contact display are integrated. Tracking never grants attack
 permission. Conc-pot interruption exercises remain parked by user direction.
 
-Root's qualified .87/.57 composition is `a7b210cb014d9380daa34eeb42d9d0382ca4e44c`,
+Root's installed .87/.57 composition is `a7b210cb014d9380daa34eeb42d9d0382ca4e44c`,
 published on `codex/hunt-foe-release-20261009` in `bot-integration`. It preserves
 installed graphics drafts outside main and is the exact runtime build source,
 not a replacement shared development base. Qualification passed 5,849 host cases
@@ -16,25 +17,32 @@ not a replacement shared development base. Qualification passed 5,849 host cases
 probes, six installed desktop cases and the real worker handshake. Independent
 verification checked all 136 artifacts and 108 package stages.
 
-Root owns `codex/hunt-foe-delivery-20261009` in `native-track-awareness` for this
-delivery record. The .87/.57 runtime is installed and activation-verified with
-484 host modules, 9,539 retained records and zero exclusions. The reviewed
-launcher verified the new game's DLL; automatic Track acceptance awaits login.
-Two narrowly reviewed deployment-verifier corrections completed the intended
-metadata update and accepted the actual empty visible-instance inventory while
-the game was closed. The original sealed payload remained unchanged.
+Root owns `codex/hunt-foe-delivery-20261009` in `native-track-awareness`, targeting
+main through draft PR #134 for this delivery record. The runtime is installed and
+activation-verified with 484 modules, 9,539 retained records and zero exclusions.
+The reviewed launcher verified the new game's DLL; automatic Track acceptance
+awaits login. Two narrow deployment-verifier corrections accounted for intended
+launch metadata and the empty visible-instance inventory while the game was
+closed. The original sealed payload remained unchanged.
 
-The closed-game cleanup fix is `7161148` on
-`codex/closed-game-preparation-cleanup-20261009` in `closed-game-cleanup`, targeting
-main through PR #135 after 53 tests and independent review; hosted checks remain.
-It resolves the orphaned worker observed during this installation without changing
-the qualified .87 runtime. Next: enable Umbra's Track intent, check automatic
-refresh and integrate that source fix. Obsolete .86 host/wheels and the staged .56
-DLL are retired: 58,981,049 bytes, twelve paths verified absent; current game and
-worker remain healthy. The merged Track source branch is retired after origin/main
-reachability verification. The separate
-PvE movement-renewal stop remains a host follow-up.
-See [the Track contract and receipts](native-track.md).
+Obsolete .86 host/wheels and the staged .56 DLL are retired: 58,981,049 bytes,
+twelve paths verified absent; current game and worker remain healthy. The merged
+Track source branch was retired after origin/main reachability verification.
+The current release and delivery worktrees remain active. Next: enable Umbra's
+Track intent and check automatic refresh. The PvE movement-renewal stop remains
+a host follow-up. See [the Track contract and receipts](native-track.md).
+
+## Closed-game preparation cleanup follow-up - October 9
+
+PR #135 merged at `c3fbfef7d072056bff15d6f6578e9d51e37ba2c4`; its source tip
+`7161148` is published on `codex/closed-game-preparation-cleanup-20261009` in the
+clean `closed-game-cleanup` worktree. This host-only fix checks the existing exact
+OS process-lifetime retirement proof for unconfirmed native cleanup results as
+well as exceptions. Live or unreadable original processes retain their cleanup
+obligation; PID reuse releases only the old owner's local resources. All 53
+focused tests and independent review passed. No version bump or runtime update
+was included, so the installed .87/.57 composition does not yet contain this fix.
+Its clean branch/worktree await a separate retirement pass after handoff.
 
 ## Preparation recovery delivery - October 9
 
