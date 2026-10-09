@@ -107,6 +107,11 @@ class CleanupSettlement:
                 self._terminal[grant] = min(self._terminal[grant], self.begin(obligation))
             self._condition.notify_all()
 
+    def has_pending(self, grant) -> bool:
+        """Read-only exact owner obligation; timeout/abort never releases it."""
+        with self._condition:
+            return grant in self._owners
+
     def blocked(self, grant) -> bool:
         with self._condition:
             return grant in self._terminal or grant in self._aborted

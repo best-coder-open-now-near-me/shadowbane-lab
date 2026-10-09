@@ -7,9 +7,14 @@ import time
 from pathlib import Path
 
 from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
+from shadowbane_lab.client_extension.city_window_wire import Receipt as CityReceipt
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
 from shadowbane_lab.client_extension.vendor_completion import _read_record
+from shadowbane_lab.client_extension.vendor_menu import validate_completed_menu
+from shadowbane_lab.client_extension.vendor_menu_wire import Receipt as MenuReceipt
+from shadowbane_lab.client_extension.vendor_navigation_wire import Receipt as NavigationReceipt
 from shadowbane_lab.client_extension.vendor_session import NativeVendorSession
+from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, UNRESOLVED, Outcome
 from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
 from shadowbane_lab.client_observation.reviewed_vendor_builds import REVIEWED_VENDOR_EXECUTABLES
 from shadowbane_lab.record_store import exclusive_record_lock
@@ -21,7 +26,13 @@ from .operation import (
     new_worker_operation,
 )
 from .vendor_discovery import discovery_summary, open_city_session, run_discovery
-from .vendor_job import TERMINAL, VendorJobStore, _write, run_vendor_job
+from .vendor_job import (
+    TERMINAL,
+    VendorJobStore,
+    _write,
+    require_vendor_handoff_idle,
+    run_vendor_job,
+)
 from .vendor_navigation import open_navigation_session, run_building_discovery
 from .vendor_recipes import (
     VendorRecipeStore,
@@ -29,6 +40,18 @@ from .vendor_recipes import (
     require_saved_owner,
     run_recipe_selection,
 )
+
+
+def _require_local_idle(session, binding, receipt_type):
+    receipt = session.inspect()
+    if (session.identity != NativeClientProcessIdentity(
+            binding.game_process_id, binding.game_process_started_at_100ns)
+            or not isinstance(receipt, receipt_type)
+            or receipt.window != binding.game_window_handle
+            or receipt.outcome is not Outcome.OBSERVED
+            or receipt.flags & (IN_FLIGHT | UNRESOLVED)):
+        raise VendorBatchStopped("native vendor handback remains unresolved")
+    return receipt
 
 
 class ManagerVendorControl:
@@ -308,28 +331,34 @@ class VendorWorkerExecutor:
         )
         if operation.command == "vendor discover":
             if stop_signal.is_set():
-                return WorkerOperationExecution(WorkerOperationState.CANCELLED, "Discovery paused.")
+                return WorkerOperationExecution(WorkerOperationState.CANCELLED, "Discovery paused.",
+                                                native_cleanup_confirmed=True)
             session = self.city_session_factory(binding)
             try:
                 record = run_discovery(
                     store, binding, operation, session, cancelled=stop_signal.is_set,
                 )
+                _require_local_idle(session, binding, CityReceipt)
             finally:
                 session.close()
             # Close the city transport before claiming a new native producer lease.
             if stop_signal.is_set():
-                return WorkerOperationExecution(WorkerOperationState.CANCELLED, "Discovery paused.")
+                return WorkerOperationExecution(WorkerOperationState.CANCELLED, "Discovery paused.",
+                                                native_cleanup_confirmed=True)
             navigation = self.navigation_session_factory(binding)
             try:
                 record = run_building_discovery(
                     store, binding, operation, navigation, record, cancelled=stop_signal.is_set,
                 )
+                _require_local_idle(navigation, binding, NavigationReceipt)
             finally:
                 navigation.close()
-            return WorkerOperationExecution(WorkerOperationState.SUCCEEDED, record["detail"])
+            return WorkerOperationExecution(WorkerOperationState.SUCCEEDED, record["detail"],
+                                            native_cleanup_confirmed=True)
         if operation.command == "vendor recipes" or operation.command.startswith("vendor recipe "):
             if stop_signal.is_set():
-                return WorkerOperationExecution(WorkerOperationState.CANCELLED, "Selection paused.")
+                return WorkerOperationExecution(WorkerOperationState.CANCELLED, "Selection paused.",
+                                                native_cleanup_confirmed=True)
             session = self.session_factory(binding)
             try:
                 parts = operation.command.split()
@@ -339,9 +368,23 @@ class VendorWorkerExecutor:
                     template=int(parts[3]) if len(parts) == 4 else None,
                     cancelled=stop_signal.is_set, reader=self.recipe_reader,
                 )
+                journal = (VendorRecipeStore(store).local / "operations"
+                           / (operation.operation_id + ".json"))
+                completed, _, _ = validate_completed_menu(_read_record(journal, 256 * 1024))
+                if (completed["process_id"] != binding.game_process_id
+                        or completed["process_creation_filetime_utc"]
+                        != binding.game_process_started_at_100ns
+                        or completed["window"] != binding.game_window_handle):
+                    raise VendorBatchStopped("recipe handback evidence changed owner")
+                menus = session.menu_session()
+                try:
+                    _require_local_idle(menus, binding, MenuReceipt)
+                finally:
+                    menus.close()
             finally:
                 session.close()
-            return WorkerOperationExecution(WorkerOperationState.SUCCEEDED, detail)
+            return WorkerOperationExecution(WorkerOperationState.SUCCEEDED, detail,
+                                            native_cleanup_confirmed=True)
         resume = operation.command.startswith("vendor resume ")
         if resume:
             current = store.current()
@@ -349,7 +392,8 @@ class VendorWorkerExecutor:
                 raise VendorBatchStopped("the requested vendor job is no longer current")
         if stop_signal.is_set():
             return WorkerOperationExecution(
-                WorkerOperationState.CANCELLED, "Vendor dispatch paused."
+                WorkerOperationState.CANCELLED, "Vendor dispatch paused.",
+                native_cleanup_confirmed=True
             )
         session = self.session_factory(binding)
         try:
@@ -374,6 +418,7 @@ class VendorWorkerExecutor:
                 **({"selection": selection} if selection is not None else {}),
                 cancelled=stop_signal.is_set,
             )
+            require_vendor_handoff_idle(store, session, record)
         finally:
             session.close()
         return WorkerOperationExecution(
@@ -381,4 +426,5 @@ class VendorWorkerExecutor:
             if record["state"] == "complete"
             else WorkerOperationState.CANCELLED,
             record["detail"],
+            native_cleanup_confirmed=True,
         )

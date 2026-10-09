@@ -169,7 +169,29 @@
         return payload;
       };
 
-      function renderPveStatus(workerPanel, pve) {
+      function renderAutomaticBuffs(workerPanel, buffs) {
+          const panel = document.createElement("section");
+          panel.className = "worker-panel";
+          const title = document.createElement("h3");
+          const labels = {maintaining: "Keeping buffs active", paused: "Paused",
+            disabled: "Disabled in character settings", needs_attention: "Needs attention",
+            idle: "Waiting", starting: "Starting", yielding: "Waiting for the current action"};
+          title.textContent = `Automatic buffs - ${labels[buffs.state] || "Unavailable"}`;
+          panel.append(title);
+          const detail = document.createElement("p");
+          detail.className = "detail";
+          detail.textContent = buffs.detail || "Uses this character's saved buff settings.";
+          panel.append(detail);
+          for (const group of buffs.preparation?.groups || []) {
+            const row = document.createElement("p");
+            row.className = "detail";
+            row.textContent = `${text(group.group_id)} - ${buffs.current ? text(group.coverage) : "Current state unavailable"}`;
+            panel.append(row);
+          }
+          workerPanel.append(panel);
+    }
+
+    function renderPveStatus(workerPanel, pve) {
         if (pve?.progress || pve?.operation_id) {
           const panel = document.createElement("section");
           panel.className = "worker-panel";
@@ -346,6 +368,29 @@
         dialog.showModal();
       };
 
+      function renderCharacterChoices(identity, slot) {
+          const choices = document.createElement("div");
+          choices.className = "actions";
+          for (const candidate of slot.candidates || []) {
+            const row = document.createElement("div");
+            const label = document.createElement("p");
+            const character = candidate.character;
+            label.textContent = character?.state === "available"
+              ? `${character.name} — ${character.server} (client ${candidate.process_id})`
+              : `Client ${candidate.process_id}: character unavailable — log in or wait for loading`;
+            const choose = document.createElement("button");
+            choose.type = "button";
+            choose.textContent = "Use this character";
+            choose.disabled = character?.state !== "available" || !character?.token;
+            choose.addEventListener("click", () => execute({ action: "attach",
+              client_id: slot.client_id, instance_id: candidate.instance_id,
+              selection: { character_token: character.token } }));
+            row.append(label, choose);
+            choices.append(row);
+          }
+          identity.append(choices);
+      }
+
       const renderSlot = (slot) => {
         const article = document.createElement("article");
         article.className = "slot";
@@ -354,9 +399,10 @@
         const heading = document.createElement("h2");
         const currentBinding = bindingFor(slot);
         heading.textContent = text(
-          currentBinding?.title,
+          currentBinding?.character?.name,
           currentBinding?.process_id ? `Shadowbane ${currentBinding.process_id}` : "Shadowbane client"
         );
+        if (!currentBinding) renderCharacterChoices(identity, slot);
         const state = document.createElement("span");
         const stateName = text(slot.state, "unknown").toLowerCase();
         state.className = `state ${stateName.replace(/[^a-z0-9_-]/g, "")}`;
@@ -464,6 +510,7 @@
         }
 
         renderPveStatus(workerPanel, slot?.pve);
+        if (slot?.automatic_buffs) renderAutomaticBuffs(workerPanel, slot.automatic_buffs);
 
         const controls = document.createElement("div");
         controls.className = "actions";

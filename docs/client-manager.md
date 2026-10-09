@@ -5,6 +5,27 @@ character strategy. The command line exposes read-only inventory and preflight p
 live, localhost-only dashboard. The persistent session supports exact attach, shell-free launch
 correlation, dispatch pause/resume, non-activating tiling, detach, and graceful close requests.
 
+## Use an already open character
+
+The dashboard shows unbound configured slots when matching game clients are already
+open. Each available choice displays the character and server read from the current
+native local-player identity. Select **Use this character** to attach that exact
+process/window lifetime to the existing logical slot; this does not launch another
+game. Login/loading or unreadable native identity is shown as unavailable, without
+using a window title as a substitute.
+
+The selection includes a fingerprint of the displayed native character binding.
+The manager rechecks both the process/window identity and native character before
+attachment. A stale choice, an occupied slot, a character already managed elsewhere,
+or an unfinished operation is rejected before revoking or stopping a worker.
+Multiple matching clients remain unassigned until an explicit choice; the existing
+single-candidate automatic adoption behavior is retained.
+
+This picker uses existing configured slots. It does not create concurrent slot
+capacity, change saved jobs/settings, or alter combat, movement or buff foreground
+requirements. Persistent preparation across fights and focus changes is a separate
+ownership/lifecycle change.
+
 ## Inspect one PC
 
 Give each PC a stable operator-chosen node ID and run:

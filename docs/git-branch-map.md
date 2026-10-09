@@ -7,33 +7,82 @@
 movement and ordinary item-caller probes without installing a runtime hook or
 changing application authority. See [the proof boundaries](native-movement-interruption-20261008.md).
 Typed activation interruption, retained journal reconciliation and renewal are
-unfinished; no blanket potion/attack gate is included. PR #115 owns the separate
-worker service and real preparation IPC fixture. Root combines reviewed source
+unfinished; no blanket potion/attack gate is included. The branch now includes
+exact worker/IPC head `2ceeb701` from PR #115 by ancestry. Its stationary item
+readiness checkpoint is `1cbce71`; it does not clear pending application history.
+Root combines reviewed source
 and the current cosmetic overlay before any native release qualification.
 
-## Persistent preparation core - October 8
+## Current integration and runtime - October 8
 
-`codex/persistent-buff-maintenance-20261008` owns bot-runtime for the native
-PREPARATION purpose, exact local initiation proof and passive coordinator cleanup
-boundary. It starts from main `85e3194` and targets `main` as a draft source
-checkpoint. PR #115 owns the separate worker/saved-intent integration in
-bot-command-ownership; neither lane changes the live runtime. The provisional
-blanket potion coverage barrier is excluded. Exact movement-interruption evidence
-and safe item retry remain a separate qualification task. See
-[the ownership contract](persistent-preparation-ownership-20261008.md).
-Full combined release qualification, cosmetic-overlay preservation and installation
-remain pending; no native or host version stamp is changed here.
+Start from refreshed `origin/main`, now including PR #111 recovery at `85e3194`
+and PR #112 existing-character picker at `f0b8eb4`. PR #111 contains the original
+PRs #92 and #94 by ancestry; they are merged, not outstanding integration lanes.
+The picker source at `405cf10` passed independent review and all 15 hosted checks.
+It names native characters in existing configured slots and attaches the chosen
+process lifetime without launching a game or replacing an occupied binding.
+Concurrent logical-slot creation is outside this slice.
 
-## Combined production recovery - October 8
+Qualified host .79 source is `7cd5d22`; native .54 and client .15 stay unchanged.
+The VM has prepared .79 against the earlier `0f80838` cosmetic overlay, while its
+manager still runs .78. A separate Visual Inspector installation has since
+replaced that overlay with source `2f14379` / DLL `52ac0004` and reopened the
+client/panel. No bot manager switch occurred. The old prepared deployment baseline
+is superseded: coordinate and requalify preservation of the new overlay before
+applying any host update. The picker is newer than the .79 package and remains
+source-only. The active graphics panel still uses .78. Cosmetic PRs #106 and #113
+remain separate from main. See [the recovery delivery record](host-recovery-delivery-20261008.md)
+and [the prior live evidence](client-update-20261008.md#live-pve-and-buffs-after-multi-client-repair).
 
-`codex/combined-recovery-20261008` owns the independent bot-runtime checkout,
-starting from main `230bfe7`. It contains reviewed PR #92 at
-`193f14f8` (registration recovery and preserved interruption causes) and PR #94
-at `1d73f300` (explicit worker attachment and bounded recovery). The original
-PR branches remain published and unchanged. The combined host .79 candidate
-retains native .54 and the qualified .15 client; package qualification and
-installation remain pending. Main remains the shared integration destination.
-Bot-integration is independently owned for current .78 live-validation records.
+Active checkout ownership:
+
+- `codex/bot-live-validation-20261008` owns bot-integration for qualification,
+  installation and live delivery records, targeting main.
+- `codex/item-movement-renewal-20261008` owns bot-runtime for the combined
+  preparation core/worker source and the movement interruption follow-up.
+- `codex/persistent-buff-worker-20261008` owns bot-command-ownership for the
+  persistent worker service and its controls, with picker `405cf10` as ancestry.
+
+Both buff lanes remain unfinished and unqualified. They target main after
+combined review and tests. The new-overlay one-NPC check completed, but potion
+application remains unresolved. The user withdrew the initial attack-cancellation
+interpretation after a manual attack did not interrupt another potion; movement
+cancellation is now captured for native lifecycle qualification. See the recovery
+delivery record for the bounded result, fresh idle postflight and evidence limits.
+Background buff upkeep is not yet installed; combat focus policy is unchanged.
+Do not switch another lane's active checkout.
+The historical checkpoints below describe earlier state, superseded by this entry.
+
+## Combined persistent preparation source - October 8
+
+PR #115 (`codex/persistent-buff-worker-20261008`, bot-command-ownership) is the
+combined integration destination for worker checkpoint `22a2340` and exact native
+core `fcccaa53` from PR #118. Both tips remain ancestors; main runtime and causal
+facts above are preserved. The core uses a preparation-only actor purpose with
+no movement Grant or target context. New entries require fresh worker intent and
+native manual/UI admission; passive cleanup retains exact ownership until proof.
+See [the ownership contract](persistent-preparation-ownership-20261008.md).
+
+The worker serializes finite operations with maintenance, requires typed cleanup
+or immutable journal evidence for handback, and keeps Stop intent across worker
+loss and interrupted record publication. Resume atomically supersedes retained
+older Stop IDs. Cleanup supervision continues after its original native deadline;
+no timer or generic operation success authorizes resource disposal. Ordinary
+manual input defers buffs without disabling saved intent; explicit Pause/Stop
+stays latched. Remote application history does not block every finite operation.
+The withdrawn blanket potion/PRESENT barrier is absent from both source lanes.
+
+Combined host regression at `d18099d` passed 5,343 cases with 39 optional skips.
+The subsequent manual-admission status correction and mandatory preparation IPC
+slice passed 547 focused cases. Both compiled profiles passed 149 actor IPC cases
+without skips. The new case uses the real worker service/adapter, host transport,
+Controller and Runtime with explicitly substituted gameplay callbacks; it proves
+protocol ownership and passive cleanup, not live client execution. Package and
+hosted gates require this case to execute exactly once in each profile.
+
+Full release qualification, versioning, cosmetic-overlay preservation and
+deployment remain pending. No background buff runtime or background attack
+authority has been installed by this source work.
 
 ## Multiple client launch delivery - October 8
 

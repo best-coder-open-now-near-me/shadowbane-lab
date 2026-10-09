@@ -137,6 +137,7 @@ REQUIRED_COMBAT_IPC_TESTS = frozenset({
 
 
 REQUIRED_ACTOR_IPC_TESTS = frozenset({
+    "test_real_preparation_service_ipc_keeps_passive_ownership_and_manual_activity",
     "test_real_windows_parent_and_child_native_consumer",
     "test_real_native_publication_mapping_roundtrip",
 })
@@ -340,6 +341,7 @@ def main() -> int:
     environment.pop("SHADOWBANE_COMBAT_CHANNEL_TEST_EXE", None)
     environment.pop("WONDERBANE_ACTOR_ACTION_TEST", None)
     environment.pop("SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE", None)
+    environment.pop("WONDERBANE_PREPARATION_CHANNEL_TEST_EXE", None)
     environment["PYTHONUTF8"] = "1"
     steps = []
     diagnostic_failures = []
@@ -677,14 +679,18 @@ def main() -> int:
             build / "Release/wonderbane_extension_actor_action_wire_test.exe")
         environment["SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE"] = str(
             build / "Release/wonderbane_extension_actor_publication_test.exe")
+        environment["WONDERBANE_PREPARATION_CHANNEL_TEST_EXE"] = str(
+            build / "Release/wonderbane_extension_preparation_channel_test.exe")
         try:
             run(f"{profile}-actor-ipc", [sys.executable, "-m", "pytest",
                 "tests/test_actor_action_wire.py", "tests/test_actor_publication.py",
                 "tests/test_actor_action_session.py", "tests/test_actor_selector_manifest.py",
+                "tests/test_preparation_ipc_windows.py",
                 "-q", f"--junitxml={actor_results}"])
         finally:
             environment.pop("WONDERBANE_ACTOR_ACTION_TEST", None)
             environment.pop("SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE", None)
+            environment.pop("WONDERBANE_PREPARATION_CHANNEL_TEST_EXE", None)
         validate_actor_ipc_results(actor_results, profile)
         environment["WONDERBANE_ITEM_TRACE_TEST"] = str(
             build / "Release/wonderbane_extension_item_application_trace_test.exe")

@@ -39,6 +39,7 @@ from shadowbane_lab.client_extension.vendor_wire import (
     READY,
     UNRESOLVED,
     Outcome,
+    Receipt,
     Snapshot,
 )
 from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
@@ -217,6 +218,52 @@ class VendorJobStore:
         }
         result["control"] = self.control(record["job_id"])
         return result
+
+
+def require_vendor_handoff_idle(store, session, record):
+    """Prove current local receipt and every retained job action before handback."""
+    from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
+    with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
+        record = store.read(record["job_id"])
+        if (record["process_id"] != session.identity.process_id
+                or record["process_creation_filetime_utc"] != session.identity.creation_filetime_utc
+                or record["window"] != session.window):
+            raise VendorBatchStopped("vendor handback belongs to another client")
+        initial = Snapshot.decode(bytes.fromhex(record["initial_snapshot"]))
+        receipt = session.inspect()
+        if (not isinstance(receipt, Receipt) or receipt.outcome is not Outcome.OBSERVED
+                or receipt.window != record["window"]
+                or receipt.flags & (IN_FLIGHT | UNRESOLVED)
+                or _owner(receipt.snapshot) != _owner(initial)):
+            raise VendorBatchStopped("vendor handback remains unresolved")
+        directory = store.directory(record["job_id"])
+        batch_path = directory / "create.json"
+        batch_raw = _read_record(batch_path) if batch_path.exists() else None
+        if batch_raw is not None:
+            batch, before = validate_completed_batch(batch_raw)
+            if (any(batch[key] != record[key] for key in (
+                    "process_id", "process_creation_filetime_utc", "window", "vendor_id"))
+                    or _owner(before) != _owner(initial)):
+                raise VendorBatchStopped("vendor Create evidence changed owner")
+        elif record["created"]:
+            raise VendorBatchStopped("vendor Create evidence is missing")
+        keep_path = directory / "keep.json"
+        if keep_path.exists():
+            if batch_raw is None:
+                raise VendorBatchStopped("vendor Keep evidence lacks its Create journal")
+            validate_completed_keep(_read_record(keep_path), batch_raw)
+        elif record["kept"] or record["excluded"]:
+            raise VendorBatchStopped("vendor Keep evidence is missing")
+        for name in ("inventory-menu.json", "recipe-preparation.json"):
+            path = directory / name
+            if path.exists():
+                menu, before, _ = validate_completed_menu(_read_record(path, 256 * 1024))
+                if (any(menu[key] != record[key] for key in (
+                        "process_id", "process_creation_filetime_utc", "window"))
+                        or before.owner != _owner(initial)):
+                    raise VendorBatchStopped("vendor menu evidence changed owner")
+        GuardSpendingJournal(store.root).assert_idle()
+        CondemnProgressStore(store.root).assert_idle()
 
 
 def run_vendor_job(

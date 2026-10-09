@@ -1452,6 +1452,13 @@ if(BUILD_TESTING)
   target_link_libraries(wonderbane_extension_combat_runtime_test PRIVATE bcrypt user32)
   add_test(NAME wonderbane_extension_combat_runtime COMMAND wonderbane_extension_combat_runtime_test)
   set_tests_properties(wonderbane_extension_combat_runtime PROPERTIES TIMEOUT 15)
+  # Real named-mapping preparation IPC; gameplay callbacks are explicit test substitutions.
+  # Executed by mandatory Python actor IPC gates, rather than unattended CTest.
+  add_executable(wonderbane_extension_preparation_channel_test preparation_channel_test.cpp movement_controls.cpp)
+  target_compile_features(wonderbane_extension_preparation_channel_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_preparation_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_preparation_channel_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_preparation_channel_test PRIVATE bcrypt advapi32)
   add_executable(wonderbane_extension_combat_channel_test combat_channel_test.cpp movement_controls.cpp)
   target_compile_features(wonderbane_extension_combat_channel_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_combat_channel_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
