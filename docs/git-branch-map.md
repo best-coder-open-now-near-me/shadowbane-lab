@@ -1,18 +1,70 @@
 # Git branch map
 
-## Persistent buff release composition - October 8
+## Client 1.3.38.16 release composition - October 9
 
-`codex/persistent-buff-release-20261008` owns bot-integration for combined
-qualification and deployment. It composes frozen bot PR #119 candidate `cebd4e8` (.80/.55)
-with installed graphics source `2f14379` and reviewed graphics package gates
-`2e7e00a`. Independent source reviews and focused validation passed; final
-exact-source package qualification is the active step.
-The normal project checkout stays on main. Main is the bot integration destination;
-graphics PRs #106 and #113 remain separately owned drafts. Composing their source
-here preserves the installed graphics features without declaring those PRs merged.
-Publish the exact combined source before packaging. This composition has not yet
-passed final release qualification and has not changed the running client.
-Older branch ownership and qualification entries below are historical.
+`codex/client-release-20261009` owns bot-integration for exact-source package
+qualification. It combines host checkpoint `feb4bb0` and native checkpoint
+`82e1b3c` through integration `b5b6a6a`, retaining the installed graphics source
+and mandatory graphics package checks from qualified release `3e4d801`.
+The bot integration destination remains main; graphics PRs #106/#113 remain
+separately owned drafts. This .81/.56 candidate is not yet qualified or installed.
+Use refreshed main for new bot development and this published composition only
+for reproducing the combined deployment. Earlier composition ownership is historical.
+
+## Official client 1.3.38.16 update - October 9
+
+Start from refreshed main, now including PR #120 at `32651c4`. The user applied
+the next official patch; the installed .80/.55 bot runtime still contains the
+previous client. `codex/client-host-20261009` owns host compatibility and delivery,
+with native changes on `codex/client-native-20261009`. Both target main. The new
+.81/.56 package must preserve the graphics composition in published release
+`3e4d801`; those graphics drafts remain separately owned. Qualification and
+installation are pending. See [the current update record](client-update-20261009.md).
+
+## Qualified persistent buff delivery - October 9
+
+Main now includes bot PR #119 at merge `5b6c75e7af02a8109ab60fbaa694b3577900aebe`;
+PRs #115 and #118 merged by ancestry. The final reviewed bot head was `02a18db`,
+with all 15 hosted checks successful. Start new bot work from refreshed main.
+
+The qualified deployment source is `3e4d80199c9a99d7dd20d58b4ed6daec1250353d`
+on published `codex/persistent-buff-release-20261008`, owned in bot-integration.
+It combines the merged bot with installed graphics source `2f14379` and explicit
+graphics package checks. Graphics PRs #106/#113 remain separate drafts; their
+source and the additional graphics package checks are outside main. The release
+branch is retained for reproducible deployment, not a separate shared base.
+Integrate those graphics lanes through their existing review before retiring it.
+
+Host 0.3.80/native 1.8.55 passed exact-source qualification: 5,600 host tests
+(39 optional skips), 244/240 required-profile native test passes, and 74 movement,
+86 combat and 168 actor IPC cases per profile without skips. Original/prepared
+client 1.3.38.15 probes passed; the three generic image-argument skips were
+covered by explicit image runs. Independent verification covered 136 artifacts,
+108 stages and the installed graphics modules. Two pre-existing rendering
+transparency diagnostics remain recorded separately, not claimed as fixed.
+
+Package SHA-256: `4efe6cbfdece9b8155080301f9f593b0f04601b6e0bf8eb8891ac4e21b0c5344`.
+Full DLL SHA-256: `7063b8c0f5d3036178a1946ff61e429fcf90b08df46c225cf05000181d9b9bcc`.
+
+The .80/.55 runtime is installed on the testing VM, with all 477 packaged host
+files verified and 9,613 retained settings/history records checked. Exactly one
+client inventory entry changed: the extension DLL. Both manager shortcuts now
+use .80; the three client shortcuts and reviewed per-lifetime launcher are
+unchanged. No rollback copies were created.
+
+Installation exposed two verifier errors: CIM timestamps truncate the precision
+used by process-lifetime receipts, and denied unbound worker permits legitimately
+retain historical worker identity. The stop helper now uses exact process-handle
+timestamps. Startup finalization now verifies denied unbound permits against
+unchanged historical heartbeats. The manager passed finalization healthy and
+unbound, with all retained records preserved except that valid generated permit.
+The qualified runtime binaries are unchanged by either installer correction.
+Vendor Test reopened through that unchanged launcher and loaded the exact .55
+DLL. Passive inspection before login reports no observable local player yet;
+in-world readiness and live gameplay acceptance remain pending. Next: log Umbra
+in and validate persistent buff renewal and movement-interruption recovery.
+Earlier ownership and qualification entries below are historical and superseded
+by this entry.
 
 ## Movement interruption qualification - October 8
 
@@ -154,7 +206,7 @@ This receipt branch targets `main` through the upcoming combined recovery review
 installation remain pending; the VM still runs qualified host .78 plus the
 separately recorded cosmetic overlay.
 
-## Current Wonderbane client update — October 8
+## Current Wonderbane client update â€” October 8
 
 Start new bot work from refreshed `origin/main`. PR #105 merged exact client
 1.3.38.15 support at `500fe40`, retaining qualified source `6c8ea10`. Host .78 /
@@ -250,7 +302,7 @@ Start from freshly fetched `origin/main`, now
 `a84f010a752d91f61aa4366921729f3af3dc8074` after PRs #83 and #84 merged the deployment
 and provenance records. PR #81 integrated the combined release.
 Exact source `733b5fecb862c6d9421b8c2d20f8b8aee5c6db18` is installed
-as host .75/native .52; .14 executable and official cache `08c115…` remain unchanged.
+as host .75/native .52; .14 executable and official cache `08c115â€¦` remain unchanged.
 The release includes reviewed cleanup ownership repair and optional item-response
 diagnostics. Their source branches remain retained pending safe branch cleanup;
 no current checkout is repurposed by this documentation task.
@@ -794,7 +846,7 @@ Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
 
-## Current delivery status — September 12
+## Current delivery status â€” September 12
 
 Active priority: [PvE/PvP attack-list delivery](pve-pvp-attack-list-plan.md).
 Blacklist means attack list, populated by commands or attributed responses.
@@ -929,7 +981,7 @@ the diagnostic package does not claim visual or live Condemn acceptance.
 See the September 22 handoff for scope and recovery limits.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
-## Guard-upgrade detour — September 17
+## Guard-upgrade detour â€” September 17
 
 `codex/guard-upgrades` starts at vendor checkpoint `61e6fd8` in its own worktree.
 The user wants guards upgraded toward maximum rank as available gold permits.
@@ -1050,7 +1102,7 @@ destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.
 
-## Vendor overlay — September 14
+## Vendor overlay â€” September 14
 
 September 15: the correct full native 1.8.8 / host 0.3.17 is installed and its
 action mapping is verified. A live scan confirmed the selected-vacancy fix and
@@ -1345,7 +1397,7 @@ Blacklist means the attack list, populated manually or through attributed respon
 The plan retains applicable review follow-ups without making broad cleanup or unfinished
 visual/door features prerequisites. Identity changes through 8552552 are integrated; attack-list storage and chat editing are integrated. Durable player identity and command completion are active; response attribution and combat transitions remain pending.
 
-## Official client refresh — September 19
+## Official client refresh â€” September 19
 
 The guard lane now reviews official client 1.3.38.9 with native 1.8.21 / host
 0.3.31. [Exact client review and deployment todo](client-update-20260919.md).
@@ -1361,7 +1413,7 @@ and continue rank checks; outer coverage and maximum-rank completion remain open
 Keep the current carried-gold guard journals, including unresolved requests.
 This work remains outside the shared integration branch and main.
 
-## Guard travel controls — September 19
+## Guard travel controls â€” September 19
 
 The active `codex/guard-upgrades` worktree now owns the
 [dashboard Travel / Continue here feature](handoffs/guard-travel.md).
@@ -1375,11 +1427,11 @@ are verified. Fresh discovery retains 174 guards; Travel has live-paused safely
 after an active cycle with no spending or pending request. Next: user repositioning
 and Continue here to verify saved progress and new-area merging.
 Integration remains
-`codex/guard-upgrades` → `codex/vendor-rolling` →
-`codex/native-lifecycle-hardening` → reviewed `main`.
+`codex/guard-upgrades` â†’ `codex/vendor-rolling` â†’
+`codex/native-lifecycle-hardening` â†’ reviewed `main`.
 
 
-### Guard Travel host continuation — September 19
+### Guard Travel host continuation â€” September 19
 
 The active guard lane now contains host 0.3.33's same-character area continuation
 fix. Historical scenes stay immutable; only guards in fresh owned rosters gain
@@ -1389,75 +1441,3 @@ live Continue here retains 174 guards and schedules the 168 in fresh rosters.
 Native 1.8.22 is unchanged. Additional town coverage/rank completion remain.
 Integration remains guard-upgrades -> vendor-rolling -> native-lifecycle-hardening
 -> reviewed main. The ordinary main checkout is unchanged.
-
-## Graphics source history included in release composition
-
-## Selected-object Visual Inspector — October 8
-
-`codex/selected-visual-inspector` continues from katana integration `e1e0527`
-in the existing katana worktree. It owns the now-authorized Visual Inspector:
-on-demand selected/self render snapshots, cache references and Graphics Lab UI.
-PR #106 remains unchanged; this lane targets main after that dependency.
-Native capture, cache resolution and the panel pass local validation; see
-[usage and validation](visual-inspector.md). The user selected test-VM installation,
-which is now active. No runtime has been replaced yet. The normal checkout stays
-on main. PR #106 now has successful hosted checks; its review remains separate.
-
-## Katana and bot integration — October 8
-
-Start combined cosmetics/bot work from `codex/katana-moonfire`. Merge `9146542`
-combines selected-character source `ab53a09` from `codex/mod-pack-client-20261008`
-with main `85e3194`, which already includes reviewed bot recovery PR #111 and
-host 0.3.79. Native remains 1.8.54; pin exact artifacts, not version labels alone.
-The hardware-PC branch remains published and independently owned. Main is the
-shared integration destination; katana changes remain outside it in draft PR #106.
-
-Combined source `4f07426` passes 5,233 host tests (38 skips), 234 explicit
-host/native IPC tests, lint, and the full native build: 239 required tests pass,
-with the three private-image entries separately passed against their actual
-inputs. Two deferred transparency diagnostics still exhibit only their reviewed
-counterexamples. The moon-fire fixture now uses an offscreen bitmap on GDI;
-both hardware and forced-GDI pixel/state assertions pass without relaxed checks.
-The mod-pack workflow preserves its test log before generating test inventory.
-Hosted CI for this fix is still running; the prior source failed the now-fixed
-hidden-window pixel assertion. Do not treat this local validation as a hosted
-pass or as acceptance of arbitrary translucent ordering.
-
-No runtime changed during integration. The normal checkout is clean on main;
-the integration worktree stays on its published feature branch for PR #106.
-Next: complete hosted CI/review, then integrate PR #106 into main. Demo follow-up
-is measured fire-on/off frame timing and final capture; Visual Inspector remains
-deferred. The older sections below record their historical deployment states.
-
-## Hardware-PC mod pack — October 8
-
-`codex/mod-pack-client-20261008` starts from `codex/katana-moonfire` at
-`e404d06` and adds a dedicated, verified hardware-PC launcher and native
-candidate build workflow. Targets main after PR #106; it does not take over
-that feature branch. The separate client is installed and running with the
-NVIDIA driver and Katana panel. See [qualification and launch details](mod-pack-pc-20261008.md).
-In-world counters now confirm both owned blades and moon-fire draws. The branch
-also owns the requested selected-character mode, now qualified and installed
-from native source `8dce403`. Live selected-character telemetry confirms both
-katana and moon-fire draws with no errors or suppression. Original demo acceptance
-remains in PR #106. The hosted pixel-test failure is retained and
-local hardware qualification is documented explicitly.
-
-## Katana moon-fire - October 8
-
-codex/katana-moonfire includes main 500fe40 in its own managed worktree.
-It owns one local katana cosmetic experiment, not a general equipment system.
-Native visual inspection/tinting is validated. The model-only appearance swap
-is installed with the compression correction, and the user confirmed it renders
-in game. The approved mesh/texture and six-slider moon-fire preset are preserved
-in the preview. Live proportions controls from 3c4c8c1 are installed in Graphics Lab and both
-owned katana draws respond. The user selected 80% length. Native moon-fire and
-its six panel controls from 0f80838 are installed; both weapon effects were
-observed in game with two fire draws and no suppression. Final tuning and a
-clean demo capture remain.
-Draft PR #106 targets main; this unfinished source remains outside main. The
-general object Visual Inspector is deferred until after the katana demo.
-See [scope, evidence and next steps](katana-moonfire.md).
-The user is moving this demo to another computer via a new Codex chat. Start
-with [the new-machine handoff](handoffs/katana-demo-new-machine.md); the VM
-software-rendering profile must not be copied as a hardware-PC default.
