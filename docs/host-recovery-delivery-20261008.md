@@ -106,7 +106,8 @@ a fresh scene-1 observation (141 ms old), and a living local character.
 This is **not successful concoction validation**. Greater Concoction was queued
 at the start, but the item adapter immediately reported local settlement.
 Ordinary attack was accepted at 1,343 ms while the potion remained pending.
-The user observed that starting attack before application canceled the potion.
+The user initially attributed the missing potion to attack, then withdrew that
+interpretation after a manual attack did not interrupt another potion attempt.
 Final publication still marked concoction missing/pending. Precision, Beorc Rune
 and defensive stance were present; both transform alternatives were not ready.
 Do not describe this run as all five buff groups present or infer successful
@@ -114,8 +115,9 @@ potion application from a queued item-use acknowledgement.
 
 Source review confirms that the ordinary item-use adapter treats a normal
 outbound return as local settlement without proving completion of delayed,
-cancellable activation. Correct the native activation/combat-handoff boundary
-and cancellation reconciliation before repeating this potion-to-attack check.
+cancellable activation. That transport fact alone does not prove either buff
+application or an attack-cancellation bug. Qualify the actual activation and
+movement-cancellation boundary before choosing handoff or retry behavior.
 Do not substitute a fixed delay, inventory quantity change, or system-message
 parsing for the required native lifecycle evidence. Persistent buff-worker and
 native preparation lanes remain source-only and unfinished.
@@ -127,3 +129,32 @@ The reviewed production wrapper SHA-256 is
 its installed-module manifest is
 `fb2fe6280919e35fc321d7151bde4464e9ae9542ab66c174cbd9f861c7578eb0`.
 Only this compact receipt is published; private captures stay local.
+
+## Manual potion comparison supersedes the attack-cancellation hypothesis
+
+The user reported that attacking did not interrupt a subsequent manual potion;
+incoming damage was offered as a possible cause of the original failure, not a
+confirmed explanation. The user then deliberately canceled another potion by
+moving. No bot action was sent during this diagnostic capture.
+
+The passive observer retained native events for the same Umbra process lifetime
+above, now in scene 3. Concoction power `429021400` had two start/completion-path
+pairs: decoded sequences 30 to 36 (10,031 ms apart) and 39 to 45 (10,047 ms apart).
+Starts carry native flags 1 / status 0 / rank 35; the later events carry flags 2 /
+status 0 / rank 9999. Handler returns alone do not prove effect coverage.
+The movement test recorded another start at sequence 51, its processing/return
+at 53/54, and item response processing/return at 55/56. No subsequent matching
+terminal event was captured before the watcher stopped. The user reports the
+cancellation; absence of a packet is not a qualified native failure predicate.
+
+Final sequence was 56, with zero overwritten records, rejected records, ticket
+drops, read errors or missed records. The capture's aggregate incomplete flag
+remained true because retained initial history includes pre-world rows without
+scene identity; do not label the entire capture complete. The watcher exited
+normally on its diagnostic stop file. It opened only the read-only item/power
+mapping and native character session, never a producer, lease or action owner.
+
+Private capture: `manual-potion-interruption-3480.jsonl` in the same diagnostics
+folder; SHA-256 `6c0ce464d373a3272d073eb7a08578860a1996a1812bdfe760f7c14b8f20e515`.
+Next: qualify the local movement-cancel transition and retry semantics. A blanket
+attack or all-buff application wait is not justified by these observations.
