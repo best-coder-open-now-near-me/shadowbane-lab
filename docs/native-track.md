@@ -3,9 +3,11 @@
 ## Current scope and delivery
 
 The user selected **Hunt Foe** for Umbra's incoming-player awareness on October 9.
-The source lane is `codex/native-track-awareness-20261009`, based on main `7646af6`,
-with main as its integration destination. Automatic Track queries and the contact display
-are implemented and under final qualification; they are not installed yet. The running .86/.56 runtime is unchanged.
+PR #133 merged into main `9523d0e7aa973e1529c07d950c7cf64e3836eaf2` after all
+15 hosted checks passed at reviewed head `7593d06`. Automatic native refresh and
+the contact display are implemented and qualified as host .87/native .57. The
+qualified .87/.57 runtime is installed, its manager activation verified, and the
+game relaunched with the exact DLL. Automatic Hunt Foe refresh is live-qualified.
 
 The first source checkpoint supplies a durable learned-skill resolver and a passive
 native contact reader. These are observation components for the full shared-worker
@@ -101,20 +103,110 @@ response age and status independently from buff coverage. Contact names use text
 nodes. Worker/process replacement, paused/stopped ownership and expired observations
 remove currentness. Status storage accommodates the bounded 256-contact publication.
 
-## Validation and delivery todo
+## Qualification and delivery
 
-- Complete: learned Hunt Foe and ten-contact native HUD capture; 92 initial tests.
-- Complete: copied response publication and nested-generation handling; native
-  fixture and three failed-install cases, plus 31 Python publication tests.
-- Complete: same-owner native query and automatic active/idle scheduling, per-character
-  settings, dashboard display and independent source reviews.
-- Active: combined exact-source package and hosted checks for host .87/native .57.
-- Next: normal authorized merge/install, enable Umbra's saved Track intent and
-  verify automatic refresh in the running game. The installed .86/.56 runtime
-  remains unchanged until qualification completes.
+Exact runtime source `a7b210cb014d9380daa34eeb42d9d0382ca4e44c` on
+`codex/hunt-foe-release-20261009` combines the merged Track source with the
+previously installed graphics composition. All installed graphics-only files
+were preserved; the shared build/test lists retain both graphics and tracking.
+
+The package passed 5,849 host tests with 40 optional skips, 253 full-profile and
+249 diagnostics-profile native cases. Three generic private-image cases per
+profile are covered by the explicit original/prepared image probes. Both profiles
+passed movement/combat/actor IPC counts of 74/86/208 without skips, including the
+real copied Track frame. Six installed-wheel desktop startup cases passed; the
+real Windows worker handshake is retained with verified source equivalence across
+the final test-only correction. Independent verification checked all 136 artifacts,
+108 stages and 484 installed host modules. The two existing graphics transparency
+diagnostics remain separately recorded and are not claimed fixed.
+
+| Qualified artifact | SHA-256 |
+| --- | --- |
+| Acceptance package | `662b79825a84c99aff853247c5dc96b78256f09d85cd36de522297883378a025` |
+| Builder receipt | `700830eda54a9cdb77b7681927af23ab4bafec33498cd48ec1850a21fe099318` |
+| Independent verification | `a3d93e2c052a2e19222c77063967e141144ddb2f57a0c0192e9e277a76de00af` |
+| Full native DLL | `d2ef2d9526c0410e5437959883bb574c8f801765aecd35a5aab21bee6dfa4eec` |
+| Host wheel | `d6f368d2d6c448af3c9ee1a26c628d902fbcb21b9bb17d1ff1d72836729b136b` |
+| Installation plan | `d5d27aa3bcb7cff676fceb484b9039b9323022c2a9b319b1f9bebbda1485af1d` |
+
+The reviewed installer changes one client inventory member, the DLL, plus its
+package/launch provenance and host references. It preserves settings, jobs,
+journals, the multi-client launcher and lifetime receipts in place. No rollback
+copies are created. A fresh baseline verified the active .86/.56 runtime and
+9,500 retained records; preservation is recaptured at the actual stopped boundary.
+Disposable files from failed package attempts were removed (299,554,190 bytes),
+while their logs and compact receipts remain.
+
+- Complete: native learned definition and ten-contact town capture, source reviews,
+  shared-owner scheduling/display, package qualification, PR #133 merge, installation,
+  manager activation and exact-DLL game launch (484 modules verified).
+- Complete: Umbra's saved Hunt Foe intent is enabled; normal automatic refresh is
+  live-qualified with buff upkeep continuing.
+- Active follow-up: qualify the merged closed-game cleanup fix in a later host
+  release. The movement-renewal investigation remains next; Track is awareness only.
+- Follow-up: closing the old game left its worker waiting indefinitely for native
+  preparation cleanup after the manager removed its binding. The owner adapter
+  checked original-process retirement only when cleanup raised, while the actor
+  channel converts mapping failures into unconfirmed results. Exact game-lifetime
+  retirement must also resolve those unconfirmed results; an inaccessible or still
+  live original process must remain unresolved. During installation, the confirmed
+  dead-game worker and launcher were retired by exact retained handles; their
+  journals and settings were preserved.
+- Follow-up: the prior .86 continuous PvE run stopped after five kills and 4,853
+  steps with `native movement renewal failed: NativeActionChannelBusy`. Idle buff
+  upkeep recovered and remained healthy. The saved error drops the underlying
+  renewal reason; the final 1.438-second trace gap suggests possible scheduling
+  delay but does not prove lock contention, expiry or ownership loss. Preserve
+  those distinctions and inspect renewal scheduling before changing recovery;
+  an expired/lost lease must not be silently reacquired.
+
+Installation preserved 9,539 records with zero exclusions. The original installer
+mistakenly treated its intended `reviewed-launch.json` update as retained user data.
+Completion repair `172b29ff` verified the exact partial state and planned config,
+projected only that provenance row, and completed without replaying native writes.
+The original retained manifest and before/after row hashes remain as evidence;
+all other 9,538 inventory rows were unchanged at that boundary. Fifteen focused
+repair tests and independent review passed.
+
+The manager started once. Its original verifier incorrectly required configured
+slots while the closed client produced an empty visible-instance inventory.
+Verification-only correction `ef9574d0` accepts that exact closed-game state,
+requires no workers, and preserves manager identity and all data checks; 67 tests
+and independent review passed. Final activation verified 484 host modules, the
+same 9,539 records, and only two typed generated changes (startup and dispatch
+permit). The original sealed payload stayed unchanged. The reviewed launcher then
+verified the new game's loaded DLL against the qualified hash above. No rollback
+artifacts were created. The public cleanup fix is `7161148` on
+`codex/closed-game-preparation-cleanup-20261009`, targeting main through PR #135;
+53 focused tests, independent review and all 15 hosted checks passed. PR #135
+merged at `c3fbfef`; the installed .87/.57 release remains unchanged.
+
+Verified retirement removed the obsolete .86 host (2,151 files), ten staged
+wheels and the old staged .56 DLL: 58,981,049 bytes across twelve exact paths.
+All twelve paths are absent; the same new game and manager lifetimes, healthy
+worker and qualified DLL remained intact afterward. Metadata, diagnostic logs,
+settings and journals were preserved. Retirement receipt SHA-256 is
+`cfa6a5d4ca49c82ddb234e1ebdd4a7bd346da274d2500d3c99e664364220c21a`.
+The merged Track source branch was retired locally and remotely after confirming
+its exact tip `7593d06` is retained in origin/main. The normal checkout stays clean
+on main; the current release and delivery branches remain published for continuity.
+
+Normal live acceptance on October 9 enabled saved settings revision 3 through the
+ordinary character-settings command, resolving learned Hunt Foe 429578587 at
+rank 40. Across 15 observations over approximately 38 seconds, returned response
+generations 8, 11, 14 and 17 arrived about ten seconds apart with thirteen contacts.
+Each retained transition was current with no tracking error; repeated unchanged
+status was omitted from the private evidence. All five buff groups remained
+present and the existing worker stayed healthy and maintaining, with no active
+combat operation. This qualifies idle automatic native queries and copied-response
+refresh; it does not claim combat-time interruption, empty results, or PvP attack
+authority. The automatic setting and buff upkeep remain enabled. Private capture
+SHA-256: `4c950eedad8a8b223f7a7c2cd48023f27e4482c9c13e5c904f8220994b80f78c`.
 
 The exact-image query probe verifies all thirteen original callsites and executes
 copied native sender code with the actual Track sender callsite and shared append
 observer. Its Use body, definition lookup and allocation are synthetic fixtures;
-the complete category-4 Use branch is statically qualified, not yet live-qualified
-by the new runtime. Private capture data and client binaries stay outside Git.
+the complete category-4 Use branch now also has normal-runtime live acceptance.
+Private evidence is under local `artifacts/track-20261009`,
+`artifacts/b57/d99deb82` and `artifacts/bot-deploy/20261009-track87`; captures and
+client binaries are not part of the source delivery.

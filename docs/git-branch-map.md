@@ -1,32 +1,50 @@
 # Git branch map
 
+## Hunt Foe player-awareness delivery - October 9
+
+Start new bot work from refreshed main `c3fbfef`, which contains Hunt Foe PR #133
+and the closed-game preparation cleanup in PR #135. Both passed all 15 hosted
+checks at reviewed source heads `7593d06` and `7161148`, respectively. Native Hunt
+Foe queries, copied response generations, shared active/idle ownership, settings
+and the manager contact display are integrated. Tracking never grants attack
+permission. Conc-pot interruption exercises remain parked by user direction.
+
+Root's installed .87/.57 composition is `a7b210cb014d9380daa34eeb42d9d0382ca4e44c`,
+published on `codex/hunt-foe-release-20261009` in `bot-integration`. It preserves
+installed graphics drafts outside main and is the exact runtime build source,
+not a replacement shared development base. Qualification passed 5,849 host cases
+(40 optional skips), 253/249 native cases, both profiles' IPC and exact-client
+probes, six installed desktop cases and the real worker handshake. Independent
+verification checked all 136 artifacts and 108 package stages.
+
+Root owns `codex/hunt-foe-delivery-20261009` in `native-track-awareness`, targeting
+main through PR #134 for this delivery record. The runtime is installed and
+activation-verified with 484 modules, 9,539 retained records and zero exclusions.
+The reviewed launcher verified the new game's DLL. Normal automatic Hunt Foe
+refresh is live-qualified: four fresh responses about ten seconds apart, thirteen
+contacts, and uninterrupted five-group buff upkeep on the same healthy worker.
+Two narrow deployment-verifier corrections accounted for intended
+launch metadata and the empty visible-instance inventory while the game was
+closed. The original sealed payload remained unchanged.
+
+Obsolete .86 host/wheels and the staged .56 DLL are retired: 58,981,049 bytes,
+twelve paths verified absent; current game and worker remain healthy. The merged
+Track source branch was retired after origin/main reachability verification.
+The current release and delivery worktrees remain active. Hunt Foe and buffs are
+enabled. Next: qualify the merged closed-game cleanup in a later host release,
+then address the PvE movement-renewal stop. See [the Track contract and receipts](native-track.md).
+
 ## Closed-game preparation cleanup follow-up - October 9
 
-`codex/closed-game-preparation-cleanup-20261009` in `closed-game-cleanup` targets
-main from `9523d0e`. This separate host-only slice checks the existing exact OS
-process-lifetime retirement proof when native owner cleanup returns unconfirmed,
-not only when it raises. Native channel errors are converted into unavailable
-receipts, so the former exception-only fallback could leave a closed game's
-worker waiting indefinitely. Live or unreadable original processes retain their
-cleanup obligation; PID reuse releases only the old owner's local resources.
-Focused tests cover these boundaries and disposal failure. Independent review
-and draft PR checks precede integration; no version bump, runtime build or
-installation is part of this slice. The qualified .87/.57 release is unchanged.
-
-## Hunt Foe player-awareness work - October 9
-
-Start from refreshed main `7646af6`. Root owns `codex/native-track-awareness-20261009`
-in the `native-track-awareness` worktree, targeting main through PR #133.
-Published checkpoints `73083d8`/`882f3d2` supply the learned Hunt Foe resolver,
-passive native reader and live ten-contact qualification; `e1c006c` publishes
-native response generations; `d56fe36` adds same-owner automatic queries, saved
-per-character intent and manager contact display. These source slices passed
-focused tests and independent reviews. Combined .87/.57 package and final hosted
-checks are active; merge and installation are next. No Track code is installed
-yet, and the .86/.56 runtime is unchanged. The root-owned `bot-integration`
-release checkout will preserve its installed graphics composition when combining
-the new bot source. The user parked conc-pot interruption testing; normal PvE
-and Hunt Foe awareness take priority. See [the Track contract](native-track.md).
+PR #135 merged at `c3fbfef7d072056bff15d6f6578e9d51e37ba2c4`; its source tip
+`7161148` is published on `codex/closed-game-preparation-cleanup-20261009` in the
+clean `closed-game-cleanup` worktree. This host-only fix checks the existing exact
+OS process-lifetime retirement proof for unconfirmed native cleanup results as
+well as exceptions. Live or unreadable original processes retain their cleanup
+obligation; PID reuse releases only the old owner's local resources. All 53
+focused tests and independent review passed. No version bump or runtime update
+was included, so the installed .87/.57 composition does not yet contain this fix.
+Its clean branch/worktree await a separate retirement pass after handoff.
 
 ## Preparation recovery delivery - October 9
 
