@@ -2,16 +2,29 @@
 
 ## Coherent automatic-buff status snapshot - October 9
 
-`codex/preparation-status-snapshot-20261009` in `buff-activation-observer`
-starts from main `262a82e`. It reads the asynchronous preparation record before
-worker health so a reporter update during health inspection cannot make that
-record appear newer than its corresponding heartbeat. Existing exact worker,
-sequence and freshness checks remain unchanged; replacement workers cannot
-inherit previous coverage. The focused regression reproduces this interleaving.
-This reachable presentation race is not proof that every observed live status
-gap has that cause; native passive-read freshness failures are separate.
-Host version is .84; native .56 is unchanged. Integration destination is main.
-Next: independent review and a qualified host release; the installed .83 runtime is unchanged by this source checkpoint.
+Start new work from refreshed main, which includes PR #127 at `cc3474d`.
+The reviewed source fix `cc7ebfb` reads preparation before worker health while
+preserving exact identity, sequence and freshness checks. All 25 focused tests
+passed independent review, including reporter interleaving and worker replacement.
+This source race does not establish the cause of every live status gap.
+
+Qualified host .84 source `b74a97f10fb6496091df529f2484e314c4323c37` is published
+on `codex/preparation-status-release-20261009` in bot-integration. Native .56 stays
+at `df97e7b`; all runtime native inputs and installed graphics are unchanged.
+Only the reviewed PR #125 native test fixture differs from that native source.
+Host qualification passed 5,667 tests (39 optional skips), both profiles' IPC
+checks and the real worker-startup test. Preparation, shutdown, host switch and
+shortcuts passed with 9,561 retained records and the then-current game preserved.
+After the user restarted the game, the .84 manager attached a new exact worker;
+normal Resume succeeded and all five buff groups report present and maintaining.
+Recovery verification passed for all 478 modules and 9,561 retained records,
+with zero exclusions and eleven expected generated changes. Eight of eight fresh
+status samples reported current preparation. The old .83 host and wheels await
+safe retirement; no new PvE action has been issued.
+
+`codex/preparation-status-delivery-20261009` owns this documentation update in
+`buff-activation-observer`, targeting main. Next: finish obsolete .83 retirement; [the update record](client-update-20261009.md) retains the
+prior live renewal evidence and outstanding validation.
 
 ## Deterministic optional-state fixture - October 9
 
