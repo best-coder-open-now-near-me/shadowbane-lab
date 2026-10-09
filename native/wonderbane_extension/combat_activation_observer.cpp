@@ -39,6 +39,12 @@ struct Facts {
  std::array<std::uint32_t,3> header{};
  initiation::Snapshot values{};
 };
+struct OwnedCall {
+ std::uint64_t ticket{},mutation{};Facts armed{},entry{},followup{};
+ std::uintptr_t definition{};std::uint32_t power{};std::uint8_t special{};
+ bool entered{},following{},followed{},locally_completed{};
+};
+std::array<OwnedCall,ActivationHistory::capacity> owned_calls{};
 bool Capture(const ActivationIdentity& id,Facts& out) noexcept {
  Facts a{};std::array<std::uint32_t,2> key{};std::uintptr_t actor{},state_after{};
  std::array<std::uint32_t,3> after{};
@@ -226,15 +232,52 @@ bool StartBound(std::uintptr_t image,bool(*install)(Site&)noexcept=Install) noex
 }
 Handle Arm(std::size_t slot,const ActivationIdentity& id,std::uint32_t power,ActivationOrigin origin) noexcept {
  const DWORD error=GetLastError();Facts f{};Handle result{};
- if(Ready()&&Capture(id,f)){AcquireSRWLockExclusive(&state_lock);const auto ticket=history.Arm(slot,id,power,origin);if(ticket){bound=id;result={slot,ticket,id};}ReleaseSRWLockExclusive(&state_lock);}
+ if(Ready()&&Capture(id,f)){AcquireSRWLockExclusive(&state_lock);const auto ticket=history.Arm(slot,id,power,origin);if(ticket){bound=id;result={slot,ticket,id};owned_calls[slot]={};owned_calls[slot].ticket=ticket;owned_calls[slot].armed=f;}ReleaseSRWLockExclusive(&state_lock);}
  SetLastError(error);return result;
+}
+void OwnedUseEntering(const Handle& h,std::uintptr_t definition) noexcept {
+ const DWORD error=GetLastError();Facts current{};std::uint32_t power{};std::uint8_t special{};
+ const bool captured=h&&definition&&Capture(h.identity,current)&&current.values.state==5
+  &&Word(definition+0x138,power)&&Word(definition+0x274,special)&&special;
+ AcquireSRWLockExclusive(&state_lock);
+ if(captured&&bound==h.identity){auto& call=owned_calls[h.slot];const auto record=history.Read(h.slot);
+  if(call.ticket==h.ticket&&record.ticket==h.ticket&&record.origin==ActivationOrigin::self_power
+   &&record.power==power&&record.phase==ActivationPhase::awaiting_start&&call.armed.values.state==5
+   &&call.armed.state==current.state&&call.armed.scene.epoch==current.scene.epoch){
+   call.definition=definition;call.power=power;call.special=special;call.entry=current;call.entered=true;call.mutation=history.Mutation();
+  }
+ }
+ ReleaseSRWLockExclusive(&state_lock);SetLastError(error);
+}
+void OwnedUseReturned(const Handle& h,bool value) noexcept {
+ const DWORD error=GetLastError();OwnedCall call{};
+ AcquireSRWLockShared(&state_lock);if(h&&bound==h.identity){call=owned_calls[h.slot];}ReleaseSRWLockShared(&state_lock);
+ Facts after{};std::uint32_t power{};std::uint8_t special{};
+ const bool coherent=h&&value&&call.ticket==h.ticket&&call.entered&&call.followed&&Capture(h.identity,after)
+  &&Word(call.definition+0x138,power)&&power==call.power&&Word(call.definition+0x274,special)&&special==call.special&&special
+  &&SameLife(call.entry,after)&&SameLife(call.followup,after)&&SameVector(call.followup,after)
+  &&AddedOne(call.entry,after,power)&&after.values.state==5&&call.followup.values.state==5
+  &&after.mode==call.entry.mode&&after.action==call.entry.action&&after.target==call.entry.target;
+ AcquireSRWLockExclusive(&state_lock);
+ if(coherent&&bound==h.identity&&owned_calls[h.slot].ticket==h.ticket&&history.Mutation()==call.mutation){
+  const auto record=history.Read(h.slot);if(record.ticket==h.ticket&&record.queued&&record.owned_followup){owned_calls[h.slot].locally_completed=true;}
+ }
+ ReleaseSRWLockExclusive(&state_lock);SetLastError(error);
 }
 ActivationHistory::Transition BeginOwnedFollowup(const Handle& h) noexcept {
  const DWORD error=GetLastError();AcquireSRWLockExclusive(&state_lock);ActivationHistory::Transition out{};
- if(h&&bound==h.identity){out=history.BeginOwnedFollowup(h.slot,h.ticket);}ReleaseSRWLockExclusive(&state_lock);SetLastError(error);return out;
+ if(h&&bound==h.identity){auto& call=owned_calls[h.slot];
+  call.following=call.ticket==h.ticket&&call.entered&&call.mutation==history.Mutation();
+  out=history.BeginOwnedFollowup(h.slot,h.ticket);
+  call.following=call.following&&static_cast<bool>(out);
+ }ReleaseSRWLockExclusive(&state_lock);SetLastError(error);return out;
 }
 void OwnedFollowupReturned(const Handle& h,const ActivationHistory::Transition& token,bool normal_exact,bool state6) noexcept {
- const DWORD error=GetLastError();AcquireSRWLockExclusive(&state_lock);if(h&&bound==h.identity){history.OwnedFollowupReturned(token,normal_exact,state6);}ReleaseSRWLockExclusive(&state_lock);SetLastError(error);
+ const DWORD error=GetLastError();Facts after{};const bool captured=h&&Capture(h.identity,after);
+ AcquireSRWLockExclusive(&state_lock);if(h&&bound==h.identity){
+  const bool accepted=history.OwnedFollowupReturned(token,normal_exact,state6);auto& call=owned_calls[h.slot];
+  if(call.ticket==h.ticket&&call.following&&accepted&&captured){call.followed=true;call.followup=after;call.mutation=history.Mutation();}
+ }ReleaseSRWLockExclusive(&state_lock);SetLastError(error);
 }
 namespace {
 struct OrdinaryFrame {OrdinaryFrame* previous{};std::uintptr_t actor{};std::uint32_t power{};std::uint64_t send_serial{};bool direct{};Facts direct_after{};};
@@ -286,13 +329,14 @@ Result Read(const Handle& h) noexcept {
  if(Ready()&&h&&Capture(h.identity,f)){AcquireSRWLockShared(&state_lock);const auto r=history.Read(h.slot);
   if(r.ticket==h.ticket&&r.identity==h.identity&&r.queued){
    if(r.phase==ActivationPhase::interrupted||r.phase==ActivationPhase::completed){if(r.origin!=ActivationOrigin::self_power||r.owned_followup){result=r.phase==ActivationPhase::interrupted?Result::interrupted:Result::completed;}}
+   else if(owned_calls[h.slot].ticket==h.ticket&&owned_calls[h.slot].locally_completed){result=Result::locally_completed;}
    else if(r.local_relinquished&&r.origin==ActivationOrigin::self_power&&r.owned_followup){result=Result::relinquished;}
    else if(r.phase==ActivationPhase::active){result=Result::active;}
    else if(r.phase!=ActivationPhase::unknown){result=Result::awaiting;}}
   ReleaseSRWLockShared(&state_lock);}
  SetLastError(error);return result;
 }
-bool ResetExactLifetime(const ActivationIdentity& old) noexcept {const DWORD error=GetLastError();AcquireSRWLockExclusive(&state_lock);const bool ok=history.ResetExactLifetime(old);if(ok){bound={};}ReleaseSRWLockExclusive(&state_lock);SetLastError(error);return ok;}
+bool ResetExactLifetime(const ActivationIdentity& old) noexcept {const DWORD error=GetLastError();AcquireSRWLockExclusive(&state_lock);const bool ok=history.ResetExactLifetime(old);if(ok){bound={};owned_calls={};}ReleaseSRWLockExclusive(&state_lock);SetLastError(error);return ok;}
 void ForeignItemSend(std::uintptr_t actor) noexcept {const DWORD error=GetLastError();AcquireSRWLockExclusive(&state_lock);history.ForeignItemSend(actor?actor:bound.actor);ReleaseSRWLockExclusive(&state_lock);SetLastError(error);}
 void ForeignPowerUse(std::uintptr_t actor) noexcept {const DWORD error=GetLastError();AcquireSRWLockExclusive(&state_lock);history.ForeignPowerUse(actor?actor:bound.actor);ReleaseSRWLockExclusive(&state_lock);SetLastError(error);}
 void OtherActivity(std::uintptr_t actor) noexcept {const DWORD error=GetLastError();AcquireSRWLockExclusive(&state_lock);history.OtherActivity(actor?actor:bound.actor);ReleaseSRWLockExclusive(&state_lock);SetLastError(error);}
