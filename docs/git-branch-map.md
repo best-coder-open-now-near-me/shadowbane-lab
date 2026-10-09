@@ -1,20 +1,38 @@
 # Git branch map
 
-## Manager desktop startup ownership - October 9
+## Manager desktop startup delivery - October 9
 
-`codex/manager-desktop-readiness-20261009` in `buff-activation-observer`
-starts from main `2339e2a` and targets main. It replaces private desktop startup
-behavior with the packaged `shadowbane-manager` entrypoint and authenticated,
-immutable listener identity independent of full worker/status inspection.
-The host candidate is .85; native .56 and the installed .84 runtime are unchanged.
-The source covers exact launch ownership, delayed readiness, concurrent desktop
-clicks, real HTTP startup during blocked status, and the actual Windows desktop
-entrypoint/CLI/OS-lifetime handshake with a named inactive gameplay application.
-All 64 focused tests pass. See [the public startup contract](manager-desktop-startup.md).
-Root composes `codex/manager-desktop-release-20261009` in `bot-integration` from
-installed `b74a97f` and the reviewed topic/main history, preserving graphics and
-native inputs. Exact-source host-only qualification and installation remain next.
-No native/game actions occur in this source lane.
+Start new work from refreshed main, including PR #129 at `b5ebb51657351aac017fe2e70f6a34fc0bacc2ba`.
+Reviewed source `23d1a11` provides the packaged desktop entrypoint, immutable
+listener identity and exact single-generation launch/reuse ownership. Its 64
+focused tests passed independent review. See [the public startup contract](manager-desktop-startup.md).
+
+Qualified host .85 release `7720bc544a842b24c555b97836d7a2d5008c3226` is published
+on `codex/manager-desktop-release-20261009` in `bot-integration`. It preserves
+installed `b74a97f` graphics and native .56 provenance `df97e7b`. Qualification
+passed 5,693 host tests (39 optional skips), both profiles' IPC checks, the real
+worker handshake and six installed-wheel Windows desktop cases; all 480 module
+files agree. Host .85 activation is verified: manager 3872/worker 3828 retain the
+same game lifetime, 480 modules and 9,488 records with zero exclusions. A separate
+verifier-only Windows path-case correction required no relaunch or source change.
+Live entrypoint reuse kept the same manager generation in 2.422 seconds. Normal
+Resume succeeded; fresh status confirms the same healthy worker, current upkeep,
+all five groups present and no active/queued operation. Fresh verified retirement
+removed the obsolete .84 host and ten wheels (57,608,013 bytes); all eleven targets
+are absent, with unchanged current game/DLL and healthy upkeep. Future deployment
+verifiers must retain Windows path identity semantics, not the old case-sensitive
+manifest comparison.
+
+`codex/manager-desktop-delivery-20261009` in `buff-activation-observer` owns the
+delivery documentation only. Root retired the merged source topic `codex/manager-desktop-readiness-20261009`
+and superseded `codex/preparation-status-release-20261009` locally and remotely
+after verifying no checkout ownership and tip reachability in main/current release.
+The exact current `7720bc5` release branch/worktree remains published. Qualification,
+installation and obsolete-runtime retirement are complete.
+A passive pre-switch capture proves Precision missing-to-queued-to-observed renewal
+at revisions 3036 to 3038. Conc-pot expiry renewal and movement-interruption recovery
+remain unproven. [The delivery record](client-update-20261009.md) retains exact
+source/package identities and evidence limits.
 
 ## Coherent automatic-buff status snapshot - October 9
 

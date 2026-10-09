@@ -1,6 +1,123 @@
 # Wonderbane official client update — October 9, 2026
 
-## Host .84 recovered and verified
+## Host .85 installed and activation verified
+
+PR #129 merged reviewed desktop startup source
+`23d1a11e4d640329e49bb63b9240364d8727c77a` into main at
+`b5ebb51657351aac017fe2e70f6a34fc0bacc2ba` after required review and checks.
+Desktop shortcuts now delegate startup behavior to the packaged manager entrypoint.
+Its authenticated, immutable listener identity avoids slow full-status inspection;
+one exact durable process generation is reused after timeout or concurrent clicks.
+Worker attachment, native readiness and dispatch checks remain separate. Definite
+pre-creation failures permit a corrected retry; ambiguous process ownership never
+authorizes another launch. The source's 64 focused tests passed independent review.
+
+The qualified release composition is
+`7720bc544a842b24c555b97836d7a2d5008c3226`, published on
+`codex/manager-desktop-release-20261009`. It passed 5,693 host tests with 39
+optional skips, both profiles' 74 movement / 86 combat / 170 actor IPC cases,
+the real Windows worker-startup handshake and all six installed-wheel desktop
+startup cases. These exercise delayed readiness and concurrent reuse, actual
+process-creation rejection, and failures after a child has already been created.
+The handshake substitutes only an inactive gameplay application; it does not
+launch a client or claim live gameplay acceptance. All 480 source, wheel and
+installed module files agree. Native .56 remains from `df97e7b`; native runtime,
+assets and installed graphics are unchanged. The sole native-tree difference
+remains PR #125's reviewed test-fixture correction, not a DLL input change.
+
+| Host .85 artifact | SHA-256 |
+| --- | --- |
+| Qualification receipt | `c6c8cb77b826ba8b027e85fc72b218f06a70b14a1eb631da39b1ccfdaeac0464` |
+| Wheel | `849c16bdd7c7141cda1e2bb6a94638902c74ed1ce019e1517ec15facc2bbcb64` |
+| Source archive | `55076e5f34d90742c8d6a1e36aed4949a9c194967c8ab14a3cf5e327b261c284` |
+
+Preparation, exact manager/worker shutdown, host switch and shortcut updates
+passed. The switch preserved 9,488 retained records and the same Umbra PID 8480,
+creation FILETIME `134360273074287806`. Client files were not written; the current
+prepared executable, native DLL and per-lifetime receipt remain exact. The manager
+launcher is now a configuration-only delegate to the packaged entrypoint.
+Apply receipt SHA-256:
+`d7504cad804cf33eaee8b13ff84338a96ffe6357b94b1c8ad6c12d395a14cd98`.
+The reviewed plan SHA-256 is
+`d10e8fcfd1604402f4919346199d2b35f336da440f7d8bd3f7d03b9eab2fae7f`.
+No rollback copies were created.
+
+The packaged entrypoint started manager 3872, creation FILETIME
+`134360335439531729`, with exact parent 8472. A subsequent real desktop entrypoint
+call returned in 2.422 seconds and reused generation
+`1b1a8d6433a84eeeb35721fd4cd9ade3` without another spawn. The manager attached
+worker 3828, creation FILETIME `134360335482772418`, to the unchanged game lifetime.
+
+Activation verification passed for all 480 modules and 9,488 retained records,
+with zero exclusions and ten expected generated changes. The private verifier
+initially compared the canonical lower-case Windows manifest path case-sensitively.
+A separate, reviewed verification-only correction normalized those path operands;
+sealed payload/runtime bytes stayed unchanged and no manager was relaunched.
+Future deployment verifiers must retain Windows path identity semantics instead
+of copying the obsolete case-sensitive manifest comparison.
+The receipt records original/corrected verifier and runner hashes. Activation
+receipt SHA-256:
+`f8d30e8f3c506560ae6bcd6f72e8c8b314c53f5913bab764f07d8b6702cc1db5`.
+Normal Resume succeeded. Fresh status then reported the same healthy worker,
+current maintaining preparation and all five groups present, with no active or
+queued operation. This confirms current .85 upkeep, not new expiry-renewal or
+movement-interruption acceptance. The compact status receipt SHA-256 is
+`dbd18c7a88ad64d35a7a2ce508f0ed7332a52d5e435c594387e04c73f9235036`.
+The completed post-Resume native capture contains 80 valid and six unavailable
+samples on exact worker 3828, producer generation 7. Precision, Beorc Rune and
+transform each moved from missing/queued application to `OBSERVED` with local
+settlement true: submitted/observed revisions were 3293/3295, 3297/3299 and
+3302/3306 respectively. This proves restoration after Resume; the capture did not
+observe their earlier expiry edges. Conc-pot stayed present with item quantity
+five and no new application row. The capture SHA-256 is
+`56e98edc6a63f725e43e883382f1cd8229a9e378a0e9f007f3604d6979214ace`;
+compact summary SHA-256 is
+`98466dcd18b8cb684c940582607c6230af7fc9096a14aa76aafa9e1d14d8cf4f`.
+
+Fresh ownership and dependency inspection verified the obsolete .84 host safe to
+retire. Its 2,146 files occupied 48,524,864 bytes; ten pinned superseded wheel files
+occupied 9,083,149 bytes. Retirement removed 57,608,013 bytes, and a separate check
+confirmed all eleven target paths absent. The exact .56 DLL and game lifetime
+remained unchanged. The same .85 worker was healthy, with all five groups current
+and maintaining and no active or queued operation. Settings, jobs, historical
+journals and diagnostic evidence remain in place; no rollback runtime is retained.
+Retirement receipt SHA-256:
+`c56ce3dedbaa99be4a4ad8cc54cffa057045e4e851228afdcb3bab4d3bde756a`;
+post-retirement check SHA-256:
+`d15d632e93dd5ff0f3cc287d0c63619ad01de2b221c67125f3f1415b89637aa6`.
+
+The merged desktop source topic and superseded .84 release branches were retired
+locally and remotely after checkout-ownership and ancestry verification. The exact
+current .85 release branch remains published for reproducibility.
+
+The .85 installation and obsolete-runtime cleanup are complete. Remaining live
+acceptance work is Conc-pot expiry renewal and movement-interruption recovery.
+A longer passive observation may supply further evidence; elapsed time alone
+cannot complete either check.
+
+## Precision renewal observed before the .85 switch
+
+A passive native capture on the unchanged .84 manager's exact worker 5960,
+generation 6, recorded Precision present at revision 2961, then missing at
+revision 3036. Automatic upkeep queued command
+`bffbb190d3486b0643be2b6b8c696a0962ec278d7f8e0adbc498ab0f9f5f3fa5`
+with application pending and local settlement false. The next valid observation
+reported coverage present, application `OBSERVED`, local settlement true,
+submitted revision 3036 and observed revision 3038. This is a complete native
+missing-to-queued-to-restored renewal cycle during undisturbed upkeep, without
+inferring completion from a timer. The capture contains 96 valid samples and five
+explicitly unavailable samples; unavailable reads are not credited as progress.
+
+Capture `native-buffs-4f4728135c984fdc99714d3d8a31eaaf.jsonl` SHA-256 is
+`e461d687664750293fa9f536f3bb97753c5f8e69a31e71c853eef6198f7ba8e6`.
+The compact two-capture summary SHA-256 is
+`00512faa9d753dcf48659d174796e02477fb755862647f4ff605df24bd8486c9`.
+Conc-pot remained present with the same observed item quantity and no application
+row in this capture. Conc-pot expiry renewal and movement-interruption recovery
+remain unproven; neither is inferred from Precision's successful cycle.
+Private capture and summary files remain outside Git.
+
+## Historical host .84 recovery and verification
 
 PR #127 merged the reviewed status snapshot fix `cc7ebfb` into main at
 `cc3474d98979134d8cdb0d963fc82188ce683f17`. The manager now reads the
@@ -76,10 +193,10 @@ remain in place. Retirement receipt SHA-256:
 post-retirement check SHA-256:
 `7fd3a923c3bfb7d60a675c38f891035a01fbe42eb9abf38c09335aa0832325ce`.
 
-Next: correct the launcher readiness timeout so a slow healthy status response is
-not reported as startup failure. Full natural Conc-pot/Precision expiry renewal
-and movement-interruption recovery remain outstanding; current coverage does not
-complete those checks.
+At this historical checkpoint, launcher readiness, Precision/Conc-pot expiry
+renewal and movement-interruption recovery remained next. The .85 and Precision
+sections above record subsequent progress; Conc-pot renewal and movement recovery
+remain outstanding.
 
 ## Brief production PvE and preparation handoff
 
