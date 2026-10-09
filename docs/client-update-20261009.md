@@ -1,6 +1,117 @@
 # Wonderbane official client update — October 9, 2026
 
-## Current status
+## Host .84 recovered and verified
+
+PR #127 merged the reviewed status snapshot fix `cc7ebfb` into main at
+`cc3474d98979134d8cdb0d963fc82188ce683f17`. The manager now reads the
+asynchronous preparation record before the corresponding worker health snapshot.
+A deterministic interleaving test reproduces the old false-unavailable result;
+a replacement-worker test prevents old coverage from appearing current. All
+existing identity, sequence and freshness checks remain in force. The 25 focused
+tests passed independently. This proves the source race, not that every live
+status gap had that cause. Separately observed passive native reads reported
+`native publication freshness unavailable`; that does not justify relaxing the
+native freshness limit or changing gameplay admission.
+
+The qualified host-only composition is
+`b74a97f10fb6496091df529f2484e314c4323c37`, published on
+`codex/preparation-status-release-20261009`. Qualification passed 5,667 host
+tests (39 optional skips), all six full/diagnostic-profile IPC suites, the real
+Windows worker-startup test and all 14 package stages. All 478 wheel modules match
+the exact source. Native .56 remains from `df97e7b` with the existing DLL; runtime
+native build inputs and installed graphics are unchanged. The native source tree
+is not entirely identical: it includes PR #125's explicitly reviewed test-only
+`PAGE_NOACCESS` fixture correction, which does not alter DLL inputs.
+
+| Host .84 artifact | SHA-256 |
+| --- | --- |
+| Qualification receipt | `cc28072871e41c413dd9fe769600deee61d9d97d0ebe1b5a5e62e9fd44bcc9cd` |
+| Wheel | `bb4d0b039adb0302beddb82bda249cce1df51b72848d96c48e7c720271406ea1` |
+| Source archive | `f3f9e878a3fd443e13fdb38c029c4d6406b064a2dbc7ac9a4895d064a756c461` |
+| Reviewed installation plan | `978578636a3c7916fbc55bfd57656b1e37d7d59a35831a81d1e2ce49679bcc2b` |
+
+Preparation, exact manager/worker shutdown, host switch and shortcut verification
+passed. At that boundary, the switch preserved 9,561 records and kept the original
+Umbra game lifetime open. Client files and the client launcher were unchanged;
+the manager launcher was updated. Both manager shortcuts now reference .84; the
+three client shortcuts remain unchanged. The apply receipt SHA-256 is
+`0a3c106fa14ce087b140d5599ad842e950f6160e0991e0bc7eb1812f96fdd39e`.
+No rollback copies were created. The baseline helper hashes both known one-byte
+synchronization markers, retrying only permission failures for up to three
+seconds; it excludes no retained records.
+
+The launcher's two-second readiness request timed out even though a subsequent
+status read found the .84 manager and its paused worker healthy. Verify-only
+finalization then rejected a changed `desktop-start.stderr.log`. Guest-control
+access temporarily failed, and the user restarted the game after a freeze.
+The game now has a newly verified lifetime, PID 8480 with creation FILETIME
+`134360273074287806`, and still loads the exact .56 DLL. Its per-lifetime launch
+receipt SHA-256 is
+`3e746b31e5199d7b414ab61cf16ae660392f749e9ec4dc588be708b5f443c61e`.
+
+The .84 manager was restarted once and attached worker 5960, creation FILETIME
+`134360275808487413`, to that new lifetime. Normal Resume succeeded. Eight of
+eight subsequent status samples reported current, maintaining preparation with
+all five buff groups present. These samples establish current coverage, not a
+new expiry-renewal pass. The compact post-restart summary SHA-256 is
+`169f74316eebe55bdd6e9c4d0ef8a9f256e36263ed4e0f98a21c9e7b76eeba35`.
+
+Recovery verification passed separately for manager 8724, creation FILETIME
+`134360275743172986`, and its exact worker/game binding. It verified all 478
+modules and 9,561 retained records with zero exclusions. Eleven expected generated
+record changes were reconciled, including the preserved startup-log prefix and
+six capability records written by the earlier, now-stopped .84 worker at the
+previous game-instance path. Original deployment receipts and failed-attempt logs
+remain unchanged. Recovery receipt SHA-256:
+`3d2f8dfa0c0fb867df6c70c26f8cbcd9e3a0d87af8c02cb0346db415b972ed8e`.
+
+Fresh dependency inspection and retirement of the obsolete .83 host completed.
+Its 2,146 files occupied 48,524,452 bytes; ten superseded wheel files occupied
+9,083,061 bytes. The verified total removed is 57,607,513 bytes. A separate
+post-read confirmed all eleven target paths absent, the current .56 DLL unchanged,
+the same new game lifetime and a healthy worker, all five buff groups current and
+maintaining, and no active or queued operation. User data and diagnostic evidence
+remain in place. Retirement receipt SHA-256:
+`d97a889a29a940fc196f97d4b9a8bbf23d488ccae24c5516a59b93e1bbe98df7`;
+post-retirement check SHA-256:
+`7fd3a923c3bfb7d60a675c38f891035a01fbe42eb9abf38c09335aa0832325ce`.
+
+Next: correct the launcher readiness timeout so a slow healthy status response is
+not reported as startup failure. Full natural Conc-pot/Precision expiry renewal
+and movement-interruption recovery remain outstanding; current coverage does not
+complete those checks.
+
+## Brief production PvE and preparation handoff
+
+After the user moved near NPCs, the existing exact-worker operation ingress ran
+saved basic PvE with Shot to the Leg (`563795161`), without hotkeys, UI target
+selection or Shadow Touch. The 62-step native journal records the opener queued
+at 4.969 seconds and ordinary attack at 5.391 seconds. Initial target `[23887,37]`
+fell from 800 to 442.897 health before an `engagement_stalled` transition and
+confirmed exact-target cleanup. On the next target, the opener was rejected as
+`power_reuse_blocked`; ordinary attack followed without replaying the opener.
+Target `[23885,37]` reached 0/400 health at 20.704 seconds with
+`native_health_zero` confirmation. The final native kill count is one.
+
+Explicit cancellation ended the continuous run. The original PvE operation
+`operation-c0b57b1cc14f46d99b4b179165187390` became `cancelled`, the cancellation
+receipt succeeded, and the manager showed no active or queued operation. The
+journal confirms exact child cleanup; it does not independently claim aggregate
+parent closure. A later passive census found no player action target despite a
+different UI selection. Normal Resume succeeded and fresh status again reported
+all five groups present and maintaining. This verifies the controlled
+preparation-to-PvE-to-cancel/Resume workflow, not an indefinite farming run or
+additional buff expiry/interruption acceptance.
+
+The final evidence SHA-256 is
+`ba38403caa7fe98fc9e764cbab148914e459e035630f117ea223613510f812ba`;
+the append-only journal SHA-256 is
+`7f9639b003c8921026eab81a46e30c12f48f30924e518851ade349428b306b0e`.
+Both remain private under the diagnostic share's
+`pve-chat-20261009-101838-1791555518959991400` filenames. No further PvE run was
+needed to establish this bounded observation.
+
+## Host .83 delivery history
 
 PR #124 merged the protected-process recovery fix into main at
 `99b770742b4ceb6eccde1de95103ddb40db736c0` after all 15 hosted checks passed.
