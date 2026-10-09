@@ -2,6 +2,26 @@
 
 ## Current status
 
+Host .82 recovery source is merged through PR #123 at
+`417b8e2c4dd24c198d721a441f52cb4b9f30642f`. It recovers an unverified worker
+reservation after manager restart only when matching historical worker identity
+and repeated OS observations prove that interpreter lifetime has exited. Live
+workers are never adopted through this path; historical records remain intact.
+
+The qualified host-only composition is
+`db8fd5c23b417d215f918064aa1d20e2ed9f3ba7` on published
+`codex/worker-restart-release-20261009`. It preserves the installed graphics,
+native and asset trees. Native .56 continues to identify source `df97e7b`; its
+per-client launch receipts are not rewritten to pretend it was rebuilt with .82.
+Qualification passed 5,632 host tests (39 optional skips), both profiles' real
+IPC checks (74 movement, 86 combat and 170 actor cases each), and the separate
+Windows worker-startup test. All 477 source, wheel and installed module files
+agree. Host qualification receipt SHA-256:
+`ec981249b76aea27ff13dafaf6819d390b883a3ce0c3fe23c74e320fbebe55f8`.
+
+The following .81 installation record is historical; .82 installation and live
+acceptance are being completed before its delivery checkpoint is published.
+
 Official client 1.3.38.16 is installed with qualified host 0.3.81/native 1.8.56
 on the testing VM. PR #121 merged the reviewed compatibility head `b5b6a6a`
 into main at `6c3cd6d65db88f0c213df0fadd583cc53cad7485` after all 15 hosted
