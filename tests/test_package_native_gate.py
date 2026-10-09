@@ -439,3 +439,31 @@ def test_item_trace_gate_cannot_certify_missing_or_wrong_probe(index, failure):
         steps[index]["command"][1] = steps[index ^ 1]["command"][1]
     with pytest.raises(RuntimeError):
         builder.validate_item_trace_probe_steps(steps, reviewed_client=True)
+
+
+@pytest.mark.parametrize("profile", ["full", "diagnostics-only"])
+def test_pretracking_actor_gate_set_cannot_qualify_new_package(tmp_path, profile):
+    # Fixed historical set intentionally does not derive from the current required set.
+    suite = ET.Element("testsuite")
+    for name in (
+        "test_real_preparation_service_ipc_keeps_passive_ownership_and_manual_activity",
+        "test_real_windows_parent_and_child_native_consumer",
+        "test_real_native_publication_mapping_roundtrip",
+    ):
+        ET.SubElement(suite, "testcase", name=name)
+    path = tmp_path / "old-actor-ipc.xml"
+    ET.ElementTree(suite).write(path)
+    with pytest.raises(RuntimeError, match="actor IPC"):
+        builder.validate_actor_ipc_results(path, profile)
+    ET.SubElement(suite, "testcase", name="test_real_native_tracking_frame_roundtrip")
+    ET.ElementTree(suite).write(path)
+    builder.validate_actor_ipc_results(path, profile)
+
+
+def test_tracking_native_response_and_install_failure_modes_are_required():
+    assert {
+        "wonderbane_extension_tracking_responses",
+        "wonderbane_extension_tracking_install_failure_1",
+        "wonderbane_extension_tracking_install_failure_2",
+        "wonderbane_extension_tracking_install_failure_3",
+    } <= builder.REQUIRED_COMBAT_TESTS
