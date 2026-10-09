@@ -142,5 +142,34 @@ int main(){
             const auto next=h.Arm(0,replaced,power);assert(next>ticket);
         }
     }
+    // Positive newer manual activation relinquishes only old bot control,
+    // never the old application's interpretation. Sending/attempt alone is
+    // insufficient; nested mutation, fault and a later reservation cannot borrow
+    // the old manual-start candidate.
+    for(unsigned mutation=0;mutation<5;++mutation){
+        i::ActivationHistory h;const auto ticket=h.Arm(0,actor,power,i::ActivationOrigin::self_power);
+        h.QueueResult(0,ticket,true);h.OwnedFollowup(0,ticket,true);Start(h);
+        h.ManualSend(actor.actor,power+1);assert(!h.LocalTerminal(0,ticket,actor));
+        auto start=h.BeginManualStart(actor,power+1,11,12,13,7);assert(start);
+        if(mutation==1){h.OtherActivity(actor.actor);}
+        if(mutation==1){assert(!h.ManualStateReturned(start,true));}
+        else{
+            assert(h.ManualStateReturned(start,true));
+            auto append=h.BeginManualAppend(actor,power+1,11,12,13,7);assert(append&&h.ManualAppendReturned(append,true));
+            if(mutation==2){h.ForeignItemSend(actor.actor);}
+            if(mutation==3){const auto replacement_ticket=h.Arm(1,actor,power,i::ActivationOrigin::self_power);h.QueueResult(1,replacement_ticket,true);}
+            assert(h.ManualProcessReturned(append,mutation!=4)==(mutation==0));
+        }
+        assert(h.LocalTerminal(0,ticket,actor)==(mutation==0));
+        assert(!h.Interrupted(0,ticket,actor));
+        assert(h.Read(0).phase==i::ActivationPhase::unknown&&h.Read(0).queued);
+    }
+    for(bool observed:{false,true}){
+        i::ActivationHistory h;const auto ticket=h.Arm(0,actor,power,i::ActivationOrigin::self_power);
+        h.QueueResult(0,ticket,true);h.OwnedFollowup(0,ticket,true);Start(h);
+        h.ManualSend(actor.actor,power+1);
+        assert(h.ManualDirectReturned(actor,power+1,observed)==observed);
+        assert(h.LocalTerminal(0,ticket,actor)==observed&&!h.Interrupted(0,ticket,actor));
+    }
     std::puts("activation lifecycle generations passed");return 0;
 }

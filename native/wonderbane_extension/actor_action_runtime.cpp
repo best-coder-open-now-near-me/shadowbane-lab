@@ -16,6 +16,7 @@ public:
     Controller controller;
     NativeActor native;
     actor_actions::ApplicationJournal journal;
+    std::array<combat::activation::Handle,actor_actions::ApplicationJournal::capacity> activations{};
     publication::Writer publisher;
     selectors::Manifest manifest{};
     wire::Digest manifest_digest{};
@@ -114,7 +115,19 @@ public:
         if(!journal.Record(index,digest,entry,(result.history&wire::outbound_queued)!=0,result.local==wire::LocalSettlement::settled)){return false;}
         const auto state=journal.Records()[index].state;
         result.application=state==actor_actions::ApplicationState::pending?wire::Application::pending:
-            state==actor_actions::ApplicationState::observed?wire::Application::observed:wire::Application::none;
+            state==actor_actions::ApplicationState::observed?wire::Application::observed:
+            state==actor_actions::ApplicationState::interrupted?wire::Application::interrupted:wire::Application::none;
+        return true;
+    }
+    bool ReconcileActivations(std::uint64_t observation_revision) noexcept {
+        for(std::size_t index=0;index<activations.size();++index){
+            const auto& record=journal.Records()[index];const auto& handle=activations[index];
+            if(!record.reserved||!handle||record.state!=actor_actions::ApplicationState::pending
+                ||combat::activation::Read(handle)!=combat::activation::Result::interrupted){continue;}
+            // The handle is replaced only alongside this exact journal slot's
+            // reservation. Parent close, producer changes and time do not erase it.
+            if(!journal.Interrupt(index,record.command,record.submitted_revision,observation_revision)){return false;}
+        }
         return true;
     }
     void SettleApplication(const wire::Command& command) noexcept {
@@ -158,8 +171,14 @@ public:
             wire::Digest digest{};
             if(!selectors::GroupDigest(manifest,group,digest)||!journal.Observe(digest,frame.revision,true,present)){(void)publisher.Unknown(10);return false;}
         }
+        // A new terminal record changes factual revision. Reserve the next
+        // revision, then publish it below; never relabel the submission capture.
+        if(frame.revision>=static_cast<std::uint64_t>(std::numeric_limits<LONG64>::max()/2)
+            ||!ReconcileActivations(frame.revision+1)){(void)publisher.Unknown(10);return false;}
         for(const auto& record:journal.Records()){
-            if(record.reserved&&record.state==actor_actions::ApplicationState::observed){(void)controller.ObserveApplication(record.command);}
+            if(record.reserved&&(record.state==actor_actions::ApplicationState::observed||record.state==actor_actions::ApplicationState::interrupted)){
+                (void)controller.ObserveApplication(record.command,record.state==actor_actions::ApplicationState::observed
+                    ?wire::Application::observed:wire::Application::interrupted);}
         }
         // Observation may resolve application history. Publish that transition
         // separately so callers submit against the latest exact factual revision.
@@ -263,13 +282,24 @@ public:
                 if(facts.actions[i].intent.group_index==group&&facts.actions[i].coverage!=actor_buffs::Coverage::missing){return Refused(O::deferred,wire::Reason::observation);}
             }
             wire::Digest intent{},command{};
-            if(!selectors::GroupDigest(manifest,manifest.records[input.selector_index].group,intent)||!wire::HashCommand(input,command)
-                ||journal.Reserve(intent,command,frame.revision)==actor_actions::ApplicationJournal::invalid){return Refused(O::deferred,wire::Reason::observation);}
+            if(!selectors::GroupDigest(manifest,manifest.records[input.selector_index].group,intent)||!wire::HashCommand(input,command)){
+                return Refused(O::deferred,wire::Reason::observation);}
+            const auto index=journal.Reserve(intent,command,frame.revision);
+            if(index==actor_actions::ApplicationJournal::invalid){return Refused(O::deferred,wire::Reason::observation);}
+            const auto& selector=manifest.records[input.selector_index];
+            activations[index]=combat::activation::Arm(index,{scene.actor,scene.identity,scene.epoch},
+                input.action==wire::Action::use_item?selector.coverage_power:input.power_id,
+                input.action==wire::Action::use_item?combat::activation::ActivationOrigin::item:combat::activation::ActivationOrigin::self_power);
+            if(!activations[index]){
+                (void)journal.Record(index,command,actor_actions::ApplicationEntry::never_entered,false,true);
+                return Refused(O::unavailable,wire::Reason::observation);
+            }
         }
         dispatching=true;Operation result=Refused();
         if((targeted?ChildCurrent(this):Current(this))&&parent_ticket.TryAdmit(parent,true)==fence::Result::admitted
             &&(!targeted||child_ticket.TryAdmit(child,true)==fence::Result::admitted)){
-            const auto submitted=native.Submit(input);result=Converted(submitted);
+            const auto index=JournalIndex(input);
+            const auto submitted=native.Submit(input,index<activations.size()?activations[index]:combat::activation::Handle{});result=Converted(submitted);
             // Observation after native return, outside the queue lock. Never application authority.
             item_trace::OwnedReturn(input,scene,result.outcome,result.entry,result.local,result.history,&submitted.power_diagnostic);
             if(!targeted&&result.outcome==O::deferred&&result.entry==wire::Entry::never_entered){
@@ -323,7 +353,8 @@ public:
             if(index!=actor_actions::ApplicationJournal::invalid){
                 const auto application=journal.Records()[index].state;
                 result.application=application==actor_actions::ApplicationState::pending?wire::Application::pending:
-                    application==actor_actions::ApplicationState::observed?wire::Application::observed:wire::Application::none;
+                    application==actor_actions::ApplicationState::observed?wire::Application::observed:
+                    application==actor_actions::ApplicationState::interrupted?wire::Application::interrupted:wire::Application::none;
             }
             if(!controller.UpdateAction(pending,result)||!RecordApplication(pending,result)
                 ||!controller.UpdateAction(pending,result)){admission_blocked=true;cancelled.store(true,std::memory_order_release);}
@@ -341,6 +372,7 @@ public:
             retired=true;cancelled.store(true,std::memory_order_release);native.Revoke();
             if(has_manifest){(void)publisher.Unknown(3);}
             if(native.ReleaseScene()){
+                (void)combat::activation::ResetExactLifetime({scene.actor,scene.identity,scene.epoch});activations={};
                 (void)controller.UpdateScope(owner_command,{P::retired,C::scene_retired},true);
                 publisher.Close();has_manifest=false;manifest={};manifest_digest={};actor_lifetime={};journal={};
                 parent_ticket.Close();child_ticket.Close();lease.reset();active=preparing=parent_admitted=child_admitted=false;admission_blocked=false;scene={};

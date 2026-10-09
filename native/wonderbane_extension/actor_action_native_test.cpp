@@ -21,6 +21,7 @@ std::uint32_t learned_rank=20, definition_generation=1;
 bool definition_available=true; unsigned availability_change{};
 std::uint64_t epoch=1;
 p::LocalInitiationState local_initiation=p::LocalInitiationState::pending;
+wonderbane::extension::combat::activation::Result activation_result=wonderbane::extension::combat::activation::Result::unknown;
 bool mutate_after_definition=false, mutate_on_current=false;
 bool native_in_flight=false, mutate_before_entry=false, mutate_after_entry=false;
 std::function<void()> current_callback;
@@ -45,7 +46,8 @@ void Reset() {
     for(const auto& [object,count]:references) { (void)object; assert(!count); }
     std::memset(reinterpret_cast<void*>(base),0,0x10000); references.clear(); lookup_mode=0;
     mutate_after_definition=mutate_on_current=false; native_in_flight=mutate_before_entry=mutate_after_entry=false; epoch=1; initiation_seconds=0; learned_rank=20; definition_generation=1; definition_available=true;
-    local_initiation=p::LocalInitiationState::pending;availability_change=0; live=admitted=true; throw_attack=seh_attack=reject_cancel=false; attacks=casts=stops=lookups=0;
+    local_initiation=p::LocalInitiationState::pending;activation_result=wonderbane::extension::combat::activation::Result::unknown;
+    availability_change=0; live=admitted=true; throw_attack=seh_attack=reject_cancel=false; attacks=casts=stops=lookups=0;
     melee_receipt={s::Result::queued,true,true,true}; power_receipt={p::Result::queued,true,true,true,true,1};
     scene={}; scene.epoch=1; scene.actor=base+0x2000; scene.window=base+0x1000;
     scene.world=base+0x6000; scene.parent=0; scene.identity={100,53};
@@ -123,6 +125,10 @@ bool Invoke(Scope& scope) {
     assert(power_context.current(power_context.owner)); // Native entry may legitimately become busy.
     return true;
 }
+}
+namespace wonderbane::extension::combat::activation {
+void RecordReturn(const Handle&,bool,bool) noexcept {}
+Result Read(const Handle&) noexcept { return activation_result; }
 }
 namespace wonderbane::extension::combat::melee {
 void Release(void*& value) { if(value) { assert(references[value]); --references[value]; value=nullptr; } }
@@ -297,9 +303,7 @@ int main(){
         Protocol({429021400,429021400});Put(base+0xc010,activity);Publish(actor,true);
         std::uint32_t blocks{};assert(actor.ReadAdmission(blocks));
         if(activity==5){assert(!blocks);}
-        // The global observation is not authority to widen power or child entry.
-        Publish(actor,false);
-        assert(actor.Submit(Typed(parent,nullptr,a::wire::Action::self_power)).entry==AE::never_entered&&!casts);
+        // Stationary self preparation does not widen child/target admission.
         const auto child=Child(parent);assert(actor.Attach(child,Gates()).outcome!=AO::bound&&!attacks);
         Publish(actor,true);const auto result=actor.Submit(Typed(parent,nullptr,a::wire::Action::use_item));
         assert((activity==5)==(result.outcome==AO::queued));assert(items==(activity==5?1U:0U)&&!stops);
@@ -394,10 +398,16 @@ int main(){
         if(uncertain){assert(actor.Poll().local_settlement==AL::pending);}else{admitted=false;assert(actor.Poll().local_settlement==AL::pending);admitted=true;}
         Put(base+0xc018,std::uint32_t{2});assert(actor.StopOwner(parent,Current,nullptr).closure==a::wire::Closure::native_stopped);CloseScene(actor);
     }
-    {
-        ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();assert(actor.ValidateParent(parent,Gates()));Publish(actor,false);
-        Protocol({123});auto command=Typed(parent,nullptr,a::wire::Action::self_power);
-        assert(actor.Submit(command).outcome==AO::deferred&&!casts&&!stops);CloseScene(actor);
+    for(const auto activity:{5U,6U,7U}){
+        for(const auto retained:{123U,Typed(Parent(),nullptr,a::wire::Action::self_power).power_id}){
+            ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();
+            assert(actor.ValidateParent(parent,Gates()));Publish(actor,false);
+            Protocol({retained,retained});Put(base+0xc010,activity);
+            auto command=Typed(parent,nullptr,a::wire::Action::self_power);const auto result=actor.Submit(command);
+            assert((result.outcome==AO::queued)==(activity==5)&&casts==(activity==5?1U:0U)&&!stops);
+            if(activity==5){assert(actor.Submit(command).entry==AE::never_entered&&casts==1);}
+            CloseScene(actor);
+        }
     }
     for(const auto availability:{p::Availability::reuse_blocked,p::Availability::global_recovery,p::Availability::unknown}){
         ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();assert(actor.ValidateParent(parent,Gates()));Publish(actor,false);
@@ -510,6 +520,29 @@ int main(){
         current_callback=[] {RaiseException(0xe0008888,0,0,nullptr);};
         assert(!actor.ContinueContext()&&!actor.Available()&&!stops);
         assert(!actor.ContinueContext());a::NativeActorTestAccess::Dispose(actor);
+    }
+    for(const auto terminal:{wonderbane::extension::combat::activation::Result::completed,
+        wonderbane::extension::combat::activation::Result::interrupted,
+        wonderbane::extension::combat::activation::Result::relinquished}){
+        for(bool normal_followup:{false,true}){
+            ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));auto parent=Parent();
+            parent.purpose=a::fence::Purpose::preparation;parent.movement_generation=0;
+            assert(a::fence::Hash(parent.owner_id.data(),parent.owner_id.size(),parent.operation));
+            assert(actor.ValidateParent(parent,Gates()));Publish(actor,false);
+            power_receipt.followup_entered=normal_followup;
+            const auto command=Typed(parent,nullptr,a::wire::Action::self_power);
+            const wonderbane::extension::combat::activation::Handle handle{0,17,{scene.actor,scene.identity,scene.epoch}};
+            assert(actor.Submit(command,handle).local_settlement==AL::pending&&casts==1&&!stops);
+            local_initiation=p::LocalInitiationState::unavailable;activation_result=terminal;
+            admitted=false;++epoch;Protocol({command.power_id,command.power_id,999});Put(base+0xc010,std::uint32_t{6});
+            Put(scene.actor+0xaf8,base+0x4000);
+            assert((actor.Poll().local_settlement==AL::settled)==normal_followup);
+            const auto close=actor.StopOwner(parent,+[](void*)noexcept{return live;},nullptr);
+            assert((close.closure==a::wire::Closure::local_released)==normal_followup&&!stops);
+            std::uint32_t manual{};std::memcpy(&manual,reinterpret_cast<void*>(base+0xf008),sizeof(manual));assert(manual==999);
+            std::memcpy(&manual,reinterpret_cast<void*>(base+0xc010),sizeof(manual));assert(manual==6);
+            CloseScene(actor);
+        }
     }
     ActorReset();DestroyWindow(window);VirtualFree(reinterpret_cast<void*>(base),0,MEM_RELEASE);return 0;
 }

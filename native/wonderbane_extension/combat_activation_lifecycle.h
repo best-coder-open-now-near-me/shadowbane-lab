@@ -27,13 +27,17 @@ public:
         std::uint64_t ticket{};
         std::uint32_t power{};
         ActivationPhase phase=ActivationPhase::unknown;
-        bool queued{},owned_followup{};
+        bool queued{},owned_followup{},local_relinquished{};
         ActivationOrigin origin=ActivationOrigin::item;
     };
     struct Transition {
         std::uint64_t mutation{},ticket{};
         std::size_t index=invalid;
         explicit operator bool() const noexcept { return mutation&&ticket&&index<capacity; }
+    };
+    struct ManualTransition {
+        std::uint64_t mutation{};
+        explicit operator bool() const noexcept { return mutation!=0; }
     };
     // slot is the retained application-journal slot, reused only when that
     // journal permits it. Tickets are never reset across parent/producer changes.
@@ -42,7 +46,7 @@ public:
         if(slot>=capacity||!identity.Valid()||!power||(bound_.Valid()&&bound_!=identity)||!Advance()){return 0;}
         bound_=identity;
         InvalidateActive(identity.actor);
-        records_[slot]={identity,mutation_,power,ActivationPhase::awaiting_start,false,false,origin};
+        records_[slot]={identity,mutation_,power,ActivationPhase::awaiting_start,false,false,false,origin};
         return mutation_;
     }
     void QueueResult(std::size_t slot,std::uint64_t ticket,bool queued) noexcept {
@@ -74,11 +78,11 @@ public:
     bool LocalTerminal(std::size_t slot,std::uint64_t ticket,const ActivationIdentity& identity) const noexcept {
         if(slot>=capacity||!ticket){return false;}const auto& record=records_[slot];
         return record.ticket==ticket&&record.identity==identity&&record.queued&&record.owned_followup
-            &&record.origin==ActivationOrigin::self_power&&Terminal(record.phase);
+            &&record.origin==ActivationOrigin::self_power&&(Terminal(record.phase)||record.local_relinquished);
     }
     bool ResetExactLifetime(const ActivationIdentity& expected) noexcept {
         if(bound_!=expected||!expected.Valid()||!Advance()){return false;}
-        records_={};bound_={};current_={};frame_=message_=definition_=thread_=0;return true;
+        records_={};bound_={};current_={};manual_={};frame_=message_=definition_=thread_=0;return true;
     }
     // Observe *actual* unscoped ordinary item sending, including a nested send
     // while an owned Scope exists. It must always call native original through.
@@ -88,6 +92,50 @@ public:
         for(auto& record:records_){if(record.identity.actor==actor&&!Terminal(record.phase)){record.phase=ActivationPhase::unknown;}}
     }
     void ForeignPowerUse(std::uintptr_t actor) noexcept { ForeignItemSend(actor); }
+    // Positive ordinary manual sending is not proof of an outcome. It only
+    // starts a candidate for later relinquishing the shared control domain.
+    // The queued application interpretation remains unknown/pending.
+    void ManualSend(std::uintptr_t actor,std::uint32_t power) noexcept {
+        if(!Relevant(actor)||!power){return;}
+        ForeignPowerUse(actor);
+        manual_={bound_,power,ActivationPhase::awaiting_start,mutation_,mutation_,0,0,0,0};
+    }
+    ManualTransition BeginManualStart(const ActivationIdentity& identity,std::uint32_t power,
+        std::uintptr_t frame,std::uintptr_t message,std::uintptr_t definition,std::uint32_t thread) noexcept {
+        if(!ManualCurrent(ActivationPhase::awaiting_start)){return {};}
+        if(manual_.identity!=identity||manual_.power!=power||!frame||!message||!definition||!thread){
+            OtherActivity(identity.actor);return {};}
+        if(!Advance()){return {};}
+        manual_.frame=frame;manual_.message=message;manual_.definition=definition;manual_.thread=thread;
+        manual_.phase=ActivationPhase::setting_state;manual_.mutation=mutation_;return {mutation_};
+    }
+    bool ManualStateReturned(ManualTransition token,bool coherent_state6) noexcept {
+        if(token.mutation!=mutation_||!ManualCurrent(ActivationPhase::setting_state)){return false;}
+        manual_.phase=coherent_state6?ActivationPhase::awaiting_append:ActivationPhase::unknown;return coherent_state6;
+    }
+    ManualTransition BeginManualAppend(const ActivationIdentity& identity,std::uint32_t power,
+        std::uintptr_t frame,std::uintptr_t message,std::uintptr_t definition,std::uint32_t thread) noexcept {
+        if(!ManualCurrent(ActivationPhase::awaiting_append)||manual_.identity!=identity||manual_.power!=power
+            ||manual_.frame!=frame||manual_.message!=message||manual_.definition!=definition||manual_.thread!=thread){
+            OtherActivity(identity.actor);return {};}
+        if(!Advance()){return {};}
+        manual_.phase=ActivationPhase::appending;manual_.mutation=mutation_;return {mutation_};
+    }
+    bool ManualAppendReturned(ManualTransition token,bool coherent_append) noexcept {
+        if(token.mutation!=mutation_||!ManualCurrent(ActivationPhase::appending)){return false;}
+        manual_.phase=coherent_append?ActivationPhase::awaiting_start_return:ActivationPhase::unknown;return coherent_append;
+    }
+    bool ManualProcessReturned(ManualTransition token,bool normal_exact_return) noexcept {
+        if(token.mutation!=mutation_||!ManualCurrent(ActivationPhase::awaiting_start_return)){return false;}
+        manual_.phase=ActivationPhase::unknown;
+        if(!normal_exact_return){return false;}
+        RelinquishManual();
+        return true;
+    }
+    bool ManualDirectReturned(const ActivationIdentity& identity,std::uint32_t power,bool coherent) noexcept {
+        if(!coherent||!ManualCurrent(ActivationPhase::awaiting_start)||manual_.identity!=identity||manual_.power!=power){return false;}
+        manual_.phase=ActivationPhase::unknown;RelinquishManual();return true;
+    }
     void OtherActivity(std::uintptr_t actor) noexcept {
         if(!Relevant(actor)||!Advance()){return;}InvalidateActive(actor);
     }
@@ -198,7 +246,25 @@ public:
         return record.ticket==ticket&&record.identity==identity&&record.queued&&record.phase==ActivationPhase::interrupted;
     }
     Record Read(std::size_t slot) const noexcept { return slot<capacity?records_[slot]:Record{}; }
+    std::uint64_t Mutation() const noexcept { return mutation_; }
 private:
+    struct Manual {
+        ActivationIdentity identity{};
+        std::uint32_t power{};
+        ActivationPhase phase=ActivationPhase::unknown;
+        std::uint64_t mutation{},send_mutation{};
+        std::uintptr_t frame{},message{},definition{};
+        std::uint32_t thread{};
+    } manual_{};
+    bool ManualCurrent(ActivationPhase phase) const noexcept {
+        return manual_.mutation&&manual_.mutation==mutation_&&manual_.phase==phase;
+    }
+    void RelinquishManual() noexcept {
+        for(auto& record:records_){
+            if(record.identity==manual_.identity&&record.ticket<manual_.send_mutation&&record.queued
+                &&record.owned_followup&&record.origin==ActivationOrigin::self_power&&!Terminal(record.phase)){record.local_relinquished=true;}
+        }
+    }
     static bool Terminal(ActivationPhase phase) noexcept {
         return phase==ActivationPhase::interrupted||phase==ActivationPhase::completed;
     }

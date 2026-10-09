@@ -59,14 +59,14 @@ NativeActor::Operation Blocked(std::uint32_t blocks,const NativeActor::Observati
     auto result=Result(O::deferred);result.admission_blocks=blocks;result.reason=wire::AdmissionReason(blocks);result.state=state;return result;
 }
 }
-std::uint32_t NativeActor::AdmissionBlocks(const Observation& state,bool owned_followup,bool stationary_item) noexcept {
+std::uint32_t NativeActor::AdmissionBlocks(const Observation& state,bool owned_followup,bool stationary_self) noexcept {
     std::uint32_t blocks{};
-    // Ordinary item caller 79040 rejects movement, not retained protocol IDs.
-    // Automation accepts its positively stationary state 5 only. Power/target
-    // entry keeps the stricter clear-vector requirement below and at its gate.
+    // Ordinary item and self-power entry do not require an empty protocol vector.
+    // Only positively stationary state 5 permits retained bookkeeping here;
+    // actual native Use keeps its legality checks. Targeted actions stay strict.
     if(!state.ClearInitiation()&&!owned_followup
-        &&!(stationary_item&&state.initiation.state==5)){blocks|=admission::initiation;}
-    if(stationary_item&&state.initiation.state!=5){blocks|=admission::initiation;}
+        &&!(stationary_self&&state.initiation.state==5)){blocks|=admission::initiation;}
+    if(stationary_self&&state.initiation.state!=5){blocks|=admission::initiation;}
     if(power::NativeUseInFlight()){blocks|=admission::native_use;}
     if(pending_||request_||transfer_){blocks|=admission::local_action;}
     if(state.target&&(!child_bound_||state.target!=reinterpret_cast<std::uintptr_t>(target_)
@@ -182,7 +182,7 @@ bool NativeActor::Gate(void* value) noexcept {
     if(!entered){Observation state{};
         if(!self.pre_entry_epoch_||power::InitiationEpoch()!=self.pre_entry_epoch_||!self.ReadState(state)){return false;}
         const auto blocks=self.AdmissionBlocks(state,state.initiation.Only(self.pre_entry_self_id_),
-            self.command_.action==wire::Action::use_item);
+            self.command_.action==wire::Action::use_item||self.command_.action==wire::Action::self_power);
         if(blocks&~admission::local_action){return false;}}
     return true;
 }
@@ -268,8 +268,8 @@ NativeActor::Operation NativeActor::SubmitImpl(){
             &&definition==instant_definition_&&definition.seconds==0
             &&power::InitiationEpoch()==instant_self_epoch_&&Current(true);
     }
-    const bool ordinary_item=command_.action==wire::Action::use_item;
-    const auto blocks=AdmissionBlocks(state,owned_followup,ordinary_item);
+    const bool stationary_self=command_.action==wire::Action::use_item||command_.action==wire::Action::self_power;
+    const auto blocks=AdmissionBlocks(state,owned_followup,stationary_self);
     if(blocks){return Blocked(blocks,state);}
     power::InitiationDefinition self_definition{};
     const bool instant=command_.action==wire::Action::self_power&&child&&state.ClearInitiation()
@@ -277,7 +277,7 @@ NativeActor::Operation NativeActor::SubmitImpl(){
     if(!Current(child)){return Result(O::stale);}
     Observation final{};
     if(!ReadState(final)||final!=state){return Blocked(0);}
-    const auto final_blocks=AdmissionBlocks(final,owned_followup,ordinary_item);if(final_blocks){return Blocked(final_blocks,final);}
+    const auto final_blocks=AdmissionBlocks(final,owned_followup,stationary_self);if(final_blocks){return Blocked(final_blocks,final);}
     pre_entry_epoch_=owned_followup?instant_self_epoch_:observed_epoch;
     pre_entry_self_id_=owned_followup?instant_self_id_:0;
     if(!pre_entry_epoch_||power::InitiationEpoch()!=pre_entry_epoch_){return Blocked(0);}
@@ -289,6 +289,7 @@ NativeActor::Operation NativeActor::SubmitImpl(){
         combat::item::Context context{image_,scene_.actor,writer,container,command_.item_hint,command_.template_hint,
             scene_.identity,{command_.item_key[0],command_.item_key[1]},
             {command_.template_key[0],command_.template_key[1]},8,10,Gate,AppendGate,this};
+        context.activation=activation_;
         const auto receipt=calls_.item(context,item_state_,item_receipt_);
         if(receipt.ownership_quarantined){faulted_=true;}
         result=Result(receipt.append_observed?O::queued:receipt.native_entered?O::uncertain:O::rejected,
@@ -321,6 +322,7 @@ NativeActor::Operation NativeActor::SubmitImpl(){
         context.target_mode=command_.action==wire::Action::self_power?power::TargetMode::self:power::TargetMode::engagement_object;
         context.actor_key=scene_.identity;context.writer=writer;context.container=container;context.power_id=command_.power_id;
         context.current=Gate;context.append_current=AppendGate;context.owner=this;context.receipt=&power_receipt_;
+        context.activation=activation_;
         power::Scope scope(context);if(!Current(child)){return Result(O::stale);}
         dispatched_=true;(void)calls_.power(scope);const auto receipt=scope.Finish();
         if(!receipt.native_entered&&!receipt.append_observed){
@@ -353,12 +355,13 @@ NativeActor::Operation NativeActor::SubmitImpl(){
     if(result.local_settlement==L::pending){pending_=true;pending_command_=command_;pending_operation_=result;}
     return result;
 }
-NativeActor::Operation NativeActor::Submit(const wire::Command& command) noexcept {
+NativeActor::Operation NativeActor::Submit(const wire::Command& command,combat::activation::Handle activation) noexcept {
     if(running_||faulted_||!wire::Valid(wire::Verb::submit,command)||!parent_bound_
         ||!wire::Bindings(command,parent_,wire::Any(command.context_id)?&child_:nullptr)
         ||(wire::Any(command.context_id)&&!child_bound_)){return Result(O::invalid);}
     if(pending_||request_||transfer_){return Blocked(admission::local_action);}
-    command_=command;running_=true;dispatched_=false;melee_receipt_={};power_receipt_={};item_receipt_={};item_state_={};
+    if(activation&&activation.identity!=combat::activation::ActivationIdentity{scene_.actor,scene_.identity,scene_.epoch}){return Result(O::invalid);}
+    command_=command;activation_=activation;running_=true;dispatched_=false;melee_receipt_={};power_receipt_={};item_receipt_={};item_state_={};
     pending_owned_followup_=false;pending_saw_initiation_=false;pending_epoch_=0;
     auto result=Guarded(2);running_=false;
     if(!faulted_&&(request_||transfer_)){
@@ -367,6 +370,7 @@ NativeActor::Operation NativeActor::Submit(const wire::Command& command) noexcep
     }
     if(result.local_settlement==L::pending){pending_=true;pending_command_=command;pending_operation_=result;}
     if(command.action==wire::Action::self_power||command.action==wire::Action::cast){result.power_diagnostic=power_receipt_;}
+    combat::activation::RecordReturn(activation_,(result.history&wire::outbound_queued)!=0,pending_owned_followup_);
     return result;
 }
 NativeActor::Operation NativeActor::PollImpl(){
@@ -377,9 +381,12 @@ NativeActor::Operation NativeActor::PollImpl(){
     if(!lifetime||power::NativeUseInFlight()||!ReadState(result.state)){return result;}
     // Empty initiation alone never proves settlement: only a positively observed
     // owned normal Use/followup can cross from local responsibility to clear.
+    const auto activation=activation_?combat::activation::Read(activation_):combat::activation::Result::unknown;
+    const bool terminal_activation=!request_&&!transfer_&&(activation==combat::activation::Result::completed
+        ||activation==combat::activation::Result::interrupted||activation==combat::activation::Result::relinquished);
     if(pending_owned_followup_&&pending_saw_initiation_&&pending_epoch_
         &&(parent_.purpose==fence::Purpose::preparation
-            ? power::ReadLocalInitiation(power_receipt_.local_initiation_token,scene_.actor,scene_.identity,pending_command_.power_id)==power::LocalInitiationState::retired
+            ? terminal_activation||power::ReadLocalInitiation(power_receipt_.local_initiation_token,scene_.actor,scene_.identity,pending_command_.power_id)==power::LocalInitiationState::retired
             : result.state.ClearInitiation())){
         result.local_settlement=L::settled;pending_=false;pending_operation_=result;
         if(!child){local_owner_work_=false;}

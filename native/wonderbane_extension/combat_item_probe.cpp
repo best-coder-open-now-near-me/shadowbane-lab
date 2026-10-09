@@ -3,6 +3,7 @@
 // owned-reference helpers and sender. Only allocation, clock, lock primitives
 // and downstream transport are instrumented. Native foreign EH is fail-fast;
 // synthetic compiled fixture separately tests exception quarantine/restoration.
+#include "movement_lifetime.h"
 #include "combat_item_entry.cpp"
 #include <bcrypt.h>
 #include <cstdio>
@@ -14,6 +15,11 @@
 #include <vector>
 namespace it=wonderbane::extension::combat::item;
 namespace sb=wonderbane::extension::combat::submission;
+namespace wonderbane::extension::movement {
+// This isolated exact-image caller probe has no live game lifetime.
+bool ReadNativeMovementLifetime(NativeScene&) noexcept {return false;}
+bool NativeMovementLifetimeCurrent(const NativeScene&) noexcept {return false;}
+}
 namespace {
 void Require(bool condition, const char* message) {
     if (!condition) { throw std::runtime_error(message); }

@@ -53,6 +53,7 @@ add_library(
   combat_target_policy.cpp
   combat_power_entry.cpp
   combat_power_observer.cpp
+  combat_activation_observer.cpp
   actor_action_runtime.cpp
   vendor_navigation_native.cpp
   movement_settings.cpp
@@ -1500,7 +1501,8 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
-  add_executable(wonderbane_extension_combat_power_entry_test combat_power_entry_test.cpp)
+  add_executable(wonderbane_extension_combat_power_entry_test combat_power_entry_test.cpp combat_activation_observer.cpp)
+  target_link_libraries(wonderbane_extension_combat_power_entry_test PRIVATE bcrypt)
   target_compile_features(wonderbane_extension_combat_power_entry_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_combat_power_entry_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_combat_power_entry_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
@@ -1670,7 +1672,8 @@ endif()
 
 # Shared native item entry; the test includes its implementation for fault injection.
 if(BUILD_TESTING)
-  add_executable(wonderbane_extension_combat_item_entry_test combat_item_entry_test.cpp)
+  add_executable(wonderbane_extension_combat_item_entry_test combat_item_entry_test.cpp combat_activation_observer.cpp)
+  target_link_libraries(wonderbane_extension_combat_item_entry_test PRIVATE bcrypt)
   target_compile_features(wonderbane_extension_combat_item_entry_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_combat_item_entry_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_combat_item_entry_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
@@ -1679,11 +1682,24 @@ if(BUILD_TESTING)
   target_compile_features(wonderbane_extension_combat_activation_lifecycle_test PRIVATE cxx_std_20)
   target_compile_options(wonderbane_extension_combat_activation_lifecycle_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
   add_test(NAME wonderbane_extension_combat_activation_lifecycle COMMAND wonderbane_extension_combat_activation_lifecycle_test)
+  add_executable(wonderbane_extension_combat_activation_observer_test combat_activation_observer_test.cpp)
+  target_compile_features(wonderbane_extension_combat_activation_observer_test PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_combat_activation_observer_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  target_link_libraries(wonderbane_extension_combat_activation_observer_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_combat_activation_observer COMMAND wonderbane_extension_combat_activation_observer_test)
+  foreach(boundary incoming completion)
+    add_executable(wonderbane_extension_combat_activation_${boundary}_probe EXCLUDE_FROM_ALL combat_activation_${boundary}_probe.cpp)
+    target_compile_features(wonderbane_extension_combat_activation_${boundary}_probe PRIVATE cxx_std_20)
+    target_compile_options(wonderbane_extension_combat_activation_${boundary}_probe PRIVATE /W4 /WX /EHsc)
+    target_link_libraries(wonderbane_extension_combat_activation_${boundary}_probe PRIVATE bcrypt)
+    target_link_options(wonderbane_extension_combat_activation_${boundary}_probe PRIVATE /SAFESEH:NO)
+    set_property(TARGET wonderbane_extension_combat_activation_${boundary}_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  endforeach()
   set_tests_properties(wonderbane_extension_combat_item_entry PROPERTIES TIMEOUT 15)
 endif()
 
 if(BUILD_TESTING)
-  add_executable(wonderbane_extension_combat_item_probe EXCLUDE_FROM_ALL combat_item_probe.cpp)
+  add_executable(wonderbane_extension_combat_item_probe EXCLUDE_FROM_ALL combat_item_probe.cpp combat_activation_observer.cpp)
   target_compile_features(wonderbane_extension_combat_item_probe PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_combat_item_probe PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_combat_item_probe PRIVATE /W4 /WX /permissive- /sdl /utf-8)

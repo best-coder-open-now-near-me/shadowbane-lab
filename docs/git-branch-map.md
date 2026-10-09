@@ -6,10 +6,16 @@
 (PR #118) in bot-runtime. Its first checkpoint adds required exact-image
 movement and ordinary item-caller probes without installing a runtime hook or
 changing application authority. See [the proof boundaries](native-movement-interruption-20261008.md).
-Typed activation interruption, retained journal reconciliation and renewal are
-unfinished; no blanket potion/attack gate is included. The branch now includes
+The branch now integrates the required activation observer `416c013`, exact
+command-scoped interrupted journal history and host reconciliation, and distinct
+local control relinquishment after positively observed manual activation.
+Incoming/completion image probes and the observer are mandatory package gates.
+No blanket potion/attack gate is included. The branch now includes
 exact worker/IPC head `2ceeb701` from PR #115 by ancestry. Its stationary item
 readiness checkpoint is `1cbce71`; it does not clear pending application history.
+Final stationary self-power publication and special-definition local settlement
+remain in progress, followed by combined validation and independent review.
+This source has not been deployed or release-qualified.
 Root combines reviewed source
 and the current cosmetic overlay before any native release qualification.
 

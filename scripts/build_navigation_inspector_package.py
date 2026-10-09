@@ -104,6 +104,8 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_actor_action_runtime",
     "wonderbane_extension_actor_selector_manifest",
     "wonderbane_extension_actor_application_journal",
+    "wonderbane_extension_combat_activation_lifecycle",
+    "wonderbane_extension_combat_activation_observer",
     "wonderbane_extension_actor_inventory_native",
     "wonderbane_extension_actor_buff_observation",
     "wonderbane_extension_actor_publication",
@@ -213,7 +215,7 @@ def _validate_combat_power_probe_steps(steps, *, reviewed_client, feature):
     return True
 
 
-def _validate_actor_probe_steps(steps, *, reviewed_client, features):
+def _validate_actor_probe_steps(steps, *, reviewed_client, features, binary_suffix="probe"):
     if not reviewed_client:
         return False
     for profile in ("full", "diagnostics-only"):
@@ -227,7 +229,8 @@ def _validate_actor_probe_steps(steps, *, reviewed_client, features):
                 command = matches[0].get("command")
                 if (not isinstance(command, list) or len(command) != 2
                         or not all(isinstance(item, str) and item for item in command)
-                        or Path(command[0]).name != f"wonderbane_extension_{feature}_probe.exe"):
+                        or Path(command[0]).name !=
+                        f"wonderbane_extension_{feature}_{binary_suffix}.exe"):
                     raise RuntimeError(f"incorrect actor probe command: {name}")
                 images.append(command[1])
             if images[0] == images[1]:
@@ -245,6 +248,16 @@ def validate_actor_probe_steps(steps, *, reviewed_client):
 def validate_item_trace_probe_steps(steps, *, reviewed_client):
     return _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
                                        features=("item_application_trace",))
+
+
+def validate_activation_probe_steps(steps, *, reviewed_client):
+    probes = _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
+                                        features=("combat_activation_incoming",
+                                                  "combat_activation_completion"))
+    observer = _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
+                                          features=("combat_activation_observer",),
+                                          binary_suffix="test")
+    return probes and observer
 
 
 def validate_combat_power_initiation_steps(steps, *, reviewed_client):
@@ -479,6 +492,7 @@ def main() -> int:
                               "item_application_trace.cpp",
                               "combat_melee_entry.cpp",
                               "combat_power_entry.cpp", "combat_power_observer.cpp",
+                              "combat_activation_observer.cpp",
                               "combat_target_policy.cpp"):
             if included_sources.count(combat_source) != 1:
                 raise RuntimeError(f"{profile}: combat source must have one owner: {combat_source}")
@@ -487,6 +501,10 @@ def main() -> int:
                                  "actor_action_native_test.cpp", "actor_action_runtime_test.cpp",
                                  "actor_action_controller_test.cpp", "actor_action_wire_test.cpp",
                                  "actor_application_journal_test.cpp",
+                                 "combat_activation_lifecycle_test.cpp",
+                                 "combat_activation_observer_test.cpp",
+                                 "combat_activation_incoming_probe.cpp",
+                                 "combat_activation_completion_probe.cpp",
                                  "actor_selector_manifest_test.cpp",
                                  "actor_publication_test.cpp", "actor_effects_native_test.cpp",
                                  "actor_inventory_native_test.cpp",
@@ -709,6 +727,8 @@ def main() -> int:
                  "wonderbane_extension_combat_power_mode_probe",
                  "wonderbane_extension_combat_power_initiation_probe",
                  "wonderbane_extension_combat_power_movement_probe",
+                 "wonderbane_extension_combat_activation_incoming_probe",
+                 "wonderbane_extension_combat_activation_completion_probe",
                  "wonderbane_extension_combat_power_readiness_probe",
                  "wonderbane_extension_combat_item_probe",
                  "wonderbane_extension_item_application_trace_probe",
@@ -823,11 +843,17 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
                  prepared_client],
             )
             for feature in ("combat_item", "actor_effects_native", "item_application_trace",
-                        "actor_inventory_native", "actor_buff_observation"):
+                        "actor_inventory_native", "actor_buff_observation",
+                        "combat_activation_incoming", "combat_activation_completion"):
                 for suffix, image in (("binding", arguments.reviewed_client.resolve()),
                                       ("prepared-binding", prepared_client)):
                     run(f"{profile}-{feature}-{suffix}",
                         [build / f"Release/wonderbane_extension_{feature}_probe.exe", image])
+            for suffix, image in (("binding", arguments.reviewed_client.resolve()),
+                                  ("prepared-binding", prepared_client)):
+                run(f"{profile}-combat_activation_observer-{suffix}",
+                    [build / "Release/wonderbane_extension_combat_activation_observer_test.exe",
+                     image])
             for test in ("sky_binding", "sky_render"):
                 run(
                     f"{profile}-{test}",
@@ -1186,6 +1212,9 @@ else:
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
         "combat_power_movement_transition_verified": validate_combat_power_movement_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client),
+        ),
+        "combat_activation_boundaries_verified": validate_activation_probe_steps(
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
         "source_identity": metadata,
