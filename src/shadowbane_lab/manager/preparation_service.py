@@ -33,6 +33,7 @@ class PersistentPreparationService:
         self._inflight = False
         self._owner = None
         self._closing = False
+        self._fault_detail = None
         self._thread = None
         self._intent_problem = None
         self._snapshot = PreparationServiceSnapshot(
@@ -69,7 +70,8 @@ class PersistentPreparationService:
         enabled, _ = self._read_intent()
         with self._lock:
             return bool(enabled and not (self._handoff or self._stopping
-                                         or self._blocked or self._closing)
+                                         or self._blocked or self._closing
+                                         or self._fault_detail is not None)
                         and self._supervision_allowed)
 
     def supervise(self, *, allowed):
@@ -120,6 +122,8 @@ class PersistentPreparationService:
         with self._lock:
             if self._intent_problem is not None:
                 state, detail = "needs_attention", self._intent_problem
+            if self._fault_detail is not None:
+                detail = self._fault_detail + ("; " + detail if detail else "")
             self._snapshot = PreparationServiceSnapshot(
                 state, revision,
                 PreparationStatus.disabled() if self._owner is None
@@ -136,7 +140,8 @@ class PersistentPreparationService:
                 # No service-owned resource exists after a failed finite handback.
                 # Exiting this thread does not credit that finite cleanup.
                 return stopping and self._owner is None and not self._inflight
-            allow_new = enabled and self._supervision_allowed and not stopping and not handoff
+            allow_new = (enabled and self._supervision_allowed and not stopping
+                         and not handoff and self._fault_detail is None)
             self._inflight = True
         try:
             if self._owner is None and allow_new:
@@ -146,7 +151,18 @@ class PersistentPreparationService:
                 self._closing = False
             owner = self._owner
             if owner is None:
-                self._publish("paused" if not enabled else "disabled", revision)
+                with self._lock:
+                    if not enabled or self._stopping:
+                        state, detail = "paused", None
+                    elif self._handoff:
+                        state = "yielding"
+                        detail = "Waiting for the finite operation to return ownership."
+                    elif not self._supervision_allowed:
+                        state, detail = "paused", "Worker dispatch is not currently allowed."
+                    else:
+                        # Saved buff settings disabled the factory.
+                        state, detail = "disabled", None
+                self._publish(state, revision, detail)
                 return stopping
             renewal_failed = False
             try:
@@ -158,7 +174,8 @@ class PersistentPreparationService:
             enabled, revision = self._read_intent()
             with self._lock:
                 allow_new = (enabled and self._supervision_allowed
-                             and not self._stopping and not self._handoff)
+                             and not self._stopping and not self._handoff
+                             and self._fault_detail is None)
             settings_changed = False
             if not self._closing:
                 try:
@@ -173,7 +190,9 @@ class PersistentPreparationService:
                     except Exception:
                         pass  # Passive owner stop retains exact unresolved native work.
                     self._closing = True
-                    confirmed, _, detail = owner.finish("preparation_handoff")
+                    reason = ("preparation_fault" if self._fault_detail is not None
+                              else "preparation_handoff")
+                    confirmed, _, detail = owner.finish(reason)
                 else:
                     confirmed, _, detail = owner.inspect_owner_closure()
                 if not confirmed:
@@ -183,7 +202,10 @@ class PersistentPreparationService:
                 with self._lock:
                     self._owner = None
                     self._closing = False
-                self._publish("paused" if not enabled else "idle", revision)
+                detail = "Native preparation cleanup confirmed." if self._fault_detail else None
+                self._publish("paused" if not enabled else "idle", revision, detail)
+                with self._lock:
+                    self._fault_detail = None
                 return stopping
             owner.step(allow_new=True)
             self._publish("maintaining", revision)
@@ -200,10 +222,16 @@ class PersistentPreparationService:
             except Exception as exc:
                 # Retain the owner and its original cleanup deadline. A failed
                 # observation must not create a replacement producer or coordinator.
-                self._publish("needs_attention", self.snapshot.control_revision,
-                              f"{type(exc).__name__}: {exc}")
                 with self._lock:
-                    if self._owner is not None:
-                        self._handoff = True
+                    detail = f"{type(exc).__name__}: {exc}"
+                    if self._owner is not None and self._fault_detail is None:
+                        self._fault_detail = detail
+                    # Internal recovery is not a finite-operation reservation.
+                    # Copy cached presentation so a failing owner status getter
+                    # cannot prevent the next cycle from closing that owner.
+                    self._snapshot = PreparationServiceSnapshot(
+                        "needs_attention", self._snapshot.control_revision,
+                        self._snapshot.preparation,
+                        (self._fault_detail or detail)[:512])
             self._wake.wait(self._interval)
             self._wake.clear()
