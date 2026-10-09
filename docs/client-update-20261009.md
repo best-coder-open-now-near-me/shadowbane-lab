@@ -19,8 +19,22 @@ Windows worker-startup test. All 477 source, wheel and installed module files
 agree. Host qualification receipt SHA-256:
 `ec981249b76aea27ff13dafaf6819d390b883a3ce0c3fe23c74e320fbebe55f8`.
 
-The following .81 installation record is historical; .82 installation and live
-acceptance are being completed before its delivery checkpoint is published.
+Host .82 is installed and its manager is verified healthy. All 477 installed
+modules and 9,557 retained settings/history records passed verification. The
+same Umbra process remained open; the client executable, native DLL and launch
+receipts were not replaced. Both manager shortcuts now reference .82. The old
+unverified reservation was removed by production recovery, with its historical
+heartbeat preserved. The verifier separately proved that exact permitted
+removal before recording activation; no installed plan or helper was rewritten.
+
+Live attachment then exposed a second issue: a historical worker PID had been
+reused by a protected Windows service. Both ordinary and query-only process
+handles were denied, causing the old-worker stop check to reject attachment
+before binding Umbra. A read-only kernel process census established the
+different creation FILETIME and matched Umbra's existing exact lifetime. The
+focused .83 fix is under review; automatic buffs remain inactive pending it.
+
+The following .81 installation record is historical.
 
 Official client 1.3.38.16 is installed with qualified host 0.3.81/native 1.8.56
 on the testing VM. PR #121 merged the reviewed compatibility head `b5b6a6a`

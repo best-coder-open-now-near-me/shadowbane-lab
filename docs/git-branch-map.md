@@ -17,7 +17,10 @@ All 15 hosted checks passed before merge. The exact qualified release is
 the installed graphics composition byte-for-byte; graphics PRs #106/#113 remain
 separate drafts outside main. Retain that release branch for reproducibility,
 not as a development base. `codex/worker-restart-delivery-20261009` records this
-installation for main. Next: finish host-only installation and live buff checks.
+installation for main. Host .82 is installed and verified, preserving the live
+game and 9,557 settings/history records. Stale-reservation recovery succeeded.
+Next: qualify the focused .83 protected-PID inspection fix discovered during
+attachment, then resume live buff checks. See the current update record.
 
 ## Official client 1.3.38.16 update - October 9
 
