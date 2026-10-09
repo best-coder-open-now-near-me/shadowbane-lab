@@ -319,3 +319,53 @@ def test_live_or_unreadable_process_does_not_dispose_pending_owner(actor_setup, 
         owner.close_retired_process()
     assert not owner._obligation.released
     tickets[-1].close.assert_not_called()
+
+
+@pytest.mark.parametrize("retired", [None, "replacement"])
+def test_service_shutdown_releases_dead_game_after_unavailable_owner_status(
+    actor_setup, monkeypatch, retired,
+):
+    from shadowbane_lab.manager.native_preparation import NativePreparationOwner
+    from shadowbane_lab.manager.preparation_service import PersistentPreparationService
+
+    coordinator, session, tickets = maintenance(actor_setup)
+    clock = [0.0]
+    session.cleanup.clock = lambda: clock[0]
+    session.cleanup.sleeper = lambda seconds: clock.__setitem__(0, clock[0] + seconds)
+    session.actor_action.side_effect = channel.NativeActionChannelUnavailable("game exited")
+    inspector = Mock()
+    live = SimpleNamespace(process_id=coordinator.parent.client_pid,
+                           process_started_at_100ns=coordinator.parent.client_creation)
+    inspector.inspect.return_value = live
+    monkeypatch.setattr(
+        "shadowbane_lab.manager.supervisor.Win32ProcessLifetimeInspector", lambda: inspector
+    )
+    resources = Mock()
+    owner = NativePreparationOwner(resources, session, coordinator.grant,
+                                   coordinator, None, None)
+    service = PersistentPreparationService(owner_factory=lambda: owner, intent=lambda: (False, 1))
+    service._owner = owner
+    service.request_stop()
+    # Real coordinator catches the missing channel reply. A still-live original
+    # process must retain cleanup responsibility, regardless of the host deadline.
+    assert not service._cycle()
+    assert service._owner is owner and not coordinator._obligation.released
+    resources.close.assert_not_called()
+    command = coordinator._stop_owner_command
+    session.actor_action.reset_mock()
+    inspector.inspect.side_effect = OSError("inspection denied")
+    with pytest.raises(OSError, match="inspection denied"):
+        service._cycle()
+    assert service._owner is owner and not coordinator._obligation.released
+    inspector.inspect.side_effect = None
+    inspector.inspect.return_value = (None if retired is None else SimpleNamespace(
+        process_id=live.process_id, process_started_at_100ns=live.process_started_at_100ns + 1))
+    session.actor_action.reset_mock()
+    assert service._cycle()  # Service thread can now exit; worker STOPPING ends.
+    assert service._owner is None and coordinator._obligation.released
+    resources.close.assert_called_once_with()
+    tickets[-1].close.assert_called_once_with(revoke=False)
+    assert coordinator._last_owner_result[1] is None  # No fabricated native receipt.
+    assert inspector.inspect.call_args.args == (live.process_id,)
+    assert [c.args[1:3] for c in session.actor_action.call_args_list] == [
+        (Verb.OWNER_STATUS, command)]  # Only the old immutable status; no new owner/stop.
