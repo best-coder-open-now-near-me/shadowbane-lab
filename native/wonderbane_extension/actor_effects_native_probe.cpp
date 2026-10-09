@@ -172,6 +172,20 @@ int main(int argc,char** argv){
         const auto sha=Digest(bytes);
         if((sha!="e5bb74e159a9acd8529652eb5b0c07766ced7ffd70c03c960ccdbcefca83c6e8" && (sha!="e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e" && (sha!="381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5" && sha!="a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a"))) && (sha!="0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d" && (sha!="78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903" && (sha!="e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437" && sha!="1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c")))){throw std::runtime_error("unreviewed image");}
         Load(bytes);Prepare();AddVectoredExceptionHandler(0,Fault);
+        // Execute the exact native countdown getter; it is a scheduling hint,
+        // never a removal/absence predicate. No imports or gameplay substitutes.
+        const auto native_remaining=reinterpret_cast<double(__thiscall*)(void*)>(arena+0x14edc0);
+        Put(reinterpret_cast<std::uintptr_t>(arena)+0x16a2d70,100.0);
+        for(std::uint32_t kind:{0U,1U,2U}){for(double deadline:{115.0,100.0,99.0,0.0,-1000.0}){
+            Put(Address(record)+0x24,kind);Put(Address(record)+0x60,deadline);
+            const double actual=native_remaining(record.data());
+            const double expected=kind==1?-1000.0:deadline>100.0?deadline-100.0:deadline>0?0.10000000149011612:deadline;
+            Check(actual==expected,"exact native countdown finite/sentinel/past-deadline semantics");
+            e::Effect hint{};hint.native_class=kind;e::Timing(hint,deadline,100.0);
+            Check((hint.deadline_stamp!=0)==(kind!=1&&deadline>0),"production timing retains only finite positive timed deadline");
+            if(hint.deadline_stamp){Check(hint.remaining_ms==(deadline>100.0?15000U:0U),"scheduling hint does not claim native effect removal");}
+        }}
+        Put(Address(record)+0x24,std::uint32_t{0});Put(Address(record)+0x60,0.0);
         Check(reinterpret_cast<int(__cdecl*)()>(arena+0x1140e70)()==1 && entry_reached,"reviewed bootstrap completes");
         Check(!e::StartupCurrent(context.image,reinterpret_cast<std::uintptr_t>(_ReturnAddress())),"ordinary late caller cannot activate");
         e::Snapshot before,after;Check(e::Capture(context,before)==e::Unknown::none && before.count==1,"canonical owner snapshot after startup");

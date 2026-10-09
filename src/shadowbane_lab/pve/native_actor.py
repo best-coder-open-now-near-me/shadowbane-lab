@@ -1005,7 +1005,7 @@ class NativeActorCoordinator:
         coverage, readiness, pending, history = [], [], set(), []
         by_index = {facts.selector.index: facts for facts in pub.actions}
         for index, group in enumerate(self._settings.groups):
-            states = []
+            states, renewals, group_readiness = [], [], []
             selectors = [s for s in self.manifest.selectors if s.group == index]
             for alternative, selector in zip(group.alternatives, selectors, strict=True):
                 facts = by_index.get(selector.index)
@@ -1026,10 +1026,11 @@ class NativeActorCoordinator:
                         )
                     elif facts.readiness is not native.Readiness.UNKNOWN:
                         state = policy.Readiness.NOT_READY
-                readiness.append(
+                group_readiness.append(
                     policy.ReadinessEvidence(alternative.action.action_id, state, operand)
                 )
                 states.append(covered)
+                renewals.append(bool(facts is not None and pub.complete and facts.renewal_due))
             # Alternatives are OR coverage: one active form satisfies its group.
             covered = (
                 policy.Coverage.PRESENT
@@ -1040,7 +1041,24 @@ class NativeActorCoordinator:
                 if all(x is policy.Coverage.MISSING for x in states)
                 else policy.Coverage.UNKNOWN
             )
-            coverage.append(policy.CoverageEvidence(group.group_id, covered))
+            # Never renew over an unknown/partial or longer-lived alternative.
+            # PRESENT remains factual coverage; the native journal separately
+            # retains a pending renewal until its deadline positively advances.
+            renewal_due = covered is policy.Coverage.PRESENT and all(
+                state is policy.Coverage.MISSING
+                or (state is policy.Coverage.PRESENT and due)
+                for state, due in zip(states, renewals, strict=True)
+            )
+            # Native covered-group admission permits only the qualified renewal
+            # selector, even if another missing alternative is ordinarily READY.
+            readiness.extend(
+                policy.ReadinessEvidence(evidence.action_id, policy.Readiness.NOT_READY)
+                if renewal_due and not due else evidence
+                for evidence, due in zip(group_readiness, renewals, strict=True)
+            )
+            coverage.append(policy.CoverageEvidence(
+                group.group_id, covered, renewal_due=renewal_due
+            ))
             digest = self.manifest.group_digest(index)
             for application in pub.applications:
                 if (application.group_digest != digest

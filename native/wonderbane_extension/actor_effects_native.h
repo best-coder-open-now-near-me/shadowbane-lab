@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <bit>
+#include <cmath>
 
 namespace wonderbane::extension::actor_effects {
 using Key = std::array<std::uint32_t, 2>;
@@ -17,8 +19,15 @@ struct Effect {
     std::array<std::uint32_t, 3> source_words{};
     ActionClass action_class{};
     std::uint8_t local_add_suppression{};
+    // Positive finite native deadline and countdown are scheduling facts only.
+    // They never establish removal, expiry or server application.
+    std::uint64_t deadline_stamp{};
+    std::uint32_t remaining_ms{};
     bool operator==(const Effect&) const = default;
 };
+inline bool ValidDeadline(std::uint64_t stamp) noexcept {
+    const auto value=std::bit_cast<double>(stamp);return std::isfinite(value)&&value>0;
+}
 // Internal borrowed context. The caller retains the canonical actor throughout
 // capture/revalidation. current proves the outermost owner-service, process,
 // scene, actor registry lifetime and thread; it must never initiate native work.

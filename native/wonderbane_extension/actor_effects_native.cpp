@@ -238,9 +238,22 @@ bool Classify(std::uint32_t table, ActionClass& kind) noexcept {
     }
     return false;
 }
+void Timing(Effect& effect,double deadline,double clock) noexcept {
+    effect.deadline_stamp=0;effect.remaining_ms=0;
+    if((effect.native_class!=0&&effect.native_class!=2)||!std::isfinite(deadline)||deadline<=0
+        ||!std::isfinite(clock)||clock<=0){return;}
+    const auto remaining=std::ceil((deadline>clock?deadline-clock:0.0)*1000.0);
+    if(!std::isfinite(remaining)||remaining>UINT32_MAX){return;}
+    effect.deadline_stamp=std::bit_cast<std::uint64_t>(deadline);
+    effect.remaining_ms=static_cast<std::uint32_t>(remaining);
+}
 struct Vector { std::uint32_t begin{}, end{}, capacity{}; bool operator==(const Vector&) const = default; };
 using Pair = std::array<std::uint32_t, 2>;
 Unknown CopyEffects(const Context& c, Snapshot& result) noexcept {
+    // Capture the native clock independently: invalid timing must not erase coverage.
+    double clock{},clock_again{};
+    const bool clock_valid=Read(c.image+0x16a2d70,clock)&&Read(c.image+0x16a2d70,clock_again)
+        &&clock==clock_again&&std::isfinite(clock)&&clock>0;
     Vector vector{};
     if (!Read(c.actor + 0x58c, vector)) { return Unknown::read_fault; }
     if (vector.begin > vector.end || vector.end > vector.capacity || (vector.begin & 3)
@@ -268,6 +281,8 @@ Unknown CopyEffects(const Context& c, Snapshot& result) noexcept {
         out.rank = U32(record, 0x10); out.native_class = U32(record, 0x24); out.source_tag = record[0x28];
         out.source_words = {U32(record, 0x30), U32(record, 0x34), U32(record, 0x38)};
         out.local_add_suppression = descriptor[0x4c];
+        double deadline{};std::memcpy(&deadline,record.data()+0x60,sizeof(deadline));
+        if(clock_valid){Timing(out,deadline,clock);}
         if (!out.action_id || !Read(address, record_again) || !Read(definition, descriptor_again)
             || !Read(action_address, action_again)) { return Unknown::read_fault; }
         if (record != record_again || descriptor != descriptor_again || action != action_again) { return Unknown::changed; }

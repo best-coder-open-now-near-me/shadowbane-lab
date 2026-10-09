@@ -62,5 +62,30 @@ int main(){
     Check(no_queue.Record(slot,first,a::ApplicationEntry::uncertain,false,true)
         &&!no_queue.Interrupt(slot,first,10,11)&&no_queue.Pending(potion),"uncertain entry is not semantic queued activation proof");
     Check(no_queue.Observe(potion,12,true,true)&&!no_queue.Pending(potion),"canonical presence independently resolves unknown association");
+    const auto stamp=[](double value){return std::bit_cast<std::uint64_t>(value);};
+    a::ApplicationJournal renewal;
+    const std::array baseline{a::CoverageDeadline{222,stamp(115)},a::CoverageDeadline{333,stamp(120)}};
+    slot=renewal.Reserve(potion,first,10,baseline);
+    Check(renewal.Record(slot,first,a::ApplicationEntry::entered,true,true),"covered renewal queues with exact descriptor deadlines");
+    for(const auto& current:std::array{
+        baseline,
+        std::array{a::CoverageDeadline{222,stamp(400)},a::CoverageDeadline{333,stamp(120)}},
+        std::array{a::CoverageDeadline{222,stamp(400)},a::CoverageDeadline{444,stamp(500)}},
+        std::array{a::CoverageDeadline{222,0},a::CoverageDeadline{333,stamp(500)}}}){
+        Check(renewal.Observe(potion,20,true,true,current)&&renewal.Pending(potion),"partial, replaced or unknown descriptor cannot confirm renewal");
+        Check(renewal.Reserve(potion,second,21)==a::ApplicationJournal::invalid,"old PRESENT cannot permit duplicate potion");
+    }
+    const std::array refreshed{a::CoverageDeadline{333,stamp(500)},a::CoverageDeadline{222,stamp(400)}};
+    Check(renewal.Observe(potion,10,true,true,refreshed)&&renewal.Pending(potion),"new deadlines need later exact publication");
+    Check(renewal.Observe(potion,22,true,true,refreshed)&&!renewal.Pending(potion),"each native deadline advancement confirms covered renewal despite ordering");
+    const std::array varied{a::CoverageDeadline{222,stamp(115)},a::CoverageDeadline{333,stamp(1000)}};
+    slot=renewal.Reserve(potion,second,23,varied);
+    Check(slot!=a::ApplicationJournal::invalid&&renewal.Record(slot,second,a::ApplicationEntry::entered,true,true),"next generation retains varied descriptor durations");
+    const std::array varied_new{a::CoverageDeadline{222,stamp(400)},a::CoverageDeadline{333,stamp(1285)}};
+    Check(renewal.Observe(potion,24,true,true,varied_new)&&!renewal.Pending(potion),"each deadline advances without requiring new minimum beyond old maximum");
+    a::CoverageDeadlines duplicates{};
+    Check(duplicates.Add(222,stamp(115))&&duplicates.Add(222,stamp(120))&&duplicates.count==1
+        &&duplicates.values[0].stamp==stamp(120),"duplicate descriptor retains longest existing deadline");
+    Check(!duplicates.Add(333,0)&&!duplicates.Add(333,stamp(-1000)),"sentinel timing cannot become renewal baseline");
     std::printf("application journal: %u failures\n",failures);return failures?1:0;
 }

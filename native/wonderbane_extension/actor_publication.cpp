@@ -25,7 +25,9 @@ bool Facts(const Frame& f)noexcept{
         if(i>=f.readiness_count){if(!Zero(r)){return false;}continue;}
         if(!selectors::Valid(r.selector) || r.selector.index!=i || r.rank>9999 || r.coverage>3 || r.readiness>8
             || r.descriptor_offset!=offset || !r.descriptor_count || r.descriptor_count>64
-            || r.descriptor_count>f.descriptor_count-offset || !Zero(r.reserved)){return false;}
+            || r.descriptor_count>f.descriptor_count-offset || !Zero(r.reserved)
+            ||r.timing_flags>1||(!r.timing_flags&&(r.remaining_ms||r.deadline_stamp))
+            ||(r.timing_flags&&(r.coverage!=3||!actor_effects::ValidDeadline(r.deadline_stamp)))){return false;}
         offset+=r.descriptor_count;
         std::uint32_t present{};bool retained=true;
         for(std::uint32_t j=r.descriptor_offset;j<offset;++j){present+=f.descriptors[j].present;retained&=!f.descriptors[j].suppression;}
@@ -60,15 +62,29 @@ bool Facts(const Frame& f)noexcept{
     }
     return true;
 }
+bool RenewalDue(const Readiness& r)noexcept{
+    return r.selector.kind==4&&r.selector.template_id==980066&&!r.selector.template_zero
+        &&r.selector.coverage_power==429021400&&!r.selector.coverage_kind&&r.coverage==3
+        &&r.timing_flags==1&&actor_effects::ValidDeadline(r.deadline_stamp)&&r.remaining_ms<=15000;
+}
 bool SameEligibility(const Frame& a,const Frame& b)noexcept{
+    for(std::size_t i=0;i<a.readiness.size();++i){
+        auto left=a.readiness[i],right=b.readiness[i];
+        if(RenewalDue(left)!=RenewalDue(right)){return false;}
+        left.remaining_ms=right.remaining_ms=0;
+        if(std::memcmp(&left,&right,sizeof(left))){return false;}
+    }
     return a.complete==b.complete && a.unknown==b.unknown && a.actor_mode==b.actor_mode
         && a.initiation_clear==b.initiation_clear && a.stationary==b.stationary && a.admission_blocks==b.admission_blocks
-        && a.readiness_count==b.readiness_count
-        && !std::memcmp(a.readiness.data(),b.readiness.data(),sizeof(a.readiness));
+        && a.readiness_count==b.readiness_count;
 }
 bool Same(const Frame& a,const Frame& b)noexcept{
-    constexpr auto offset=offsetof(Frame,effect_epoch);
-    return !std::memcmp(reinterpret_cast<const char*>(&a)+offset,reinterpret_cast<const char*>(&b)+offset,sizeof(Frame)-offset);
+    constexpr auto offset=offsetof(Frame,effect_epoch),readiness=offsetof(Frame,readiness),after=offsetof(Frame,applications);
+    // Countdown is sampled telemetry, not a new fact every owner tick. Exact
+    // deadline/validity and the Concoction due boundary remain revision-bearing.
+    return SameEligibility(a,b)
+        &&!std::memcmp(reinterpret_cast<const char*>(&a)+offset,reinterpret_cast<const char*>(&b)+offset,readiness-offset)
+        &&!std::memcmp(reinterpret_cast<const char*>(&a)+after,reinterpret_cast<const char*>(&b)+after,sizeof(Frame)-after);
 }
 bool Security(PSECURITY_DESCRIPTOR& result){
     HANDLE token{};if(!OpenProcessToken(GetCurrentProcess(),TOKEN_QUERY,&token)){return false;}
@@ -83,7 +99,7 @@ bool Security(PSECURITY_DESCRIPTOR& result){
 }
 }
 bool Valid(const Header& h)noexcept{
-    return !std::memcmp(h.magic,"WBAPUB2",8)&&h.version==2&&h.bytes==mapping_size&&h.client_pid
+    return !std::memcmp(h.magic,"WBAPUB3",8)&&h.version==3&&h.bytes==mapping_size&&h.client_pid
         &&h.slot_bytes==slot_size&&h.slots==2&&!h.reserved&&h.client_creation&&fence::Any(h.actor_lifetime)
         &&fence::Any(h.manifest)&&h.actor_key[0]&&h.actor_key[1]==53&&fence::Address(h.actor_address)
         &&!h.reserved2&&h.scene&&h.active>=-1&&h.active<=1&&Zero(h.padding);
@@ -93,7 +109,7 @@ bool Valid(const Frame& f)noexcept{
 }
 std::wstring Name(std::uint32_t pid,std::uint64_t creation,const Digest& manifest){
     if(!pid||!creation||!fence::Any(manifest)){return {};}
-    std::wstring result=L"Local\\WonderBane.ActorPublication.v2."+std::to_wstring(pid)+L"."+std::to_wstring(creation)+L".";
+    std::wstring result=L"Local\\WonderBane.ActorPublication.v3."+std::to_wstring(pid)+L"."+std::to_wstring(creation)+L".";
     constexpr wchar_t hex[]=L"0123456789abcdef";for(auto b:manifest){result+=hex[b>>4];result+=hex[b&15];}return result;
 }
 bool Encode(const selectors::Manifest& manifest,const actor_buffs::Publication& p,
@@ -112,6 +128,7 @@ bool Encode(const selectors::Manifest& manifest,const actor_buffs::Publication& 
         if(std::memcmp(&expected,&manifest.records[i],sizeof(expected))||facts.descriptor_count>out.descriptors.size()-out.descriptor_count){return false;}
         dest.selector=expected;dest.rank=facts.learned_rank;dest.category=facts.category;dest.target_mode=facts.target_mode;
         dest.delivery=facts.delivery;dest.required_mode=facts.required_mode;dest.coverage=static_cast<std::uint32_t>(facts.coverage);
+        dest.timing_flags=facts.deadline_stamp?1U:0U;dest.remaining_ms=facts.remaining_ms;dest.deadline_stamp=facts.deadline_stamp;
         dest.readiness=static_cast<std::uint32_t>(facts.readiness);dest.descriptor_offset=out.descriptor_count;dest.descriptor_count=facts.descriptor_count;
         for(std::uint32_t j=0;j<facts.descriptor_count;++j){const auto& d=facts.descriptors[j];
             out.descriptors[out.descriptor_count++]={d.id,d.action_id,static_cast<std::uint32_t>(d.action_class),d.local_add_suppression,static_cast<std::uint8_t>(d.present),{}};}

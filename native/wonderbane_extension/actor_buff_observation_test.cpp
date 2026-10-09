@@ -7,6 +7,7 @@ namespace {
 unsigned failures{},checks{};std::uint64_t effect_epoch=1,power_epoch=1;
 bool actor_current=true,foreign_use=false,effect_present=false,item_present=false,item_current=true;
 unsigned inventory_mutation{};bool item_unknown=false;
+std::uint64_t effect_deadline{};std::uint32_t effect_remaining{};bool duplicate_untimed=false;
 unsigned char* image{};
 alignas(4) std::array<unsigned char,0xe00> actor{};
 alignas(4) std::array<unsigned char,0x30> state{};
@@ -28,7 +29,7 @@ bool Current(void*)noexcept{return actor_current;}
 void Reset(){
     actor.fill(0);state.fill(0);definition.fill(0);action.fill(0);fixture_descriptor.fill(0);actions={};learned={};
     actor_current=true;foreign_use=false;effect_present=false;item_present=false;item_current=true;
-    inventory_mutation=0;item_unknown=false;
+    inventory_mutation=0;item_unknown=false;effect_deadline=0;effect_remaining=0;duplicate_untimed=false;
     effect_epoch=power_epoch=1;const auto base=reinterpret_cast<std::uintptr_t>(image);
     context={base,Address(actor),{4050960,53},1,Current,nullptr};
     Put(Address(actor)+0xad0,static_cast<std::uint32_t>(Address(state)));Put(Address(state)+0x10,std::uint32_t{5});Put(Address(state)+0x18,std::uint32_t{1});
@@ -56,7 +57,9 @@ void Capture(b::Publication& result,b::Request request=Request()){
 namespace wonderbane::extension::actor_effects {
 Unknown Capture(const Context& c,Snapshot& out)noexcept{
     out={};if(!c.current(c.owner)){return Unknown::identity;}out.unknown=Unknown::none;out.actor_key=c.actor_key;out.scene=c.scene;out.epoch=effect_epoch;
-    if(effect_present){out.count=1;out.effects[0].descriptor_id=222;out.effects[0].action_id=333;}
+    if(effect_present){out.count=1;out.effects[0].descriptor_id=222;out.effects[0].action_id=333;
+        out.effects[0].deadline_stamp=effect_deadline;out.effects[0].remaining_ms=effect_remaining;
+        if(duplicate_untimed){out.count=2;out.effects[1]=out.effects[0];out.effects[1].deadline_stamp=0;out.effects[1].remaining_ms=0;}}
     return Unknown::none;
 }
 bool Revalidate(const Context& c,const Snapshot& s)noexcept{return c.current(c.owner)&&s.Complete()&&s.epoch==effect_epoch&&s.actor_key==c.actor_key&&s.scene==c.scene;}
@@ -171,6 +174,17 @@ int RunActorBuffFixtureCases(){
     Reset();power_node[4]=112;power_node[2]=static_cast<std::uint32_t>(Address(power_node));unknown("cyclic definition tree rejected");
     Reset();foreign_use=true;unknown("prepublication foreign Use blocks capture");
     Reset();actor_current=false;unknown("actor owner revocation prevents complete publication");
+    Reset();effect_present=true;effect_deadline=std::bit_cast<std::uint64_t>(115.0);effect_remaining=15000;
+    Capture(publication);Check(publication.actions[0].coverage==b::Coverage::present
+        &&publication.actions[0].deadline_stamp==effect_deadline&&publication.actions[0].remaining_ms==15000,"complete covered action publishes countdown separately");
+    auto conc=publication.actions[0];conc.intent.power_id=0;conc.intent.item_template={980066,0};conc.intent.coverage_power_id=429021400;
+    Check(b::RenewalDue(conc),"only exact covered Concoction reaches15s renewal boundary");
+    conc.remaining_ms=15001;Check(!b::RenewalDue(conc),"before lead no renewal");conc.remaining_ms=0;
+    Check(b::RenewalDue(conc),"zero countdown remains covered scheduling hint");
+    conc.intent.coverage_power_id=111;Check(!b::RenewalDue(conc),"foreign coverage cannot inherit Concoction lead");
+    conc.intent.coverage_power_id=429021400;conc.intent.item_template[0]++;Check(!b::RenewalDue(conc),"foreign item cannot inherit Concoction lead");
+    duplicate_untimed=true;Capture(publication);Check(publication.actions[0].coverage==b::Coverage::present
+        &&!publication.actions[0].deadline_stamp&&!publication.actions[0].remaining_ms,"untimed duplicate never fabricates early renewal");
     std::printf("checks=%u failures=%u\n",checks,failures);return failures?1:0;
 }
 #ifndef ACTOR_BUFF_OBSERVATION_PROBE
