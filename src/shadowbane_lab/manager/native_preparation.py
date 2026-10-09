@@ -29,22 +29,6 @@ class NativePreparationFactory:
         self.character = None
         self.admission = lambda: False
 
-    def handoff_ready(self):
-        """Read-only native readiness, including disabled/no-parent startup."""
-        from shadowbane_lab.client_extension.movement_session import read_snapshot
-        from shadowbane_lab.client_extension.movement_wire import (
-            ITEM_PREPARATION_PENDING,
-            PREPARATION_KNOWN,
-        )
-        snapshot = read_snapshot(NativeClientProcessIdentity(
-            self.binding.game_process_id, self.binding.game_process_started_at_100ns),
-            self.binding.game_window_handle)
-        return bool(snapshot.flags & BINDINGS and not snapshot.flags & TERMINAL
-                    and snapshot.grant.scene > 0
-                    and 0 <= _WindowsKernel().tick_count() - snapshot.tick <= 500
-                    and snapshot.flags & PREPARATION_KNOWN
-                    and not snapshot.flags & ITEM_PREPARATION_PENDING)
-
     def __call__(self):
         stack = ExitStack()
         coordinator = None
@@ -159,8 +143,7 @@ def create_worker_preparation(binding, ledger, publisher, process):
                 0 if control is None else control.revision)
 
     factory = NativePreparationFactory(binding)
-    service = PersistentPreparationService(owner_factory=factory, intent=intent,
-                                           handoff_ready=factory.handoff_ready)
+    service = PersistentPreparationService(owner_factory=factory, intent=intent)
     def admission():
         if not service.admission_allowed():
             return False

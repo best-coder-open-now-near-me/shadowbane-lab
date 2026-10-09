@@ -127,27 +127,6 @@ def test_unopened_disposal_error_still_closes_all_transport_readers(resources, m
     assert events[-3:] == ["producer-close", "population-close", "character-close"]
 
 
-
-@pytest.mark.parametrize("flags,tick,scene,ready", [
-    (129,100,7,True), (385,100,7,False), (1,100,7,False),
-    (129,0,7,False), (129,101,7,False), (137,100,7,False), (129,100,0,False),
-])
-def test_handoff_read_uses_positive_native_known_bit_and_fresh_scene(
-        resources, monkeypatch, flags, tick, scene, ready):
-    from shadowbane_lab.client_extension import movement_session, movement_wire
-    binding, _, _, _, events = resources
-    monkeypatch.setattr(movement_wire, "PREPARATION_KNOWN", 128, raising=False)
-    monkeypatch.setattr(movement_wire, "ITEM_PREPARATION_PENDING", 256, raising=False)
-    now = 600 if tick == 0 else 100
-    monkeypatch.setattr(module, "_WindowsKernel", lambda: SimpleNamespace(tick_count=lambda: now))
-    def read(identity, window):
-        assert (identity.process_id, identity.creation_filetime_utc, window) == (12,34,56)
-        return SimpleNamespace(flags=flags, tick=tick, grant=SimpleNamespace(scene=scene))
-    monkeypatch.setattr(movement_session, "read_snapshot", read)
-    assert module.NativePreparationFactory(binding).handoff_ready() is ready
-    assert events == []
-
-
 @pytest.mark.parametrize("retired", [False, True])
 def test_mapping_loss_needs_positive_exact_process_retirement_before_disposal(retired):
     def failed():

@@ -253,49 +253,22 @@ def test_failed_finite_handoff_does_not_make_empty_service_unshutdownable():
     assert owner.calls == []
 
 
-
-def test_finite_handoff_waits_for_potion_without_starting_cleanup_or_new_actions():
+def test_unreadable_settings_cannot_starve_original_close_or_late_inspection():
     owner = Owner()
-    clear = [False]
-    value = PersistentPreparationService(owner_factory=lambda: owner,
-        intent=lambda: (True, 1), handoff_ready=lambda: clear[0])
+    value = service(owner)
     value._cycle()
-    assert not value.request_handoff(wait_for_preparation=True)
+    owner.calls.clear()
+    reads = []
+    def unreadable():
+        reads.append(1)
+        raise ValueError("invalid saved settings")
+    owner.settings_changed = unreadable
     value._cycle()
-    assert value.snapshot.state == "awaiting_potion_outcome"
-    assert [c[0] for c in owner.calls].count("finish") == 0
-    assert [c[:2] for c in owner.calls].count(("step", True)) == 1
-    clear[0] = True
-    owner.finish_result = True
+    assert owner.calls[-1][0] == "finish"
+    assert not any(c[:2] == ("step", True) for c in owner.calls)
+    owner.closure = True
     value._cycle()
-    assert not value.request_handoff(wait_for_preparation=True)  # Must refresh after close.
-    value._cycle()
-    assert value.request_handoff(wait_for_preparation=True)
+    assert owner.calls[-2][0] == "inspect"
+    assert owner.calls[-1][0] == "close"
+    assert len(reads) == 1
     assert [c[0] for c in owner.calls].count("finish") == 1
-
-
-def test_explicit_stop_closes_passively_despite_unresolved_potion():
-    owner = Owner()
-    value = PersistentPreparationService(owner_factory=lambda: owner,
-        intent=lambda: (True, 1), handoff_ready=lambda: False)
-    value._cycle()
-    value.request_handoff(wait_for_preparation=True)
-    value._cycle()
-    owner.finish_result = True
-    value.request_stop()
-    assert value._cycle()
-    assert [c[0] for c in owner.calls].count("finish") == 1
-
-
-def test_startup_handoff_observes_native_barrier_without_opening_owner():
-    clear = [False]
-    def factory():
-        raise AssertionError("handoff observation must not create an owner")
-    value = PersistentPreparationService(owner_factory=factory,
-        intent=lambda: (False, 1), handoff_ready=lambda: clear[0])
-    assert not value.request_handoff(wait_for_preparation=True)
-    value._cycle()
-    assert not value.request_handoff(wait_for_preparation=True)
-    clear[0] = True
-    value._cycle()
-    assert value.request_handoff(wait_for_preparation=True)

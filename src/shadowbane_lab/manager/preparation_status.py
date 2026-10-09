@@ -26,8 +26,7 @@ class WorkerPreparationStatus:
                 "schema_version", "heartbeat", "state", "control_revision", "preparation", "detail"}
                 or type(value["schema_version"]) is not int or value["schema_version"] != 1
                 or value["state"] not in {"starting", "paused", "disabled", "idle",
-                                          "maintaining", "yielding", "needs_attention",
-                                          "awaiting_potion_outcome"}
+                                          "maintaining", "yielding", "needs_attention"}
                 or type(value["control_revision"]) is not int or value["control_revision"] < 0
                 or (value["detail"] is not None and (
                     not isinstance(value["detail"], str) or len(value["detail"]) > 512))):

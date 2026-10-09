@@ -35,7 +35,7 @@ class Service:
     def __init__(self):
         self.releases = []
         self.requests = 0
-    def request_handoff(self, *, wait_for_preparation=False):
+    def request_handoff(self):
         self.requests += 1
         return self.ready
     def release_handoff(self, *, cleanup_confirmed):

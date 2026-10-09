@@ -4,22 +4,26 @@
 
 `codex/persistent-buff-worker-20261008` owns bot-command-ownership, atop
 reviewed picker `405cf104` (PR #112, now merged into main `f0b8eb45`).
-PR #115 contains exact-instance explicit Stop/Resume ordering and the dedicated
-native-service handoff core. The next reviewed slice adds typed exact movement
-cleanup proof: unchanged-grant refusals prove no acquisition, while ambiguous
-replies and retained actor obligations cannot authorize maintenance restart. It is a draft integration target
-for `main`, not an enabled or deployed background service. Worker/executor wiring,
-canonical native resource lifetime, exact cleanup handback, and passive dashboard
-presentation are now implemented in the next source checkpoint. The service
-retains cleanup supervision after the native deadline; a timer never authorizes
-resource disposal. Fresh exact-worker controls gate each new proposal; explicit
-Stop/Pause is separate from ordinary manual admission deferral.
+PR #115 contains exact-instance explicit Stop/Resume ordering, dedicated native
+service supervision, typed finite-operation cleanup handback and passive dashboard
+status. Published checkpoint `f9aa3dd` wires worker/executor ownership and exact
+native resource lifetime. The current follow-up adds journal-backed handback for
+entered Vendor, Guard and Condemn work and crash recovery for Stop intent before
+any worker callback. Stop envelopes are reconciled before control reads, Resume
+and terminal pruning; Resume atomically records the older Stop IDs it supersedes.
 
-Remaining integration work: qualify the separate native APIs together, complete
-entered vendor/guard/Condemn journal handback, and finalize native handoff readiness
-from actual potion cancellation evidence. The pending readiness interface does
-not establish that attacks cancel potions. No new background runtime is deployed. PVP owns the separate preparation-only native capability and
-coordinator APIs; combine and qualify both lanes before enabling this behavior.
+Unchanged-grant refusals prove no acquisition; ambiguous replies and retained
+actor obligations cannot authorize maintenance restart. Cleanup supervision
+continues after the native deadline: a timer never authorizes resource disposal.
+Fresh exact-worker controls gate each new proposal. This remains a draft
+integration target for `main`, not an enabled or deployed background service.
+
+Remaining integration work: combine and qualify the separate native APIs with
+this worker service. Potion-specific movement admission remains a separate
+qualification task. The provisional all-entry/PRESENT barrier and its worker
+dependency were withdrawn after the user confirmed attack did not cancel the
+manual potion. No new background runtime is deployed. PVP owns the separate
+preparation-only native capability and coordinator APIs.
 Ordinary manual input must defer new buffs without changing saved intent; explicit
 Pause/Stop stays latched. Background attacks are not authorized by this work.
 

@@ -173,7 +173,7 @@
           const panel = document.createElement("section");
           panel.className = "worker-panel";
           const title = document.createElement("h3");
-          const labels = {awaiting_potion_outcome: "Waiting for potion outcome", maintaining: "Keeping buffs active", paused: "Paused",
+          const labels = {maintaining: "Keeping buffs active", paused: "Paused",
             disabled: "Disabled in character settings", needs_attention: "Needs attention",
             idle: "Waiting", starting: "Starting", yielding: "Waiting for the current action"};
           title.textContent = `Automatic buffs - ${labels[buffs.state] || "Unavailable"}`;

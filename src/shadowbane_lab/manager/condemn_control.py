@@ -7,6 +7,7 @@ import threading
 import time
 import uuid
 from collections import Counter, OrderedDict
+from dataclasses import replace
 from pathlib import Path
 
 from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
@@ -243,6 +244,15 @@ class CondemnWorkerExecutor:
         )
 
     def execute(self, operation, *, stop_signal):
+        result = self._execute(operation, stop_signal=stop_signal)
+        # These journals retain ambiguous intents across transport closure and
+        # validate exact native completion before allowing another owner.
+        store = self.store()
+        GuardSpendingJournal(store.root).assert_idle()
+        CondemnProgressStore(store.root).assert_idle()
+        return replace(result, native_cleanup_confirmed=True)
+
+    def _execute(self, operation, *, stop_signal):
         b = self.binding
         if (
             operation.kind is not WorkerOperationKind.CONDEMN

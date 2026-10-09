@@ -530,10 +530,7 @@ class ExactClientWorkerRuntime:
                     ledger.latch_preparation_stop(item)
             if pending or self._preparation_waiting:
                 self._preparation_waiting = True
-                wait_preparation = bool(pending) and not any(
-                    item.kind in {WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}
-                    for item in pending)
-                if not service.request_handoff(wait_for_preparation=wait_preparation):
+                if not service.request_handoff():
                     return None
                 if not pending:
                     service.release_handoff(cleanup_confirmed=True)

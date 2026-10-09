@@ -898,6 +898,7 @@ class WorkerOperationLedger:
         )
 
     def _prune_terminal_unlocked(self, directory: Path, observed_at: float) -> int:
+        self._reconcile_preparation_stops_unlocked(directory)
         cutoff = observed_at - self._terminal_retention_seconds
         if cutoff < 0:
             return 0
@@ -966,6 +967,7 @@ class WorkerOperationLedger:
                     raise WorkerOperationLedgerError(
                         "deduplication_id is already owned by a different immutable operation"
                     )
+                self._latch_preparation_stop_unlocked(directory, existing)
                 return WorkerOperationSubmission(existing, duplicate=True)
             observed_at = _finite_time(self._clock(), "clock result")
             self._prune_terminal_unlocked(directory, observed_at)
@@ -984,9 +986,11 @@ class WorkerOperationLedger:
                     raise WorkerOperationLedgerError(
                         "operation_id is already owned by different immutable content"
                     ) from exc
+                self._latch_preparation_stop_unlocked(directory, operation)
                 return WorkerOperationSubmission(operation, duplicate=True)
             except OSError as exc:
                 raise WorkerOperationLedgerError(f"could not persist operation: {exc}") from exc
+            self._latch_preparation_stop_unlocked(directory, operation)
             return WorkerOperationSubmission(operation, duplicate=False)
 
     def inspect_receipt(
@@ -1033,6 +1037,7 @@ class WorkerOperationLedger:
     def inspect_preparation_control(self, client_id, instance_id):
         directory = self._directory(client_id)
         with self._transaction(directory):
+            self._reconcile_preparation_stops_unlocked(directory, instance_id)
             return self._preparation_control_unlocked(directory, instance_id)
 
     def set_preparation_enabled(
@@ -1048,6 +1053,7 @@ class WorkerOperationLedger:
         from .preparation_control import PreparationControl
         directory = self._directory(client_id)
         with self._transaction(directory):
+            self._reconcile_preparation_stops_unlocked(directory, instance_id)
             current = self._preparation_control_unlocked(directory, instance_id)
             revision = 0 if current is None else current.revision
             if type(expected_revision) is not int or expected_revision != revision:
@@ -1067,7 +1073,6 @@ class WorkerOperationLedger:
 
     def latch_preparation_stop(self, operation):
         """Latch an exact retained STOP/CANCEL unless a later Resume superseded it."""
-        from .preparation_control import PreparationControl
         if not isinstance(operation, WorkerOperation) or operation.kind not in {
                 WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}:
             raise WorkerOperationLedgerError("preparation stop requires an exact stop operation")
@@ -1077,21 +1082,37 @@ class WorkerOperationLedger:
                 directory / f"{operation.operation_id}.json", loads_worker_operation)
             if stored != operation or operation.node_id != self._manifest.node_id:
                 raise WorkerOperationLedgerError("preparation stop does not own its operation")
-            current = self._preparation_control_unlocked(directory, operation.instance_id)
-            if (current is not None and current.instance_id == operation.instance_id
-                    and operation.operation_id in current.superseded_stops):
-                return current
-            if current is not None and not current.enabled:
-                return current
-            record = PreparationControl(
-                operation.node_id, operation.client_id, operation.instance_id,
-                1 if current is None else current.revision + 1, False,
-                operation.worker_id, operation.worker_process_id,
-                operation.worker_process_started_at_100ns,
-                () if current is None else current.superseded_stops,
-            )
-            self._publish_preparation_control(directory, record)
-            return record
+            return self._latch_preparation_stop_unlocked(directory, operation)
+
+    def _reconcile_preparation_stops_unlocked(self, directory, instance_id=None):
+        # Recover a crash after durable envelope write but before control publish.
+        # Resume records exact superseded IDs under this same ledger lock.
+        for item in self._inspect_slot_unlocked(directory):
+            if instance_id is None or item.operation.instance_id == instance_id:
+                self._latch_preparation_stop_unlocked(directory, item.operation)
+
+    def _latch_preparation_stop_unlocked(self, directory, operation):
+        from .preparation_control import PreparationControl
+        if operation.kind not in {WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}:
+            return None
+        if (operation.node_id != self._manifest.node_id
+                or operation.client_id != directory.parent.name):
+            raise WorkerOperationLedgerError("preparation stop belongs to another slot")
+        current = self._preparation_control_unlocked(directory, operation.instance_id)
+        if (current is not None and current.instance_id == operation.instance_id
+                and operation.operation_id in current.superseded_stops):
+            return current
+        if current is not None and not current.enabled:
+            return current
+        record = PreparationControl(
+            operation.node_id, operation.client_id, operation.instance_id,
+            1 if current is None else current.revision + 1, False,
+            operation.worker_id, operation.worker_process_id,
+            operation.worker_process_started_at_100ns,
+            () if current is None else current.superseded_stops,
+        )
+        self._publish_preparation_control(directory, record)
+        return record
 
     def _publish_preparation_control(self, directory, record):
         target = self._preparation_control_path(directory, record.instance_id)

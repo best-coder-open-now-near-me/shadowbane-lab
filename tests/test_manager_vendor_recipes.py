@@ -71,6 +71,7 @@ class Menus(JobMenus):
 class Session(JobSession):
     def __init__(self, store):
         super().__init__(store)
+        self.window = BINDING.game_window_handle
         self.tables = {26990: 12, 25860: 16}
         self.closed_count = 0
 
