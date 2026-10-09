@@ -13,6 +13,7 @@ from .preparation import (
     PreparationObservation,
     Readiness,
 )
+from .tracking import TrackingStatus
 
 
 def _text(value):
@@ -254,8 +255,11 @@ class PvEProgress:
     reason: str
     kills: int
     preparation: PreparationStatus
+    tracking: TrackingStatus = TrackingStatus()
 
     def __post_init__(self):
+        if not isinstance(self.tracking, TrackingStatus):
+            raise ValueError("progress requires typed tracking status")
         _time(self.observed_at)
         _text(self.phase)
         _text(self.reason)
@@ -276,11 +280,13 @@ class PvEProgress:
             reason=self.reason,
             kills=self.kills,
             preparation=self.preparation.to_dict(),
+            tracking=self.tracking.to_dict(),
         )
 
     @classmethod
     def from_dict(cls, value):
-        if not isinstance(value, dict) or set(value) != set(cls.__dataclass_fields__):
+        fields = set(cls.__dataclass_fields__)
+        if not isinstance(value, dict) or set(value) not in (fields, fields - {"tracking"}):
             raise ValueError("invalid PvE progress fields")
         return cls(
             value["observed_at"],
@@ -288,4 +294,6 @@ class PvEProgress:
             value["reason"],
             value["kills"],
             PreparationStatus.from_dict(value["preparation"]),
+            (TrackingStatus.from_dict(value["tracking"])
+             if "tracking" in value else TrackingStatus()),
         )

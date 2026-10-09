@@ -73,6 +73,11 @@ class PvEProgressPublisher:
         actor = progress.preparation.actor
         if actor is not None and (actor.process_id, actor.process_creation) != self._process:
             raise ValueError("progress actor differs from exact worker binding")
+        tracking_actor = progress.tracking.actor
+        if tracking_actor is not None and (
+            tracking_actor.process_id, tracking_actor.process_creation_filetime_utc
+        ) != self._process:
+            raise ValueError("progress tracking actor differs from exact worker binding")
         with self._lock:
             if self._closing:
                 return
@@ -155,9 +160,21 @@ def project_status(record, snapshot, worker, instance_id, *, now=None, max_age=3
         state = "unknown"
     else:
         state = "current"
+    tracking = progress.tracking.at(now).to_dict()
+    # Contact freshness is independent of whether any buff group is enabled or known.
+    if tracking["enabled"]:
+        if receipt is not None and receipt.state.terminal:
+            tracking.update(current=False, state="ended")
+        elif instance_id != op.instance_id or not worker_matches:
+            tracking.update(current=False, state="worker_unavailable")
+        elif not 0 <= now - progress.observed_at <= max_age:
+            tracking.update(current=False, state="stale")
+        elif receipt is None:
+            tracking.update(current=False, state="unavailable")
     return dict(
         state=state,
         current=state == "current",
+        tracking=tracking,
         operation_id=op.operation_id,
         age_seconds=age,
         progress=progress.to_dict(),

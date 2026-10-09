@@ -126,6 +126,14 @@ class Controller final {
     bool PendingLocal() const noexcept {
         for(const auto& a:actions_){if(a.result.local!=L::settled){return true;}}return false;
     }
+    bool QueryAlongsidePendingPower() const noexcept {
+        for(const auto& a:actions_){
+            if(a.result.local==L::settled){continue;}
+            if((a.command.action!=wire::Action::cast&&a.command.action!=wire::Action::self_power)
+                ||a.result.entry!=E::entered||!(a.result.history&wire::outbound_queued)
+                ||a.result.outcome!=O::queued){return false;}
+        }return true;
+    }
     void Prune() noexcept {
         if(calling_){return;}
         while(actions_.size()>=capacity){
@@ -275,7 +283,7 @@ public:
         try{actions_.push_back({c});action=&actions_.back();}catch(...){return Reply(c,v,O::exhausted,p,x);}
         action->result.outcome=O::deferred;
         if(v==wire::Verb::cancel_action){action->result.outcome=O::cancelled;}
-        else if(live&&p==parent_&&p->state.phase==P::bound&&(!x||(x==context_&&x->state.phase==P::bound))&&ContextAllowsEntry()&&!PendingLocal()){
+        else if(live&&p==parent_&&p->state.phase==P::bound&&(!x||(x==context_&&x->state.phase==P::bound))&&ContextAllowsEntry()&&(!PendingLocal()||(c.action==wire::Action::track&&QueryAlongsidePendingPower()))){
             action->result.entry=E::unknown;action->result.local=L::pending;action->result.outcome=O::uncertain;
             calling_=true;auto result=invoker.Submit(c);calling_=false;
             if(Terminal(p->state)||(x&&Terminal(x->state))){result.local=L::settled;}

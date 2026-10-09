@@ -17,4 +17,5 @@ struct InitiationDefinition {
 bool ReadSelfInitiation(std::uintptr_t image, std::uintptr_t actor, std::uint32_t power_id,
     InitiationDefinition& out);
 bool Invoke(Scope& scope);
+bool InvokeTrack(Scope& scope);
 }

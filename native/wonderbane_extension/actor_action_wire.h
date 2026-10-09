@@ -6,7 +6,7 @@ namespace wonderbane::extension::actor::wire {
 namespace m=::wonderbane::extension::movement;
 using Digest=fence::Digest;using Id=fence::Id;
 enum class Verb:std::uint32_t { open_owner=43,attach_context,submit,action_status,cancel_action,context_status,stop_context,owner_status,stop_owner,observe_actor,register_selectors };
-enum class Action:std::uint32_t { none,attack,cast,self_power,use_item };
+enum class Action:std::uint32_t { none,attack,cast,self_power,use_item,track };
 enum class Recipient:std::uint32_t { none,actor,target };
 enum class Outcome:std::uint32_t { observed,queued,stale,unavailable,invalid,pending,uncertain,exhausted,closed,rejected,bound,cancelled,deferred,history_expired,power_reuse_blocked };
 enum class Phase:std::uint32_t { unknown,bound,stopping,closed,retired,blocked };
@@ -16,7 +16,7 @@ enum class Application:std::uint32_t { none,pending,observed,unknown,interrupted
 enum class Closure:std::uint32_t { none,never_bound,native_stopped,scene_retired,history_expired,local_released };
 enum class ClosureScope:std::uint32_t { none,owner,context };
 enum class Reason:std::uint32_t { none,power_reuse,recovery,initiation,stance,observation,item,target_occupied,local_action,native_use,child_cleanup,admission_changed,manual_activity };
-constexpr std::uint32_t capability=0x80,admission_capability=0x100,preparation_capability=0x200,no_selector=UINT32_MAX;
+constexpr std::uint32_t capability=0x80,admission_capability=0x100,preparation_capability=0x200,track_capability=0x400,no_selector=UINT32_MAX;
 enum Flag:std::uint32_t { owner_cleanup=1,context_cleanup=2,outbound_queued=4,uncertain_history=8,application_pending=16 };
 #pragma pack(push,1)
 struct Command {
@@ -62,7 +62,7 @@ inline bool Valid(const Command& c) noexcept {
     const bool parent=Any(c.parent_id),context=Any(c.context_id),selected=c.selector_index!=no_selector;
     if(c.version!=3||Any(c.reserved)||!m::wire::Valid(c.host)||!c.window||c.window>UINT32_MAX||!Any(c.request)
         ||parent!=Any(c.parent_digest)||context!=Any(c.context_digest)||(context&&(!parent||Zero(c.grant)))||!ValidGrant(c.grant,parent)
-        ||c.action>Action::use_item||c.recipient>Recipient::target
+        ||c.action>Action::track||c.recipient>Recipient::target
         ||selected!=Any(c.manifest_digest)||(selected&&c.selector_index>=32)
         ||(!selected&&(c.publication_revision||Any(c.snapshot_id)))
         ||static_cast<bool>(c.publication_revision)!=Any(c.snapshot_id)){return false;}
@@ -70,15 +70,17 @@ inline bool Valid(const Command& c) noexcept {
     if(item){if(!c.item_key[0]||!c.item_key[1]||!c.template_key[0]||c.template_key[1]
         ||!fence::Address(c.item_hint)||!fence::Address(c.template_hint)||c.item_hint==c.template_hint){return false;}}
     else if(!Zero(c.item_key)||!Zero(c.template_key)||c.item_hint||c.template_hint){return false;}
-    if(static_cast<bool>(c.power_id)!=(c.action==Action::cast||c.action==Action::self_power)){return false;}
+    if(static_cast<bool>(c.power_id)!=(c.action==Action::cast||c.action==Action::self_power||c.action==Action::track)){return false;}
     const auto recipient=c.action==Action::none?Recipient::none:
-        ((c.action==Action::self_power||item)?Recipient::actor:Recipient::target);
+        ((c.action==Action::self_power||item||c.action==Action::track)?Recipient::actor:Recipient::target);
     return c.recipient==recipient&&!(recipient==Recipient::target&&!context)&&!(item&&context)
+        &&!(c.action==Action::track&&(context||selected))
         &&!(c.action!=Action::none&&!parent)
         &&!((c.action==Action::self_power||item)&&!context&&(!selected||!c.publication_revision));
 }
 inline bool Valid(Verb v,const Command& c) noexcept {
     if(v<Verb::open_owner||v>Verb::register_selectors||!Valid(c)||ActionVerb(v)!=(c.action!=Action::none)){return false;}
+    if(c.action==Action::track&&v==Verb::cancel_action){return false;}
     if(ReadVerb(v)){if(Any(c.parent_id)||!Zero(c.grant)||(v==Verb::register_selectors&&c.selector_index==no_selector)){return false;}}
     else if(!Any(c.parent_id)){return false;}
     return !(ContextVerb(v)&&!Any(c.context_id))&&!(OwnerVerb(v)&&Any(c.context_id));
@@ -101,7 +103,7 @@ inline bool Bindings(const Command& c,const fence::ActorBinding& p,const fence::
 inline bool Valid(const Receipt& r) noexcept {
     const bool parent=Any(r.parent_id),context=Any(r.context_id);
     if(context&&Zero(r.grant)){return false;}
-    if(r.version!=3||r.verb<Verb::open_owner||r.verb>Verb::register_selectors||r.action>Action::use_item
+    if(r.version!=3||r.verb<Verb::open_owner||r.verb>Verb::register_selectors||r.action>Action::track
         ||r.outcome>Outcome::power_reuse_blocked||r.entry>Entry::entered||r.local_settlement>LocalSettlement::settled
         ||r.owner_phase>Phase::blocked||r.context_phase>Phase::blocked||r.closure>Closure::local_released
         ||r.application>Application::interrupted||r.reason>Reason::manual_activity||r.closure_scope>ClosureScope::context
@@ -112,7 +114,8 @@ inline bool Valid(const Receipt& r) noexcept {
         ||static_cast<bool>(r.flags&context_cleanup)!=Owned(r.context_phase)){return false;}
     if(!parent){if(context||r.owner_phase!=Phase::unknown||!ReadVerb(r.verb)){return false;}}
     else if(ReadVerb(r.verb)){return false;}
-    if(((r.action==Action::attack||r.action==Action::cast)&&!context)||(r.action==Action::use_item&&context)){return false;}
+    if(((r.action==Action::attack||r.action==Action::cast)&&!context)||((r.action==Action::use_item||r.action==Action::track)&&context)){return false;}
+    if(r.action==Action::track&&r.verb==Verb::cancel_action){return false;}
     if((!context&&r.context_phase!=Phase::unknown)||(ContextVerb(r.verb)&&!context)||(OwnerVerb(r.verb)&&context)
         ||(Owned(r.context_phase)&&!Owned(r.owner_phase))){return false;}
     const auto history=r.flags&(outbound_queued|uncertain_history);

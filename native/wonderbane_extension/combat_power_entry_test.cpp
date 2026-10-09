@@ -96,7 +96,7 @@ void __cdecl Followup(void*, void*, void*, int) {
     if (seh_followup) { RaiseException(0xe0420201, 0, 0, nullptr); }
     if (fault_followup) { throw std::runtime_error("followup"); }
 }
-void* __cdecl Definition(std::uint32_t id) { ++lookups; Check(id == 428918601, "semantic native ID"); return definition.data(); }
+void* __cdecl Definition(std::uint32_t id) { ++lookups; Check(id == 428918601 || id == 429578587, "semantic native ID"); return definition.data(); }
 int __fastcall Rank(void*, void*, std::uint32_t) { return learned_rank; }
 void* sender{};
 pw::Use native_use{};
@@ -236,6 +236,7 @@ int main(int argc, char** argv) {
     put(0x16ab88c,base+0x1600000); put(0x1600000,base+0x116036c);
     put(0x1600044,base+0x1600100); put(0x1600100,base+0x114ce9c);
     put(0x1155fd8+8,reinterpret_cast<std::uintptr_t>(&Release));
+    put(0x1158bf8+8,reinterpret_cast<std::uintptr_t>(&Release));
     queue=reinterpret_cast<void*>(base+0x1600100); sender=reinterpret_cast<void*>(base+0x16ab888);
     definition[0x138/4]=428918601; definition[0x204/4]=0; definition[0x1a8/4]=1;
     for (const auto& site:pw::sites) { std::memcpy(image+site.rva,site.bytes.data(),5); }
@@ -271,6 +272,13 @@ int main(int argc, char** argv) {
     *at++=0xa1;imm(at,reinterpret_cast<std::uintptr_t>(&current_message));*at++=0x50;jump(at,base+0x9d3d4);
     at=image+0x9d3d9;byte(at,{0x8b,0x55,0xb8,0x52,0x57,0x53,0x56});
     at=image+0x9d3e5;byte(at,{0x83,0xc4,0x10,0x8d,0x65,0xf4,0x5f,0x5e,0x5b,0x5d,0xc3});
+    // Separate synthetic Use frame calls the exact tracking sender callsite.
+    // No PreparePower/followup frame is present on this branch.
+    at=image+0x9b800;byte(at,{0x55,0x8b,0xec});
+    *at++=0xb9;imm(at,reinterpret_cast<std::uintptr_t>(sender));
+    *at++=0xa1;imm(at,reinterpret_cast<std::uintptr_t>(&current_message));*at++=0x50;
+    jump(at,base+0x9bea0);
+    at=image+0x9bea5;byte(at,{0xb0,0x01,0x5d,0xc3});
     native_use=reinterpret_cast<pw::Use>(base+0x9bbf0);
     pw::Send sender_call=reinterpret_cast<pw::Send>(&Send);
 #if defined(WONDERBANE_POWER_PRIVATE_PROBE)
@@ -501,10 +509,36 @@ int main(int argc, char** argv) {
         Check(receipt.result==before_receipt.result&&!receipt.send_observed&&!receipt.append_observed&&!receipt.followup_entered,"Scope Enter alone cannot authorize native frame");
     }
     reset();{pw::Scope outer(context);pw::Scope inner(context);(void)outer.Finish();Check(!inner.CanEnter(),"out of order scope finish revokes descendants");}Check(!pw::active,"out of order scopes unlink");
+    {
+        const auto prior=context;const auto old_definition=definition;
+        context.target=0;context.target_key={};context.target_mode=pw::TargetMode::track;
+        context.authority=pw::Authority::actor;context.power_id=429578587;
+        definition[0x138/4]=context.power_id;definition[0x204/4]=4;definition[0x1a8/4]=4;definition[0x1b4/4]=0;
+        const auto query=[&](){pw::Scope scope(context);return pw::InvokeTrackBound(scope,
+            {Definition,reinterpret_cast<pw::Rank>(&Rank),reinterpret_cast<pw::Use>(base+0x9b800),{},nullptr});};
+        const auto seed=[&](){reset();message[0]=static_cast<std::uint32_t>(base+0x1158bf8);message[0x60/4]=context.power_id;};
+        seed();const auto epoch=pw::InitiationEpoch();const auto prior_followups=followups;
+        Check(query()&&receipt.result==pw::Result::queued&&receipt.native_entered&&receipt.append_observed
+            &&receipt.observation.use_returned&&!receipt.followup_entered,"tracking uses exact sender+append without followup");
+        Check(pw::InitiationEpoch()==epoch&&followups==prior_followups&&!stance_reads&&!stance_toggles,
+            "tracking preserves prior initiation epoch and never calls stance/followup");
+        for(auto field:{0x138U,0x204U,0x1a8U,0x1b4U}){
+            seed();const auto prior_field=definition[field/4];++definition[field/4];
+            Check(!query()&&!receipt.native_entered,"tracking rejects wrong learned definition fields before entry");
+            definition[field/4]=prior_field;
+        }
+        seed();learned_rank=0;Check(!query()&&!receipt.native_entered,"unlearned Track refuses before entry");learned_rank=20;
+        seed();message[0x60/4]++;Check(query()&&receipt.result==pw::Result::uncertain&&!receipt.append_observed,
+            "wrong query power message never receives queue authority");
+        seed();queue_current=false;Check(query()&&receipt.result==pw::Result::uncertain&&!receipt.append_observed,
+            "tracking append rechecks exact parent ticket");
+        seed();current=false;Check(!query()&&!receipt.native_entered,"tracking revoked authority cannot enter");
+        context=prior;definition=old_definition;
+    }
     reset();std::array<std::uint8_t,5> disk=pw::sites[0].bytes,code=disk;code[0]=0xcc;
     // A truncated span cannot authorize only one of the owned callsites.
     Check(!pw::NormalizeOwnedCode(base,0x9d3d4,code,disk),"normalization rejects incomplete owned image");
-    const auto first=pw::sites[6].rva; // Lowest observed callsite.
+    const auto first=pw::sites[12].rva; // Lowest observed callsite, tracking sender.
     const auto last=pw::sites[5].rva+5;
     std::vector<std::uint8_t> whole_disk(last-first),whole_code;
     for(const auto& site:pw::sites) { std::copy(site.bytes.begin(),site.bytes.end(),whole_disk.begin()+site.rva-first); }
@@ -521,13 +555,13 @@ int main(int argc, char** argv) {
         const auto epoch_before=pw::InitiationEpoch();SetLastError(1234);
         Check(pw::Trap(&e)==EXCEPTION_CONTINUE_EXECUTION,"qualified protocol CALL handled");
         std::int32_t displacement{};std::memcpy(&displacement,site.bytes.data()+1,4);
-        const auto native_route=i<=5?reinterpret_cast<DWORD>(&pw::OrdinaryUseHook):i>=8?reinterpret_cast<DWORD>(&pw::RemoveInitiationHook):i==6?reinterpret_cast<DWORD>(&pw::detail::Observer::ForeignFollowupHook):base+site.rva+5+displacement;
+        const auto native_route=i==12?reinterpret_cast<DWORD>(pw::original_send):i<=5?reinterpret_cast<DWORD>(&pw::OrdinaryUseHook):i>=8?reinterpret_cast<DWORD>(&pw::RemoveInitiationHook):i==6?reinterpret_cast<DWORD>(&pw::detail::Observer::ForeignFollowupHook):base+site.rva+5+displacement;
         const auto observed_route=wonderbane::extension::combat::activation::Route(site.rva,c.Ebp,native_route);
         Check(c.Eip==observed_route && c.Esp==reinterpret_cast<DWORD>(stack+1)
             && stack[1]==base+site.rva+5 && c.Eax==11&&c.Ebx==22&&c.Ecx==33&&c.Edx==44
             &&c.Ebp==55&&c.Esi==66&&c.Edi==77&&c.EFlags==0x246&&GetLastError()==1234,
             "protocol CALL preserves register flags LastError and native return");
-        Check(pw::InitiationEpoch()==epoch_before+1,"foreign protocol event invalidates prior provenance");
+        Check(pw::InitiationEpoch()==epoch_before+(i==12?0:1),"only actual initiation events advance provenance; tracking query is transparent");
     }
     SetLastError(1234);ordinary_nested=true;
     Check(OrdinaryCall()&&!pw::NativeUseInFlight()&&GetLastError()==4321,"ordinary wrapper preserves return and native LastError");

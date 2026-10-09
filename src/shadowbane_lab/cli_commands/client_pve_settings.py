@@ -8,6 +8,9 @@ from pathlib import Path
 
 from shadowbane_lab.client_observation.native_ability import resolve_learned_ability
 from shadowbane_lab.client_observation.native_character_session import open_native_character_session
+from shadowbane_lab.client_observation.native_tracking_ability import (
+    resolve_learned_tracking_ability,
+)
 from shadowbane_lab.pve.buff_intent import BuffSettings
 from shadowbane_lab.pve.settings import load_pve_settings, save_pve_settings
 from shadowbane_lab.record_store import read_record_bytes
@@ -24,6 +27,7 @@ def _configure_pve_settings(
     as_json: bool = False,
     buff_config: Path | None = None,
     buffs_enabled: bool | None = None,
+    tracking: str | None = None,
 ) -> int:
     try:
         if type(process_id) is not int or process_id <= 0:
@@ -34,6 +38,8 @@ def _configure_pve_settings(
             raise ValueError("opening-skill and clear-opening-skill are mutually exclusive")
         if buffs_enabled is not None and type(buffs_enabled) is not bool:
             raise ValueError("buffs-enabled must be boolean")
+        if tracking not in (None, "enabled", "disabled"):
+            raise ValueError("tracking must be enabled or disabled")
         configured_buffs = None
         if buff_config is not None:
             from shadowbane_lab.pve.settings import _unique_object
@@ -47,6 +53,11 @@ def _configure_pve_settings(
             original = load_pve_settings(identity)
             changes = {}
             resolved = None
+            resolved_tracking = None
+            if tracking is not None:
+                if tracking == "enabled":
+                    resolved_tracking = resolve_learned_tracking_ability(session)
+                changes["tracking"] = replace(original.tracking, enabled=tracking == "enabled")
             if policy is not None:
                 changes["policy"] = policy
             if opening_skill is not None:
@@ -73,7 +84,10 @@ def _configure_pve_settings(
                 "server": identity.server_name,
                 "settings": settings.as_dict(),
                 "resolved_ability": None if resolved is None else resolved.as_dict(),
-                "effective_scope": "next PvE run; current native learned eligibility rechecked",
+                "resolved_tracking": (None if resolved_tracking is None
+                                      else resolved_tracking.as_dict()),
+                "effective_scope": ("buff/tracking service refresh or next PvE run; "
+                                    "native eligibility rechecked"),
             }
         if as_json:
             print(json.dumps(payload, ensure_ascii=True))
@@ -82,6 +96,7 @@ def _configure_pve_settings(
                 f"{payload['state']}: {payload['character']} on {payload['server']}: "
                 f"policy={settings.policy}, opening_skill={settings.opening_skill or 'none'}, "
                 f"buffs={'enabled' if settings.buffs.enabled else 'disabled'}, "
+                f"tracking={'enabled' if settings.tracking.enabled else 'disabled'}, "
                 f"revision={settings.revision}"
             )
         return 0

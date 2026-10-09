@@ -8,7 +8,7 @@
 #include <span>
 namespace wonderbane::extension::combat::power {
 using Key = std::array<std::uint32_t, 2>;
-enum class TargetMode { engagement_object, self };
+enum class TargetMode { engagement_object, self, track };
 enum class Authority { engagement, actor };
 enum class Result { denied, entered, queued, uncertain };
 struct Receipt {

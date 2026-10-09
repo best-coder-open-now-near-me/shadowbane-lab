@@ -147,6 +147,7 @@ class NativeActorCoordinator:
         self._status_observation = None
         self._status_capture_sequence = 0
         self._status_captured_at = None
+        self._tracking = self._tracking_command = None
 
     def _command(self, *, context=None, action=Action.NONE, power_id=0, **kwargs):
         return Command(
@@ -164,7 +165,7 @@ class NativeActorCoordinator:
                 Recipient.NONE
                 if action is Action.NONE
                 else Recipient.ACTOR
-                if action in (Action.SELF_POWER, Action.USE_ITEM)
+                if action in (Action.SELF_POWER, Action.USE_ITEM, Action.TRACK)
                 else Recipient.TARGET
             ),
             **kwargs,
@@ -752,6 +753,78 @@ class NativeActorCoordinator:
         return self.session.cleanup.settle(
             self._obligation, lambda: self._stop_owner_once(reason), self._last_owner_result
         )
+
+    def configure_tracking(self, settings, *, reader=None, tick_clock=None):
+        from shadowbane_lab.client_extension.event_reader import WindowsSharedMemorySnapshotReader
+        from shadowbane_lab.client_extension.tracking_publication import (
+            TrackingResponseReader,
+            tick_ms,
+        )
+        from shadowbane_lab.client_observation.native_tracking_ability import (
+            resolve_learned_tracking_ability,
+        )
+
+        from .tracking import TrackingActor, TrackingScheduler
+
+        if self._tracking is not None:
+            raise RuntimeError("actor tracking settings are immutable")
+        self._current()
+        self.session.require_actor_tracking(self.grant)
+        ability = resolve_learned_tracking_ability(self.character_session)
+        reader = reader or TrackingResponseReader(
+            self.parent.client_pid, self.parent.client_creation,
+            WindowsSharedMemorySnapshotReader())
+        self._tracking = TrackingScheduler(settings, ability, TrackingActor(
+            self.parent.client_pid, self.parent.client_creation,
+            self.parent.scene, self.parent.actor_key), reader, self._tracking_query,
+            tick_clock=tick_clock or tick_ms)
+        return self._tracking
+
+    @property
+    def tracking_status(self):
+        from .tracking import TrackingStatus
+        return TrackingStatus() if self._tracking is None else self._tracking.status
+
+    def tracking_step(self, *, allow_new=True):
+        if self._tracking is None:
+            return self.tracking_status
+        self._current()
+        return self._tracking.step(allow_new=allow_new and not (
+            self._terminal or self._closed or self._stop_owner_command is not None
+            or self._stop_context_command is not None))
+
+    def _tracking_query(self, power_id, *, allow_new=True):
+        from .tracking import TrackingActorChanged, TrackingQueryResult
+
+        command = self._tracking_command
+        if command is None:
+            if (not allow_new or self._stop_owner_command is not None
+                    or self._stop_context_command is not None
+                    or not self._preparation_entry_allowed() or not self._ensure_open()):
+                return TrackingQueryResult("not_ready", "tracking owner is not available")
+            self.session.require_actor_tracking(self.grant)
+            command = self._command(action=Action.TRACK, power_id=power_id)
+            # Keep independent query history; an existing cast/attack remains untouched.
+            self._tracking_command = command
+            result = self._send(Verb.SUBMIT, command)
+        else:
+            result = self._send(Verb.ACTION_STATUS, command)
+        receipt = result.receipt
+        if receipt is None:
+            return TrackingQueryResult("unknown", result.detail)
+        if receipt.owner_phase in (Phase.RETIRED, Phase.CLOSED):
+            raise TrackingActorChanged("tracking native owner retired")
+        if (receipt.owner_phase is Phase.BOUND
+                and receipt.entry is Entry.ENTERED
+                and receipt.local_settlement is LocalSettlement.SETTLED
+                and receipt.flags & OUTBOUND_QUEUED):
+            self._tracking_command = None
+            return TrackingQueryResult("queued")
+        if (receipt.entry is Entry.NEVER_ENTERED
+                and receipt.local_settlement is LocalSettlement.SETTLED):
+            self._tracking_command = None
+            return TrackingQueryResult("not_ready", receipt.reason.name.lower())
+        return TrackingQueryResult("unknown", result.detail or "tracking query outcome unavailable")
 
     def configure_preparation(self, settings):
         from shadowbane_lab.client_extension.actor_publication import Reader

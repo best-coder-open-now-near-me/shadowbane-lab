@@ -96,3 +96,60 @@ const fresh=element();renderAutomaticBuffs(fresh,{...value,current:true});
 if(!flatten(fresh).includes('present')) throw Error('fresh coverage lost');
 """
     subprocess.run([node], input=code, text=True, encoding="utf-8", capture_output=True, check=True)
+
+
+def test_idle_tracking_projects_without_buff_coverage_and_preserves_legacy_records(tmp_path):
+    from test_pve_status import tracking_status
+    value = record()
+    legacy = value.to_dict()
+    legacy.pop('tracking')
+    assert WorkerPreparationStatus.parse(legacy).service.tracking.enabled is False
+    value = replace(value, service=replace(value.service, state='maintaining',
+                                           tracking=tracking_status(count=256)))
+    ledger = WorkerOperationLedger(_manifest(), tmp_path)
+    ledger.publish_preparation_status(value)
+    assert ledger.inspect_preparation_status(CLIENT_ID) == value
+    worker = SimpleNamespace(state=WorkerHealthState.HEALTHY, heartbeat=value.heartbeat)
+    binding = SimpleNamespace(instance_id=INSTANCE_ID, process_id=101,
+                              process_started_at_100ns=1001)
+    view = project_status(value, worker, binding, now=101.)
+    assert not view['current']
+    assert view['tracking']['current'] and len(view['tracking']['contacts']) == 256
+    paused = replace(value, service=replace(value.service, state='paused'))
+    assert project_status(paused, worker, binding, now=101.)['tracking']['state'] == 'paused'
+    foreign = replace(value, service=replace(value.service,
+        tracking=replace(value.service.tracking,
+                         actor=replace(value.service.tracking.actor, process_id=102))))
+    assert project_status(foreign, worker, binding, now=101.)['state'] == 'unavailable'
+
+
+def test_tracking_panel_distinguishes_empty_from_unavailable_and_escapes_names():
+    import shutil
+    import subprocess
+    from pathlib import Path
+    node = shutil.which('node')
+    if node is None:
+        pytest.skip('Node is required to execute the dashboard renderer')
+    html = Path('src/shadowbane_lab/manager/static/dashboard.html').read_text(encoding='utf-8')
+    renderer = html[html.index('function renderTrackingStatus'):html.index('const text =')]
+    code = '''
+const assert = require('assert');
+const text = x => String(x);
+const element = () => ({textContent:'', children:[], append(x) {this.children.push(x)},
+  set innerHTML(_) {throw Error('unsafe name rendering')}});
+const document = {createElement: element};
+const flatten = x => [x.textContent, ...x.children.map(flatten)].join(' ');
+''' + renderer + '''
+const root=element();
+renderTrackingStatus(root,{enabled:true,current:true,state:'current',contacts:[]});
+assert(flatten(root).includes('No players in the latest Hunt Foe result'));
+const missing=element();
+renderTrackingStatus(missing,{enabled:true,current:false,state:'unavailable',contacts:[]});
+assert(!flatten(missing).includes('No players'));
+const old=element();
+renderTrackingStatus(old,{enabled:true,current:false,state:'stale',
+ contacts:[{name:'<img src=x onerror=alert(1)>'}],response_age_seconds:30});
+assert(flatten(old).includes('Last seen: <img src=x onerror=alert(1)>'));
+assert(flatten(old).includes('30.0s ago'));
+'''
+    subprocess.run([node, '-e', code], check=True, capture_output=True, text=True)

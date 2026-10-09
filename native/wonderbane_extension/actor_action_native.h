@@ -77,6 +77,7 @@ private:
         void (__thiscall* release)(void**,void*){};
         decltype(&combat::melee::Invoke) attack{};
         decltype(&combat::power::Invoke) power{};
+        decltype(&combat::power::InvokeTrack) track{};
         decltype(&combat::power::ReadSelfInitiation) self_initiation{};
         decltype(&combat::item::Invoke) item{};
         bool (__cdecl* dispatch)(const void*,void*){};
@@ -88,12 +89,15 @@ private:
     bool Current(bool child) noexcept;
     static bool Gate(void*) noexcept;
     static bool AppendGate(void*) noexcept;
+    static bool TrackGate(void*) noexcept;
+    static bool TrackAppendGate(void*) noexcept;
     static bool SceneGate(void*) noexcept;
     bool ReleaseTarget();
     bool ReleaseMessages();
     bool ReleaseAll();
     Operation AttachImpl();
     Operation SubmitImpl();
+    Operation TrackImpl();
     Operation PollImpl();
     Operation StopImpl(bool owner,Admission,void*);
     Operation RunCxx(unsigned operation,Admission=nullptr,void* = nullptr) noexcept;
@@ -114,7 +118,8 @@ private:
     Gates parent_gates_{}, child_gates_{};
     fence::ActorBinding parent_{};
     fence::ContextBinding child_{};
-    wire::Command command_{}, pending_command_{};
+    wire::Command command_{}, pending_command_{}, track_command_{};
+    combat::power::Receipt track_receipt_{};
     Operation pending_operation_{};
     combat::party::Snapshot party_{};
     combat::submission::Receipt melee_receipt_{};

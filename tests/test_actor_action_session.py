@@ -209,3 +209,30 @@ def test_old_actor_capability_cannot_admit_new_schema_but_can_cleanup(owned):
         owner_phase=Phase.CLOSED,closure=Closure.LOCAL_RELEASED,closure_scope=ClosureScope.OWNER)
     session.actor_action(grant,Verb.STOP_OWNER,stop,parent=parent)
     assert [w.kind for w in transport.commands]==[Verb.ACTION_STATUS,Verb.STOP_OWNER]
+
+
+def test_tracking_capability_gates_new_query_but_not_retained_status(owned):
+    from test_actor_action_wire import tracking_fixture
+    session, grant, parent, _, _, transport, opened = owned
+    _, _, command, receipt = tracking_fixture()
+    with pytest.raises(channel.NativeActionChannelUnavailable, match="tracking"):
+        session.require_actor_tracking(grant)
+    with pytest.raises(channel.NativeActionChannelUnavailable, match="tracking"):
+        session.actor_action(grant, Verb.SUBMIT, command, parent=parent)
+    assert transport.commands == []
+    transport.header = replace(transport.header, capability_flags=(
+        transport.header.capability_flags | channel.ACTOR_TRACK_CAPABILITY))
+    session.require_actor_tracking(grant)
+    assert transport.commands == []
+    transport.payload = receipt
+    result = session.actor_action(grant, Verb.SUBMIT, command, parent=parent)
+    result.receipt.require_command(command, Verb.SUBMIT)
+    transport.header = replace(transport.header, capability_flags=(
+        transport.header.capability_flags & ~channel.ACTOR_TRACK_CAPABILITY))
+    result = session.actor_action(grant, Verb.ACTION_STATUS, command, parent=parent)
+    result.receipt.require_command(command, Verb.ACTION_STATUS)
+    with pytest.raises(channel.NativeActionChannelUnavailable, match="tracking"):
+        session.require_actor_tracking(grant)
+    with pytest.raises(channel.NativeActionChannelUnavailable, match="tracking"):
+        session.actor_action(grant, Verb.SUBMIT, command, parent=parent)
+    assert len(transport.commands) == 2 and opened == [transport]
