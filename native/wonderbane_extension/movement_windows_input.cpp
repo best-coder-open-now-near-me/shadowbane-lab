@@ -136,6 +136,7 @@ bool WindowsInput::Configure(const Settings& settings) noexcept {
 }
 bool WindowsInput::Key(std::uint32_t key, std::uint32_t mods, std::uint32_t down, std::uint32_t repeat) noexcept {
     if (key >= suppressed_.size()) { return false; }
+    if (Current() && ExactFocus() && manual_epoch_ != UINT64_MAX) { ++manual_epoch_; }
     // A fresh native down proves a release happened even if it was delivered
     // outside this HWND. Do not mistake a new gesture for an abandoned pair.
     if (down && !repeat) { suppressed_[key] = original_down_[key] = false; }
@@ -187,6 +188,10 @@ LRESULT CALLBACK WindowsInput::Window(HWND window, UINT message, WPARAM wp, LPAR
     return self->Message(message, wp, lp);
 }
 LRESULT WindowsInput::Message(UINT message, WPARAM wp, LPARAM lp) {
+    if (Current() && ExactFocus() && manual_epoch_ != UINT64_MAX
+        && ((message >= WM_LBUTTONDOWN && message <= WM_MOUSELAST)
+            || (message == WM_MOUSEMOVE && (mouse_pending_ || mouse_dragging_))
+            || message == WM_KEYDOWN || message == WM_SYSKEYDOWN)) { ++manual_epoch_; }
     if (message == settings_message_ && Current() && callbacks_.open_settings) {
         const auto creation = static_cast<std::uint64_t>(static_cast<std::uint32_t>(wp))
             | (static_cast<std::uint64_t>(static_cast<std::uint32_t>(lp)) << 32);
@@ -274,6 +279,28 @@ bool WindowsInput::AutomationInputCurrent() noexcept {
     POINT point{}; NativeUiState ui{};
     return Current() && ExactFocus() && Cursor(point) && Query(point, ui)
         && !ui.global_owned && !ui.keyboard_owned && Current() && ExactFocus();
+}
+bool WindowsInput::PreparationInputIdle() noexcept {
+    if (!Current() || manual_epoch_ == UINT64_MAX) { return false; }
+    // Keyboard/controller state belongs to this actor only while this exact
+    // window is foreground. Another client's input cannot suspend maintenance.
+    if (!ExactFocus()) { return true; }
+    for (int key=1; key<256; ++key) { if (platform_.key(key)&0x8000) { return false; } }
+    if (mouse_pending_ || mouse_dragging_ || controller_moving_) { return false; }
+    if (settings_.controller && platform_.controller) {
+        XINPUT_STATE state{};
+        if (platform_.controller(settings_.controller_slot,&state)==ERROR_SUCCESS) {
+            // Same physical-neutral rule as Controls::Tick rearming; configured
+            // dead zones prevent controller drift from indefinitely suspending buffs.
+            const auto zone=std::min(settings_.movement_dead_zone,settings_.camera_dead_zone);
+            const auto direction=RadialDirection({Axis(state.Gamepad.sThumbLX),Axis(state.Gamepad.sThumbLY)},zone);
+            const auto camera=RadialDirection({Axis(state.Gamepad.sThumbRX),Axis(state.Gamepad.sThumbRY)},zone);
+            if (state.Gamepad.wButtons || state.Gamepad.bLeftTrigger/255.0F>.2F
+                || state.Gamepad.bRightTrigger/255.0F>.2F
+                || direction.x || direction.y || camera.x || camera.y) { return false; }
+        }
+    }
+    return Current() && ExactFocus();
 }
 bool WindowsInput::Snapshot(CapturedInput& out) noexcept {
     out = {}; auto& input = out.input; input.tick_ms = GetTickCount64();

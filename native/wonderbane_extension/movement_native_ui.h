@@ -20,6 +20,8 @@ class NativeUi {
 public:
     bool Bind(HWND) noexcept;
     bool Snapshot(POINT client_point, NativeUiState&) noexcept;
+    // Native modal/text gates only: independent of foreground, cursor and geometry.
+    bool PreparationCurrent() noexcept;
     bool Available() const noexcept { return bound_ && !faulted_; }
 private:
     struct Calls {
@@ -29,9 +31,9 @@ private:
     } calls_{};
     bool Current(std::uintptr_t) const noexcept;
     bool Gates(std::uintptr_t, bool&, bool&, bool&, bool&);
-    bool Run(POINT, NativeUiState&);
-    bool CxxGuarded(POINT, NativeUiState&) noexcept;
-    bool Guarded(POINT, NativeUiState&) noexcept;
+    bool Run(POINT, NativeUiState&, bool gates_only=false);
+    bool CxxGuarded(POINT, NativeUiState&, bool gates_only=false) noexcept;
+    bool Guarded(POINT, NativeUiState&, bool gates_only=false) noexcept;
     HWND window_ = nullptr;
     DWORD thread_ = 0;
     std::uintptr_t base_ = 0;

@@ -32,6 +32,11 @@ class State(IntEnum):
     ENTERED_REVOKED = 4
 
 
+class Purpose(IntEnum):
+    COMBAT = 0
+    PREPARATION = 1
+
+
 class Authority(IntEnum):
     MANUAL_PLAYER = 1
     NPC = 2
@@ -123,6 +128,7 @@ class ActorBinding:
     server: bytes
     owner: bytes
     operation: bytes
+    purpose: Purpose = Purpose.COMBAT
 
     def __post_init__(self):
         if type(self.owner_id) is not OwnerId:
@@ -133,10 +139,14 @@ class ActorBinding:
             self.client_creation,
             self.producer_creation,
             self.producer_generation,
-            self.movement_generation,
             self.scene,
         ):
             uint(value, 64, positive=True)
+        if not isinstance(self.purpose, Purpose):
+            raise ValueError("untyped actor purpose")
+        uint(self.movement_generation, 64, positive=self.purpose is Purpose.COMBAT)
+        if self.purpose is Purpose.PREPARATION and self.movement_generation:
+            raise ValueError("preparation cannot own movement")
         key(self.actor_key, 53)
         address(self.actor_hint)
         for value in (self.local_name, self.server, self.owner, self.operation):
@@ -150,7 +160,7 @@ class ActorBinding:
             4,
             SIZE,
             state,
-            0,
+            self.purpose,
             self.client_pid,
             self.producer_pid,
             self.client_creation,
@@ -174,9 +184,10 @@ class ActorBinding:
         if type(data) is not bytes or len(data) != SIZE:
             raise ValueError("invalid actor fence geometry")
         v = _PARENT.unpack(data)
-        if v[:3] != (b"WBAOWN4\0", 4, SIZE) or v[4] or v[16] or any(v[-1]):
+        if v[:3] != (b"WBAOWN4\0", 4, SIZE) or v[16] or any(v[-1]):
             raise ValueError("invalid actor fence header/reserved")
-        return cls(*v[5:12], OwnerId.decode(v[12]), tuple(v[13:15]), v[15], *v[17:21]), State(v[3])
+        return (cls(*v[5:12], OwnerId.decode(v[12]), tuple(v[13:15]), v[15],
+                    *v[17:21], Purpose(v[4])), State(v[3]))
 
     @property
     def digest(self):
@@ -215,6 +226,7 @@ class ContextBinding:
     def require_parent(self, parent):
         if (
             not isinstance(parent, ActorBinding)
+            or parent.purpose is not Purpose.COMBAT
             or self.parent_digest != parent.digest
             or self.target_key == parent.actor_key
             or self.target_hint == parent.actor_hint

@@ -366,10 +366,15 @@ NativeActor::Operation NativeActor::Submit(const wire::Command& command) noexcep
 NativeActor::Operation NativeActor::PollImpl(){
     if(!pending_){auto result=Result(O::observed);(void)ReadState(result.state);return result;}
     auto result=pending_operation_;const bool child=wire::Any(pending_command_.context_id);
-    if(!Current(child)||power::NativeUseInFlight()||!ReadState(result.state)){return result;}
+    const bool lifetime=parent_.purpose==fence::Purpose::preparation
+        ? parent_bound_&&SceneCurrent()&&ActorIdentity() : Current(child);
+    if(!lifetime||power::NativeUseInFlight()||!ReadState(result.state)){return result;}
     // Empty initiation alone never proves settlement: only a positively observed
     // owned normal Use/followup can cross from local responsibility to clear.
-    if(pending_owned_followup_&&pending_saw_initiation_&&pending_epoch_&&result.state.ClearInitiation()){
+    if(pending_owned_followup_&&pending_saw_initiation_&&pending_epoch_
+        &&(parent_.purpose==fence::Purpose::preparation
+            ? power::ReadLocalInitiation(power_receipt_.local_initiation_token,scene_.actor,scene_.identity,pending_command_.power_id)==power::LocalInitiationState::retired
+            : result.state.ClearInitiation())){
         result.local_settlement=L::settled;pending_=false;pending_operation_=result;
         if(!child){local_owner_work_=false;}
     }
@@ -405,6 +410,18 @@ bool NativeActor::ContinueContext() noexcept {
 NativeActor::Operation NativeActor::StopImpl(bool owner,Admission stop_current,void* context){
     if(!stop_current||!stop_current(context)||!SceneCurrent()||power::NativeUseInFlight()){return Result(O::pending,E::unknown,L::pending);}
     Observation state{};if(!ReadState(state)){return Result(O::pending,E::unknown,L::pending);}
+    if(owner&&parent_.purpose==fence::Purpose::preparation){
+        // Yielding preparation never cancels manual movement/combat. Only the
+        // retained owned followup can settle; generic idle is not a substitute.
+        if(pending_){(void)PollImpl();}
+        if(pending_||local_owner_work_||local_context_work_||child_bound_||request_||transfer_){
+            auto result=Result(O::pending,E::unknown,L::pending);result.state=state;return result;
+        }
+        if(!stop_current(context)||!SceneCurrent()){return Result(O::pending,E::unknown,L::pending);}
+        parent_bound_=false;parent_={};parent_gates_={};ClearInstant();
+        auto result=Result(O::closed,E::unknown,L::settled);result.state=state;
+        result.closure=wire::Closure::local_released;return result;
+    }
     const bool work=owner?(local_owner_work_||local_context_work_||pending_):local_context_work_;
     if(!owner&&pending_&&!wire::Any(pending_command_.context_id)&&work){return Result(O::pending,E::unknown,L::pending);}
     if(work){

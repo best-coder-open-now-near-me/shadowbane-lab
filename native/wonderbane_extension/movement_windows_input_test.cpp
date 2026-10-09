@@ -113,7 +113,21 @@ int main(int argc, char** argv) {
           "already bound registration rejects before image verification or XInput loading");
     Check(windows.Configure(settings), "configure capture");
     const auto key = &WindowsInputTestAccess::Key;
-    if (mode == "settings") {
+    if (mode == "preparation") {
+        Check(windows.PreparationInputIdle(),"exact foreground physical neutral permits preparation");
+        pad.sThumbLX=150;pad.sThumbRY=-250;
+        Check(windows.PreparationInputIdle(),"configured dead zones ignore controller drift");
+        pad.sThumbLX=32000;Check(!windows.PreparationInputIdle(),"active native stick yields preparation");pad={};
+        keys['W']=static_cast<SHORT>(0x8000);Check(!windows.PreparationInputIdle(),"held native key yields preparation");
+        const auto before=windows.ManualEpoch();foreground=nullptr;
+        key('W',0,true,false);Check(windows.PreparationInputIdle()&&windows.ManualEpoch()==before,
+            "another foreground client's keyboard cannot suspend this actor");
+        foreground=client;keys={};key('W',0,true,false);
+        Check(windows.ManualEpoch()>before,"own-client meaningful native key advances entry stamp");
+        const auto motion_epoch=windows.ManualEpoch();SendMessageW(client,WM_MOUSEMOVE,0,MAKELPARAM(50,50));
+        Check(windows.ManualEpoch()==motion_epoch,"uncaptured pointer motion does not invent manual action lineage");
+        key('W',0,false,false);Check(windows.PreparationInputIdle(),"fresh neutral naturally permits preparation again");
+    } else if (mode == "settings") {
         WindowsInputTestAccess::Settings(windows);
         settings.enabled = false; windows.Configure(settings); controls.Configure(settings);
         key(VK_F10, 0x14, true, false); key(VK_F10, 0x14, true, true); key(VK_F10, 0, false, false);

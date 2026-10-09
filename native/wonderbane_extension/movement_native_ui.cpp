@@ -74,10 +74,11 @@ bool NativeUi::Gates(std::uintptr_t native_window, bool& keyboard, bool& pointer
     }
     return true;
 }
-bool NativeUi::Run(POINT client, NativeUiState& out) {
+bool NativeUi::Run(POINT client, NativeUiState& out, bool gates_only) {
     NativeUiState next{};
     if (!UiRead(base_ + 0x16a7bfc, next.native_window)
         || !Gates(next.native_window, next.keyboard_owned, next.pointer_owned, next.camera_gesture, next.global_owned)) { return false; }
+    if (!gates_only) {
     const auto point = NativeClientPoint(base_, next.native_window, window_, client, next.native_point);
     if (point == NativePointResult::unavailable) { return false; }
     if (point == NativePointResult::outside) { next.pointer_owned = true; }
@@ -85,6 +86,7 @@ bool NativeUi::Run(POINT client, NativeUiState& out) {
         // Native top-level hit testing respects visibility, UI rectangles,
         // transparent HUDs and their actual child hit tests, including world map.
         next.pointer_owned = calls_.hit(reinterpret_cast<void*>(next.native_window), next.native_point.x, next.native_point.y) != nullptr;
+    }
     }
     bool keyboard = true, pointer = true, camera = false, global = true;
     if (!Gates(next.native_window, keyboard, pointer, camera, global)) { return false; }
@@ -94,12 +96,18 @@ bool NativeUi::Run(POINT client, NativeUiState& out) {
     next.camera_gesture = next.camera_gesture || camera;
     next.available = true; out = next; return true;
 }
-bool NativeUi::CxxGuarded(POINT client, NativeUiState& out) noexcept {
-    try { return Run(client, out); } catch (...) { faulted_ = true; return false; }
+bool NativeUi::CxxGuarded(POINT client, NativeUiState& out, bool gates_only) noexcept {
+    try { return Run(client, out, gates_only); } catch (...) { faulted_ = true; return false; }
 }
-bool NativeUi::Guarded(POINT client, NativeUiState& out) noexcept {
-    __try { return CxxGuarded(client, out); }
+bool NativeUi::Guarded(POINT client, NativeUiState& out, bool gates_only) noexcept {
+    __try { return CxxGuarded(client, out, gates_only); }
     __except(EXCEPTION_EXECUTE_HANDLER) { faulted_ = true; return false; }
+}
+bool NativeUi::PreparationCurrent() noexcept {
+    if (!Available() || querying_ || GetCurrentThreadId() != thread_) { return false; }
+    NativeUiState state{}; querying_=true;
+    const bool ok=Guarded({},state,true); querying_=false;
+    return ok && state.available && !state.global_owned && !state.keyboard_owned && !state.camera_gesture;
 }
 bool NativeUi::Snapshot(POINT client, NativeUiState& out) noexcept {
     out = {};

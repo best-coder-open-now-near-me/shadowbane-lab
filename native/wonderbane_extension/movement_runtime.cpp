@@ -269,7 +269,7 @@ public:
                     auto [entry, inserted] = acquisitions.emplace(payload.request, Acquisition{payload, Receipt(*command, Result::unavailable)});
                     if (inserted) {
                         Token token{}; Grant acquired{};
-                        result = wire::Decode(payload.requested, token, true)
+                        result = PreparationBlocksAutomation() ? Result::inhibited : wire::Decode(payload.requested, token, true)
                             ? controls.AcquireAutomation(expected.generation, token, acquired) : Result::invalid;
                         if (result == Result::accepted) { automation_lease = command->lease; automation_grant = acquired; }
                         entry->second.receipt = Receipt(*command, result);
@@ -295,7 +295,8 @@ public:
                 }
             } else if (command->verb == wire::Verb::destination) {
                 if (automation_lease && std::memcmp(&automation_lease->host, &payload.host, sizeof(payload.host)) == 0) {
-                    result = controls.AutomationDestination(expected, payload.destination);
+                    result = PreparationBlocksAutomation() ? Result::inhibited
+                        : controls.AutomationDestination(expected, payload.destination);
                 }
             }
         }
@@ -498,6 +499,23 @@ DWORD StartNativeMovementControls(const ProcessIdentity& process) noexcept {
         runtime.Publish();
     }
     return result;
+}
+bool NativePreparationUninterrupted(const NativeScene& scene,std::uint64_t epoch) noexcept {
+    return runtime.owner_services_active&&!runtime.destroyed&&!runtime.terminal
+        &&GetCurrentThreadId()==runtime.thread&&scene.actor==runtime.scene.actor
+        &&scene.parent==runtime.scene.parent&&scene.world==runtime.scene.world
+        &&scene.window==runtime.scene.window&&scene.identity==runtime.scene.identity
+        &&scene.epoch==runtime.scene.epoch&&epoch==runtime.input.ManualEpoch();
+}
+bool NativePreparationOwnerAvailable(const NativeScene& scene) noexcept {
+    return NativePreparationUninterrupted(scene,runtime.input.ManualEpoch())
+        &&NativeMovementLifetimeCurrent(scene)&&runtime.controls.Current().owner!=Owner::automation;
+}
+bool NativePreparationEntryCurrent(const NativeScene& scene,std::uint64_t& epoch) noexcept {
+    epoch=runtime.input.ManualEpoch();
+    return NativePreparationUninterrupted(scene,epoch)&&NativePreparationOwnerAvailable(scene)
+        &&runtime.ui.PreparationCurrent()&&runtime.input.PreparationInputIdle()
+        &&runtime.native.PreparationIdle(scene)&&NativePreparationUninterrupted(scene,epoch);
 }
 bool NativeOwnerActionCurrent(const NativeScene& scene, const Grant& grant, const wire::Host& host) noexcept {
     return runtime.OwnerActionCurrent(scene, grant, host);

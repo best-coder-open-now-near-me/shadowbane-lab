@@ -105,7 +105,7 @@ def test_unknown_is_explicit_and_has_no_absence_authority():
         (72, 0),
         (76, 2),
         (80, 0),
-        (88, 32),
+        (88, 64),
         (92, 1),
         (22784, 1),
         (10496 + 13 * 4, 3),

@@ -40,6 +40,7 @@ class AdmissionBlock(IntFlag):
     LOCAL_ACTION = 4
     FOREIGN_TARGET = 8
     CHILD_CLEANUP = 16
+    MANUAL_ACTIVITY = 32
 
 
 class PublicationError(RuntimeError):
@@ -250,7 +251,7 @@ class Publication:
             and dc <= 256
             and clear <= 1
             and 0 < admission_revision < 2**64
-            and admission_blocks & ~31 == 0
+            and admission_blocks & ~63 == 0
             and not any(reserved)
             and not any(payload[22784:]),
             "invalid or incomplete publication frame",
