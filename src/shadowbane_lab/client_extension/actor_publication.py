@@ -158,6 +158,14 @@ class ActionFacts:
     item_flags: int
 
 
+class ApplicationState(IntEnum):
+    # Journal states differ from action-wire Application (UNKNOWN=3 there).
+    NONE = 0
+    PENDING = 1
+    OBSERVED = 2
+    INTERRUPTED = 3
+
+
 @dataclass(frozen=True, slots=True)
 class Application:
     group_digest: bytes
@@ -165,7 +173,7 @@ class Application:
     submitted_revision: int
     observed_revision: int
     entry: int  # Native journal: never entered=0, entered=1, uncertain=2.
-    state: int  # none=0, pending=1, observed=2; not server effect consumption.
+    state: ApplicationState  # Local interruption is not server effect consumption.
     local_settled: bool
     queued: bool
 
@@ -397,21 +405,23 @@ class Publication:
                 and any(a[1])
                 and a[2]
                 and a[4] <= 2
-                and a[5] <= 2
+                and a[5] <= 3
                 and a[6] <= 1
                 and a[7] <= 1
                 and not any(a[8])
                 and (not a[7] or a[4] == 1)
                 and (a[5] != 1 or a[4] != 0)
-                and (a[5] != 2 or (a[4] != 0 and a[3] > a[2]))
-                and (a[5] == 2 or not a[3]),
+                and (a[5] not in (2, 3) or (a[4] != 0 and a[3] > a[2]))
+                and (a[5] != 3 or (a[4] == 1 and a[7] == 1))
+                and (a[5] in (2, 3) or not a[3])
+                and a[2] <= revision and a[3] <= revision,
                 "invalid native application history",
             )
             _require(
                 all(old.command_digest != a[1] for old in applications),
                 "duplicate application command",
             )
-            applications.append(Application(*a[:6], bool(a[6]), bool(a[7])))
+            applications.append(Application(*a[:5], ApplicationState(a[5]), bool(a[6]), bool(a[7])))
         return cls(
             header.identity,
             sequence,
