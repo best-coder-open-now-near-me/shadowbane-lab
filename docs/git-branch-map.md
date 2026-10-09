@@ -29,7 +29,10 @@ The closed-game cleanup fix is `7161148` on
 main through PR #135 after 53 tests and independent review; hosted checks remain.
 It resolves the orphaned worker observed during this installation without changing
 the qualified .87 runtime. Next: enable Umbra's Track intent, check automatic
-refresh, retire verified obsolete files and integrate that source fix. The separate
+refresh and integrate that source fix. Obsolete .86 host/wheels and the staged .56
+DLL are retired: 58,981,049 bytes, twelve paths verified absent; current game and
+worker remain healthy. The merged Track source branch is retired after origin/main
+reachability verification. The separate
 PvE movement-renewal stop remains a host follow-up.
 See [the Track contract and receipts](native-track.md).
 

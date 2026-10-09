@@ -141,8 +141,8 @@ while their logs and compact receipts remain.
   shared-owner scheduling/display, package qualification, PR #133 merge, installation,
   manager activation and exact-DLL game launch (484 modules verified).
 - Active: enable Umbra's saved Track intent after login and verify automatic refresh.
-- Next: retire verified obsolete runtime files and integrate the closed-game cleanup
-  source fix in PR #135. Track remains awareness only.
+- Next: integrate the closed-game cleanup source fix in PR #135; Track remains
+  awareness only.
 - Follow-up: closing the old game left its worker waiting indefinitely for native
   preparation cleanup after the manager removed its binding. The owner adapter
   checked original-process retirement only when cleanup raised, while the actor
@@ -178,6 +178,16 @@ verified the new game's loaded DLL against the qualified hash above. No rollback
 artifacts were created. The public cleanup fix is `7161148` on
 `codex/closed-game-preparation-cleanup-20261009`, targeting main through PR #135;
 53 focused tests and independent review passed, with hosted checks pending.
+
+Verified retirement removed the obsolete .86 host (2,151 files), ten staged
+wheels and the old staged .56 DLL: 58,981,049 bytes across twelve exact paths.
+All twelve paths are absent; the same new game and manager lifetimes, healthy
+worker and qualified DLL remained intact afterward. Metadata, diagnostic logs,
+settings and journals were preserved. Retirement receipt SHA-256 is
+`cfa6a5d4ca49c82ddb234e1ebdd4a7bd346da274d2500d3c99e664364220c21a`.
+The merged Track source branch was retired locally and remotely after confirming
+its exact tip `7593d06` is retained in origin/main. The normal checkout stays clean
+on main; the current release and delivery branches remain published for continuity.
 
 The exact-image query probe verifies all thirteen original callsites and executes
 copied native sender code with the actual Track sender callsite and shared append
