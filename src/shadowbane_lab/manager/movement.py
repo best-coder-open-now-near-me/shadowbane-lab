@@ -15,7 +15,12 @@ from shadowbane_lab.client_extension.movement_session import (
     NativeMovementError,
     NativeMovementSession,
 )
-from shadowbane_lab.client_extension.movement_wire import CLEANUP_PENDING, Outcome
+from shadowbane_lab.client_extension.movement_wire import (
+    CLEANUP_PENDING,
+    Outcome,
+    Receipt,
+    Snapshot,
+)
 from shadowbane_lab.client_input import StopSignal
 from shadowbane_lab.client_input.stop import StopCause, observed_stop_cause
 
@@ -47,6 +52,9 @@ class OperationMovement:
         self._interrupted = threading.Event()
         self._lock = threading.RLock()
         self._closed = False
+        self._acquisition_attempted = False
+        self._acquisition_refused = False
+        self._cleanup_confirmed = False
 
     @property
     def stop_cause(self) -> StopCause | None:
@@ -86,6 +94,7 @@ class OperationMovement:
                 if self.is_set():
                     return False
                 try:
+                    self._acquisition_attempted = True
                     grant = self.session.acquire(
                         expected,
                         self.operation.worker_id,
@@ -94,6 +103,22 @@ class OperationMovement:
                     )
                     self.dispatcher = NativeMovementTravelDispatcher(self.session, grant)
                     return not self.is_set()
+                except NativeMovementError as exc:
+                    receipt = exc.receipt
+                    # Session validates the exact producer/request reply. An
+                    # unchanged monotonic grant proves no ownership was minted;
+                    # refusal text or STALE alone does not prove that.
+                    self._acquisition_refused = bool(
+                        isinstance(receipt, Receipt)
+                        and receipt.request_key == self.request_key
+                        and receipt.window == expected.window
+                        and receipt.outcome is exc.outcome
+                        and exc.outcome in {Outcome.STALE, Outcome.UNAVAILABLE,
+                                            Outcome.INHIBITED, Outcome.INVALID}
+                        and receipt.grant == expected.grant
+                        and not receipt.flags & CLEANUP_PENDING
+                    )
+                    raise
                 except NativeActionChannelTimeout:
                     if attempt:
                         raise
@@ -135,6 +160,32 @@ class OperationMovement:
         finally:
             self._lock.release()
 
+    @property
+    def cleanup_confirmed(self) -> bool:
+        """Positive exact native release, separate from a terminal host outcome."""
+        with self._lock:
+            return self._cleanup_confirmed
+
+    def _retired_snapshot(self, grant) -> bool:
+        from shadowbane_lab.client_extension.action_channel import _WindowsKernel
+        try:
+            snapshot = self.session.snapshot()
+            now = _WindowsKernel().tick_count()
+            return bool(
+                isinstance(snapshot, Snapshot)
+                and snapshot.process_id == grant.process_identity.process_id
+                and snapshot.creation_filetime == grant.process_identity.creation_filetime_utc
+                and snapshot.window == grant.window
+                and 0 <= now - snapshot.tick <= 500
+                and (snapshot.grant.generation > grant.ownership.generation
+                     or snapshot.grant.scene > grant.ownership.scene)
+                and snapshot.grant != grant.ownership
+                and not snapshot.flags & CLEANUP_PENDING
+                and not self.session.cleanup.has_pending(grant)
+            )
+        except (AttributeError, OSError, RuntimeError, ValueError):
+            return False
+
     def finish(self) -> str | None:
         """Stop only our immutable grant, even when the strategy's gate is closed."""
         if self.dispatcher is not None:
@@ -146,17 +197,31 @@ class OperationMovement:
             self._closed = True
             self.interrupt("operation movement closed")
             problem = None
+            self._cleanup_confirmed = (not self._acquisition_attempted
+                                       or self._acquisition_refused)
             try:
                 if self.dispatcher is not None:
                     for attempt in range(2):
                         try:
-                            self.session.stop(self.dispatcher.grant, self.stop_key)
+                            grant = self.dispatcher.grant
+                            receipt = self.session.stop(grant, self.stop_key)
+                            self._cleanup_confirmed = bool(
+                                isinstance(receipt, Receipt)
+                                and receipt.request_key == self.stop_key
+                                and receipt.host == grant.host and receipt.window == grant.window
+                                and receipt.outcome is Outcome.ACCEPTED
+                                and not receipt.flags & CLEANUP_PENDING
+                                and receipt.grant != grant.ownership
+                                and receipt.grant.generation > grant.ownership.generation
+                                and not self.session.cleanup.has_pending(grant))
                             break
                         except NativeActionChannelTimeout:
                             if attempt:
                                 raise
             except NativeMovementError as exc:
                 # A stale owner has already lost authority; never stop its replacement.
+                if exc.outcome == Outcome.STALE and self.dispatcher is not None:
+                    self._cleanup_confirmed = self._retired_snapshot(self.dispatcher.grant)
                 if exc.outcome != Outcome.STALE:
                     problem = f"native stop unresolved ({exc}); request={self.stop_key}"
             except (NativeActionChannelError, OSError, ValueError) as exc:
@@ -165,5 +230,6 @@ class OperationMovement:
                 try:
                     self.session.close()
                 except (NativeActionChannelError, OSError, ValueError) as exc:
+                    self._cleanup_confirmed = False
                     problem = f"native lease closure unresolved ({type(exc).__name__})"
             return problem

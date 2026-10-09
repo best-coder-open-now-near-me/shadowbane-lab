@@ -4,8 +4,10 @@
 
 `codex/persistent-buff-worker-20261008` owns bot-command-ownership, atop
 reviewed picker `405cf104` (PR #112, now merged into main `f0b8eb45`).
-The first source checkpoint contains exact-instance explicit Stop/Resume ordering
-and the dedicated native-service handoff core. It is a draft integration target
+PR #115 contains exact-instance explicit Stop/Resume ordering and the dedicated
+native-service handoff core. The next reviewed slice adds typed exact movement
+cleanup proof: unchanged-grant refusals prove no acquisition, while ambiguous
+replies and retained actor obligations cannot authorize maintenance restart. It is a draft integration target
 for `main`, not an enabled or deployed background service. Worker/executor wiring,
 canonical native resource lifetime, exact cleanup handback, and status presentation
 remain active work. PVP owns the separate preparation-only native capability and
