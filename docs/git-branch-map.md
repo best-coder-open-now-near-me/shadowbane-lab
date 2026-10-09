@@ -1,5 +1,15 @@
 # Git branch map
 
+## Deterministic optional-state fixture - October 9
+
+`codex/power-unreadable-fixture-20261009` starts from main `417b8e2` and
+replaces a test's assumed-unmapped low pointer with an owned `PAGE_NOACCESS`
+allocation. Invocation, queue success and unknown diagnostics have separate
+assertions. This is a native test-only change; it does not alter production
+code, PR #124, or the qualified host .83 package. Integration destination is
+main. The real diagnostics-profile test passed 20 consecutive executions and
+independent peer review; hosted checks and merge remain next.
+
 ## Worker reservation recovery after manager restart - October 9
 
 `codex/worker-reservation-restart-20261009` starts from main `f7110e7` in
