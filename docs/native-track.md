@@ -4,8 +4,8 @@
 
 The user selected **Hunt Foe** for Umbra's incoming-player awareness on October 9.
 The source lane is `codex/native-track-awareness-20261009`, based on main `7646af6`,
-with main as its integration destination. Automatic Track queries and player alerts
-are not installed yet. The running .86/.56 runtime is unchanged.
+with main as its integration destination. Automatic Track queries and the contact display
+are implemented and under final qualification; they are not installed yet. The running .86/.56 runtime is unchanged.
 
 The first source checkpoint supplies a durable learned-skill resolver and a passive
 native contact reader. These are observation components for the full shared-worker
@@ -72,17 +72,49 @@ loaded HUD. Native lookup confirms root +20 is the in-world owner; no alternate
 persistent result cache is qualified. That earlier absence does not establish
 an empty response or a failed skill use.
 
-## Remaining implementation
+## Automatic refresh and presentation
 
-1. Completed: live Hunt Foe learned definition and ten-contact list decoding;
-   92 focused tests, lint and independent source review passed.
-2. Observe ListMsg processing with a character/scene-bound result generation;
-   publish fresh contacts even when successive results have identical contents.
-3. Add the narrow Hunt Foe query under `NativeActorCoordinator`'s existing owner,
-   with its own native queue acknowledgement. Reuse combat's owner and action
-   arbitration; do not create another producer or use buff application receipts.
-4. Schedule native refreshes and publish awareness through the existing PvE
-   progress publisher and manager dashboard. Keep unavailable/stale results distinct
-   from a current empty result, and keep contact awareness separate from targeting.
-5. Review and qualify the complete runtime slice before normal authorized merge
-   and installation. No further product decision is pending.
+Saved per-character settings schema 3 adds `tracking.enabled` and a ten-second
+request interval. Existing settings migrate with tracking disabled. The ordinary
+`client pve-settings --process-id <pid> --tracking enabled` command resolves the
+current learned Hunt Foe before saving intent. Track runs through the existing
+actor owner during PvE and the same idle preparation service between operations,
+including when buffs are disabled. There is no second producer or worker.
+
+A dedicated actor Track action carries no target context or buff selector.
+The exact native category-4 route has no ordinary cast reuse/recovery check;
+request spacing is scheduling policy, not an invented skill cooldown. Known queued
+casts may continue while Track queries run. Separate query receipts preserve
+existing combat receipts and pending follow-through. Unknown outcomes poll the
+original command; a query never cancels a cast or replays an uncertain request.
+
+Native Decode/Process observations publish copied rows with processing generations,
+scene/actor identity and native ticks. Entry generations survive nested returns.
+Only a complete newer returned Hunt Foe response provides current contacts. Initial
+retained history, unavailable capture and old lists cannot become a fresh empty
+result. The display expires contacts after two refresh intervals and labels them
+as last seen. No query/response nonce or server-origin character session is claimed.
+Tracking awareness is not attack permission.
+
+The existing manager progress and idle-service projections show contact names,
+response age and status independently from buff coverage. Contact names use text
+nodes. Worker/process replacement, paused/stopped ownership and expired observations
+remove currentness. Status storage accommodates the bounded 256-contact publication.
+
+## Validation and delivery todo
+
+- Complete: learned Hunt Foe and ten-contact native HUD capture; 92 initial tests.
+- Complete: copied response publication and nested-generation handling; native
+  fixture and three failed-install cases, plus 31 Python publication tests.
+- Complete: same-owner native query and automatic active/idle scheduling, per-character
+  settings, dashboard display and independent source reviews.
+- Active: combined exact-source package and hosted checks for host .87/native .57.
+- Next: normal authorized merge/install, enable Umbra's saved Track intent and
+  verify automatic refresh in the running game. The installed .86/.56 runtime
+  remains unchanged until qualification completes.
+
+The exact-image query probe verifies all thirteen original callsites and executes
+copied native sender code with the actual Track sender callsite and shared append
+observer. Its Use body, definition lookup and allocation are synthetic fixtures;
+the complete category-4 Use branch is statically qualified, not yet live-qualified
+by the new runtime. Private capture data and client binaries stay outside Git.
