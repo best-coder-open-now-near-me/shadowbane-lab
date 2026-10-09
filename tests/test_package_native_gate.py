@@ -229,7 +229,7 @@ def power_probe_steps(feature):
     ]
 
 
-@pytest.mark.parametrize("feature", ["initiation", "readiness"])
+@pytest.mark.parametrize("feature", ["initiation", "readiness", "movement", "special"])
 def test_power_receipt_requires_all_four_executed_exact_image_gates(feature):
     validate = getattr(builder, f"validate_combat_power_{feature}_steps")
     assert validate(power_probe_steps(feature), reviewed_client=True)
@@ -238,7 +238,7 @@ def test_power_receipt_requires_all_four_executed_exact_image_gates(feature):
 
 @pytest.mark.parametrize("index", range(4))
 @pytest.mark.parametrize("failure", ["missing", "failed", "duplicate", "wrong_probe", "no_image"])
-@pytest.mark.parametrize("feature", ["initiation", "readiness"])
+@pytest.mark.parametrize("feature", ["initiation", "readiness", "movement", "special"])
 def test_power_receipt_cannot_certify_missing_or_wrong_execution(index, failure, feature):
     steps = power_probe_steps(feature)
     if failure == "missing":
@@ -256,7 +256,7 @@ def test_power_receipt_cannot_certify_missing_or_wrong_execution(index, failure,
 
 
 @pytest.mark.parametrize("pair", [0, 2])
-@pytest.mark.parametrize("feature", ["initiation", "readiness"])
+@pytest.mark.parametrize("feature", ["initiation", "readiness", "movement", "special"])
 def test_power_gate_cannot_count_one_image_twice(pair, feature):
     steps = power_probe_steps(feature)
     steps[pair+1]["command"][1] = steps[pair]["command"][1]
@@ -384,6 +384,42 @@ def test_item_trace_probe_requires_both_images_and_profiles():
     assert builder.validate_item_trace_probe_steps(item_trace_steps(), reviewed_client=True)
     assert not builder.validate_item_trace_probe_steps([], reviewed_client=False)
     assert len(builder.REQUIRED_ITEM_TRACE_TESTS) == 7
+
+
+def activation_steps():
+    return [{"name": f"{profile}-{feature}-{suffix}", "exit_code": 0,
+             "command": [f"wonderbane_extension_{feature}_{binary}.exe", image]}
+            for profile in ("full", "diagnostics-only")
+            for feature, binary in (("combat_activation_incoming", "probe"),
+                                    ("combat_activation_completion", "probe"),
+                                    ("combat_activation_observer", "test"))
+            for suffix, image in (("binding", "original15.exe"),
+                                  ("prepared-binding", f"{profile}-prepared15.exe"))]
+
+
+def test_activation_boundaries_require_both_images_and_profiles():
+    assert builder.validate_activation_probe_steps(activation_steps(), reviewed_client=True)
+    assert not builder.validate_activation_probe_steps([], reviewed_client=False)
+    assert "wonderbane_extension_combat_activation_observer" in builder.REQUIRED_COMBAT_TESTS
+
+
+@pytest.mark.parametrize("index", range(12))
+@pytest.mark.parametrize("failure", ["missing", "failed", "duplicate",
+                                    "wrong_binary", "same_image"])
+def test_activation_boundary_gate_rejects_unqualified_execution(index, failure):
+    steps = activation_steps()
+    if failure == "missing":
+        steps.pop(index)
+    elif failure == "failed":
+        steps[index]["exit_code"] = 1
+    elif failure == "duplicate":
+        steps.append(dict(steps[index]))
+    elif failure == "wrong_binary":
+        steps[index]["command"][0] = "other.exe"
+    else:
+        steps[index]["command"][1] = steps[index ^ 1]["command"][1]
+    with pytest.raises(RuntimeError):
+        builder.validate_activation_probe_steps(steps, reviewed_client=True)
 
 
 @pytest.mark.parametrize("index", range(4))

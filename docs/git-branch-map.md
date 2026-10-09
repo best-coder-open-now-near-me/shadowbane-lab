@@ -1,5 +1,27 @@
 # Git branch map
 
+## Movement interruption qualification - October 8
+
+`codex/item-movement-renewal-20261008` follows preparation core `fcccaa5`
+(PR #118) in bot-runtime. Its first checkpoint adds required exact-image
+movement and ordinary item-caller probes without installing a runtime hook or
+changing application authority. See [the proof boundaries](native-movement-interruption-20261008.md).
+The branch now integrates the required activation observer `416c013`, exact
+command-scoped interrupted journal history and host reconciliation, and distinct
+local control relinquishment after positively observed manual activation.
+Incoming/completion image probes and the observer are mandatory package gates.
+No blanket potion/attack gate is included. The branch now includes
+exact worker/IPC head `2ceeb701` from PR #115 by ancestry. Its stationary item
+readiness checkpoint is `1cbce71`; it does not clear pending application history.
+The combined candidate is host `0.3.80` / native `1.8.55`. It includes stationary
+self-power publication `004f0a3` and special-definition local settlement
+`b3f780f`, both independently reviewed. Final combined validation and package
+qualification remain; this source has not been deployed or release-qualified.
+Ambiguous overlapping application outcomes remain pending until positive native
+evidence resolves them; local control relinquishment never grants item replay.
+Root combines reviewed source
+and the current cosmetic overlay before any native release qualification.
+
 ## Current integration and runtime - October 8
 
 Start from refreshed `origin/main`, now including PR #111 recovery at `85e3194`
@@ -25,8 +47,8 @@ Active checkout ownership:
 
 - `codex/bot-live-validation-20261008` owns bot-integration for qualification,
   installation and live delivery records, targeting main.
-- `codex/persistent-buff-maintenance-20261008` owns bot-runtime for native
-  preparation ownership, protocols and coordinator behavior.
+- `codex/item-movement-renewal-20261008` owns bot-runtime for the combined
+  preparation core/worker source and the movement interruption follow-up.
 - `codex/persistent-buff-worker-20261008` owns bot-command-ownership for the
   persistent worker service and its controls, with picker `405cf10` as ancestry.
 
@@ -39,6 +61,65 @@ delivery record for the bounded result, fresh idle postflight and evidence limit
 Background buff upkeep is not yet installed; combat focus policy is unchanged.
 Do not switch another lane's active checkout.
 The historical checkpoints below describe earlier state, superseded by this entry.
+
+## Stationary self-power observation follow-up - October 8
+
+`codex/interrupted-application-host-20261008` continues from combined `e4a7162`
+for the explicit stationary publication and self-power readiness correction.
+Its integration destination remains PR #119; bot-runtime owns matching native
+submission and local cleanup. The observation slice keeps initiation-clear
+factual, admits retained IDs only with positive stationary state 5, and leaves
+attack/target admission unchanged. See the [qualification and proof limits](native-movement-interruption-20261008.md#stationary-self-power-readiness).
+Both affected native tests and 288 host tests passed, including real publication
+IPC. The instant/no-state-6 cleanup edge remains an integration requirement;
+this source checkpoint does not claim the combined runtime is qualified or installed.
+
+## Host interrupted-application follow-up - October 8
+
+`codex/interrupted-application-host-20261008` owns bot-command-ownership for the
+host codec and policy follow-up based on combined `0eaa94e`. Its integration
+destination is PR #119, which already includes the reviewed PR #115 / #118
+ancestry. Those dependency drafts remain unmerged until the final combined
+interruption and local-cleanup behavior passes review and qualification.
+
+Canonical history carries the original command digest and submission revision.
+Interrupted evidence resolves only that submission's application suppression;
+it does not erase queued history, prove local cleanup, clear a newer application,
+or claim an active effect. Unknown observations remain conservative and complete
+PRESENT coverage still resolves independently. No blanket potion/attack gate or
+runtime deployment is included. Native interrupted-state production and local
+owned-power settlement remain the separate bot-runtime contribution to PR #119.
+
+## Combined persistent preparation source - October 8
+
+PR #115 (`codex/persistent-buff-worker-20261008`, bot-command-ownership) is the
+combined integration destination for worker checkpoint `22a2340` and exact native
+core `fcccaa53` from PR #118. Both tips remain ancestors; main runtime and causal
+facts above are preserved. The core uses a preparation-only actor purpose with
+no movement Grant or target context. New entries require fresh worker intent and
+native manual/UI admission; passive cleanup retains exact ownership until proof.
+See [the ownership contract](persistent-preparation-ownership-20261008.md).
+
+The worker serializes finite operations with maintenance, requires typed cleanup
+or immutable journal evidence for handback, and keeps Stop intent across worker
+loss and interrupted record publication. Resume atomically supersedes retained
+older Stop IDs. Cleanup supervision continues after its original native deadline;
+no timer or generic operation success authorizes resource disposal. Ordinary
+manual input defers buffs without disabling saved intent; explicit Pause/Stop
+stays latched. Remote application history does not block every finite operation.
+The withdrawn blanket potion/PRESENT barrier is absent from both source lanes.
+
+Combined host regression at `d18099d` passed 5,343 cases with 39 optional skips.
+The subsequent manual-admission status correction and mandatory preparation IPC
+slice passed 547 focused cases. Both compiled profiles passed 149 actor IPC cases
+without skips. The new case uses the real worker service/adapter, host transport,
+Controller and Runtime with explicitly substituted gameplay callbacks; it proves
+protocol ownership and passive cleanup, not live client execution. Package and
+hosted gates require this case to execute exactly once in each profile.
+
+Full release qualification, versioning, cosmetic-overlay preservation and
+deployment remain pending. No background buff runtime or background attack
+authority has been installed by this source work.
 
 ## Multiple client launch delivery - October 8
 

@@ -1,5 +1,6 @@
 // Execute reviewed INITTIME getter and protocol vector operations in a private
 // arena. No client startup, allocator, network, action or game process is invoked.
+#include "combat_power_local.h"
 #include <Windows.h>
 #include <bcrypt.h>
 #include <array>
@@ -128,6 +129,25 @@ int main(int argc,char** argv) {
         Check(remove(actor.data(),7)&&ids[0]==7&&ids[1]==9&&actor[0x660/4]==actor[0x65c/4]+8,"remove first duplicate only");++cases;
         Check(remove(actor.data(),7)&&ids[0]==9&&actor[0x660/4]==actor[0x65c/4]+4,"second acknowledgement removes second duplicate");++cases;
         Check(remove(actor.data(),9)&&!remove(actor.data(),9)&&actor[0x660/4]==actor[0x65c/4],"empty protocol reached without effect claims");++cases;
+        // Production local token semantics fed by the actual hash-qualified
+        // append/remover. This is local vector lifetime, never server causality.
+        namespace pw=wonderbane::extension::combat::power;
+        pw::LocalInitiation token;const auto object=reinterpret_cast<std::uintptr_t>(actor.data());
+        const std::array<std::uint32_t,2> key{100,53};
+        auto generation=token.Arm(object,key,7,GetCurrentThreadId());
+        definition[0x138/4]=7;Append(arena.bytes+0x9e014,actor.data(),definition.data());
+        Check(token.Publish(generation,1,actor[0x65c/4],actor[0x664/4])==generation,"owned append publishes exact generation");++cases;
+        const auto before=(actor[0x660/4]-actor[0x65c/4])/4;
+        const bool removed=remove(actor.data(),7);const auto after=(actor[0x660/4]-actor[0x65c/4])/4;
+        token.Removal(generation,object,key,7,GetCurrentThreadId(),true,removed,before,after);
+        Check(token.State(generation,object,key,7)==pw::LocalInitiationState::retired,"actual exact removal supplies local retirement");++cases;
+        token.Invalidate(object);Check(token.State(generation,object,key,7)==pw::LocalInitiationState::retired,"later manual work cannot erase completed local retirement");++cases;
+        generation=token.Arm(object,key,7,GetCurrentThreadId());
+        Append(arena.bytes+0x9e014,actor.data(),definition.data());(void)token.Publish(generation,1,actor[0x65c/4],actor[0x664/4]);
+        Append(arena.bytes+0x9e014,actor.data(),definition.data());
+        const bool duplicate_removed=remove(actor.data(),7);
+        token.Removal(generation,object,key,7,GetCurrentThreadId(),false,duplicate_removed,2,1);
+        Check(token.State(generation,object,key,7)==pw::LocalInitiationState::unavailable,"actual duplicate removal cannot stand in for owned completion");++cases;
         std::printf("{\"image_sha256\":\"%s\",\"cases\":%u,\"failures\":%u,\"scope\":\"ranked_inittime_and_protocol_operations\"}\n",sha.c_str(),cases,failures);
         return failures?1:0;
     }catch(const std::exception& error){std::fprintf(stderr,"%s\n",error.what());return 2;}

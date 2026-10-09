@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import time
 from dataclasses import dataclass, replace
 
@@ -11,6 +12,7 @@ from shadowbane_lab.client_extension.actor_action_fence import (
     ContextBinding,
     ContextId,
     OwnerId,
+    Purpose,
     RequestId,
     Ticket,
 )
@@ -70,11 +72,13 @@ class NativeActorCoordinator:
         manifest=None,
         publication_reader=None,
         ticket_factory=Ticket,
+        preparation_admission=None,
     ):
         session.require_actor_actions(grant)
         self.session, self.grant = session, grant
         self.population, self.character_session, self.store = population, character_session, store
         self.manifest, self.publication_reader = manifest, publication_reader
+        self._preparation_admission = preparation_admission
         self._ticket_factory = ticket_factory
         self._ids = session.actor_ordinals(grant)
         character_session.require_current()
@@ -84,21 +88,26 @@ class NativeActorCoordinator:
         hint = population.resolve_actor_address(local_key=key, token=token)
         identity = character_session.binding.identity
         self.actor_token, self.actor_key = token, key
+        from shadowbane_lab.client_extension.movement_session import NativePreparationLease
+        preparation = isinstance(grant, NativePreparationLease)
+        owner_id = self._ids.next(OwnerId)
         self.parent = ActorBinding(
             grant.process_identity.process_id,
             grant.host.process_id,
             grant.process_identity.creation_filetime_utc,
             grant.host.creation_filetime,
             grant.host.lease_generation,
-            grant.ownership.generation,
-            grant.ownership.scene,
-            self._ids.next(OwnerId),
+            0 if preparation else grant.ownership.generation,
+            grant.scene if preparation else grant.ownership.scene,
+            owner_id,
             (key.object_type, key.object_uuid),
             hint,
             identity_digest(identity.character_name),
             identity_digest(identity.server_name),
             bytes.fromhex(store.owner.storage_key),
-            operation_digest(grant.ownership),
+            (hashlib.sha256(owner_id.encode()).digest() if preparation
+             else operation_digest(grant.ownership)),
+            Purpose.PREPARATION if preparation else Purpose.COMBAT,
         )
         self._parent_ticket = ticket_factory(self.parent, create=True)
         try:
@@ -161,6 +170,51 @@ class NativeActorCoordinator:
             **kwargs,
         )
 
+    def close_unopened(self):
+        """Dispose setup resources only when no native owner/action was attempted."""
+        if self._closed:
+            return
+        if (self._open_sent or self.context is not None or self._local_command is not None
+                or self._adopted or self._stop_owner_command is not None):
+            raise RuntimeError("native owner requires correlated cleanup")
+        self._parent_ticket.close(revoke=False)
+        if self._manifest_mapping is not None:
+            self._manifest_mapping.close()
+        self.session.cleanup.release(self._obligation)
+        self._closed = self._terminal = True
+
+    def close_retired_process(self):
+        """Dispose only after Windows proves this exact process lifetime is gone.
+
+        An inspection error is not retirement. No scene inference, native stop,
+        or replacement process is touched, and no native receipt is fabricated.
+        """
+        from shadowbane_lab.manager.supervisor import Win32ProcessLifetimeInspector
+
+        if self.parent.purpose is not Purpose.PREPARATION:
+            raise ValueError("passive process disposal is preparation-only")
+        if self._closed:
+            return True
+        current = Win32ProcessLifetimeInspector().inspect(self.parent.client_pid)
+        if current is not None:
+            if current.process_id != self.parent.client_pid:
+                raise ValueError("process inspector returned another PID")
+            if current.process_started_at_100ns == self.parent.client_creation:
+                return False
+        self._release_owner(None, "exact client process retired", already_closed=True)
+        return True
+
+    def _preparation_entry_allowed(self):
+        return (self.parent.purpose is not Purpose.PREPARATION
+                or self._preparation_admission is None or self._preparation_admission() is True)
+
+    @property
+    def local_pending(self):
+        """Whether an immutable command still owns local settlement responsibility."""
+        return not self._closed and (
+            self._local_command is not None or self._preparation_command is not None
+        )
+
     @property
     def active(self):
         return self.context is not None or self._adopted
@@ -217,6 +271,8 @@ class NativeActorCoordinator:
         self._current()
         if self._opened:
             return True
+        if not self._open_sent and not self._preparation_entry_allowed():
+            return False
         result = self._send(
             Verb.OWNER_STATUS if self._open_sent else Verb.OPEN_OWNER, self._open_command
         )
@@ -621,11 +677,14 @@ class NativeActorCoordinator:
             owner_closed=bool(confirmed and self._closed),
         )
 
-    def _release_owner(self, receipt, detail):
+    def _release_owner(self, receipt, detail, *, already_closed=False):
         self.session.cleanup.request_terminal(self.grant)
         for ticket in (self._context_ticket, self._parent_ticket):
             if ticket is not None:
-                ticket.close(timeout_ms=self.session.cleanup.timeout_ms(self.grant, 750))
+                if already_closed:
+                    ticket.close(revoke=False)
+                else:
+                    ticket.close(timeout_ms=self.session.cleanup.timeout_ms(self.grant, 750))
         self.session.cleanup.release(self._obligation)
         if self._manifest_mapping is not None:
             self._manifest_mapping.close()
@@ -665,6 +724,28 @@ class NativeActorCoordinator:
             self._last_owner_result = False, r, result.detail or reason
         except Exception as exc:
             self._last_owner_result = False, result.receipt, f"{reason}:{type(exc).__name__}"
+        return self._last_owner_result
+
+    def inspect_owner_closure(self):
+        """Read exact terminal proof after passive preparation cleanup timed out.
+
+        This never resubmits STOP, renews its deadline or enables new action work.
+        """
+        if self.parent.purpose is not Purpose.PREPARATION:
+            raise ValueError("late passive closure is preparation-only")
+        if self._closed:
+            return self._last_owner_result
+        if self._stop_owner_command is None:
+            return self._last_owner_result
+        result = self._send(Verb.OWNER_STATUS, self._stop_owner_command)
+        receipt = result.receipt
+        if (receipt is not None and receipt.closure_scope is ClosureScope.OWNER
+                and ((receipt.owner_phase is Phase.CLOSED and receipt.closure in (
+                    Closure.NEVER_BOUND, Closure.LOCAL_RELEASED))
+                    or (receipt.owner_phase is Phase.RETIRED
+                        and receipt.closure is Closure.SCENE_RETIRED))
+                and not receipt.flags):
+            self._release_owner(receipt, result.detail, already_closed=True)
         return self._last_owner_result
 
     def finish(self, reason):
@@ -848,7 +929,7 @@ class NativeActorCoordinator:
             self.parent.actor_key,
             self.actor_token,
         )
-        coverage, readiness, pending = [], [], set()
+        coverage, readiness, pending, history = [], [], set(), []
         by_index = {facts.selector.index: facts for facts in pub.actions}
         for index, group in enumerate(self._settings.groups):
             states = []
@@ -888,10 +969,25 @@ class NativeActorCoordinator:
             )
             coverage.append(policy.CoverageEvidence(group.group_id, covered))
             digest = self.manifest.group_digest(index)
-            if any(x.group_digest == digest and x.state == 1 for x in pub.applications):
-                pending.add(group.group_id)
+            for application in pub.applications:
+                if (application.group_digest != digest
+                        or application.state == native.ApplicationState.NONE):
+                    continue
+                state = policy.ApplicationState(
+                    native.ApplicationState(application.state).name.lower()
+                )
+                history.append(policy.ApplicationEvidence(
+                    group.group_id,
+                    policy.ApplicationSubmission(
+                        application.command_digest, application.submitted_revision
+                    ),
+                    state, application.observed_revision,
+                ))
+                if state is policy.ApplicationState.PENDING:
+                    pending.add(group.group_id)
         known_groups = {self.manifest.group_digest(i) for i in range(self.manifest.group_count)}
-        if any(x.state == 1 and x.group_digest not in known_groups for x in pub.applications):
+        if any(x.state == native.ApplicationState.PENDING and x.group_digest not in known_groups
+               for x in pub.applications):
             raise native.PublicationError("unmatched pending application prevents preparation")
         self._preparation_capture_identity = pub.identity
         self._preparation_capture_sequence = pub.sequence
@@ -906,6 +1002,7 @@ class NativeActorCoordinator:
             int(pub.admission_blocks),
             frozenset(pending),
             capture_sequence=pub.sequence,
+            application_history=tuple(history),
         )
 
     def advance_preparation(self, proposal):
@@ -1007,6 +1104,8 @@ class NativeActorCoordinator:
                 item_hint=facts.item_hint,
                 template_hint=facts.template_hint,
             )
+        if not self._preparation_entry_allowed():
+            return ack()
         self._preparation_command = self._command(
             action=Action(selector.kind), power_id=selector.power_id, **kwargs
         )
@@ -1036,7 +1135,10 @@ class NativeActorCoordinator:
         def ack(
             disposition=policy.Disposition.UNCERTAIN, entry=policy.EntryState.UNKNOWN, settled=False
         ):
-            return policy.PreparationAcknowledgement(proposal, disposition, entry, settled)
+            return policy.PreparationAcknowledgement(
+                proposal, disposition, entry, settled,
+                policy.ApplicationSubmission(command.digest, command.publication_revision),
+            )
 
         r = result.receipt
         self._last_preparation_receipt = r
@@ -1079,7 +1181,7 @@ class NativeActorCoordinator:
             self._preparation_publication = None
         return ack(disposition, entry, settled)
 
-    def preparation_step(self, combat_proposal=None):
+    def preparation_step(self, combat_proposal=None, *, allow_new=True):
         """At most one new ready buff ahead of each still-unpublished combat proposal."""
         self.latest_preparation_status = None
         if self._preparation_policy is None or self._combat_proposal is not None:
@@ -1087,6 +1189,17 @@ class NativeActorCoordinator:
         if self._terminal or self._stop_context_command is not None:
             return None
         pending = self._preparation_policy.pending_proposal
+        if not allow_new and self._preparation_command is None:
+            # Even an already allocated proposal is not permission to open or
+            # submit during passive handoff. Only published commands get STATUS.
+            observation = self.observe_preparation()
+            if (observation is not None and observation.complete
+                    and observation.admission_blocks):
+                self.latest_preparation_status = NativePreparationStatus(
+                    observation.publication_epoch, observation.admission_revision,
+                    observation.admission_blocks,
+                )
+            return None
         if pending is None:
             if combat_proposal is not None and combat_proposal == self._preparation_before_combat:
                 return None
@@ -1101,7 +1214,8 @@ class NativeActorCoordinator:
             decision = self._preparation_policy.advance(observation)
         self._preparation_decision = decision
         if decision.proposal is None:
-            if observation is not None and observation.complete and observation.admission_blocks:
+            if (observation is not None and observation.complete
+                        and observation.admission_blocks):
                 self.latest_preparation_status = NativePreparationStatus(
                     observation.publication_epoch,
                     observation.admission_revision,
@@ -1184,7 +1298,7 @@ class NativePreparationStatus:
                 )
             )
             or type(self.admission_blocks) is not int
-            or not 0 < self.admission_blocks <= 31
+            or not 0 < self.admission_blocks <= 63
         ):
             raise ValueError("trace status requires positive revisions and known native blockers")
 

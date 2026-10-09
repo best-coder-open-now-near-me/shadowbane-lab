@@ -9,11 +9,11 @@ namespace {
 bool Zero(const auto& value)noexcept{const auto* bytes=reinterpret_cast<const unsigned char*>(&value);
     for(std::size_t i=0;i<sizeof(value);++i){if(bytes[i]){return false;}}return true;}
 bool Facts(const Frame& f)noexcept{
-    if((f.admission_blocks&~admission::known) || f.unknown>10 || f.complete>1 || f.initiation_clear>1 || f.effect_count>256
+    if((f.admission_blocks&~admission::known) || f.unknown>10 || f.complete>1 || f.initiation_clear>1 || f.stationary>1 || f.effect_count>256
         || f.readiness_count>32 || f.application_count>32 || f.descriptor_count>256
         || !Zero(f.reserved) || !Zero(f.padding)){return false;}
     if(!f.complete){return f.unknown && !f.effect_epoch && !f.effect_count && !f.readiness_count
-        && !f.application_count && !f.descriptor_count && !f.actor_mode && !f.initiation_clear && !f.admission_blocks
+        && !f.application_count && !f.descriptor_count && !f.actor_mode && !f.initiation_clear && !f.stationary && !f.admission_blocks
         && Zero(f.effects) && Zero(f.readiness) && Zero(f.applications) && Zero(f.descriptors);}
     if(f.unknown || !f.effect_epoch || !f.readiness_count || f.actor_mode<1 || f.actor_mode>3){return false;}
     for(std::size_t i=0;i<f.effects.size();++i){const auto& e=f.effects[i];
@@ -30,7 +30,7 @@ bool Facts(const Frame& f)noexcept{
         std::uint32_t present{};bool retained=true;
         for(std::uint32_t j=r.descriptor_offset;j<offset;++j){present+=f.descriptors[j].present;retained&=!f.descriptors[j].suppression;}
         const auto coverage=present==r.descriptor_count?3U:present?2U:retained?1U:0U;
-        if(r.coverage!=coverage || (r.readiness==1&&!f.initiation_clear)){return false;}
+        if(r.coverage!=coverage || (r.selector.kind==3&&r.readiness==1&&!f.initiation_clear&&!f.stationary)){return false;}
         if(r.selector.kind==3){
             if(!Zero(r.item_key)||!Zero(r.template_key)||r.item_hint||r.template_hint||r.quantity||r.type||r.flags){return false;}
             if(r.readiness==1&&(!r.rank||r.category>1||r.target_mode!=2||r.delivery||r.required_mode<1||r.required_mode>3
@@ -51,17 +51,18 @@ bool Facts(const Frame& f)noexcept{
     }
     for(std::size_t i=0;i<f.applications.size();++i){const auto& a=f.applications[i];
         if(i>=f.application_count){if(!Zero(a)){return false;}continue;}
-        if(!fence::Any(a.intent)||!fence::Any(a.command)||!a.submitted_revision||a.entry>2||a.state>2
+        if(!fence::Any(a.intent)||!fence::Any(a.command)||!a.submitted_revision||a.entry>2||a.state>3
             ||a.local_settled>1||a.queued>1||!Zero(a.reserved)||(a.queued&&a.entry!=1)
-            ||(a.state==1&&!a.entry)||(a.state==2&&(!a.entry||a.observed_revision<=a.submitted_revision))
-            ||(a.state!=2&&a.observed_revision)){return false;}
+            ||(a.state==1&&!a.entry)||((a.state==2||a.state==3)&&(!a.entry||a.observed_revision<=a.submitted_revision))
+            ||(a.state==3&&(!a.queued||a.entry!=1))
+            ||(a.state<2&&a.observed_revision)){return false;}
         for(std::size_t j=0;j<i;++j){if(f.applications[j].command==a.command){return false;}}
     }
     return true;
 }
 bool SameEligibility(const Frame& a,const Frame& b)noexcept{
     return a.complete==b.complete && a.unknown==b.unknown && a.actor_mode==b.actor_mode
-        && a.initiation_clear==b.initiation_clear && a.admission_blocks==b.admission_blocks
+        && a.initiation_clear==b.initiation_clear && a.stationary==b.stationary && a.admission_blocks==b.admission_blocks
         && a.readiness_count==b.readiness_count
         && !std::memcmp(a.readiness.data(),b.readiness.data(),sizeof(a.readiness));
 }
@@ -98,7 +99,7 @@ std::wstring Name(std::uint32_t pid,std::uint64_t creation,const Digest& manifes
 bool Encode(const selectors::Manifest& manifest,const actor_buffs::Publication& p,
     const actor_actions::ApplicationJournal& journal,Frame& out)noexcept{
     out={};if(!selectors::Valid(manifest)||!p.Complete()||journal.Faulted()||p.count!=manifest.count){return false;}
-    out.unknown=0;out.complete=1;out.effect_epoch=p.effect_epoch;out.actor_mode=p.actor_mode;out.initiation_clear=p.initiation_clear;out.admission_blocks=p.admission_blocks;
+    out.unknown=0;out.complete=1;out.effect_epoch=p.effect_epoch;out.actor_mode=p.actor_mode;out.initiation_clear=p.initiation_clear;out.stationary=p.item_stationary;out.admission_blocks=p.admission_blocks;
     const auto effects=p.Effects();if(effects.size()>out.effects.size()){return false;}out.effect_count=static_cast<std::uint32_t>(effects.size());
     for(std::size_t i=0;i<effects.size();++i){const auto& e=effects[i];auto& dest=out.effects[i];
         dest={e.descriptor_id,e.action_id,e.rank,e.native_class,e.source_tag,{e.source_words[0],e.source_words[1],e.source_words[2]},

@@ -761,7 +761,7 @@ def test_public_runner_blocked_preparation_trace_does_not_gate_npc_attack(setup,
         (1, True, 8),
         (1, 1, False),
         (1, 1, 0),
-        (1, 1, 32),
+        (1, 1, 64),
         (1, 1, -1),
     ],
 )
@@ -1458,3 +1458,59 @@ def test_registry_churn_cannot_renew_missing_response_watchdog(setup, monkeypatc
     assert verbs.count(Verb.ACTION_STATUS) == int(submitted)
     assert verbs.count(Verb.STOP_OWNER) == 1
     assert owner._obligation.released
+
+
+
+def test_correlated_interruption_renews_without_clearing_new_command(setup, monkeypatch):
+    from shadowbane_lab.pve.preparation import ApplicationSubmission
+
+    owner, session, _, _, _ = setup
+    settings = BuffSettings(True, (BuffGroup("concoction", (
+        BuffAction(PreparationAction("potion", item_template=(980066, 0)), 429021400),)),))
+    pub, send = configure(owner, session, monkeypatch, settings)
+    original = None
+    settled = False
+
+    def response(grant, verb, command, **kwargs):
+        result = send(grant, verb, command, **kwargs)
+        if command.action is Action.USE_ITEM:
+            changes = dict(local_settlement=LocalSettlement.PENDING)
+            if command == original:
+                changes.update(application=Application.INTERRUPTED,
+                               flags=result.receipt.flags & ~APPLICATION_PENDING,
+                               local_settlement=(LocalSettlement.SETTLED if settled
+                                                 else LocalSettlement.PENDING))
+            result.receipt = replace(result.receipt, **changes)
+        return result
+
+    session.actor_action.side_effect = response
+    first = owner.preparation_step()
+    original = first.command
+    assert first.acknowledgement.submission == ApplicationSubmission(
+        original.digest, original.publication_revision)
+    terminal = publication.Application(owner.manifest.group_digest(0), original.digest,
+        original.publication_revision, 2, 1, publication.ApplicationState.INTERRUPTED, False, True)
+    reader = owner.publication_reader.read
+    reader.return_value = replace(pub, revision=2, admission_revision=2, snapshot_id=b"t" * 16,
+                                  applications=(terminal,))
+    interrupted = owner.preparation_step()
+    assert interrupted.command is original and owner.local_pending
+    assert not owner._preparation_policy.application_pending_groups
+    assert owner.preparation_status.local_pending
+    assert not owner.preparation_status.groups[0].application_pending
+    assert owner.preparation_status.groups[0].coverage.value == "missing"
+    # Late immutable settlement after terminal evidence no longer in current frame.
+    reader.return_value = replace(pub, revision=3, admission_revision=2, snapshot_id=b"u" * 16)
+    settled = True
+    completed = owner.preparation_step()
+    assert completed.command is original and completed.acknowledgement.local_settled
+    reader.return_value = replace(pub, revision=4, admission_revision=2, snapshot_id=b"v" * 16)
+    renewed = owner.preparation_step()
+    assert renewed.command != original and renewed.command.action is Action.USE_ITEM
+    reader.return_value = replace(pub, revision=5, admission_revision=2, snapshot_id=b"w" * 16,
+                                  applications=(terminal,))
+    pending = owner.preparation_step()
+    assert pending.command == renewed.command and owner.local_pending
+    assert owner._preparation_policy.application_pending_groups == {"concoction"}
+    submits = [c.args[2] for c in session.actor_action.call_args_list if c.args[1] is Verb.SUBMIT]
+    assert submits == [original, renewed.command]

@@ -3,6 +3,7 @@
 // owned-reference helpers and sender. Only allocation, clock, lock primitives
 // and downstream transport are instrumented. Native foreign EH is fail-fast;
 // synthetic compiled fixture separately tests exception quarantine/restoration.
+#include "movement_lifetime.h"
 #include "combat_item_entry.cpp"
 #include <bcrypt.h>
 #include <cstdio>
@@ -14,6 +15,11 @@
 #include <vector>
 namespace it=wonderbane::extension::combat::item;
 namespace sb=wonderbane::extension::combat::submission;
+namespace wonderbane::extension::movement {
+// This isolated exact-image caller probe has no live game lifetime.
+bool ReadNativeMovementLifetime(NativeScene&) noexcept {return false;}
+bool NativeMovementLifetimeCurrent(const NativeScene&) noexcept {return false;}
+}
 namespace {
 void Require(bool condition, const char* message) {
     if (!condition) { throw std::runtime_error(message); }
@@ -41,6 +47,16 @@ std::string Digest(const unsigned char* bytes, std::size_t size) {
 // Exact original/prepared .13 primitive hashes; no client bytes embedded.
 struct Segment {std::uint32_t rva,size;const char* sha;};
 constexpr Segment segments[]{
+    {0x79040,0x32f,"378a0810b2f7220c24ea3a71809c1386019005f7fde94a9b1ba99eea3c1a453b"},
+    {0x149d9,0x5,"ad8986da4042f5d667681332fc951bac2970eed572a1d9d1e5a909ed9931acae"},
+    {0xe4c00,0x2e,"f2844f4b43415d30353f970d3ee4f54c1524cd0e8c68637de6ce9bbbc6d1c5e2"},
+    {0x5e61,0x5,"b6402329acf82569d33f92195126682b28039c81f59349ecc62469e44dc7e6fd"},
+    {0xc9c80,0x17,"a33e1fe504751f1f254bf9689eedfbc26a791f52ff88c5aec76e8796d5b180e5"},
+    {0x189b2,0x5,"77c0f7523f3e9f76a71ae65898e3ea6d1c6afc2f408ecf58ae84db055b9ea568"},
+    {0x12dda0,0x3,"e18aacce29affcdddaa5f641ac1ec12552e0fe9d066e6408941b1792818b8619"},
+    {0x13f7f,0x5,"f12dbf4cde9ebdb5d9dd4b12f1ace40a658405808549e65ece5eb48d50ab375b"},
+    {0x12dde0,0x3,"e18aacce29affcdddaa5f641ac1ec12552e0fe9d066e6408941b1792818b8619"},
+
     {0xae810,0x8e9,"d3081a443dcb6f4cab76fc6ff221695f79a6d3962f5b513f523016940c43293d"},
     {0x374f00,0x7c,"9f5950257a4a4c45b1ad068f4d1853626bf71b6dff233a32bc70dc4994a722da"},
     {0x35a670,0x65,"575d100624f74903c3409da0cbfd0e9bd1418a3c4d118f7b61149cbdac6f88c3"},
@@ -90,11 +106,11 @@ constexpr Segment segments[]{
     {0x1795e,0x5,"94ca8b3be29653a21239620e3d6928d66d781ba94d7176ac9da8d854cdf551af"},
     {0xbdc5,0x5,"9514894e992f15e5297c31adf885f7704fca66bf0fd325d5dcc941f258661f57"},
 };
-constexpr std::uint32_t relocations[]{0x4c296,0xae816,0xae866,0xae873,0xae8ac,0xae8c7,0xae8f4,0xaeab0,0xaeab7,0xaeada,0xaeb19,0xaeb2d,0xaeb9f,0xaebcc,0xaec9f,0xaecea,0xaed22,0xaed71,0xaedc2,0xaee17,0xaefb7,0xaefde,0xaf033,0xaf043,0x14c7a9,0x14c7c9,0x224216,0x35a676,0x35a6c1,0x362066,0x36208a,0x3620e2,0x374f06,0x374f1a,0x374f61,0x7f4492,0x7f449f,0x7f44a7,0x7f44b1,0x7f44be,0x7f4da6};
+constexpr std::uint32_t relocations[]{0x79046,0x7905f,0x4c296,0xae816,0xae866,0xae873,0xae8ac,0xae8c7,0xae8f4,0xaeab0,0xaeab7,0xaeada,0xaeb19,0xaeb2d,0xaeb9f,0xaebcc,0xaec9f,0xaecea,0xaed22,0xaed71,0xaedc2,0xaee17,0xaefb7,0xaefde,0xaf033,0xaf043,0x14c7a9,0x14c7c9,0x224216,0x35a676,0x35a6c1,0x362066,0x36208a,0x3620e2,0x374f06,0x374f1a,0x374f61,0x7f4492,0x7f449f,0x7f44a7,0x7f44b1,0x7f44be,0x7f4da6};
 
 sb::AppendObserver observer{};
 unsigned allocations{},finalizations{},network_calls{},appends{},locks{},unlocks{},depth{},increments_in_lock{};
-bool gate=true,append_gate=true,deny_at_network=false;
+bool gate=true,append_gate=true,deny_at_network=false,ordinary_caller=false;
 std::array<std::uint32_t,0x88/4> packet{};
 std::array<std::uint32_t,0xf00/4> actor{};
 std::array<std::uint32_t,0x800/4> object{};
@@ -103,6 +119,7 @@ std::array<std::uint32_t,8> head_a{},head_b{},node{};
 it::Context binding{};
 std::uintptr_t arena_base{};
 unsigned cases{};
+std::array<std::uint32_t,8> activity{}, protocols{};
 LONG CALLBACK Diagnostic(EXCEPTION_POINTERS* e) {
     if(e && e->ExceptionRecord && e->ContextRecord && e->ExceptionRecord->ExceptionCode!=EXCEPTION_BREAKPOINT) {
         std::fprintf(stderr,"probe fault code=%08lx rva=%08lx access=%08lx\n",e->ExceptionRecord->ExceptionCode,
@@ -141,6 +158,7 @@ void __fastcall Network(void* writer,void*,void* message){
         && packet[0x78/4]==binding.item_key[0] && packet[0x7c/4]==binding.item_key[1]
         && packet[0x80/4]==0 && packet[0x84/4]==0,"actual native item message payload");
     if(deny_at_network){append_gate=false;}
+    if(ordinary_caller){++appends;it::Consume(message);return;}
     const auto claim=observer.claim(reinterpret_cast<void*>(binding.container),message,0x2c6eb7);
     Require(claim.decision!=sb::AppendDecision::unrelated,"native frame/callsite correlated");
     if(claim.decision==sb::AppendDecision::allow){++appends;observer.complete(claim.owner,sb::AppendResult::queued);}
@@ -200,7 +218,7 @@ int Run(int argc,char** argv){
         // The original switch table is data embedded after AE810's code body.
         for(unsigned offset=0xaf0d0;offset<0xaf0e4;offset+=4){std::uint32_t value{};std::memcpy(&value,image+offset,4);
             value+=static_cast<std::uint32_t>(arena_base)-0x400000U;std::memcpy(image+offset,&value,4);}
-        for(const auto offset:{0xae816U,0x374f06U,0x35a676U,0x362066U,0x7f4da6U,0x4c296U,0x224216U}){
+        for(const auto offset:{0x79046U,0xae816U,0x374f06U,0x35a676U,0x362066U,0x7f4da6U,0x4c296U,0x224216U}){
             Put(arena_base+offset,reinterpret_cast<std::uintptr_t>(&NativeFault));}
         Jump(image+0x8d88e6,reinterpret_cast<std::uintptr_t>(&Allocate));
         Jump(image+0x46b0,reinterpret_cast<std::uintptr_t>(&Clock));
@@ -224,6 +242,7 @@ int Run(int argc,char** argv){
         definition[0xf4/4]=8;definition[0x11c/4]=10;
         Put(arena_base+0x1155684,reinterpret_cast<std::uintptr_t>(&Finalize));Put(arena_base+0x1155688,arena_base+0x1311b0);
 
+        Put(arena_base+0x1142748+0x120,arena_base+0xae810);
         DWORD prior{};Require(VirtualProtect(image,0x1000000,PAGE_EXECUTE_READ,&prior)!=FALSE,"executable primitive arena");
         FlushInstructionCache(GetCurrentProcess(),image,0x1000000);
         Require(it::StartBound(arena_base,reinterpret_cast<it::Send>(image+0x7f4da0)),"item observer install");
@@ -238,8 +257,30 @@ int Run(int argc,char** argv){
             Require(!result.native_entered&&!result.append_observed&&!result.ownership_quarantined
                 &&allocations==before&&object[0x7c4/4]==1,"missing item does not enter or retain");++cases;
         }
+        for(unsigned mode:{5U,6U,7U})for(unsigned count:{1U,2U}) {
+            activity[4]=mode;protocols[0]=protocols[1]=429021400;
+            actor[0xad0/4]=Ptr(activity.data());actor[0x65c/4]=Ptr(protocols.data());
+            actor[0x660/4]=Ptr(protocols.data()+count);actor[0x664/4]=Ptr(protocols.data()+protocols.size());
+            const auto before_end=actor[0x660/4];Test(0,30,false);
+            Require(activity[4]==mode&&actor[0x660/4]==before_end&&protocols[0]==429021400,
+                "item Use does not inspect or clear existing activity/initiation");
+        }
+        // Exact ordinary actor item caller: state7 refuses, state5/6 reaches
+        // actual ArcItem Use. No producer Scope/current admission callback.
+        ordinary_caller=true;
+        using Ordinary=void(__thiscall*)(void*,void*,unsigned);
+        for(unsigned mode:{5U,6U,7U})for(unsigned count:{0U,1U,2U}) {
+            activity[4]=mode;protocols[0]=protocols[1]=429021400;
+            actor[0xad0/4]=Ptr(activity.data());actor[0x65c/4]=Ptr(protocols.data());
+            actor[0x660/4]=Ptr(protocols.data()+count);actor[0x664/4]=Ptr(protocols.data()+protocols.size());
+            const auto before=appends;const auto end=actor[0x660/4];
+            reinterpret_cast<Ordinary>(image+0x79040)(actor.data(),object.data(),0);
+            Require(appends==before+(mode==7?0:1),"ordinary actor item gate is movement state, not protocol count");
+            Require(activity[4]==mode&&actor[0x660/4]==end&&protocols[0]==429021400,
+                "ordinary item caller preserves protocol bookkeeping");++cases;
+        }
         Require(locks==unlocks&&depth==0&&increments_in_lock>0,"real lookup retains while container lock held");
-        std::printf("item native conformance: %u cases passed; 48 exact primitives; no live game\n",cases);return 0;
+        std::printf("post-movement item entry conformance: %u cases passed; 57 exact primitives; no live game\n",cases);return 0;
     }catch(const std::exception& error){std::fprintf(stderr,"%s\n",error.what());return 1;}
 }
 }

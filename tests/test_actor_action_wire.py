@@ -573,3 +573,31 @@ def test_typed_admission_refusal_requires_no_entry_and_exact_verb(reason):
     ):
         with pytest.raises(ValueError):
             replace(refusal, **changes).encode()
+
+
+@pytest.mark.parametrize("local", [LocalSettlement.PENDING, LocalSettlement.SETTLED])
+def test_interrupted_receipt_keeps_original_queue_and_local_facts(local):
+    _, _, command, receipt = fixture()
+    interrupted = replace(receipt, application=Application.INTERRUPTED,
+                          flags=receipt.flags & ~APPLICATION_PENDING, local_settlement=local)
+    decoded = Receipt.decode(interrupted.encode())
+    decoded.require_command(command, Verb.SUBMIT)
+    assert decoded.application is Application.INTERRUPTED
+    assert decoded.entry is Entry.ENTERED and decoded.flags & OUTBOUND_QUEUED
+    assert decoded.local_settlement is local
+    # UNKNOWN=3 is still distinct from the newly appended action value4.
+    assert Application.UNKNOWN.value == 3 and Application.INTERRUPTED.value == 4
+
+
+@pytest.mark.parametrize("change", ["unentered", "unqueued", "pending_flag"])
+def test_interrupted_receipt_cannot_forge_terminal_application(change):
+    _, _, _, receipt = fixture()
+    changes = dict(application=Application.INTERRUPTED, flags=receipt.flags & ~APPLICATION_PENDING)
+    if change == "unentered":
+        changes["entry"] = Entry.UNKNOWN
+    elif change == "unqueued":
+        changes["flags"] &= ~OUTBOUND_QUEUED
+    else:
+        changes["flags"] |= APPLICATION_PENDING
+    with pytest.raises(ValueError):
+        replace(receipt, **changes).encode()

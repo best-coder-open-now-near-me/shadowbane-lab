@@ -1,6 +1,6 @@
-// Execute only the exact reviewed PreparePower stance predicate in a private
-// arena. State-lock calls are instrumented substitutes: this verifies predicate
-// semantics and their ECX ABI, not native synchronization or full power legality.
+// Execute the reviewed PreparePower stance and movement/auxiliary predicates
+// in private arenas. State locks are instrumented: this qualifies the exact
+// predicates and ECX ABI, not synchronization, full Use, or server application.
 #include <Windows.h>
 #include <bcrypt.h>
 #include <array>
@@ -70,7 +70,7 @@ __declspec(naked) bool __cdecl Predicate(void*,void*,void*) {
     }
 }
 struct Arena {
-    unsigned char* bytes=static_cast<unsigned char*>(VirtualAlloc(nullptr,0x4e200,
+    unsigned char* bytes=static_cast<unsigned char*>(VirtualAlloc(nullptr,0x4e400,
         MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE));
     ~Arena(){if(bytes){VirtualFree(bytes,0,MEM_RELEASE);}}
 };
@@ -100,8 +100,8 @@ int main(int argc,char** argv) {
         Jump(arena.bytes+0x7bee,reinterpret_cast<std::uintptr_t>(&Acquire));
         Jump(arena.bytes+0x26eb3,reinterpret_cast<std::uintptr_t>(&Release));
         DWORD old{};
-        if(!VirtualProtect(arena.bytes,0x4e200,PAGE_EXECUTE_READ,&old)
-            || !FlushInstructionCache(GetCurrentProcess(),arena.bytes,0x4e200)){
+        if(!VirtualProtect(arena.bytes,0x4e400,PAGE_EXECUTE_READ,&old)
+            || !FlushInstructionCache(GetCurrentProcess(),arena.bytes,0x4e400)){
             throw std::runtime_error("arena execute protection failed");}
         std::array<std::uint32_t,0xad4/4> actor{};
         std::array<std::uint32_t,0x1f4/4> power{};
@@ -122,7 +122,54 @@ int main(int argc,char** argv) {
                 ++cases;
             }
         }
-        std::printf("{\"image_sha256\":\"%s\",\"cases\":%u,\"failures\":%u,\"scope\":\"native_required_mode_predicate_only\"}\n",
+        // The continuation after accepted mode checks has two independent
+        // predicates: non-moving flag +274 rejects state7; auxiliary flag +275
+        // rejects aux3. Retained initiation IDs are not read by these predicates.
+        Arena continuation;
+        if(!continuation.bytes){throw std::runtime_error("continuation allocation failed");}
+        constexpr std::size_t moving_begin=0x4e1b9,moving_end=0x4e339;
+        std::memcpy(continuation.bytes+moving_begin,bytes.data()+moving_begin,moving_end-moving_begin);
+        std::memcpy(continuation.bytes+0x4e1f3,no,sizeof(no));
+        std::memcpy(continuation.bytes+0x4e2b3,no,sizeof(no));
+        std::memcpy(continuation.bytes+moving_end,yes,sizeof(yes));
+        Jump(continuation.bytes+0x7bee,reinterpret_cast<std::uintptr_t>(&Acquire));
+        Jump(continuation.bytes+0x26eb3,reinterpret_cast<std::uintptr_t>(&Release));
+        if(!VirtualProtect(continuation.bytes,0x4e400,PAGE_EXECUTE_READ,&old)
+            || !FlushInstructionCache(GetCurrentProcess(),continuation.bytes,0x4e400)){
+            throw std::runtime_error("continuation protection failed");}
+        std::array<std::uint32_t,0x278/4> continuation_power{};
+        auto* flags=reinterpret_cast<unsigned char*>(continuation_power.data());
+        std::array<std::uint32_t,4> retained_ids{123,123,456,0};
+        actor[0x65c/4]=static_cast<std::uint32_t>(reinterpret_cast<std::uintptr_t>(retained_ids.data()));
+        actor[0x664/4]=actor[0x65c/4]+sizeof(retained_ids);
+        for(const auto count:{0U,1U,2U,3U}) {
+            actor[0x660/4]=actor[0x65c/4]+count*4;
+            for(const auto activity:{1,2,3,4,5,6,7}) {
+                for(const auto auxiliary:{0,3}) {
+                    for(const auto flag274:{0U,1U}) {
+                        for(const auto flag275:{0U,1U}) {
+                            flags[0x274]=static_cast<unsigned char>(flag274);
+                            flags[0x275]=static_cast<unsigned char>(flag275);
+                            state[0x10/4]=activity;state[0x1c/4]=auxiliary;
+                            acquired=released=0;
+                            const auto before_actor=actor;const auto before_power=continuation_power;
+                            const auto before_state=state;const auto before_ids=retained_ids;
+                            const bool moving_denied=!flag274&&activity==7;
+                            const bool expected=!moving_denied&&(flag275||auxiliary!=3);
+                            Check(Predicate(continuation.bytes+moving_begin,actor.data(),continuation_power.data())==expected,
+                                "actual movement/auxiliary predicate differs with retained IDs");
+                            const unsigned locks=(!flag274?1U:0U)+(!moving_denied&&!flag275?1U:0U);
+                            Check(acquired==locks&&released==locks,"movement/auxiliary exact state lock ABI");
+                            Check(actor==before_actor&&continuation_power==before_power
+                                &&state==before_state&&retained_ids==before_ids,
+                                "native eligibility predicates leave state and retained IDs untouched");
+                            ++cases;
+                        }
+                    }
+                }
+            }
+        }
+        std::printf("{\"image_sha256\":\"%s\",\"cases\":%u,\"failures\":%u,\"scope\":\"native_mode_movement_aux_predicates_only\"}\n",
             sha.c_str(),cases,failures);
         return failures?1:0;
     } catch(const std::exception& error) {

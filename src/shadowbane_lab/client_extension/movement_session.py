@@ -52,6 +52,20 @@ class NativeMovementGrant:
 
 
 @dataclass(frozen=True, slots=True)
+class NativePreparationLease:
+    """Actor producer lifetime only. Deliberately contains no movement Grant."""
+
+    process_identity: channel.NativeClientProcessIdentity
+    window: int
+    host: Host
+    scene: int
+
+    @property
+    def ownership(self):
+        return None
+
+
+@dataclass(frozen=True, slots=True)
 class NativeCombatResult:
     """Correlated receipt plus opaque diagnostics, never additional action authority."""
 
@@ -225,6 +239,8 @@ class NativeMovementSession:
             )
 
     def _check_grant(self, grant: NativeMovementGrant) -> None:
+        if not isinstance(grant, NativeMovementGrant):
+            raise ValueError("movement requires a movement grant")
         if grant.process_identity != self.identity or grant.window != self.window:
             raise ValueError("movement grant belongs to another client")
         if grant in self._revoked or grant.host != self._host(acquire=False):
@@ -454,13 +470,39 @@ class NativeMovementSession:
             )
         return transport
 
+    def preparation_lease(self, scene: int) -> NativePreparationLease:
+        """Claim only the shared transport producer, never movement/input ownership."""
+        if type(scene) is not int or not 0 < scene < 2**64:
+            raise ValueError("preparation requires a positive exact scene")
+        with self._session_lock:
+            self._host(acquire=True)
+            lease = NativePreparationLease(
+                self.identity, self.window, self._host(acquire=False), scene
+            )
+            self.require_actor_actions(lease)
+            return lease
+
+    def maintain_preparation(self, lease: NativePreparationLease) -> None:
+        """Renew the original producer only; never acquire movement or a new lease."""
+        if not isinstance(lease, NativePreparationLease):
+            raise ValueError("maintenance requires a preparation lease")
+        with self._session_lock:
+            self._actor_transport(grant=lease, require_capability=False).renew_lease()
+
     def require_actor_actions(self, grant: NativeMovementGrant) -> None:
         """Require the complete actor protocol before authority or new action entry."""
         with self._session_lock:
-            self._check_grant(grant)
+            if not isinstance(grant, NativePreparationLease):
+                self._check_grant(grant)
             if grant in self._stops or self.cleanup.blocked(grant):
                 raise NativeMovementError(Outcome.INHIBITED)
-            self._actor_transport(grant=grant)
+            transport = self._actor_transport(grant=grant)
+            if (isinstance(grant, NativePreparationLease) and not (
+                transport.header.capability_flags & channel.ACTOR_PREPARATION_CAPABILITY
+            )):
+                raise channel.NativeActionChannelUnavailable(
+                    "background preparation is unavailable"
+                )
 
     def actor_ordinals(self, grant: NativeMovementGrant):
         with self._session_lock:
@@ -490,7 +532,7 @@ class NativeMovementSession:
                 if grant is not None or parent is not None or context is not None:
                     raise ValueError("observation cannot carry mutation ownership")
             else:
-                if (not isinstance(grant, NativeMovementGrant)
+                if (not isinstance(grant, (NativeMovementGrant, NativePreparationLease))
                         or command.grant != grant.ownership or command.host != grant.host):
                     raise ValueError("actor command belongs to another owner")
                 command.require_bindings(parent, context)
@@ -498,10 +540,9 @@ class NativeMovementSession:
                         self.identity.process_id, self.identity.creation_filetime_utc):
                     raise ValueError("actor fence belongs to another client lifetime")
                 if admission:
-                    self._check_grant(grant)
-                    if grant in self._stops or self.cleanup.blocked(grant):
-                        raise NativeMovementError(Outcome.INHIBITED)
-                    self._require_new_work_ready(grant)
+                    self.require_actor_actions(grant)
+                    if not isinstance(grant, NativePreparationLease):
+                        self._require_new_work_ready(grant)
             transport = self._actor_transport(grant=grant,
                                               require_capability=readonly or admission)
             timeout = (self.cleanup.timeout_ms(grant, self.timeout_ms)

@@ -42,6 +42,9 @@ int wmain(int argc,wchar_t** argv){
     assert(w::Valid(w::Verb::submit,c)&&w::Bindings(c,p)&&w::Correlated(c,w::Verb::submit,r));
     assert(c.item_key[0]==5802955&&c.item_key[1]==30&&c.template_key[0]==980066&&!c.template_key[1]);
     assert(r.local_settlement==w::LocalSettlement::settled&&r.application==w::Application::pending);
+    auto interrupted=r;interrupted.application=w::Application::interrupted;interrupted.flags&=~w::application_pending;
+    assert(w::Correlated(c,w::Verb::submit,interrupted));
+    interrupted.flags&=~w::outbound_queued;assert(!w::Valid(interrupted));
     for(unsigned i=0;i<12;++i){auto bad=c;switch(i){
         case 0:bad.version=2;break;case 1:bad.reserved[0]=1;break;
         case 2:bad.template_key[1]=40;break;case 3:bad.item_key[1]=0;break;

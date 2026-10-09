@@ -57,6 +57,13 @@ int main(int argc,char** argv){
     Check(closed.owner_phase==w::Phase::bound&&closed.context_phase==w::Phase::closed&&closed.flags==w::owner_cleanup,"child cleanup retains parent");
     const auto retained=Run(c,f,w::Verb::action_status,item);
     Check(retained.application==w::Application::pending&&retained.owner_phase==w::Phase::bound,"child stop retains actor application history");
+    w::Digest item_digest{};Check(w::HashCommand(item,item_digest)
+        &&c.ObserveApplication(item_digest,w::Application::interrupted),"exact native interruption projects original queued command");
+    const auto interrupted_item=Run(c,f,w::Verb::action_status,item);
+    Check(interrupted_item.application==w::Application::interrupted
+        &&interrupted_item.local_settlement==w::LocalSettlement::settled
+        &&!(interrupted_item.flags&w::application_pending),"interruption does not erase queued receipt or fabricate cleanup");
+    Check(!c.ObserveApplication(item_digest,w::Application::pending),"nonterminal projection rejected");
     auto second=context;second.context_id=Id(500);second.context_digest[0]^=2;
     Check(Run(c,f,w::Verb::attach_context,second).outcome==w::Outcome::bound,"new encounter under same parent");
     Run(c,f,w::Verb::context_status,context);

@@ -16,6 +16,7 @@ public:
     Controller controller;
     NativeActor native;
     actor_actions::ApplicationJournal journal;
+    std::array<combat::activation::Handle,actor_actions::ApplicationJournal::capacity> activations{};
     publication::Writer publisher;
     selectors::Manifest manifest{};
     wire::Digest manifest_digest{};
@@ -34,6 +35,9 @@ public:
     std::shared_ptr<QueuedCommand> executing;
     std::atomic<bool> ready{false},cancelled{false},child_cancelled{false};
     bool updating{},retired{},active{},preparing{},dispatching{},stopping{};
+    std::uint64_t preparation_input_epoch{};
+    bool Preparation() const noexcept { return parent.purpose==fence::Purpose::preparation; }
+    static bool PreparationOwned() noexcept;
     bool parent_admitted{},child_admitted{},attaching{},has_manifest{},quarantined{},admission_blocked{};
 
     static bool SceneGate(void* context) noexcept {
@@ -49,7 +53,9 @@ public:
         fence::State state{};
         return self.parent_ticket.Inspect(state)==fence::Result::not_pending
             &&state==(self.parent_admitted?fence::State::entered:fence::State::pending)
-            &&movement::NativeOwnerActionCurrent(self.scene,self.grant,self.owner_command.host)
+            &&(self.Preparation()
+                ? (!self.dispatching||movement::NativePreparationUninterrupted(self.scene,self.preparation_input_epoch))
+                : movement::NativeOwnerActionCurrent(self.scene,self.grant,self.owner_command.host))
             &&!self.cancelled.load(std::memory_order_acquire)&&!self.retired;
     }
     static bool ChildCurrent(void* context) noexcept {
@@ -62,7 +68,8 @@ public:
         const auto& self=*static_cast<Runtime*>(context);
         // Queue-lock boundary: immutable/scalar admission only, no IPC mutex.
         return self.active&&self.parent_admitted&&self.dispatching&&!self.retired
-            &&!self.quarantined&&!self.cancelled.load(std::memory_order_acquire);
+            &&!self.quarantined&&!self.cancelled.load(std::memory_order_acquire)
+            &&(!self.Preparation()||movement::NativePreparationUninterrupted(self.scene,self.preparation_input_epoch));
     }
     static bool ChildAppendCurrent(void* context) noexcept {
         const auto& self=*static_cast<Runtime*>(context);
@@ -70,7 +77,8 @@ public:
     }
     static bool StopCurrent(void* context) noexcept {
         const auto& self=*static_cast<Runtime*>(context);
-        return (self.updating||self.stopping)&&!self.retired&&movement::NativeOwnerStopCurrent(self.scene,self.grant);
+        return (self.updating||self.stopping)&&!self.retired
+            &&(self.Preparation()?SceneGate(context):movement::NativeOwnerStopCurrent(self.scene,self.grant));
     }
     static State Observed(const NativeActor::Observation& state,P phase=P::bound,C closure=C::none) noexcept {
         return {phase,closure,state.mode,state.action_state,state.target?1U:0U};
@@ -107,7 +115,19 @@ public:
         if(!journal.Record(index,digest,entry,(result.history&wire::outbound_queued)!=0,result.local==wire::LocalSettlement::settled)){return false;}
         const auto state=journal.Records()[index].state;
         result.application=state==actor_actions::ApplicationState::pending?wire::Application::pending:
-            state==actor_actions::ApplicationState::observed?wire::Application::observed:wire::Application::none;
+            state==actor_actions::ApplicationState::observed?wire::Application::observed:
+            state==actor_actions::ApplicationState::interrupted?wire::Application::interrupted:wire::Application::none;
+        return true;
+    }
+    bool ReconcileActivations(std::uint64_t observation_revision) noexcept {
+        for(std::size_t index=0;index<activations.size();++index){
+            const auto& record=journal.Records()[index];const auto& handle=activations[index];
+            if(!record.reserved||!handle||record.state!=actor_actions::ApplicationState::pending
+                ||combat::activation::Read(handle)!=combat::activation::Result::interrupted){continue;}
+            // The handle is replaced only alongside this exact journal slot's
+            // reservation. Parent close, producer changes and time do not erase it.
+            if(!journal.Interrupt(index,record.command,record.submitted_revision,observation_revision)){return false;}
+        }
         return true;
     }
     void SettleApplication(const wire::Command& command) noexcept {
@@ -141,6 +161,8 @@ public:
         if(native.Publish(request,facts)!=actor_buffs::Unknown::none||!native.RevalidatePublication(facts)){
             (void)publisher.Unknown(static_cast<std::uint32_t>(facts.unknown)?static_cast<std::uint32_t>(facts.unknown):6U);return false;}
         facts.admission_blocks|=ArbiterBlocks();
+        std::uint64_t input_epoch{};
+        if(active&&Preparation()&&!movement::NativePreparationEntryCurrent(scene,input_epoch)) { facts.admission_blocks|=admission::manual_activity; }
         publication::Frame frame{};
         if(!publication::Encode(manifest,facts,journal,frame)||!publisher.Publish(frame)||!publisher.Current(frame)){(void)publisher.Unknown(6);return false;}
         for(std::uint32_t group=0;group<manifest.groups;++group){
@@ -149,13 +171,20 @@ public:
             wire::Digest digest{};
             if(!selectors::GroupDigest(manifest,group,digest)||!journal.Observe(digest,frame.revision,true,present)){(void)publisher.Unknown(10);return false;}
         }
+        // A new terminal record changes factual revision. Reserve the next
+        // revision, then publish it below; never relabel the submission capture.
+        if(frame.revision>=static_cast<std::uint64_t>(std::numeric_limits<LONG64>::max()/2)
+            ||!ReconcileActivations(frame.revision+1)){(void)publisher.Unknown(10);return false;}
         for(const auto& record:journal.Records()){
-            if(record.reserved&&record.state==actor_actions::ApplicationState::observed){(void)controller.ObserveApplication(record.command);}
+            if(record.reserved&&(record.state==actor_actions::ApplicationState::observed||record.state==actor_actions::ApplicationState::interrupted)){
+                (void)controller.ObserveApplication(record.command,record.state==actor_actions::ApplicationState::observed
+                    ?wire::Application::observed:wire::Application::interrupted);}
         }
         // Observation may resolve application history. Publish that transition
         // separately so callers submit against the latest exact factual revision.
         if(!native.RevalidatePublication(native.Publication())
-            ||facts.admission_blocks!=(native.Publication().admission_blocks|ArbiterBlocks())
+            ||facts.admission_blocks!=(native.Publication().admission_blocks|ArbiterBlocks()
+                |(facts.admission_blocks&admission::manual_activity))
             ||!publication::Encode(manifest,facts,journal,frame)||!publisher.Publish(frame)){(void)publisher.Unknown(6);return false;}
         return true;
     }
@@ -186,14 +215,17 @@ public:
     Operation Open(const wire::Command& input) noexcept override {
         auto result=Refused(O::unavailable);result.state={};
         if(active||preparing||!executing||!native.SceneCurrent()||!fence::ReadBinding(input.parent_digest,parent)
-            ||!wire::Bindings(input,parent)||!movement::wire::Decode(input.grant,grant)){return result;}
+            ||!wire::Bindings(input,parent)){return result;}
+        if(Preparation()){grant={};if(!movement::NativePreparationOwnerAvailable(scene)){return result;}}
+        else if(!movement::wire::Decode(input.grant,grant)){return result;}
         owner_command=input;parent_admitted=false;cancelled.store(false,std::memory_order_release);
         try{if(!parent_ticket.Open(parent,parent)){return result;}}catch(...){return result;}
         lease=executing->lease;preparing=true;
         const bool bound=Current(this)&&native.ValidateParent(parent,{Current,AppendCurrent,this});
         if(bound&&Current(this)){
             parent_admitted=parent_ticket.TryAdmit(parent,false)==fence::Result::admitted;
-            if(parent_admitted&&Current(this)&&movement::BeginNativeOwnerAction(scene,grant,input.host)==movement::Result::accepted){
+            if(parent_admitted&&Current(this)&&(Preparation()?movement::NativePreparationOwnerAvailable(scene)
+                :movement::BeginNativeOwnerAction(scene,grant,input.host)==movement::Result::accepted)){
                 active=true;preparing=false;result.outcome=O::bound;result.state=StateNow();return result;
             }
         }
@@ -235,6 +267,7 @@ public:
         if(journal.Faulted()){return AdmissionRefused(0);}
         if(const auto blocks=ArbiterBlocks()){return AdmissionRefused(blocks);}
         if(!targeted){
+            if(Preparation()&&!movement::NativePreparationEntryCurrent(scene,preparation_input_epoch)) { return AdmissionRefused(admission::manual_activity); }
             std::uint32_t blocks{};
             if(!native.ReadAdmission(blocks)){return AdmissionRefused(0);}
             if(blocks){return AdmissionRefused(blocks);}
@@ -249,13 +282,24 @@ public:
                 if(facts.actions[i].intent.group_index==group&&facts.actions[i].coverage!=actor_buffs::Coverage::missing){return Refused(O::deferred,wire::Reason::observation);}
             }
             wire::Digest intent{},command{};
-            if(!selectors::GroupDigest(manifest,manifest.records[input.selector_index].group,intent)||!wire::HashCommand(input,command)
-                ||journal.Reserve(intent,command,frame.revision)==actor_actions::ApplicationJournal::invalid){return Refused(O::deferred,wire::Reason::observation);}
+            if(!selectors::GroupDigest(manifest,manifest.records[input.selector_index].group,intent)||!wire::HashCommand(input,command)){
+                return Refused(O::deferred,wire::Reason::observation);}
+            const auto index=journal.Reserve(intent,command,frame.revision);
+            if(index==actor_actions::ApplicationJournal::invalid){return Refused(O::deferred,wire::Reason::observation);}
+            const auto& selector=manifest.records[input.selector_index];
+            activations[index]=combat::activation::Arm(index,{scene.actor,scene.identity,scene.epoch},
+                input.action==wire::Action::use_item?selector.coverage_power:input.power_id,
+                input.action==wire::Action::use_item?combat::activation::ActivationOrigin::item:combat::activation::ActivationOrigin::self_power);
+            if(!activations[index]){
+                (void)journal.Record(index,command,actor_actions::ApplicationEntry::never_entered,false,true);
+                return Refused(O::unavailable,wire::Reason::observation);
+            }
         }
         dispatching=true;Operation result=Refused();
         if((targeted?ChildCurrent(this):Current(this))&&parent_ticket.TryAdmit(parent,true)==fence::Result::admitted
             &&(!targeted||child_ticket.TryAdmit(child,true)==fence::Result::admitted)){
-            const auto submitted=native.Submit(input);result=Converted(submitted);
+            const auto index=JournalIndex(input);
+            const auto submitted=native.Submit(input,index<activations.size()?activations[index]:combat::activation::Handle{});result=Converted(submitted);
             // Observation after native return, outside the queue lock. Never application authority.
             item_trace::OwnedReturn(input,scene,result.outcome,result.entry,result.local,result.history,&submitted.power_diagnostic);
             if(!targeted&&result.outcome==O::deferred&&result.entry==wire::Entry::never_entered){
@@ -269,7 +313,7 @@ public:
     }
     bool StopOwned(const movement::NativeScene& expected,const movement::Grant& expected_grant) noexcept {
         if(!active&&!preparing){return true;}
-        if(stopping||retired||expected.epoch!=scene.epoch||expected_grant!=grant||!movement::NativeOwnerStopCurrent(expected,expected_grant)){return false;}
+        if(stopping||retired||expected.epoch!=scene.epoch||expected_grant!=grant||!(Preparation()?SceneGate(this):movement::NativeOwnerStopCurrent(expected,expected_grant))){return false;}
         cancelled.store(true,std::memory_order_release);native.Revoke();stopping=true;
         wire::Command pending{};const bool pending_before=native.PendingCommand(pending);
         const auto result=native.StopOwner(parent,StopCurrent,this);
@@ -288,7 +332,7 @@ public:
             if(StopOwned(scene,grant)){
                 // Release the movement owner's external-work bit only after the
                 // exact owned native action is locally settled.
-                (void)movement::PauseNativeOwnerAction(scene,grant);
+                if(!Preparation()){(void)movement::PauseNativeOwnerAction(scene,grant);}
                 // StopOwned publishes the exact closure to the controller.
                 return StateNow(P::stopping);
             }return StateNow(P::stopping);
@@ -309,7 +353,8 @@ public:
             if(index!=actor_actions::ApplicationJournal::invalid){
                 const auto application=journal.Records()[index].state;
                 result.application=application==actor_actions::ApplicationState::pending?wire::Application::pending:
-                    application==actor_actions::ApplicationState::observed?wire::Application::observed:wire::Application::none;
+                    application==actor_actions::ApplicationState::observed?wire::Application::observed:
+                    application==actor_actions::ApplicationState::interrupted?wire::Application::interrupted:wire::Application::none;
             }
             if(!controller.UpdateAction(pending,result)||!RecordApplication(pending,result)
                 ||!controller.UpdateAction(pending,result)){admission_blocked=true;cancelled.store(true,std::memory_order_release);}
@@ -327,6 +372,7 @@ public:
             retired=true;cancelled.store(true,std::memory_order_release);native.Revoke();
             if(has_manifest){(void)publisher.Unknown(3);}
             if(native.ReleaseScene()){
+                (void)combat::activation::ResetExactLifetime({scene.actor,scene.identity,scene.epoch});activations={};
                 (void)controller.UpdateScope(owner_command,{P::retired,C::scene_retired},true);
                 publisher.Close();has_manifest=false;manifest={};manifest_digest={};actor_lifetime={};journal={};
                 parent_ticket.Close();child_ticket.Close();lease.reset();active=preparing=parent_admitted=child_admitted=false;admission_blocked=false;scene={};
@@ -355,8 +401,9 @@ public:
                 receipt=Read(pending->verb,pending->command,timely&&producer&&window_ok&&valid_scene&&!quarantined);
             }else{
                 movement::Grant requested{};
-                const bool valid=window_ok&&movement::wire::Decode(pending->command.grant,requested);
-                const bool current=valid&&producer&&valid_scene&&movement::NativeOwnerActionCurrent(fresh,requested,pending->command.host);
+                const bool preparation=wire::Any(pending->command.parent_id)&&wire::Zero(pending->command.grant);
+                const bool valid=window_ok&&(preparation||movement::wire::Decode(pending->command.grant,requested));
+                const bool current=valid&&producer&&valid_scene&&(preparation||movement::NativeOwnerActionCurrent(fresh,requested,pending->command.host));
                 receipt=controller.Execute(pending->verb,pending->command,valid,timely&&current&&ready.load(),current,*this);
             }
             Complete(pending,receipt,controller.Diagnose(pending->command));executing.reset();
@@ -365,6 +412,7 @@ public:
     }
 };
 Runtime runtime;
+bool Runtime::PreparationOwned() noexcept { return (runtime.active||runtime.preparing)&&runtime.Preparation(); }
 bool Runtime::StopOwner(const movement::NativeScene& scene,const movement::Grant& grant,movement::StopReason) noexcept{return runtime.StopOwned(scene,grant);}
 void Runtime::Retire(std::uint64_t epoch) noexcept {
     if(runtime.scene.epoch==epoch){runtime.retired=true;runtime.cancelled.store(true,std::memory_order_release);runtime.native.Revoke();}
@@ -377,13 +425,15 @@ bool Ready() noexcept {
     return actor::runtime.ready.load(std::memory_order_acquire)&&submission::Ready()&&power::Ready()
         &&combat_owner_service.load(std::memory_order_acquire)==&actor::Runtime::Update
         &&combat_owner_stop.load(std::memory_order_acquire)==&actor::Runtime::StopOwner
-        &&combat_owner_retire.load(std::memory_order_acquire)==&actor::Runtime::Retire;
+        &&combat_owner_retire.load(std::memory_order_acquire)==&actor::Runtime::Retire
+        &&preparation_owner_active.load(std::memory_order_acquire)==&actor::Runtime::PreparationOwned;
 }
 bool Start(const ProcessIdentity& process) noexcept {
     if(process.process_id!=GetCurrentProcessId()||process.creation_filetime_utc!=actor::fence::Creation(GetCurrentProcess())
         ||!movement::VerifyNativeMovementImage(actor::runtime.base)||!submission::Start(actor::runtime.base)||!power::Start(actor::runtime.base)
         ||!item::Start(actor::runtime.base)||!inventory::Start(actor::runtime.base)){return false;}
     actor::runtime.process=process;
+    preparation_owner_active.store(&actor::Runtime::PreparationOwned,std::memory_order_release);
     combat_owner_stop.store(&actor::Runtime::StopOwner,std::memory_order_release);
     combat_owner_retire.store(&actor::Runtime::Retire,std::memory_order_release);
     combat_owner_ready.store(&Ready,std::memory_order_release);

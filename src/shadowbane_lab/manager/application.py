@@ -475,6 +475,15 @@ class ManagerDashboardApplication:
                 payload["dispatch_enabled"] = worker.dispatch_allowed
                 payload["worker"] = worker.to_dict()
                 payload["worker_activation"] = None if activation is None else activation.to_dict()
+                from .operation import WorkerOperationLedger
+                if isinstance(self._operation_status, WorkerOperationLedger):
+                    from .preparation_status import project_status
+                    try:
+                        preparation_record = self._operation_status.inspect_preparation_status(
+                            slot.client_id)
+                    except (OSError, RuntimeError, ValueError):
+                        preparation_record = None
+                    payload["automatic_buffs"] = project_status(preparation_record, worker, binding)
                 extension = self._extension_summary(binding)
                 if extension.state is ExtensionRuntimeState.INITIALIZED:
                     extension_ready_count += 1
@@ -847,6 +856,7 @@ class ManagerDashboardApplication:
             )
             return
         if action in {"pause", "detach", "close"}:
+            self._preparation_control(client_id, instance_id, enabled=False)
             self._pending_worker_starts.pop(client_id, None)
             self._worker_supervisor.revoke(
                 client_id,
@@ -858,6 +868,8 @@ class ManagerDashboardApplication:
                     client_id,
                     reason=f"manager {action} action ended exact worker ownership",
                 )
+        if action == "resume":
+            self._preparation_control(client_id, instance_id, enabled=True)
         actions = {
             "tile": self._session.tile,
             "pause": self._session.pause,
@@ -871,6 +883,42 @@ class ManagerDashboardApplication:
         operation(client_id)
         if action == "resume":
             self._ensure_worker_for_slot(client_id)
+
+    def _preparation_control(self, client_id, instance_id, *, enabled):
+        from .operation import WorkerOperationLedger
+        ledger = self._operation_status
+        if not isinstance(ledger, WorkerOperationLedger):
+            return  # Applications without an operation worker have no buff service.
+        self._require_exact_binding(client_id, instance_id)
+        worker = (None, None, None)
+        if enabled:
+            registry = self._registry.inspect()
+            current = next((c for c in registry.clients if c.instance_id == instance_id
+                            and _matches_config(c, self._configs[client_id])), None)
+            if current is None:
+                raise DashboardError("stale-instance-selection", "The selected client changed.")
+            activation = self._activation(client_id, current)
+            if activation is None or activation.attached_worker is None:
+                raise DashboardError(
+                    "worker-not-ready", "Wait for this character's worker to start.")
+            worker = activation.attached_worker
+            health = self._worker_supervisor.inspect(
+                client_id, instance_id=instance_id, lifecycle_dispatch_enabled=False,
+                renew_permit=False, attached_worker=worker, attachment_required=True)
+            heartbeat = health.heartbeat
+            if (health.state is not WorkerHealthState.HEALTHY or heartbeat is None
+                    or health.active_worker_count != 1 or health.issues
+                    or (heartbeat.worker_id, heartbeat.process_id,
+                        heartbeat.process_started_at_100ns) != worker
+                    or heartbeat.instance_id != instance_id
+                    or heartbeat.client_id != client_id
+                    or heartbeat.node_id != self._manifest.node_id):
+                raise DashboardError("worker-not-ready", "This character's worker is unavailable.")
+        current = ledger.inspect_preparation_control(client_id, instance_id)
+        ledger.set_preparation_enabled(
+            client_id, instance_id=instance_id, worker_id=worker[0],
+            worker_process_id=worker[1], worker_process_creation=worker[2], enabled=enabled,
+            expected_revision=0 if current is None else current.revision)
 
     def revoke_all_workers(self, *, reason: str) -> None:
         """Fail closed synchronously before the manager process shuts down."""

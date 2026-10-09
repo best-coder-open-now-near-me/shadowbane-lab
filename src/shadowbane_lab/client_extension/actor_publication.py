@@ -40,6 +40,7 @@ class AdmissionBlock(IntFlag):
     LOCAL_ACTION = 4
     FOREIGN_TARGET = 8
     CHILD_CLEANUP = 16
+    MANUAL_ACTIVITY = 32
 
 
 class PublicationError(RuntimeError):
@@ -157,6 +158,14 @@ class ActionFacts:
     item_flags: int
 
 
+class ApplicationState(IntEnum):
+    # Journal states differ from action-wire Application (UNKNOWN=3 there).
+    NONE = 0
+    PENDING = 1
+    OBSERVED = 2
+    INTERRUPTED = 3
+
+
 @dataclass(frozen=True, slots=True)
 class Application:
     group_digest: bytes
@@ -164,7 +173,7 @@ class Application:
     submitted_revision: int
     observed_revision: int
     entry: int  # Native journal: never entered=0, entered=1, uncertain=2.
-    state: int  # none=0, pending=1, observed=2; not server effect consumption.
+    state: ApplicationState  # Local interruption is not server effect consumption.
     local_settled: bool
     queued: bool
 
@@ -186,6 +195,7 @@ class Publication:
     applications: tuple[Application, ...]
     admission_revision: int
     admission_blocks: AdmissionBlock
+    stationary: bool = False
 
     def eligibility_facts(self):
         """Exact native SameEligibility projection, excluding journal/effect history.
@@ -198,6 +208,7 @@ class Publication:
             self.unknown,
             self.actor_mode,
             self.initiation_clear,
+            self.stationary,
             self.admission_blocks,
             tuple((replace(a, descriptors=()), len(a.descriptors)) for a in self.actions),
         )
@@ -236,6 +247,8 @@ class Publication:
             admission_blocks,
             reserved,
         ) = v
+        stationary = int.from_bytes(reserved[:4], "little")
+        reserved = reserved[4:]
         _require(
             0 < sequence < 2**63
             and sequence % 2 == 0
@@ -249,8 +262,9 @@ class Publication:
             and ac <= 32
             and dc <= 256
             and clear <= 1
+            and stationary <= 1
             and 0 < admission_revision < 2**64
-            and admission_blocks & ~31 == 0
+            and admission_blocks & ~63 == 0
             and not any(reserved)
             and not any(payload[22784:]),
             "invalid or incomplete publication frame",
@@ -258,7 +272,7 @@ class Publication:
         if not complete:
             _require(
                 unknown
-                and not any((epoch, ec, rc, ac, dc, mode, clear, admission_blocks))
+                and not any((epoch, ec, rc, ac, dc, mode, clear, stationary, admission_blocks))
                 and not any(payload[256:]),
                 "unknown publication contains factual authority",
             )
@@ -362,8 +376,8 @@ class Publication:
                 )
             present = sum(d.present for d in selection)
             _require(
-                r[14] != Readiness.READY or clear,
-                "pending native initiation cannot advertise ready",
+                selector.kind != 3 or r[14] != Readiness.READY or clear or stationary,
+                "ready power requires clear initiation or positive stationary state",
             )
             expected = (
                 Coverage.PRESENT
@@ -396,21 +410,23 @@ class Publication:
                 and any(a[1])
                 and a[2]
                 and a[4] <= 2
-                and a[5] <= 2
+                and a[5] <= 3
                 and a[6] <= 1
                 and a[7] <= 1
                 and not any(a[8])
                 and (not a[7] or a[4] == 1)
                 and (a[5] != 1 or a[4] != 0)
-                and (a[5] != 2 or (a[4] != 0 and a[3] > a[2]))
-                and (a[5] == 2 or not a[3]),
+                and (a[5] not in (2, 3) or (a[4] != 0 and a[3] > a[2]))
+                and (a[5] != 3 or (a[4] == 1 and a[7] == 1))
+                and (a[5] in (2, 3) or not a[3])
+                and a[2] <= revision and a[3] <= revision,
                 "invalid native application history",
             )
             _require(
                 all(old.command_digest != a[1] for old in applications),
                 "duplicate application command",
             )
-            applications.append(Application(*a[:6], bool(a[6]), bool(a[7])))
+            applications.append(Application(*a[:5], ApplicationState(a[5]), bool(a[6]), bool(a[7])))
         return cls(
             header.identity,
             sequence,
@@ -427,6 +443,7 @@ class Publication:
             tuple(applications),
             admission_revision,
             AdmissionBlock(admission_blocks),
+            bool(stationary),
         )
 
 
@@ -523,6 +540,7 @@ class Reader:
                     and result.complete == self.last.complete
                     and result.actor_mode == self.last.actor_mode
                     and result.initiation_clear == self.last.initiation_clear
+                    and result.stationary == self.last.stationary
                     and result.effects == self.last.effects
                     and result.actions == self.last.actions
                     and result.applications == self.last.applications

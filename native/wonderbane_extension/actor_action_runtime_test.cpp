@@ -10,11 +10,14 @@ namespace f=a::fence;
 namespace m=wonderbane::extension::movement;
 namespace outer=wonderbane::extension::combat;
 namespace b=wonderbane::extension::actor_buffs;
+namespace ac=wonderbane::extension::combat::activation;
 namespace {
+ac::ActivationHistory activation_history;
 unsigned checks{},calls{},stops{},child_stops{},begins{},pauses{},released{},revalidations{};
 bool live=true,read_scene=true,lease_live=true,stop_ok=true,native_activity=false,defer_child=false,poll_settled=false;
 unsigned fail_revalidation{},continuation_checks{};
-bool continuation_current=true,item_effect_present=false;
+bool continuation_current=true,item_effect_present=false,power_effect_present=false,preparation_idle=true,preparation_owner_available=true;
+std::uint64_t preparation_epoch=1;
 m::NativeScene fixture_scene{0x10000,0x20000,0x30000,0x40000,{91,53},7};
 m::Grant owner{9,7,m::Owner::automation};
 void Check(bool value,const char* label){++checks;if(!value){std::fprintf(stderr,"FAILED: %s\n",label);std::abort();}}
@@ -72,6 +75,17 @@ w::Receipt Execute(w::Verb verb,const w::Command& input){
     Check(w::Correlated(input,verb,result),"correlated production receipt");a::Release(command);return result;
 }
 void Tick(){a::runtime.Tick(reinterpret_cast<void*>(fixture_scene.window),reinterpret_cast<HWND>(0x50000));}
+void StartActivation(const ac::Handle& handle){
+    const auto record=activation_history.Read(handle.slot);
+    const auto state=activation_history.BeginStart(handle.identity,record.power,1,2,3,GetCurrentThreadId());
+    Check(state&&activation_history.StateReturned(state,true),"fixture exact incoming state transition");
+    const auto append=activation_history.BeginAppend(handle.identity,record.power,1,2,3,GetCurrentThreadId());
+    Check(append&&activation_history.AppendReturned(append,true)&&activation_history.StartProcessReturned(append,true),"fixture incoming append and normal Process return");
+}
+void InterruptActivation(const ac::Handle& handle){
+    StartActivation(handle);const auto movement=activation_history.BeginMovement(handle.identity);
+    Check(movement&&activation_history.MovementReturned(movement,true),"fixture exact movement transition");
+}
 w::Command Buff(const w::Command& parent,unsigned request,unsigned selector){
     auto command=parent;command.request=Id(request);command.recipient=w::Recipient::actor;command.selector_index=selector;
     command.manifest_digest=a::runtime.manifest_digest;a::publication::Frame frame{};Check(a::runtime.publisher.Current(frame)&&frame.complete,"current publication available for action");
@@ -85,6 +99,9 @@ namespace wonderbane::extension::movement {
 bool VerifyNativeMovementImage(std::uintptr_t& image)noexcept{image=0x400000;return true;}
 bool NativeMovementLifetimeCurrent(const NativeScene& scene)noexcept{return live&&scene.epoch==fixture_scene.epoch;}
 bool ReadNativeMovementLifetime(NativeScene& scene)noexcept{scene=fixture_scene;return live&&read_scene;}
+bool NativePreparationEntryCurrent(const NativeScene& scene,std::uint64_t& epoch)noexcept{epoch=preparation_epoch;return preparation_idle&&NativeMovementLifetimeCurrent(scene);}
+bool NativePreparationOwnerAvailable(const NativeScene& scene)noexcept{return preparation_owner_available&&NativeMovementLifetimeCurrent(scene);}
+bool NativePreparationUninterrupted(const NativeScene& scene,std::uint64_t epoch)noexcept{return epoch==preparation_epoch&&NativeMovementLifetimeCurrent(scene);}
 bool NativeOwnerActionCurrent(const NativeScene& scene,const Grant& grant,const wire::Host&)noexcept{return NativeMovementLifetimeCurrent(scene)&&grant==owner&&lease_live;}
 bool NativeOwnerStopCurrent(const NativeScene& scene,const Grant& grant)noexcept{return NativeMovementLifetimeCurrent(scene)&&grant==owner;}
 Result BeginNativeOwnerAction(const NativeScene& scene,const Grant& grant,const wire::Host& host)noexcept{
@@ -98,6 +115,23 @@ Result PauseNativeOwnerAction(const NativeScene& scene,const Grant& grant)noexce
 }
 namespace wonderbane::extension::combat::submission {bool Start(std::uintptr_t)noexcept{return true;}bool Ready()noexcept{return true;}}
 namespace wonderbane::extension::combat::power {bool Start(std::uintptr_t)noexcept{return true;}bool Ready()noexcept{return true;}}
+namespace wonderbane::extension::combat::activation {
+Handle Arm(std::size_t slot,const ActivationIdentity& identity,std::uint32_t power,ActivationOrigin origin)noexcept{
+    return {slot,activation_history.Arm(slot,identity,power,origin),identity};
+}
+void RecordReturn(const Handle& h,bool queued,bool followup)noexcept{
+    activation_history.QueueResult(h.slot,h.ticket,queued);activation_history.OwnedFollowup(h.slot,h.ticket,followup);
+}
+Result Read(const Handle& h)noexcept{
+    const auto record=activation_history.Read(h.slot);
+    if(!h||record.ticket!=h.ticket||record.identity!=h.identity){return Result::unknown;}
+    if(record.phase==ActivationPhase::interrupted){return Result::interrupted;}
+    if(record.phase==ActivationPhase::completed){return Result::completed;}
+    if(record.local_relinquished){return Result::relinquished;}
+    return Result::awaiting;
+}
+bool ResetExactLifetime(const ActivationIdentity& identity)noexcept{return activation_history.ResetExactLifetime(identity);}
+}
 namespace wonderbane::extension::combat::item {bool Start(std::uintptr_t)noexcept{return true;}}
 namespace wonderbane::extension::combat::inventory {bool Start(std::uintptr_t)noexcept{return true;}}
 // The native gameplay backend is synthetic; copied effects still pass through
@@ -105,7 +139,7 @@ namespace wonderbane::extension::combat::inventory {bool Start(std::uintptr_t)no
 namespace wonderbane::extension::actor_buffs {
 Unknown Capture(const actor_effects::Context&,const Request& request,State&,Publication& out)noexcept{
     out.effects_.count=0;
-    for(std::uint32_t i=0;i<request.count;++i){if(item_effect_present&&!request.actions[i].power_id){
+    for(std::uint32_t i=0;i<request.count;++i){if(request.actions[i].power_id?power_effect_present:item_effect_present){
         auto& effect=out.effects_.effects[out.effects_.count++];effect.descriptor_id=222+i;
         effect.action_id=333+i;effect.rank=35;effect.action_class=actor_effects::ActionClass::apply;
     }}return Unknown::none;
@@ -127,11 +161,12 @@ NativeActor::Operation NativeActor::Attach(const fence::ContextBinding& binding,
     if(defer_child){result.outcome=wire::Outcome::deferred;result.closure=wire::Closure::local_released;return result;}
     child_=binding;child_gates_=gates;child_bound_=true;result.outcome=wire::Outcome::bound;ReadState(result.state);return result;
 }
-NativeActor::Operation NativeActor::Submit(const wire::Command& command)noexcept{
+NativeActor::Operation NativeActor::Submit(const wire::Command& command,combat::activation::Handle activation)noexcept{
     Check(parent_gates_.current(parent_gates_.context)&&parent_gates_.append_current(parent_gates_.context),"native backend sees exact admitted parent gates");
     if(wire::Any(command.context_id)){Check(child_gates_.current(child_gates_.context)&&child_gates_.append_current(child_gates_.context),"native backend sees exact admitted child gates");}
     ++calls;Operation result;result.outcome=wire::Outcome::queued;result.entry=wire::Entry::entered;result.history=wire::outbound_queued;
     if(command.action==wire::Action::self_power){result.local_settlement=wire::LocalSettlement::pending;pending_=true;pending_command_=command;pending_operation_=result;}
+    combat::activation::RecordReturn(activation,true,command.action==wire::Action::self_power);
     ReadState(result.state);return result;
 }
 bool NativeActor::PendingCommand(wire::Command& out)const noexcept{if(!pending_){return false;}out=pending_command_;return true;}
@@ -151,7 +186,7 @@ NativeActor::Operation NativeActor::StopContext(const fence::ContextBinding& chi
 }
 NativeActor::Operation NativeActor::StopOwner(const fence::ActorBinding&,Admission gate,void* owner_context)noexcept{
     ++stops;Operation result;result.outcome=wire::Outcome::pending;result.local_settlement=wire::LocalSettlement::pending;
-    if(gate(owner_context)&&stop_ok){parent_bound_=child_bound_=pending_=false;result.outcome=wire::Outcome::closed;result.closure=wire::Closure::native_stopped;result.local_settlement=wire::LocalSettlement::settled;}
+    if(gate(owner_context)&&stop_ok&&!(parent_.purpose==fence::Purpose::preparation&&pending_)){parent_bound_=child_bound_=pending_=false;result.outcome=wire::Outcome::closed;result.closure=parent_.purpose==fence::Purpose::preparation?wire::Closure::local_released:wire::Closure::native_stopped;result.local_settlement=wire::LocalSettlement::settled;}
     ReadState(result.state);return result;
 }
 void NativeActor::Revoke()noexcept{revoked_=true;}
@@ -160,7 +195,7 @@ b::Unknown NativeActor::Publish(const b::Request& request,b::Publication& out)no
     out.actor_key=scene_.identity;out.scene=scene_.epoch;out.effect_epoch=1;out.count=request.count;out.actor_mode=1;out.initiation_clear=!pending_;out.admission_blocks=pending_?admission::local_action:0;
     for(std::uint32_t i=0;i<out.count;++i){auto& fact=out.actions[i];fact.intent=request.actions[i];fact.learned_rank=fact.intent.power_id?40:0;
         fact.target_mode=2;fact.required_mode=3;fact.descriptor_count=1;fact.descriptors[0]={222+i,333+i,actor_effects::ActionClass::apply,0,false};
-        fact.descriptors[0].present=item_effect_present&&!fact.intent.power_id;
+        fact.descriptors[0].present=fact.intent.power_id?power_effect_present:item_effect_present;
         fact.coverage=fact.descriptors[0].present?b::Coverage::present:b::Coverage::missing;fact.readiness=pending_?b::Readiness::initiation_pending:b::Readiness::ready;
         if(!fact.intent.power_id){fact.item_key={55,30};fact.item_template={980066,0};fact.item_hint=0x70000;fact.template_hint=0x80000;fact.item_quantity=3;fact.item_type=8;fact.item_flags=10;}
     }(void)b::Capture({},request,observation_state_,out);publication_=out;return b::Unknown::none;
@@ -255,6 +290,8 @@ int main(){
         "movement owner callback settles native cleanup outside actor Tick");
     result=Execute(w::Verb::owner_status,parent);Check(result.owner_phase==w::Phase::closed&&!a::runtime.active&&!native_activity,"exact cleanup callback publishes truthful closure after revocation");
     Check(Execute(w::Verb::action_status,power).application==w::Application::pending,"owner close preserves independent remote pending journal");
+    Check(!wonderbane::extension::PreparationBlocksAutomation(),
+        "remote application alone never manufactures preparation ownership");
     auto incompatible=manifest;incompatible.count=incompatible.groups=1;incompatible.records[0]=manifest.records[0];incompatible.records[0].index=incompatible.records[0].group=0;incompatible.records[1]={};
     ManifestMapping incompatible_map(incompatible);auto change=read;change.manifest_digest=incompatible_map.digest;
     Check(Execute(w::Verb::register_selectors,change).outcome==w::Outcome::deferred,"pending group cannot disappear through manifest replacement");
@@ -263,6 +300,107 @@ int main(){
     const auto floor=a::runtime.publisher.Revision();Check(Execute(w::Verb::register_selectors,change).outcome==w::Outcome::observed,"reordered canonical groups preserve pending history");
     Check(a::runtime.publisher.Current(frame)&&frame.revision>floor&&frame.application_count==2,"manifest migration keeps history and revision high-water");
     live=false;Tick();Check(released==1&&!a::runtime.has_manifest&&!a::runtime.journal.LocalPending(),"confirmed actor retirement releases publication and lifetime journal");
+
+    live=true;++fixture_scene.epoch;owner.scene=fixture_scene.epoch;poll_settled=false;Tick();
+    Check(Execute(w::Verb::register_selectors,read).outcome==w::Outcome::observed,"new exact scene publishes canonical maintenance facts");
+    f::ActorBinding blocked_binding{};auto blocked_preparation=Parent(2,blocked_binding);
+    blocked_binding.purpose=f::Purpose::preparation;blocked_binding.movement_generation=0;blocked_preparation.grant={};
+    Check(f::Hash(blocked_binding.owner_id.data(),blocked_binding.owner_id.size(),blocked_binding.operation)
+        &&f::HashBinding(blocked_binding,blocked_preparation.parent_digest),"blocked preparation exact binding");
+    Mapping blocked_map(blocked_binding);preparation_owner_available=false;
+    Check(Execute(w::Verb::open_owner,blocked_preparation).outcome!=w::Outcome::bound
+        &&!wonderbane::extension::PreparationBlocksAutomation(),"existing movement owner prevents preparation open without seizing actor arbiter");
+    preparation_owner_available=true;preparation_idle=false;
+    f::ActorBinding preparation_binding{};auto preparation=Parent(3,preparation_binding);
+    preparation_binding.purpose=f::Purpose::preparation;preparation_binding.movement_generation=0;preparation.grant={};
+    Check(f::Hash(preparation_binding.owner_id.data(),preparation_binding.owner_id.size(),preparation_binding.operation)
+        &&f::HashBinding(preparation_binding,preparation.parent_digest),"purpose-scoped immutable operation");
+    Mapping preparation_map(preparation_binding);const auto before_begins=begins,before_pauses=pauses,before_calls=calls;
+    Check(Execute(w::Verb::open_owner,preparation).outcome==w::Outcome::bound
+        &&begins==before_begins&&wonderbane::extension::PreparationBlocksAutomation(),
+        "preparation owns only actor arbiter, never acquires movement");
+    auto forbidden=preparation;forbidden.context_id=Id(7);forbidden.context_digest.fill(1);
+    Check(!w::Valid(w::Verb::attach_context,forbidden),"preparation cannot attach a target");
+    forbidden=preparation;forbidden.action=w::Action::attack;forbidden.recipient=w::Recipient::target;
+    Check(!w::Valid(w::Verb::submit,forbidden),"preparation cannot attack without combat authority");
+    preparation_idle=false;++preparation_epoch;
+    Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed&&a::runtime.publisher.Current(frame)
+        &&(frame.admission_blocks&a::admission::manual_activity),"manual activity is entry veto, not lifetime loss");
+    auto deferred=Buff(preparation,20,1);auto no_entry=Execute(w::Verb::submit,deferred);
+    Check(no_entry.outcome==w::Outcome::deferred&&no_entry.reason==w::Reason::manual_activity
+        &&no_entry.entry==w::Entry::never_entered&&calls==before_calls,"manual activity defers before native entry");
+    preparation_idle=true;
+    Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"fresh native idle permits re-admission");
+    auto maintenance=Buff(preparation,21,1);Check(Execute(w::Verb::submit,maintenance).local_settlement==w::LocalSettlement::pending
+        &&calls==before_calls+1,"background purpose enters exactly one qualified buff");
+    preparation_idle=false;++preparation_epoch;
+    Check(Execute(w::Verb::action_status,maintenance).local_settlement==w::LocalSettlement::pending,
+        "manual entry suspension retains immutable status responsibility");
+    auto closing=preparation;closing.request=Id(22);
+    Check(Execute(w::Verb::stop_owner,closing).owner_phase==w::Phase::stopping
+        &&wonderbane::extension::PreparationBlocksAutomation()&&pauses==before_pauses,
+        "passive preparation close preserves unresolved local ownership without movement stop");
+    poll_settled=true;Tick();const auto closed=Execute(w::Verb::owner_status,closing);
+    Check(closed.owner_phase==w::Phase::closed&&closed.closure==w::Closure::local_released
+        &&!wonderbane::extension::PreparationBlocksAutomation()&&pauses==before_pauses,
+        "exact late local settlement releases arbiter without combat-off");
+    const auto maintenance_slot=a::runtime.JournalIndex(maintenance);
+    InterruptActivation(a::runtime.activations[maintenance_slot]);
+    Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"closed parent retains canonical lifecycle observation");
+    const auto ended=Execute(w::Verb::action_status,maintenance);
+    Check(ended.application==w::Application::interrupted&&ended.local_settlement==w::LocalSettlement::settled
+        &&ended.entry==w::Entry::entered&&(ended.flags&w::outbound_queued),"exact old command interruption retained after parent closure");
+    Check(a::runtime.publisher.Current(frame)&&frame.applications[0].state==3
+        &&frame.applications[0].observed_revision>frame.applications[0].submitted_revision
+        &&frame.applications[0].observed_revision<=frame.revision,"published terminal observation has truthful fresh revision");
+    f::ActorBinding resumed_binding{};auto resumed=Parent(4,resumed_binding);
+    resumed_binding.purpose=f::Purpose::preparation;resumed_binding.movement_generation=0;resumed.grant={};
+    Check(f::Hash(resumed_binding.owner_id.data(),resumed_binding.owner_id.size(),resumed_binding.operation)
+        &&f::HashBinding(resumed_binding,resumed.parent_digest),"resumed preparation exact binding");
+    Mapping resumed_map(resumed_binding);preparation_idle=true;
+    Check(Execute(w::Verb::open_owner,resumed).outcome==w::Outcome::bound,"later parent preserves journal but can resume fresh missing coverage");
+    for(unsigned cycle=0;cycle<3;++cycle){
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"fresh native stationary missing coverage");
+        auto potion=Buff(resumed,40+cycle,0);const auto before=calls;
+        Check(Execute(w::Verb::submit,potion).outcome==w::Outcome::queued&&calls==before+1,"one ordinary item entry for each fresh generation");
+        const auto slot=a::runtime.JournalIndex(potion);const auto handle=a::runtime.activations[slot];
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+            &&Execute(w::Verb::action_status,potion).application==w::Application::pending,"old terminal record does not clear newer same-group pending use");
+        InterruptActivation(handle);Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"new generation interrupted");
+        Check(Execute(w::Verb::action_status,potion).application==w::Application::interrupted&&calls==before+1,"status resolves exact original application without replay");
+    }
+    auto relinquished=Buff(resumed,50,1);
+    Check(Execute(w::Verb::submit,relinquished).local_settlement==w::LocalSettlement::pending,"fresh owned power has local responsibility");
+    const auto relinquished_slot=a::runtime.JournalIndex(relinquished);const auto relinquished_handle=a::runtime.activations[relinquished_slot];
+    activation_history.ManualSend(fixture_scene.actor,999);
+    Check(activation_history.ManualDirectReturned(relinquished_handle.identity,999,true),"fixture positive newer manual control");
+    Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"canonical observation after independent local control relinquishment");
+    const auto relinquished_receipt=Execute(w::Verb::action_status,relinquished);
+    Check(relinquished_receipt.application==w::Application::pending&&relinquished_receipt.local_settlement==w::LocalSettlement::settled,
+        "manual takeover local release cannot imply application interruption or retry permission");
+    power_effect_present=true;
+    Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+        &&Execute(w::Verb::action_status,relinquished).application==w::Application::observed,
+        "positive effect presence independently resolves unknown remote interpretation");
+    for(unsigned cycle=0;cycle<2;++cycle){
+        item_effect_present=power_effect_present=false;
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"ordinary later expiry is freshly observed");
+        auto sequential_item=Buff(resumed,60+cycle*2,0);
+        Check(Execute(w::Verb::submit,sequential_item).local_settlement==w::LocalSettlement::settled,"item transaction settles without claiming effect");
+        StartActivation(a::runtime.activations[a::runtime.JournalIndex(sequential_item)]);
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed,"other configured group remains observable during item application");
+        auto sequential_power=Buff(resumed,61+cycle*2,1);
+        Check(Execute(w::Verb::submit,sequential_power).outcome==w::Outcome::queued,"ordinary sequential power proceeds without effect barrier");
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+            &&Execute(w::Verb::action_status,sequential_item).application==w::Application::pending,
+            "competing control activity never fabricates item interruption");
+        item_effect_present=power_effect_present=true;
+        Check(Execute(w::Verb::observe_actor,read).outcome==w::Outcome::observed
+            &&Execute(w::Verb::action_status,sequential_item).application==w::Application::observed
+            &&Execute(w::Verb::action_status,sequential_power).application==w::Application::observed,
+            "fresh native coverage reconciles each sequential group and permits next expiry cycle");
+    }
+    Check(Execute(w::Verb::stop_owner,resumed).closure==w::Closure::local_released,"interrupted item is not fabricated local ownership");
     std::printf("actor runtime: %u checks, %u native submits, no failures\n",checks,calls);return 0;
 }
 

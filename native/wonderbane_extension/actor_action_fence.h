@@ -12,11 +12,13 @@ using legacy::Creation;
 using legacy::Hash;
 using legacy::Revoked;
 constexpr std::uint32_t size=320;
+// Capability-gated preparation parents own actor work, never movement/targets.
+enum class Purpose : std::uint32_t { combat=0, preparation=1 };
 #pragma pack(push,1)
 struct ActorBinding {
     char magic[8]{'W','B','A','O','W','N','4',0};
     std::uint32_t version=4,bytes=size; State state=State::registering;
-    std::uint32_t reserved=0,client_pid=0,producer_pid=0;
+    Purpose purpose=Purpose::combat; std::uint32_t client_pid=0,producer_pid=0;
     std::uint64_t client_creation=0,producer_creation=0,producer_generation=0,movement_generation=0,scene=0;
     Id owner_id{}; std::uint32_t actor_key[2]{},actor_hint=0,reserved2=0;
     Digest local_name{},server{},owner{},operation{};
@@ -40,9 +42,9 @@ template<class T> inline bool Any(const T& value) noexcept {
 }
 inline bool Valid(const ActorBinding& b) noexcept {
     return !std::memcmp(b.magic,"WBAOWN4",8)&&b.version==4&&b.bytes==320
-        &&b.state<=State::entered_revoked&&!b.reserved&&!b.reserved2&&!Any(b.padding)
+        &&b.state<=State::entered_revoked&&b.purpose<=Purpose::preparation&&!b.reserved2&&!Any(b.padding)
         &&b.client_pid&&b.producer_pid&&b.client_creation&&b.producer_creation&&b.producer_generation
-        &&b.movement_generation&&b.scene&&Any(b.owner_id)&&b.actor_key[0]&&b.actor_key[1]==53
+        &&((b.purpose==Purpose::combat&&b.movement_generation)||(b.purpose==Purpose::preparation&&!b.movement_generation))&&b.scene&&Any(b.owner_id)&&b.actor_key[0]&&b.actor_key[1]==53
         &&Address(b.actor_hint)&&Any(b.local_name)&&Any(b.server)&&Any(b.owner)&&Any(b.operation);
 }
 inline bool Valid(const ContextBinding& b) noexcept {
@@ -61,7 +63,7 @@ template<class B> inline bool Same(B a,B b) noexcept {
     a.state=b.state=State::registering;return !std::memcmp(&a,&b,sizeof(B));
 }
 inline bool Parent(const ContextBinding& c,const ActorBinding& p) noexcept {
-    Digest d{};return Valid(c)&&HashBinding(p,d)&&d==c.parent_digest
+    Digest d{};return p.purpose==Purpose::combat&&Valid(c)&&HashBinding(p,d)&&d==c.parent_digest
         &&std::memcmp(c.target_key,p.actor_key,8)&&c.target_hint!=p.actor_hint;
 }
 template<class B> inline std::wstring Name(const B& b) {

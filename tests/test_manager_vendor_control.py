@@ -209,6 +209,7 @@ class VendorExecutorTests(unittest.TestCase):
         )
         self.store = VendorJobStore(self.root, NODE_ID, CLIENT_ID, INSTANCE_ID)
         self.session = JobSession(self.store)
+        self.session.window = self.binding.game_window_handle
         self.session.close = Mock()
         self.factory = Mock(return_value=self.session)
         self.executor = VendorWorkerExecutor(
@@ -223,7 +224,13 @@ class VendorExecutorTests(unittest.TestCase):
         self.stop = threading.Event()
 
     def test_discovery_closes_city_lease_before_navigation_and_closes_on_failure(self):
-        city = Mock()
+        from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
+        from shadowbane_lab.client_extension.city_window_wire import Receipt, Snapshot
+        from shadowbane_lab.client_extension.movement_wire import Host
+        from shadowbane_lab.client_extension.vendor_wire import Outcome
+        city = Mock(identity=NativeClientProcessIdentity(988, 1234567))
+        city.inspect.return_value = Receipt("11111111-2222-4333-8444-555555555555",
+            Host(1, 2, 3), 1000, Outcome.OBSERVED, 0, Snapshot())
         navigation = Mock()
         city_closed = []
 
@@ -263,6 +270,7 @@ class VendorExecutorTests(unittest.TestCase):
         self.session.inspect = inspect
         result = self.executor.execute(self.op, stop_signal=self.stop)
         self.assertEqual(WorkerOperationState.SUCCEEDED, result.state)
+        self.assertTrue(result.native_cleanup_confirmed)
         self.assertEqual(2, len(self.session.calls))
         self.assertEqual(2, len(self.session.keeps))
         self.session.close.assert_called_once()

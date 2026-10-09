@@ -101,7 +101,7 @@ class PreparationStatus:
                 for v in (self.publication_revision, self.admission_revision)
             ):
                 raise ValueError("invalid native revisions")
-            if type(self.admission_blocks) is not int or not 0 <= self.admission_blocks <= 31:
+            if type(self.admission_blocks) is not int or not 0 <= self.admission_blocks <= 63:
                 raise ValueError("invalid admission flags")
         elif (
             any(

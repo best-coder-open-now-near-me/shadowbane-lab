@@ -71,6 +71,7 @@ void Mutate()noexcept{
     if(inventory_mutation==2){Put(Address(state)+0x10,std::uint32_t{6});}
     if(inventory_mutation==3){++power_epoch;}
     if(inventory_mutation==4){fixture_descriptor[0x4c]=1;}
+    if(inventory_mutation==5){Put(Address(state)+0x1c,std::uint32_t{3});}
 }
 Result Observe(const Context& c,State&,Observation& out)noexcept{
     Mutate();
@@ -108,10 +109,42 @@ int RunActorBuffFixtureCases(){
         && operand.template_address==publication.actions[0].template_hint,"retained item operand matches copied echo hints");
     Check(!b::ItemOperand(context,owner,publication,1,operand),"unpublished item selector refused");
     item_current=false;Check(!b::Revalidate(context,owner,publication),"native item membership loss rejects publication");b::Release(owner);
+    for(auto activity:{5U,6U,7U}) {
+        Reset();item_present=true;std::array<std::uint32_t,2> retained{429021400,429021400};
+        const auto begin=static_cast<std::uint32_t>(Address(retained));
+        Put(Address(actor)+0x65c,b::Header{begin,begin+8,begin+8});Put(Address(state)+0x10,activity);
+        Check(b::Capture(context,item,owner,publication)==b::Unknown::none,"retained IDs remain coherently observable");
+        Check(!publication.initiation_clear && (publication.actions[0].readiness==b::Readiness::ready)==(activity==5),
+            "stationary item readiness is independent of old protocol IDs; active/moving remain deferred");
+        Put(Address(state)+0x10,activity==5?6U:5U);
+        Check(!b::Revalidate(context,owner,publication),"activity change invalidates stationary item fact");b::Release(owner);
+    }
+    for(auto activity:{5U,6U,7U}){for(unsigned count:{0U,1U,3U}){
+        Reset();std::array<std::uint32_t,3> retained{111,111,429021400};
+        const auto begin=static_cast<std::uint32_t>(Address(retained));
+        Put(Address(actor)+0x65c,b::Header{begin,begin+count*4,begin+12});Put(Address(state)+0x10,activity);
+        Capture(publication);
+        Check((publication.actions[0].readiness==b::Readiness::ready)==(activity==5),
+            "self power stationary5 permits retained same/other IDs without admitting manual initiation or movement");
+        Check(publication.initiation_clear==(activity!=6&&count==0)&&publication.item_stationary==(activity==5),
+            "stationary fact never rewrites clear protocol bookkeeping");
+        if(activity==5){
+            Put(Address(state)+0x1c,std::uint32_t{3});Capture(publication);
+            Check(publication.actions[0].readiness==b::Readiness::initiation_pending,"qualified auxiliary3 veto remains per-definition");
+            Put(Address(definition)+0x275,std::uint8_t{1});Capture(publication);
+            Check(publication.actions[0].readiness==b::Readiness::ready,"native auxiliary flag permits the state without clearing IDs");
+            Put(Address(definition)+0x274,std::uint8_t{1});Capture(publication);
+            Check(publication.actions[0].readiness==b::Readiness::ready,"special non-casting-state path has the same stationary readiness contract");
+        }
+    }}
     for(unsigned mutation:std::array<unsigned,3>{2,3,4}){
         Reset();item_present=true;inventory_mutation=mutation;
         Check(b::Capture(context,item,owner,publication)==b::Unknown::changed&&!publication.Complete(),"inventory callback mutation invalidates complete publication");b::Release(owner);
     }
+    Reset();auto power_and_item=Request();power_and_item.count=2;power_and_item.actions[1]=item.actions[0];power_and_item.actions[1].action_index=1;
+    item_present=true;inventory_mutation=5;
+    Check(b::Capture(context,power_and_item,owner,publication)==b::Unknown::changed,
+        "auxiliary mutation during inventory callback cannot publish stale ready power");b::Release(owner);
     Reset();item_present=true;auto combined=item;combined.count=2;combined.actions[1]=Request().actions[0];combined.actions[1].action_index=1;
     inventory_mutation=1;Check(b::Capture(context,combined,owner,publication)==b::Unknown::changed,"native inventory callback cannot publish stale learned rank");b::Release(owner);
     Reset();item_present=true;Check(b::Capture(context,item,owner,publication)==b::Unknown::none,"item publication for revalidation callback test");

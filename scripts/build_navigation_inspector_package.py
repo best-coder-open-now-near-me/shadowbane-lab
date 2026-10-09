@@ -104,6 +104,8 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_actor_action_runtime",
     "wonderbane_extension_actor_selector_manifest",
     "wonderbane_extension_actor_application_journal",
+    "wonderbane_extension_combat_activation_lifecycle",
+    "wonderbane_extension_combat_activation_observer",
     "wonderbane_extension_actor_inventory_native",
     "wonderbane_extension_actor_buff_observation",
     "wonderbane_extension_actor_publication",
@@ -137,6 +139,7 @@ REQUIRED_COMBAT_IPC_TESTS = frozenset({
 
 
 REQUIRED_ACTOR_IPC_TESTS = frozenset({
+    "test_real_preparation_service_ipc_keeps_passive_ownership_and_manual_activity",
     "test_real_windows_parent_and_child_native_consumer",
     "test_real_native_publication_mapping_roundtrip",
 })
@@ -212,7 +215,7 @@ def _validate_combat_power_probe_steps(steps, *, reviewed_client, feature):
     return True
 
 
-def _validate_actor_probe_steps(steps, *, reviewed_client, features):
+def _validate_actor_probe_steps(steps, *, reviewed_client, features, binary_suffix="probe"):
     if not reviewed_client:
         return False
     for profile in ("full", "diagnostics-only"):
@@ -226,7 +229,8 @@ def _validate_actor_probe_steps(steps, *, reviewed_client, features):
                 command = matches[0].get("command")
                 if (not isinstance(command, list) or len(command) != 2
                         or not all(isinstance(item, str) and item for item in command)
-                        or Path(command[0]).name != f"wonderbane_extension_{feature}_probe.exe"):
+                        or Path(command[0]).name !=
+                        f"wonderbane_extension_{feature}_{binary_suffix}.exe"):
                     raise RuntimeError(f"incorrect actor probe command: {name}")
                 images.append(command[1])
             if images[0] == images[1]:
@@ -246,6 +250,16 @@ def validate_item_trace_probe_steps(steps, *, reviewed_client):
                                        features=("item_application_trace",))
 
 
+def validate_activation_probe_steps(steps, *, reviewed_client):
+    probes = _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
+                                        features=("combat_activation_incoming",
+                                                  "combat_activation_completion"))
+    observer = _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
+                                          features=("combat_activation_observer",),
+                                          binary_suffix="test")
+    return probes and observer
+
+
 def validate_combat_power_initiation_steps(steps, *, reviewed_client):
     return _validate_combat_power_probe_steps(
         steps, reviewed_client=reviewed_client, feature="initiation",
@@ -255,6 +269,18 @@ def validate_combat_power_initiation_steps(steps, *, reviewed_client):
 def validate_combat_power_readiness_steps(steps, *, reviewed_client):
     return _validate_combat_power_probe_steps(
         steps, reviewed_client=reviewed_client, feature="readiness",
+    )
+
+
+def validate_combat_power_movement_steps(steps, *, reviewed_client):
+    return _validate_combat_power_probe_steps(
+        steps, reviewed_client=reviewed_client, feature="movement",
+    )
+
+
+def validate_combat_power_special_steps(steps, *, reviewed_client):
+    return _validate_combat_power_probe_steps(
+        steps, reviewed_client=reviewed_client, feature="special",
     )
 
 
@@ -334,6 +360,7 @@ def main() -> int:
     environment.pop("SHADOWBANE_COMBAT_CHANNEL_TEST_EXE", None)
     environment.pop("WONDERBANE_ACTOR_ACTION_TEST", None)
     environment.pop("SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE", None)
+    environment.pop("WONDERBANE_PREPARATION_CHANNEL_TEST_EXE", None)
     environment["PYTHONUTF8"] = "1"
     steps = []
     diagnostic_failures = []
@@ -471,6 +498,7 @@ def main() -> int:
                               "item_application_trace.cpp",
                               "combat_melee_entry.cpp",
                               "combat_power_entry.cpp", "combat_power_observer.cpp",
+                              "combat_activation_observer.cpp",
                               "combat_target_policy.cpp"):
             if included_sources.count(combat_source) != 1:
                 raise RuntimeError(f"{profile}: combat source must have one owner: {combat_source}")
@@ -479,6 +507,10 @@ def main() -> int:
                                  "actor_action_native_test.cpp", "actor_action_runtime_test.cpp",
                                  "actor_action_controller_test.cpp", "actor_action_wire_test.cpp",
                                  "actor_application_journal_test.cpp",
+                                 "combat_activation_lifecycle_test.cpp",
+                                 "combat_activation_observer_test.cpp",
+                                 "combat_activation_incoming_probe.cpp",
+                                 "combat_activation_completion_probe.cpp",
                                  "actor_selector_manifest_test.cpp",
                                  "actor_publication_test.cpp", "actor_effects_native_test.cpp",
                                  "actor_inventory_native_test.cpp",
@@ -495,6 +527,8 @@ def main() -> int:
                                  "combat_melee_entry_test.cpp", "combat_power_entry_test.cpp",
                                  "combat_power_probe.cpp", "combat_power_mode_probe.cpp",
                                  "combat_power_initiation_probe.cpp", "combat_initiation_test.cpp",
+                                 "combat_power_movement_probe.cpp",
+                                 "combat_power_special_probe.cpp",
                                  "combat_power_readiness_probe.cpp",
                                  "combat_power_readiness_test.cpp",
                                  "combat_power_image_test_stub.cpp",
@@ -670,14 +704,18 @@ def main() -> int:
             build / "Release/wonderbane_extension_actor_action_wire_test.exe")
         environment["SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE"] = str(
             build / "Release/wonderbane_extension_actor_publication_test.exe")
+        environment["WONDERBANE_PREPARATION_CHANNEL_TEST_EXE"] = str(
+            build / "Release/wonderbane_extension_preparation_channel_test.exe")
         try:
             run(f"{profile}-actor-ipc", [sys.executable, "-m", "pytest",
                 "tests/test_actor_action_wire.py", "tests/test_actor_publication.py",
                 "tests/test_actor_action_session.py", "tests/test_actor_selector_manifest.py",
+                "tests/test_preparation_ipc_windows.py",
                 "-q", f"--junitxml={actor_results}"])
         finally:
             environment.pop("WONDERBANE_ACTOR_ACTION_TEST", None)
             environment.pop("SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE", None)
+            environment.pop("WONDERBANE_PREPARATION_CHANNEL_TEST_EXE", None)
         validate_actor_ipc_results(actor_results, profile)
         environment["WONDERBANE_ITEM_TRACE_TEST"] = str(
             build / "Release/wonderbane_extension_item_application_trace_test.exe")
@@ -695,6 +733,10 @@ def main() -> int:
                  "wonderbane_extension_combat_power_probe",
                  "wonderbane_extension_combat_power_mode_probe",
                  "wonderbane_extension_combat_power_initiation_probe",
+                 "wonderbane_extension_combat_power_movement_probe",
+                 "wonderbane_extension_combat_power_special_probe",
+                 "wonderbane_extension_combat_activation_incoming_probe",
+                 "wonderbane_extension_combat_activation_completion_probe",
                  "wonderbane_extension_combat_power_readiness_probe",
                  "wonderbane_extension_combat_item_probe",
                  "wonderbane_extension_item_application_trace_probe",
@@ -730,6 +772,11 @@ def main() -> int:
             run(
                 f"{profile}-combat-power-readiness-binding",
                 [build / "Release/wonderbane_extension_combat_power_readiness_probe.exe",
+                 arguments.reviewed_client.resolve()],
+            )
+            run(
+                f"{profile}-combat-power-movement-binding",
+                [build / "Release/wonderbane_extension_combat_power_movement_probe.exe",
                  arguments.reviewed_client.resolve()],
             )
             run(
@@ -798,12 +845,25 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
                 [build / "Release/wonderbane_extension_combat_power_readiness_probe.exe",
                  prepared_client],
             )
+            run(
+                f"{profile}-combat-power-movement-prepared-binding",
+                [build / "Release/wonderbane_extension_combat_power_movement_probe.exe",
+                 prepared_client],
+            )
             for feature in ("combat_item", "actor_effects_native", "item_application_trace",
-                        "actor_inventory_native", "actor_buff_observation"):
+                        "actor_inventory_native", "actor_buff_observation",
+                        "combat_activation_incoming", "combat_activation_completion"):
                 for suffix, image in (("binding", arguments.reviewed_client.resolve()),
                                       ("prepared-binding", prepared_client)):
                     run(f"{profile}-{feature}-{suffix}",
                         [build / f"Release/wonderbane_extension_{feature}_probe.exe", image])
+            for suffix, image in (("binding", arguments.reviewed_client.resolve()),
+                                  ("prepared-binding", prepared_client)):
+                run(f"{profile}-combat_activation_observer-{suffix}",
+                    [build / "Release/wonderbane_extension_combat_activation_observer_test.exe",
+                     image])
+                run(f"{profile}-combat-power-special-{suffix}",
+                    [build / "Release/wonderbane_extension_combat_power_special_probe.exe", image])
             for test in ("sky_binding", "sky_render"):
                 run(
                     f"{profile}-{test}",
@@ -1159,6 +1219,15 @@ else:
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
         "combat_power_readiness_verified": validate_combat_power_readiness_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client),
+        ),
+        "combat_power_movement_transition_verified": validate_combat_power_movement_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client),
+        ),
+        "combat_activation_boundaries_verified": validate_activation_probe_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client),
+        ),
+        "combat_power_special_verified": validate_combat_power_special_steps(
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
         "source_identity": metadata,

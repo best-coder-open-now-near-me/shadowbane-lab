@@ -1,3 +1,4 @@
+#include "movement_lifetime.h"
 #include "combat_item_entry.cpp"
 #include <cstdio>
 #include <cstdlib>
@@ -105,7 +106,11 @@ it::Receipt Run(){it::State state;it::Receipt receipt;return Run(state,receipt);
 }
 namespace wonderbane::extension {
 bool GraphicsExecutableSha256Matches(const char* expected) noexcept{return std::strcmp(expected,digest)==0;}
-namespace movement {bool VerifyNativeMovementImage(std::uintptr_t& out) noexcept{out=verified;return out!=0;}}
+namespace movement {
+// This entry fixture has no gameplay lifetime; semantic observer tests supply one separately.
+bool ReadNativeMovementLifetime(NativeScene&) noexcept {return false;}
+bool NativeMovementLifetimeCurrent(const NativeScene&) noexcept {return false;}
+bool VerifyNativeMovementImage(std::uintptr_t& out) noexcept{out=verified;return out!=0;}}
 namespace combat::submission {
 bool RegisterAppendObserver(AppendObserverKind kind,const AppendObserver& observer) noexcept{
     Check(kind==AppendObserverKind::item,"item fixed observer slot");registered=observer;return true;

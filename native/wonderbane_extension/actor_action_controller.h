@@ -150,12 +150,14 @@ class Controller final {
     bool Record(Action& a,const Operation& incoming) noexcept {
         auto result=incoming;
         const auto& old=a.result;
-        if(result.entry>E::entered||result.local>L::settled||result.application>wire::Application::unknown
+        if(result.entry>E::entered||result.local>L::settled||result.application>wire::Application::interrupted
             ||result.history&~(wire::outbound_queued|wire::uncertain_history)
             ||(old.entry==E::entered&&result.entry!=E::entered)
             ||((old.history&wire::uncertain_history)&&result.entry==E::never_entered)
             ||((old.history&result.history)!=old.history)
             ||(old.local==L::settled&&result.local!=L::settled)
+            ||((old.application==wire::Application::observed||old.application==wire::Application::interrupted)
+                &&result.application!=old.application)
             ||!wire::Valid(Reply(a.command,wire::Verb::submit,result.outcome,
                 ParentRecord(a.command.parent_id),wire::Any(a.command.context_id)?ContextRecord(a.command):nullptr,&result))){
             if(auto* p=ParentRecord(a.command.parent_id);p&&!Terminal(p->state)){p->state.phase=P::blocked;}
@@ -182,12 +184,17 @@ public:
     }
     // Native journal projection only. Observed remote effects never discharge
     // local responsibility, and evicted command history is never reconstructed.
-    bool ObserveApplication(const wire::Digest& digest) noexcept {
+    bool ObserveApplication(const wire::Digest& digest,wire::Application terminal=wire::Application::observed) noexcept {
+        if(terminal!=wire::Application::observed&&terminal!=wire::Application::interrupted){return false;}
         for(auto& action:actions_){
             wire::Digest exact{};
             if(!wire::HashCommand(action.command,exact)||exact!=digest){continue;}
             if(action.result.application==wire::Application::none){return false;}
-            action.result.application=wire::Application::observed;return true;
+            if(action.result.application==wire::Application::observed||action.result.application==wire::Application::interrupted){
+                return action.result.application==terminal;
+            }
+            if(terminal==wire::Application::interrupted&&(action.result.entry!=E::entered||!(action.result.history&wire::outbound_queued))){return false;}
+            action.result.application=terminal;return true;
         }return false;
     }
     bool UpdateScope(const wire::Command& c,const State& state,bool owner) noexcept {

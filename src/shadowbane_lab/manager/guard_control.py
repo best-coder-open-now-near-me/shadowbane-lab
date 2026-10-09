@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 
 from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
@@ -259,6 +260,15 @@ class GuardWorkerExecutor:
         )
 
     def execute(self, operation, *, stop_signal):
+        result = self._execute(operation, stop_signal=stop_signal)
+        # These journals retain ambiguous intents across transport closure and
+        # validate exact native completion before allowing another owner.
+        store = self.store()
+        GuardSpendingJournal(store.root).assert_idle()
+        CondemnProgressStore(store.root).assert_idle()
+        return replace(result, native_cleanup_confirmed=True)
+
+    def _execute(self, operation, *, stop_signal):
         b = self.binding
         if (
             operation.kind is not WorkerOperationKind.GUARD

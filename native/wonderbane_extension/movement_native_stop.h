@@ -19,6 +19,7 @@ public:
     bool BeginOwnerStop(HWND source_window, void* native_window, const NativeScene&) noexcept;
     void EndUpdate() noexcept;
     bool Execute(const Grant&) noexcept;
+    bool PreparationIdle(const NativeScene&) noexcept;
     // Camera input does not acquire or retire movement ownership.
     bool RotateCamera(Vector2 radians) noexcept;
     bool CameraBasis(Vector2& forward, Vector2& right) noexcept;

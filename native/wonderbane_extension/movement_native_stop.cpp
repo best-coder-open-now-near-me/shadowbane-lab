@@ -1,4 +1,5 @@
 #include "movement_native_stop.h"
+#include "actor_preparation_motion.h"
 #include "movement_native_image.h"
 #include "movement_native_ui.h"
 #include <algorithm>
@@ -23,6 +24,12 @@ bool ReadParent(std::uintptr_t actor, std::uintptr_t& parent) noexcept {
     return Read(actor + 0x4b0, position) && Read(position, pose) && Read(pose + 8, parent);
 }
 bool Finite(GroundPoint p) noexcept { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z); }
+}
+bool NativeStop::PreparationIdle(const NativeScene& scene) noexcept {
+    return Available() && in_update_ && !stop_only_ && !executing_ && GetCurrentThreadId()==thread_
+        && scene.epoch && NativeMovementLifetimeCurrent(scene)
+        && actor::preparation::MotionIdle(base_,scene,[](std::uintptr_t at,auto& out) noexcept { return Read(at,out); })
+        && NativeMovementLifetimeCurrent(scene);
 }
 bool NativeStop::Bind(HWND window) noexcept {
     if (bound_ || executing_ || held_actor_ || message_) { return false; }

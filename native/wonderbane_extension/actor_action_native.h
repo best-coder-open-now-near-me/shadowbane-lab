@@ -2,6 +2,7 @@
 #include "actor_action_wire.h"
 #include "actor_buff_observation.h"
 #include "combat_initiation.h"
+#include "combat_activation_observer.h"
 #include "combat_item_entry.h"
 #include "combat_melee_entry.h"
 #include "combat_party.h"
@@ -50,7 +51,7 @@ public:
     bool ReleaseScene() noexcept;
     bool ValidateParent(const fence::ActorBinding&, Gates) noexcept;
     Operation Attach(const fence::ContextBinding&, Gates) noexcept;
-    Operation Submit(const wire::Command&) noexcept;
+    Operation Submit(const wire::Command&,combat::activation::Handle = {}) noexcept;
     // Polls only the exact outstanding local action; never invokes new work.
     Operation Poll() noexcept;
     bool PendingCommand(wire::Command&) const noexcept;
@@ -103,7 +104,7 @@ private:
     bool RevalidatePublicationImpl(const actor_buffs::Publication&) noexcept;
     bool ReadAdmissionImpl(std::uint32_t&) noexcept;
     void ClearInstant() noexcept;
-    std::uint32_t AdmissionBlocks(const Observation&,bool owned_followup=false) noexcept;
+    std::uint32_t AdmissionBlocks(const Observation&,bool owned_followup=false,bool stationary_self=false) noexcept;
     std::uintptr_t image_{};
     HWND window_{};
     DWORD thread_{};
@@ -120,6 +121,7 @@ private:
     combat::power::Receipt power_receipt_{};
     combat::item::Receipt item_receipt_{};
     combat::item::State item_state_{};
+    combat::activation::Handle activation_{};
     actor_buffs::State observation_state_{};
     actor_buffs::Publication publication_{};
     std::uint32_t instant_self_id_{}, pre_entry_self_id_{};

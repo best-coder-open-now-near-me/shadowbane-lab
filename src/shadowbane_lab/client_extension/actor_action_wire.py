@@ -12,6 +12,7 @@ from .actor_action_fence import (
     ContextBinding,
     ContextId,
     OwnerId,
+    Purpose,
     RequestId,
     address,
     digest,
@@ -24,6 +25,7 @@ from .movement_wire import Grant, Host, Owner
 VERSION = 3
 CAPABILITY = 0x80
 ADMISSION_CAPABILITY = 0x100
+PREPARATION_CAPABILITY = 0x200
 NO_SELECTOR = 0xFFFFFFFF
 ZERO_DIGEST = bytes(32)
 _COMMAND = struct.Struct("<16sQ216s16s16s16s32s32s10I32sQ16sI124s")
@@ -85,6 +87,7 @@ class Application(IntEnum):
     PENDING = 1
     OBSERVED = 2
     UNKNOWN = 3
+    INTERRUPTED = 4
 
 
 class Closure(IntEnum):
@@ -115,6 +118,7 @@ class Reason(IntEnum):
     NATIVE_USE = 9
     CHILD_CLEANUP = 10
     ADMISSION_CHANGED = 11
+    MANUAL_ACTIVITY = 12
 
 
 OWNER_CLEANUP = 1
@@ -181,8 +185,10 @@ class Command:
         digest(self.context_digest, zero=self.context_id is None)
         if self.context_id is not None and self.parent_id is None:
             raise ValueError("context has no parent")
-        if (self.grant is None) != (self.parent_id is None):
-            raise ValueError("owner and Grant must be present together")
+        if self.grant is not None and self.parent_id is None:
+            raise ValueError("movement Grant requires owner")
+        if self.grant is None and self.context_id is not None:
+            raise ValueError("preparation cannot own a target context")
         grant = _grant(self.grant)
         if not isinstance(self.action, Action) or not isinstance(self.recipient, Recipient):
             raise ValueError("untyped action/recipient")
@@ -292,14 +298,19 @@ class Command:
             raise ValueError("wrong parent fence")
         if (
             self.parent_id != parent.owner_id
-            or self.grant is None
             or (self.host.process_id, self.host.creation_filetime, self.host.lease_generation)
             != (parent.producer_pid, parent.producer_creation, parent.producer_generation)
-            or (self.grant.generation, self.grant.scene)
-            != (parent.movement_generation, parent.scene)
-            or hashlib.sha256(self.grant.encode()[24:]).digest() != parent.operation
         ):
             raise ValueError("parent namespace mismatch")
+        if parent.purpose is Purpose.PREPARATION:
+            if (self.grant is not None or self.context_id is not None
+                    or hashlib.sha256(parent.owner_id.encode()).digest() != parent.operation):
+                raise ValueError("preparation cannot carry movement or target authority")
+        elif (self.grant is None
+                or (self.grant.generation, self.grant.scene)
+                != (parent.movement_generation, parent.scene)
+                or hashlib.sha256(self.grant.encode()[24:]).digest() != parent.operation):
+            raise ValueError("parent movement namespace mismatch")
         if self.context_id is None:
             if context is not None:
                 raise ValueError("unexpected target context")
@@ -411,7 +422,7 @@ class Receipt:
                 or self.verb not in _READ_VERBS
             ):
                 raise ValueError("unowned receipt is not read-only")
-        elif self.grant is None or self.verb in _READ_VERBS:
+        elif self.verb in _READ_VERBS:
             raise ValueError("receipt lacks exact owner Grant")
         if (
             self.action in (Action.ATTACK, Action.CAST)
@@ -420,6 +431,8 @@ class Receipt:
             and self.context_id is not None
         ):
             raise ValueError("receipt action has wrong target scope")
+        if self.grant is None and self.context_id is not None:
+            raise ValueError("preparation receipt cannot own a target context")
         if self.context_id is None and self.context_phase is not Phase.UNKNOWN:
             raise ValueError("context phase without context")
         if self.verb in _CONTEXT_VERBS and self.context_id is None:
@@ -452,6 +465,10 @@ class Receipt:
             self.application in (Application.PENDING, Application.UNKNOWN)
         ):
             raise ValueError("application flag disagrees with remote history")
+        if self.application is Application.INTERRUPTED and (
+            self.entry is not Entry.ENTERED or not self.flags & OUTBOUND_QUEUED
+        ):
+            raise ValueError("interruption requires retained positive entry and queue history")
         if self.application is not Application.NONE and self.action not in (
             Action.SELF_POWER,
             Action.CAST,
@@ -535,6 +552,7 @@ class Receipt:
             Reason.NATIVE_USE,
             Reason.CHILD_CLEANUP,
             Reason.ADMISSION_CHANGED,
+            Reason.MANUAL_ACTIVITY,
         ) and (
             self.verb not in (Verb.SUBMIT, Verb.ACTION_STATUS)
             or self.action is Action.NONE

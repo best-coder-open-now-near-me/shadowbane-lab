@@ -105,8 +105,8 @@ def test_unknown_is_explicit_and_has_no_absence_authority():
         (72, 0),
         (76, 2),
         (80, 0),
-        (88, 32),
-        (92, 1),
+        (88, 64),
+        (96, 1),
         (22784, 1),
         (10496 + 13 * 4, 3),
         (10496 + 15 * 4, 1),
@@ -306,6 +306,22 @@ def test_real_native_publication_mapping_roundtrip():
         assert journal.revision > second.revision
         assert journal.admission_revision == second.admission_revision
         assert journal.applications and journal.applications[0].entry == 0
+        assert command("interrupted") == "published"
+        interrupted = reader.read()
+        terminal = interrupted.applications[0]
+        assert interrupted.revision > journal.revision
+        assert interrupted.admission_revision == journal.admission_revision
+        assert terminal.state is p.ApplicationState.INTERRUPTED
+        assert terminal.group_digest == bytes([1]) * 32
+        assert terminal.command_digest == bytes([2]) * 32
+        assert terminal.submitted_revision == journal.revision
+        assert terminal.observed_revision == interrupted.revision
+        assert terminal.entry == 1 and terminal.queued and terminal.local_settled
+        assert command("stationary") == "published"
+        stationary = reader.read()
+        assert stationary.stationary and not stationary.initiation_clear
+        assert stationary.actions[0].readiness is p.Readiness.READY
+        assert stationary.admission_revision > interrupted.admission_revision
         assert command("occupied") == "published"
         occupied = reader.read()
         assert occupied.admission_blocks == p.AdmissionBlock.FOREIGN_TARGET
@@ -413,18 +429,20 @@ def test_same_admission_revision_allows_descriptor_detail_and_effect_epoch(monke
     assert second.actions != first.actions and second.effect_epoch != first.effect_epoch
 
 
-def item_and_power_frame(readiness=p.Readiness.UNKNOWN, operand=None):
+def item_and_power_frame(readiness=p.Readiness.UNKNOWN, operand=None, *, clear=True, power_ready=1):
     m = replace(
         manifest(),
         group_count=2,
         selectors=(Selector(0, 0, 4, 0, 980066, 429021400, 0), Selector(1, 1, 3, 111, 0, 111, 0)),
     )
     data = bytearray(frame())
+    data[76:80] = int(clear).to_bytes(4, "little")
     data[60:64] = (2).to_bytes(4, "little")
     data[68:72] = (2).to_bytes(4, "little")
     power = list(p._READY.unpack_from(data, 10496))
     power[:8] = list(p._READY.unpack(m.selectors[1].encode() + bytes(96)))[:8]
     power[15] = 1
+    power[14] = power_ready
     data[10624:10752] = p._READY.pack(*power)
     item = list(power)
     item[:8] = list(p._READY.unpack(m.selectors[0].encode() + bytes(96)))[:8]
@@ -468,6 +486,18 @@ def test_ready_item_requires_full_qualified_operand():
     with pytest.raises(p.PublicationError, match="unqualified retained item"):
         item_and_power_frame(p.Readiness.READY, [5802955, 30, 980066, 0, 0x12500000, 0, 3, 8, 10])
 
+
+def test_stationary_item_readiness_does_not_make_retained_id_power_ready():
+    operand = [5802955, 30, 980066, 0, 0x12500000, 0x12600000, 3, 8, 10]
+    result = item_and_power_frame(
+        p.Readiness.READY, operand, clear=False, power_ready=p.Readiness.INITIATION_PENDING
+    )
+    assert not result.initiation_clear
+    assert result.actions[0].readiness is p.Readiness.READY
+    assert result.actions[1].readiness is p.Readiness.INITIATION_PENDING
+    with pytest.raises(p.PublicationError, match="ready power"):
+        item_and_power_frame(p.Readiness.READY, operand, clear=False)
+
 @pytest.mark.parametrize("digest,allowed", [
     ("e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437", True),
     ("78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903", True),
@@ -487,3 +517,57 @@ def test_exact_successor_image_preserves_publication_session_gate(monkeypatch, d
                             lambda _: pytest.fail("unqualified image read mapping"))
         with pytest.raises(p.PublicationError, match="unqualified publication session"):
             r.read()
+
+
+@pytest.mark.parametrize("local", [0, 1])
+def test_interrupted_application_preserves_submission_and_independent_local_state(local):
+    data = bytearray(frame(revision=2, sequence=4))
+    data[64:68] = (1).to_bytes(4, "little")
+    data[14592:14720] = p._APPLICATION.pack(
+        manifest().group_digest(0), b"i" * 32, 1, 2, 1, 3, local, 1, bytes(32))
+    application = decode(bytes(data)).applications[0]
+    assert application.state is p.ApplicationState.INTERRUPTED
+    assert application.command_digest == b"i" * 32
+    assert application.submitted_revision == 1 and application.observed_revision == 2
+    assert application.queued and application.entry == 1
+    assert application.local_settled is bool(local)
+
+
+@pytest.mark.parametrize(
+    "entry,queued,terminal", [(0, 0, 2), (2, 0, 2), (1, 0, 2), (1, 1, 1), (1, 1, 3)]
+)
+def test_interrupted_application_rejects_unproved_or_future_terminal(entry, queued, terminal):
+    data = bytearray(frame(revision=2, sequence=4))
+    data[64:68] = (1).to_bytes(4, "little")
+    data[14592:14720] = p._APPLICATION.pack(
+        manifest().group_digest(0), b"i" * 32, 1, terminal, entry, 3, 1, queued, bytes(32))
+    with pytest.raises(p.PublicationError):
+        decode(bytes(data))
+
+
+@pytest.mark.parametrize("clear", [False, True])
+def test_explicit_stationary_fact_permits_ready_power_without_reinterpreting_clear(clear):
+    data = bytearray(frame())
+    data[76:80] = int(clear).to_bytes(4, "little")
+    data[92:96] = (1).to_bytes(4, "little")
+    result = decode(bytes(data))
+    assert result.stationary and result.initiation_clear is clear
+    assert result.actions[0].readiness is p.Readiness.READY
+
+
+@pytest.mark.parametrize("unknown,stationary", [(0, 2), (0, 2**32-1), (6, 1)])
+def test_stationary_requires_exact_boolean_and_complete_capture(unknown, stationary):
+    data = bytearray(frame(unknown=unknown))
+    data[92:96] = stationary.to_bytes(4, "little")
+    with pytest.raises(p.PublicationError):
+        decode(bytes(data))
+
+
+def test_stationary_change_requires_fresh_admission_revision(monkeypatch):
+    r, current, _ = reader(monkeypatch)
+    first = r.read()
+    data = bytearray(frame(sequence=4, revision=2, admission=first.admission_revision))
+    data[92:96] = (1).to_bytes(4, "little")
+    current[1] = bytes(data)
+    with pytest.raises(p.PublicationError, match="admission revision changed eligibility"):
+        r.read()

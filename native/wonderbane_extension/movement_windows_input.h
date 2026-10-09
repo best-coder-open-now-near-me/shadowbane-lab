@@ -33,6 +33,8 @@ public:
     bool Snapshot(CapturedInput&) noexcept;
     // Fresh UI/focus gate without consuming input samples or device-reset state.
     bool AutomationInputCurrent() noexcept;
+    bool PreparationInputIdle() noexcept;
+    std::uint64_t ManualEpoch() const noexcept { return manual_epoch_; }
     void Retire() noexcept;
     // Cancel a buffered gesture without delivering its old click in a new UI/scene.
     void Suspend() noexcept;
@@ -85,7 +87,7 @@ private:
     HWND window_ = nullptr;
     DWORD thread_ = 0;
     UINT settings_message_ = 0;
-    std::uint64_t process_creation_ = 0;
+    std::uint64_t process_creation_ = 0, manual_epoch_ = 0;
     std::uintptr_t base_ = 0, manager_ = 0;
     std::uint32_t* key_slot_ = nullptr;
     KeyboardCall original_ = nullptr;

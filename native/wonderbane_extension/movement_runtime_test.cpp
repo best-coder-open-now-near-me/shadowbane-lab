@@ -213,7 +213,13 @@ int main(int argc, char** argv) {
             Check(wm::QueueMovementCommand(command), "command admitted once"); step();
             Check(command->state.load() == 2, "owning update publishes receipt"); wm::ReleaseMovementCommand(command);
         };
-        const auto original = rt.controls.Current(); auto acquire = make(wm::wire::Verb::acquire, original, 1);
+        const auto original = rt.controls.Current();
+        wonderbane::extension::preparation_owner_active.store(+[]()noexcept{return true;});
+        auto blocked_acquire=make(wm::wire::Verb::acquire,original,250);run(blocked_acquire);
+        Check(blocked_acquire->receipt.outcome==static_cast<std::uint32_t>(wm::Result::inhibited)
+            &&rt.controls.Current()==original,"preparation arbiter prevents competing automation acquisition");
+        wonderbane::extension::preparation_owner_active.store(nullptr);
+        auto acquire = make(wm::wire::Verb::acquire, original, 1);
         run(acquire); const auto owned = rt.controls.Current();
         Check(acquire->receipt.outcome == 0 && owned.owner == wm::Owner::automation, "queued acquire obtains native owner");
         if (mode == "owner-service") {
@@ -266,6 +272,10 @@ int main(int argc, char** argv) {
             Check(wm::BeginNativeOwnerAction(observed, owned, lease->host) == wm::Result::stale,
                 "owner action cannot borrow published status outside update phase");
             extension::combat_owner_service.store(+[](void*, HWND) noexcept {
+                if(wm::runtime.controls.Current().owner==wm::Owner::automation) {
+                    Check(!wm::NativePreparationOwnerAvailable(expected_scene),
+                        "preparation cannot open over existing exact movement grant");
+                }
                 action_gate = wm::NativeOwnerActionCurrent(expected_scene, expected_grant, expected_host);
                 if (begin_action) {
                     owner_result = wm::BeginNativeOwnerAction(expected_scene, expected_grant, expected_host);

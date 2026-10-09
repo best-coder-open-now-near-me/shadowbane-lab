@@ -69,7 +69,7 @@ struct Publication {
     Key actor_key{};
     std::uint64_t scene{}, effect_epoch{};
     std::uint32_t count{}, actor_mode{};
-    bool initiation_clear{};
+    bool initiation_clear{}, item_stationary{};
     std::uint32_t admission_blocks{}; // NativeActor contextual guard, not resource readiness.
     std::array<ActionFacts,kMaxActions> actions{};
     bool Complete() const noexcept { return unknown==Unknown::none && effect_epoch && scene; }

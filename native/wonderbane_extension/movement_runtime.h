@@ -23,6 +23,10 @@ struct RuntimeSnapshot {
 // Action admission includes fresh UI/focus and the exact acquisition host lease.
 bool NativeOwnerActionCurrent(const NativeScene&, const Grant&, const wire::Host&) noexcept;
 Result BeginNativeOwnerAction(const NativeScene&, const Grant&, const wire::Host&) noexcept;
+// Preparation borrows only the owner-thread phase, never Controls or a movement Grant.
+bool NativePreparationOwnerAvailable(const NativeScene&) noexcept;
+bool NativePreparationEntryCurrent(const NativeScene&, std::uint64_t& input_epoch) noexcept;
+bool NativePreparationUninterrupted(const NativeScene&, std::uint64_t input_epoch) noexcept;
 // Cleanup may run after lease/focus loss, but never against a replacement Grant.
 bool NativeOwnerStopCurrent(const NativeScene&, const Grant&) noexcept;
 Result PauseNativeOwnerAction(const NativeScene&, const Grant&) noexcept;
