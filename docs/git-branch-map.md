@@ -59,6 +59,18 @@ Background buff upkeep is not yet installed; combat focus policy is unchanged.
 Do not switch another lane's active checkout.
 The historical checkpoints below describe earlier state, superseded by this entry.
 
+## Stationary self-power observation follow-up - October 8
+
+`codex/interrupted-application-host-20261008` continues from combined `e4a7162`
+for the explicit stationary publication and self-power readiness correction.
+Its integration destination remains PR #119; bot-runtime owns matching native
+submission and local cleanup. The observation slice keeps initiation-clear
+factual, admits retained IDs only with positive stationary state 5, and leaves
+attack/target admission unchanged. See the [qualification and proof limits](native-movement-interruption-20261008.md#stationary-self-power-readiness).
+Both affected native tests and 288 host tests passed, including real publication
+IPC. The instant/no-state-6 cleanup edge remains an integration requirement;
+this source checkpoint does not claim the combined runtime is qualified or installed.
+
 ## Host interrupted-application follow-up - October 8
 
 `codex/interrupted-application-host-20261008` owns bot-command-ownership for the

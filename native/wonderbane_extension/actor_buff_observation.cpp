@@ -182,7 +182,7 @@ Unknown Selectors(std::uintptr_t image,std::uintptr_t definition,const Intent& i
     return Unknown::none;
 }
 Unknown ResolvePower(const actor_effects::Context& c,const Intent& intent,
-    const actor_effects::Snapshot& effects,std::uint32_t actor_mode,bool initiation_clear,
+    const actor_effects::Snapshot& effects,std::uint32_t actor_mode,const combat::initiation::Snapshot& initiation,std::uint32_t auxiliary,
     const combat::power::readiness::Snapshot& readiness,ActionFacts& out)noexcept{
     out.intent=intent;MapPath path{};auto reason=Lookup(c.image,0x138757c,intent.coverage_power_id,true,path);
     if(reason!=Unknown::none){return reason;}
@@ -196,7 +196,11 @@ Unknown ResolvePower(const actor_effects::Context& c,const Intent& intent,
         reason=Learned(c.actor,intent.power_id,out.learned_rank);if(reason!=Unknown::none){return reason;}
         if(!out.learned_rank){out.readiness=Readiness::not_learned;}
         else if(out.category>1 || out.target_mode!=2 || out.delivery!=0 || out.required_mode<1 || out.required_mode>3){out.readiness=Readiness::unsupported;}
-        else if(!initiation_clear){out.readiness=Readiness::initiation_pending;}
+        // Retained protocol IDs do not prohibit ordinary native SELF_POWER in
+        // positively stationary state5. Active manual initiation remains a veto.
+        else if((!initiation.Clear()&&initiation.state!=5)
+            ||(!definition[0x274]&&initiation.state==7)
+            ||(!definition[0x275]&&auxiliary==3)){out.readiness=Readiness::initiation_pending;}
         else if(out.required_mode==2 && static_cast<std::int32_t>(actor_mode)>1){out.readiness=Readiness::stance_ineligible;}
         else {
             out.readiness=readiness.now<readiness.recovery?Readiness::global_recovery:Readiness::ready;
@@ -221,8 +225,9 @@ bool Valid(const Request& request)noexcept{
 }
 Unknown CapturePowers(const actor_effects::Context& c,const Request& request,
     const actor_effects::Snapshot& effects,Publication& out)noexcept{
-    std::uint32_t state{},mode{},state_after{},mode_after{};combat::initiation::Snapshot initiation{},after{};
+    std::uint32_t state{},mode{},auxiliary{},state_after{},mode_after{},auxiliary_after{};combat::initiation::Snapshot initiation{},after{};
     if(!Read(c.actor+0xad0,state) || !state || !Read(state+0x18,mode) || mode<1 || mode>3
+        || !Read(state+0x1c,auxiliary)
         || !combat::initiation::Capture(c.actor,state,initiation,[](std::uintptr_t at,auto& value)noexcept{return Read(at,value);})){return Unknown::read_fault;}
     const auto power_epoch=combat::power::InitiationEpoch();
     if(!power_epoch || combat::power::NativeUseInFlight()){return Unknown::changed;}
@@ -232,11 +237,12 @@ Unknown CapturePowers(const actor_effects::Context& c,const Request& request,
     out.actor_mode=mode;out.initiation_clear=initiation.Clear();out.item_stationary=initiation.state==5;
     std::size_t total_descriptors{};
     for(std::uint32_t i=0;i<request.count;++i){
-        auto reason=ResolvePower(c,request.actions[i],effects,mode,out.initiation_clear,readiness,out.actions[i]);if(reason!=Unknown::none){return reason;}
+        auto reason=ResolvePower(c,request.actions[i],effects,mode,initiation,auxiliary,readiness,out.actions[i]);if(reason!=Unknown::none){return reason;}
         total_descriptors+=out.actions[i].descriptor_count;
         if(total_descriptors>kMaxPublicationDescriptors){return Unknown::geometry;}
     }
     if(!Read(c.actor+0xad0,state_after) || state_after!=state || !Read(state+0x18,mode_after) || mode_after!=mode
+        || !Read(state+0x1c,auxiliary_after) || auxiliary_after!=auxiliary
         || !combat::initiation::Capture(c.actor,state,after,[](std::uintptr_t at,auto& value)noexcept{return Read(at,value);})
         || after!=initiation || !combat::power::readiness::Capture(c.image,c.actor,read,readiness_after)
         || !combat::power::readiness::Stable(readiness,readiness_after)
