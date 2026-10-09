@@ -4,13 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "shadowbane-lab"
-version = "0.3.84"
+version = "0.3.85"
 description = "Deterministic simulation and bot-policy tooling for Shadowbane"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
+shadowbane-manager = "shadowbane_lab.manager.desktop_launcher:main"
 shadowbane-navigation-inspector = "shadowbane_lab.navigation_inspector.app:main"
 shadowbane-lab = "shadowbane_lab.cli:main"
 shadowbane-runtime-consistency = "shadowbane_lab.runtime_consistency.__main__:main"

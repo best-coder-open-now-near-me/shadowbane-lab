@@ -1,5 +1,18 @@
 # Git branch map
 
+## Manager desktop startup ownership - October 9
+
+`codex/manager-desktop-readiness-20261009` in `buff-activation-observer`
+starts from main `2339e2a` and targets main. It replaces private desktop startup
+behavior with the packaged `shadowbane-manager` entrypoint and authenticated,
+immutable listener identity independent of full worker/status inspection.
+The host candidate is .85; native .56 and the installed .84 runtime are unchanged.
+The first source checkpoint covers exact launch ownership, delayed readiness,
+concurrent desktop clicks, and real HTTP startup during blocked status. Next:
+actual Windows packaged-entrypoint handshake, independent review, and host-only
+qualification before root-controlled installation. No native/game actions occur
+in this source lane.
+
 ## Coherent automatic-buff status snapshot - October 9
 
 Start new work from refreshed main, which includes PR #127 at `cc3474d`.

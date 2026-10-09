@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import ntpath
 import os
@@ -451,6 +452,7 @@ def _run_manager_app(
     authorization_token_file: Path | None,
     open_browser: bool,
     live: bool,
+    startup_generation: str | None = None,
 ) -> int:
     if not live:
         return _error(
@@ -470,7 +472,9 @@ def _run_manager_app(
         return _error("poll-ms must be in [25, 10000]", as_json=False)
 
     try:
-        manifest = load_manager_manifest(manifest_path)
+        from shadowbane_lab.manager.manifest import loads_manager_manifest
+        manifest_bytes = manifest_path.read_bytes()
+        manifest = loads_manager_manifest(manifest_bytes)
         missing_environment: list[str] = []
         for config in manifest.clients:
             checks = (
@@ -519,6 +523,13 @@ def _run_manager_app(
             else authorization_token_file
         )
         dashboard_token = _load_or_create_dashboard_token(dashboard_token_path)
+        from shadowbane_lab.manager.startup import StartupConfig, StartupStore
+        startup_config = StartupConfig.create(manifest_path, manifest.node_id, port,
+            heartbeat_root, dashboard_token_path, pid_file, Path(sys.executable))
+        startup_record = StartupStore(manager_state_root, Win32ProcessLifetimeInspector()).claim(
+            startup_config, startup_generation, os.getpid(),
+            manifest_sha256=hashlib.sha256(manifest_bytes).hexdigest())
+
         local_app_data = os.environ.get("LOCALAPPDATA")
         extension_status = (
             None
@@ -618,12 +629,13 @@ def _run_manager_app(
             application,
             port=port,
             authorization_token=dashboard_token,
+            startup_record=startup_record,
         )
         with server:
             try:
                 if pid_file is not None:
                     _write_manager_pid_file(pid_file)
-                print(f"Manager dashboard: {server.suggested_url}")
+                print(f"Manager dashboard listening on loopback port {server.port}")
                 print(f"Worker heartbeat root: {heartbeat_root}")
                 print("Press Ctrl+C to stop the dashboard; managed clients will remain open.")
                 if open_browser:

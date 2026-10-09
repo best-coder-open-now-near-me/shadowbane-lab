@@ -98,6 +98,7 @@ class _DashboardContext:
     html_template: bytes
     header_timeout_seconds: float
     body_timeout_seconds: float
+    startup_body: bytes | None
 
 
 class _ConnectionDeadline:
@@ -401,7 +402,7 @@ class _DashboardRequestHandler(BaseHTTPRequestHandler):
         if path == "/":
             self._serve_dashboard()
             return
-        if path == "/api/v1/status":
+        if path in {"/api/v1/status", "/api/v1/startup"}:
             if not self._authorized():
                 self._send_error(
                     HTTPStatus.UNAUTHORIZED,
@@ -410,7 +411,18 @@ class _DashboardRequestHandler(BaseHTTPRequestHandler):
                     extra_headers={"WWW-Authenticate": "Bearer"},
                 )
                 return
-            self._serve_status()
+            if path == "/api/v1/startup":
+                body = self._context.startup_body
+                if body is None:
+                    self._send_error(HTTPStatus.SERVICE_UNAVAILABLE, "startup-unavailable",
+                                     "Manager startup identity is unavailable.")
+                else:
+                    self._send_response(HTTPStatus.OK, body,
+                                        content_type="application/json; charset=utf-8",
+                                        content_security_policy=(
+                                            "default-src 'none'; frame-ancestors 'none'"))
+            else:
+                self._serve_status()
             return
         self._send_error(HTTPStatus.NOT_FOUND, "not-found", "Route not found.")
 
@@ -737,6 +749,7 @@ class DashboardServer:
         *,
         port: int = 0,
         authorization_token: str | None = None,
+        startup_record: dict | None = None,
         max_concurrent_requests: int = DEFAULT_MAX_CONCURRENT_REQUESTS,
         header_timeout_seconds: float = DEFAULT_HEADER_TIMEOUT_SECONDS,
         body_timeout_seconds: float = DEFAULT_BODY_TIMEOUT_SECONDS,
@@ -758,6 +771,10 @@ class DashboardServer:
             if authorization_token is None
             else authorization_token
         )
+        from .startup import startup_payload, validate_record
+
+        startup_body = (None if startup_record is None else
+                        json.dumps(startup_payload(validate_record(startup_record))).encode("utf-8"))
         context = _DashboardContext(
             service=service,
             authorization_token=token,
@@ -765,6 +782,7 @@ class DashboardServer:
             html_template=_load_dashboard_html(),
             header_timeout_seconds=header_timeout,
             body_timeout_seconds=body_timeout,
+            startup_body=startup_body,
         )
         self._authorization_token = token
         self._server = _DashboardHttpServer(
