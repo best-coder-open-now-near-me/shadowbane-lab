@@ -333,13 +333,19 @@ def test_worker_city_to_navigation_handoff_keeps_original_scene(fixture, monkeyp
     f.operation.client_id, f.operation.instance_id = "client", "instance"
     f.operation.worker_id, f.operation.node_id = "worker", "node"
     f.operation.command = "vendor discover"
+    f.binding.game_window_handle = 1000
     city = Mock()
     city.closed = False
+    from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
+    city.identity = f.session.identity = NativeClientProcessIdentity(
+        f.binding.game_process_id, f.binding.game_process_started_at_100ns)
     # Different ordinary city/native navigation managers are expected; only the
     # shared root and scene identify the same client scene across this handoff.
     city_state = replace(STATE, manager=800)
     city_opened = replace(OPENED, manager=800, active_manager=800, building_count=2)
-    city.inspect.side_effect = [receipt(city_state), receipt(city_opened), receipt(city_opened)]
+    city.inspect.side_effect = [
+        receipt(city_state), receipt(city_opened), receipt(city_opened), receipt(city_opened),
+    ]
     city.open.return_value = receipt(outcome=Outcome.SUBMITTED, flags=0)
 
     def close_city():
@@ -379,6 +385,7 @@ def test_worker_city_to_navigation_handoff_keeps_original_scene(fixture, monkeyp
     else:
         result = executor.execute(f.operation, stop_signal=SimpleNamespace(is_set=lambda: False))
         assert result.state == WorkerOperationState.SUCCEEDED and len(f.session.calls) == 4
+        assert result.native_cleanup_confirmed
     city.close.assert_called_once_with()
     f.session.close.assert_called_once_with()
     crafting.assert_not_called()
