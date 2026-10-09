@@ -1,27 +1,53 @@
 # Git branch map
 
-## Preparation status release composition - October 9
+## Manager desktop startup ownership - October 9
 
-`codex/preparation-status-release-20261009` owns bot-integration for host .84
-qualification. It combines reviewed source `cc7ebfb` with installed release
-`0e0c6b9`, preserving installed graphics and native/runtime asset inputs. The
-only additional native-tree change is PR #125's reviewed unreadable-memory test
-fixture; native .56 retains its original `df97e7b` build provenance. Main remains
-the shared integration destination. Graphics PRs #106/#113 remain separate drafts.
-Qualification and host-only installation are next. Use refreshed main for new work.
+`codex/manager-desktop-readiness-20261009` in `buff-activation-observer`
+starts from main `2339e2a` and targets main. It replaces private desktop startup
+behavior with the packaged `shadowbane-manager` entrypoint and authenticated,
+immutable listener identity independent of full worker/status inspection.
+The host candidate is .85; native .56 and the installed .84 runtime are unchanged.
+The source covers exact launch ownership, delayed readiness, concurrent desktop
+clicks, real HTTP startup during blocked status, and the actual Windows desktop
+entrypoint/CLI/OS-lifetime handshake with a named inactive gameplay application.
+All 64 focused tests pass. See [the public startup contract](manager-desktop-startup.md).
+Root composes `codex/manager-desktop-release-20261009` in `bot-integration` from
+installed `b74a97f` and the reviewed topic/main history, preserving graphics and
+native inputs. Exact-source host-only qualification and installation remain next.
+No native/game actions occur in this source lane.
 
 ## Coherent automatic-buff status snapshot - October 9
 
-`codex/preparation-status-snapshot-20261009` in `buff-activation-observer`
-starts from main `262a82e`. It reads the asynchronous preparation record before
-worker health so a reporter update during health inspection cannot make that
-record appear newer than its corresponding heartbeat. Existing exact worker,
-sequence and freshness checks remain unchanged; replacement workers cannot
-inherit previous coverage. The focused regression reproduces this interleaving.
-This reachable presentation race is not proof that every observed live status
-gap has that cause; native passive-read freshness failures are separate.
-Host version is .84; native .56 is unchanged. Integration destination is main.
-Next: independent review and a qualified host release; the installed .83 runtime is unchanged by this source checkpoint.
+Start new work from refreshed main, which includes PR #127 at `cc3474d`.
+The reviewed source fix `cc7ebfb` reads preparation before worker health while
+preserving exact identity, sequence and freshness checks. All 25 focused tests
+passed independent review, including reporter interleaving and worker replacement.
+This source race does not establish the cause of every live status gap.
+
+Qualified host .84 source `b74a97f10fb6496091df529f2484e314c4323c37` is published
+on `codex/preparation-status-release-20261009` in bot-integration. Native .56 stays
+at `df97e7b`; all runtime native inputs and installed graphics are unchanged.
+Only the reviewed PR #125 native test fixture differs from that native source.
+Host qualification passed 5,667 tests (39 optional skips), both profiles' IPC
+checks and the real worker-startup test. Preparation, shutdown, host switch and
+shortcuts passed with 9,561 retained records and the then-current game preserved.
+After the user restarted the game, the .84 manager attached a new exact worker;
+normal Resume succeeded and all five buff groups report present and maintaining.
+Recovery verification passed for all 478 modules and 9,561 retained records,
+with zero exclusions and eleven expected generated changes. Eight of eight fresh
+status samples reported current preparation. The old .83 host and ten wheel
+files were removed after fresh dependency checks, freeing 57,607,513 bytes; all
+eleven paths are absent and the current native DLL and runtime remain healthy. A brief production worker PvE run confirmed one exact NPC
+native-health-zero kill, explicit cancellation with no active/queued operation,
+and normal Resume restoring current automatic-buff maintenance. Opener reuse was
+respected; an earlier target stalled after taking damage. Further renewal and
+movement-interruption acceptance remain outstanding.
+
+`codex/preparation-status-delivery-20261009` owns this documentation update in
+`buff-activation-observer`, targeting main through PR #128. Next: correct the
+launcher readiness timeout; full natural Conc-pot/Precision renewal and movement-
+interruption checks remain. [The update record](client-update-20261009.md)
+retains the exact deployment and live evidence.
 
 ## Deterministic optional-state fixture - October 9
 

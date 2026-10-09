@@ -1265,6 +1265,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     manager_app.add_argument("--launch-timeout-seconds", type=float, default=30.0)
     manager_app.add_argument("--poll-ms", type=int, default=500)
+    manager_app.add_argument("--startup-generation", help=argparse.SUPPRESS)
     manager_app.add_argument(
         "--worker-state-directory",
         type=Path,
@@ -1285,7 +1286,7 @@ def _parser() -> argparse.ArgumentParser:
     manager_app.add_argument(
         "--no-browser",
         action="store_true",
-        help="print the authenticated dashboard URL without opening a browser",
+        help="run without opening a browser; authorization tokens are never printed",
     )
     manager_app.add_argument(
         "--live",
