@@ -6,8 +6,8 @@ The user selected **Hunt Foe** for Umbra's incoming-player awareness on October 
 PR #133 merged into main `9523d0e7aa973e1529c07d950c7cf64e3836eaf2` after all
 15 hosted checks passed at reviewed head `7593d06`. Automatic native refresh and
 the contact display are implemented and qualified as host .87/native .57. The
-qualified payload is staged and new-host preparation passed; the active .86/.56
-runtime has not been replaced and new automatic-query live acceptance is pending.
+qualified .87/.57 runtime is installed, its manager activation verified, and the
+game relaunched with the exact DLL. Automatic-query live acceptance awaits login.
 
 The first source checkpoint supplies a durable learned-skill resolver and a passive
 native contact reader. These are observation components for the full shared-worker
@@ -138,11 +138,19 @@ Disposable files from failed package attempts were removed (299,554,190 bytes),
 while their logs and compact receipts remain.
 
 - Complete: native learned definition and ten-contact town capture, source reviews,
-  shared-owner scheduling/display, package qualification, PR #133 merge and new-host
-  preparation (484 modules verified; prepared_not_applied).
-- Active: install the qualified runtime once the target client is closed.
-- Next: enable Umbra's saved Track intent and verify normal automatic refresh;
-  this is awareness only, not a PvP attack test.
+  shared-owner scheduling/display, package qualification, PR #133 merge, installation,
+  manager activation and exact-DLL game launch (484 modules verified).
+- Active: enable Umbra's saved Track intent after login and verify automatic refresh.
+- Next: retire verified obsolete runtime files and integrate the closed-game cleanup
+  source fix in PR #135. Track remains awareness only.
+- Follow-up: closing the old game left its worker waiting indefinitely for native
+  preparation cleanup after the manager removed its binding. The owner adapter
+  checked original-process retirement only when cleanup raised, while the actor
+  channel converts mapping failures into unconfirmed results. Exact game-lifetime
+  retirement must also resolve those unconfirmed results; an inaccessible or still
+  live original process must remain unresolved. During installation, the confirmed
+  dead-game worker and launcher were retired by exact retained handles; their
+  journals and settings were preserved.
 - Follow-up: the prior .86 continuous PvE run stopped after five kills and 4,853
   steps with `native movement renewal failed: NativeActionChannelBusy`. Idle buff
   upkeep recovered and remained healthy. The saved error drops the underlying
@@ -150,6 +158,26 @@ while their logs and compact receipts remain.
   delay but does not prove lock contention, expiry or ownership loss. Preserve
   those distinctions and inspect renewal scheduling before changing recovery;
   an expired/lost lease must not be silently reacquired.
+
+Installation preserved 9,539 records with zero exclusions. The original installer
+mistakenly treated its intended `reviewed-launch.json` update as retained user data.
+Completion repair `172b29ff` verified the exact partial state and planned config,
+projected only that provenance row, and completed without replaying native writes.
+The original retained manifest and before/after row hashes remain as evidence;
+all other 9,538 inventory rows were unchanged at that boundary. Fifteen focused
+repair tests and independent review passed.
+
+The manager started once. Its original verifier incorrectly required configured
+slots while the closed client produced an empty visible-instance inventory.
+Verification-only correction `ef9574d0` accepts that exact closed-game state,
+requires no workers, and preserves manager identity and all data checks; 67 tests
+and independent review passed. Final activation verified 484 host modules, the
+same 9,539 records, and only two typed generated changes (startup and dispatch
+permit). The original sealed payload stayed unchanged. The reviewed launcher then
+verified the new game's loaded DLL against the qualified hash above. No rollback
+artifacts were created. The public cleanup fix is `7161148` on
+`codex/closed-game-preparation-cleanup-20261009`, targeting main through PR #135;
+53 focused tests and independent review passed, with hosted checks pending.
 
 The exact-image query probe verifies all thirteen original callsites and executes
 copied native sender code with the actual Track sender callsite and shared append

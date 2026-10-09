@@ -17,11 +17,21 @@ probes, six installed desktop cases and the real worker handshake. Independent
 verification checked all 136 artifacts and 108 package stages.
 
 Root owns `codex/hunt-foe-delivery-20261009` in `native-track-awareness` for this
-delivery record. The qualified update is staged; new-host preparation verified all
-484 modules and reports prepared_not_applied. The running .86/.56 runtime has not
-been replaced. Next: close the target client, install, enable Umbra's Track
-intent and check normal automatic refresh. The separate PvE movement-renewal stop
-is retained as the next host follow-up. See [the Track contract and receipts](native-track.md).
+delivery record. The .87/.57 runtime is installed and activation-verified with
+484 host modules, 9,539 retained records and zero exclusions. The reviewed
+launcher verified the new game's DLL; automatic Track acceptance awaits login.
+Two narrowly reviewed deployment-verifier corrections completed the intended
+metadata update and accepted the actual empty visible-instance inventory while
+the game was closed. The original sealed payload remained unchanged.
+
+The closed-game cleanup fix is `7161148` on
+`codex/closed-game-preparation-cleanup-20261009` in `closed-game-cleanup`, targeting
+main through PR #135 after 53 tests and independent review; hosted checks remain.
+It resolves the orphaned worker observed during this installation without changing
+the qualified .87 runtime. Next: enable Umbra's Track intent, check automatic
+refresh, retire verified obsolete files and integrate that source fix. The separate
+PvE movement-renewal stop remains a host follow-up.
+See [the Track contract and receipts](native-track.md).
 
 ## Preparation recovery delivery - October 9
 
