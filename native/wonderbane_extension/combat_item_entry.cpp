@@ -118,6 +118,11 @@ bool OwnsFrame(std::uintptr_t frame) noexcept {
     return s && s->frame && frame==s->frame && s->returned
         && Word(frame+4,s->returned) && Word(frame+8,s->context.actor) && Word(frame+12,0);
 }
+thread_local std::uintptr_t foreign_actor{};
+void __fastcall ForeignSendHook(void* sender,void*,void* message) {
+    const DWORD error=GetLastError();const auto actor=foreign_actor;foreign_actor=0;
+    activation::ForeignItemSend(actor);SetLastError(error);original_send(sender,message);
+}
 void __fastcall SendHook(void* sender,void*,void* message) {
     const DWORD error=GetLastError();
     auto* s=active;
@@ -134,6 +139,7 @@ void __fastcall SendHook(void* sender,void*,void* message) {
     original_send(sender,message);
     const DWORD after=GetLastError();
     if (!s->receipt.append_observed) { s->Block(); }
+    activation::RecordReturn(s->context.activation,!s->blocked&&s->receipt.append_observed);
     SetLastError(after);
 }
 submission::AppendClaim Claim(void* container,void* message,std::uintptr_t caller) noexcept {
@@ -174,8 +180,10 @@ LONG CALLBACK Trap(EXCEPTION_POINTERS* exception) noexcept {
     __try { *reinterpret_cast<DWORD*>(c.Esp-4)=static_cast<DWORD>(address+5); }
     __except(EXCEPTION_EXECUTE_HANDLER) { SetLastError(error); return EXCEPTION_CONTINUE_SEARCH; }
     c.Esp-=4;
-    c.Eip=static_cast<DWORD>(OwnsFrame(c.Ebp) ? reinterpret_cast<std::uintptr_t>(&SendHook)
-        : reinterpret_cast<std::uintptr_t>(original_send));
+    const bool owned=OwnsFrame(c.Ebp);
+    if(!owned){foreign_actor=0;(void)Copy(&foreign_actor,c.Ebp+8,sizeof(foreign_actor));}
+    c.Eip=static_cast<DWORD>(owned ? reinterpret_cast<std::uintptr_t>(&SendHook)
+        : reinterpret_cast<std::uintptr_t>(&ForeignSendHook));
     SetLastError(error); return EXCEPTION_CONTINUE_EXECUTION;
 }
 bool InstallByte() noexcept {
@@ -271,6 +279,7 @@ Receipt InvokeBound(const Context& c,State& state,Receipt& receipt,const Calls& 
     } __except(EXCEPTION_EXECUTE_HANDLER) {
         state.quarantined=true;receipt.ownership_quarantined=true;receipt.result=Result::uncertain;
     }
+    activation::RecordReturn(c.activation,receipt.result==Result::queued&&receipt.append_observed&&!receipt.ownership_quarantined);
     return receipt;
 }
 }

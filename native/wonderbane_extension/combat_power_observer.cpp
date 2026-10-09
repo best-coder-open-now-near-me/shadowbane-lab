@@ -24,7 +24,7 @@ bool __cdecl OrdinaryUseHook(std::uint32_t id,int rank,void* actor,void* target,
     bool result=false;
     // No synthetic native return address: this remains foreign, unscoped entry.
     // Preserve the original return/LastError and restore nesting even on SEH.
-    __try { result=reinterpret_cast<OrdinaryUse>(base+0x1082a)(id,rank,actor,target,position,key); }
+    __try { result=activation::ObserveOrdinaryPower(base+0x1082a,id,rank,actor,target,position,key); }
     __finally { native_use_in_flight=previous; }
     return result;
 }
@@ -197,6 +197,19 @@ struct Observer {
             && Word(p + 0x98, 0) && Word(p + 0x9c, 0) && Word(p + 0xa0, 0)
             && Word(p + 0xa4, 1);
     }
+    static void __cdecl ForeignFollowupHook(void* actor,void* target,void* definition,int rank) {
+        activation::ObserveManualFollowup(reinterpret_cast<std::uintptr_t>(original_followup),actor,target,definition,rank);
+    }
+    static void __fastcall ForeignSendHook(void* sender,void*,void* message) {
+        const DWORD error=GetLastError();std::uintptr_t actor{};Key key{},actual{};std::uint32_t power{};
+        const auto at=reinterpret_cast<std::uintptr_t>(message);
+        const bool exact=sender==reinterpret_cast<void*>(base+0x16ab888)&&Word(at,base+0x1155fd8)
+            &&Copy(&actor,base+0x16a2d98,sizeof(actor))&&Copy(key.data(),at+0x88,sizeof(key))
+            &&actor&&Copy(actual.data(),actor+0x18,sizeof(actual))&&key==actual&&Copy(&power,at+0x80,sizeof(power))&&power;
+        if(exact){activation::ForeignPowerUse(actor);}
+        SetLastError(error);original_send(sender,message);const DWORD after=GetLastError();
+        if(exact){activation::RecordManualPowerSend(actor,power);}SetLastError(after);
+    }
     static void __fastcall SendHook(void* sender, void*, void* message) {
         const DWORD error = GetLastError();
         auto* s = active;
@@ -214,6 +227,7 @@ struct Observer {
         catch (...) { Block(*s); throw; }
         const DWORD after = GetLastError();
         if (!s->receipt_.append_observed) { Block(*s); }
+        activation::RecordReturn(s->context_.activation,!s->blocked_&&s->receipt_.append_observed);
         SetLastError(after);
     }
     static void __cdecl FollowupHook(void* actor, void* target, void* definition, int rank) {
@@ -231,20 +245,32 @@ struct Observer {
         s->receipt_.followup_entered = true; s->receipt_.result = Result::uncertain; Publish(*s);
         const auto epoch=Epoch();
         const auto local_token=ArmLocal(s->context_);
+        const auto semantic=activation::BeginOwnedFollowup(s->context_.activation);
         LocalVector before{};const bool local_before=LocalCapture(s->context_.actor,s->context_.actor_key,before);
         SetLastError(error);
-        try { original_followup(actor, target, definition, rank); }
-        catch (...) { Block(*s); throw; }
-        const DWORD after = GetLastError();
-        if (!Ready() || !MatchesBinding(s->context_) || !s->context_.current(s->context_.owner)) { Block(*s); }
-        else {
-            s->receipt_.result = Result::queued;
-            s->receipt_.initiation_epoch=epoch && s->preparation_epoch_
-                && epoch==s->preparation_epoch_+1 && Epoch()==epoch ? epoch : 0;
-            if(s->receipt_.initiation_epoch&&local_before) { s->receipt_.local_initiation_token=BeginLocal(s->context_,before,local_token); }
-            Publish(*s);
+        bool normal=false;
+        __try { original_followup(actor, target, definition, rank); normal=true; }
+        __finally {
+            const DWORD after = GetLastError();
+            if (!normal || !Ready() || !MatchesBinding(s->context_) || !s->context_.current(s->context_.owner)) { Block(*s); }
+            else {
+                s->receipt_.result = Result::queued;
+                s->receipt_.initiation_epoch=epoch && s->preparation_epoch_
+                    && epoch==s->preparation_epoch_+1 && Epoch()==epoch ? epoch : 0;
+                if(s->receipt_.initiation_epoch&&local_before) { s->receipt_.local_initiation_token=BeginLocal(s->context_,before,local_token); }
+                Publish(*s);
+            }
+            LocalVector after_local{};
+            bool coherent=normal&&s->receipt_.result==Result::queued&&local_before&&LocalCapture(s->context_.actor,s->context_.actor_key,after_local)
+                &&before.state==after_local.state&&after_local.contents.count==before.contents.count+1
+                &&after_local.contents.ids[before.contents.count]==s->context_.power_id;
+            for(std::uint32_t i=0;coherent&&i<before.contents.count;++i) {
+                coherent=before.contents.ids[i]==after_local.contents.ids[i];
+            }
+            activation::OwnedFollowupReturned(s->context_.activation,semantic,coherent,coherent&&after_local.contents.state==6);
+            activation::RecordReturn(s->context_.activation,s->receipt_.result==Result::queued,s->receipt_.result==Result::queued&&s->receipt_.followup_entered);
+            SetLastError(after);
         }
-        SetLastError(after);
     }
     static submission::AppendClaim Claim(void* container, void* message, std::uintptr_t caller) noexcept {
         // Search live ancestors so reentrant native work cannot hide a captured
@@ -306,13 +332,14 @@ LONG CALLBACK Trap(EXCEPTION_POINTERS* exception) noexcept {
             std::int32_t displacement{}; std::memcpy(&displacement,site.bytes.data()+1,4);
             context.Eip=static_cast<DWORD>(i>=2 && i<=5
                 ? reinterpret_cast<std::uintptr_t>(&OrdinaryUseHook)
-                : i>=8 ? reinterpret_cast<std::uintptr_t>(&RemoveInitiationHook) : address+5+displacement);
+                : i>=8 ? reinterpret_cast<std::uintptr_t>(&RemoveInitiationHook) : i==6 ? reinterpret_cast<std::uintptr_t>(&detail::Observer::ForeignFollowupHook) : address+5+displacement);
+            context.Eip=static_cast<DWORD>(activation::Route(site.rva,context.Ebp,context.Eip));
             SetLastError(error); return EXCEPTION_CONTINUE_EXECUTION;
         }
         if (!detail::Observer::OwnsFrame(context.Ebp)) {
             context.Eip = static_cast<DWORD>(i == 0
-                ? reinterpret_cast<std::uintptr_t>(original_send)
-                : reinterpret_cast<std::uintptr_t>(original_followup));
+                ? reinterpret_cast<std::uintptr_t>(&detail::Observer::ForeignSendHook)
+                : reinterpret_cast<std::uintptr_t>(&detail::Observer::ForeignFollowupHook));
             SetLastError(error); return EXCEPTION_CONTINUE_EXECUTION;
         }
         context.Eip = static_cast<DWORD>(i == 0
@@ -420,7 +447,8 @@ bool Start(std::uintptr_t image) noexcept {
         && (GraphicsExecutableSha256Matches("0ba5805e912b0665d2e236f15867047a0ed810c2e310599030df929a42b7493d") || (GraphicsExecutableSha256Matches("78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903") || GraphicsExecutableSha256Matches("e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437")))
         && movement::VerifyNativeMovementImage(verified) && verified == image
         && StartBound(image, reinterpret_cast<Send>(image + 0x7f4da0),
-            reinterpret_cast<Followup>(image + 0x9d7b0));
+            reinterpret_cast<Followup>(image + 0x9d7b0))
+        && activation::Start(image);
     SetLastError(error); return ok;
 }
 bool NormalizeOwnedCode(std::uintptr_t image, std::uint32_t text_rva,
@@ -438,6 +466,6 @@ bool NormalizeOwnedCode(std::uintptr_t image, std::uint32_t text_rva,
             || std::memcmp(code.data() + offset, patched.data(), 5)) { ok = false; break; }
         code[offset] = site.bytes[0];
     }
-    ReleaseSRWLockShared(&install_lock); return ok;
+    ReleaseSRWLockShared(&install_lock); return ok&&activation::NormalizeOwnedCode(image,text_rva,code,disk);
 }
 }

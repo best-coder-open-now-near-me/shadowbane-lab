@@ -1,3 +1,4 @@
+#include "movement_lifetime.h"
 #include "combat_power_observer.cpp"
 #include "combat_power_entry.cpp"
 #include <cstdio>
@@ -139,7 +140,11 @@ bool Guarded(const pw::Context& c) {
 }
 namespace wonderbane::extension {
 bool GraphicsExecutableSha256Matches(const char* digest) noexcept { return std::strcmp(digest,image_digest)==0; }
-namespace movement { bool VerifyNativeMovementImage(std::uintptr_t& output) noexcept { ++verification_calls; output=verified_image; return output!=0; } }
+namespace movement {
+// This entry fixture has no gameplay lifetime; semantic observer tests supply one separately.
+bool ReadNativeMovementLifetime(NativeScene&) noexcept {return false;}
+bool NativeMovementLifetimeCurrent(const NativeScene&) noexcept {return false;}
+ bool VerifyNativeMovementImage(std::uintptr_t& output) noexcept { ++verification_calls; output=verified_image; return output!=0; } }
 namespace combat::submission {
 bool RegisterAppendObserver(AppendObserverKind kind, const AppendObserver& observer) noexcept { if(kind != AppendObserverKind::power) { return false; } registered = observer; return true; }
 }
@@ -501,7 +506,9 @@ int main(int argc, char** argv) {
         const auto epoch_before=pw::InitiationEpoch();SetLastError(1234);
         Check(pw::Trap(&e)==EXCEPTION_CONTINUE_EXECUTION,"qualified protocol CALL handled");
         std::int32_t displacement{};std::memcpy(&displacement,site.bytes.data()+1,4);
-        Check(c.Eip==(i<=5?reinterpret_cast<DWORD>(&pw::OrdinaryUseHook):i>=8?reinterpret_cast<DWORD>(&pw::RemoveInitiationHook):base+site.rva+5+displacement) && c.Esp==reinterpret_cast<DWORD>(stack+1)
+        const auto native_route=i<=5?reinterpret_cast<DWORD>(&pw::OrdinaryUseHook):i>=8?reinterpret_cast<DWORD>(&pw::RemoveInitiationHook):i==6?reinterpret_cast<DWORD>(&pw::detail::Observer::ForeignFollowupHook):base+site.rva+5+displacement;
+        const auto observed_route=wonderbane::extension::combat::activation::Route(site.rva,c.Ebp,native_route);
+        Check(c.Eip==observed_route && c.Esp==reinterpret_cast<DWORD>(stack+1)
             && stack[1]==base+site.rva+5 && c.Eax==11&&c.Ebx==22&&c.Ecx==33&&c.Edx==44
             &&c.Ebp==55&&c.Esi==66&&c.Edi==77&&c.EFlags==0x246&&GetLastError()==1234,
             "protocol CALL preserves register flags LastError and native return");

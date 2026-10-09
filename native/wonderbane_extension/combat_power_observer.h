@@ -1,5 +1,6 @@
 #pragma once
 #include "combat_submission.h"
+#include "combat_activation_observer.h"
 #include "combat_power_readiness.h"
 #include "combat_power_local.h"
 #include <array>
@@ -38,6 +39,7 @@ struct Context {
     // Actor authority has no target object and permits only the self recipient.
     TargetMode target_mode = TargetMode::engagement_object;
     Authority authority = Authority::engagement;
+    activation::Handle activation{};
     std::uintptr_t Recipient() const noexcept { return target_mode == TargetMode::self ? actor : target; }
     const Key& RecipientKey() const noexcept { return target_mode == TargetMode::self ? actor_key : target_key; }
 };

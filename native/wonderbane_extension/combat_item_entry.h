@@ -1,5 +1,6 @@
 #pragma once
 #include "combat_submission.h"
+#include "combat_activation_observer.h"
 #include <array>
 #include <cstdint>
 #include <span>
@@ -31,6 +32,7 @@ struct Context {
     // Under queue lock: scalar/atomic observations only, no locks/native calls.
     bool (*append_current)(void*) noexcept = nullptr;
     void* owner = nullptr;
+    activation::Handle activation{};
 };
 // Owner-thread only. No target, selection, power invocation or StopActive.
 // Owns its C++/SEH boundary and restores TLS even if native frames are abandoned.
