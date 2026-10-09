@@ -306,6 +306,17 @@ def test_real_native_publication_mapping_roundtrip():
         assert journal.revision > second.revision
         assert journal.admission_revision == second.admission_revision
         assert journal.applications and journal.applications[0].entry == 0
+        assert command("interrupted") == "published"
+        interrupted = reader.read()
+        terminal = interrupted.applications[0]
+        assert interrupted.revision > journal.revision
+        assert interrupted.admission_revision == journal.admission_revision
+        assert terminal.state is p.ApplicationState.INTERRUPTED
+        assert terminal.group_digest == bytes([1]) * 32
+        assert terminal.command_digest == bytes([2]) * 32
+        assert terminal.submitted_revision == journal.revision
+        assert terminal.observed_revision == interrupted.revision
+        assert terminal.entry == 1 and terminal.queued and terminal.local_settled
         assert command("occupied") == "published"
         occupied = reader.read()
         assert occupied.admission_blocks == p.AdmissionBlock.FOREIGN_TARGET
