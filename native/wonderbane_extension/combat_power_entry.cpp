@@ -88,8 +88,10 @@ struct Entry {
         const Invocation invocation{use,c.power_id,rank,reinterpret_cast<void*>(c.actor),
             reinterpret_cast<void*>(c.Recipient()),position,Key{},&scope.native_frame_,&scope.native_return_};
         scope.receipt_.observation.use_called=true;scope.PublishObservation();
+        activation::OwnedUseEntering(c.activation,scope.definition_);
         const bool result=Bridge(&invocation);
         const auto error=GetLastError();
+        activation::OwnedUseReturned(c.activation,result);
         scope.receipt_.observation.use_returned=true;scope.receipt_.observation.use_value=result;
         scope.PublishObservation();SetLastError(error);return result;
     }

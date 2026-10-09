@@ -155,5 +155,25 @@ int main(int argc,char** argv){
  assert(a::NormalizeOwnedCode(a::base,0x631a3,patched,disk)&&patched==disk);++cases;
  patched=disk;for(const auto& site:a::sites){patched[site.rva-0x631a3]=0xcc;}patched.back()^=1;
  assert(!a::NormalizeOwnedCode(a::base,0x631a3,patched,disk));++cases;
+ for(unsigned old:{0U,1U,2U,3U}){
+  Reset(old);reinterpret_cast<unsigned char*>(definition.data())[0x274]=1;
+  a::OwnedUseEntering(owned,Address(definition.data()));auto own=a::BeginOwnedFollowup(owned);
+  const std::uint32_t power=111;Append(actor.data()+0x65c/4,nullptr,&power);
+  a::OwnedFollowupReturned(owned,own,true,false);a::RecordReturn(owned,true,true);
+  assert(a::Read(owned)!=a::Result::locally_completed);a::OwnedUseReturned(owned,true);
+  assert(a::Read(owned)==a::Result::locally_completed&&a::history.Read(owned.slot).phase==a::ActivationPhase::awaiting_start);++cases;
+ }
+ for(unsigned fault=0;fault<8;++fault){
+  Reset(2);reinterpret_cast<unsigned char*>(definition.data())[0x274]=fault==0?0:1;
+  if(fault==1){state[4]=6;owned=a::Arm(0,owned.identity,111,a::ActivationOrigin::self_power);a::RecordReturn(owned,true,true);state[4]=5;}
+  a::OwnedUseEntering(owned,Address(definition.data()));auto own=a::BeginOwnedFollowup(owned);
+  const std::uint32_t power=111;Append(actor.data()+0x65c/4,nullptr,&power);
+  a::OwnedFollowupReturned(owned,own,fault!=2,false);a::RecordReturn(owned,true,true);
+  if(fault==3){a::OtherActivity(Address(actor.data()));}
+  if(fault==4){reinterpret_cast<unsigned char*>(definition.data())[0x274]=0;}
+  if(fault==5){replacement_state=state;actor[0xad0/4]=Address(replacement_state.data());}
+  if(fault==6){ids[0]=222;}
+  a::OwnedUseReturned(owned,fault!=7);assert(a::Read(owned)!=a::Result::locally_completed);++cases;
+ }
  std::printf("%u activation observer cases passed\n",cases);return 0;
 }
