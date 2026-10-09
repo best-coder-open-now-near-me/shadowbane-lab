@@ -127,7 +127,7 @@ int main(int argc,char** argv){try{
  std::ifstream f(std::filesystem::path(argv[1]),std::ios::binary|std::ios::ate);auto n=f.tellg();
  if(!f||n<=0||n>64*1024*1024)throw std::runtime_error("invalid image");
  std::vector<unsigned char>b(static_cast<std::size_t>(n));f.seekg(0);if(!f.read(reinterpret_cast<char*>(b.data()),n))throw std::runtime_error("short image");
- const auto sha=Digest(b);if(sha!="381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5"&&sha!="e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437")throw std::runtime_error("unreviewed image");
+ const auto sha=Digest(b);if((sha!="381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5" && sha!="a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a")&&(sha!="e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437" && sha!="1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c"))throw std::runtime_error("unreviewed image");
  constexpr std::size_t size=0x453000;
  image=static_cast<unsigned char*>(VirtualAlloc(nullptr,size,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));if(!image)throw std::runtime_error("arena allocation");
  std::memset(image,0xcc,size);

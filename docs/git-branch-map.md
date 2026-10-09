@@ -1,5 +1,15 @@
 # Git branch map
 
+## Official client 1.3.38.16 update - October 9
+
+Start from refreshed main, now including PR #120 at `32651c4`. The user applied
+the next official patch; the installed .80/.55 bot runtime still contains the
+previous client. `codex/client-host-20261009` owns host compatibility and delivery,
+with native changes on `codex/client-native-20261009`. Both target main. The new
+.81/.56 package must preserve the graphics composition in published release
+`3e4d801`; those graphics drafts remain separately owned. Qualification and
+installation are pending. See [the current update record](client-update-20261009.md).
+
 ## Qualified persistent buff delivery - October 9
 
 Main now includes bot PR #119 at merge `5b6c75e7af02a8109ab60fbaa694b3577900aebe`;
