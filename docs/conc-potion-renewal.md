@@ -47,11 +47,36 @@ or other genuine inability to apply can still produce a gap.
 
 ## Delivery
 
-Source branch: `codex/conc-potion-early-renewal-20261009`, targeting `main`.
-Runtime versions: host `0.3.88`, native `1.8.58`.
-The prior installed `.87/.57` release remains active while the combined source,
-package and installation are qualified. Package results and live renewal evidence
-will be recorded at delivery; this document does not claim live acceptance.
+PR #136 merged normally at `d35bab594e0e903aac1b9f51872ec3e6ef3d0ee8` after
+all 15 hosted checks passed at feature head
+`7760803f11cd57c272f84ce5bf1b6ecb73763931` on
+`codex/conc-potion-early-renewal-20261009`.
+
+The exact qualified release is `00e6ae75a95f63d723f78db49097d716d1425f31`
+on `codex/conc-potion-release-20261009`, with host `0.3.88`, native `1.8.58`
+and the installed graphics composition. Qualification passed 5,901 host tests
+(41 skips), both native profiles, and 74 movement / 86 combat / 233 actor IPC
+cases per profile. Six installed desktop cases and the actual worker handshake
+also passed. Independent verification checked 136 artifacts, 108 stages and
+484 modules. The builder receipt is
+`eb0da0bd9bb90f646a2a032028cd6c3e24fcebefc1c71a657e2ca876fc5e1184`;
+private captures and binaries remain outside the repository.
+
+Interrupted host preparation has been repaired and the new `.88` environment
+passed its installed validator for all 484 modules. The preparation receipt is
+`5f3e1a1deaabeb84b11cc1e7e52b46961e06a0e60d0ee77d38b5d2ca17d981dc`.
+The exact old manager and worker have since exited through the reviewed stop
+phase. Native quiescence was verified and no independent old-host dependency
+remains. The manager-stopped receipt is
+`636e7a497e16a181783d8d4c563418ed9a63042cfc205cb3cc5517617dce48d5`,
+with completion `reviewed_phase_completed`.
+
+The game remains open with the prior `.57` DLL. Bot upkeep is stopped while the
+user closes that client; runtime replacement and live acceptance remain pending.
+Next: install and verify activation after client closure, then resume and observe
+the native covered-renewal submission and each required descriptor's deadline
+advancement. Successful qualification does not itself demonstrate live renewal
+continuity.
 
 Follow the [deployment policy](deployment-policy.md). Preserve user settings and
 journals in place and retain compact source/hash receipts, not rollback runtimes.

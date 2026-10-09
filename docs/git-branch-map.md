@@ -2,17 +2,29 @@
 
 ## Concoction early renewal - October 9
 
-Start new work from refreshed `main`. Root owns
-`codex/conc-potion-early-renewal-20261009` in `buff-renewal-lead`, targeting `main`.
-Checkpoints `1cb3cba` and `a53c5d0` add a 15-second native renewal lead for Greater
-Concoction Potion, preserve PRESENT coverage and retain each descriptor's old
-deadline until the full renewal is observed. The `.88/.58` source passed focused
-host/native tests, exact original/prepared `.16` probes and independent review.
-Combined package qualification and hosted checks precede merge and installation.
-Root's `bot-integration` release checkout will preserve the installed graphics
-composition. The installed `.87/.57` runtime is unchanged while this proceeds.
-See [the renewal contract](conc-potion-renewal.md). Next: qualify the composed
-package, integrate, install with the client closed and observe automatic renewal.
+Start new work from refreshed `main` at
+`d35bab594e0e903aac1b9f51872ec3e6ef3d0ee8`. PR #136 merged normally after all
+15 hosted checks passed at reviewed feature head
+`7760803f11cd57c272f84ce5bf1b6ecb73763931`. It adds the exact Concoction
+15-second renewal lead while preserving PRESENT coverage and requiring each
+covered descriptor's deadline to advance before confirming a refresh.
+
+The qualified `.88/.58` release is `00e6ae75a95f63d723f78db49097d716d1425f31`,
+published on `codex/conc-potion-release-20261009` in root-owned `bot-integration`.
+It retains the installed graphics composition. Qualification passed 5,901 host
+cases (41 skips), both native profiles and each profile's 74/86/233 IPC cases,
+plus six installed desktop cases and one worker handshake. Independent verification
+checked 136 artifacts, 108 stages and 484 modules.
+
+Delivery documentation is owned on `codex/conc-potion-delivery-20261009` in
+`conc-renewal-delivery`, targeting `main`. Interrupted `.88` host preparation
+has been repaired and the installed validator passed all 484 modules. The exact
+old manager and worker have stopped, native quiescence was verified, and no
+independent old-host dependency remains. The game is still open with the old
+`.57` DLL; bot upkeep is stopped pending the requested client closure. Runtime
+replacement and live early-renewal acceptance are pending. Next: close the target
+client, install and verify activation, then resume and observe covered renewal.
+See [the renewal contract](conc-potion-renewal.md).
 
 ## Hunt Foe player-awareness delivery - October 9
 
