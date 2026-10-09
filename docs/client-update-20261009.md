@@ -58,9 +58,9 @@ of copying the obsolete case-sensitive manifest comparison.
 The receipt records original/corrected verifier and runner hashes. Activation
 receipt SHA-256:
 `f8d30e8f3c506560ae6bcd6f72e8c8b314c53f5913bab764f07d8b6702cc1db5`.
-Normal Resume succeeded. Fresh status then reported the same healthy worker,
+Normal Resume succeeded. At that verification boundary, fresh status reported the same healthy worker,
 current maintaining preparation and all five groups present, with no active or
-queued operation. This confirms current .85 upkeep, not new expiry-renewal or
+queued operation. This confirmed .85 upkeep at that boundary, not new expiry-renewal or
 movement-interruption acceptance. The compact status receipt SHA-256 is
 `dbd18c7a88ad64d35a7a2ce508f0ed7332a52d5e435c594387e04c73f9235036`.
 The completed post-Resume native capture contains 80 valid and six unavailable
@@ -78,8 +78,8 @@ Fresh ownership and dependency inspection verified the obsolete .84 host safe to
 retire. Its 2,146 files occupied 48,524,864 bytes; ten pinned superseded wheel files
 occupied 9,083,149 bytes. Retirement removed 57,608,013 bytes, and a separate check
 confirmed all eleven target paths absent. The exact .56 DLL and game lifetime
-remained unchanged. The same .85 worker was healthy, with all five groups current
-and maintaining and no active or queued operation. Settings, jobs, historical
+remained unchanged. At that post-retirement boundary, the same .85 worker was healthy, with all five
+groups current and maintaining and no active or queued operation. Settings, jobs, historical
 journals and diagnostic evidence remain in place; no rollback runtime is retained.
 Retirement receipt SHA-256:
 `c56ce3dedbaa99be4a4ad8cc54cffa057045e4e851228afdcb3bab4d3bde756a`;
@@ -90,10 +90,38 @@ The merged desktop source topic and superseded .84 release branches were retired
 locally and remotely after checkout-ownership and ancestry verification. The exact
 current .85 release branch remains published for reproducibility.
 
-The .85 installation and obsolete-runtime cleanup are complete. Remaining live
-acceptance work is Conc-pot expiry renewal and movement-interruption recovery.
-A longer passive observation may supply further evidence; elapsed time alone
-cannot complete either check.
+The .85 installation and obsolete-runtime cleanup are complete. Those receipts
+are time-specific; they do not prove that upkeep stayed active indefinitely.
+
+## Later upkeep stop observed
+
+The subsequent ten-minute passive capture contains 282 valid native samples and
+143 unavailable samples. Its last valid native sample reported Beorc Rune,
+transform and defensive stance missing, followed by unavailable producer evidence.
+A later manager read still found exact worker 3828 healthy, but its buff-service
+state was `disabled`, current preparation was false and no operation was active
+or queued. This supersedes the earlier all-five-present check as the latest
+upkeep observation without invalidating the installation or retirement proofs.
+
+Saved buff intent remained enabled at settings revision 2. Its exact file SHA-256
+`5994464d87b6628dda9c7a2704a67036ca3811f57c0efd7c32236a7733787379`
+matches the pre-update retained-file inventory. The observed service stop therefore
+is not evidence that saved user intent was switched off. The late status receipt
+SHA-256 is `95bcafb48c0d956be9cf8acb195caf81959fd316e4dc5ebd81f8922bd8056062`;
+the saved-settings inspection receipt is
+`030683a6a75e5b5d13fa223e257e599fd77045ffd7613728dc2ad5c52d056467`.
+Long-capture SHA-256 is
+`0cc7ced85a4e21acbc82c866f3e71d15b61adc76ec135e8433a5304f1808801d`;
+compact summary SHA-256 is
+`7451761e9a5d69147e132f83f2353e0f78d603341549785e22f60274d2487a96`.
+
+Separate source work is investigating recovery from internal preparation-service
+faults. These live receipts do not identify the exact exception or establish its
+cause, and unavailable reads are not credited as successful maintenance. Next:
+resolve the unexpected upkeep stop, then validate Conc-pot expiry renewal and
+movement-interruption recovery. Conc-pot stayed present with unchanged quantity
+and no new application in this longer capture; elapsed time alone proves neither
+renewal nor remaining duration.
 
 ## Precision renewal observed before the .85 switch
 

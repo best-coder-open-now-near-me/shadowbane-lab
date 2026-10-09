@@ -16,10 +16,10 @@ files agree. Host .85 activation is verified: manager 3872/worker 3828 retain th
 same game lifetime, 480 modules and 9,488 records with zero exclusions. A separate
 verifier-only Windows path-case correction required no relaunch or source change.
 Live entrypoint reuse kept the same manager generation in 2.422 seconds. Normal
-Resume succeeded; fresh status confirms the same healthy worker, current upkeep,
-all five groups present and no active/queued operation. Fresh verified retirement
+Resume succeeded; the activation and post-retirement checks found the same healthy
+worker, current upkeep, all five groups present and no active/queued operation. Fresh verified retirement
 removed the obsolete .84 host and ten wheels (57,608,013 bytes); all eleven targets
-are absent, with unchanged current game/DLL and healthy upkeep. Future deployment
+are absent, with unchanged game/DLL and healthy upkeep at that checked boundary. Future deployment
 verifiers must retain Windows path identity semantics, not the old case-sensitive
 manifest comparison.
 
@@ -29,6 +29,13 @@ and superseded `codex/preparation-status-release-20261009` locally and remotely
 after verifying no checkout ownership and tip reachability in main/current release.
 The exact current `7720bc5` release branch/worktree remains published. Qualification,
 installation and obsolete-runtime retirement are complete.
+A later ten-minute observation found native Beorc/transform/defensive coverage
+missing and then producer unavailable. Exact worker 3828 remained healthy, but
+public buff service was disabled/current false while saved enabled intent at
+revision 2 remained byte-identical. Earlier healthy-upkeep checks are time-specific,
+not continuous acceptance. A separate source lane is investigating internal-fault
+recovery; the live evidence does not establish an exact exception cause. Resolving
+this unexpected stop is next before remaining Conc-pot/movement acceptance.
 A passive pre-switch capture proves Precision missing-to-queued-to-observed renewal
 at revisions 3036 to 3038. Conc-pot expiry renewal and movement-interruption recovery
 remain unproven. [The delivery record](client-update-20261009.md) retains exact
