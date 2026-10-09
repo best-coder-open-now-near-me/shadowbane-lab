@@ -477,6 +477,17 @@ class Win32ProcessLifetimeInspector:
             error = self._ctypes.get_last_error()
             if error in {87, 1168}:  # invalid parameter / not found
                 return None
+            if error == 5:  # ERROR_ACCESS_DENIED is unknown, never proof of exit.
+                from .process_snapshot import query_process_snapshot
+
+                record = query_process_snapshot().get(process_id)
+                if record is None:
+                    return None  # Only a successful complete kernel census proves absence.
+                return ProcessLifetimeSnapshot(
+                    process_id=record.process_id,
+                    process_started_at_100ns=record.creation_filetime,
+                    parent_process_id=record.parent_process_id,
+                )
             raise OSError(error, f"OpenProcess failed for PID {process_id}")
         try:
             wait_result = self._kernel32.WaitForSingleObject(handle, 0)
