@@ -1,5 +1,19 @@
 # Git branch map
 
+## Concoction early renewal - October 9
+
+Start new work from refreshed `main`. Root owns
+`codex/conc-potion-early-renewal-20261009` in `buff-renewal-lead`, targeting `main`.
+Checkpoints `1cb3cba` and `a53c5d0` add a 15-second native renewal lead for Greater
+Concoction Potion, preserve PRESENT coverage and retain each descriptor's old
+deadline until the full renewal is observed. The `.88/.58` source passed focused
+host/native tests, exact original/prepared `.16` probes and independent review.
+Combined package qualification and hosted checks precede merge and installation.
+Root's `bot-integration` release checkout will preserve the installed graphics
+composition. The installed `.87/.57` runtime is unchanged while this proceeds.
+See [the renewal contract](conc-potion-renewal.md). Next: qualify the composed
+package, integrate, install with the client closed and observe automatic renewal.
+
 ## Hunt Foe player-awareness delivery - October 9
 
 Start new bot work from refreshed main `c3fbfef`, which contains Hunt Foe PR #133
