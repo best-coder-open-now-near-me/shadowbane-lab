@@ -1068,6 +1068,8 @@ class ManagedWorkerController:
                 if not path.exists():
                     return self.inspect_activation(client_id, client)
                 reservation = self._read_reservation(path)
+                if self._retire_exited_unverified(path, client_id, reservation):
+                    return self.inspect_activation(client_id, client)
                 if reservation["instance_id"] != client.instance_id:
                     return self.inspect_activation(client_id, client)
                 if reservation["state"] == "started":
@@ -1254,6 +1256,8 @@ class ManagedWorkerController:
         reservation = self._read_reservation(path)
         if reservation["process_started_at_100ns"] is not None:
             return
+        if self._retire_exited_unverified(path, client_id, reservation):
+            return
         recover = getattr(self._launcher, "recover", None)
         if reservation["process_id"] is None or not callable(recover):
             raise ExactClientWorkerError("previous worker launch requires explicit recovery")
@@ -1275,6 +1279,58 @@ class ManagedWorkerController:
                 path, json.dumps(reservation).encode(), temporary_label="worker-launch",
             )
         self._acknowledge_reservation(reservation["worker_id"])
+
+    def _retire_exited_unverified(self, path: Path, client_id: str, reservation: dict) -> bool:
+        """Retire a departed interpreter after restart, never adopt a live one.
+
+        Called under the launch lock. The reservation's PID may be a redirector;
+        only its exact nonce/instance-correlated heartbeat addresses the worker.
+        Heartbeat age/state are not exit evidence. Preserve that historical record.
+        """
+        if (reservation["state"] != "unverified"
+                or reservation["process_id"] is None
+                or reservation["process_started_at_100ns"] is not None):
+            return False
+
+        def recorded_worker():
+            snapshot = self._ledger.inspect(client_id)
+            matches = [record for record in snapshot.records
+                       if record.worker_id == reservation["worker_id"]]
+            if snapshot.issues or len(matches) > 1:
+                raise ExactClientWorkerError("invalid historical worker heartbeat")
+            if not matches:
+                return None
+            record = matches[0]
+            if (record.node_id != self._manifest.node_id or record.client_id != client_id
+                    or record.instance_id != reservation["instance_id"]):
+                raise ExactClientWorkerError("historical worker heartbeat identity mismatch")
+            return record
+
+        record = recorded_worker()
+        if record is None:
+            return False
+
+        def exited():
+            process = self._process_inspector.inspect(record.process_id)
+            if process is not None and (not isinstance(process, ProcessLifetimeSnapshot)
+                    or process.process_id != record.process_id):
+                raise ExactClientWorkerError("invalid historical worker process observation")
+            if (process is not None
+                    and process.process_started_at_100ns < record.process_started_at_100ns):
+                raise ExactClientWorkerError(
+                    "historical worker creation is newer than observed PID")
+            return process is None or (
+                process.process_started_at_100ns > record.process_started_at_100ns)
+
+        if not exited():
+            return False
+        if recorded_worker() != record or self._read_reservation(path) != reservation:
+            raise ExactClientWorkerError("historical worker evidence changed during recovery")
+        if not exited():
+            raise ExactClientWorkerError("historical worker lifetime changed during recovery")
+        path.unlink()
+        self._acknowledge_reservation(reservation["worker_id"])
+        return True
 
     def _acknowledge_reservation(self, worker_id: str) -> None:
         acknowledge = getattr(self._launcher, "acknowledge_reservation", None)
