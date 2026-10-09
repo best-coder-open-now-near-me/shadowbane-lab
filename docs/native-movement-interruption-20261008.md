@@ -58,8 +58,8 @@ The subsequent readiness correction separates the global active-initiation fact
 from per-action eligibility. A positively captured stationary state 5 can expose
 an item opportunity despite retained IDs. Item submission and its final native
 entry callback recheck this fact, exact operands and all existing arbiter gates.
-Power readiness, power/attack submission and target attachment retain their
-strict initiation checks. Movement and active state 6 never qualify the item
+That item-only checkpoint left power readiness, power/attack submission and
+target attachment unchanged. The later self-power correction is described below. Movement and active state 6 never qualify the item
 exception. The application journal still suppresses every unresolved queued
 use; this readiness change does not remove that history or implement retry.
 
@@ -90,3 +90,56 @@ application. Complete native effect presence remains independent positive proof.
 Normal local completion alone does not assert remote application or permit a
 retry. Native observer wiring and host-policy integration are required before
 this model/journal checkpoint can be treated as a production renewal repair.
+
+
+## Stationary self-power readiness
+
+The self-power observation correction retains `initiation_clear` as a factual
+empty-vector/non-state-6 observation. It separately publishes positively captured
+stationary state 5 in the first reserved frame word, offset 92. The frame remains
+its existing size and version; the remaining reserved bytes must be zero. Older
+readers reject a new nonzero word rather than silently accepting authority they
+do not understand. A READY self-power requires clear initiation or this explicit
+stationary fact. Unknown frames cannot carry either authority, and a changed
+stationary fact advances admission revision.
+
+For stationary state 5, retained same-power or other-power IDs no longer impose
+an extension-only readiness veto. Native learned/self-target/category checks,
+peace-mode requirements, movement/auxiliary definition flags, recovery and reuse
+remain in force. The actual native Use path remains the final legality check.
+State 6 remains active initiation; this does not reinterpret the global clear
+predicate or widen target attachment, attacks or target-power admission.
+
+The private static audit seals both original and prepared client .15 images and
+identical spans for Use `0x9bbf0..0x9bf30`, dispatch `0x9c710..0x9d43d`,
+PreparePower `0x4def0..0x4ed1d` and followup `0x9d7b0..0x9e194`. The first three
+normal control-flow traversals contain no direct protocol-vector access at actor
+offsets `0x65c/0x660/0x664`. Followup appends IDs without requiring an empty vector,
+including duplicates. This is a direct-flow and callee-boundary audit, not proof
+that every transitive helper lacks such an access. Type, resource, targeting,
+reference, position and other helper behavior remains native authority.
+
+The dispatch calls PreparePower through actor virtual slot `+0xc4`. The ordinary
+non-instant branch calls the real state setter at `0x4eabd` (through `0x258d3` to
+`0x5f8c0`) with state 6 before successful dispatch. Call `0x9d353 -> 0xa3910`
+constructs the message/reference wrapper; the outgoing sender is
+`0x9d3d4 -> 0x5a65 -> 0x7f4da0`, followed by
+`0x9d3e0 -> 0x6659 -> 0x9d7b0`. The `+0x274` special branch can skip state 6;
+readiness alone therefore cannot prove local settlement. Integration must retain
+an independently qualified owned-return/cleanup path for that branch, without
+asserting remote application or waiting for effect presence.
+
+The expanded exact-image mode/movement/auxiliary predicate fixture passed 272
+cases on each image. Its locks are named instrumented ECX substitutes; it does
+not execute complete Use, prove native synchronization or establish server
+outcomes. The compact private static receipt is
+`artifacts/persistent-buffs-20261008/self-power-retained-ids/static-qualification.json`,
+SHA-256 `61f1da43a9e9e222b8ef8aad581a7e55bfc14bb6ddbf6a79fe31da8ae79441d1`.
+Raw client bytes and disassembly remain private.
+
+The observation/publication slice passed both affected native tests and 288 host
+tests without skips, including the actual native publication mapping roundtrip.
+Tests cover state 5/6/7, zero/same/other retained IDs, auxiliary changes during
+capture, explicit stationary encoding and rejection of inconsistent authority.
+Final combined native submission and local-cleanup review is separate; no live
+runtime or application journal is changed by these qualification claims.

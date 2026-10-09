@@ -106,7 +106,7 @@ def test_unknown_is_explicit_and_has_no_absence_authority():
         (76, 2),
         (80, 0),
         (88, 64),
-        (92, 1),
+        (96, 1),
         (22784, 1),
         (10496 + 13 * 4, 3),
         (10496 + 15 * 4, 1),
@@ -317,6 +317,11 @@ def test_real_native_publication_mapping_roundtrip():
         assert terminal.submitted_revision == journal.revision
         assert terminal.observed_revision == interrupted.revision
         assert terminal.entry == 1 and terminal.queued and terminal.local_settled
+        assert command("stationary") == "published"
+        stationary = reader.read()
+        assert stationary.stationary and not stationary.initiation_clear
+        assert stationary.actions[0].readiness is p.Readiness.READY
+        assert stationary.admission_revision > interrupted.admission_revision
         assert command("occupied") == "published"
         occupied = reader.read()
         assert occupied.admission_blocks == p.AdmissionBlock.FOREIGN_TARGET
@@ -538,3 +543,31 @@ def test_interrupted_application_rejects_unproved_or_future_terminal(entry, queu
         manifest().group_digest(0), b"i" * 32, 1, terminal, entry, 3, 1, queued, bytes(32))
     with pytest.raises(p.PublicationError):
         decode(bytes(data))
+
+
+@pytest.mark.parametrize("clear", [False, True])
+def test_explicit_stationary_fact_permits_ready_power_without_reinterpreting_clear(clear):
+    data = bytearray(frame())
+    data[76:80] = int(clear).to_bytes(4, "little")
+    data[92:96] = (1).to_bytes(4, "little")
+    result = decode(bytes(data))
+    assert result.stationary and result.initiation_clear is clear
+    assert result.actions[0].readiness is p.Readiness.READY
+
+
+@pytest.mark.parametrize("unknown,stationary", [(0, 2), (0, 2**32-1), (6, 1)])
+def test_stationary_requires_exact_boolean_and_complete_capture(unknown, stationary):
+    data = bytearray(frame(unknown=unknown))
+    data[92:96] = stationary.to_bytes(4, "little")
+    with pytest.raises(p.PublicationError):
+        decode(bytes(data))
+
+
+def test_stationary_change_requires_fresh_admission_revision(monkeypatch):
+    r, current, _ = reader(monkeypatch)
+    first = r.read()
+    data = bytearray(frame(sequence=4, revision=2, admission=first.admission_revision))
+    data[92:96] = (1).to_bytes(4, "little")
+    current[1] = bytes(data)
+    with pytest.raises(p.PublicationError, match="admission revision changed eligibility"):
+        r.read()
