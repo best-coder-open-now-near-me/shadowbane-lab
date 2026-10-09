@@ -1,5 +1,18 @@
 # Git branch map
 
+## Coherent automatic-buff status snapshot - October 9
+
+`codex/preparation-status-snapshot-20261009` in `buff-activation-observer`
+starts from main `262a82e`. It reads the asynchronous preparation record before
+worker health so a reporter update during health inspection cannot make that
+record appear newer than its corresponding heartbeat. Existing exact worker,
+sequence and freshness checks remain unchanged; replacement workers cannot
+inherit previous coverage. The focused regression reproduces this interleaving.
+This reachable presentation race is not proof that every observed live status
+gap has that cause; native passive-read freshness failures are separate.
+Host version is .84; native .56 is unchanged. Integration destination is main.
+Next: independent review and a qualified host release; the installed .83 runtime is unchanged by this source checkpoint.
+
 ## Deterministic optional-state fixture - October 9
 
 `codex/power-unreadable-fixture-20261009` starts from main `417b8e2` and
