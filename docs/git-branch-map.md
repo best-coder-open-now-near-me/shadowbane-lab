@@ -10,7 +10,7 @@ The host candidate is .85; native .56 and the installed .84 runtime are unchange
 The source covers exact launch ownership, delayed readiness, concurrent desktop
 clicks, real HTTP startup during blocked status, and the actual Windows desktop
 entrypoint/CLI/OS-lifetime handshake with a named inactive gameplay application.
-All 56 focused tests pass. See [the public startup contract](manager-desktop-startup.md).
+All 64 focused tests pass. See [the public startup contract](manager-desktop-startup.md).
 Root composes `codex/manager-desktop-release-20261009` in `bot-integration` from
 installed `b74a97f` and the reviewed topic/main history, preserving graphics and
 native inputs. Exact-source host-only qualification and installation remain next.

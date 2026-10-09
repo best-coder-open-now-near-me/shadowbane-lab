@@ -285,3 +285,49 @@ def test_windowless_errors_are_visible_and_do_not_echo_arbitrary_exception(monke
     )
     if desktop.os.name == "nt":
         assert len(shown) == 1 and "sensitive" not in shown[0]
+
+
+def test_definite_no_child_failure_clears_only_original_intent(case):
+    from shadowbane_lab.manager.startup import SpawnNotCreated
+
+    store, config, inspector, spawn, calls = case
+
+    def absent(generation):
+        raise SpawnNotCreated("no process")
+
+    with pytest.raises(SpawnNotCreated):
+        store.launch_or_reuse(config, absent, listener_present=lambda: False)
+    assert store.read() is None
+    record = store.launch_or_reuse(config, spawn, listener_present=lambda: False)
+    assert record["launcher"] is not None
+
+
+def test_definite_failure_never_clears_changed_generation(case):
+    from shadowbane_lab.manager.startup import SpawnNotCreated
+
+    store, config, inspector, spawn, calls = case
+    changed = store.new(config)
+
+    def changed_during_spawn(generation):
+        store.write(changed)
+        raise SpawnNotCreated("no process")
+
+    with pytest.raises(StartupError, match="ownership changed"):
+        store.launch_or_reuse(config, changed_during_spawn, listener_present=lambda: False)
+    assert store.read() == changed
+
+
+def test_untyped_spawn_error_does_not_clear_intent(case):
+    store, config, inspector, spawn, calls = case
+
+    def ambiguous(generation):
+        error = OSError("unknown creation outcome")
+        error.winerror = 5
+        raise error
+
+    with pytest.raises(OSError):
+        store.launch_or_reuse(config, ambiguous, listener_present=lambda: False)
+    record = store.read()
+    assert record["launcher"] is None
+    assert store.launch_or_reuse(config, spawn, listener_present=lambda: False) == record
+    assert calls == []

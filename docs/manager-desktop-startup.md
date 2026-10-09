@@ -30,6 +30,12 @@ The child verifies the startup manifest hash against the bytes it actually parse
 Later legitimate live configuration changes do not invalidate the already-owned
 manager: reuse checks stable resolved ownership plus the durable startup identity.
 Only positive retirement of every recorded process lifetime permits a new attempt.
+A typed pre-creation failure (opening logs or Windows rejecting process creation)
+clears only the same still-unclaimed intent under the lock, allowing a corrected
+installation to start on the next click. Generic or post-creation failures never
+receive that exception. The Windows failure proof requires the actual CPython
+CreateProcess frame before any returned handles/PID were assigned; unsupported
+interpreter layouts remain unknown instead of guessing that no child exists.
 An interrupted spawn with no published process identity remains explicitly
 unverified and refuses another launch; the launcher does not guess that no child
 exists. Repair of that ambiguous record requires independent exact process evidence.

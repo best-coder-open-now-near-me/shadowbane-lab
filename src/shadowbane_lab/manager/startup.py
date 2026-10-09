@@ -21,6 +21,10 @@ class StartupError(RuntimeError):
     """Startup ownership or listener identity could not be verified."""
 
 
+class SpawnNotCreated(StartupError):
+    """The spawner positively failed before creating a child process."""
+
+
 def canonical(path: Path) -> str:
     return os.path.normcase(str(path.resolve()))
 
@@ -159,7 +163,17 @@ class StartupStore:
             self.write(
                 record
             )  # Persist intent BEFORE spawn; a crash cannot authorize duplicate launch.
-            process = spawn(record["generation"])
+            try:
+                process = spawn(record["generation"])
+            except SpawnNotCreated:
+                # Only the original, still-unclaimed intent can be cleared. Any
+                # changed record or ambiguous spawn outcome remains conservative.
+                if self.read() != record:
+                    raise StartupError(
+                        "Manager ownership changed after failed process creation"
+                    ) from None
+                self.path.unlink()
+                raise
             record["launcher"] = process_identity(self.inspector.inspect(process.pid))
             self.write(record)
             return record

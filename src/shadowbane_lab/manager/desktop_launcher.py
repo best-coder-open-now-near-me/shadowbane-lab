@@ -16,8 +16,32 @@ import webbrowser
 from pathlib import Path
 
 from .manifest import load_manager_manifest
-from .startup import StartupConfig, StartupError, StartupStore
+from .startup import SpawnNotCreated, StartupConfig, StartupError, StartupStore
 from .supervisor import Win32ProcessLifetimeInspector
+
+# Keep the actual standard-library boundary, not a caller-supplied Popen wrapper.
+_WINDOWS_EXECUTE_CHILD = getattr(subprocess.Popen._execute_child, "__code__", None)
+
+
+def _creation_rejected_before_handles(error):
+    """Positive CPython Windows boundary proof; unsupported layouts stay unknown.
+
+    _execute_child assigns hp/ht/pid/tid from CreateProcess before its finally
+    closes pipe handles. A post-create cleanup failure retains those locals;
+    an exception raised by a wrapper after Popen returned has no such frame.
+    """
+    if os.name != "nt" or getattr(error, "winerror", None) not in {2, 3, 5, 193, 216}:
+        return False
+    code = _WINDOWS_EXECUTE_CHILD
+    returned = {"hp", "ht", "pid", "tid"}
+    if code is None or not returned.issubset(code.co_varnames):
+        return False
+    trace = error.__traceback__
+    while trace is not None:
+        if trace.tb_frame.f_code is code:
+            return not returned.intersection(trace.tb_frame.f_locals)
+        trace = trace.tb_next
+    return False
 
 
 class StartupPending(StartupError):
@@ -50,6 +74,38 @@ def show_error(message):
         print(message, file=sys.stderr)
     if os.name == "nt" and (sys.stderr is None or Path(sys.executable).stem.lower() == "pythonw"):
         _message_box(message)
+
+
+def spawn_manager_process(args, *, directory, manifest_directory, environment):
+    # Log-open failures occur before the OS process-creation call.
+    from contextlib import ExitStack
+
+    with ExitStack() as stack:
+        try:
+            out = stack.enter_context((directory / "desktop-start.stdout.log").open("ab"))
+            err = stack.enter_context((directory / "desktop-start.stderr.log").open("ab"))
+        except OSError:
+            raise SpawnNotCreated(
+                "The manager startup logs could not be opened; no child was created"
+            ) from None
+        try:
+            return subprocess.Popen(
+                args,
+                cwd=manifest_directory,
+                env=environment,
+                stdout=out,
+                stderr=err,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except OSError as exc:
+            # Windows CreateProcess rejects these before returning process handles.
+            # Other errors may be post-creation failures and must retain intent.
+            if _creation_rejected_before_handles(exc):
+                raise SpawnNotCreated(
+                    "Windows could not create the manager process; "
+                    "correct its installation and try again"
+                ) from None
+            raise
 
 
 def listener_present(port):
@@ -178,18 +234,12 @@ def open_dashboard(
         environment.pop("PYTHONPATH", None)
         environment.pop("PYTHONHOME", None)
         directory = worker_state_directory.parent
-        with (
-            (directory / "desktop-start.stdout.log").open("ab") as out,
-            (directory / "desktop-start.stderr.log").open("ab") as err,
-        ):
-            return subprocess.Popen(
-                args,
-                cwd=manifest_path.resolve().parent,
-                env=environment,
-                stdout=out,
-                stderr=err,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
+        return spawn_manager_process(
+            args,
+            directory=directory,
+            manifest_directory=manifest_path.resolve().parent,
+            environment=environment,
+        )
 
     record = store.launch_or_reuse(
         config,

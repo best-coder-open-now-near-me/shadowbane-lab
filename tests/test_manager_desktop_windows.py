@@ -4,6 +4,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -107,3 +108,215 @@ def test_real_desktop_entrypoint_reuses_startup_across_timeout(tmp_path, monkeyp
                 child.terminate()
                 child.wait(timeout=5)
     assert all(child.returncode == 0 for child in children)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="actual Windows CreateProcess required")
+def test_windows_rejected_process_creation_can_retry_without_erasing_unknown(tmp_path, monkeypatch):
+    import _winapi
+
+    from shadowbane_lab.manager.startup import SpawnNotCreated, StartupConfig
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text("{}")
+    config = StartupConfig.create(
+        manifest,
+        "test",
+        52740,
+        tmp_path / "workers",
+        tmp_path / "token",
+        tmp_path / "pid",
+        Path(sys.executable),
+    )
+    store = StartupStore(tmp_path, Win32ProcessLifetimeInspector())
+    invalid = tmp_path / "invalid.exe"
+    invalid.write_bytes(b"not an executable")
+
+    def spawn(executable, arguments=()):
+        return lambda generation: desktop.spawn_manager_process(
+            [str(executable), *arguments],
+            directory=tmp_path,
+            manifest_directory=tmp_path,
+            environment=os.environ.copy(),
+        )
+
+    with pytest.raises(SpawnNotCreated):
+        store.launch_or_reuse(config, spawn(invalid), listener_present=lambda: False)
+    assert store.read() is None
+    real_create = _winapi.CreateProcess
+
+    def denied(*args, **kwargs):
+        import ctypes
+
+        raise ctypes.WinError(5)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(_winapi, "CreateProcess", denied)
+        with pytest.raises(SpawnNotCreated):
+            store.launch_or_reuse(config, spawn(sys.executable), listener_present=lambda: False)
+    assert store.read() is None and _winapi.CreateProcess is real_create
+    child = None
+
+    def corrected(generation):
+        nonlocal child
+        child = spawn(sys.executable, ["-c", "import time; time.sleep(30)"])(generation)
+        return child
+
+    try:
+        record = store.launch_or_reuse(config, corrected, listener_present=lambda: False)
+        assert child is not None and store.live(record)
+    finally:
+        if child is not None:
+            child.terminate()
+            child.wait(timeout=5)
+
+
+def test_log_open_failure_is_known_before_spawn(tmp_path, monkeypatch):
+    from shadowbane_lab.manager.startup import SpawnNotCreated
+
+    calls = []
+    monkeypatch.setattr(desktop.subprocess, "Popen", lambda *a, **kw: calls.append(a))
+    with pytest.raises(SpawnNotCreated):
+        desktop.spawn_manager_process(
+            [sys.executable],
+            directory=tmp_path / "missing",
+            manifest_directory=tmp_path,
+            environment={},
+        )
+    assert calls == []
+
+
+def test_log_close_failure_after_spawn_is_not_no_child(monkeypatch):
+    from shadowbane_lab.manager.startup import SpawnNotCreated
+
+    calls = []
+
+    class Log:
+        def open(self, mode):
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *unused):
+            error = OSError("close failed after creation")
+            error.winerror = 5
+            raise error
+
+    class Directory:
+        def __truediv__(self, name):
+            return Log()
+
+    monkeypatch.setattr(desktop.subprocess, "Popen", lambda *a, **kw: calls.append(a) or object())
+    with pytest.raises(OSError) as failure:
+        desktop.spawn_manager_process(
+            [sys.executable], directory=Directory(), manifest_directory=Path.cwd(), environment={}
+        )
+    assert not isinstance(failure.value, SpawnNotCreated) and len(calls) == 1
+
+
+@pytest.mark.skipif(os.name != "nt", reason="actual Windows process required")
+def test_post_creation_popen_error_retains_intent_and_never_duplicates(tmp_path, monkeypatch):
+    import ctypes
+
+    from shadowbane_lab.manager.startup import StartupConfig
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text("{}")
+    config = StartupConfig.create(
+        manifest,
+        "test",
+        52740,
+        tmp_path / "workers",
+        tmp_path / "token",
+        tmp_path / "pid",
+        Path(sys.executable),
+    )
+    store = StartupStore(tmp_path, Win32ProcessLifetimeInspector())
+    actual = subprocess.Popen
+    children = []
+
+    def created_then_error(*args, **kwargs):
+        children.append(actual(*args, **kwargs))
+        raise ctypes.WinError(5)
+
+    monkeypatch.setattr(desktop.subprocess, "Popen", created_then_error)
+
+    def spawn(generation):
+        return desktop.spawn_manager_process(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            directory=tmp_path,
+            manifest_directory=tmp_path,
+            environment=os.environ.copy(),
+        )
+
+    try:
+        with pytest.raises(OSError):
+            store.launch_or_reuse(config, spawn, listener_present=lambda: False)
+        record = store.read()
+        assert record["launcher"] is None and len(children) == 1
+        assert children[0].poll() is None
+        assert store.launch_or_reuse(config, spawn, listener_present=lambda: False) == record
+        assert len(children) == 1
+    finally:
+        for child in children:
+            child.terminate()
+            child.wait(timeout=5)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="actual Windows process required")
+def test_post_create_handle_cleanup_error_is_unknown(tmp_path, monkeypatch):
+    import _winapi
+    import ctypes
+
+    from shadowbane_lab.manager.startup import StartupConfig
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text("{}")
+    config = StartupConfig.create(
+        manifest,
+        "test",
+        52740,
+        tmp_path / "workers",
+        tmp_path / "token",
+        tmp_path / "pid",
+        Path(sys.executable),
+    )
+    store = StartupStore(tmp_path, Win32ProcessLifetimeInspector())
+    original_close = subprocess.Popen._close_pipe_fds
+
+    def fail_after_close(self, *args):
+        original_close(self, *args)
+        raise ctypes.WinError(5)
+
+    monkeypatch.setattr(subprocess.Popen, "_close_pipe_fds", fail_after_close)
+
+    def spawn(generation):
+        return desktop.spawn_manager_process(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            directory=tmp_path,
+            manifest_directory=tmp_path,
+            environment=os.environ.copy(),
+        )
+
+    handles = None
+    try:
+        with pytest.raises(OSError) as failure:
+            store.launch_or_reuse(config, spawn, listener_present=lambda: False)
+        trace = failure.value.__traceback__
+        while trace is not None:
+            if trace.tb_frame.f_code is desktop._WINDOWS_EXECUTE_CHILD:
+                handles = trace.tb_frame.f_locals
+                break
+            trace = trace.tb_next
+        assert handles is not None and handles["pid"] > 0
+        assert not desktop._creation_rejected_before_handles(failure.value)
+        record = store.read()
+        assert record["launcher"] is None
+        assert store.launch_or_reuse(config, spawn, listener_present=lambda: False) == record
+    finally:
+        if handles is not None:
+            # These are the actual handles returned by our single test CreateProcess.
+            _winapi.TerminateProcess(handles["hp"], 0)
+            _winapi.WaitForSingleObject(handles["hp"], 5000)
+            _winapi.CloseHandle(handles["hp"])
+            _winapi.CloseHandle(handles["ht"])
