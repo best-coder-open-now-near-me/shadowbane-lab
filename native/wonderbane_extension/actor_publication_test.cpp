@@ -34,6 +34,15 @@ void EncodeCases(){
     for(unsigned bad=0;bad<4;++bad){auto invalid=terminal;auto& row=invalid.applications[0];
         if(bad==0){row.queued=0;}if(bad==1){row.entry=2;}if(bad==2){row.observed_revision=row.submitted_revision;}if(bad==3){row.state=4;}
         Check(!p::Facts(invalid),"interrupted publication rejects missing positive generation contract");}
+    auto stationary=Sample();stationary.initiation_clear=0;stationary.stationary=1;
+    Check(p::Facts(stationary),"explicit stationary5 admits ready self power with retained IDs");
+    Check(!p::SameEligibility(stationary,Sample()),"stationary transitions participate in admission revision");
+    stationary.stationary=2;Check(!p::Facts(stationary),"unknown stationary encoding rejected");
+    auto unknown_stationary=p::Frame{};unknown_stationary.stationary=1;
+    Check(!p::Facts(unknown_stationary),"unknown publication has no stationary authority");
+    source.initiation_clear=false;source.item_stationary=true;
+    Check(p::Encode(manifest,source,journal,frame)&&frame.stationary&&!frame.initiation_clear,
+        "resolver stationary fact copied separately from clear");
     auto item=Sample();item.readiness[0].selector={0,0,4,0,980066,0,111,0};
     item.readiness[0].rank=0;item.readiness[0].readiness=0;
     Check(p::Facts(item),"unknown empty item with independently known coverage is representable");
@@ -81,6 +90,10 @@ int Ipc(){
             a.submitted_revision=writer.Revision();a.observed_revision=writer.Revision()+1;
             a.entry=1;a.state=3;a.local_settled=1;a.queued=1;
             if(!writer.Publish(sample)){return 14;}
+        }
+        else if(command=="stationary"){
+            sample.initiation_clear=0;sample.stationary=1;
+            if(!writer.Publish(sample)){return 15;}
         }
         else if(command=="occupied"){sample.admission_blocks=8;if(!writer.Publish(sample)){return 10;}}
         else if(command=="clear"){sample.admission_blocks=0;if(!writer.Publish(sample)){return 11;}}

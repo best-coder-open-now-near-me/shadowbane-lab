@@ -523,7 +523,8 @@ int main(){
     }
     for(const auto terminal:{wonderbane::extension::combat::activation::Result::completed,
         wonderbane::extension::combat::activation::Result::interrupted,
-        wonderbane::extension::combat::activation::Result::relinquished}){
+        wonderbane::extension::combat::activation::Result::relinquished,
+        wonderbane::extension::combat::activation::Result::locally_completed}){
         for(bool normal_followup:{false,true}){
             ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));auto parent=Parent();
             parent.purpose=a::fence::Purpose::preparation;parent.movement_generation=0;

@@ -104,6 +104,27 @@ def test_delayed_potion_does_not_block_other_ready_buffs_or_duplicate_it():
     assert decision.reason == "waiting"  # Arbitrary time-like epoch growth proves nothing.
 
 
+def test_all_five_groups_renew_after_sequential_local_settlement_and_native_presence():
+    policy = PreparationPolicy(ACTOR, GROUPS)
+    epoch = 1
+    previous_sequence = 0
+    for _ in range(3):
+        for expected in (POTION, PRECISION, BEORC, RAT, STANCE):
+            proposal = policy.advance(observe(epoch)).proposal
+            assert proposal.action is expected and proposal.sequence > previous_sequence
+            previous_sequence = proposal.sequence
+            acknowledge(policy, proposal)
+            epoch += 1
+        missing = policy.advance(observe(epoch))
+        assert missing.proposal is None and all(g.application_pending for g in missing.groups)
+        epoch += 1
+        present = policy.advance(observe(
+            epoch, coverage={g.group_id: Coverage.PRESENT for g in GROUPS}
+        ))
+        assert present.proposal is None and not any(g.application_pending for g in present.groups)
+        epoch += 1
+
+
 @pytest.mark.parametrize("active_form", [RAT, SKREE])
 def test_either_form_coverage_never_replaces_the_active_form(active_form):
     groups = (GROUPS[3],)

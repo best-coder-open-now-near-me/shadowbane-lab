@@ -37,7 +37,8 @@ struct alignas(8) Frame {
     std::uint64_t sampled_tick{},effect_epoch{};
     std::uint32_t unknown=1,complete{},effect_count{},readiness_count{},application_count{},descriptor_count{},actor_mode{},initiation_clear{};
     std::uint64_t admission_revision{};std::uint32_t admission_blocks{};
-    std::uint8_t reserved[164]{};
+    // Positive native state5, independent of retained protocol bookkeeping.
+    std::uint32_t stationary{};std::uint8_t reserved[160]{};
     std::array<Effect,256> effects{};std::array<Readiness,32> readiness{};
     std::array<Application,32> applications{};std::array<Descriptor,256> descriptors{};
     std::uint8_t padding[9984]{};
@@ -46,7 +47,7 @@ struct Mapping {Header header{};std::array<Frame,2> frames{};};
 #pragma pack(pop)
 static_assert(sizeof(Header)==256 && offsetof(Header,active)==112);
 static_assert(sizeof(Effect)==40 && sizeof(Readiness)==128 && sizeof(Application)==128 && sizeof(Descriptor)==16);
-static_assert(sizeof(Frame)==slot_size && offsetof(Frame,admission_revision)==80 && offsetof(Frame,admission_blocks)==88 && offsetof(Frame,effects)==256 && offsetof(Frame,descriptors)==18688);
+static_assert(sizeof(Frame)==slot_size && offsetof(Frame,admission_revision)==80 && offsetof(Frame,admission_blocks)==88 && offsetof(Frame,stationary)==92 && offsetof(Frame,effects)==256 && offsetof(Frame,descriptors)==18688);
 static_assert(sizeof(Mapping)==mapping_size);
 bool Valid(const Header&) noexcept;
 bool Valid(const Frame&) noexcept;

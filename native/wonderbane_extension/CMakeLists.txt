@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.54 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.55 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -1696,6 +1696,12 @@ if(BUILD_TESTING)
     set_property(TARGET wonderbane_extension_combat_activation_${boundary}_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
   endforeach()
   set_tests_properties(wonderbane_extension_combat_item_entry PROPERTIES TIMEOUT 15)
+  add_executable(wonderbane_extension_combat_power_special_probe EXCLUDE_FROM_ALL combat_power_special_probe.cpp)
+  target_compile_features(wonderbane_extension_combat_power_special_probe PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_combat_power_special_probe PRIVATE /W4 /WX /EHsc)
+  target_link_libraries(wonderbane_extension_combat_power_special_probe PRIVATE bcrypt)
+  target_link_options(wonderbane_extension_combat_power_special_probe PRIVATE /SAFESEH:NO)
+  set_property(TARGET wonderbane_extension_combat_power_special_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
 endif()
 
 if(BUILD_TESTING)

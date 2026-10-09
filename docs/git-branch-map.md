@@ -3,9 +3,10 @@
 ## Persistent buff release composition - October 8
 
 `codex/persistent-buff-release-20261008` owns bot-integration for combined
-qualification and deployment. It composes bot PR #119 checkpoint `2a7f921`
-with installed graphics source `2f14379`; final bot readiness and local-settlement
-slices are still being qualified in bot-runtime before inclusion here.
+qualification and deployment. It composes frozen bot PR #119 candidate `cebd4e8` (.80/.55)
+with installed graphics source `2f14379` and reviewed graphics package gates
+`2e7e00a`. Independent source reviews and focused validation passed; final
+exact-source package qualification is the active step.
 The normal project checkout stays on main. Main is the bot integration destination;
 graphics PRs #106 and #113 remain separately owned drafts. Composing their source
 here preserves the installed graphics features without declaring those PRs merged.
@@ -26,9 +27,12 @@ Incoming/completion image probes and the observer are mandatory package gates.
 No blanket potion/attack gate is included. The branch now includes
 exact worker/IPC head `2ceeb701` from PR #115 by ancestry. Its stationary item
 readiness checkpoint is `1cbce71`; it does not clear pending application history.
-Final stationary self-power publication and special-definition local settlement
-remain in progress, followed by combined validation and independent review.
-This source has not been deployed or release-qualified.
+The combined candidate is host `0.3.80` / native `1.8.55`. It includes stationary
+self-power publication `004f0a3` and special-definition local settlement
+`b3f780f`, both independently reviewed. Final combined validation and package
+qualification remain; this source has not been deployed or release-qualified.
+Ambiguous overlapping application outcomes remain pending until positive native
+evidence resolves them; local control relinquishment never grants item replay.
 Root combines reviewed source
 and the current cosmetic overlay before any native release qualification.
 
@@ -71,6 +75,18 @@ delivery record for the bounded result, fresh idle postflight and evidence limit
 Background buff upkeep is not yet installed; combat focus policy is unchanged.
 Do not switch another lane's active checkout.
 The historical checkpoints below describe earlier state, superseded by this entry.
+
+## Stationary self-power observation follow-up - October 8
+
+`codex/interrupted-application-host-20261008` continues from combined `e4a7162`
+for the explicit stationary publication and self-power readiness correction.
+Its integration destination remains PR #119; bot-runtime owns matching native
+submission and local cleanup. The observation slice keeps initiation-clear
+factual, admits retained IDs only with positive stationary state 5, and leaves
+attack/target admission unchanged. See the [qualification and proof limits](native-movement-interruption-20261008.md#stationary-self-power-readiness).
+Both affected native tests and 288 host tests passed, including real publication
+IPC. The instant/no-state-6 cleanup edge remains an integration requirement;
+this source checkpoint does not claim the combined runtime is qualified or installed.
 
 ## Host interrupted-application follow-up - October 8
 

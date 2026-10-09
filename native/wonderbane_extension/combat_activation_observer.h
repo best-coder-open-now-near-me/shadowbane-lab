@@ -8,10 +8,12 @@ struct Handle {
     ActivationIdentity identity{};
     explicit operator bool() const noexcept { return slot<ActivationHistory::capacity&&ticket&&identity.Valid(); }
 };
-enum class Result { unknown, awaiting, active, completed, interrupted, relinquished };
+enum class Result { unknown, awaiting, active, completed, interrupted, relinquished, locally_completed };
 // Reserved by the native retained journal, before one exact owned invocation.
 Handle Arm(std::size_t,const ActivationIdentity&,std::uint32_t,ActivationOrigin) noexcept;
 void RecordReturn(const Handle&,bool queued,bool owned_followup=false) noexcept;
+void OwnedUseEntering(const Handle&,std::uintptr_t definition) noexcept;
+void OwnedUseReturned(const Handle&,bool value) noexcept;
 Result Read(const Handle&) noexcept;
 bool ResetExactLifetime(const ActivationIdentity& expected_old) noexcept;
 // Transparent observation only; callers must always invoke native originals.
