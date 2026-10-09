@@ -439,3 +439,61 @@ def test_item_trace_gate_cannot_certify_missing_or_wrong_probe(index, failure):
         steps[index]["command"][1] = steps[index ^ 1]["command"][1]
     with pytest.raises(RuntimeError):
         builder.validate_item_trace_probe_steps(steps, reviewed_client=True)
+
+
+@pytest.mark.parametrize("name", sorted(builder.REQUIRED_GRAPHICS_TESTS))
+@pytest.mark.parametrize("diagnostic", [False, True])
+@pytest.mark.parametrize("outcome", ["pass", "missing", "skipped", "failure", "duplicate"])
+def test_preserved_graphics_native_gate_cannot_be_waived(tmp_path, name, diagnostic, outcome):
+    suite = ET.Element("testsuite")
+    for required in builder.REQUIRED_GRAPHICS_TESTS:
+        if required == name and outcome == "missing":
+            continue
+        case = ET.SubElement(suite, "testcase", name=required, status="run")
+        if required == name and outcome in ("skipped", "failure"):
+            ET.SubElement(case, outcome)
+    if outcome == "duplicate":
+        ET.SubElement(suite, "testcase", name=name, status="run")
+    path = tmp_path / "graphics.xml"
+    ET.ElementTree(suite).write(path)
+    if outcome == "pass":
+        assert builder.validate_native_results(
+            path, builder.REQUIRED_GRAPHICS_TESTS, diagnostic=diagnostic, exit_code=0
+        ) == []
+    else:
+        with pytest.raises(RuntimeError):
+            builder.validate_native_results(
+                path, builder.REQUIRED_GRAPHICS_TESTS, diagnostic=diagnostic,
+                exit_code=8 if outcome == "failure" else 0,
+            )
+
+
+def graphics_distribution_members():
+    wheel = [f"shadowbane_lab/{name}" for name in builder.GRAPHICS_HOST_MODULES]
+    source = [f"package/src/{name}" for name in wheel]
+    source.extend(f"package/native/wonderbane_extension/{Path(name).stem}{suffix}"
+                  for name in builder.GRAPHICS_NATIVE_CONTRACTS
+                  for suffix in (".cpp", ".h", "_test.cpp"))
+    return wheel, source
+
+
+def test_composed_graphics_distribution_complete():
+    wheel, source = graphics_distribution_members()
+    builder.validate_graphics_wheel_members(wheel)
+    builder.validate_graphics_source_members(source)
+
+
+@pytest.mark.parametrize("missing", graphics_distribution_members()[0])
+def test_composed_wheel_rejects_missing_graphics_module(missing):
+    wheel, _ = graphics_distribution_members()
+    wheel.remove(missing)
+    with pytest.raises(RuntimeError, match="missing preserved graphics"):
+        builder.validate_graphics_wheel_members(wheel)
+
+
+@pytest.mark.parametrize("missing", graphics_distribution_members()[1])
+def test_composed_sdist_rejects_missing_graphics_source(missing):
+    _, source = graphics_distribution_members()
+    source.remove(missing)
+    with pytest.raises(RuntimeError, match="missing preserved graphics"):
+        builder.validate_graphics_source_members(source)

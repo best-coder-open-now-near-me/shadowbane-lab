@@ -35,6 +35,35 @@ DIAGNOSTIC_TRANSPARENCY_FAILURES = frozenset({
 })
 
 
+GRAPHICS_NATIVE_CONTRACTS = ("weapon_appearance.cpp", "visual_inspector.cpp", "moonfire.cpp")
+GRAPHICS_HOST_MODULES = (
+    "graphics_lab/app.py", "graphics_lab/katana.py", "graphics_lab/visual_inspector.py",
+    "graphics_lab/visual_panel.py", "client_extension/item_appearance.py",
+    "client_extension/native_visual.py", "world_data/object_navigation.py",
+)
+REQUIRED_GRAPHICS_TESTS = frozenset({
+    "wonderbane_extension_weapon_appearance", "wonderbane_extension_visual_inspector",
+    "wonderbane_extension_moonfire", "wonderbane_extension_moonfire_gdi",
+})
+
+
+def validate_graphics_wheel_members(names: list[str]) -> None:
+    for relative in GRAPHICS_HOST_MODULES:
+        if f"shadowbane_lab/{relative}" not in names:
+            raise RuntimeError(f"wheel missing preserved graphics module {relative}")
+
+
+def validate_graphics_source_members(names: list[str]) -> None:
+    required = [f"src/shadowbane_lab/{relative}" for relative in GRAPHICS_HOST_MODULES]
+    for name in GRAPHICS_NATIVE_CONTRACTS:
+        stem = Path(name).stem
+        required.extend(f"native/wonderbane_extension/{stem}{suffix}"
+                        for suffix in (".cpp", ".h", "_test.cpp"))
+    for relative in required:
+        if not any(name.endswith("/" + relative) for name in names):
+            raise RuntimeError(f"source distribution missing preserved graphics source {relative}")
+
+
 REQUIRED_VENDOR_TESTS = frozenset({
     "wonderbane_extension_building_target",
     "wonderbane_extension_vendor_navigation_controller",
@@ -406,6 +435,7 @@ def main() -> int:
     cmake = Path(arguments.cmake).resolve()
     ctest = cmake.with_name("ctest.exe")
     contracts = [
+        *GRAPHICS_NATIVE_CONTRACTS,
         "selected_cue.cpp",
         "selected_cue_gpu.cpp",
         "selected_cue_runtime.cpp",
@@ -628,6 +658,8 @@ def main() -> int:
             "wonderbane_extension_movement_channel",
             "wonderbane_extension_movement_runtime_commands",
         }
+        if profile == "full":
+            required_native_tests.update(REQUIRED_GRAPHICS_TESTS)
         required_native_tests.update(REQUIRED_COMBAT_TESTS)
         required_native_tests.update(REQUIRED_CONDEMN_TESTS)
         required_native_tests.update(REQUIRED_TARGETED_ACTION_TESTS)
@@ -883,6 +915,7 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
     (wheel,) = (output / "dist").glob("*.whl")
     (sdist,) = (output / "dist").glob("*.tar.gz")
     with zipfile.ZipFile(wheel) as package:
+        validate_graphics_wheel_members(package.namelist())
         identity_name = "shadowbane_lab/navigation_inspector/build_identity.json"
         if json.loads(package.read(identity_name)) != metadata:
             raise RuntimeError("wheel source identity does not match")
@@ -926,6 +959,7 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             raise RuntimeError("wheel missing exact sky content")
     with tarfile.open(sdist) as package:
         names = package.getnames()
+        validate_graphics_source_members(names)
         for relative in (
             "assets/sky-horizon/clear-day.sky",
             "native/wonderbane_extension/sky_runtime.cpp",
