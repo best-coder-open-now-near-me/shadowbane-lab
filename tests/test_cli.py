@@ -522,6 +522,12 @@ class ClientCliTests(unittest.TestCase):
         self.assertIn("hook thread exited", events[1]["error"])
 
     def test_chat_pve_command_runs_on_the_guarded_client_and_stays_stoppable(self) -> None:
+        self._assert_chat_pve_camp_forwarding(140.0)
+
+    def test_chat_pve_defaults_to_native_named_camp(self) -> None:
+        self._assert_chat_pve_camp_forwarding(None)
+
+    def _assert_chat_pve_camp_forwarding(self, camp_radius) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True)
         snapshot = WindowSnapshot(
@@ -612,7 +618,7 @@ class ClientCliTests(unittest.TestCase):
                 live=True,
                 as_json=True,
                 pve_continuous=True,
-                pve_camp_radius=140.0,
+                **({} if camp_radius is None else {"pve_camp_radius": camp_radius}),
                 pve_retained_trace_steps=1_500,
             )
 
@@ -622,7 +628,7 @@ class ClientCliTests(unittest.TestCase):
         self.assertIsNone(captured["policy"])
         self.assertEqual("state", captured["combat_source"])
         self.assertTrue(captured["continuous"])
-        self.assertEqual(140.0, captured["camp_radius"])
+        self.assertEqual(camp_radius, captured["camp_radius"])
         self.assertEqual(1_500, captured["retained_trace_steps"])
         self.assertEqual(Path(directory) / "cache", captured["navigation_cache_directory"])
         self.assertTrue(captured["stop_signal"].is_set())
@@ -1387,6 +1393,12 @@ class ClientCliTests(unittest.TestCase):
         self.assertEqual("Shot to the Leg", run.call_args.kwargs["opening_skill"])
         self.assertIsNone(run.call_args.kwargs["policy"])
 
+    def test_named_camp_reader_does_not_require_navigation_cache(self) -> None:
+        self._assert_pve_process_binding(policy="basic", use_navigation_cache=False)
+
+    def test_explicit_manual_camp_radius_reaches_controller_without_named_reader(self) -> None:
+        self._assert_pve_process_binding(policy="basic", camp_radius=140.0)
+
     def _assert_pve_process_binding(
         self, *, policy: str | None, native_movement: bool = False,
         opening_skill: str | None = None, suppress_opening_skill: bool = False,
@@ -1394,6 +1406,7 @@ class ClientCliTests(unittest.TestCase):
         captured_creation: int | None = None, geometry_independent: bool = False,
         check_preparation: bool = False, preparation_failure: str | None = None,
         run_result=None, expected_exit: int = 0,
+        use_navigation_cache: bool = True, camp_radius: float | None = None,
     ) -> None:
         import struct
 
@@ -1695,7 +1708,8 @@ class ClientCliTests(unittest.TestCase):
                     native_position_profile_path=None,
                     native_target_position_profile_path=None,
                     native_target_action_profile_path=None,
-                    navigation_cache_directory=navigation_cache,
+                    navigation_cache_directory=navigation_cache if use_navigation_cache else None,
+                    camp_radius=camp_radius,
                     max_kills=1,
                     max_seconds=30,
                     wait_for_client_seconds=0,
@@ -1867,17 +1881,19 @@ class ClientCliTests(unittest.TestCase):
         open_population.assert_called_once_with(
             native_profiles[7],
             process_id=4320,
+            zone_profile=native_profiles[8] if camp_radius is None else None,
         )
-        open_zone.assert_called_once_with(native_profiles[8], process_id=4320)
-        load_terrain.assert_called_once_with(
-            navigation_cache,
-            zone_observation,
-            terrain_origin,
-        )
-        self.assertIs(
-            navigation_map,
-            pve_runner.call_args.kwargs["approach_controller"]._navigation_map,
-        )
+        config = pve_runner.call_args.kwargs["controller"]._config
+        self.assertEqual(camp_radius is None, config.named_camp)
+        self.assertEqual(camp_radius, config.camp_radius)
+        if use_navigation_cache:
+            open_zone.assert_called_once_with(native_profiles[8], process_id=4320)
+            load_terrain.assert_called_once_with(navigation_cache, zone_observation, terrain_origin)
+            self.assertIs(navigation_map,
+                pve_runner.call_args.kwargs["approach_controller"]._navigation_map)
+        else:
+            open_zone.assert_not_called()
+            load_terrain.assert_not_called()
         readers[4].attach.assert_not_called()
         self.assertEqual("state", saved_evidence["native_observation"]["combat_source"])
         self.assertNotIn("message_hud_profile_id", saved_evidence["native_observation"])
@@ -1893,29 +1909,30 @@ class ClientCliTests(unittest.TestCase):
             "profile-7",
             saved_evidence["native_observation"]["character_population_profile_id"],
         )
-        self.assertEqual("seeded", saved_evidence["terrain_navigation"]["status"])
-        self.assertEqual(
-            10400,
-            saved_evidence["terrain_navigation"]["seed"]["template_id"],
-        )
-        self.assertEqual(
-            1600,
-            saved_evidence["terrain_navigation"]["seed"]["sampled_cells"],
-        )
-        self.assertEqual(
-            1,
-            saved_evidence["terrain_navigation"]["seed"]["water_cells"],
-        )
-        self.assertEqual(
-            2,
-            saved_evidence["terrain_navigation"]["seed"]["object_density_cells"],
-        )
-        self.assertEqual(
-            70,
-            saved_evidence["terrain_navigation"]["seed"]["object_density_layers"][0][
-                "population_capacity"
-            ],
-        )
+        if use_navigation_cache:
+            self.assertEqual("seeded", saved_evidence["terrain_navigation"]["status"])
+            self.assertEqual(
+                10400,
+                saved_evidence["terrain_navigation"]["seed"]["template_id"],
+            )
+            self.assertEqual(
+                1600,
+                saved_evidence["terrain_navigation"]["seed"]["sampled_cells"],
+            )
+            self.assertEqual(
+                1,
+                saved_evidence["terrain_navigation"]["seed"]["water_cells"],
+            )
+            self.assertEqual(
+                2,
+                saved_evidence["terrain_navigation"]["seed"]["object_density_cells"],
+            )
+            self.assertEqual(
+                70,
+                saved_evidence["terrain_navigation"]["seed"]["object_density_layers"][0][
+                    "population_capacity"
+                ],
+            )
         emergency_stop.assert_not_called()
 
     def test_proc_assassin_native_policy_requires_no_hotbar_or_input_mapping(self) -> None:

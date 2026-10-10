@@ -1,5 +1,22 @@
 # Git branch map
 
+## Native named PvE camps - October 10
+
+`main` remains the shared integration destination. The combined source branch is
+`codex/pve-native-camp-20261010` in `bot-runtime`, based on the exact-target
+lifetime fix `30d64c478cf5b42e785ea793a44172acb1260a83` (PR #144). It includes native
+NPC zone enrichment `4c975501` and named camp ownership `ce0c26e7`, independently
+reviewed. CLI/manager defaults now request named camp membership in both finite
+and continuous runs; an explicit radius remains available.
+
+Host .92 source is awaiting combined hosted checks and package qualification.
+Installed host .91/native .59 remains `faf9d023abc055d1c27a1efa9c69d0af62f1da1f`;
+no named-camp runtime installation or live combat acceptance is claimed yet.
+Compose the qualified update with that release's retained graphics/native .59,
+not by replacing it with a bare main build. Next: combined source review to main,
+exact-source host qualification, installation and one camp run. Root owns delivery;
+see [the camp contract](pve-automation.md#named-camps-and-approach).
+
 ## PvE combat-aware approach - October 10
 
 Start new work from refreshed `main`, including PR #142 merge

@@ -288,8 +288,8 @@ class NativeCurrentZoneObservation:
         return self.chain[0]
 
 
-class NativeCurrentZoneReader:
-    """Reads the current zone object already selected by the game client."""
+class NativeZoneChainReader:
+    """Shared bounded decoder; borrows its process handle from the caller."""
 
     def __init__(
         self,
@@ -334,64 +334,13 @@ class NativeCurrentZoneReader:
         self._stability_attempts = stability_attempts
         self._closed = False
 
-    @property
-    def profile(self) -> NativeCurrentZoneProfile:
-        return self._profile
-
-    @property
-    def process_id(self) -> int:
-        return self._process.pid
-
-    def observe(self) -> NativeCurrentZoneObservation:
-        if self._closed:
-            raise NativeCurrentZoneReadError("native current-zone reader is closed")
-        last_error: NativeCurrentZoneReadError | None = None
-        for _ in range(self._stability_attempts):
-            try:
-                player_pointer = self._read_pointer(self._pointer_slot, "player")
-                self._require_object_pointer(
-                    player_pointer,
-                    self._profile.current_zone_offset + self._profile.pointer_size,
-                    "player",
-                )
-                zone_pointer_address = player_pointer + self._profile.current_zone_offset
-                zone_pointer = self._read_pointer(zone_pointer_address, "current-zone")
-                self._require_zone_pointer(zone_pointer)
-                chain = self._read_zone_chain(zone_pointer)
-                name, source_depth = self._resolved_name(chain)
-                if self._read_pointer(self._pointer_slot, "player") != player_pointer:
-                    continue
-                if self._read_pointer(zone_pointer_address, "current-zone") != zone_pointer:
-                    continue
-                return NativeCurrentZoneObservation(
-                    name=name,
-                    zone_token=self._zone_token(zone_pointer),
-                    name_source_depth=source_depth,
-                    chain=chain,
-                )
-            except NativeCurrentZoneReadError as exc:
-                last_error = exc
-        if last_error is not None:
-            raise NativeCurrentZoneReadError(
-                f"current zone remained unreadable during every stable-read attempt: {last_error}"
-            ) from last_error
-        raise NativeCurrentZoneReadError("current zone changed during every stable-read attempt")
-
-    def close(self) -> None:
-        if not self._closed:
-            self._process.close()
-            self._closed = True
-
-    def __enter__(self) -> NativeCurrentZoneReader:
-        return self
-
-    def __exit__(self, *_: object) -> None:
-        self.close()
-
-    def _read_zone_chain(self, current_zone_pointer: int) -> tuple[NativeZoneIdentity, ...]:
+    def _read_zone_snapshot(
+        self, current_zone_pointer: int,
+    ) -> tuple[tuple[NativeZoneIdentity, ...], tuple[tuple[int, int], ...]]:
         zone_pointer = current_zone_pointer
         visited: set[int] = set()
         chain = []
+        links = []
         for depth in range(self._profile.maximum_parent_depth + 1):
             if zone_pointer in visited:
                 raise NativeCurrentZoneReadError("current-zone parent chain contains a cycle")
@@ -421,16 +370,38 @@ class NativeCurrentZoneReader:
                     geometry=geometry,
                 )
             )
-            if depth == self._profile.maximum_parent_depth:
-                break
-            zone_pointer = self._read_pointer(
+            parent = self._read_pointer(
                 zone_pointer + self._profile.parent_zone_offset,
                 "parent-zone",
             )
-            if zone_pointer == 0:
-                break
-            self._require_zone_pointer(zone_pointer)
-        return tuple(chain)
+            links.append((zone_pointer, parent))
+            if parent == 0:
+                return tuple(chain), tuple(links)
+            self._require_zone_pointer(parent)
+            zone_pointer = parent
+        raise NativeCurrentZoneReadError("zone parent chain exceeds the bounded depth")
+
+    def _read_zone_chain(self, current_zone_pointer: int) -> tuple[NativeZoneIdentity, ...]:
+        first = self._read_zone_snapshot(current_zone_pointer)
+        if self._read_zone_snapshot(current_zone_pointer) != first:
+            raise NativeCurrentZoneReadError("zone chain changed during the read")
+        return first[0]
+
+    def named_zone_for_character(self, character_pointer: int) -> NativeZoneIdentity:
+        """Decode current membership; caller must validate the character's identity."""
+        self._require_object_pointer(
+            character_pointer, self._profile.current_zone_offset + 4, "character")
+        slot = character_pointer + self._profile.current_zone_offset
+        pointer = self._read_pointer(slot, "character current-zone")
+        self._require_zone_pointer(pointer)
+        chain = self._read_zone_chain(pointer)
+        if self._read_pointer(slot, "character current-zone") != pointer:
+            raise NativeCurrentZoneReadError("character zone changed during the read")
+        _, depth = self._resolved_name(chain)
+        identity = chain[depth]
+        if not identity.object_type or not identity.object_uuid or not identity.name.strip():
+            raise NativeCurrentZoneReadError("named zone has no valid placed identity")
+        return identity
 
     def _resolved_name(
         self,
@@ -589,6 +560,64 @@ class NativeCurrentZoneReader:
         digest.update(self._profile.executable_sha256.encode("ascii"))
         digest.update(struct.pack("<II", self._process.pid, zone_pointer))
         return digest.hexdigest()
+
+
+class NativeCurrentZoneReader(NativeZoneChainReader):
+    """Owns a read handle and observes the local player using the shared decoder."""
+
+    @property
+    def profile(self) -> NativeCurrentZoneProfile:
+        return self._profile
+
+    @property
+    def process_id(self) -> int:
+        return self._process.pid
+
+    def observe(self) -> NativeCurrentZoneObservation:
+        if self._closed:
+            raise NativeCurrentZoneReadError("native current-zone reader is closed")
+        last_error: NativeCurrentZoneReadError | None = None
+        for _ in range(self._stability_attempts):
+            try:
+                player_pointer = self._read_pointer(self._pointer_slot, "player")
+                self._require_object_pointer(
+                    player_pointer,
+                    self._profile.current_zone_offset + self._profile.pointer_size,
+                    "player",
+                )
+                zone_pointer_address = player_pointer + self._profile.current_zone_offset
+                zone_pointer = self._read_pointer(zone_pointer_address, "current-zone")
+                self._require_zone_pointer(zone_pointer)
+                chain = self._read_zone_chain(zone_pointer)
+                name, source_depth = self._resolved_name(chain)
+                if self._read_pointer(self._pointer_slot, "player") != player_pointer:
+                    continue
+                if self._read_pointer(zone_pointer_address, "current-zone") != zone_pointer:
+                    continue
+                return NativeCurrentZoneObservation(
+                    name=name,
+                    zone_token=self._zone_token(zone_pointer),
+                    name_source_depth=source_depth,
+                    chain=chain,
+                )
+            except NativeCurrentZoneReadError as exc:
+                last_error = exc
+        if last_error is not None:
+            raise NativeCurrentZoneReadError(
+                f"current zone remained unreadable during every stable-read attempt: {last_error}"
+            ) from last_error
+        raise NativeCurrentZoneReadError("current zone changed during every stable-read attempt")
+
+    def close(self) -> None:
+        if not self._closed:
+            self._process.close()
+            self._closed = True
+
+    def __enter__(self) -> NativeCurrentZoneReader:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
 
 
 def open_windows_native_current_zone_reader(
