@@ -523,6 +523,13 @@ def test_pretracking_actor_gate_set_cannot_qualify_new_package(tmp_path, profile
         builder.validate_actor_ipc_results(path, profile)
     ET.SubElement(suite, "testcase", name="test_real_native_group_chat_wire_roundtrip")
     ET.ElementTree(suite).write(path)
+    with pytest.raises(RuntimeError, match="actor IPC"):
+        builder.validate_actor_ipc_results(path, profile)
+    for name in (
+        "test_group_message_native_frame_roundtrip", "test_group_update_native_frame_roundtrip",
+    ):
+        ET.SubElement(suite, "testcase", name=name)
+    ET.ElementTree(suite).write(path)
     builder.validate_actor_ipc_results(path, profile)
 
 
@@ -560,3 +567,9 @@ def test_group_chat_probe_requires_both_images_per_profile(index, failure):
     else:
         with pytest.raises(RuntimeError):
             builder.validate_group_chat_probe_steps(steps, reviewed_client=True)
+
+
+def test_native_group_receive_publications_are_required():
+    assert {
+        "wonderbane_extension_group_messages", "wonderbane_extension_group_updates",
+    } <= builder.REQUIRED_COMBAT_TESTS

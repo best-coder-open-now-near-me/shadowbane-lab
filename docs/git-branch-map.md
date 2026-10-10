@@ -1,61 +1,87 @@
 # Git branch map
 
+## Native current-group commands - October 10
+
+Start shared development from refreshed `main`. The active source branch
+`codex/native-group-come-20261010` in managed `native-group-come` includes
+PR #154 merge `4713727333d1cd09bb73c44c850c7b3108a3484d` and carries host
+.97/native .62 for exact release qualification. Native receive, host settings,
+worker handoff, single-player attack and dashboard checkpoints are pushed.
+Independent reviews passed; the pre-final source suite passed 6,110 tests with
+42 optional skips, followed by 25 focused tests for the disabled-listener scan
+improvement. Final composed-package qualification and live acceptance remain.
+
+The commands are literal `/come` and `/attack first_name` from any current group
+member. Listening has its own saved setting, disabled on migration; Umbra's
+requested listener will be enabled after qualified installation. No deployed
+command feature or live command acceptance is claimed. The normal checkout is
+clean on main. See [the implementation boundaries](native-group-commands.md).
+
 ## Native text ownership correction - October 10
 
-Start shared development from refreshed `main`. The focused source branch
-`codex/native-text-input-ownership-20261010` reuses the managed
-`pve-camp-return-routing` checkout, based on PR #152 merge
-`e0617db29220624736463b0221d5564e112c95c9`. It carries host .96/native .61
-for review and qualification; the installed .95/.60 runtime is unchanged.
-The prior merged terrain source branch is retired; its source remains in main.
+PR #154 merged as `4713727333d1cd09bb73c44c850c7b3108a3484d` after all
+15 hosted checks passed at `205cda01249ff6acf0c3c11460b5128388e31d49`.
+The .96/.61 composition `293e44560f2ce43044183ea7f449e9e5a7d111bc` is
+published on `codex/native-text-input-release-20261010`. The managed
+`bot-integration` checkout composes the next qualified runtime.
+Exact package qualification and independent deployment review passed; preparation
+is complete, but installation awaits client closure. The installed .95/.60
+runtime remains unchanged. No retained deployment rollback artifacts were made.
 
-After the user closed Who search, the client disabled native text entry but
-retained a focused channel-HUD editor. Our unconditional focused-kind fallback
-incorrectly kept movement and preparation inhibited. The correction honors the
-sealed native text-enable state while preserving active text and other UI gates.
+After Who closed, native text entry was disabled but a channel-HUD editor remained
+focused. Our unconditional focused-kind fallback incorrectly inhibited movement
+and preparation. The correction honors native text-enable state while preserving
+active text and other UI gates. Live camp-return acceptance remains pending.
 See [the evidence and validation boundary](native-text-input-ownership.md).
 
 ## PvE terrain route refinement - October 10
 
-Start shared development from refreshed `main`. The focused source branch
-`codex/pve-camp-return-routing-20261010` in managed checkout
-`pve-camp-return-routing` targets main and carries the .95 host correction.
-It is based on PR #151 merge `70da648dac59e99f2f02949a93a656c638d067e1`.
-The installed .94/.60 release remains unchanged pending source review, package
-qualification and deployment. Native and asset files are unchanged.
+Start shared development from refreshed `main`. PR #152 merged as
+`e0617db29220624736463b0221d5564e112c95c9` after all 15 hosted checks passed
+at reviewed source `cb88d5675b025d02f435138494641a63e58a181d`.
+The .95/.60 release composition is pushed on
+`codex/pve-terrain-release-20261010` in `bot-integration`, commit
+`714928e006912aaefcd9c448d78fadc1b0f90021`. It retains installed graphics
+outside main and exact native .60/assets from `5a46687d`. This release branch
+is source provenance for the installed composition, not the shared development
+base.
 
-The later camp run completed three NPC death cleanups and native chase, but
-return routing failed before any host movement dispatch. Exact terrain replay
-reproduced a coarse raster cell blocking the occupied start; bounded finer
-resampling finds a route while preserving explicit and learned obstacles.
-This is offline planning evidence, not completed live return acceptance.
-See [the terrain correction and validation boundary](pve-terrain-routing.md).
+The edge-of-camp run completed three NPC death cleanups and native chase, then
+exposed coarse terrain blocking the occupied start of its return route. The
+merged correction resamples inferred terrain inside the failed planning window
+while retaining explicit and learned obstacles. Exact offline replay, independent
+review, all 6,107 host tests (41 optional skips), both native profiles and all 16
+package stages passed. Host installation is verified. The first live TRAVEL
+attempt was inhibited at acquisition before planning or movement. Native trace
+shows UI/text input ownership across that tick; fresh production handback is
+verified. The user reports Who search was already closed; stale input ownership
+is under investigation before another live return attempt.
 
-## PvE startup ownership repair - October 10
+Root owns delivery notes on `codex/pve-terrain-delivery-20261010` in `bot-runtime`,
+through PR #153. Obsolete .94 software retirement is verified. The old .94 release
+branch and merged terrain source branch are retired locally/remotely after
+ancestry checks. The managed `pve-camp-return-routing` checkout is now owned by the
+native input fix on `codex/native-text-input-ownership-20261010`, based on main.
+The closed Who investigation proved a retained text pointer with native text
+input disabled; the bot's fallback incorrectly treats it as active.
 
-Start development from refreshed main at PR #150 merge
-`c9a3dfc6d95c1bfd89c954c8e6f0d8d3b13a0849`. All 15 hosted checks passed at
-reviewed head `abef6241d4f81904aa736ae3f72eed470345e02e`.
-Qualified and activated .94/.60 release `c27a7da62b8103900022f6f2c9edd5f79448cec0`
-is published on `codex/pve-startup-release-20261010` in `bot-integration`.
-It retains installed graphics outside main and exact .60 native/assets from
-`5a46687d`. This release composition is not the shared development base.
+`codex/native-group-come-20261010` in managed `native-group-come` owns group command
+listening: `/come` from any current member, followed by `/attack [first_name]`
+through existing native player combat. Both source lanes leave the .95 runtime
+unchanged until qualification. The normal checkout is clean on main.
+See [the delivery evidence and remaining work](pve-terrain-delivery-20261010.md)
+and [the terrain correction](pve-terrain-routing.md).
 
-The user resumed NPC testing. The first operation exposed manager ownership
-acquisition before terrain setup; the fix acquires after setup and exact client
-revalidation, matching the direct CLI. Source, package and deployment reviews
-passed. The same game and extension remained loaded throughout the host update.
-Normal named-camp acceptance passed: three exact NPC health-zero deaths, confirmed
-cleanup, successful cancellation and Resume. Ranged combat progressed without
-route driving; movement completion is not claimed. All five buff groups are
-present and maintaining with no queued combat. Obsolete .93 retirement removed
-11 paths (58,003,739 bytes); current runtime and user data remain.
+## Historical, superseded: PvE startup ownership repair - October 10
 
-Root owns delivery documentation on `codex/pve-startup-delivery-20261010` in
-`bot-runtime`, targeting main. The normal checkout is clean on main. The merged
-source branch and clean worktree are retired; the installed release composition
-remains published for source provenance.
-See [the current evidence and remaining work](pve-startup-delivery-20261010.md).
+PR #150 merged as `c9a3dfc6d95c1bfd89c954c8e6f0d8d3b13a0849` after all
+15 hosted checks passed at `abef6241d4f81904aa736ae3f72eed470345e02e`.
+The .94/.60 release was `c27a7da62b8103900022f6f2c9edd5f79448cec0`.
+Its normal named-camp acceptance confirmed three NPC health-zero deaths,
+cleanup, cancellation and Resume. The merged source branch/worktree were retired.
+Delivery documentation merged through PR #151 as
+`70da648dac59e99f2f02949a93a656c638d067e1`; its delivery branch was retired.
+See [the historical deployment and acceptance evidence](pve-startup-delivery-20261010.md).
 
 ## Historical, superseded: official client 1.3.38.17 alignment - October 10
 

@@ -179,6 +179,42 @@ class NativeCharacterConfigReader:
             raise ActiveCharacterError("player identity changed during selection sample")
         return first
 
+    def observe_player_at(self, pointer: int, key: NativeObjectKey) -> SelectedPlayerIdentity:
+        """Read identity at a caller's freshly registry-verified player address.
+
+        This method does not establish registry membership; the population reader
+        brackets it with exact key/token resolution. It never reads selection.
+        """
+        if self.process.executable_sha256.lower() not in {
+            layout.executable_sha256 for layout in REVIEWED_CHARACTER_CONFIG_LAYOUTS[1:]
+        }:
+            raise ActiveCharacterError("remote-player identity is not reviewed for this image")
+        if not isinstance(key, NativeObjectKey) or not key.object_type or key.object_uuid != 53:
+            raise ActiveCharacterError("remote identity requires an exact player key")
+        local = self.observe()
+        if pointer == local.player_pointer:
+            raise ActiveCharacterError("remote player aliases the local player")
+        self._range(pointer, self.layout.server_offset + 16, alignment=4)
+        vtable = struct.pack("<I", self.process.base_address + self.layout.character_vtable_rva)
+        raw_key = struct.pack("<II", key.object_type, key.object_uuid)
+
+        def sample():
+            if self._read(pointer, 4) != vtable or self._read(pointer + 0x18, 8) != raw_key:
+                raise ActiveCharacterError("remote player identity changed")
+            name = self._string(pointer + self.layout.name_offset)
+            server = self._string(pointer + self.layout.server_offset)
+            if (not name or name != name.strip() or any(ord(c) < 32 or ord(c) == 127 for c in name)
+                    or server != local.server_name):
+                raise ActiveCharacterError("remote player name/server is invalid")
+            if self._read(pointer, 4) != vtable or self._read(pointer + 0x18, 8) != raw_key:
+                raise ActiveCharacterError("remote player changed during identity read")
+            return SelectedPlayerIdentity(key, name, server)
+
+        result = sample()
+        if sample() != result or self.observe() != local:
+            raise ActiveCharacterError("remote player changed during observation")
+        return result
+
     def _snapshot(self) -> ActiveCharacterIdentity:
         base = self.process.base_address
         layout = self.layout

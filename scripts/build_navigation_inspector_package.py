@@ -145,6 +145,8 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_actor_buff_observation",
     "wonderbane_extension_actor_publication",
     "wonderbane_extension_tracking_responses",
+    "wonderbane_extension_group_messages",
+    "wonderbane_extension_group_updates",
     *(f"wonderbane_extension_tracking_install_failure_{step}" for step in range(1, 4)),
     "wonderbane_extension_combat_item_entry",
     "wonderbane_extension_actor_effects_native",
@@ -183,6 +185,8 @@ REQUIRED_ACTOR_IPC_TESTS = frozenset({
     "test_real_native_publication_mapping_roundtrip",
     "test_real_native_tracking_frame_roundtrip",
     "test_real_native_group_chat_wire_roundtrip",
+    "test_group_message_native_frame_roundtrip",
+    "test_group_update_native_frame_roundtrip",
 })
 
 
@@ -408,6 +412,8 @@ def main() -> int:
     environment.pop("SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE", None)
     environment.pop("WONDERBANE_PREPARATION_CHANNEL_TEST_EXE", None)
     environment.pop("WONDERBANE_TRACKING_RESPONSES_TEST_EXE", None)
+    environment.pop("WONDERBANE_GROUP_MESSAGES_TEST_EXE", None)
+    environment.pop("WONDERBANE_GROUP_UPDATES_TEST_EXE", None)
     environment["PYTHONUTF8"] = "1"
     steps = []
     diagnostic_failures = []
@@ -544,6 +550,7 @@ def main() -> int:
                               "actor_action_runtime.cpp", "actor_effects_native.cpp",
                               "actor_inventory_native.cpp", "actor_buff_observation.cpp",
                               "actor_publication.cpp", "tracking_responses.cpp",
+                              "group_messages.cpp", "group_updates.cpp",
                               "combat_item_entry.cpp",
                               "item_application_trace.cpp",
                               "combat_melee_entry.cpp",
@@ -565,6 +572,7 @@ def main() -> int:
                                  "combat_activation_completion_probe.cpp",
                                  "actor_selector_manifest_test.cpp",
                                  "actor_publication_test.cpp", "tracking_responses_test.cpp",
+                                 "group_publication_test.cpp",
                                  "actor_effects_native_test.cpp",
                                  "actor_inventory_native_test.cpp",
                                  "actor_buff_observation_test.cpp",
@@ -763,17 +771,24 @@ def main() -> int:
             build / "Release/wonderbane_extension_preparation_channel_test.exe")
         environment["WONDERBANE_TRACKING_RESPONSES_TEST_EXE"] = str(
             build / "Release/wonderbane_extension_tracking_responses_test.exe")
+        environment["WONDERBANE_GROUP_MESSAGES_TEST_EXE"] = str(
+            build / "Release/wonderbane_extension_group_messages_test.exe")
+        environment["WONDERBANE_GROUP_UPDATES_TEST_EXE"] = str(
+            build / "Release/wonderbane_extension_group_updates_test.exe")
         try:
             run(f"{profile}-actor-ipc", [sys.executable, "-m", "pytest",
                 "tests/test_actor_action_wire.py", "tests/test_actor_publication.py",
                 "tests/test_actor_action_session.py", "tests/test_actor_selector_manifest.py",
                 "tests/test_preparation_ipc_windows.py", "tests/test_tracking_publication.py",
+                "tests/test_group_publication.py",
                 "-q", f"--junitxml={actor_results}"])
         finally:
             environment.pop("WONDERBANE_ACTOR_ACTION_TEST", None)
             environment.pop("SHADOWBANE_ACTOR_PUBLICATION_TEST_EXE", None)
             environment.pop("WONDERBANE_PREPARATION_CHANNEL_TEST_EXE", None)
             environment.pop("WONDERBANE_TRACKING_RESPONSES_TEST_EXE", None)
+            environment.pop("WONDERBANE_GROUP_MESSAGES_TEST_EXE", None)
+            environment.pop("WONDERBANE_GROUP_UPDATES_TEST_EXE", None)
         validate_actor_ipc_results(actor_results, profile)
         environment["WONDERBANE_ITEM_TRACE_TEST"] = str(
             build / "Release/wonderbane_extension_item_application_trace_test.exe")
@@ -976,6 +991,7 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             "client_extension/actor_action_channel.py", "client_extension/actor_publication.py",
             "client_extension/item_application_trace.py",
             "client_extension/tracking_publication.py", "pve/tracking.py",
+            "client_extension/group_publication.py",
             "client_observation/native_tracking_ability.py",
             "client_extension/actor_selector_manifest.py", "pve/native_actor.py",
             "pve/preparation.py", "pve/buff_intent.py",
@@ -1015,6 +1031,11 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             "native/wonderbane_extension/tracking_responses_test.cpp",
             "src/shadowbane_lab/client_extension/tracking_publication.py",
             "tests/test_tracking_publication.py",
+            "native/wonderbane_extension/group_messages.cpp",
+            "native/wonderbane_extension/group_updates.cpp",
+            "native/wonderbane_extension/group_publication_test.cpp",
+            "src/shadowbane_lab/client_extension/group_publication.py",
+            "tests/test_group_publication.py",
             "native/wonderbane_extension/actor_action_controller.h",
             "tests/fixtures/actor_owner_v4.hex",
             "tests/fixtures/actor_context_v4.hex",
