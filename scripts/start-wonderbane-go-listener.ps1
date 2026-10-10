@@ -13,7 +13,7 @@ param(
     [ValidateRange(1, 10)]
     [int] $PveMaxKills = 3,
     [ValidateRange(20, 1000)]
-    [double] $PveCampRadius = 120,
+    [double] $PveCampRadius,
     [ValidateRange(100, 100000)]
     [int] $PveRetainedTraceSteps = 2000,
     [switch] $BoundedPve,
@@ -115,7 +115,6 @@ $arguments = @(
     "--pve-max-encounter-seconds", "120",
     "--pve-recovery-timeout-seconds", "30",
     "--pve-poll-ms", "100",
-    "--pve-camp-radius", "$PveCampRadius",
     "--pve-retained-trace-steps", "$PveRetainedTraceSteps",
     "--max-seconds", "300",
     "--wait-for-client-seconds", "10",
@@ -124,6 +123,10 @@ $arguments = @(
     "--live",
     "--json"
 )
+# An omitted override preserves the CLI's native named-camp default.
+if ($PSBoundParameters.ContainsKey('PveCampRadius')) {
+    $arguments += @("--pve-camp-radius", "$PveCampRadius")
+}
 if ($PveHotbarConfig) {
     $arguments += @(
         "--hotkey-config", $PveHotbarConfig,

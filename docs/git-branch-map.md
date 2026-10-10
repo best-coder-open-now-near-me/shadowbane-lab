@@ -1,23 +1,54 @@
 # Git branch map
 
+## Official client 1.3.38.17 alignment - October 10
+
+Release composition: `codex/wonderbane-client17-release-20261010` combines
+reviewed source `dde99e07534fb129f697bede403672e9cfdec08e` with qualified
+`97c4899b23273e83a596784136b621c17650cee9`. It includes the source launcher
+follow-up and retains installed graphics outside main. Package checks pending.
+
+Start development from refreshed `main` after PR #147. Root and the native review
+lane own `codex/wonderbane-client-update-20261010` in `bot-runtime`; intended
+host .93/native .60 add the exact official .17 pair. Qualification and installation
+are pending. Compose the release onto `97c4899b` in `bot-integration` to retain
+installed graphics outside main and named camps. The prepared-but-unactivated
+.92 host-only plan below is superseded by this full client update. The selected
+runtime remains .91/.59 with .16; a fresh census found all game/bot processes
+closed. Keep the normal project checkout on main. Next: qualify the composed
+package, update the exact changed assets and host, then user login and one camp
+acceptance check. See [current evidence and todos](client-update-20261010.md).
+
 ## Native named PvE camps - October 10
 
-`main` remains the shared integration destination. The combined source branch is
-`codex/pve-native-camp-20261010` in `bot-runtime`, based on the exact-target
-lifetime fix `30d64c478cf5b42e785ea793a44172acb1260a83` (PR #144). It includes native
-NPC zone enrichment `4c975501` and named camp ownership `ce0c26e7`, independently
-reviewed. CLI/manager defaults now request named camp membership in both finite
-and continuous runs; an explicit radius remains available.
+Start new work from refreshed `main` at
+`244d3723892dbff3368cac7b93e598e47f0f4ce1`. Exact-target lifetimes (PR #144), native
+named camp selection (PR #145) and the source launcher default (PR #146) are
+merged. Every hosted check passed at each reviewed final head. The source
+launcher only forwards an explicitly supplied manual radius; it is separate from
+the installed manager entrypoint.
 
-Host .92 composition is on `codex/pve-native-camp-release-20261010` in
-root-owned `bot-integration`, retaining installed graphics and native .59.
-Combined hosted checks and package qualification are pending.
-Installed host .91/native .59 remains `faf9d023abc055d1c27a1efa9c69d0af62f1da1f`;
-no named-camp runtime installation or live combat acceptance is claimed yet.
-Compose the qualified update with that release's retained graphics/native .59,
-not by replacing it with a bare main build. Next: combined source review to main,
-exact-source host qualification, installation and one camp run. Root owns delivery;
-see [the camp contract](pve-automation.md#named-camps-and-approach).
+Qualified host .92 composition is published on
+`codex/pve-native-camp-release-20261010` in `bot-integration`, commit
+`97c4899b23273e83a596784136b621c17650cee9`. It retains installed graphics and native
+.59 exactly. The source-only launcher follow-up is in main, not this package,
+which does not use that launcher. All 6,049 host tests passed (41 optional skips),
+both native profiles and all 16 package stages passed, and independent package
+review verified all 486 modules.
+
+Installation is **prepared, not activated**. Host .91 remains installed and the
+manager is paused. The stop phase rejected the native freshness/quiescence
+guard; a later sample was stale and could not resolve the active character. No apply,
+shortcut switch or activation occurred. No rollback copies were created.
+Next: obtain a current in-world Umbra binding, refresh the deployment baseline,
+finish the reviewed host-only update and run one named-camp acceptance check.
+Do not replay the old stop phase or treat preparation as installation.
+
+Root owns delivery documentation on `codex/pve-native-camp-delivery-20261010`.
+The merged source branches remain temporarily discoverable during delivery;
+`bot-runtime` currently holds the completed source-launcher branch. The normal
+project checkout should remain clean on main after this documentation checkpoint.
+See [the delivery evidence](client-update-20261010.md) and
+[the camp contract](pve-automation.md#named-camps-and-approach).
 
 ## PvE combat-aware approach - October 10
 

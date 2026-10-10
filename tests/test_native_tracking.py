@@ -38,8 +38,10 @@ def fixture():
     return session, memory
 
 
-def test_reads_contacts_without_selection_or_fabricated_freshness():
+@pytest.mark.parametrize("digest", sorted(REVIEWED_TRACK_EXECUTABLES))
+def test_reads_contacts_without_selection_or_fabricated_freshness(digest):
     session, memory = fixture()
+    memory.executable_sha256 = session.binding.executable_sha256 = digest
     memory.put(HUD + 0x3BC, '<I', 0xDEADBEEF)
     result = NativeTrackingReader(session).read()
     assert result.loaded and result.power_id == 429578587

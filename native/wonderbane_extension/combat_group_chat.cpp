@@ -144,8 +144,8 @@ Receipt Invoke(const Context&c,State&s,Receipt&r) noexcept {
 bool Ready() noexcept{return InterlockedCompareExchange(&installed,0,0)!=0&&submission::Ready();}
 bool Start(std::uintptr_t image) noexcept {
     const auto error=GetLastError();std::uintptr_t verified{};
-    const bool ok=image&&GraphicsExecutableSha256Matches(
-        "1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c")
+    const bool ok=image&&(GraphicsExecutableSha256Matches(
+        "1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c") || GraphicsExecutableSha256Matches("baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9"))
         &&movement::VerifyNativeMovementImage(verified)&&verified==image&&StartBound(image);
     SetLastError(error);return ok;
 }
