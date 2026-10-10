@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import floor, hypot, isfinite
 from pathlib import Path
 from typing import Protocol, runtime_checkable
@@ -457,6 +457,44 @@ def _load_object_density_layers(
     return tuple(layers)
 
 
+@dataclass(frozen=True, slots=True)
+class _TerrainNavigationSampler:
+    geometry: NativeZoneGeometry
+    raster: TerrainAlphaRaster
+    zone_depth: int
+    template_group_id: int
+    template_id: int
+    water_sample_threshold: float | None
+    object_density_layers: tuple[TerrainObjectDensityLayer, ...]
+    config: TerrainNavigationConfig
+
+    @property
+    def minimum_cell_size(self) -> float:
+        return min(
+            (self.geometry.maximum_local_x - self.geometry.minimum_local_x)
+            / max(1, self.raster.width - 1),
+            (self.geometry.maximum_local_z - self.geometry.minimum_local_z)
+            / max(1, self.raster.height - 1),
+        )
+
+    def seed(
+        self, navigation_map: SparseNavigationMap, bounds: tuple[float, float, float, float]
+    ) -> None:
+        seed_height_raster_navigation(
+            navigation_map,
+            geometry=self.geometry,
+            raster=self.raster,
+            zone_depth=self.zone_depth,
+            template_group_id=self.template_group_id,
+            template_id=self.template_id,
+            water_sample_threshold=self.water_sample_threshold,
+            object_density_layers=self.object_density_layers,
+            config=replace(self.config, cell_size=navigation_map.cell_size),
+            sampling_bounds=bounds,
+            retain_source=False,
+        )
+
+
 def seed_height_raster_navigation(
     navigation_map: SparseNavigationMap,
     *,
@@ -469,6 +507,8 @@ def seed_height_raster_navigation(
     window_center_lg: float | None = None,
     water_sample_threshold: float | None = None,
     object_density_layers: tuple[TerrainObjectDensityLayer, ...] = (),
+    sampling_bounds: tuple[float, float, float, float] | None = None,
+    retain_source: bool = True,
     config: TerrainNavigationConfig | None = None,
 ) -> TerrainNavigationSeed:
     if not isinstance(navigation_map, SparseNavigationMap):
@@ -525,6 +565,39 @@ def seed_height_raster_navigation(
             maximum_y,
             floor((window_center_lg + resolved.seed_radius) / resolved.cell_size),
         )
+    if sampling_bounds is not None:
+        if len(sampling_bounds) != 4 or any(
+            isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value)
+            for value in sampling_bounds
+        ):
+            raise ValueError("terrain sampling bounds must contain four finite coordinates")
+        left, bottom, right, top = sampling_bounds
+        if left > right or bottom > top:
+            raise ValueError("terrain sampling bounds must be ordered")
+        minimum_x = max(minimum_x, floor(left / resolved.cell_size))
+        maximum_x = min(maximum_x, floor(right / resolved.cell_size))
+        minimum_y = max(minimum_y, floor(bottom / resolved.cell_size))
+        maximum_y = min(maximum_y, floor(top / resolved.cell_size))
+        if minimum_x > maximum_x or minimum_y > maximum_y:
+            return TerrainNavigationSeed(
+                zone_depth=zone_depth,
+                template_group_id=template_group_id,
+                template_id=template_id,
+                terrain_group_id=raster.group_id,
+                terrain_map_id=raster.map_id,
+                raster_width=raster.width,
+                raster_height=raster.height,
+                window_center_lt=None,
+                window_center_lg=None,
+                window_radius=None,
+                sampled_cells=0,
+                blocked_cells=frozenset(),
+                water_cells=frozenset(),
+                object_density_cells=frozenset(),
+                object_density_layers=(),
+                water_sample_threshold=water_sample_threshold,
+                costs=(),
+            )
     if minimum_x > maximum_x or minimum_y > maximum_y:
         raise ValueError("terrain navigation window does not intersect the active zone")
     candidate_count = (maximum_x - minimum_x + 1) * (maximum_y - minimum_y + 1)
@@ -583,7 +656,7 @@ def seed_height_raster_navigation(
                 and center_sample < resolved.minimum_traversable_sample
             )
             if below_floor or sample_delta >= resolved.blocked_sample_delta:
-                navigation_map.mark_blocked(cell)
+                navigation_map.mark_terrain_blocked(cell)
                 blocked.add(cell)
                 continue
             cost = 1.0
@@ -601,8 +674,22 @@ def seed_height_raster_navigation(
                     1 + object_density_sample / 255.0 * (resolved.maximum_object_density_cost - 1),
                 )
             if cost > 1:
-                navigation_map.set_cost(cell, cost)
+                navigation_map.set_terrain_cost(cell, cost)
                 costs[cell] = cost
+    if retain_source:
+        navigation_map.retain_terrain(
+            (template_group_id, template_id, geometry),
+            _TerrainNavigationSampler(
+                geometry,
+                raster,
+                zone_depth,
+                template_group_id,
+                template_id,
+                water_sample_threshold,
+                object_density_layers,
+                resolved,
+            ),
+        )
     return TerrainNavigationSeed(
         zone_depth=zone_depth,
         template_group_id=template_group_id,
