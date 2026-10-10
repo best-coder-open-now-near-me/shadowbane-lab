@@ -19,7 +19,7 @@ from shadowbane_lab.manager.operation import WorkerOperationKind, WorkerOperatio
 from tests.test_manager_movement import context, make_executor
 
 
-def configured(tmp_path):
+def configured(tmp_path, monkeypatch):
     _, session, _ = context()
     original = Snapshot(2, 123, 3, 456, 789, Grant(10, 20, Owner.MANUAL),
                         Settings(), 7, 100)
@@ -27,14 +27,20 @@ def configured(tmp_path):
     executor = make_executor(tmp_path, session)
     operation = SimpleNamespace(client_id="client", instance_id="instance", worker_id="worker",
                                 operation_id="acquisition-test", kind=WorkerOperationKind.PVE)
-    executor._execute_pve = lambda **kwargs: pytest.fail("rejected acquisition entered PvE")
+    def prepared_pve(**kwargs):
+        kwargs["movement_acquirer"]()
+        pytest.fail("rejected acquisition entered PvE runner")
+
+    monkeypatch.setattr("shadowbane_lab.cli_commands.manager._run_pve", prepared_pve)
     return session, executor, operation, original
 
 
 @pytest.mark.parametrize("outcome", [Outcome.INHIBITED, Outcome.STALE, Outcome.UNAVAILABLE,
                                     Outcome.STOP_FAILED, Outcome.INVALID])
-def test_native_acquisition_rejection_retains_original_and_returned_evidence(tmp_path, outcome):
-    session, executor, operation, original = configured(tmp_path)
+def test_native_acquisition_rejection_retains_original_and_returned_evidence(
+    tmp_path, monkeypatch, outcome,
+):
+    session, executor, operation, original = configured(tmp_path, monkeypatch)
     requests = []
 
     def reject(expected, worker, operation_id, key):
@@ -62,8 +68,8 @@ def test_native_acquisition_rejection_retains_original_and_returned_evidence(tmp
     assert session.closed == 1 and session.stop_calls == []
 
 
-def test_rejection_survives_secondary_lease_close_failure(tmp_path):
-    session, executor, operation, original = configured(tmp_path)
+def test_rejection_survives_secondary_lease_close_failure(tmp_path, monkeypatch):
+    session, executor, operation, original = configured(tmp_path, monkeypatch)
     requests = []
 
     def reject(expected, worker, operation_id, key):
@@ -85,8 +91,8 @@ def test_rejection_survives_secondary_lease_close_failure(tmp_path):
     assert len(result.detail) <= 512
 
 
-def test_receiptless_native_rejection_is_not_fabricated(tmp_path):
-    session, executor, operation, _ = configured(tmp_path)
+def test_receiptless_native_rejection_is_not_fabricated(tmp_path, monkeypatch):
+    session, executor, operation, _ = configured(tmp_path, monkeypatch)
     session.acquire = lambda *args: (_ for _ in ()).throw(NativeMovementError(Outcome.UNAVAILABLE))
     result = executor.execute(operation, stop_signal=threading.Event())
     assert "NativeMovementError/UNAVAILABLE" in result.detail
@@ -94,8 +100,10 @@ def test_receiptless_native_rejection_is_not_fabricated(tmp_path):
     assert not result.native_cleanup_confirmed
 
 
-def test_ambiguous_timeout_keeps_same_request_and_bounded_detail_with_cleanup_failure(tmp_path):
-    session, executor, operation, original = configured(tmp_path)
+def test_ambiguous_timeout_keeps_same_request_and_bounded_detail_with_cleanup_failure(
+    tmp_path, monkeypatch,
+):
+    session, executor, operation, original = configured(tmp_path, monkeypatch)
     requests = []
 
     def timeout(*args):

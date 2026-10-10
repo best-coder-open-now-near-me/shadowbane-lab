@@ -1399,6 +1399,27 @@ class ClientCliTests(unittest.TestCase):
     def test_explicit_manual_camp_radius_reaches_controller_without_named_reader(self) -> None:
         self._assert_pve_process_binding(policy="basic", camp_radius=140.0)
 
+    def test_pve_deferred_manager_acquisition_follows_all_startup_work(self) -> None:
+        self._assert_pve_process_binding(
+            policy="basic", native_movement=True, deferred_movement=True,
+            check_preparation=True, manager_entry=True,
+        )
+
+    def test_pve_deferred_acquisition_never_runs_after_setup_or_identity_failure(self) -> None:
+        for failure in ("journal", "observer", "client_replaced", "window_replaced",
+                        "path_replaced", "character_replaced"):
+            with self.subTest(failure=failure):
+                self._assert_pve_process_binding(
+                    policy="basic", native_movement=True, deferred_movement=True,
+                    check_preparation=True, preparation_failure=failure, manager_entry=True,
+                )
+
+    def test_manager_cancellation_during_real_pve_setup_never_acquires(self) -> None:
+        self._assert_pve_process_binding(
+            policy="basic", native_movement=True, deferred_movement=True,
+            check_preparation=True, manager_entry=True, cancel_during_setup=True,
+        )
+
     def _assert_pve_process_binding(
         self, *, policy: str | None, native_movement: bool = False,
         opening_skill: str | None = None, suppress_opening_skill: bool = False,
@@ -1407,6 +1428,8 @@ class ClientCliTests(unittest.TestCase):
         check_preparation: bool = False, preparation_failure: str | None = None,
         run_result=None, expected_exit: int = 0,
         use_navigation_cache: bool = True, camp_radius: float | None = None,
+        deferred_movement: bool = False, manager_entry: bool = False,
+        cancel_during_setup: bool = False,
     ) -> None:
         import struct
 
@@ -1437,6 +1460,18 @@ class ClientCliTests(unittest.TestCase):
             if native_movement
             else None
         )
+        manager_acquirer = None
+
+        def acquire_prepared_movement():
+            nonlocal movement_dispatcher
+            self.assertEqual(["journal", "observer"], preparation_events)
+            load_terrain.assert_called_once()
+            preparation_events.append("acquire")
+            if manager_acquirer is not None:
+                movement_dispatcher = manager_acquirer()
+            return movement_dispatcher
+
+        movement_acquirer = MagicMock(side_effect=acquire_prepared_movement)
         template = Path(__file__).parents[1] / "configs" / "wonderbane-pve.template.json"
         profile = replace(load_calibration(template), live_input_enabled=True, actions=())
         snapshot = WindowSnapshot(
@@ -1559,6 +1594,8 @@ class ClientCliTests(unittest.TestCase):
             @contextmanager
             def prepare_observer(_reader):
                 preparation_events.append("observer")
+                if cancel_during_setup:
+                    injected_stop.trip()
                 if preparation_failure == "observer":
                     raise OSError("observer preparation failed")
                 if preparation_failure == "client_replaced":
@@ -1698,7 +1735,48 @@ class ClientCliTests(unittest.TestCase):
                     return completed_run
 
                 pve_runner.return_value.run.side_effect = run_pve_fixture
-                result = _run_pve(
+                def invoke_pve(**arguments):
+                    nonlocal manager_acquirer
+                    if not manager_entry:
+                        return _run_pve(**arguments)
+                    from shadowbane_lab.cli_commands import manager
+                    from shadowbane_lab.manager.operation import (
+                        WorkerOperationKind,
+                        WorkerOperationState,
+                    )
+                    from tests.test_manager_movement import context, make_executor
+
+                    _, session, _ = context()
+                    session.require_combat_available = MagicMock()
+                    executor = make_executor(Path(directory), session)
+                    operation = SimpleNamespace(
+                        client_id="client", instance_id="instance", worker_id="worker",
+                        operation_id="startup", kind=WorkerOperationKind.PVE,
+                    )
+
+                    def real_pve(**manager_arguments):
+                        nonlocal manager_acquirer
+                        self.assertFalse(session.acquire_calls)
+                        manager_acquirer = manager_arguments["movement_acquirer"]
+                        arguments["stop_signal"] = manager_arguments["stop_signal"]
+                        return _run_pve(**arguments)
+
+                    with patch.object(manager, "_run_pve", side_effect=real_pve):
+                        execution = executor.execute(operation, stop_signal=injected_stop)
+                    self.assertIs(execution.state, WorkerOperationState.CANCELLED
+                                  if cancel_during_setup else WorkerOperationState.FAILED
+                                  if preparation_failure else WorkerOperationState.SUCCEEDED)
+                    self.assertEqual(1, session.closed)
+                    if preparation_failure or cancel_during_setup:
+                        self.assertTrue(execution.native_cleanup_confirmed)
+                        self.assertFalse(session.acquire_calls)
+                        self.assertFalse(session.stop_calls)
+                    else:
+                        self.assertEqual(1, len(session.acquire_calls))
+                        self.assertEqual(1, len(session.stop_calls))
+                    return 2 if preparation_failure else 0
+
+                result = invoke_pve(
                     client_profile_path=(Path(directory) / "absent-profile.json"
                                          if geometry_independent else None),
                     combat_log_path=None,
@@ -1721,9 +1799,20 @@ class ClientCliTests(unittest.TestCase):
                     evidence_output_path=evidence_output,
                     stop_signal=injected_stop,
                     client_process_id=None if geometry_independent else 4320,
-                    movement_dispatcher=movement_dispatcher,
+                    movement_dispatcher=None if deferred_movement else movement_dispatcher,
+                    movement_acquirer=movement_acquirer if deferred_movement else None,
                     continuous=check_preparation,
                 )
+                if cancel_during_setup:
+                    self.assertEqual(0, result)
+                    movement_acquirer.assert_called_once_with()
+                    actor.assert_not_called()
+                    pve_runner.assert_not_called()
+                    native_operation.assert_not_called()
+                    self.assertTrue(character_memory.closed)
+                    self.assertEqual(["journal", "observer", "acquire", "observer_closed",
+                                      "journal_closed"], preparation_events)
+                    return
                 if skill_failure:
                     self.assertEqual(2, result, output.getvalue())
                     self.assertIn("skill unavailable", output.getvalue())
@@ -1746,6 +1835,7 @@ class ClientCliTests(unittest.TestCase):
                     self.assertTrue(character_memory.closed)
                     return
                 if preparation_failure is not None:
+                    movement_acquirer.assert_not_called()
                     self.assertEqual(2, result, output.getvalue())
                     native_operation.assert_not_called()
                     listed_coordinator.assert_not_called()
@@ -1768,12 +1858,14 @@ class ClientCliTests(unittest.TestCase):
                 if check_preparation:
                     self.assertEqual(
                         ["journal", "observer"]
-                        + ([] if native_movement else ["acquire"])
+                        + (["acquire"] if deferred_movement or not native_movement else [])
                         + ["combat_closed", "actor_closed"]
                         + ([] if native_movement else ["owner_closed"])
                         + ["observer_closed", "journal_closed"],
                         preparation_events,
                     )
+                if deferred_movement:
+                    movement_acquirer.assert_called_once_with()
                 self.assertEqual(expected_exit, result, output.getvalue())
                 inspector_session.assert_called_once_with(
                     open_position.return_value.__enter__.return_value
