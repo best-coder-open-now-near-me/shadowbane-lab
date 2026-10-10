@@ -190,3 +190,107 @@ def test_missing_attack_target_is_consumed_with_visible_reason(tmp_path, monkeyp
         service.stop.set()
         inputs.put((batch(sequence=3), batch(), c, 1001))
         service.close()
+
+
+def test_delayed_handoff_waits_for_fresh_observation_then_submits_once(tmp_path, monkeypatch):
+    from test_group_commands import batch, chat, current
+
+    from shadowbane_lab.manager.group_commands import GroupCommandService
+
+    clock = [1001]
+    monkeypatch.setattr(
+        "shadowbane_lab.client_extension.tracking_publication.tick_ms", lambda: clock[0])
+    source = Mock(lifetime=(55, 66))
+    service = GroupCommandService(source, allowed=lambda: True,
+                                  record_path=tmp_path / "consumed.json")
+    c = {**current(), "enabled": True, "positions": {(123, 53): (100., 200.)}}
+    service.policy.ingest(batch(initial=True), batch(), c, allowed=True, now_ms=1001)
+    service.policy.ingest(batch([chat()]), batch(), c, allowed=True, now_ms=1001)
+    command = service.policy.pending
+    service.current, service.now_ms = c, 1001
+    service.enabled = service.seeded = True
+    service.pending_value = command
+    r, pub, _ = runtime()
+    r._group_commands = service
+    r._preparation.request_handoff.return_value = True
+    permit = S(instance_id="instance", worker_id=pub.worker_id,
+               process_id=123, process_started_at_100ns=456)
+    r._ledger.inspect_permit.return_value = permit
+    created = S(operation_id="operation-" + command.event_id[:32])
+    monkeypatch.setattr("shadowbane_lab.manager.operation.new_worker_operation",
+                        Mock(return_value=created))
+    service.record_admission = Mock()
+
+    # Ledger work between pending() and claim() outlasts the observation,
+    # but not the native receive deadline. Nothing has been submitted yet.
+    def delayed_inbox(**kwargs):
+        clock[0] = 1602
+        return ()
+    r._operation_ledger.pending_for.side_effect = delayed_inbox
+    r._poll_group_commands(pub, None)
+    r._operation_ledger.submit.assert_not_called()
+    assert service.taken is None and service.pending_value == command
+    assert service.last_request["state"] == "waiting"
+    assert service.pending() is None
+    assert service.pending_value == command
+
+    # The ordinary observer refresh permits the same intent once. A later poll
+    # of that receive event never submits a second operation.
+    service.now_ms = clock[0]
+    r._poll_group_commands(pub, None)
+    r._poll_group_commands(pub, None)
+    r._operation_ledger.submit.assert_called_once_with(created)
+    assert service.taken == command and service.pending_value is None
+
+
+@pytest.mark.parametrize("reason", ["deadline", "group", "disabled", "unseeded"])
+def test_waiting_claim_never_outlives_deadline_or_permission(tmp_path, monkeypatch, reason):
+    from test_group_commands import current
+
+    from shadowbane_lab.manager.group_commands import GroupCommandService
+
+    service = GroupCommandService(Mock(lifetime=(55, 66)), allowed=lambda: True,
+                                  record_path=tmp_path / "consumed.json")
+    _, _, command = runtime()
+    service.current = {**current(), "positions": {(123, 53): (100., 200.)}}
+    service.enabled = service.seeded = True
+    service.now_ms = 1001
+    service.pending_value = command
+    clock = [1602]
+    monkeypatch.setattr(
+        "shadowbane_lab.client_extension.tracking_publication.tick_ms", lambda: clock[0])
+    assert service.claim(command) is None
+    if reason == "deadline":
+        clock[0] = 6001
+    elif reason == "group":
+        service.current = {**service.current, "group_digest": "replacement"}
+    elif reason == "disabled":
+        service.enabled = False
+    else:
+        service.seeded = False
+    service.now_ms = clock[0]
+    with pytest.raises(ValueError, match="expired or permission changed"):
+        service.claim(command)
+    assert service.taken == command and service.pending_value is None
+    assert service.claim(command) is None
+
+
+def test_control_io_precedes_native_observation(tmp_path):
+    from test_group_commands import batch, current
+
+    from shadowbane_lab.manager.group_commands import GroupCommandService
+
+    order = []
+    source = Mock(lifetime=(55, 66))
+    def allowed():
+        order.append("ledger")
+        return True
+    def read():
+        order.append("native")
+        return batch(initial=True), batch(), {**current(), "enabled": True}, 1001
+    source.read.side_effect = read
+    service = GroupCommandService(source, allowed=allowed,
+                                  record_path=tmp_path / "consumed.json")
+    service._publish_status = service.stop.set
+    service._run()
+    assert order == ["ledger", "native"]
