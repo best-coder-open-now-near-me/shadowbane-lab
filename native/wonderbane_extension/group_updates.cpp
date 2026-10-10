@@ -179,10 +179,17 @@ std::uint32_t __fastcall ProcessHook(void* message, void*) {
     (void)PublishLocked(record);
     ReleaseSRWLockExclusive(&lock);
     SetLastError(incoming_error);
+    // ArcGroupUpdateMsg::Process checks this mode before applying its rows.
+    // A watched scene can outlive that transition until the next owner update.
+    std::uint32_t entry_mode = 0;
+    const bool entered_world = Word(scene.window + 0x64, entry_mode) && entry_mode == 2;
     const auto result = process_original(message);
     const DWORD native_error = GetLastError();
     record.stage = 3;
-    if ((record.flags & 7) == 7 && Qualify(record, scene)) { record.flags |= 8; }
+    std::uint32_t returned_mode = 0;
+    if ((record.flags & 7) == 7 && entered_world
+        && Word(scene.window + 0x64, returned_mode) && returned_mode == 2
+        && Qualify(record, scene)) { record.flags |= 8; }
     if (!movement::NativeMovementLifetimeCurrent(scene)) {
         record.flags &= ~(kScene | kLineage | 8U);
         record.payload.group = {}; record.scene_epoch = 0; record.local = {};

@@ -1,5 +1,16 @@
 # Git branch map
 
+## Native current-group commands - October 10
+
+The active task branch `codex/native-group-come-20261010` in managed checkout
+`native-group-come` targets main. Native receive/position publications and host
+reader/settings checkpoints are published; worker command integration is still
+under review. The commands are literal `/come` and `/attack first_name` from
+any current group member, with exact native identity and the existing worker
+cleanup/handoff boundary. There is no deployed command feature or live command
+acceptance claim yet. Version selection follows the separate UI ownership fix.
+See [native evidence and implementation boundaries](native-group-commands.md).
+
 ## PvE terrain route refinement - October 10
 
 Start shared development from refreshed `main`. The focused source branch

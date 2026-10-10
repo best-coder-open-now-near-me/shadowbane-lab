@@ -42,7 +42,8 @@ names retain their original text; comparison uses Windows ordinal case folding.
 Group-update subtypes 1, 2 and 5 carry per-key positions. The subtype 2 and 5
 branches call `0x59ccc0` through thunk `0x21eef`, with the position flag enabled.
 That setter copies XYZ into roster entry +0x68/+0x6c/+0x70. The recorder qualifies
-a returned update only when every copied key and XYZ also matches the current
+a returned update only when the handler's in-world mode (window +0x64 = 2)
+holds at entry and return, and every copied key and XYZ also matches the current
 native roster. A skipped native update therefore cannot stamp differing cached
 coordinates as fresh. Other supported subtypes (3, 4, 6, 7, 8) carry no position
 freshness and invalidate a consumer's cached coordinate provenance.
@@ -85,5 +86,8 @@ changes, destructor invalidation and ordinary non-group call-through.
 `wonderbane_extension_group_updates` exercises copied exact keys/XYZ, independent
 identical generations, unapplied-update refusal and bounded arrays. Both export
 an actual native ABI frame for required Python reader interoperability tests.
+The standard CI and package builder require these native cases and both actual
+frame tests in full and diagnostics profiles; missing or skipped cases reject
+qualification. These tests use substituted native handlers, not a server.
 The existing extension startup fixture covers optional observer failure and
 cleanup without making an unavailable observer fail the ordinary client.

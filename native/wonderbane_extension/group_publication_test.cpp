@@ -52,7 +52,7 @@ int main(int argc,char** argv){
  *reinterpret_cast<std::uint32_t*>(base+0x16a2d98)=ptr(actor.data());
  *reinterpret_cast<std::uint32_t*>(base+0x1389028)=ptr(&world);
  actor[0x18/4]=42;actor[0x1c/4]=53;
- native_window[0x98/4]=ptr(manager.data());manager[0x9c/4]=ptr(sentinel.data());
+ native_window[0x64/4]=2;native_window[0x98/4]=ptr(manager.data());manager[0x9c/4]=ptr(sentinel.data());
  sentinel[0]=sentinel[1]=ptr(node.data());node[0]=node[1]=ptr(sentinel.data());node[2]=ptr(entry.data());
  entry[0x10/4]=123;entry[0x14/4]=53;entry[0x74/4]=0x15;
  entry[0x28/4+1]=ptr(member_name.data());entry[0x28/4+2]=entry[0x28/4+3]=ptr(member_name.data())+10;
@@ -85,6 +85,8 @@ int main(int argc,char** argv){
  decode(message.data(),socket.data());tr::ProcessHook(message.data(),nullptr);
  Check(Last().flags==15&&Last().processing_generation>2,"identical messages have distinct generation");
 #ifdef GROUP_UPDATE_TEST
+ native_window[0x64/4]=1;decode(message.data(),socket.data());tr::ProcessHook(message.data(),nullptr);
+ Check(Last().flags==7,"handler outside world cannot refresh identical old coordinates");native_window[0x64/4]=2;
  xyz[0]+=10;decode(message.data(),socket.data());tr::ProcessHook(message.data(),nullptr);
  Check(Last().flags==7,"native no-op or unapplied coordinate update cannot stamp position freshness");xyz[0]-=10;
 #else
