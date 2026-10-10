@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from math import hypot
 
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.client_observation.native_population import NativeCharacterKind
 from shadowbane_lab.pve.model import (
     PvEAbility,
@@ -58,7 +59,7 @@ class PvEController:
         self._selection_lost_at: int | None = None
         self._reengage_attempts = 0
         self._stalled_retargets = 0
-        self._failed_target_tokens: dict[str, int] = {}
+        self._failed_targets: dict[tuple[str, NativeObjectKey], int] = {}
         self._require_different_target = False
         self._last_power_at: dict[int, int] = {}
         self._interrupts_for_target = 0
@@ -397,7 +398,7 @@ class PvEController:
         ranked = sorted(
             (character for character in population.characters
              if character.object_key is not None
-             and character.token not in self._failed_target_tokens),
+             and (character.token, character.object_key) not in self._failed_targets),
             key=lambda item: (hypot(item.lt - position.lt, item.lg - position.lg), item.token),
         )
         for character in ranked:
@@ -802,7 +803,8 @@ class PvEController:
     ) -> PvEControllerDecision:
         now = observation.now_ms
         if self._engaged_target_token is not None:
-            self._failed_target_tokens[self._engaged_target_token] = now
+            assert self._engaged_object_key is not None
+            self._failed_targets[(self._engaged_target_token, self._engaged_object_key)] = now
         self._baseline_target_token = observation.target.target_token
         self._request_cleanup(reason, now)
         return self._emit(now)
@@ -876,9 +878,9 @@ class PvEController:
 
     def _expire_failed_targets(self, now_ms: int) -> None:
         cutoff = now_ms - self._config.failed_target_cooldown_ms
-        self._failed_target_tokens = {
-            token: failed_at
-            for token, failed_at in self._failed_target_tokens.items()
+        self._failed_targets = {
+            identity: failed_at
+            for identity, failed_at in self._failed_targets.items()
             if failed_at > cutoff
         }
 

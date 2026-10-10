@@ -612,6 +612,44 @@ class PvEControllerTests(unittest.TestCase):
         self.assertEqual(PvEPhase.ENGAGED, retried.phase)
 
 
+    def test_failed_target_cooldown_follows_exact_object_at_reused_address(self) -> None:
+        original = replace(_character("reused-address", lt=103),
+            object_key=NativeObjectKey(101, 37))
+        replacement = replace(original, object_key=NativeObjectKey(102, 37))
+        for current in (original, replacement):
+            with self.subTest(object_key=current.object_key):
+                controller = PvEController(PvEControllerConfig(continuous=True,
+                    camp_radius=50, camp_idle_ms=1, failed_target_cooldown_ms=500))
+
+                def frame(now, character):
+                    return _observation(now, _target(character.token),
+                        population=_population(character.token, character))
+
+                _accepted_step(controller, _observation(0, _absent()))
+                engaged = _accepted_step(controller, frame(100, original))
+                self.assertEqual(original.object_key, engaged.combat_proposal.target_key)
+                abandoned = _accepted_step(controller, frame(2600, original))
+                self.assertEqual(PvEPhase.DISENGAGING, abandoned.phase)
+                # A replacement cannot bypass cleanup of the old engagement.
+                waiting = controller.step(frame(2650, current))
+                self.assertEqual(abandoned.cleanup_request, waiting.cleanup_request)
+                self.assertIsNone(waiting.combat_proposal)
+                controller.acknowledge_cleanup(
+                    ConfirmedCleanup().cleanup(abandoned.cleanup_request))
+                _accepted_step(controller, frame(2700, current))
+                reconsidered = _accepted_step(controller, frame(2800, current))
+                if current is replacement:
+                    self.assertEqual(PvEPhase.ENGAGED, reconsidered.phase)
+                    self.assertEqual(replacement.object_key,
+                        reconsidered.combat_proposal.target_key)
+                else:
+                    self.assertIsNone(reconsidered.combat_proposal)
+                    self.assertIsNone(
+                        _accepted_step(controller, frame(3099, current)).combat_proposal)
+                    expired = _accepted_step(controller, frame(3100, current))
+                    self.assertEqual(PvEPhase.ENGAGED, expired.phase)
+                    self.assertEqual(original.object_key, expired.combat_proposal.target_key)
+
     def test_spatial_observation_derives_coherent_target_ranges(self) -> None:
         observation = _native_observation(
             now_ms=0,
