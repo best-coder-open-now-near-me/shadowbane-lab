@@ -1,5 +1,17 @@
 # Git branch map
 
+## Group admission and Track binding repair - October 10
+
+Start shared development from refreshed `main`. The reviewed repair candidate is
+`codex/group-command-admission-20261010`, combining host checkpoint `eff4d542`,
+Track checkpoint `e8e3c042`, and installed-delivery notes `8ae02a24`. It targets
+main in one PR with host .99/native .64 stamps. The release checkout
+`bot-integration` retains the previously installed graphics source during
+composition. Independent focused reviews passed; full exact-source qualification,
+installation, and fresh live acceptance remain pending. See
+[group admission](group-command-admission.md) and
+[the installed .98/.63 evidence](group-track-delivery-20261010.md).
+
 ## Group receive and automatic Track presentation - October 10
 
 Start shared development from refreshed `main` at PR #157 merge
