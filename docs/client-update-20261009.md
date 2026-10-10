@@ -1,5 +1,61 @@
 # Wonderbane official client update — October 9, 2026
 
+## Hunt Foe group-callout qualification (.90/.59), October 10
+
+PR #139 merged at `f17c1c57e8390e3ac5abec64a0b33a4ed3f89079` after all 15
+hosted checks passed at reviewed head `a43894e7e67a5c6709385b9c31db85a43d406bff`.
+The exact release is `3459d173835657d33ca4b07a92342a26bf73bca2` on
+`codex/hunt-foe-callouts-release-20261009`, composed from installed `14bf5ab`
+plus that feature. Installed graphics are preserved. The .90/.59 runtime is now
+installed; live group delivery remains unverified.
+
+Independent verification of private package `artifacts/b59/2e287aa7` covered
+140 artifacts and 112 stages. Host tests passed 5,997 cases with 41 optional
+skips. Each native profile passed 76 movement, 86 combat and 235 actor IPC cases;
+all four original/prepared image group-message probes passed 16 cases each.
+Six installed-wheel desktop cases and one real worker launch/stop passed with
+zero skips, and all 486 installed modules matched the exact source. Two existing
+transparency diagnostic cases per profile remain deferred; required gates pass.
+Probe string/transport substitutions do not establish server delivery.
+
+| Qualified identity | SHA-256 |
+| --- | --- |
+| Package | `6dd7fda502d0e9f0c7e5ac9f9a0c61486a5a4db47d5b857cf31cab3f21b0afbc` |
+| Builder receipt | `4ee946430adb0413655577525e6b817ae9a3490e2a6343f5128b620d7f7fed0e` |
+| Full-profile .59 DLL | `0bf82326b29c9a6d593214f8a5e12d0d6950a47e4eb30480ac991ba510dcca89` |
+| Host .90 wheel | `2e296c107b5226f3f4b33d1b775db2ec5888c09f90339dd8ac8dbc73c3a2d1d6` |
+
+The initially selected diagnostic-only build was canceled before completion;
+its reproducible source copies were removed and its compact cancellation record
+and logs retained. It is not qualification evidence or a fallback runtime.
+The completed acceptance build above is the only installation candidate.
+
+A second bounded .89 NPC attempt refused before combat with correlated native
+UI ownership at the acquisition tick. Later passive observations found the same
+Umbra world session with all five buff groups PRESENT and UI admission clear.
+The user had opened Leave World without confirming logout. Raising that dialog
+can change the native active UI control, but the samples do not identify the
+prior widget or establish when/why buffs fired. Source permits background
+preparation; actual background buff entry has not been correlated with focus.
+No additional combat attempt or forced potion-expiry test was performed.
+
+Installation and independent receipt review are complete. Activation verified
+486 modules and preserved 9,566 settings/history records. Client assets remained
+unchanged except for the intended DLL. The reviewed launcher opened game PID
+4216 with the exact .59 DLL; manager and worker were healthy at login. No new
+combat operation or live group send occurred.
+
+The compact local receipt index is
+`artifacts/bot-deploy/20261009-callouts90/delivery-evidence.json`, SHA-256
+`f6296128bd5bfa7b3cb7d0b63143063d594c3fe3c22561e58a2171e164946942`.
+Activation receipt: `053af23f0b18bf4575769970518dd4b890fbacf306449b73cc9cc75a32edff6f`.
+Retirement receipt: `079f64e725193ceb6635ee484ebd527b573489ebd9cb6e92f4dad7f995d11d22`.
+Twelve verified obsolete paths were removed (59,142,254 bytes); current runtime
+and user data were preserved. No rollback artifacts were created.
+
+Next: log Umbra in, enable requested group callouts and verify live delivery,
+then exercise the separately qualified PvE approach improvement.
+
 ## Host .89 installed with the game open
 
 PR #138 merged normally at `f13828521128cc2a7e4525ae4590fefdc9df00a8` after all

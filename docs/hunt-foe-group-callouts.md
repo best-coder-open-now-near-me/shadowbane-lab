@@ -1,9 +1,9 @@
 # Hunt Foe group callouts: native evidence and delivery boundary
 
-The draft feature now connects Hunt Foe responses to ordinary native group chat
+The reviewed feature connects Hunt Foe responses to ordinary native group chat
 through the existing actor owner and shared queue. It is opt-in through tracking
-settings and is not installed or live-validated. Queue acceptance is not server
-delivery or attack authority. Independent integrated review remains required.
+settings and is installed but not live-validated. Queue acceptance is not server
+delivery or attack authority. PR #139 is merged and exact release `3459d173` is independently qualified.
 
 ## Appearance policy
 
@@ -69,7 +69,7 @@ Static span digests:
 - `0x414100..0x414280`: `41d2112a19dae15a6fedadecb0fd69c5b5f5ca7825a3d4876995b9095532c62f`
 - `0x414520..0x414900`: `08e5cf4ff2aa1deaa68e8fca18c7d011501cf5239b9e0a34cae8c94db087f7da`
 
-## Remaining native qualification
+## Native qualification and its limits
 
 Existing `combat_party.h` provides a double-read scene-bound group roster:
 `ArcWindowGame+0x98 -> ArcGroupManager+0x9c -> linked member records`, with exact
@@ -102,5 +102,6 @@ unknown or locally queued callouts without claiming delivery.
 
 The standard package requires this probe against both official and prepared .16
 images for each native profile, alongside the actual GROUP_CHAT wire roundtrip.
-Next: independently review the integrated sender and qualify the composed release.
+The integrated sender and composed .90/.59 release have passed independent review
+and package qualification. Installation is verified. Next: activation after login and live delivery.
 No live send has been performed. Actual group delivery remains a separate fact.

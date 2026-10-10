@@ -1,25 +1,51 @@
 # Git branch map
 
+## PvE combat-aware approach - October 9
+
+The composed host-only candidate is on
+`codex/pve-combat-aware-release-20261009` in root-owned `bot-integration`:
+installed release `3459d173` plus reviewed feature `7b033840`. Native .59 and
+assets must remain byte-identical to installed `3459d173`; exact host package
+qualification is pending. Do not use this graphics composition as the shared
+source base.
+
+Root owns `codex/pve-combat-aware-approach-20261009` in `bot-runtime`, based on
+refreshed `main` at `126aeeb`. Host .91 retains native .59. The slice passes exact
+engaged-target health progress into approach, yielding host steering and arrival
+settling without canceling native combat. Outbound movement decisions keep one
+sequence across route restarts and later encounters. Main remains the shared
+integration destination. Next: independent review, full host qualification and
+host-only installation after the .90/.59 delivery completes.
+
 ## Hunt Foe group callouts - October 10
 
-Root owns the composed candidate on `codex/hunt-foe-callouts-release-20261009`
-in `bot-integration`: installed release `14bf5ab` plus reviewed feature
-`a43894e`, retaining the installed graphics work outside main. The clean
-composition passed independent review and focused checks; exact package
-qualification is pending. PR #139 remains the feature integration path
-to `main`; this release branch is not the shared development base.
+Start new work from refreshed `main`, including PR #139 merge
+`f17c1c57e8390e3ac5abec64a0b33a4ed3f89079`. All 15 hosted checks passed at
+independently reviewed feature head `a43894e7e67a5c6709385b9c31db85a43d406bff`.
+Hunt Foe arrivals use the existing native actor owner and ordinary group-message
+queue, with group revalidation, bounded deduplication and no uncertain replay.
+Queue acceptance is not proof of server delivery or attack authority.
 
-Start from refreshed `main`. The isolated branch
-`codex/hunt-foe-group-callouts-20261009` targets `main` and owns arrival/message
-policy, exact native group sending and the same-owner actor-wire/worker integration.
-The .90/.59 integrated source and mandatory package gates are independently
-reviewed through `2d08db0`; exact composed-release qualification remains. The opt-in
-setting defaults off. No live send or deployment has occurred. Native queue
-acceptance is distinct from server delivery, and no attack authority is added.
-See [the evidence and scope](hunt-foe-group-callouts.md).
-Private disassembly remains under `artifacts/group-chat-20261010`, outside source.
-Next: compose with the installed graphics source, qualify that exact release,
-and complete hosted checks before installation.
+Root's qualified .90/.59 composition is
+`3459d173835657d33ca4b07a92342a26bf73bca2`, pushed on
+`codex/hunt-foe-callouts-release-20261009` in `bot-integration`. It combines the
+installed `14bf5ab` release with reviewed feature `a43894e`, retaining installed
+graphics work outside main. This release branch is not the shared development
+base. Independent qualification checked 140 artifacts, 112 stages, 5,997 host
+passes (41 optional skips), both profiles' 76/86/235 movement/combat/actor IPC
+passes, all four exact-image group-message probes, six installed desktop cases,
+one real worker handshake and 486 installed modules. Existing deferred graphics
+transparency findings remain recorded; no required gate failed.
+
+The .90/.59 package is installed at `3459d173`. Activation verified all 486
+modules and preserved 9,566 settings/history records. Twelve verified obsolete
+paths were removed, freeing 59,142,254 bytes without retaining rollback copies.
+The reviewed launcher opened the client with the exact .59 DLL; login remains
+pending. Group callouts still default off and no live send has occurred. Next:
+enable requested callouts after login and verify live group delivery. The earlier
+qualification record reached `main` through PR #141; this release records installation.
+See [the delivery evidence](client-update-20261009.md) and
+[the callout contract](hunt-foe-group-callouts.md).
 
 ## PvE worker maintenance delivery - October 9
 
@@ -249,7 +275,6 @@ code, PR #124, or the qualified host .83 package. Integration destination is
 main. The real diagnostics-profile test passed 20 consecutive executions and
 independent peer review. All 15 checks passed at final head `5d72644` before
 PR #125 merged as `c8d79ba`. Start new work from refreshed main.
-
 
 ## Protected recycled worker PID recovery - October 9
 

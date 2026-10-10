@@ -279,6 +279,52 @@ def _accepted_step(controller, observation):
 
 
 class PvEControllerTests(unittest.TestCase):
+    def test_target_health_progress_is_bound_to_engagement_and_cleared_on_cleanup(self) -> None:
+        controller = PvEController(PvEControllerConfig(
+            maximum_kills=2, post_kill_delay_ms=1,
+        ))
+        first = _accepted_step(controller, _observation(0, _target("first")))
+        progress = _accepted_step(controller, _observation(100, _target("first", current=8)))
+        unchanged = _accepted_step(controller, _observation(200, _target("first", current=8)))
+        killed = _accepted_step(controller, _observation(300, _target("first", current=0)))
+        cleanup = _accepted_step(controller, _observation(400, _target("first", current=0)))
+
+        self.assertIsNone(first.target_health_progress_at_ms)
+        self.assertEqual(100, progress.target_health_progress_at_ms)
+        self.assertEqual(100, unchanged.target_health_progress_at_ms)
+        self.assertIsNone(killed.target_health_progress_at_ms)
+        self.assertIsNone(cleanup.target_health_progress_at_ms)
+        self.assertIsNotNone(cleanup.cleanup_request)
+        controller.acknowledge_cleanup(ConfirmedCleanup().cleanup(cleanup.cleanup_request))
+        recovering = _accepted_step(controller, _observation(500, _target("second")))
+        second = _accepted_step(controller, _observation(600, _target("second")))
+        second_progress = _accepted_step(
+            controller, _observation(700, _target("second", current=9)),
+        )
+        self.assertIsNone(recovering.target_health_progress_at_ms)
+        self.assertIsNone(second.target_health_progress_at_ms)
+        self.assertEqual("second", second.combat_proposal.target_token)
+        self.assertEqual(700, second_progress.target_health_progress_at_ms)
+
+    def test_recent_combat_progress_avoids_attack_on_arrival_radius_crossing(self) -> None:
+        controller = PvEController(PvEControllerConfig(maximum_kills=1))
+        first = _accepted_step(controller, _observation(
+            0, _target("mob"), player_position=_player_position(),
+            target_position=_target_position("mob", 200.0, 200.0),
+        ))
+        _accepted_step(controller, _observation(
+            100, _target("mob", current=9), player_position=_player_position(),
+            target_position=_target_position("mob", 200.0, 200.0),
+        ))
+        arrived = _accepted_step(controller, _observation(
+            200, _target("mob", current=9), player_position=_player_position(190.0, 200.0),
+            target_position=_target_position("mob", 200.0, 200.0),
+        ))
+        self.assertEqual(PvEIntent.ATTACK_SELECTED_TARGET, first.intent)
+        self.assertIsNone(arrived.combat_proposal)
+        self.assertIsNone(arrived.intent)
+        self.assertEqual(100, arrived.target_health_progress_at_ms)
+
     def test_native_population_ranks_every_loaded_mob_before_selection(self) -> None:
         controller = PvEController(
             PvEControllerConfig(
@@ -1895,6 +1941,106 @@ class AdvancingClock:
 
 
 class PvERunnerTests(unittest.TestCase):
+    def _run_far_target_health_sequence(self, health):
+        clock = AdvancingClock()
+        movement = RecordingMovementDispatcher()
+        combat = RecordingPvEDispatcher()
+        result = _runner(
+            controller=PvEController(PvEControllerConfig(maximum_kills=1)),
+            health_reader=SequenceHealthSource(tuple(
+                _target("ranged-mob", current=h) for h in health
+            )),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * len(health)),
+            player_position_reader=SequencePlayerPositionSource(
+                (_player_position(),) * len(health),
+            ),
+            target_position_reader=SequenceTargetPositionSource(
+                (_target_position("ranged-mob", 200.0, 200.0),) * len(health),
+            ),
+            dispatcher=combat,
+            approach_controller=PvEApproachController(PvEApproachConfig(
+                native_progress_grace_ms=100,
+                combat_progress_grace_ms=500,
+                travel=TravelControllerConfig(
+                    maximum_session_ms=5_000, click_interval_ms=100,
+                    maximum_clicks=20, minimum_progress=5.0,
+                ),
+            )),
+            movement_dispatcher=movement,
+            stop_signal=EventEmergencyStop(), poll_interval_ms=100,
+            clock=clock, sleeper=clock.sleep,
+        ).run()
+        self.assertEqual(PvEPhase.COMPLETE, result.final_phase, result.terminal_reason)
+        self.assertEqual(1, result.kills)
+        self.assertEqual([PvEIntent.ATTACK_SELECTED_TARGET], combat.intents)
+        cleanup = [step.combat_cleanup for step in result.trace if step.combat_cleanup is not None]
+        self.assertEqual(1, len(cleanup))
+        self.assertTrue(cleanup[0].confirmed)
+        self.assertEqual("ranged-mob", cleanup[0].request.target_token)
+        return result, movement
+
+    def test_runner_far_target_combat_progress_suppresses_approach_moves(self) -> None:
+        result, movement = self._run_far_target_health_sequence((10, 9, 8, 7, 6, 5, 0))
+        self.assertEqual([], movement.decisions)
+        self.assertEqual([], movement.stop_decisions)
+        engaged = [step for step in result.trace if step.decision.phase is PvEPhase.ENGAGED
+                   and step.decision.now_ms > 0]
+        self.assertEqual([100, 200, 300, 400, 500], [
+            step.decision.target_health_progress_at_ms for step in engaged
+        ])
+        self.assertTrue(all(step.approach_status == "yielding" for step in engaged))
+        self.assertTrue(all(step.approach_decision is None for step in engaged))
+
+    def test_runner_combat_progress_yields_active_route_without_pausing_attack(self) -> None:
+        result, movement = self._run_far_target_health_sequence((10, 10, 10, 9, 8, 8, 0))
+        self.assertEqual([200], [decision.now_ms for decision in movement.decisions])
+        self.assertEqual([], movement.stop_decisions)
+        yielding = [step for step in result.trace if 300 <= step.decision.now_ms <= 500]
+        self.assertEqual([300, 400, 400], [
+            step.decision.target_health_progress_at_ms for step in yielding
+        ])
+        self.assertTrue(all(step.approach_status == "yielding" for step in yielding))
+        self.assertTrue(all(step.approach_decision is None for step in yielding))
+        self.assertTrue(all(step.movement_stop_accepted is None for step in yielding))
+
+    def test_runner_combat_yield_retires_obsolete_arrival_settling_check(self) -> None:
+        clock = AdvancingClock()
+        movement = RecordingMovementDispatcher()
+        combat = RecordingPvEDispatcher()
+        health = (10, 10, 10, 10, 10, 9, 8, 7, 6, 5, 4, 0)
+        positions = (100, 100, 100, 185, 185, 186, 187, 188, 187, 186, 185, 185)
+        result = _runner(
+            controller=PvEController(PvEControllerConfig(maximum_kills=1)),
+            health_reader=SequenceHealthSource(tuple(_target("mob", current=h) for h in health)),
+            player_vitals_reader=SequencePlayerVitalsSource((_player(),) * len(health)),
+            player_position_reader=SequencePlayerPositionSource(tuple(
+                _player_position(position, 200.0) for position in positions
+            )),
+            target_position_reader=SequenceTargetPositionSource(
+                (_target_position("mob", 200.0, 200.0),) * len(health),
+            ),
+            dispatcher=combat,
+            approach_controller=PvEApproachController(PvEApproachConfig(
+                native_progress_grace_ms=100,
+            )),
+            movement_dispatcher=movement,
+            stop_signal=EventEmergencyStop(), poll_interval_ms=1_000,
+            clock=clock, sleeper=clock.sleep,
+        ).run()
+        self.assertEqual(PvEPhase.COMPLETE, result.final_phase, result.terminal_reason)
+        arrivals = [step for step in result.trace if step.approach_status == "arrived"]
+        self.assertEqual([4_000], [step.decision.now_ms for step in arrivals])
+        self.assertIsNone(arrivals[0].movement_arrival_confirmed)
+        yielding = [step for step in result.trace if step.approach_status == "yielding"]
+        self.assertEqual(list(range(5_000, 11_000, 1_000)), [
+            step.decision.now_ms for step in yielding
+        ])
+        self.assertTrue(all(step.movement_arrival_confirmed is None for step in yielding))
+        self.assertEqual([2_000], [decision.now_ms for decision in movement.decisions])
+        self.assertEqual([], movement.stop_decisions)
+        self.assertEqual([PvEIntent.ATTACK_SELECTED_TARGET] * 2, combat.intents)
+        self.assertTrue(result.trace[-1].combat_cleanup.confirmed)
+
     def test_uncertain_native_action_keeps_exact_proposal_until_acknowledged(self) -> None:
         class UncertainThenQueued(RecordingPvEDispatcher):
             def advance(self, proposal, observation):
