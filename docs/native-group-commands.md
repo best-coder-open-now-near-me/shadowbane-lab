@@ -6,8 +6,9 @@ The qualified runtime is installed and its launch is verified. A fresh Pro
 attribution, but host admission expired; no operation or movement followed.
 Track publication startup separately failed its close-pointer guard and blocked
 automatic upkeep. The reviewed thunk correction and companion admission repair
-are planned for .99/.64; neither is claimed installed here. See the
-[current delivery record](group-track-delivery-20261010.md) for exact evidence.
+are merged through PR #158, qualified and installed as .99/.64. Replacement
+activation and fresh launch are verified; live command/Track acceptance is pending. See the [current qualification record](group-admission-delivery-20261010.md)
+and [preceding installation evidence](group-track-delivery-20261010.md).
 
 The authorized commands are literal `/come` and `/attack first_name`, from any
 current group member. `/come` is a one-time regroup: cancel the current operation
