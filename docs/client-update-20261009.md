@@ -44,8 +44,35 @@ rollback copies were retained. Retirement receipt SHA-256:
 `5cd3ccecbfbc85c213597699b975263ca0b89a20c46370d89d9fe4b5b5dd70a2`.
 
 A final passive check identified Umbra on Wonderbane in the same client lifetime,
-with a healthy worker and no active or queued operation. Live multi-encounter
-acceptance and actual group-callout delivery remain unverified.
+with a healthy worker and no active or queued operation. Subsequent bounded
+PvE acceptance is recorded below; actual group-callout delivery remains unverified.
+
+### Bounded production PvE result
+
+After the user reported readiness, the native census found six eligible NPCs.
+The ordinary manager PvE operation recorded three distinct exact-object health-zero deaths
+at 5.391, 24.985 and 45.266 seconds, with target cleanup confirmations between
+encounters. Explicit cancellation completed, the ledger held no active or queued
+operation, and normal Resume restored automatic upkeep. All five configured buff
+groups were present during the run. This is native encounter evidence, not server
+kill-credit attribution.
+
+The Aedroch Highlands navigation map contained 6,068 seeded cells. No approach
+route was submitted and no movement error occurred: host steering yielded 37
+times as the tracked targets lost health. Umbra moved at most 0.083 world units;
+targets began approximately 94.62, 108.76 and 113.60 units away and moved closer.
+This validates consecutive stationary ranged encounters, not an approach route.
+The current runner supports approach, repositioning and camp return; it does not
+autonomously roam between packs when no eligible target is available.
+
+Private evidence summary:
+`artifacts/bot-deploy/20261009-host91/pve-run/pve-evidence-summary.json`, SHA-256
+`26598e30d41fa0a632b27823637556655cf8ec496443e13e895bd38ee917426a`.
+The exact native journal SHA-256 is
+`5a14c824f4fb5ec12d7e65631778b2806c1cfc6d04d33e99c7c9a1db08880781`.
+Requested Hunt Foe group callouts are enabled; the observed sender withheld them
+because Umbra was not in a native group. Actual server delivery remains unverified.
+Next: live approach validation or the separate roaming-between-packs feature.
 
 ## Hunt Foe group-callout qualification (.90/.59), October 10
 

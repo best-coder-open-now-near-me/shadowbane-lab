@@ -19,7 +19,11 @@ native IPC profiles, six installed desktop cases, one real worker handshake,
 all 486 modules and all 16 package stages. Host-only installation is verified:
 486 modules, 9,532 preserved records, zero client-file writes and the same game
 lifetime. Eleven obsolete host/wheel paths were removed (57,971,425 bytes);
-current runtime and user data remain. Live multi-encounter acceptance is pending. Root owns the delivery record on
+current runtime and user data remain. A bounded production run confirmed three
+exact NPC health-zero deaths with cleanup between encounters, then cancellation
+and upkeep Resume. All five buff groups were present. Approach routes were not
+exercised: ranged combat progressed while host steering yielded. Root owns the
+delivery record on
 `codex/pve-approach-delivery-20261010`, targeting `main`.
 
 ## Hunt Foe group callouts - October 10
