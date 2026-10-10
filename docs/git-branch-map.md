@@ -1,5 +1,16 @@
 # Git branch map
 
+## Listener launcher camp override follow-up - October 10
+
+`codex/pve-camp-launcher-20261010` follows the named-camp source at `5ef4870`.
+The supported `scripts/start-wonderbane-go-listener.ps1` now leaves camp selection
+to the native named-camp default unless `-PveCampRadius` is explicitly supplied.
+Numeric manual overrides and bounded/continuous flags remain supported; six actual
+PowerShell argument-capture cases pass without launching a listener or game.
+This script is not the installed manager entrypoint. The change targets `main`
+and does not alter the qualified .92 composition `97c4899b` or require rebuilding it.
+
+
 ## Native named PvE camps - October 10
 
 `main` remains the shared integration destination. The combined source branch is
