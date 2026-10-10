@@ -40,10 +40,10 @@ The manifest has 211 entries and exactly five official changes: `sb.exe`,
 `Config/Config.wpak`, `Config/ItemENGLISH.txt`, `cache/CObjects.cache`, and
 `TreasureTables/ModTables.wpak`. Runtime-written DoubleFusion files and user data
 are preserved. The full deployment baseline corrects the earlier coarse census:
-no games or workers are running, but the .91 manager is healthy and idle with
-no bindings. The normal reviewed manager-stop path applies. The official download
-is patched; the vendor runtime still has prepared .16,
-native .59 and selected host .91. Inactive .92 preparation is not activation.
+at that baseline no games or workers were running, but the .91 manager was
+healthy and idle with no bindings, requiring the normal reviewed manager-stop
+path. The official download was patched; the vendor runtime still had prepared
+.16, native .59 and selected host .91. Inactive .92 preparation is not activation.
 
 ## Qualified combined package
 
@@ -113,6 +113,31 @@ and loaded-extension identity, not character login or combat acceptance.
 | Activation | `2888453949ae79dae2c4eb51445bfb6582eb3ca522a0e896ffbad63c4545129a` |
 | Launcher correction | `80ba91e143f9506f1dcec8997d202c85685fc382907928e59e9f1e3a17a12bb8` |
 
+## Cleanup and user-requested pause
+
+Retirement completed: 23 inspected obsolete software targets (117,203,475 bytes)
+were removed, including hosts .91/.92, 20 old wheels and the staged .59 extension.
+Receipt `ad3af5d866e87b1dd18ebdc70d1cb6ab19e1eca97c2bcc962479ec33d7fbc651`
+and the passive postcheck verify their absence while the current runtime and user
+records remain. No retained rollback artifacts were created.
+
+Umbra subsequently entered Wonderbane. Saved enabled buff preferences caused
+preparation to start automatically. The user explicitly said this was unwanted
+at present, so normal Pause was issued immediately. For the same PID 5108 lifetime,
+manager dispatch is denied, automatic buffs are paused, preparation is disabled
+with no pending actor, tracking is disabled, and active/queued operations are
+empty. Saved buff selections remain intact. No NPC acceptance run or Resume was
+sent; the earlier request for NPC readiness is superseded.
+
+Private `deployment/user-pause-evidence.json` has SHA-256
+`36a9807aa647cf67bf69ef3d916a70bb029e34e0c9fe8dd6d2003380ec0a8010`.
+The persisted disabled control has SHA-256
+`a864a71f213b28d46d94f96ec4ecf3dce03bc11bacd2d4611756dc7b38b6f85e`.
+Source inspection confirms this pause survives worker rebind or manager restart
+for the same game instance. A new game lifetime uses a new control key and can
+currently start from saved enabled preferences; no cross-launch pause guarantee
+is claimed. No restart experiment was performed.
+
 ## Current delivery todo
 
 - Complete: exact image/asset census and independent static compatibility review.
@@ -120,16 +145,18 @@ and loaded-extension identity, not character login or combat acceptance.
   installed graphics and merged named-camp behavior.
 - Complete: replace official assets/extension, activate the qualified host, verify
   data preservation and launch the test client after the recorded metadata repair.
-- Active: retire inspected obsolete .91/.92 software, preserving current runtime
+- Complete: retire inspected obsolete .91/.92 software, preserving current runtime
   and user records.
-- Pending: after user login, one normal named-camp acceptance run with buffs.
+- Complete: honor the user-requested pause and verify no active or queued actions.
+- On hold by user: normal named-camp acceptance with buffs. Do not resume gameplay
+  until explicitly requested.
 
 Do not replay the historical .92 host-only plan. Apply the
 [no-retained-rollback policy](deployment-policy.md).
 
 ---
 
-# Native named-camp host .92 - October 10
+# Historical, superseded: native named-camp host .92 - October 10
 
 ## Source and qualification
 

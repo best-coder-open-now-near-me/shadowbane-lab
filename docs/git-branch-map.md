@@ -13,15 +13,19 @@ support. This release composition is not the shared development base.
 Activation verified 486 modules and 9,582 retained records with zero exclusions.
 A stale official hash in launcher metadata stopped the first launch before a game
 was created; a reviewed one-field correction and unchanged baseline guard passed,
-then the test client launched with the exact .60 DLL. User login/live camp
-acceptance remains pending. The .92 host-only plan is superseded.
+then the test client launched with the exact .60 DLL. Umbra logged in; saved
+automatic buffs started, and the user requested Pause. Pause is verified with no
+active or queued actions. Live camp acceptance is on hold until explicitly
+requested. The .92 host-only plan is superseded.
 
 Root owns delivery documentation on `codex/client17-delivery-20261010` in
-`bot-runtime`, targeting main. The normal checkout is clean on main. Next: finish
-inspected obsolete .91/.92 software retirement; after user login, one normal
-camp run with buffs. See [exact evidence and todos](client-update-20261010.md).
+`bot-runtime`, targeting main through PR #149. The normal checkout is clean on
+main. Retirement of 23 inspected obsolete software targets is complete; current
+runtime and user data remain. Next gameplay work is a normal camp run only after
+the user requests resumption. Pause persists for the same client instance; a new
+game lifetime can currently start from saved enabled preferences. See [exact evidence and todos](client-update-20261010.md).
 
-## Native named PvE camps - October 10
+## Historical, superseded: native named PvE camps - October 10
 
 Start new work from refreshed `main` at
 `244d3723892dbff3368cac7b93e598e47f0f4ce1`. Exact-target lifetimes (PR #144), native
