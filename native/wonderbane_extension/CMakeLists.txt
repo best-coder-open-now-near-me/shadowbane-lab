@@ -31,6 +31,8 @@ add_library(
   targeted_action_trace.cpp
   condemn_responses.cpp
   tracking_responses.cpp
+  group_messages.cpp
+  group_updates.cpp
   item_application_trace.cpp
   condemn_native.cpp
   movement_controls.cpp
@@ -1304,6 +1306,18 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
+  foreach(group_kind IN ITEMS messages updates)
+    add_executable(wonderbane_extension_group_${group_kind}_test group_publication_test.cpp)
+    target_compile_features(wonderbane_extension_group_${group_kind}_test PRIVATE cxx_std_20)
+    target_compile_definitions(wonderbane_extension_group_${group_kind}_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+    target_compile_options(wonderbane_extension_group_${group_kind}_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+    set_property(TARGET wonderbane_extension_group_${group_kind}_test PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+    if(group_kind STREQUAL "updates")
+      target_compile_definitions(wonderbane_extension_group_${group_kind}_test PRIVATE GROUP_UPDATE_TEST)
+    endif()
+    add_test(NAME wonderbane_extension_group_${group_kind} COMMAND wonderbane_extension_group_${group_kind}_test)
+    set_tests_properties(wonderbane_extension_group_${group_kind} PROPERTIES TIMEOUT 15)
+  endforeach()
   add_executable(wonderbane_extension_tracking_responses_test tracking_responses_test.cpp)
   target_compile_features(wonderbane_extension_tracking_responses_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_tracking_responses_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)

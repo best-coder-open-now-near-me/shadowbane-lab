@@ -2,6 +2,8 @@
 #include "targeted_action_trace.h"
 #include "condemn_responses.h"
 #include "tracking_responses.h"
+#include "group_messages.h"
+#include "group_updates.h"
 #include "native_owner_services.h"
 #include "item_application_trace.h"
 #include "combat_runtime.h"
@@ -436,6 +438,10 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
                     return wonderbane::extension::tracking::ReadCursor(cursor);
                 }, std::memory_order_release);
             }
+            // Copied native group receive evidence; unavailable observers never
+            // grant host command authority and cannot disable the ordinary client.
+            (void)wonderbane::extension::group_messages::Start(identity);
+            (void)wonderbane::extension::group_updates::Start(identity);
             (void)wonderbane::extension::item_trace::Start(identity);
             const DWORD trace_result = wonderbane::extension::StartMovementBoundaryTrace(identity);
             movement_trace_started = trace_result == ERROR_SUCCESS;
@@ -498,6 +504,8 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             wonderbane::extension::StopTargetedActionTrace();
             wonderbane::extension::condemn::Stop();
             wonderbane::extension::tracking::Stop();
+            wonderbane::extension::group_messages::Stop();
+            wonderbane::extension::group_updates::Stop();
             wonderbane::extension::item_trace::Stop();
             if (movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
             if (performance_telemetry_started) {
