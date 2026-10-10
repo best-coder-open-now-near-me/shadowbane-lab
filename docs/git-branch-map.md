@@ -24,10 +24,18 @@ verified. The user reports Who search was already closed; stale input ownership
 is under investigation before another live return attempt.
 
 Root owns delivery notes on `codex/pve-terrain-delivery-20261010` in `bot-runtime`,
-targeting main. The source branch `codex/pve-camp-return-routing-20261010` and
-managed `pve-camp-return-routing` checkout remain until live acceptance completes.
-The old .94 release branch remains until the .95 runtime is verified. The normal
-checkout is clean on main. See [the delivery evidence and remaining work](pve-terrain-delivery-20261010.md)
+through PR #153. Obsolete .94 software retirement is verified. The old .94 release
+branch and merged terrain source branch are retired locally/remotely after
+ancestry checks. The managed `pve-camp-return-routing` checkout is now owned by the
+native input fix on `codex/native-text-input-ownership-20261010`, based on main.
+The closed Who investigation proved a retained text pointer with native text
+input disabled; the bot's fallback incorrectly treats it as active.
+
+`codex/native-group-come-20261010` in managed `native-group-come` owns group command
+listening: `/come` from any current member, followed by `/attack [first_name]`
+through existing native player combat. Both source lanes leave the .95 runtime
+unchanged until qualification. The normal checkout is clean on main.
+See [the delivery evidence and remaining work](pve-terrain-delivery-20261010.md)
 and [the terrain correction](pve-terrain-routing.md).
 
 ## Historical, superseded: PvE startup ownership repair - October 10
