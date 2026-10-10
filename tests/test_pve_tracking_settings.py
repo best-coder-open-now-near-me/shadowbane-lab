@@ -12,12 +12,14 @@ from shadowbane_lab.pve import settings
 from shadowbane_lab.pve.tracking import TrackingSettings
 
 
-@pytest.mark.parametrize("schema", [1, 2])
+@pytest.mark.parametrize("schema", [1, 2, 3])
 def test_old_settings_load_without_write_or_automatic_tracking_enable(tmp_path, owner, schema):
     value = dict(schema_version=schema, server=owner.server_name, character=owner.character_name,
                  policy="basic", opening_skill=None, revision=4)
-    if schema == 2:
+    if schema >= 2:
         value["buffs"] = settings.PvESettings().buffs.as_dict()
+    if schema == 3:
+        value["tracking"] = {"enabled": False, "refresh_interval_seconds": 10}
     path = settings._path(owner, tmp_path)
     original = json.dumps(value).encode()
     path.write_bytes(original)
@@ -25,7 +27,7 @@ def test_old_settings_load_without_write_or_automatic_tracking_enable(tmp_path, 
     assert loaded.tracking == TrackingSettings() and path.read_bytes() == original
     enabled = save(owner, tmp_path, replace(loaded, tracking=TrackingSettings(True)),
                    expected=loaded)
-    assert json.loads(path.read_text())["schema_version"] == 3
+    assert json.loads(path.read_text())["schema_version"] == 4
     assert settings.load_pve_settings(owner, root=tmp_path) == enabled
     assert not settings.load_pve_settings(replace(owner, character_name="Other"),
                                           root=tmp_path).tracking.enabled
@@ -60,3 +62,17 @@ def test_unlearned_hunt_foe_cannot_be_enabled(cli, owner, monkeypatch):
 def test_tracking_intent_rejects_invalid_or_attack_fields(value):
     with pytest.raises(ValueError):
         TrackingSettings.from_dict(value)
+
+
+def test_group_callouts_require_tracking_and_preserve_other_preferences(cli, owner, monkeypatch):
+    monkeypatch.setattr(
+        command, "resolve_learned_tracking_ability",
+        Mock(return_value=NativeTrackingAbility(123, "Hunt Foe", "native", 4, 4, 0, 1)),
+    )
+    assert command._configure_pve_settings(process_id=123, group_callouts="enabled") == 2
+    assert not settings.load_pve_settings(owner).tracking.group_callouts_enabled
+    assert command._configure_pve_settings(process_id=123, tracking="enabled",
+                                           group_callouts="enabled") == 0
+    assert settings.load_pve_settings(owner).tracking.group_callouts_enabled
+    assert command._configure_pve_settings(process_id=123, group_callouts="disabled") == 0
+    assert settings.load_pve_settings(owner).tracking.enabled

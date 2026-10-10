@@ -4,15 +4,15 @@
 
 Start from refreshed `main`. The isolated branch
 `codex/hunt-foe-group-callouts-20261009` targets `main` and owns arrival/message
-policy plus native group-send investigation. Its pure policy is independently
-reviewed. A tested native group-only constructor/queue boundary now reuses the
-shared append observer; actor-wire and worker integration are unfinished, so no
-user-facing toggle or runtime feature is enabled. Exact `.16`
-static evidence identifies the ordinary `/GROUP` GroupChannelMessage route.
-Native call-through, actual group-lifetime attribution and recipient semantics
-remain required before integration. See [the evidence and scope](hunt-foe-group-callouts.md).
+policy, exact native group sending and the same-owner actor-wire/worker integration.
+The pure policy and native boundary have focused tests; the integrated checkpoint
+is a draft pending independent review and package qualification. The opt-in
+setting defaults off. No live send or deployment has occurred. Native queue
+acceptance is distinct from server delivery, and no attack authority is added.
+See [the evidence and scope](hunt-foe-group-callouts.md).
 Private disassembly remains under `artifacts/group-chat-20261010`, outside source.
-Next: qualify native sending and group binding, then connect the same owner loop.
+Next: review this integrated checkpoint, qualify required package gates, then
+complete the release review with the existing worker maintenance changes retained.
 
 ## PvE worker maintenance - October 9
 
@@ -26,7 +26,7 @@ unchanged. Focused worker/identity and movement checks pass; independent review,
 full checks and exact-source package qualification precede installation.
 The installed .88/.58 runtime remains active while this proceeds. Next: complete
 review/qualification and deliver the host update, then observe a bounded NPC run.
-Hunt Foe group-callout work is separate and has no qualified native send path yet.
+Hunt Foe group-callout work is a separate draft pending integrated review.
 
 ## Concoction early renewal - October 9
 

@@ -42,7 +42,7 @@ public:
     std::shared_ptr<movement::CommandLease> lease;
     std::shared_ptr<QueuedCommand> executing;
     std::atomic<bool> ready{false},cancelled{false},child_cancelled{false};
-    bool updating{},retired{},active{},preparing{},dispatching{},stopping{};
+    bool updating{},retired{},active{},preparing{},dispatching{},stopping{},chat_entry{};
     std::uint64_t preparation_input_epoch{};
     bool Preparation() const noexcept { return parent.purpose==fence::Purpose::preparation; }
     static bool PreparationOwned() noexcept;
@@ -62,7 +62,7 @@ public:
         return self.parent_ticket.Inspect(state)==fence::Result::not_pending
             &&state==(self.parent_admitted?fence::State::entered:fence::State::pending)
             &&(self.Preparation()
-                ? (!self.dispatching||movement::NativePreparationUninterrupted(self.scene,self.preparation_input_epoch))
+                ? (!self.dispatching||self.chat_entry||movement::NativePreparationUninterrupted(self.scene,self.preparation_input_epoch))
                 : movement::NativeOwnerActionCurrent(self.scene,self.grant,self.owner_command.host))
             &&!self.cancelled.load(std::memory_order_acquire)&&!self.retired;
     }
@@ -77,7 +77,7 @@ public:
         // Queue-lock boundary: immutable/scalar admission only, no IPC mutex.
         return self.active&&self.parent_admitted&&self.dispatching&&!self.retired
             &&!self.quarantined&&!self.cancelled.load(std::memory_order_acquire)
-            &&(!self.Preparation()||movement::NativePreparationUninterrupted(self.scene,self.preparation_input_epoch));
+            &&(!self.Preparation()||self.chat_entry||movement::NativePreparationUninterrupted(self.scene,self.preparation_input_epoch));
     }
     static bool ChildAppendCurrent(void* context) noexcept {
         const auto& self=*static_cast<Runtime*>(context);
@@ -275,13 +275,14 @@ public:
     Operation Submit(const wire::Command& input) noexcept override {
         const bool targeted=wire::Any(input.context_id);
         const bool tracking=input.action==wire::Action::track;
+        const bool chat=input.action==wire::Action::group_chat;
         if(!active||!wire::Bindings(input,parent,targeted?&child:nullptr)||!(targeted?ChildCurrent(this):Current(this))){return Refused();}
         // Child cleanup occupies the shared local arbiter even after its last
         // action settled. Actor-only preparation cannot bypass that obligation.
         if(journal.Faulted()){return AdmissionRefused(0);}
-        if(const auto blocks=ArbiterBlocks()&~(tracking?admission::local_action:0U)){return AdmissionRefused(blocks);}
-        if(Preparation()&&!movement::NativePreparationEntryCurrent(scene,preparation_input_epoch)) { return AdmissionRefused(admission::manual_activity); }
-        if(!targeted&&!tracking){
+        if(const auto blocks=ArbiterBlocks()&~((tracking||chat)?admission::local_action:0U)){return AdmissionRefused(blocks);}
+        if(!chat&&Preparation()&&!movement::NativePreparationEntryCurrent(scene,preparation_input_epoch)) { return AdmissionRefused(admission::manual_activity); }
+        if(!targeted&&!tracking&&!chat){
             std::uint32_t blocks{};
             if(!native.ReadAdmission(blocks)){return AdmissionRefused(0);}
             if(blocks){return AdmissionRefused(blocks);}
@@ -314,19 +315,19 @@ public:
                 return Refused(O::unavailable,wire::Reason::observation);
             }
         }
-        dispatching=true;Operation result=Refused();
+        dispatching=true;chat_entry=chat;Operation result=Refused();
         if((targeted?ChildCurrent(this):Current(this))&&parent_ticket.TryAdmit(parent,true)==fence::Result::admitted
             &&(!targeted||child_ticket.TryAdmit(child,true)==fence::Result::admitted)){
             const auto index=JournalIndex(input);
             const auto submitted=native.Submit(input,index<activations.size()?activations[index]:combat::activation::Handle{});result=Converted(submitted);
             // Observation after native return, outside the queue lock. Never application authority.
             item_trace::OwnedReturn(input,scene,result.outcome,result.entry,result.local,result.history,&submitted.power_diagnostic);
-            if(!targeted&&!tracking&&result.outcome==O::deferred&&result.entry==wire::Entry::never_entered){
+            if(!targeted&&!tracking&&!chat&&result.outcome==O::deferred&&result.entry==wire::Entry::never_entered){
                 if(submitted.admission_blocks){(void)publisher.ObserveAdmission(submitted.admission_blocks);}
                 else if(result.reason==wire::Reason::admission_changed){(void)publisher.InvalidateAdmission();}
             }
         }
-        dispatching=false;
+        dispatching=chat_entry=false;
         if(!RecordApplication(input,result)){admission_blocked=true;cancelled.store(true,std::memory_order_release);}
         return result;
     }
@@ -451,6 +452,7 @@ bool Start(const ProcessIdentity& process) noexcept {
     if(process.process_id!=GetCurrentProcessId()||process.creation_filetime_utc!=actor::fence::Creation(GetCurrentProcess())
         ||!movement::VerifyNativeMovementImage(actor::runtime.base)||!submission::Start(actor::runtime.base)||!power::Start(actor::runtime.base)
         ||!item::Start(actor::runtime.base)||!inventory::Start(actor::runtime.base)){return false;}
+    if(group_chat::Start(actor::runtime.base))group_chat_ready.store(&group_chat::Ready,std::memory_order_release);
     actor::runtime.process=process;
     preparation_owner_active.store(&actor::Runtime::PreparationOwned,std::memory_order_release);
     combat_owner_stop.store(&actor::Runtime::StopOwner,std::memory_order_release);

@@ -245,6 +245,13 @@
         if (Number.isFinite(tracking.response_age_seconds))
           detail.textContent += ` · result ${Math.max(0, tracking.response_age_seconds).toFixed(1)}s ago`;
         panel.append(detail);
+        if (tracking.callout_state && tracking.callout_state !== "disabled") {
+          const callouts = document.createElement("p");
+          callouts.className = "detail";
+          callouts.textContent = `Group callouts: ${text(tracking.callout_state)}` +
+            (tracking.callout_detail ? ` · ${text(tracking.callout_detail)}` : "");
+          panel.append(callouts);
+        }
         for (const contact of contacts) {
           const row = document.createElement("p");
           row.className = "detail";

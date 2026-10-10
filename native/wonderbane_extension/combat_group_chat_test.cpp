@@ -90,4 +90,3 @@ int main(){try{
  unsigned unrelated{};Check(observer.claim(reinterpret_cast<void*>(c.container),&unrelated,0x2c6eb7).decision==sub::AppendDecision::unrelated);g::active=scope.previous;++cases;
  VirtualFree(reinterpret_cast<void*>(image),0,MEM_RELEASE);std::printf("%u group chat cases passed\n",cases);return 0;
 }catch(const std::exception&e){std::fprintf(stderr,"%s\n",e.what());return 1;}}
-

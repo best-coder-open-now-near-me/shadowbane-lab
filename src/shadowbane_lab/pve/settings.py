@@ -112,7 +112,7 @@ def load_pve_settings(identity, *, root: Path | None = None) -> PvESettings:
     value = json.loads(raw, object_pairs_hook=_unique_object)
     fields = {"schema_version", "server", "character", "policy", "opening_skill", "revision"}
     if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
-            or value["schema_version"] not in (1, 2, 3)
+            or value["schema_version"] not in (1, 2, 3, 4)
             or set(value) != (fields if value["schema_version"] == 1 else
                               fields | {"buffs"} if value["schema_version"] == 2 else
                               fields | {"buffs", "tracking"})):
@@ -123,6 +123,11 @@ def load_pve_settings(identity, *, root: Path | None = None) -> PvESettings:
     # Loading schema 1 is a pure migration: no write, no implicit buff enablement.
     buffs = (BuffSettings() if value["schema_version"] == 1
              else BuffSettings.from_dict(value["buffs"]))
+    if value["schema_version"] == 3:
+        old = value["tracking"]
+        if not isinstance(old, dict) or set(old) != {"enabled", "refresh_interval_seconds"}:
+            raise ValueError("invalid schema3 tracking settings")
+        value["tracking"] = {**old, "group_callouts_enabled": False}
     tracking = (TrackingSettings() if value["schema_version"] < 3
                 else TrackingSettings.from_dict(value["tracking"]))
     return PvESettings(value["policy"], value["opening_skill"], value["revision"], buffs, tracking)
@@ -148,7 +153,7 @@ def save_pve_settings(
         updated = replace(settings, revision=expected.revision + 1)
         server, character = _owner(identity)
         payload = json.dumps(
-            {"schema_version": 3, "server": server, "character": character, **updated.as_dict()},
+            {"schema_version": 4, "server": server, "character": character, **updated.as_dict()},
             ensure_ascii=True,
             allow_nan=False,
         ).encode()

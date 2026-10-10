@@ -1,9 +1,9 @@
 # Hunt Foe group callouts: native evidence and delivery boundary
 
-The callout feature is not enabled. `pve/tracking_callouts.py` supplies the reviewed
-appearance/message policy only; it does not send messages, expose a setting or
-grant attack authority. The native sender boundary is now implemented and tested in isolation; actor-wire
-and worker integration remain the next slice. Startup does not enable it yet.
+The draft feature now connects Hunt Foe responses to ordinary native group chat
+through the existing actor owner and shared queue. It is opt-in through tracking
+settings and is not installed or live-validated. Queue acceptance is not server
+delivery or attack authority. Independent integrated review remains required.
 
 ## Appearance policy
 
@@ -11,10 +11,10 @@ Consume complete, fresh Hunt Foe response generations. A successful empty list
 can establish departure; failed/unavailable reads cannot. Deduplicate server-unique
 first names, omit the local actor and consume each generation once. A new actor
 or qualified group lifetime seeds its first response without retrospective chat.
-One response produces at most one 120-byte ASCII message with grouped arrivals;
+One response produces at most one 88-byte ASCII message with grouped arrivals;
 excess names become a count, not a delayed backlog. The limit is a conservative
-policy bound, not a claimed native protocol maximum. Invalid name data preserves
-the previous presence set. Missed ring history does not invalidate a subsequently
+policy bound, not a claimed native protocol maximum. Unsupported first names remain in the presence set but are withheld from text;
+other supported arrivals can still be announced. Missed ring history does not invalidate a subsequently
 complete response.
 
 The caller must supply freshly aged `TrackingStatus` and an observed group-context
@@ -23,7 +23,10 @@ context marker, not a server nonce. Native sending rechecks the actual group. Re
 disable or ownership release. A returned decision is consumed; a native sender
 must separately retain an uncertain submission rather than replay it on later
 tracking reads. The sender must revalidate the same actor/group immediately before
-entry. No actor-wire or worker sender is currently wired.
+entry. The coordinator polls uncertain immutable commands without replay. Definite
+pre-entry refusal retains one bounded fresh intent, coalescing later arrivals and
+removing departed names. It never starts another producer or borrows casting
+stationarity/input restrictions merely to speak.
 
 ## Exact .16 static evidence
 
@@ -91,7 +94,11 @@ The focused native tests cover group change during construction, absent transpor
 queued history through faults, pre-entry refusal and no replay; shared queue tests
 cover three-way observer collision with one transferred-reference release.
 
-Next: finish the same-owner wire/worker integration, qualify ordinary string and
-destruction behavior, and independently review the complete sender path. No guessed native calls,
-keyboard fallback or live group send is authorized by these static findings.
-Queued native submission and actual group delivery must remain distinct facts.
+The actor wire uses a distinct GROUP_CHAT action with an exact observed roster
+digest and bounded text. Older readers reject it through their existing action
+and reserved-byte validation. Normal cast/tracking receipts and application
+journals remain separate. Settings default off; the dashboard reports withheld,
+unknown or locally queued callouts without claiming delivery.
+
+Next: independently review the integrated sender and qualify its packaged gates.
+No live send has been performed. Actual group delivery remains a separate fact.

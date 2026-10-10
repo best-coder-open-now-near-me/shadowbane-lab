@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from .tracking import TrackingActor, TrackingStatus
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z'-]{0,31}\Z")
-_MAX_MESSAGE = 120
+_MAX_MESSAGE = 88
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +33,29 @@ def _message(names: tuple[str, ...]) -> str:
         shown = candidate
     left = len(names) - len(shown)
     return prefix + ", ".join(shown) + (f" (+{left} more)" if left else "")
+
+
+def coalesce(pending: GroupCallout | None, decision: GroupCallout | None,
+             status: TrackingStatus, *, group_generation: int) -> GroupCallout | None:
+    """One fresh pending message; prune departures before merging new arrivals."""
+    if not status.current or status.response_age_seconds is None:
+        return pending
+    if status.response_age_seconds > status.freshness_seconds:
+        return None
+    present = {c.name.split(" ", 1)[0].casefold() for c in status.contacts}
+    names: dict[str, str] = {}
+    for value in (pending, decision):
+        if (value is None or value.actor != status.actor
+                or value.group_generation != group_generation):
+            continue
+        for name in value.first_names:
+            if name.casefold() in present:
+                names.setdefault(name.casefold(), name)
+    if not names:
+        return None
+    arrivals = tuple(names[key] for key in sorted(names))
+    return GroupCallout(status.actor, group_generation, status.generation,
+                        arrivals, _message(arrivals))
 
 
 class TrackingAppearances:
@@ -85,12 +108,13 @@ class TrackingAppearances:
             # Hunt Foe can display a surname. The server-unique first name is
             # sufficient and avoids sending arbitrary markup/control content.
             first = contact.name.split(" ", 1)[0]
-            if not _NAME.fullmatch(first):
-                return None  # An invalid complete snapshot cannot prove absence.
+            # Unsupported names still participate in presence. Withhold only
+            # their text; never rename them or stall other valid arrivals.
             key = first.casefold()
             names.setdefault(key, first)
         present = frozenset(names)
-        arrivals = tuple(names[key] for key in sorted(present - self._present))
+        arrivals = tuple(names[key] for key in sorted(present - self._present)
+                         if _NAME.fullmatch(names[key]))
         changed_scope = scope != self._scope
         self._scope, self._generation, self._present = scope, status.generation, present
         if changed_scope or not arrivals:

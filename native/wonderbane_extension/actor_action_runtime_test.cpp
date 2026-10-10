@@ -113,6 +113,7 @@ Result PauseNativeOwnerAction(const NativeScene& scene,const Grant& grant)noexce
     native_activity=false;return Result::accepted;
 }
 }
+namespace wonderbane::extension::combat::group_chat {bool Start(std::uintptr_t)noexcept{return true;}bool Ready()noexcept{return true;}}
 namespace wonderbane::extension::combat::submission {bool Start(std::uintptr_t)noexcept{return true;}bool Ready()noexcept{return true;}}
 namespace wonderbane::extension::combat::power {bool Start(std::uintptr_t)noexcept{return true;}bool Ready()noexcept{return true;}}
 namespace wonderbane::extension::combat::activation {
@@ -425,6 +426,16 @@ int main(){
         Check(!std::memcmp(&records,&a::runtime.journal.Records(),sizeof(records)),"Track never mutates buff journal");
         preparation_idle=false;query.request=Id(3);
         Check(Execute(w::Verb::submit,query).reason==w::Reason::manual_activity,"manual preparation veto remains");
+        auto chat=tracking_owner;chat.request=Id(4);chat.action=w::Action::group_chat;chat.recipient=w::Recipient::actor;
+        w::GroupChat message{};message.group.fill(8);message.length=15;std::memcpy(message.text.data(),"Hunt Foe: Alice",15);
+        std::memcpy(chat.reserved,&message,sizeof(message));
+        ++preparation_epoch; // Chat does not borrow cast/input stationarity authority.
+        const auto spoken=Execute(w::Verb::submit,chat);
+        Check(spoken.outcome==w::Outcome::queued&&spoken.local_settlement==w::LocalSettlement::settled
+            &&spoken.application==w::Application::none,"chat during manual motion retains owner gates without cast eligibility");
+        Check(!std::memcmp(&records,&a::runtime.journal.Records(),sizeof(records)),"chat never mutates buff journal");
+        query.request=Id(5);Check(Execute(w::Verb::submit,query).reason==w::Reason::manual_activity,
+            "chat exception does not widen tracking or casting admission");
         preparation_idle=true;a::runtime.has_manifest=has_manifest;
         Check(Execute(w::Verb::stop_owner,tracking_owner).closure==w::Closure::local_released,"query has no cast cleanup");
     }

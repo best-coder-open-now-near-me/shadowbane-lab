@@ -644,3 +644,26 @@ def test_tracking_cannot_borrow_context_authority():
     _, context, command, _ = tracking_fixture()
     with pytest.raises(ValueError):
         replace(command, context_id=context.context_id, context_digest=context.digest).encode()
+
+
+def test_group_chat_wire_is_bounded_group_only_and_immutable():
+    _, _, command, receipt = tracking_fixture()
+    command = replace(command, action=Action.GROUP_CHAT, power_id=0,
+                      group_digest=b"g" * 32, group_text="Hunt Foe: Alice")
+    assert Command.decode(command.encode()) == command
+    receipt = replace(receipt, action=Action.GROUP_CHAT, command_digest=command.digest)
+    receipt.require_command(command, Verb.SUBMIT)
+    receipt = replace(receipt, verb=Verb.ACTION_STATUS)
+    receipt.require_command(command, Verb.ACTION_STATUS)
+    with pytest.raises(ValueError):
+        command.require_verb(Verb.CANCEL_ACTION)
+    for fields in ({"group_text": "x" * 89}, {"group_text": "/group Alice"},
+                   {"group_digest": bytes(32)}, {"power_id": 123},
+                   {"action": Action.TRACK, "power_id": 429578587},
+                   {"group_text": "Alice\u00c9"}):
+        with pytest.raises(ValueError):
+            replace(command, **fields).encode()
+    poisoned = bytearray(command.encode())
+    poisoned[-1] = 1
+    with pytest.raises(ValueError):
+        Command.decode(bytes(poisoned))

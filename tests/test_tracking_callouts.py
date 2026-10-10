@@ -87,11 +87,15 @@ def test_first_name_identity_and_self_are_deduplicated():
     assert policy.observe(response(3, "ALICE"), group_generation=1) is None
 
 
-def test_corrupt_name_does_not_manufacture_departure_or_consume_generation():
+def test_unsupported_name_preserves_presence_without_stalling_supported_arrivals():
     policy = TrackingAppearances()
     policy.observe(response(1, "Alice"), group_generation=1)
-    assert policy.observe(response(2, "/group", "<Alice>"), group_generation=1) is None
-    assert policy.observe(response(2, "Alice", "Bob"), group_generation=1).first_names == ("Bob",)
+    call = policy.observe(
+        response(2, "Alice", "\u00c9lodie", "Bob", "/group"), group_generation=1)
+    assert call.first_names == ("Bob",)
+    assert policy.observe(response(3, "Alice", "\u00c9lodie", "Bob"), group_generation=1) is None
+    assert policy.observe(response(4, "\u00c9lodie", "Bob", "Carol"),
+                          group_generation=1).first_names == ("Carol",)
 
 
 def test_bounded_single_message_counts_overflow_without_backlog():
@@ -99,7 +103,7 @@ def test_bounded_single_message_counts_overflow_without_backlog():
     policy.observe(response(1), group_generation=1)
     names = tuple("Player" + chr(65 + i) * 20 for i in range(26))
     call = policy.observe(response(2, *names), group_generation=1)
-    assert len(call.message.encode("ascii")) <= 120
+    assert len(call.message.encode("ascii")) <= 88
     assert len(call.first_names) == 26
     assert "more)" in call.message
     assert policy.observe(response(3, *names), group_generation=1) is None

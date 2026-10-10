@@ -6,6 +6,7 @@
 #include "combat_item_entry.h"
 #include "combat_melee_entry.h"
 #include "combat_party.h"
+#include "combat_group_chat.h"
 #include "combat_power_entry.h"
 #include "combat_target_policy.h"
 #include "movement_lifetime.h"
@@ -78,6 +79,7 @@ private:
         decltype(&combat::melee::Invoke) attack{};
         decltype(&combat::power::Invoke) power{};
         decltype(&combat::power::InvokeTrack) track{};
+        decltype(&combat::group_chat::Invoke) chat{};
         decltype(&combat::power::ReadSelfInitiation) self_initiation{};
         decltype(&combat::item::Invoke) item{};
         bool (__cdecl* dispatch)(const void*,void*){};
@@ -89,6 +91,7 @@ private:
     bool Current(bool child) noexcept;
     static bool Gate(void*) noexcept;
     static bool AppendGate(void*) noexcept;
+    static bool ChatGate(void*) noexcept;
     static bool TrackGate(void*) noexcept;
     static bool TrackAppendGate(void*) noexcept;
     static bool SceneGate(void*) noexcept;
@@ -98,6 +101,7 @@ private:
     Operation AttachImpl();
     Operation SubmitImpl();
     Operation TrackImpl();
+    Operation ChatImpl();
     Operation PollImpl();
     Operation StopImpl(bool owner,Admission,void*);
     Operation RunCxx(unsigned operation,Admission=nullptr,void* = nullptr) noexcept;
@@ -118,7 +122,9 @@ private:
     Gates parent_gates_{}, child_gates_{};
     fence::ActorBinding parent_{};
     fence::ContextBinding child_{};
-    wire::Command command_{}, pending_command_{}, track_command_{};
+    wire::Command command_{}, pending_command_{}, track_command_{}, chat_command_{};
+    combat::group_chat::State chat_state_{};
+    combat::group_chat::Receipt chat_receipt_{};
     combat::power::Receipt track_receipt_{};
     Operation pending_operation_{};
     combat::party::Snapshot party_{};
