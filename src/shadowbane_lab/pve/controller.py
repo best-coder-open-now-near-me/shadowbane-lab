@@ -470,7 +470,8 @@ class PvEController:
         interrupt = self._interrupt(observation)
         if interrupt is not None:
             return interrupt
-        if approach_arrived:
+        if (approach_arrived and (self._last_target_health_progress_at is None
+                or now - self._last_target_health_progress_at >= self._config.stalled_progress_ms)):
             self._last_progress_at = now
             return self._emit(now, PvEIntent.ATTACK_SELECTED_TARGET)
 
@@ -978,6 +979,12 @@ class PvEController:
             kills=self._kills,
             cleanup_request=self._pending_cleanup,
             tracked_target=tracked,
+            target_health_progress_at_ms=(
+                self._last_target_health_progress_at
+                if self._phase in (PvEPhase.OPENING, PvEPhase.ENGAGED)
+                and tracked is not None and tracked.available and self._pending_cleanup is None
+                else None
+            ),
             native_action_pending=native_action_pending,
             opening_skill_skipped=self._opening_skipped,
             opening_skill_skip_reason=(

@@ -389,3 +389,64 @@ def test_failed_adoption_cannot_lend_its_authority_to_a_selected_target():
     assert result.intent is None
     assert result.phase is not PvEPhase.ENGAGED
     assert result.tracked_target is None
+
+
+@pytest.mark.parametrize("selected", [None, "other"])
+def test_combat_progress_yields_far_target_without_inventing_arrival(selected):
+    control = PvEApproachController(PvEApproachConfig(
+        native_progress_grace_ms=100, combat_progress_grace_ms=500))
+    control.step(observation(selected=selected), phase=PvEPhase.ENGAGED, tracked_target=tracked())
+    for now, progress in ((100, 100), (400, 400), (700, 700)):
+        result = control.step(observation(now, selected), phase=PvEPhase.ENGAGED,
+                              tracked_target=tracked(), target_health_progress_at_ms=progress,
+                              reposition_requested=True)
+        assert result.status.value == "yielding"
+        assert result.decision is None
+    # Repeating the same published progress does not prolong its grace.
+    expired = control.step(observation(1200, selected), phase=PvEPhase.ENGAGED,
+                           tracked_target=tracked(), target_health_progress_at_ms=700)
+    assert expired.status.value == "moving"
+
+
+def test_progress_yields_active_route_without_a_stop_or_arrival_decision():
+    control = PvEApproachController(PvEApproachConfig(
+        native_progress_grace_ms=100, combat_progress_grace_ms=500))
+    control.step(observation(), phase=PvEPhase.ENGAGED, tracked_target=tracked())
+    moving = control.step(observation(100), phase=PvEPhase.ENGAGED, tracked_target=tracked())
+    assert moving.decision.click_destination is not None
+    yielded = control.step(observation(200), phase=PvEPhase.ENGAGED, tracked_target=tracked(),
+                           target_health_progress_at_ms=200)
+    assert yielded.status.value == "yielding"
+    assert yielded.decision is None  # No terminal decision that would become native PAUSE.
+    resumed = control.step(observation(700), phase=PvEPhase.ENGAGED, tracked_target=tracked(),
+                           target_health_progress_at_ms=200)
+    assert resumed.status.value == "moving"
+    assert resumed.decision.minimap_direction.x > 0
+    assert resumed.decision.decision_id != moving.decision.decision_id
+
+
+def test_bound_object_replacement_does_not_inherit_approach_combat_grace():
+    control = PvEApproachController(PvEApproachConfig(
+        native_progress_grace_ms=100, combat_progress_grace_ms=500))
+    control.step(observation(), phase=PvEPhase.ENGAGED, tracked_target=tracked(),
+                 target_health_progress_at_ms=0)
+    replacement = character(object_key=NativeObjectKey(20, 3))
+    bound = PvETrackedTarget(replacement.token, replacement.object_key, replacement)
+    first = control.step(observation(100, characters=(replacement,)),
+                         phase=PvEPhase.ENGAGED, tracked_target=bound)
+    second = control.step(observation(200, characters=(replacement,)),
+                          phase=PvEPhase.ENGAGED, tracked_target=bound)
+    assert first.status.value == "idle"
+    assert second.status.value == "moving"
+
+
+def test_progress_before_first_approach_sample_retains_only_its_actual_remaining_grace():
+    control = PvEApproachController(PvEApproachConfig(
+        native_progress_grace_ms=100, combat_progress_grace_ms=500))
+    # The runner can skip approach while an exact native action is pending.
+    first = control.step(observation(300), phase=PvEPhase.ENGAGED, tracked_target=tracked(),
+                         target_health_progress_at_ms=100)
+    assert first.status.value == "yielding" and first.decision is None
+    expired = control.step(observation(600), phase=PvEPhase.ENGAGED, tracked_target=tracked(),
+                           target_health_progress_at_ms=100)
+    assert expired.status.value == "moving"

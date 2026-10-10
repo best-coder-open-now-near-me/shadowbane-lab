@@ -755,6 +755,7 @@ class PvEControllerDecision:
     opening_skill_skipped: bool = False
     opening_skill_skip_reason: PvECombatNotReadyReason | None = None
     combat_proposal: PvECombatProposal | None = None
+    target_health_progress_at_ms: int | None = None
 
     def __post_init__(self) -> None:
         if (type(self.opening_skill_skipped) is not bool
@@ -766,6 +767,13 @@ class PvEControllerDecision:
         _non_negative_integer(self.decision_id, "decision_id")
         _non_negative_integer(self.now_ms, "now_ms")
         _non_negative_integer(self.kills, "kills")
+        progress = self.target_health_progress_at_ms
+        if progress is not None:
+            _non_negative_integer(progress, "target_health_progress_at_ms")
+            if (progress > self.now_ms or self.phase not in (PvEPhase.OPENING, PvEPhase.ENGAGED)
+                    or self.tracked_target is None or not self.tracked_target.available
+                    or self.cleanup_request is not None):
+                raise ValueError("combat progress requires the current engaged target")
         proposal = self.combat_proposal
         if proposal is not None:
             if not isinstance(proposal, PvECombatProposal):

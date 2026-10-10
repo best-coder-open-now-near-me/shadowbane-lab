@@ -118,6 +118,22 @@ path stationary. The private acceptance harness's explicit target, distance,
 action-count and movement restrictions do not silently carry over to production
 CLI runs. Native ATTACK can also initiate the client's own approach behavior.
 
+## Combat progress and approach
+
+Fresh health loss on the exact admitted NPC now yields host approach and
+reposition steering for a bounded five-second interval. The timestamp comes from
+the existing encounter controller, remains tied to its token and object key, and
+is not refreshed by repeated samples. Native casting, attack and chase remain
+owned by the shared actor. The observation proves target progress, not damage
+credit or a measured weapon range.
+
+Yielding discards the host route and obsolete arrival-settling check without
+issuing native PAUSE, because PAUSE also closes combat. It does not claim an
+already-submitted native path has stopped. If progress expires, ordinary bounded
+approach can resume from the current position. Movement request identities stay
+unique across route restarts, camp returns and subsequent targets under the same
+operation. Camp policy, health/session limits and terminal cleanup still apply.
+
 ## Evidence and stopping
 
 Read the final typed result and incremental journal together: proposal identity,
