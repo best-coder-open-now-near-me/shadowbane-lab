@@ -5,6 +5,9 @@
 #include <fstream>
 #include <memory>
 #include <thread>
+#include <bcrypt.h>
+#include <filesystem>
+#include <vector>
 namespace tr = wonderbane::extension::tracking;
 namespace {
 std::atomic<std::uint64_t> epoch{7};
@@ -74,7 +77,12 @@ void Boundary(std::uintptr_t image){
     head[0]=head[1]=ptr(node.data());node[0]=node[1]=ptr(head.data());node[2]=ptr(object.data());
     object[0]=static_cast<std::uint32_t>(image+pp::kHudTable);object[0xdc/4]=0x34;object[0x3b8/4]=429578587;
     *reinterpret_cast<std::uint32_t*>(image+pp::kRoot)=ptr(root.data());
-    auto* slot=reinterpret_cast<std::uint32_t*>(image+pp::kHudTable+0x10c);*slot=static_cast<std::uint32_t>(image+pp::kClose);
+    auto* slot=reinterpret_cast<std::uint32_t*>(image+pp::kHudTable+0x10c);*slot=static_cast<std::uint32_t>(image+pp::kCloseThunk);
+    constexpr unsigned char close_jump[]{0xe9,0x2b,0xda,0x5d,0x00};
+    auto* close_entry=reinterpret_cast<unsigned char*>(image+pp::kCloseThunk);
+    std::memcpy(close_entry,close_jump,sizeof(close_jump));DWORD entry_protection{};
+    Check(VirtualProtect(close_entry,sizeof(close_jump),PAGE_EXECUTE_READ,&entry_protection)
+        &&FlushInstructionCache(GetCurrentProcess(),close_entry,sizeof(close_jump)),"actual close jump executable");
     auto* code=reinterpret_cast<unsigned char*>(image+pp::kClose);
     constexpr unsigned char thunk[]{0x55,0x8b,0xec,0x81,0xec,0x04,0x02,0x00,0x00,0x81,0xc4,0x04,0x02,0x00,0x00,0x5d,0xe9,0,0,0,0};
     std::memcpy(code,thunk,sizeof(thunk));
@@ -92,6 +100,55 @@ void Boundary(std::uintptr_t image){
     node[1]=0;Check(!pp::Capture(scene,observed),"broken HUD owner links rejected");node[1]=ptr(head.data());
     root[0x64/4]=1;Check(!pp::Capture(scene,observed),"world transition never closes a HUD");
     pp::Unbind();
+}
+int ImageBinding(const char* path){
+    // Map only the real PE binding bytes; never execute third-party code. This
+    // catches a thunk/direct-address mismatch that synthetic HUDs cannot prove.
+    std::ifstream input(std::filesystem::path(path),std::ios::binary|std::ios::ate);
+    const auto size=input.tellg();if(size<=0||size>64*1024*1024){return 2;}
+    std::vector<unsigned char> bytes(static_cast<std::size_t>(size));input.seekg(0);
+    if(!input.read(reinterpret_cast<char*>(bytes.data()),size)){return 2;}
+    BCRYPT_ALG_HANDLE algorithm{};BCRYPT_HASH_HANDLE hash{};std::array<unsigned char,32> digest{};
+    if(BCryptOpenAlgorithmProvider(&algorithm,BCRYPT_SHA256_ALGORITHM,nullptr,0)<0){return 2;}
+    const bool hashed=BCryptCreateHash(algorithm,&hash,nullptr,0,nullptr,0,0)>=0
+        &&BCryptHashData(hash,bytes.data(),static_cast<ULONG>(bytes.size()),0)>=0
+        &&BCryptFinishHash(hash,digest.data(),static_cast<ULONG>(digest.size()),0)>=0;
+    if(hash){BCryptDestroyHash(hash);}BCryptCloseAlgorithmProvider(algorithm,0);
+    if(!hashed){return 2;}
+    std::string identity;for(auto byte:digest){identity+="0123456789abcdef"[byte>>4];identity+="0123456789abcdef"[byte&15];}
+    if(identity!="a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a"
+        &&identity!="051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698"
+        &&identity!="1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c"
+        &&identity!="baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9"){return 2;}
+    const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(bytes.data());
+    const auto* nt=reinterpret_cast<const IMAGE_NT_HEADERS32*>(bytes.data()+dos->e_lfanew);
+    const auto* sections=IMAGE_FIRST_SECTION(nt);
+    auto copy=[&](unsigned rva,void* destination,unsigned length){
+        for(unsigned i=0;i<nt->FileHeader.NumberOfSections;++i){const auto& section=sections[i];
+            if(rva>=section.VirtualAddress&&rva+length<=section.VirtualAddress+section.SizeOfRawData){
+                const auto offset=section.PointerToRawData+rva-section.VirtualAddress;
+                if(offset+length>bytes.size()){return false;}
+                std::memcpy(destination,bytes.data()+offset,length);return true;
+            }
+        }return false;
+    };
+    auto* memory=static_cast<unsigned char*>(VirtualAlloc(nullptr,0x1700000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
+    if(!memory){return 2;}const auto image=reinterpret_cast<std::uintptr_t>(memory);
+    constexpr unsigned slot_rva=0x116fb58+0x10c,thunk_rva=0x17440,close_rva=0x5f4e70;
+    Check(copy(slot_rva,memory+slot_rva,4)&&copy(thunk_rva,memory+thunk_rva,5)
+        &&copy(close_rva,memory+close_rva,9),"real PE binding spans copied");
+    auto* slot=reinterpret_cast<std::uint32_t*>(memory+slot_rva);
+    *slot+=static_cast<std::uint32_t>(image)-nt->OptionalHeader.ImageBase;
+    Check(pp::Bind(image),"actual reviewed image binds Track close slot/thunk/body");pp::Unbind();
+    *slot=static_cast<std::uint32_t>(image+close_rva);
+    Check(!pp::Bind(image),"invented direct close slot rejected");
+    *slot=static_cast<std::uint32_t>(image+thunk_rva);memory[thunk_rva+1]^=1;
+    Check(!pp::Bind(image),"altered close thunk target rejected");memory[thunk_rva+1]^=1;
+    memory[close_rva]^=1;Check(!pp::Bind(image),"altered close body rejected");
+    VirtualFree(memory,0,MEM_RELEASE);
+    std::cout<<"{\"image_sha256\":\""<<identity<<"\",\"binding_cases\":4,\"failures\":"<<failures
+        <<",\"native_code_executed\":false}\n";
+    return failures;
 }
 void Run(void* message,void* socket,void(__stdcall* decode)(void*,void*),std::uintptr_t image){
     Boundary(image);
@@ -156,6 +213,9 @@ void Run(void* message,void* socket,void(__stdcall* decode)(void*,void*),std::ui
 }
 }
 int main(int argc,char** argv){
+    if(argc==2&&std::strcmp(argv[1],"1")&&std::strcmp(argv[1],"2")&&std::strcmp(argv[1],"3")){
+        return presentation_tests::ImageBinding(argv[1]);
+    }
     if(argc>1){fail_at=static_cast<unsigned>(std::strtoul(argv[1],nullptr,10));}
     auto* image=static_cast<unsigned char*>(VirtualAlloc(nullptr,0x1700000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));
     if(!image){return 2;}const auto base=reinterpret_cast<std::uintptr_t>(image);

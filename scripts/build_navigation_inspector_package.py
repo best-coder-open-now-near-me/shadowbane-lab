@@ -271,6 +271,11 @@ def validate_group_chat_probe_steps(steps, *, reviewed_client):
                                        features=("combat_group_chat",))
 
 
+def validate_tracking_presentation_steps(steps, *, reviewed_client):
+    return _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
+                                       features=("tracking_responses",), binary_suffix="test")
+
+
 def validate_activation_probe_steps(steps, *, reviewed_client):
     probes = _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
                                         features=("combat_activation_incoming",
@@ -902,6 +907,8 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
                         [build / f"Release/wonderbane_extension_{feature}_probe.exe", image])
             for suffix, image in (("binding", arguments.reviewed_client.resolve()),
                                   ("prepared-binding", prepared_client)):
+                run(f"{profile}-tracking_responses-{suffix}",
+                    [build / "Release/wonderbane_extension_tracking_responses_test.exe", image])
                 run(f"{profile}-combat_activation_observer-{suffix}",
                     [build / "Release/wonderbane_extension_combat_activation_observer_test.exe",
                      image])
@@ -1279,6 +1286,8 @@ else:
         "combat_power_movement_transition_verified": validate_combat_power_movement_steps(
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
+        "tracking_presentation_binding_verified": validate_tracking_presentation_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client)),
         "group_chat_constructor_queue_verified": validate_group_chat_probe_steps(
             steps, reviewed_client=bool(arguments.reviewed_client)),
         "combat_activation_boundaries_verified": validate_activation_probe_steps(
