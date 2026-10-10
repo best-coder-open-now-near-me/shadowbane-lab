@@ -262,7 +262,7 @@ class PvEController(_BasePvEController):
         )
         if not accepted and self._engaged_target_token is None:
             self._quarantine_population_candidate(
-                observation, tracked.token,
+                observation, tracked,
                 PvETargetRejectionReason.TARGET_AUTHORITY_UNAVAILABLE if authority is None
                 else PvETargetRejectionReason.TARGET_AUTHORITY_REJECTED,
             )
@@ -271,9 +271,10 @@ class PvEController(_BasePvEController):
     def _quarantine_population_candidate(
         self,
         observation: PvEObservation,
-        target_token: str,
+        tracked: PvETrackedTarget,
         reason: PvETargetRejectionReason,
     ) -> None:
+        target_token = tracked.token
         population = observation.population
         assert population is not None
         selected_at = self._population_candidate_selected_at
@@ -295,7 +296,7 @@ class PvEController(_BasePvEController):
         )
         self._target_rejections.append(rejection)
         self._active_step_target_rejections.append(rejection)
-        self._failed_target_tokens[target_token] = observation.now_ms
+        self._failed_targets[(target_token, tracked.object_key)] = observation.now_ms
         self._population_desired_target_token = None
         self._population_cycle_seen.clear()
         self._population_candidate_selected_at = None
