@@ -166,7 +166,7 @@ def _listen_for_go_commands(
     live: bool,
     as_json: bool,
     pve_continuous: bool = False,
-    pve_camp_radius: float = 120.0,
+    pve_camp_radius: float | None = None,
     pve_retained_trace_steps: int = 2_000,
     native_world_map_profile_path: Path | None = None,
     hotkey_config_path: Path | None = None,

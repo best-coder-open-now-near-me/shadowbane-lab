@@ -33,6 +33,12 @@ from shadowbane_lab.client_observation.native_target_action import (
     NativeTargetActionReader,
     NativeTargetActionReadError,
 )
+from shadowbane_lab.client_observation.native_zone import (
+    NativeCurrentZoneProfile,
+    NativeCurrentZoneReadError,
+    NativeZoneChainReader,
+    NativeZoneIdentity,
+)
 
 NATIVE_CHARACTER_POPULATION_PROFILE_SCHEMA_VERSION = 4
 _BUNDLED_PROFILE_NAME = "wonderbane-ef43784b.native-character-population.json"
@@ -208,6 +214,7 @@ class NativeCharacterObservation:
     object_key: NativeObjectKey | None = None
     character_kind: NativeCharacterKind = NativeCharacterKind.UNKNOWN
     owner_object_key: NativeObjectKey | None = None
+    named_zone: NativeZoneIdentity | None = None
 
     def __post_init__(self) -> None:
         if not self.token.strip():
@@ -250,6 +257,14 @@ class NativeCharacterObservation:
                 raise ValueError("character cannot own itself")
             if self.character_kind != NativeCharacterKind.PET:
                 raise ValueError("character with a pet owner must have PET kind")
+
+        if self.named_zone is not None and (
+            not isinstance(self.named_zone, NativeZoneIdentity)
+            or not self.named_zone.name.strip()
+            or not self.named_zone.object_type or not self.named_zone.object_uuid
+            or self.character_kind is not NativeCharacterKind.NPC
+        ):
+            raise ValueError("named_zone requires an NPC and a valid named placed zone")
 
     @property
     def alive(self) -> bool:
@@ -349,6 +364,8 @@ class NativeCharacterPopulationReader:
         self,
         profile: NativeCharacterPopulationProfile,
         process: BlockReadOnlyProcessMemory,
+        *,
+        zone_profile: NativeCurrentZoneProfile | None = None,
     ) -> None:
         if not isinstance(profile, NativeCharacterPopulationProfile):
             raise ValueError("profile must be NativeCharacterPopulationProfile")
@@ -371,6 +388,8 @@ class NativeCharacterPopulationReader:
             )
         self._profile = profile
         self._process = process
+        self._zones = (None if zone_profile is None
+                       else NativeZoneChainReader(zone_profile, process))
         self._player_slot = process.base_address + profile.player_pointer_rva
         self._selected_slot = process.base_address + profile.selected_pointer_rva
         self._character_vtable = process.base_address + profile.arc_character_vtable_rva
@@ -726,6 +745,15 @@ class NativeCharacterPopulationReader:
         action_target = struct.unpack_from("<I", block, profile.action_target_pointer_offset)[0]
         if action_target:
             self._require_pointer(action_target, profile.pointer_size, "action target")
+        kind = (NativeCharacterKind.PET if owner_key is not None
+                else self._character_kind(object_key))
+        named_zone = None
+        if self._zones is not None and kind is NativeCharacterKind.NPC:
+            try:
+                named_zone = self._zones.named_zone_for_character(address)
+            except NativeCurrentZoneReadError:
+                # Missing/stale zone evidence is not membership in any camp.
+                pass
         if self._read_pointer(address, "candidate vtable") != self._character_vtable:
             raise NativeCharacterPopulationReadError("candidate changed during population read")
         verified_block = self._read_object_block(address, "ArcCharacter candidate verification")
@@ -741,6 +769,18 @@ class NativeCharacterPopulationReader:
             raise NativeCharacterPopulationReadError("candidate sparse header changed during read")
         if self._read_sparse_values(buckets, table_bits) != (roles, owner_key):
             raise NativeCharacterPopulationReadError("candidate sparse values changed during read")
+        if named_zone is not None:
+            assert self._zones is not None
+            try:
+                if self._zones.named_zone_for_character(address) != named_zone:
+                    named_zone = None
+            except NativeCurrentZoneReadError:
+                named_zone = None
+            final = self._read_object_block(address, "zone-enriched candidate verification")
+            if (struct.unpack_from("<I", final)[0] != self._character_vtable
+                    or self._read_object_key(final, "zone-enriched candidate") != object_key):
+                raise NativeCharacterPopulationReadError(
+                    "candidate changed during zone verification")
         return NativeCharacterObservation(
             token=self._token(address),
             current_health=max(0.0, min(current, maximum)),
@@ -755,11 +795,9 @@ class NativeCharacterPopulationReader:
             minion=roles["minion"],
             action_target_token=self._token(action_target) if action_target else None,
             object_key=object_key,
-            character_kind=(
-                NativeCharacterKind.PET
-                if owner_key is not None else self._character_kind(object_key)
-            ),
+            character_kind=kind,
             owner_object_key=owner_key,
+            named_zone=named_zone,
         )
 
     def _read_object_key(self, block: bytes, label: str) -> NativeObjectKey:
@@ -895,6 +933,7 @@ def open_windows_native_character_population_reader(
     profile: NativeCharacterPopulationProfile,
     *,
     process_id: int | None = None,
+    zone_profile: NativeCurrentZoneProfile | None = None,
 ) -> NativeCharacterPopulationReader:
     process = (
         WindowsReadOnlyProcessMemory.open_unique(profile.executable_name)
@@ -905,6 +944,7 @@ def open_windows_native_character_population_reader(
         return NativeCharacterPopulationReader(
             profile,
             process,
+            zone_profile=zone_profile,
         )
     except Exception:
         process.close()

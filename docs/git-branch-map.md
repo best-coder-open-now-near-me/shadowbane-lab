@@ -1,21 +1,49 @@
 # Git branch map
 
-## PvE combat-aware approach - October 9
+## Native named PvE camps - October 10
 
-The composed host-only candidate is on
-`codex/pve-combat-aware-release-20261009` in root-owned `bot-integration`:
-installed release `3459d173` plus reviewed feature `7b033840`. Native .59 and
-assets must remain byte-identical to installed `3459d173`; exact host package
-qualification is pending. Do not use this graphics composition as the shared
-source base.
+`main` remains the shared integration destination. The combined source branch is
+`codex/pve-native-camp-20261010` in `bot-runtime`, based on the exact-target
+lifetime fix `30d64c478cf5b42e785ea793a44172acb1260a83` (PR #144). It includes native
+NPC zone enrichment `4c975501` and named camp ownership `ce0c26e7`, independently
+reviewed. CLI/manager defaults now request named camp membership in both finite
+and continuous runs; an explicit radius remains available.
 
-Root owns `codex/pve-combat-aware-approach-20261009` in `bot-runtime`, based on
-refreshed `main` at `126aeeb`. Host .91 retains native .59. The slice passes exact
-engaged-target health progress into approach, yielding host steering and arrival
-settling without canceling native combat. Outbound movement decisions keep one
-sequence across route restarts and later encounters. Main remains the shared
-integration destination. Next: independent review, full host qualification and
-host-only installation after the .90/.59 delivery completes.
+Host .92 composition is on `codex/pve-native-camp-release-20261010` in
+root-owned `bot-integration`, retaining installed graphics and native .59.
+Combined hosted checks and package qualification are pending.
+Installed host .91/native .59 remains `faf9d023abc055d1c27a1efa9c69d0af62f1da1f`;
+no named-camp runtime installation or live combat acceptance is claimed yet.
+Compose the qualified update with that release's retained graphics/native .59,
+not by replacing it with a bare main build. Next: combined source review to main,
+exact-source host qualification, installation and one camp run. Root owns delivery;
+see [the camp contract](pve-automation.md#named-camps-and-approach).
+
+## PvE combat-aware approach - October 10
+
+Start new work from refreshed `main`, including PR #142 merge
+`f12cbf01f570763ca1dd05f88f4aa152679e4ce1`. All 15 hosted checks passed at
+reviewed feature head `7b033840a24e959ab3ad11e078c9ae8ce8652b7c`.
+
+Qualified host .91 composition `faf9d023abc055d1c27a1efa9c69d0af62f1da1f` is
+published on `codex/pve-combat-aware-release-20261009` in `bot-integration`.
+It retains installed native .59 and graphics from `3459d173` unchanged; this
+release composition is not the shared development base. Main includes the PvE
+source. The host yields approach and obsolete arrival checks while exact-target
+health loss shows recent progress, then resumes ordinary approach when it stops.
+Movement request identities remain unique across route restarts and encounters.
+
+Independent qualification verified 6,007 host tests (41 optional skips), both
+native IPC profiles, six installed desktop cases, one real worker handshake,
+all 486 modules and all 16 package stages. Host-only installation is verified:
+486 modules, 9,532 preserved records, zero client-file writes and the same game
+lifetime. Eleven obsolete host/wheel paths were removed (57,971,425 bytes);
+current runtime and user data remain. A bounded production run confirmed three
+exact NPC health-zero deaths with cleanup between encounters, then cancellation
+and upkeep Resume. All five buff groups were present. Approach routes were not
+exercised: ranged combat progressed while host steering yielded. Root owns the
+delivery record on
+`codex/pve-approach-delivery-20261010`, targeting `main`.
 
 ## Hunt Foe group callouts - October 10
 

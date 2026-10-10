@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from math import hypot
 
+from shadowbane_lab.client_observation.native_object import NativeObjectKey
 from shadowbane_lab.client_observation.native_population import NativeCharacterKind
 from shadowbane_lab.pve.model import (
     PvEAbility,
@@ -58,7 +59,7 @@ class PvEController:
         self._selection_lost_at: int | None = None
         self._reengage_attempts = 0
         self._stalled_retargets = 0
-        self._failed_target_tokens: dict[str, int] = {}
+        self._failed_targets: dict[tuple[str, NativeObjectKey], int] = {}
         self._require_different_target = False
         self._last_power_at: dict[int, int] = {}
         self._interrupts_for_target = 0
@@ -71,6 +72,7 @@ class PvEController:
         self._target_sample_cycle_at: int | None = None
         self._empty_target_cycles = 0
         self._camp: PvECampLease | None = None
+        self._camp_anchor: tuple[float, float] | None = None
         self._camp_return_retry_at: int | None = None
         self._last_target_inside_camp: bool | None = None
         self._population_desired_target_token: str | None = None
@@ -211,7 +213,7 @@ class PvEController:
 
     def candidate_camp(self, observation: PvEObservation) -> PvECampLease | None:
         """Establish the same original camp before ranking an external interruption."""
-        if self._started_at is None and self._camp is None:
+        if self._camp is None:
             self._capture_camp(observation)
         return self._camp
 
@@ -227,6 +229,8 @@ class PvEController:
         self._enter(PvEPhase.RECOVERING, observation.now_ms)
 
     def can_start_external_combat(self, observation: PvEObservation) -> bool:
+        if self._config.named_camp and self._camp is None:
+            return False
         action = observation.player_action
         if self._engaged_target_token is None and (
             action is None or not action.initiation_clear
@@ -276,6 +280,7 @@ class PvEController:
         if self._started_at is None:
             self._started_at = now
             self._phase_entered_at = now
+        if self._camp is None:
             self._capture_camp(observation)
         if self._camp is not None and observation.player_position is None:
             return self.stop("camp_position_unavailable", now_ms=now)
@@ -397,14 +402,14 @@ class PvEController:
         ranked = sorted(
             (character for character in population.characters
              if character.object_key is not None
-             and character.token not in self._failed_target_tokens),
+             and (character.token, character.object_key) not in self._failed_targets),
             key=lambda item: (hypot(item.lt - position.lt, item.lg - position.lg), item.token),
         )
         for character in ranked:
             tracked = PvETrackedTarget(character.token, character.object_key, character)
             if self._tracked_target_attack_eligible(observation, tracked):
                 return self._bind_engagement(observation, character)
-        if self._config.continuous:
+        if self._config.continuous or self._config.named_camp:
             return self._begin_camp_idle(observation)
         if self._phase_elapsed(now) >= self._config.acquisition_timeout_ms:
             return self.stop("mob_acquisition_timeout", now_ms=now)
@@ -702,10 +707,18 @@ class PvEController:
         self, observation: PvEObservation, tracked: PvETrackedTarget,
     ) -> bool:
         character = tracked.character
-        return bool(character is not None and character.attack_eligible
-                    and character.character_kind is NativeCharacterKind.NPC and (
-            self._camp is None or self._camp.contains(character.lt, character.lg)
-        ))
+        if (character is None or not character.attack_eligible
+                or character.character_kind is not NativeCharacterKind.NPC):
+            return False
+        if self._config.named_camp:
+            # Current zone is admission evidence, not spawn ownership. A pull can
+            # cross zones without replacing the exact already-admitted target.
+            if (tracked.token, tracked.object_key) == (
+                self._engaged_target_token, self._engaged_object_key
+            ):
+                return True
+            return self._camp is not None and self._camp.matches_character(character)
+        return self._camp is None or self._camp.matches_character(character)
 
     @property
     def input_target(self) -> PvETrackedTarget | None:
@@ -802,31 +815,75 @@ class PvEController:
     ) -> PvEControllerDecision:
         now = observation.now_ms
         if self._engaged_target_token is not None:
-            self._failed_target_tokens[self._engaged_target_token] = now
+            assert self._engaged_object_key is not None
+            self._failed_targets[(self._engaged_target_token, self._engaged_object_key)] = now
         self._baseline_target_token = observation.target.target_token
         self._request_cleanup(reason, now)
         return self._emit(now)
 
     def _capture_camp(self, observation: PvEObservation) -> None:
-        if self._config.camp_radius is None:
+        if self._camp is not None or (
+            not self._config.named_camp and self._config.camp_radius is None
+        ):
             return
         if observation.player_position is None:
             raise ValueError("camp-scoped PvE requires native player position")
+        position = observation.player_position
+        if self._camp_anchor is None:
+            self._camp_anchor = (position.lt, position.lg)
+        zone = None
+        radius = self._config.camp_radius
+        if self._config.named_camp:
+            population = observation.population
+            candidates = () if population is None else (
+                character for character in population.characters
+                if character.object_key is not None and character.attack_eligible
+                and character.character_kind is NativeCharacterKind.NPC
+                and character.named_zone is not None
+                and character.named_zone.name.strip()
+                and character.named_zone.object_type > 0 and character.named_zone.object_uuid > 0
+            )
+            nearest = min(candidates, key=lambda item: (
+                hypot(item.lt - position.lt, item.lg - position.lg), item.token
+            ), default=None)
+            if nearest is None:
+                return
+            zone = nearest.named_zone
+            assert zone is not None
+            geometry = zone.geometry
+            # A circumscribing navigation envelope, NEVER named NPC membership.
+            # Include the fixed return tolerance even for a very small zone.
+            radius = max(
+                hypot(geometry.center_lt - self._camp_anchor[0],
+                      geometry.center_lg - self._camp_anchor[1])
+                + hypot(geometry.radius_x, geometry.radius_z),
+                self._config.camp_return_radius * 2,
+                (self._config.camp_return_trigger_radius or 0)
+                + self._config.camp_return_radius,
+            )
+        assert radius is not None
         self._camp = PvECampLease(
-            anchor_lt=observation.player_position.lt,
-            anchor_lg=observation.player_position.lg,
-            radius=float(self._config.camp_radius),
-            return_radius=float(self._config.camp_return_radius),
-            return_trigger_radius=(
-                None
-                if self._config.camp_return_trigger_radius is None
-                else float(self._config.camp_return_trigger_radius)
-            ),
+            anchor_lt=self._camp_anchor[0], anchor_lg=self._camp_anchor[1],
+            radius=float(radius), return_radius=float(self._config.camp_return_radius),
+            return_trigger_radius=self._config.camp_return_trigger_radius,
+            native_zone=zone,
         )
 
     def _target_inside_camp(self, observation: PvEObservation) -> bool | None:
         if self._camp is None:
             return None
+        if self._camp.native_zone is not None:
+            population = observation.population
+            if population is None:
+                return None
+            tracked = self.tracked_target(observation)
+            character = (tracked.character if tracked is not None else next((
+                item for item in population.characters
+                if item.token == observation.target.target_token
+            ), None))
+            if character is None or character.named_zone is None:
+                return None
+            return self._camp.matches_character(character)
         target_position = observation.target_position
         if target_position is None or not target_position.target_present:
             return None
@@ -876,9 +933,9 @@ class PvEController:
 
     def _expire_failed_targets(self, now_ms: int) -> None:
         cutoff = now_ms - self._config.failed_target_cooldown_ms
-        self._failed_target_tokens = {
-            token: failed_at
-            for token, failed_at in self._failed_target_tokens.items()
+        self._failed_targets = {
+            identity: failed_at
+            for identity, failed_at in self._failed_targets.items()
             if failed_at > cutoff
         }
 

@@ -450,3 +450,33 @@ def test_progress_before_first_approach_sample_retains_only_its_actual_remaining
     expired = control.step(observation(600), phase=PvEPhase.ENGAGED, tracked_target=tracked(),
                            target_health_progress_at_ms=100)
     assert expired.status.value == "moving"
+
+
+@pytest.mark.parametrize("replacement", [False, True])
+def test_authority_rejection_cooldown_does_not_transfer_to_reused_address(replacement):
+    class CurrentEvidence(StaticPvETargetAuthorityEvaluator):
+        def evaluate_tracked(self, obs, target):
+            return StaticPvETargetAuthorityEvaluator((evidence(
+                target_object_key=target.object_key,
+                attackable=obs.now_ms > 0,
+            ),)).evaluate_tracked(obs, target)
+
+    controller = PvEController(
+        PvEControllerConfig(failed_target_cooldown_ms=500),
+        target_authority_evaluator=CurrentEvidence(()),
+        require_verified_target_authority=True,
+    )
+    rejected = controller.step(observation(0))
+    assert rejected.combat_proposal is None
+    assert len(controller.target_rejections) == 1
+    current = character(object_key=NativeObjectKey(21, 2) if replacement else BOUND)
+    reconsidered = controller.step(observation(100, characters=(current,)))
+    if replacement:
+        assert reconsidered.phase is PvEPhase.ENGAGED
+        assert reconsidered.combat_proposal.target_key == current.object_key
+    else:
+        assert reconsidered.combat_proposal is None
+        assert controller.step(observation(499)).combat_proposal is None
+        expired = controller.step(observation(500))
+        assert expired.phase is PvEPhase.ENGAGED
+        assert expired.combat_proposal.target_key == BOUND

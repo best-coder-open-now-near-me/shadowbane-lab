@@ -1,5 +1,79 @@
 # Wonderbane official client update — October 9, 2026
 
+## Combat-aware PvE approach (.91/.59), October 10
+
+PR #142 merged at `f12cbf01f570763ca1dd05f88f4aa152679e4ce1` after all 15
+hosted checks passed at `7b033840a24e959ab3ad11e078c9ae8ce8652b7c`.
+Exact composed release `faf9d023abc055d1c27a1efa9c69d0af62f1da1f` is pushed
+on `codex/pve-combat-aware-release-20261009`. Native .59 and client assets
+remain byte-identical to installed `3459d173`; no game restart is required.
+
+Health loss on the admitted NPC yields host steering and stale arrival settling
+for a bounded interval without issuing native PAUSE. When progress expires,
+approach resumes with a fresh movement identity. This is encounter progress,
+not damage credit or measured weapon range. A native path already submitted is
+not claimed canceled. The next live run covers consecutive NPC encounters and
+recovery using the ordinary production runner with saved buffs and opener.
+
+Qualification passed 6,007 host tests with 41 optional skips, both profiles'
+76 movement / 86 combat / 235 actor IPC cases without skips, six installed desktop
+cases and one real worker handshake. Independent review verified 1,512 archived
+source files, all 486 source/wheel/installed modules, all 16 package stages and
+the unchanged native package provenance.
+
+| Qualified identity | SHA-256 |
+| --- | --- |
+| Host qualification receipt | `70f995b85cb3c446f982e90e01bf3d27a3a521c66da1b2b371f09fe4f6334666` |
+| Host .91 wheel | `e91392d60264cbb5fd9934246ea8675bae9508235a4e8096f8fcf50162657518` |
+| Exact source archive | `f74fa802dd7166003e4329ab0a558f8971d2d10d40d360ba03d199fc335192cc` |
+| Reviewed host-only plan | `a4b21103dbb152b887c6cb38a5bceeb97812ceb0e55072049d125414e441c4af` |
+
+Host-only installation and independent receipt review are complete. Activation
+verified all 486 modules and preserved 9,532 records with zero exclusions and ten
+typed generated-record changes. The same game process, lifetime, window and .59
+DLL remained open, with zero client-file writes. Manager PID 572 and worker PID
+8988 were healthy. Two manager shortcuts now use .91; three client links remain
+unchanged. Activation receipt SHA-256:
+`9ce07704dab887ab88ae6aebeeaf985abf62877c87334aeb44037fe52af600f1`.
+
+The qualified package and private deployment evidence are under
+`artifacts/bot-deploy/20261009-host91`; no binaries or private captures are included
+in source delivery. All eleven verified obsolete .90 host/wheel paths are absent,
+freeing 57,971,425 bytes. The current native DLL was excluded from removal; no
+rollback copies were retained. Retirement receipt SHA-256:
+`5cd3ccecbfbc85c213597699b975263ca0b89a20c46370d89d9fe4b5b5dd70a2`.
+
+A final passive check identified Umbra on Wonderbane in the same client lifetime,
+with a healthy worker and no active or queued operation. Subsequent bounded
+PvE acceptance is recorded below; actual group-callout delivery remains unverified.
+
+### Bounded production PvE result
+
+After the user reported readiness, the native census found six eligible NPCs.
+The ordinary manager PvE operation recorded three distinct exact-object health-zero deaths
+at 5.391, 24.985 and 45.266 seconds, with target cleanup confirmations between
+encounters. Explicit cancellation completed, the ledger held no active or queued
+operation, and normal Resume restored automatic upkeep. All five configured buff
+groups were present during the run. This is native encounter evidence, not server
+kill-credit attribution.
+
+The Aedroch Highlands navigation map contained 6,068 seeded cells. No approach
+route was submitted and no movement error occurred: host steering yielded 37
+times as the tracked targets lost health. Umbra moved at most 0.083 world units;
+targets began approximately 94.62, 108.76 and 113.60 units away and moved closer.
+This validates consecutive stationary ranged encounters, not an approach route.
+The current runner supports approach, repositioning and camp return; it does not
+autonomously roam between packs when no eligible target is available.
+
+Private evidence summary:
+`artifacts/bot-deploy/20261009-host91/pve-run/pve-evidence-summary.json`, SHA-256
+`26598e30d41fa0a632b27823637556655cf8ec496443e13e895bd38ee917426a`.
+The exact native journal SHA-256 is
+`5a14c824f4fb5ec12d7e65631778b2806c1cfc6d04d33e99c7c9a1db08880781`.
+Requested Hunt Foe group callouts are enabled; the observed sender withheld them
+because Umbra was not in a native group. Actual server delivery remains unverified.
+Next: live approach validation or the separate roaming-between-packs feature.
+
 ## Hunt Foe group-callout qualification (.90/.59), October 10
 
 PR #139 merged at `f17c1c57e8390e3ac5abec64a0b33a4ed3f89079` after all 15
@@ -42,7 +116,7 @@ No additional combat attempt or forced potion-expiry test was performed.
 Installation and independent receipt review are complete. Activation verified
 486 modules and preserved 9,566 settings/history records. Client assets remained
 unchanged except for the intended DLL. The reviewed launcher opened game PID
-4216 with the exact .59 DLL; manager and worker were healthy at login. No new
+4216 with the exact .59 DLL; manager and worker were healthy at the login screen. No new
 combat operation or live group send occurred.
 
 The compact local receipt index is

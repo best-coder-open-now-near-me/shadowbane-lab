@@ -375,3 +375,49 @@ class NativeCurrentZoneCliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SharedNativeZoneChainTests(unittest.TestCase):
+    def test_named_zone_preserves_nearest_parent_and_runtime_template(self):
+        from shadowbane_lab.client_observation.native_zone import NativeZoneChainReader
+        process, _ = _fixture("", parent_name="Connauch Henge", parent_template=(1, 0))
+        reader = NativeZoneChainReader(_profile(), process)
+        zone = reader.named_zone_for_character(0x3518B280)
+        self.assertEqual(("Connauch Henge", 1, 9, 70041),
+                         (zone.name, zone.depth, zone.object_type, zone.object_uuid))
+        self.assertFalse(zone.cache_resolvable)
+        self.assertFalse(process.closed)
+
+    def test_equal_metadata_at_replaced_parent_address_is_unstable(self):
+        from shadowbane_lab.client_observation.native_zone import NativeZoneChainReader
+        process, current = _fixture("", parent_name="Camp")
+        old, replacement = 0x2A200000, 0x2A300000
+        for address, values in list(process.responses.items()):
+            if old <= address < old + 0x1000:
+                process.responses[replacement + address - old] = list(values)
+        process.responses[current + _profile().parent_zone_offset] = [
+            _pointer(old), _pointer(replacement)]
+        with self.assertRaisesRegex(NativeCurrentZoneReadError, "chain changed"):
+            NativeZoneChainReader(_profile(), process).named_zone_for_character(0x3518B280)
+
+    def test_nearest_named_zone_without_placed_key_does_not_fall_back(self):
+        from shadowbane_lab.client_observation.native_zone import NativeZoneChainReader
+        process, current = _fixture("Camp", parent_name="Region")
+        process.responses[current + _profile().object_type_offset] = [struct.pack("<II", 0, 0)]
+        with self.assertRaisesRegex(NativeCurrentZoneReadError, "placed identity"):
+            NativeZoneChainReader(_profile(), process).named_zone_for_character(0x3518B280)
+
+    def test_character_zone_pointer_transition_rejects_membership(self):
+        from shadowbane_lab.client_observation.native_zone import NativeZoneChainReader
+        process, current = _fixture("Camp")
+        process.responses[0x3518B280 + _profile().current_zone_offset] = [
+            _pointer(current), _pointer(current + 0x10000)]
+        with self.assertRaisesRegex(NativeCurrentZoneReadError, "character zone changed"):
+            NativeZoneChainReader(_profile(), process).named_zone_for_character(0x3518B280)
+
+    def test_local_player_reader_uses_same_stable_parent_chain(self):
+        process, current = _fixture("Camp", parent_name="Region")
+        process.responses[current + _profile().parent_zone_offset] = [
+            _pointer(0x2A200000), _pointer(0)]
+        with self.assertRaisesRegex(NativeCurrentZoneReadError, "chain changed"):
+            NativeCurrentZoneReader(_profile(), process, stability_attempts=1).observe()

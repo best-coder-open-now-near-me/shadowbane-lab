@@ -951,8 +951,8 @@ def _parser() -> argparse.ArgumentParser:
     run_pve.add_argument(
         "--camp-radius",
         type=float,
-        default=120.0,
-        help="continuous target-admission radius around the starting LT/LG",
+        default=None,
+        help="use an explicit starting-point radius instead of the nearest native named camp",
     )
     run_pve.add_argument(
         "--retained-trace-steps",
@@ -1130,9 +1130,9 @@ def _parser() -> argparse.ArgumentParser:
     listen_go.add_argument(
         "--pve-continuous",
         action="store_true",
-        help="make /pve run until stopped inside a camp anchored at startup",
+        help="make /pve run until stopped in one native named camp or explicit radius",
     )
-    listen_go.add_argument("--pve-camp-radius", type=float, default=120.0)
+    listen_go.add_argument("--pve-camp-radius", type=float, default=None)
     listen_go.add_argument("--pve-retained-trace-steps", type=int, default=2_000)
     listen_go.add_argument("--pve-recovery-timeout-seconds", type=float, default=30.0)
     listen_go.add_argument("--pve-poll-ms", type=int, default=100)
@@ -1356,7 +1356,7 @@ def _parser() -> argparse.ArgumentParser:
     manager_worker.add_argument("--pve-max-encounter-seconds", type=float, default=120.0)
     manager_worker.add_argument("--pve-recovery-timeout-seconds", type=float, default=30.0)
     manager_worker.add_argument("--pve-poll-ms", type=int, default=100)
-    manager_worker.add_argument("--pve-camp-radius", type=float, default=120.0)
+    manager_worker.add_argument("--pve-camp-radius", type=float, default=None)
     manager_worker.add_argument("--pve-retained-trace-steps", type=int, default=2_000)
     manager_worker.add_argument("--travel-max-seconds", type=float, default=300.0)
     manager_worker.add_argument("--travel-poll-ms", type=int, default=200)

@@ -134,7 +134,7 @@ def _run_pve(
     stop_signal: StopSignal | None = None,
     client_process_id: int | None = None,
     continuous: bool = False,
-    camp_radius: float = 120.0,
+    camp_radius: float | None = None,
     retained_trace_steps: int = 2_000,
     native_character_population_profile_path: Path | None = None,
     navigation_map: SparseNavigationMap | None = None,
@@ -153,7 +153,7 @@ def _run_pve(
         return _error("max-kills must be in [1, 10]", as_json=as_json)
     if not isinstance(continuous, bool):
         return _error("continuous must be a boolean", as_json=as_json)
-    if not 20.0 <= camp_radius <= 1_000.0:
+    if camp_radius is not None and not 20.0 <= camp_radius <= 1_000.0:
         return _error("camp-radius must be in [20, 1000]", as_json=as_json)
     if isinstance(retained_trace_steps, bool) or not 100 <= retained_trace_steps <= 100_000:
         return _error(
@@ -256,9 +256,7 @@ def _run_pve(
             else load_bundled_native_character_population_profile()
         )
         group_profile = native_party.load_bundled_native_group_profile()
-        zone_profile = (
-            None if navigation_cache_directory is None else load_bundled_native_zone_profile()
-        )
+        zone_profile = load_bundled_native_zone_profile()
         if navigation_cache_directory is not None and not navigation_cache_directory.is_dir():
             raise ValueError(
                 f"navigation cache directory does not exist: {navigation_cache_directory}"
@@ -335,7 +333,8 @@ def _run_pve(
                 nearest_target_sample_count=1,
                 target_sample_interval_ms=350,
                 continuous=continuous,
-                camp_radius=camp_radius if continuous else None,
+                camp_radius=camp_radius,
+                named_camp=camp_radius is None,
             )
             if opening_definition is not None:
                 controller_config = replace(controller_config, opening_ability=PvEAbility(
@@ -394,6 +393,7 @@ def _run_pve(
                 open_windows_native_character_population_reader(
                     character_population_profile,
                     process_id=process_id,
+                    zone_profile=zone_profile if camp_radius is None else None,
                 )
             )
             group_reader = stack.enter_context(
@@ -401,8 +401,7 @@ def _run_pve(
             )
             active_navigation_map = navigation_map
             zone_reader = None
-            if zone_profile is not None:
-                assert navigation_cache_directory is not None
+            if navigation_cache_directory is not None:
                 zone_reader = stack.enter_context(
                     open_windows_native_current_zone_reader(
                         zone_profile,
@@ -490,6 +489,7 @@ def _run_pve(
                             "process_id": process_id,
                             "executable_sha256": health_profile.executable_sha256,
                             "camp_radius": camp_radius,
+                            "camp_mode": "native_named" if camp_radius is None else "manual_radius",
                             "poll_ms": poll_ms,
                             "terrain_navigation": terrain_navigation_payload,
                             "native_character": native_character_payload,
@@ -632,13 +632,7 @@ def _run_pve(
         "camp_lease": (
             None
             if camp is None
-            else {
-                "anchor_lt": camp.anchor_lt,
-                "anchor_lg": camp.anchor_lg,
-                "radius": camp.radius,
-                "return_radius": camp.return_radius,
-                "return_trigger_radius": camp.return_trigger_radius,
-            }
+            else camp.as_dict()
         ),
         "farm_limits": (
             None
@@ -658,6 +652,7 @@ def _run_pve(
             if not continuous
             else {
                 "camp_radius": camp_radius,
+                "camp_mode": "native_named" if camp_radius is None else "manual_radius",
                 "retained_trace_steps": retained_trace_steps,
                 "encounter_timeout_seconds": max_encounter_seconds,
                 "failed_targets_expire": True,

@@ -21,6 +21,7 @@ from shadowbane_lab.client_observation import (
     NativeTargetPositionObservation,
 )
 from shadowbane_lab.client_observation.native_object import NativeObjectKey
+from shadowbane_lab.client_observation.native_zone import NativeZoneIdentity
 from shadowbane_lab.travel.model import TravelDecision, TravelDestination
 
 if TYPE_CHECKING:
@@ -303,15 +304,24 @@ class PvECombatCleanupResult:
 
 @dataclass(frozen=True, slots=True)
 class PvECampLease:
-    """The spatial operating boundary captured where a continuous run starts."""
+    """A fixed operation anchor with explicit spatial or native-zone admission."""
 
     anchor_lt: float
     anchor_lg: float
     radius: float
     return_radius: float
     return_trigger_radius: float | None = None
+    native_zone: NativeZoneIdentity | None = None
+    listed_target_radius: float | None = None
 
     def __post_init__(self) -> None:
+        if self.listed_target_radius is None:
+            object.__setattr__(self, "listed_target_radius",
+                               self.radius if self.native_zone is None else 120.0)
+        if (isinstance(self.listed_target_radius, bool)
+                or not isinstance(self.listed_target_radius, (int, float))
+                or not isfinite(self.listed_target_radius) or self.listed_target_radius <= 0):
+            raise ValueError("listed_target_radius must be positive and finite")
         if self.return_trigger_radius is None:
             object.__setattr__(
                 self,
@@ -332,6 +342,12 @@ class PvECampLease:
                 or not isfinite(value)
             ):
                 raise ValueError(f"camp {field_name} must be finite")
+        if self.native_zone is not None and (
+            not isinstance(self.native_zone, NativeZoneIdentity)
+            or not self.native_zone.name.strip()
+            or self.native_zone.object_type <= 0 or self.native_zone.object_uuid <= 0
+        ):
+            raise ValueError("named camp requires a positive placed native zone identity")
         if self.radius <= 0:
             raise ValueError("camp radius must be positive")
         if self.return_radius <= 0 or self.return_radius >= self.radius:
@@ -342,7 +358,32 @@ class PvECampLease:
             )
 
     def contains(self, lt: float, lg: float) -> bool:
-        return hypot(lt - self.anchor_lt, lg - self.anchor_lg) <= self.radius
+        # Listed PvP retains its existing nearby spatial policy independently of
+        # named NPC membership and the potentially larger navigation envelope.
+        assert self.listed_target_radius is not None
+        return self.distance_from_anchor(lt, lg) <= self.listed_target_radius
+
+    def matches_character(self, character: NativeCharacterObservation) -> bool:
+        if self.native_zone is None:
+            return self.distance_from_anchor(character.lt, character.lg) <= self.radius
+        zone = character.named_zone
+        return zone is not None and (
+            zone.object_type, zone.object_uuid
+        ) == (self.native_zone.object_type, self.native_zone.object_uuid)
+
+    def as_dict(self) -> dict[str, object]:
+        zone = self.native_zone
+        return {
+            "anchor_lt": self.anchor_lt, "anchor_lg": self.anchor_lg,
+            "radius": self.radius, "return_radius": self.return_radius,
+            "return_trigger_radius": self.return_trigger_radius,
+            "listed_target_radius": self.listed_target_radius,
+            "native_zone": None if zone is None else {
+                "name": zone.name, "object_key": [zone.object_type, zone.object_uuid],
+                "template_key": [zone.template_group_id, zone.template_id],
+            },
+            "radius_role": "membership" if zone is None else "navigation_envelope",
+        }
 
     def distance_from_anchor(self, lt: float, lg: float) -> float:
         return hypot(lt - self.anchor_lt, lg - self.anchor_lg)
@@ -397,6 +438,7 @@ class PvEControllerConfig:
     minimum_approach_progress: float = 8.0
     continuous: bool = False
     camp_radius: float | None = None
+    named_camp: bool = False
     camp_return_radius: float = 12.0
     camp_return_trigger_radius: float | None = None
     camp_idle_ms: int = 5_000
@@ -484,6 +526,7 @@ class PvEControllerConfig:
             ),
             (self.require_target_identity, "require_target_identity"),
             (self.continuous, "continuous"),
+            (self.named_camp, "named_camp"),
         ):
             if not isinstance(value, bool):
                 raise ValueError(f"{field_name} must be a boolean")
@@ -508,8 +551,10 @@ class PvEControllerConfig:
             or self.camp_return_trigger_radius <= 0
         ):
             raise ValueError("camp_return_trigger_radius must be positive when present")
-        if self.continuous and self.camp_radius is None:
-            raise ValueError("continuous PvE requires a camp_radius")
+        if self.named_camp and self.camp_radius is not None:
+            raise ValueError("named_camp and camp_radius are mutually exclusive")
+        if self.continuous and self.camp_radius is None and not self.named_camp:
+            raise ValueError("continuous PvE requires a camp_radius or named_camp")
         if self.camp_radius is not None and self.camp_return_radius >= self.camp_radius:
             raise ValueError("camp_return_radius must be below camp_radius")
         if self.camp_return_trigger_radius is not None and (
@@ -1010,11 +1055,7 @@ class PvERunTraceStep:
                 None
                 if self.decision.camp is None
                 else {
-                    "anchor_lt": self.decision.camp.anchor_lt,
-                    "anchor_lg": self.decision.camp.anchor_lg,
-                    "radius": self.decision.camp.radius,
-                    "return_radius": self.decision.camp.return_radius,
-                    "return_trigger_radius": (self.decision.camp.return_trigger_radius),
+                    **self.decision.camp.as_dict(),
                     "target_inside": self.decision.target_inside_camp,
                     "return_requested": self.decision.return_to_camp,
                 }
