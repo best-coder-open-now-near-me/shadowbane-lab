@@ -1,5 +1,15 @@
 # Git branch map
 
+## PvE combat-aware approach - October 9
+
+Root owns `codex/pve-combat-aware-approach-20261009` in `bot-runtime`, based on
+refreshed `main` at `126aeeb`. Host .91 retains native .59. The slice passes exact
+engaged-target health progress into approach, yielding host steering and arrival
+settling without canceling native combat. Outbound movement decisions keep one
+sequence across route restarts and later encounters. Main remains the shared
+integration destination. Next: independent review, full host qualification and
+host-only installation after the .90/.59 delivery completes.
+
 ## Hunt Foe group callouts - October 10
 
 Start new work from refreshed `main`, including PR #139 merge

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from math import hypot, isfinite
 
@@ -25,6 +25,7 @@ from shadowbane_lab.travel.model import TravelManeuver
 
 class PvEApproachStatus(StrEnum):
     IDLE = "idle"
+    YIELDING = "yielding"
     MOVING = "moving"
     ARRIVED = "arrived"
     CANCELLED = "cancelled"
@@ -38,6 +39,7 @@ class PvEApproachConfig:
     arrival_radius: float = 20.0
     reposition_arrival_radius: float = 3.0
     native_progress_grace_ms: int = 2_500
+    combat_progress_grace_ms: int = 5_000
     native_minimum_progress: float = 8.0
     maximum_astar_replans_per_target: int = 6
     travel: TravelControllerConfig = field(
@@ -74,6 +76,8 @@ class PvEApproachConfig:
             or self.native_progress_grace_ms <= 0
         ):
             raise ValueError("native_progress_grace_ms must be a positive integer")
+        if type(self.combat_progress_grace_ms) is not int or self.combat_progress_grace_ms <= 0:
+            raise ValueError("combat_progress_grace_ms must be a positive integer")
         if (
             isinstance(self.native_minimum_progress, bool)
             or not isinstance(self.native_minimum_progress, (int, float))
@@ -128,7 +132,9 @@ class PvEApproachController:
             raise ValueError("planner must be WeightedAStarPlanner")
         self._navigation_map = navigation_map or SparseNavigationMap()
         self._planner = planner or WeightedAStarPlanner()
+        self._decision_sequence = 0
         self._target_token: str | None = None
+        self._combat_progress_at: int | None = None
         self._best_distance: float | None = None
         self._last_native_progress_at: int | None = None
         self._travel: TravelController | None = None
@@ -152,6 +158,7 @@ class PvEApproachController:
         camp: PvECampLease | None = None,
         return_to_camp: bool = False,
         tracked_target: PvETrackedTarget | None = None,
+        target_health_progress_at_ms: int | None = None,
     ) -> PvEApproachUpdate:
         if not isinstance(observation, PvEObservation):
             raise ValueError("observation must be PvEObservation")
@@ -165,6 +172,13 @@ class PvEApproachController:
             raise ValueError("return_to_camp must be boolean")
         if tracked_target is not None and not isinstance(tracked_target, PvETrackedTarget):
             raise ValueError("tracked_target must be PvETrackedTarget when present")
+        progress = target_health_progress_at_ms
+        if progress is not None and (
+            type(progress) is not int or not 0 <= progress <= observation.now_ms
+            or tracked_target is None or not tracked_target.available
+            or phase not in (PvEPhase.OPENING, PvEPhase.ENGAGED) or return_to_camp
+        ):
+            raise ValueError("combat progress requires a current tracked encounter")
         if return_to_camp:
             if phase not in (PvEPhase.CAMP_IDLE, PvEPhase.RECOVERING) or camp is None:
                 raise ValueError("camp return requires camp-idle/recovery and a camp lease")
@@ -207,6 +221,22 @@ class PvEApproachController:
                 return self.cancel("approach_target_changed")
             self._begin_target(target_token, distance, observation.now_ms)
 
+        if (progress is not None
+                and (self._combat_progress_at is None or progress > self._combat_progress_at)):
+            self._combat_progress_at = progress
+        if (self._combat_progress_at is not None
+                and observation.now_ms - self._combat_progress_at
+                < self._config.combat_progress_grace_ms):
+            # Health loss on this exact object is encounter progress, not proof of
+            # our damage or weapon range. Yield host steering without native PAUSE:
+            # PAUSE also closes combat. An existing native path is not claimed stopped.
+            self._travel = None
+            self._terminal_reported = False
+            self._backtrack_pending = False
+            self._forced_reposition = False
+            self._debug_event("combat_progress", observation, reason="yield_host_steering")
+            return self._update(PvEApproachStatus.YIELDING)
+
         if reposition_requested and distance > self._config.reposition_arrival_radius:
             self._begin_target(
                 target_token,
@@ -228,12 +258,12 @@ class PvEApproachController:
             if self._travel is None or self._terminal_reported:
                 self._debug_event("arrival_candidate", observation, destination)
                 self._forced_reposition = False
-                return PvEApproachUpdate(PvEApproachStatus.ARRIVED)
+                return self._update(PvEApproachStatus.ARRIVED)
             self._travel.update_final_destination(destination)
             decision = self._travel.arrive(self._last_travel_observation)
             self._terminal_reported = True
             self._forced_reposition = False
-            return PvEApproachUpdate(PvEApproachStatus.ARRIVED, decision)
+            return self._update(PvEApproachStatus.ARRIVED, decision)
 
         if self._travel is not None and self._travel.terminal:
             self._begin_target(
@@ -257,7 +287,7 @@ class PvEApproachController:
             )
         ):
             self._debug_event("native_chase", observation, destination)
-            return PvEApproachUpdate(PvEApproachStatus.IDLE)
+            return self._update(PvEApproachStatus.IDLE)
         return self._advance_travel(observation, destination)
 
     def _return_to_camp(
@@ -289,12 +319,12 @@ class PvEApproachController:
             if self._travel is None or self._terminal_reported:
                 self._debug_event("arrival_candidate", observation, destination)
                 self._forced_reposition = False
-                return PvEApproachUpdate(PvEApproachStatus.ARRIVED)
+                return self._update(PvEApproachStatus.ARRIVED)
             self._travel.update_final_destination(destination)
             decision = self._travel.arrive(self._last_travel_observation)
             self._terminal_reported = True
             self._forced_reposition = False
-            return PvEApproachUpdate(PvEApproachStatus.ARRIVED, decision)
+            return self._update(PvEApproachStatus.ARRIVED, decision)
         if self._travel is not None and self._travel.terminal:
             self._begin_target(
                 camp_token,
@@ -320,7 +350,7 @@ class PvEApproachController:
                 self._debug_event(
                     "failure", observation, destination, reason=f"astar_route_not_found{detail}"
                 )
-                return PvEApproachUpdate(
+                return self._update(
                     PvEApproachStatus.FAILED,
                     TravelDecision(
                         decision_id=0,
@@ -361,11 +391,22 @@ class PvEApproachController:
             self._backtrack_pending = False
         if decision.phase is TravelPhase.STOPPED:
             self._terminal_reported = True
-            return PvEApproachUpdate(PvEApproachStatus.FAILED, decision)
+            return self._update(PvEApproachStatus.FAILED, decision)
         if decision.phase is TravelPhase.COMPLETE:
             self._terminal_reported = True
-            return PvEApproachUpdate(PvEApproachStatus.ARRIVED, decision)
-        return PvEApproachUpdate(PvEApproachStatus.MOVING, decision)
+            return self._update(PvEApproachStatus.ARRIVED, decision)
+        return self._update(PvEApproachStatus.MOVING, decision)
+
+    def _update(
+        self, status: PvEApproachStatus, decision: TravelDecision | None = None,
+    ) -> PvEApproachUpdate:
+        # Native request UUIDs use the operation grant and decision ID. Route
+        # controllers restart their counters, so number all emitted decisions
+        # within this approach owner, including replans and later encounters.
+        if decision is not None:
+            decision = replace(decision, decision_id=self._decision_sequence)
+            self._decision_sequence += 1
+        return PvEApproachUpdate(status, decision)
 
     def cancel(self, reason: str) -> PvEApproachUpdate:
         if not isinstance(reason, str) or not reason.strip():
@@ -374,10 +415,10 @@ class PvEApproachController:
             if self._target_token is not None and not self._terminal_reported:
                 self._debug_event("cancelled", reason=reason)
             self._reset()
-            return PvEApproachUpdate(PvEApproachStatus.IDLE)
+            return self._update(PvEApproachStatus.IDLE)
         decision = self._travel.stop(reason, self._last_travel_observation)
         self._reset()
-        return PvEApproachUpdate(PvEApproachStatus.CANCELLED, decision)
+        return self._update(PvEApproachStatus.CANCELLED, decision)
 
     def _begin_target(
         self,
@@ -387,6 +428,8 @@ class PvEApproachController:
         *,
         forced_reposition: bool = False,
     ) -> None:
+        if self._target_token != target_token:
+            self._combat_progress_at = None
         self._target_token = target_token
         self._debug_phase = None
         self._debug_event("target_changed", reason=target_token)
@@ -400,6 +443,7 @@ class PvEApproachController:
 
     def _reset(self) -> None:
         self._target_token = None
+        self._combat_progress_at = None
         self._best_distance = None
         self._last_native_progress_at = None
         self._travel = None
@@ -422,6 +466,7 @@ class PvEApproachController:
         try:
             if event in (
                 "native_chase",
+                "combat_progress",
                 "camp_return",
                 "reposition",
                 "arrival_candidate",

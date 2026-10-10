@@ -522,6 +522,7 @@ class PvERunner:
                         observation,
                         phase=decision.phase,
                         tracked_target=self._controller.tracked_target(observation),
+                        target_health_progress_at_ms=decision.target_health_progress_at_ms,
                         reposition_requested=decision.reposition_requested,
                         camp=decision.camp,
                         return_to_camp=decision.return_to_camp,
@@ -554,6 +555,11 @@ class PvERunner:
             movement_stop_accepted = None
             movement_stop_reason = None
             approach_decision = None if approach is None else approach.decision
+            if approach is not None and approach.status is PvEApproachStatus.YIELDING:
+                # Combat progress supersedes host arrival settling. This does not
+                # report arrival or stop the native path/combat owner.
+                arrival_pending = None
+                arrival_approach = None
             if approach_decision is not None and approach_decision.minimap_direction is not None:
                 arrival_pending = None
                 assert self._movement_dispatcher is not None
