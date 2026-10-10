@@ -17,13 +17,15 @@ plus six installed desktop cases and one worker handshake. Independent verificat
 checked 136 artifacts, 108 stages and 484 modules.
 
 Delivery documentation is owned on `codex/conc-potion-delivery-20261009` in
-`conc-renewal-delivery`, targeting `main`. Interrupted `.88` host preparation
-has been repaired and the installed validator passed all 484 modules. The exact
-old manager and worker have stopped, native quiescence was verified, and no
-independent old-host dependency remains. The game is still open with the old
-`.57` DLL; bot upkeep is stopped pending the requested client closure. Runtime
-replacement and live early-renewal acceptance are pending. Next: close the target
-client, install and verify activation, then resume and observe covered renewal.
+`conc-renewal-delivery`, targeting `main`. The exact `.88/.58` release is now
+installed and activation-verified: 484 modules, 9,549 retained records, zero
+exclusions and two expected generated changes (startup and dispatch permit).
+The reviewed client launch loaded the exact `.58` DLL and the manager and new
+worker are healthy. The client remains at login with character identity unavailable;
+no in-world early-renewal acceptance is claimed. Obsolete `.87` host/wheels and
+the staged `.57` DLL are retired: all 12 paths are absent and 59,101,750 bytes
+were removed, with current client/DLL and worker health preserved. Next: log
+Umbra in, verify upkeep and observe covered renewal.
 See [the renewal contract](conc-potion-renewal.md).
 
 ## Hunt Foe player-awareness delivery - October 9

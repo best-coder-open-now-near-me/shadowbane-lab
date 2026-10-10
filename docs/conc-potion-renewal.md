@@ -71,12 +71,34 @@ remains. The manager-stopped receipt is
 `636e7a497e16a181783d8d4c563418ed9a63042cfc205cb3cc5517617dce48d5`,
 with completion `reviewed_phase_completed`.
 
-The game remains open with the prior `.57` DLL. Bot upkeep is stopped while the
-user closes that client; runtime replacement and live acceptance remain pending.
-Next: install and verify activation after client closure, then resume and observe
-the native covered-renewal submission and each required descriptor's deadline
-advancement. Successful qualification does not itself demonstrate live renewal
-continuity.
+After client closure and resolution of an interruption caused by a full disk,
+the exact `.88/.58` release was installed and activation-verified. Verification
+covered all 484 modules and 9,549 retained records with zero exclusions. The two
+expected generated changes were startup state and the dispatch permit; user
+settings and journals were preserved in place. Receipts:
+
+- Apply: `5d61f8eb2bd068c932ff1758c2e0702642fce1b66e50af889a5afe19165a02d9`.
+- Shortcuts: `e8058aaa297ca0b3e33e9f4e2a0d1f04330ac18f22063f23c639f4911b9c1f82`.
+- Activation: `0f12f1b68900c8927905b8ecdfcb093d44e6b3b8c775a3c838ec40816133f1d6`.
+
+The reviewed launcher subsequently started client PID 3800, creation
+`134360674803195597`, and verified the qualified `.58` DLL
+`8f5e257b91de88978a24691c25302c92477cc242ef2c63522a806c47ac0aab75`.
+Manager PID 1800 and the new worker PID 1576, creation `134360675892153412`,
+are healthy. The client is at login and the binding has no in-world character
+identity yet; the user has been asked to log Umbra in.
+
+Obsolete deployment files have been retired: the `.87` host (2,159 files), ten
+staged wheels and the staged `.57` DLL. All 12 target paths were verified absent,
+removing 59,101,750 bytes. The current client lifetime and `.58` DLL stayed
+unchanged; the manager and one worker remained healthy. Retirement receipt:
+`e380cbf24eb10230ae1e1ee1498456d9bdb3062431619cc9fb747fbc125a60a9`.
+No old runtime was retained for fallback.
+
+The client still has no in-world character identity at login. Next: log Umbra in,
+verify automatic upkeep, and observe the native covered-renewal submission and
+each required descriptor's deadline advancement. Live early-renewal acceptance
+remains pending; successful installation and launch do not demonstrate that behavior.
 
 Follow the [deployment policy](deployment-policy.md). Preserve user settings and
 journals in place and retain compact source/hash receipts, not rollback runtimes.
