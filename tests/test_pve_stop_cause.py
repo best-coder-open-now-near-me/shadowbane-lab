@@ -169,6 +169,11 @@ def test_actual_worker_executor_preserves_requested_vs_interrupted(tmp_path, mon
     observed = []
 
     def pve(**kwargs):
+        # Model the real post-setup boundary before injecting an active-run stop.
+        assert not session.acquire_calls
+        dispatcher = kwargs['movement_acquirer']()
+        assert dispatcher is executor._movement.dispatcher
+        assert len(session.acquire_calls) == 1
         if cause in ('cancel', 'cancel_cleanup_failure', 'stop'):
             kind = WorkerOperationKind.STOP if cause == 'stop' else WorkerOperationKind.CANCEL
             ledger.pending_for.return_value = (SimpleNamespace(kind=kind),)

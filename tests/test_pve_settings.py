@@ -185,16 +185,23 @@ def test_worker_uses_current_character_settings_instead_of_assassin_default(tmp_
 
     _, session, _ = context()
     executor = make_executor(tmp_path, session)
-    run = Mock(return_value=0)
+    def prepared_run(**kwargs):
+        assert not session.acquire_calls
+        dispatcher = kwargs["movement_acquirer"]()
+        assert dispatcher is executor._movement.dispatcher
+        return 0
+
+    run = Mock(side_effect=prepared_run)
     monkeypatch.setattr(manager, "_run_pve", run)
-    dispatcher = object()
     operation = new_worker_operation(_permit(), WorkerOperationKind.PVE, "/pve", now=100.0)
-    executor._execute_pve(
-        operation=operation, stop_signal=Event(), movement_dispatcher=dispatcher
-    )
+    executor._binding = replace(executor._binding, client_id=operation.client_id,
+                                instance_id=operation.instance_id, worker_id=operation.worker_id)
+    result = executor.execute(operation, stop_signal=Event())
+    assert result.state.value == "succeeded"
     assert run.call_args.kwargs["policy"] is None
     assert run.call_args.kwargs["client_process_id"] == 123
-    assert run.call_args.kwargs["movement_dispatcher"] is dispatcher
+    assert "movement_dispatcher" not in run.call_args.kwargs
+    assert len(session.acquire_calls) == len(session.stop_calls) == session.closed == 1
 
 
 def buff_intent():
