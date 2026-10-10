@@ -929,7 +929,12 @@ class _ExactWorkerEngineExecutor:
             self._movement = movement
         cleanup_problem = None
         try:
-            if not movement.acquire():
+            if operation.kind is WorkerOperationKind.PVE:
+                # Reserve operation ownership immediately, but do not mint a native
+                # lease until PvE has finished readers/terrain setup and revalidated
+                # the exact client. Maintenance remains attached to this object.
+                result = self._execute_pve(operation=operation, movement=movement)
+            elif not movement.acquire():
                 result = WorkerOperationExecution(
                     WorkerOperationState.CANCELLED,
                     movement.reason or "movement acquisition cancelled",
@@ -937,11 +942,6 @@ class _ExactWorkerEngineExecutor:
             elif operation.kind is WorkerOperationKind.TRAVEL:
                 result = self._execute_travel(
                     operation, stop_signal=movement, movement_dispatcher=movement.dispatcher
-                )
-            elif operation.kind is WorkerOperationKind.PVE:
-                result = self._execute_pve(
-                    operation=operation, stop_signal=movement,
-                    movement_dispatcher=movement.dispatcher
                 )
             else:
                 raise ValueError(f"unsupported operation kind {operation.kind!r}")
@@ -1026,9 +1026,13 @@ class _ExactWorkerEngineExecutor:
         self,
         *,
         operation: WorkerOperation,
-        stop_signal: StopSignal,
-        movement_dispatcher: TravelDecisionDispatcher,
+        movement: OperationMovement,
     ) -> WorkerOperationExecution:
+        stop_signal = movement
+
+        def acquire_movement():
+            return movement.dispatcher if movement.acquire() else None
+
         self._pve_evidence_directory.mkdir(parents=True, exist_ok=True)
         evidence_output = _new_chat_pve_evidence_path(self._pve_evidence_directory)
         from shadowbane_lab.manager.pve_status import PvEProgressPublisher
@@ -1065,7 +1069,7 @@ class _ExactWorkerEngineExecutor:
                 retained_trace_steps=self._pve_retained_trace_steps,
                 progress_sink=publisher,
                 navigation_map=self._navigation_map,
-                movement_dispatcher=movement_dispatcher,
+                movement_acquirer=acquire_movement,
             )
         finally:
             if publisher is not None:
