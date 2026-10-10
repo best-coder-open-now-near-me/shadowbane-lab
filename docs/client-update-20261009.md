@@ -1,5 +1,80 @@
 # Wonderbane official client update — October 9, 2026
 
+## Host .89 installed with the game open
+
+PR #138 merged normally at `f13828521128cc2a7e4525ae4590fefdc9df00a8` after all
+15 hosted checks passed at reviewed head `3cdd9db`. The host now retains the
+exact client process/window identity for maintenance instead of repeating whole
+desktop discovery. It also preserves original acquisition and renewal rejection
+evidence through cleanup. The native one-second lease and no-reacquisition rules
+are unchanged. This removes a reproduced blocking path and improves diagnosis;
+it does not establish the cause of the historical live stop.
+
+Exact release `14bf5abadf9bd49c57e556c7511e40d3bdf41ea4`, published on
+`codex/pve-maintenance-release-20261009`, is host 0.3.89 with native 1.8.58 from
+`00e6ae75a95f63d723f78db49097d716d1425f31`. Native inputs, assets and the installed
+graphics composition are byte-identical to that previous release. Qualification
+passed 5,925 host tests (41 optional skips), both profiles' 76 movement / 86 combat /
+233 actor IPC tests, six installed Windows desktop cases and one real worker
+handshake. All 485 source, wheel and installed module files agree. Independent
+review verified the qualification recipe, package, fresh baseline and sealed
+23-member deployment payload.
+
+| Host .89 artifact | SHA-256 |
+| --- | --- |
+| Qualification receipt | `667d53c8bf70f91f3f731b1e89c6fb2d549de1ba1288bced517feb675d2ea50b` |
+| Wheel | `d118049597a00656bb9d80fd074567c0c3a8462ae4367e4986825c5a60c9cc88` |
+| Reviewed deployment plan | `269471226f5b3a0bb36c712f8aaad779f9bfac5f19568efc7c4fb6bc920641ea` |
+| Apply receipt | `4844aac3fbd97908cbd6613885192197de633318a5274bfe10910e9a6b62019a` |
+| Activation receipt | `6c2dd658b5ac9f00e7982a805655973091feec77fce3d6127c9888ae13137075` |
+
+The new host was prepared while the old manager remained active. Normal Pause
+and exact manager/worker shutdown preceded the host reference switch. Activation
+verified manager 7916, creation FILETIME `134360704253193128`, startup generation
+`3b13091959e74be39f6bacfdad300b66`, and healthy worker 448, creation FILETIME
+`134360704289067195`. All 9,518 retained records passed with zero exclusions and
+ten expected generated-record changes. Game PID 3800, creation FILETIME
+`134360674803195597`, HWND 197316 and DLL
+`8f5e257b91de88978a24691c25302c92477cc242ef2c63522a806c47ac0aab75` remained unchanged.
+There were zero client inventory changes and no client writes or retained rollback
+copies. Normal Resume succeeded. These identities describe the activation boundary,
+not an assumption about later process lifetimes.
+
+The preceding .88 NPC attempt failed before combat at movement acquisition; its
+source discarded the decisive native outcome. A later manual-activity sample
+cannot establish that earlier failure's cause. The one bounded .89 attempt also
+failed before combat, now preserving the correlated native `INHIBITED` outcome:
+operation `operation-5429f8e5a0f442499a4b0e93950da221`, acquisition
+`2113756c-92a4-487c-b515-b90a89002d07`, expected `g2/s1/NONE/f23/r1` and receipt
+`g2/s1/NONE/f7/r1`. No automation ownership was minted; the operation is terminal,
+with no active or queued work. The receipt does not expose the internal veto
+subreason, and no blind retry was made. Exact result evidence SHA-256 is
+`497a3b58b82d6c727a9109c5b3b5a6d90736bb1ee1613d3b205ecaee2d4bb09f`
+(`pve-baseline/pve-brief-inspect.json` in the diagnostic share).
+Conc-pot's sampled remaining duration was
+about 9.8 million milliseconds and decreased normally; natural renewal remains
+pending without forcing another interruption exercise. Group arrival callouts
+are separate draft work and have not been installed or sent live.
+
+Private package evidence is under `artifacts/bot-deploy/20261009-host89`;
+deployment receipts are in the testing VM diagnostic share under
+`host-update-20261009-0.3.89`. No client binaries or private captures are included
+in this source delivery. After fresh dependency inspection and independent review,
+obsolete host .88 (2,159 files) and its ten staged wheel files were removed.
+All eleven targets are verified absent, freeing 57,899,147 bytes. The same game
+and DLL, healthy manager/worker, settings, jobs and evidence remain. Retirement
+receipt SHA-256 is
+`d021a0fdb8110275d842d55d39975a3e1587278617777c6e72dba406d99c0b9b`;
+post-retirement check SHA-256 is
+`36e72a00eaf47afa566763d2ab2995348b6449e190cf16b8e08e7019a2d1fb57`.
+At that sample, preparation was current and maintaining, but four buffs were
+missing; healthy process status does not mean all buffs
+were present. Next: identify the current native/UI/input veto using read-only
+facts, then address any reproduced source defect before another NPC attempt.
+Natural renewal and group-callout qualification remain separate pending work.
+
+The following .86 and earlier sections are historical.
+
 ## Host .86 installed and activation verified
 
 PR #131 merged the automatic-preparation recovery fix at `abc4f3d` after all
