@@ -763,6 +763,7 @@ def _run_manager_worker(
             travel_poll_ms=travel_poll_ms,
             travel_click_interval_ms=travel_click_interval_ms,
         )
+        from shadowbane_lab.manager.game_identity import WindowsGameIdentityGuard
         from shadowbane_lab.manager.native_preparation import create_worker_preparation
         runtime = ExactClientWorkerRuntime(
             manifest,
@@ -772,6 +773,7 @@ def _run_manager_worker(
             process_inspector,
             operation_ledger=operation_ledger,
             operation_executor=executor,
+            game_identity_guard_factory=WindowsGameIdentityGuard,
             operation_maintenance=executor.maintain,
             operation_initializer=executor.initialize,
             preparation_factory=lambda publisher, process: create_worker_preparation(

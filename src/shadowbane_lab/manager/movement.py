@@ -156,7 +156,19 @@ class OperationMovement:
                 self.session.renew(grant)
             except (NativeActionChannelError, OSError, ValueError) as exc:
                 self.session.cleanup.abort(grant)
-                self.interrupt(f"native movement renewal failed: {type(exc).__name__}")
+                # Keep the immutable request and transport timing evidence in the
+                # terminal reason; a Busy type alone cannot distinguish contention
+                # from an expired lease. Never retry/reacquire after this failure.
+                detail = " ".join(str(exc).split())[:128]
+                notes = "; ".join(
+                    " ".join(str(note).split())[:96]
+                    for note in getattr(exc, "__notes__", ())[:2]
+                )
+                self.interrupt(
+                    f"native movement renewal failed: {type(exc).__name__[:64]}; "
+                    f"request={self.request_key}; {detail}"
+                    + (f"; {notes}" if notes else "")
+                )
         finally:
             self._lock.release()
 
