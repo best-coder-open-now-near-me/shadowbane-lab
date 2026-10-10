@@ -10,6 +10,7 @@ namespace pw = wonderbane::extension::combat::power;
 namespace sb = wonderbane::extension::combat::submission;
 namespace {
 int failures{};
+unsigned manual_track_notices{};
 const char* image_digest="";
 std::uintptr_t verified_image{};
 unsigned verification_calls{};
@@ -538,6 +539,7 @@ int main(int argc, char** argv) {
     reset();std::array<std::uint8_t,5> disk=pw::sites[0].bytes,code=disk;code[0]=0xcc;
     // A truncated span cannot authorize only one of the owned callsites.
     Check(!pw::NormalizeOwnedCode(base,0x9d3d4,code,disk),"normalization rejects incomplete owned image");
+    Check(manual_track_notices==0,"owned automatic Track never reserves manual presentation");
     const auto first=pw::sites[12].rva; // Lowest observed callsite, tracking sender.
     const auto last=pw::sites[5].rva+5;
     std::vector<std::uint8_t> whole_disk(last-first),whole_code;
@@ -554,6 +556,7 @@ int main(int argc, char** argv) {
         c.Eax=11;c.Ebx=22;c.Ecx=33;c.Edx=44;c.Ebp=55;c.Esi=66;c.Edi=77;c.EFlags=0x246;
         const auto epoch_before=pw::InitiationEpoch();SetLastError(1234);
         Check(pw::Trap(&e)==EXCEPTION_CONTINUE_EXECUTION,"qualified protocol CALL handled");
+        if(i==12){Check(manual_track_notices==1,"unscoped Track sender reserves manual presentation before call-through");}
         std::int32_t displacement{};std::memcpy(&displacement,site.bytes.data()+1,4);
         const auto native_route=i==12?reinterpret_cast<DWORD>(pw::original_send):i<=5?reinterpret_cast<DWORD>(&pw::OrdinaryUseHook):i>=8?reinterpret_cast<DWORD>(&pw::RemoveInitiationHook):i==6?reinterpret_cast<DWORD>(&pw::detail::Observer::ForeignFollowupHook):base+site.rva+5+displacement;
         const auto observed_route=wonderbane::extension::combat::activation::Route(site.rva,c.Ebp,native_route);
@@ -580,3 +583,5 @@ int main(int argc, char** argv) {
     // Installed hooks and handler intentionally live until process exit.
     return failures?1:0;
 }
+
+namespace wonderbane::extension::tracking::presentation { void ManualQuery() noexcept {++manual_track_notices;} }

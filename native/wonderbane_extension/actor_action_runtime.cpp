@@ -1,4 +1,5 @@
 #include "combat_runtime.h"
+#include "tracking_presentation.h"
 #include "item_application_trace.h"
 #include "actor_action_native.h"
 #include "actor_action_controller.h"
@@ -106,7 +107,7 @@ public:
     }
     void Revoke(const wire::Command& input,bool owner) noexcept override {
         if(input.parent_id!=owner_command.parent_id||input.parent_digest!=owner_command.parent_digest){return;}
-        if(owner){cancelled.store(true,std::memory_order_release);native.Revoke();}
+        if(owner){tracking::presentation::Retire(owner_command.parent_id);cancelled.store(true,std::memory_order_release);native.Revoke();}
         else if(input.context_id==child_command.context_id&&input.context_digest==child_command.context_digest){child_cancelled.store(true,std::memory_order_release);}
     }
     std::size_t JournalIndex(const wire::Command& command) const noexcept {
@@ -320,6 +321,9 @@ public:
             &&(!targeted||child_ticket.TryAdmit(child,true)==fence::Result::admitted)){
             const auto index=JournalIndex(input);
             const auto submitted=native.Submit(input,index<activations.size()?activations[index]:combat::activation::Handle{});result=Converted(submitted);
+            if(tracking&&result.outcome==O::queued&&(result.history&wire::outbound_queued)&&Current(this)){
+                tracking::presentation::Arm(scene,owner_command.parent_id);
+            }
             // Observation after native return, outside the queue lock. Never application authority.
             item_trace::OwnedReturn(input,scene,result.outcome,result.entry,result.local,result.history,&submitted.power_diagnostic);
             if(!targeted&&!tracking&&!chat&&result.outcome==O::deferred&&result.entry==wire::Entry::never_entered){
@@ -334,6 +338,7 @@ public:
     bool StopOwned(const movement::NativeScene& expected,const movement::Grant& expected_grant) noexcept {
         if(!active&&!preparing){return true;}
         if(stopping||retired||expected.epoch!=scene.epoch||expected_grant!=grant||!(Preparation()?SceneGate(this):movement::NativeOwnerStopCurrent(expected,expected_grant))){return false;}
+        tracking::presentation::Retire(owner_command.parent_id);
         cancelled.store(true,std::memory_order_release);native.Revoke();stopping=true;
         wire::Command pending{};const bool pending_before=native.PendingCommand(pending);
         const auto result=native.StopOwner(parent,StopCurrent,this);
@@ -389,6 +394,7 @@ public:
         const bool valid_scene=movement::ReadNativeMovementLifetime(fresh)&&fresh.window==reinterpret_cast<std::uintptr_t>(root)
             &&movement::NativeMovementLifetimeCurrent(fresh);
         if(scene.epoch&&(retired||!movement::NativeMovementLifetimeCurrent(scene))){
+            tracking::presentation::Retire(owner_command.parent_id);
             retired=true;cancelled.store(true,std::memory_order_release);native.Revoke();
             if(has_manifest){(void)publisher.Unknown(3);}
             if(native.ReleaseScene()){
@@ -407,8 +413,11 @@ public:
         if(active&&!retired){
             Poll();
             if(!Current(this)){(void)Stop(owner_command,true);}
-            else if(child_admitted&&(!ChildCurrent(this)||!native.ContinueContext())){
-                const auto state=Stop(child_command,false);(void)controller.UpdateScope(child_command,state,false);
+            else {
+                tracking::presentation::Maintain(scene,owner_command.parent_id);
+                if(child_admitted&&(!ChildCurrent(this)||!native.ContinueContext())){
+                    const auto state=Stop(child_command,false);(void)controller.UpdateScope(child_command,state,false);
+                }
             }
         }
         if(auto pending=Take()){
@@ -435,7 +444,7 @@ Runtime runtime;
 bool Runtime::PreparationOwned() noexcept { return (runtime.active||runtime.preparing)&&runtime.Preparation(); }
 bool Runtime::StopOwner(const movement::NativeScene& scene,const movement::Grant& grant,movement::StopReason) noexcept{return runtime.StopOwned(scene,grant);}
 void Runtime::Retire(std::uint64_t epoch) noexcept {
-    if(runtime.scene.epoch==epoch){runtime.retired=true;runtime.cancelled.store(true,std::memory_order_release);runtime.native.Revoke();}
+    if(runtime.scene.epoch==epoch){tracking::presentation::Retire(runtime.owner_command.parent_id);runtime.retired=true;runtime.cancelled.store(true,std::memory_order_release);runtime.native.Revoke();}
 }
 void Runtime::Update(void* root,HWND window) noexcept{runtime.Tick(root,window);}
 }
