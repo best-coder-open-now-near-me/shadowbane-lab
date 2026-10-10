@@ -128,7 +128,7 @@ bool NativeActor::BindScene(const movement::NativeScene& scene,HWND window,Admis
     calls_.lookup=reinterpret_cast<decltype(calls_.lookup)>(image_+0x1fcc80);
     calls_.release=reinterpret_cast<decltype(calls_.release)>(image_+0x89bd0);
     calls_.dispatch=reinterpret_cast<decltype(calls_.dispatch)>(image_+0x7ca9c0);
-    calls_.attack=melee::Invoke;calls_.power=power::Invoke;calls_.track=power::InvokeTrack;calls_.self_initiation=power::ReadSelfInitiation;calls_.item=combat::item::Invoke;
+    calls_.attack=melee::Invoke;calls_.power=power::Invoke;calls_.track=power::InvokeTrack;calls_.chat=combat::group_chat::Invoke;calls_.self_initiation=power::ReadSelfInitiation;calls_.item=combat::item::Invoke;
     running_=true;bool ok=false;
     __try{ok=BindCxx();}__except(EXCEPTION_EXECUTE_HANDLER){faulted_=true;}
     running_=false;
@@ -192,6 +192,10 @@ bool NativeActor::AppendGate(void* value) noexcept {
         &&self.parent_gates_.append_current&&self.parent_gates_.append_current(self.parent_gates_.context)
         &&(!wire::Any(self.command_.context_id)||(self.child_bound_&&self.child_gates_.append_current
             &&self.child_gates_.append_current(self.child_gates_.context)));
+}
+bool NativeActor::ChatGate(void* value) noexcept {
+    auto& self=*static_cast<NativeActor*>(value);
+    return !self.faulted_&&self.Current(false);
 }
 bool NativeActor::TrackGate(void* value) noexcept {
     auto& self=*static_cast<NativeActor*>(value);
@@ -364,6 +368,33 @@ NativeActor::Operation NativeActor::SubmitImpl(){
     if(result.local_settlement==L::pending){pending_=true;pending_command_=command_;pending_operation_=result;}
     return result;
 }
+NativeActor::Operation NativeActor::ChatImpl() {
+    stage_="group_chat";
+    if(!ChatGate(this)||!calls_.chat){return Result(O::deferred);}
+    combat::party::Snapshot group{};wire::Digest digest{};
+    const auto input=wire::Chat(chat_command_);
+    if(!combat::party::Capture(image_,scene_,group)||!combat::group_chat::Identity(group,digest)
+        ||digest!=input.group){return Result(O::stale);}
+    std::uintptr_t writer{},container{};
+    if(!Read(image_+0x16ab88c,writer)||!Read(writer+0x44,container)){return Result(O::unavailable);}
+    combat::group_chat::Context context{image_,writer,container,group,{},ChatGate,TrackAppendGate,this};
+    std::memcpy(context.text.data(),input.text.data(),input.length);
+    (void)calls_.chat(context,chat_state_,chat_receipt_);
+    const auto& receipt=chat_receipt_;
+    auto result=Result(receipt.native_entered?O::uncertain:O::deferred,
+        receipt.native_entered?E::entered:E::never_entered,
+        receipt.ownership_quarantined?L::pending:L::settled);
+    if(receipt.append_observed)result.history|=wire::outbound_queued;
+    if(receipt.result==combat::group_chat::Result::queued&&receipt.native_entered&&receipt.append_observed
+        &&!receipt.ownership_quarantined){result.outcome=O::queued;}
+    else if(receipt.native_entered||receipt.ownership_quarantined)result.history|=wire::uncertain_history;
+    if(receipt.ownership_quarantined){
+        // Unknown constructor/destructor references are never replayed or released
+        // through guessed cleanup. Preserve any older combat action separately.
+        faulted_=true;local_owner_work_=true;result.entry=receipt.native_entered?E::entered:E::unknown;
+    }
+    (void)ReadState(result.state);return result;
+}
 NativeActor::Operation NativeActor::TrackImpl() {
     stage_="tracking_query";
     if(!TrackGate(this)){return Blocked(power::NativeUseInFlight()?admission::native_use:0U);}
@@ -389,6 +420,11 @@ NativeActor::Operation NativeActor::Submit(const wire::Command& command,combat::
     if(running_||faulted_||!wire::Valid(wire::Verb::submit,command)||!parent_bound_
         ||!wire::Bindings(command,parent_,wire::Any(command.context_id)?&child_:nullptr)
         ||(wire::Any(command.context_id)&&!child_bound_)){return Result(O::invalid);}
+    if(command.action==wire::Action::group_chat){
+        if(activation||chat_state_.quarantined)return Result(O::unavailable,E::unknown,L::pending);
+        chat_command_=command;chat_state_={};chat_receipt_={};running_=true;
+        const auto result=Guarded(10);running_=false;return result;
+    }
     if(command.action==wire::Action::track){
         if(activation||request_||transfer_||(pending_&&(!pending_owned_followup_
             ||pending_operation_.outcome!=O::queued||pending_operation_.entry!=E::entered
@@ -507,7 +543,7 @@ void NativeActor::Revoke() noexcept {revoked_=true;}
 NativeActor::Operation NativeActor::RunCxx(unsigned operation,Admission gate,void* context) noexcept {
     try{
         switch(operation){case 1:return AttachImpl();case 2:return SubmitImpl();case 3:return PollImpl();
-        case 9:return TrackImpl();
+        case 9:return TrackImpl();case 10:return ChatImpl();
         case 4:return StopImpl(false,gate,context);case 5:return StopImpl(true,gate,context);
         case 6:if(!ReleaseTarget()){faulted_=true;}return Result(O::observed);
         case 7:if(!ReleaseMessages()){faulted_=true;}return Result(O::observed);
@@ -524,6 +560,11 @@ NativeActor::Operation NativeActor::Guarded(unsigned operation,Admission gate,vo
     submission::Boundary melee_boundary;power::Boundary power_boundary;Operation result{};
     __try{__try{result=RunCxx(operation,gate,context);}__finally{power_boundary.Restore();melee_boundary.Restore();}}
     __except(EXCEPTION_EXECUTE_HANDLER){faulted_=true;result=Result(O::uncertain,E::unknown,L::pending);}
+    if(faulted_&&operation==10){
+        result.entry=chat_receipt_.native_entered?E::entered:E::unknown;
+        result.local_settlement=L::pending;
+        result.history|=wire::uncertain_history|(chat_receipt_.append_observed?wire::outbound_queued:0U);
+    }
     if(faulted_&&operation==9){
         result.entry=track_receipt_.native_entered?E::entered:E::unknown;
         result.local_settlement=L::pending;

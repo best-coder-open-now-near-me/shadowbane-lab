@@ -1,5 +1,19 @@
 # Git branch map
 
+## Hunt Foe group callouts - October 10
+
+Start from refreshed `main`. The isolated branch
+`codex/hunt-foe-group-callouts-20261009` targets `main` and owns arrival/message
+policy, exact native group sending and the same-owner actor-wire/worker integration.
+The .90/.59 integrated source and mandatory package gates are independently
+reviewed through `2d08db0`; exact composed-release qualification remains. The opt-in
+setting defaults off. No live send or deployment has occurred. Native queue
+acceptance is distinct from server delivery, and no attack authority is added.
+See [the evidence and scope](hunt-foe-group-callouts.md).
+Private disassembly remains under `artifacts/group-chat-20261010`, outside source.
+Next: compose with the installed graphics source, qualify that exact release,
+and complete hosted checks before installation.
+
 ## PvE worker maintenance delivery - October 9
 
 Start new work from refreshed `main`, including PR #138 at

@@ -54,6 +54,7 @@ class Action(IntEnum):
     SELF_POWER = 3
     USE_ITEM = 4
     TRACK = 5
+    GROUP_CHAT = 6
 
 
 class Recipient(IntEnum):
@@ -174,6 +175,8 @@ class Command:
     manifest_digest: bytes = ZERO_DIGEST
     publication_revision: int = 0
     snapshot_id: bytes = bytes(16)
+    group_digest: bytes = ZERO_DIGEST
+    group_text: str = ""
 
     def encode(self):
         if not isinstance(self.host, Host):
@@ -198,6 +201,20 @@ class Command:
         uint(self.publication_revision, 64)
         if type(self.snapshot_id) is not bytes or len(self.snapshot_id) != 16:
             raise ValueError("invalid publication identity")
+        digest(self.group_digest, zero=self.action is not Action.GROUP_CHAT)
+        if type(self.group_text) is not str:
+            raise ValueError("invalid group text")
+        if self.action is Action.GROUP_CHAT:
+            if not 1 <= len(self.group_text) <= 88 or any(
+                ord(c) < 32 or ord(c) > 126 or c in "/\\^<>" for c in self.group_text
+            ):
+                raise ValueError("invalid bounded group text")
+            reserved = struct.pack("<32sI88s", self.group_digest, len(self.group_text),
+                                   self.group_text.encode("ascii"))
+        else:
+            if self.group_text:
+                raise ValueError("group text on non-chat action")
+            reserved = bytes(124)
         selected = self.selector_index != NO_SELECTOR
         digest(self.manifest_digest, zero=not selected)
         if selected and self.selector_index >= 32:
@@ -238,14 +255,15 @@ class Command:
             Recipient.NONE
             if self.action is Action.NONE
             else Recipient.ACTOR
-            if self.action in (Action.SELF_POWER, Action.USE_ITEM, Action.TRACK)
+            if self.action in (Action.SELF_POWER, Action.USE_ITEM, Action.TRACK, Action.GROUP_CHAT)
             else Recipient.TARGET
         )
         if self.recipient is not expected:
             raise ValueError("action recipient mismatch")
         if self.recipient is Recipient.TARGET and self.context_id is None:
             raise ValueError("target action has no target context")
-        if self.action is Action.TRACK and (self.context_id is not None or selected):
+        if (self.action in (Action.TRACK, Action.GROUP_CHAT)
+                and (self.context_id is not None or selected)):
             raise ValueError("tracking query cannot carry a context or selector")
         if item and self.context_id is not None:
             raise ValueError("item consumption is actor-scoped")
@@ -275,7 +293,7 @@ class Command:
             self.publication_revision,
             self.snapshot_id,
             VERSION,
-            bytes(124),
+            reserved,
         )
 
     def require_verb(self, verb):
@@ -284,7 +302,7 @@ class Command:
             (verb in _ACTION_VERBS) != (self.action is not Action.NONE)
         ):
             raise ValueError("verb/action mismatch")
-        if self.action is Action.TRACK and verb is Verb.CANCEL_ACTION:
+        if self.action in (Action.TRACK, Action.GROUP_CHAT) and verb is Verb.CANCEL_ACTION:
             raise ValueError("tracking query has no action cancellation")
         if verb in _READ_VERBS:
             if self.parent_id is not None or self.grant is not None:
@@ -335,8 +353,11 @@ class Command:
         if type(data) is not bytes or len(data) != 576:
             raise ValueError("invalid actor command size")
         v = _COMMAND.unpack(data)
-        if v[-2] != VERSION or any(v[-1]):
+        if v[-2] != VERSION:
             raise ValueError("invalid actor command version/reserved")
+        group_digest, length, text = struct.unpack("<32sI88s", v[-1])
+        if length > 88 or any(text[length:]):
+            raise ValueError("invalid group payload length/padding")
         result = cls(
             Host.decode(v[0]),
             v[1],
@@ -357,6 +378,7 @@ class Command:
             v[18],
             v[19],
             v[20],
+            group_digest, text[:length].decode("ascii"),
         )
         result.encode()
         return result
@@ -432,11 +454,11 @@ class Receipt:
         if (
             self.action in (Action.ATTACK, Action.CAST)
             and self.context_id is None
-            or self.action in (Action.USE_ITEM, Action.TRACK)
+            or self.action in (Action.USE_ITEM, Action.TRACK, Action.GROUP_CHAT)
             and self.context_id is not None
         ):
             raise ValueError("receipt action has wrong target scope")
-        if self.action is Action.TRACK and self.verb is Verb.CANCEL_ACTION:
+        if self.action in (Action.TRACK, Action.GROUP_CHAT) and self.verb is Verb.CANCEL_ACTION:
             raise ValueError("tracking query has no action cancellation")
         if self.grant is None and self.context_id is not None:
             raise ValueError("preparation receipt cannot own a target context")

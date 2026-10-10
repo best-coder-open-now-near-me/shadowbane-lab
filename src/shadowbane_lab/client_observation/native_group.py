@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import struct
 from collections.abc import Mapping
@@ -255,6 +256,26 @@ class NativeGroupObservation:
         return next((member for member in self.members if member.is_leader), None)
 
 
+@dataclass(frozen=True, slots=True)
+class NativeGroupContext:
+    """Copied native roster identity, not a server group nonce or send lease."""
+
+    window: int
+    manager: int
+    sentinel: int
+    members: tuple[tuple[int, int, int, int, int], ...]
+
+    @property
+    def grouped(self) -> bool:
+        return bool(self.members)
+
+    @property
+    def digest(self) -> bytes:
+        words = (0x315047, self.window, self.manager, self.sentinel, len(self.members))
+        words += tuple(word for row in self.members for word in row)
+        return hashlib.sha256(struct.pack(f"<{len(words)}I", *words)).digest()
+
+
 class NativeGroupReader:
     """Reads group-member coordinates and follow state already maintained by the client."""
 
@@ -325,6 +346,44 @@ class NativeGroupReader:
                 f"group roster remained unreadable during every stable-read attempt: {last_error}"
             ) from last_error
         raise NativeGroupReadError("group roster changed during every stable-read attempt")
+
+    def observe_context(self) -> NativeGroupContext:
+        """Double-pass only recipient identity; no resource/name/UI prerequisites."""
+        if self._closed:
+            raise NativeGroupReadError("native group reader is closed")
+        def capture():
+            p = self._profile
+            window = self._read_pointer(self._pointer_slot, "ArcWindowGame")
+            manager = self._read_pointer(window + p.group_manager_offset, "ArcGroupManager")
+            sentinel = self._read_pointer(manager + p.member_list_offset, "group sentinel")
+            node = self._read_pointer(sentinel, "group head")
+            tail = self._read_pointer(sentinel + 4, "group tail")
+            previous, rows, keys, seen = sentinel, [], set(), {sentinel}
+            while node != sentinel:
+                if node in seen or len(rows) >= min(10, p.maximum_members):
+                    raise NativeGroupReadError("invalid bounded group list")
+                seen.add(node)
+                next_node, prior, entry = struct.unpack(
+                    "<3I", self._read_exact(node, 12, "group node"))
+                if prior != previous:
+                    raise NativeGroupReadError("group list predecessor changed")
+                self._require_object_pointer(entry, p.member_role_offset + 4, "group member")
+                key = struct.unpack("<2I", self._read_exact(
+                    entry + p.member_object_type_offset, 8, "group key"))
+                role = struct.unpack("<I", self._read_exact(
+                    entry + p.member_role_offset, 4, "group role"))[0]
+                if not all(key) or key in keys or role not in (0, 0x15, 0x16):
+                    raise NativeGroupReadError("invalid group identity")
+                keys.add(key)
+                rows.append((node, entry, *key, role))
+                previous, node = node, next_node
+            if tail != previous or sum(row[-1] == 0x16 for row in rows) > 1:
+                raise NativeGroupReadError("group list changed")
+            return NativeGroupContext(window, manager, sentinel, tuple(rows))
+        first, second = capture(), capture()
+        if first != second:
+            raise NativeGroupReadError("group identity changed during capture")
+        return second
 
     def close(self) -> None:
         if not self._closed:

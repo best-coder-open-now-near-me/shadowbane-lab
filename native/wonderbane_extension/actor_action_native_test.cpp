@@ -15,6 +15,7 @@ using O=c::wire::Outcome;
 namespace {
 std::uintptr_t base{}; HWND window{}; m::NativeScene scene{};
 bool live=true,admitted=true,throw_attack=false,seh_attack=false,reject_cancel=false;
+unsigned chats{},chat_fault{};
 unsigned attacks{},casts{},tracks{},stops{},lookups{},restores{},lookup_mode{},track_fault{};
 double initiation_seconds{};
 std::uint32_t learned_rank=20, definition_generation=1;
@@ -190,6 +191,15 @@ a::wire::Command Typed(const a::fence::ActorBinding& parent,const a::fence::Cont
 }
 a::NativeActor::Gates Gates(){return {Current,Current,nullptr};}
 }
+namespace wonderbane::extension::combat::group_chat {
+Receipt Invoke(const Context& context,State& state,Receipt& out)noexcept{
+    assert(context.current(context.owner)&&context.append_current(context.owner));
+    assert(!std::strcmp(context.text.data(),"Hunt Foe: Alice"));++chats;state.attempted=true;
+    out={Result::queued,true,true,false};
+    if(chat_fault){state.quarantined=true;out.ownership_quarantined=true;out.result=Result::uncertain;}
+    return out;
+}
+}
 namespace wonderbane::extension::combat::item {
 Receipt Invoke(const Context& c,State& state,Receipt& receipt)noexcept{
     ++items;assert(!state.attempted&&c.current(c.owner)&&c.item_address==base+0xe000&&c.template_address==base+0xe800);
@@ -237,7 +247,7 @@ struct NativeActorTestAccess {
         value.scene_current_=SceneCurrent;value.calls_.lookup=reinterpret_cast<decltype(value.calls_.lookup)>(&Lookup);
         value.calls_.release=reinterpret_cast<decltype(value.calls_.release)>(&Drop);value.calls_.attack=melee::Invoke;
         value.calls_.power=combat::power::Invoke;value.calls_.track=Track;value.calls_.self_initiation=combat::power::ReadSelfInitiation;
-        value.calls_.item=combat::item::Invoke;value.calls_.dispatch=Dispatch;
+        value.calls_.chat=combat::group_chat::Invoke;value.calls_.item=combat::item::Invoke;value.calls_.dispatch=Dispatch;
         return value.BindCxx();
     }
     static bool Track(combat::power::Scope& scope) {
@@ -267,6 +277,42 @@ void Publish(a::NativeActor& actor,bool item){
     assert(actor.Publish(request,published)==wonderbane::extension::actor_buffs::Unknown::none&&published.Complete());
 }
 void CloseScene(a::NativeActor& actor){live=false;assert(actor.ReleaseScene());}
+}
+void GroupChatCases(){
+    for(bool prep:{false,true}){
+        ActorReset();chats=chat_fault=0;
+        // Actual bounded party list layout; target remains unrelated to roster.
+        Put(base+0x8100,base+0x8200);Put(base+0x8104,base+0x8200);
+        Put(base+0x8200,base+0x8100);Put(base+0x8204,base+0x8100);Put(base+0x8208,base+0x8300);
+        Put(base+0x8310,std::array<std::uint32_t,2>{999,53});Put(base+0x8374,std::uint32_t{0x16});
+        a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));auto parent=Parent();
+        if(prep){parent.purpose=a::fence::Purpose::preparation;parent.movement_generation=0;
+            assert(a::fence::Hash(parent.owner_id.data(),parent.owner_id.size(),parent.operation));}
+        assert(actor.ValidateParent(parent,Gates()));a::fence::ContextBinding child{};
+        if(!prep){child=Child(parent);assert(actor.Attach(child,Gates()).outcome==AO::bound);}
+        Publish(actor,false);power_receipt.local_initiation_token=7;initiation_seconds=10;
+        const auto power=Typed(parent,prep?nullptr:&child,a::wire::Action::self_power);
+        assert(actor.Submit(power).local_settlement==AL::pending);
+        a::wire::Command before{};assert(actor.PendingCommand(before));
+        auto command=Typed(parent,nullptr,a::wire::Action::self_power);
+        command.action=a::wire::Action::group_chat;command.power_id=0;command.request.back()=99;
+        command.selector_index=a::wire::no_selector;command.manifest_digest={};command.publication_revision=0;command.snapshot_id={};
+        wonderbane::extension::combat::party::Snapshot group{};
+        assert(wonderbane::extension::combat::party::Capture(base,scene,group));
+        a::wire::GroupChat payload{};assert(wonderbane::extension::combat::group_chat::Identity(group,payload.group));
+        payload.length=15;std::memcpy(payload.text.data(),"Hunt Foe: Alice",15);std::memcpy(command.reserved,&payload,sizeof(payload));
+        const auto before_casts=casts,before_stops=stops;
+        const auto sent=actor.Submit(command);
+        assert(sent.outcome==AO::queued&&sent.entry==AE::entered&&sent.local_settlement==AL::settled&&chats==1);
+        a::wire::Command after{};assert(actor.PendingCommand(after)&&!std::memcmp(&before,&after,sizeof(before)));
+        assert(casts==before_casts&&stops==before_stops);
+        auto wrong=command;wrong.reserved[0]^=1;assert(actor.Submit(wrong).entry==AE::never_entered&&chats==1);
+        chat_fault=1;const auto fault=actor.Submit(command);
+        assert(fault.entry==AE::entered&&fault.local_settlement==AL::pending&&(fault.history&a::wire::outbound_queued));
+        assert(actor.Submit(command).entry==AE::never_entered&&chats==2);
+        assert(actor.PendingCommand(after)&&!std::memcmp(&before,&after,sizeof(before)));
+        a::NativeActorTestAccess::Dispose(actor);
+    }
 }
 void TrackingCases(){
     for(const bool prep:{false,true}){
@@ -339,6 +385,7 @@ int main(){
     base=reinterpret_cast<std::uintptr_t>(VirtualAlloc(nullptr,0x1800000,MEM_RESERVE|MEM_COMMIT,PAGE_READWRITE));assert(base);
     window=CreateWindowExW(0,L"STATIC",L"actor-native",0,0,0,1,1,HWND_MESSAGE,nullptr,GetModuleHandleW(nullptr),nullptr);assert(window);
     TrackingCases();
+    GroupChatCases();
     AdmissionCases();
     for(const auto activity:{5U,6U,7U}) {
         ActorReset();a::NativeActor actor;assert(a::NativeActorTestAccess::Bind(actor));const auto parent=Parent();

@@ -85,6 +85,7 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_combat_image_original16",
     "wonderbane_extension_movement_runtime_owner-service",
     "wonderbane_extension_movement_windows_input_mouse",
+    "wonderbane_extension_combat_group_chat",
     "wonderbane_extension_combat_submission",
     "wonderbane_extension_combat_submission_install_failure",
     "wonderbane_extension_combat_melee_entry",
@@ -149,6 +150,7 @@ REQUIRED_ACTOR_IPC_TESTS = frozenset({
     "test_real_windows_parent_and_child_native_consumer",
     "test_real_native_publication_mapping_roundtrip",
     "test_real_native_tracking_frame_roundtrip",
+    "test_real_native_group_chat_wire_roundtrip",
 })
 
 
@@ -255,6 +257,11 @@ def validate_actor_probe_steps(steps, *, reviewed_client):
 def validate_item_trace_probe_steps(steps, *, reviewed_client):
     return _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
                                        features=("item_application_trace",))
+
+
+def validate_group_chat_probe_steps(steps, *, reviewed_client):
+    return _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
+                                       features=("combat_group_chat",))
 
 
 def validate_activation_probe_steps(steps, *, reviewed_client):
@@ -499,7 +506,8 @@ def main() -> int:
                 raise RuntimeError(f"{profile}: Condemn test entered runtime")
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
-        for combat_source in ("combat_submission.cpp", "actor_action_native.cpp",
+        for combat_source in ("combat_group_chat.cpp", "combat_submission.cpp",
+                              "actor_action_native.cpp",
                               "actor_action_runtime.cpp", "actor_effects_native.cpp",
                               "actor_inventory_native.cpp", "actor_buff_observation.cpp",
                               "actor_publication.cpp", "tracking_responses.cpp",
@@ -511,7 +519,9 @@ def main() -> int:
                               "combat_target_policy.cpp"):
             if included_sources.count(combat_source) != 1:
                 raise RuntimeError(f"{profile}: combat source must have one owner: {combat_source}")
-        for developer_source in ("combat_native.cpp", "combat_runtime.cpp",
+        for developer_source in ("combat_group_chat_probe.cpp", "combat_group_chat_test.cpp",
+                                 "combat_native.cpp",
+                                 "combat_runtime.cpp",
                                  "combat_v2_native.cpp", "combat_v2_runtime.cpp",
                                  "actor_action_native_test.cpp", "actor_action_runtime_test.cpp",
                                  "actor_action_controller_test.cpp", "actor_action_wire_test.cpp",
@@ -747,6 +757,7 @@ def main() -> int:
                  "wonderbane_extension_combat_power_mode_probe",
                  "wonderbane_extension_combat_power_initiation_probe",
                  "wonderbane_extension_combat_power_movement_probe",
+                 "wonderbane_extension_combat_group_chat_probe",
                  "wonderbane_extension_combat_power_special_probe",
                  "wonderbane_extension_combat_activation_incoming_probe",
                  "wonderbane_extension_combat_activation_completion_probe",
@@ -865,7 +876,8 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
             )
             for feature in ("combat_item", "actor_effects_native", "item_application_trace",
                         "actor_inventory_native", "actor_buff_observation",
-                        "combat_activation_incoming", "combat_activation_completion"):
+                        "combat_activation_incoming", "combat_activation_completion",
+                        "combat_group_chat"):
                 for suffix, image in (("binding", arguments.reviewed_client.resolve()),
                                       ("prepared-binding", prepared_client)):
                     run(f"{profile}-{feature}-{suffix}",
@@ -1243,6 +1255,8 @@ else:
         "combat_power_movement_transition_verified": validate_combat_power_movement_steps(
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
+        "group_chat_constructor_queue_verified": validate_group_chat_probe_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client)),
         "combat_activation_boundaries_verified": validate_activation_probe_steps(
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
