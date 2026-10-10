@@ -17,8 +17,11 @@ alignas(4) std::array<char16_t,5> member_name{u'A',u'l',u'i',u'c',u'e'};
 void Check(bool ok,const char* label){if(!ok){++errors;std::cerr<<label<<'\n';}}
 void __fastcall DecodeOriginal(void*,void*,void*){++decoded;SetLastError(12);}
 std::uint32_t __fastcall ProcessOriginal(void* message,void*){
+ (void)message;
  ++processed;if(change_scene)++epoch;if(change_group)entry[0x14/4]++;
- if(mutate_sender)reinterpret_cast<std::uint32_t*>(message)[0x74/4+2]=reinterpret_cast<std::uint32_t*>(message)[0x74/4+1];
+ #ifndef GROUP_UPDATE_TEST
+ if(mutate_sender)reinterpret_cast<std::uint32_t*>(message)[0x90/4+2]=reinterpret_cast<std::uint32_t*>(message)[0x90/4+1];
+#endif
  SetLastError(13);return 99;
 }
 void* __fastcall DestroyOriginal(void* p,void*,unsigned){return p;}
@@ -65,9 +68,9 @@ int main(int argc,char** argv){
 #else
  alignas(4) std::array<char16_t,5> sender{u'A',u'l',u'i',u'c',u'e'};
  alignas(4) std::array<char16_t,5> text{u'/',u'c',u'o',u'm',u'e'};
- message[0x70/4]=14;
- message[0x74/4+1]=ptr(sender.data());message[0x74/4+2]=message[0x74/4+3]=ptr(sender.data())+10;
- message[0x8c/4+1]=ptr(text.data());message[0x8c/4+2]=message[0x8c/4+3]=ptr(text.data())+10;
+ message[0x84/4]=14;message[0x60/4]=123;message[0x64/4]=53;
+ message[0x90/4+1]=ptr(sender.data());message[0x90/4+2]=message[0x90/4+3]=ptr(sender.data())+10;
+ message[0x6c/4+1]=ptr(text.data());message[0x6c/4+2]=message[0x6c/4+3]=ptr(text.data())+10;
 #endif
  decode(message.data(),socket.data());Check(GetLastError()==12,"decode native LastError");
  Check(tr::ProcessHook(message.data(),nullptr)==99&&GetLastError()==13,"native Process result and LastError");
@@ -80,7 +83,7 @@ int main(int argc,char** argv){
  Check(Last().payload.sender_units==5&&Last().payload.text_units==5,"copied sender and body");
  decode(message.data(),socket.data());mutate_sender=true;tr::ProcessHook(message.data(),nullptr);mutate_sender=false;
  Check(Last().flags==15&&Last().payload.sender_units==5,"Process native sender mutation cannot rewrite decoded attribution");
- message[0x74/4+2]=ptr(sender.data())+10;
+ message[0x90/4+2]=ptr(sender.data())+10;
 #endif
  decode(message.data(),socket.data());tr::ProcessHook(message.data(),nullptr);
  Check(Last().flags==15&&Last().processing_generation>2,"identical messages have distinct generation");
@@ -92,6 +95,13 @@ int main(int argc,char** argv){
 #else
  decode(message.data(),socket.data());change_group=true;tr::ProcessHook(message.data(),nullptr);change_group=false;entry[0x14/4]--;
  Check(Last().flags==7&&Last().payload.sender_key==tr::Key{},"group change across Process invalidates command authority");
+ // The decoded object key must agree with the unique current roster name.
+ message[0x60/4]=124;decode(message.data(),socket.data());tr::ProcessHook(message.data(),nullptr);
+ Check(Last().flags==7&&Last().payload.sender_key==tr::Key{},"same name with different native sender key denied");message[0x60/4]=123;
+ decode(message.data(),socket.data());message[0x60/4]=124;tr::ProcessHook(message.data(),nullptr);
+ Check(Last().flags==3,"sender key changed after decode invalidates lineage");message[0x60/4]=123;
+ message[0x68/4]=1;decode(message.data(),socket.data());tr::ProcessHook(message.data(),nullptr);
+ Check(!(Last().flags&1)&&Last().payload.sender_key==tr::Key{},"native error branch cannot authorize a command");message[0x68/4]=0;
  member_name[0]=u'B';decode(message.data(),socket.data());tr::ProcessHook(message.data(),nullptr);member_name[0]=u'A';
  Check(Last().flags==7,"channel text from a nonmember is never authority");
 #endif
@@ -102,8 +112,8 @@ int main(int argc,char** argv){
 #ifdef GROUP_UPDATE_TEST
  message[0x70/4]=11;tr::Payload payload{};Check(!tr::Snapshot(message.data(),payload),"partial oversized roster not published");
 #else
- message[0x70/4]=1;auto before=processed;tr::ProcessHook(message.data(),nullptr);Check(processed==before+1&&tr::storage->sequence==seq,"other channels call through without command evidence");
- message[0x70/4]=14;message[0x74/4+2]=message[0x74/4+1];tr::Payload payload{};Check(!tr::Snapshot(message.data(),payload),"empty sender never adopts local Process fallback");
+ message[0x84/4]=1;auto before=processed;tr::ProcessHook(message.data(),nullptr);Check(processed==before+1&&tr::storage->sequence==seq,"other channels call through without command evidence");
+ message[0x84/4]=14;message[0x60/4]=123;message[0x64/4]=53;message[0x90/4+2]=message[0x90/4+1];tr::Payload payload{};Check(!tr::Snapshot(message.data(),payload),"empty sender never adopts local Process fallback");
 #endif
  tr::Stop();for(std::size_t i=0;i<3;++i)Check(*slots[i]==targets[i],"original callbacks restored");
  VirtualFree(image,0,MEM_RELEASE);return static_cast<int>(errors);

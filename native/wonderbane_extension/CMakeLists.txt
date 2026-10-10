@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.62 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.63 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -31,6 +31,7 @@ add_library(
   targeted_action_trace.cpp
   condemn_responses.cpp
   tracking_responses.cpp
+  tracking_presentation.cpp
   group_messages.cpp
   group_updates.cpp
   item_application_trace.cpp

@@ -1,10 +1,12 @@
 # Native current-group commands
 
-The focused branch `codex/native-group-come-20261010` targets main with host
-0.3.97/native 1.8.62. The complete native receive, host listener and operation
-paths are implemented and independently reviewed; exact release qualification
-and live acceptance remain pending. The merged UI-ownership repair is included.
-No live group commands were used to validate this source.
+The installed .97/.62 runtime includes native group listening, but its legacy
+chat observer missed a user-confirmed `/come`. The reviewed .98/.63 correction
+on `codex/group-chat-receive-20261010` targets main and uses GroupChannelMessage.
+It also includes automatic Track presentation cleanup. Exact combined package
+qualification and live acceptance remain pending. See the
+[previous delivery record](group-command-delivery-20261010.md) for the installed
+source identity and preserved settings.
 
 The authorized commands are literal `/come` and `/attack first_name`, from any
 current group member. `/come` is a one-time regroup: cancel the current operation
@@ -28,16 +30,21 @@ packet, takes movement ownership, or mutates a client message.
 
 | Native type | Table RVA | Process / decoder RVA | Copied fields |
 | --- | --- | --- | --- |
-| ArcChannelMessage | `0x11520fc` | `0x337b30` / `0x337e80` | channel +0x70, sender ArcString +0x74, body ArcString +0x8c |
+| GroupChannelMessage | `0x115dbc4` | `0x4142c0` / `0x4145e0` plus group decode `0x428510` | key +0x60, status +0x68, body ArcString +0x6c, channel +0x84, sender ArcString +0x90 |
 | ArcUpdateGroupMessage | `0x115130c` | `0x3280b0` / `0x328c10` | subtype +0x68, count +0x70, has-rows +0x74, XYZ array +0x8c, exact-key array +0x90, error +0xa8 |
 
-Channel 14 is incoming group chat. Its decoder does **not** supply a sender
-object key: +0x68 is decoded only for channel 16. Process can substitute the local
-name for an empty sender. The observer copies the decoded sender before that
-mutation and rejects empty senders. At Process entry it matches the first name
-uniquely against the current native roster, copies the exact key and roster
-context, then checks that context again after native Process returns. Unicode
-names retain their original text; comparison uses Windows ordinal case folding.
+Channel 14 is incoming group chat. The GroupChannelMessage decoder supplies the
+sender's native object key, body and first name. Its successful Process branch
+requires status zero. The observer copies these before UI processing and requires
+both the decoded key and unique first name to match the current native roster.
+It checks the same roster again after native Process returns. Unicode names
+retain their original text; comparison uses Windows ordinal case folding.
+
+The installed .97/.62 observer incorrectly used the legacy ArcChannelMessage
+class. Pro's `/come` appeared on Umbra's group channel but produced no receive
+records, while group-position updates continued. The corrected class and fields
+are verified against identical .16/.17 client code spans; live acceptance of the
+replacement remains pending. See [the receive correction](group-chat-receive.md).
 
 Group-update subtypes 1, 2 and 5 carry per-key positions. The subtype 2 and 5
 branches call `0x59ccc0` through thunk `0x21eef`, with the position flag enabled.
