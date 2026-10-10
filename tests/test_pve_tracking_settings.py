@@ -27,7 +27,7 @@ def test_old_settings_load_without_write_or_automatic_tracking_enable(tmp_path, 
     assert loaded.tracking == TrackingSettings() and path.read_bytes() == original
     enabled = save(owner, tmp_path, replace(loaded, tracking=TrackingSettings(True)),
                    expected=loaded)
-    assert json.loads(path.read_text())["schema_version"] == 4
+    assert json.loads(path.read_text())["schema_version"] == 5
     assert settings.load_pve_settings(owner, root=tmp_path) == enabled
     assert not settings.load_pve_settings(replace(owner, character_name="Other"),
                                           root=tmp_path).tracking.enabled
