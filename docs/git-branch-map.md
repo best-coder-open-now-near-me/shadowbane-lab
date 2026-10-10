@@ -2,18 +2,30 @@
 
 ## Official client 1.3.38.17 alignment - October 10
 
-Start development from refreshed `main` after PR #147. Root and the native review
-lane own `codex/wonderbane-client-update-20261010` in `bot-runtime`; intended
-host .93/native .60 add the exact official .17 pair. Qualification and installation
-are pending. Compose the release onto `97c4899b` in `bot-integration` to retain
-installed graphics outside main and named camps. The prepared-but-unactivated
-.92 host-only plan below is superseded by this full client update. The selected
-runtime remains .91/.59 with .16; a fresh census found all game/bot processes
-closed. Keep the normal project checkout on main. Next: qualify the composed
-package, update the exact changed assets and host, then user login and one camp
-acceptance check. See [current evidence and todos](client-update-20261010.md).
+Start development from refreshed main at PR #148 merge
+`1e2d504937047d53c35895dbc831c89da973e909`. All 15 checks passed at reviewed
+head `dde99e07534fb129f697bede403672e9cfdec08e`.
+Qualified and installed .93/.60 release `5a46687dce579417f8b8bd086c4c6929a68c513a`
+is published on `codex/wonderbane-client17-release-20261010` in `bot-integration`.
+It retains installed graphics outside main and includes named camps plus .17
+support. This release composition is not the shared development base.
 
-## Native named PvE camps - October 10
+Activation verified 486 modules and 9,582 retained records with zero exclusions.
+A stale official hash in launcher metadata stopped the first launch before a game
+was created; a reviewed one-field correction and unchanged baseline guard passed,
+then the test client launched with the exact .60 DLL. Umbra logged in; saved
+automatic buffs started, and the user requested Pause. Pause is verified with no
+active or queued actions. Live camp acceptance is on hold until explicitly
+requested. The .92 host-only plan is superseded.
+
+Root owns delivery documentation on `codex/client17-delivery-20261010` in
+`bot-runtime`, targeting main through PR #149. The normal checkout is clean on
+main. Retirement of 23 inspected obsolete software targets is complete; current
+runtime and user data remain. Next gameplay work is a normal camp run only after
+the user requests resumption. Pause persists for the same client instance; a new
+game lifetime can currently start from saved enabled preferences. See [exact evidence and todos](client-update-20261010.md).
+
+## Historical, superseded: native named PvE camps - October 10
 
 Start new work from refreshed `main` at
 `244d3723892dbff3368cac7b93e598e47f0f4ce1`. Exact-target lifetimes (PR #144), native
