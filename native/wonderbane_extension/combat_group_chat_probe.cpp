@@ -73,7 +73,7 @@ int main(int argc,char**argv){try{
  Require(argc==2,"usage: group_message_probe exact-image");
  std::ifstream f(std::filesystem::path(argv[1]),std::ios::binary|std::ios::ate);auto n=f.tellg();Require(n>0&&n<64*1024*1024,"image size");
  std::vector<unsigned char>b(static_cast<std::size_t>(n));f.seekg(0);Require(static_cast<bool>(f.read(reinterpret_cast<char*>(b.data()),n)),"image read");
- const auto hash=Hash(b.data(),b.size());Require(hash=="a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a"||hash=="1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c","exact .16 required");
+ const auto hash=Hash(b.data(),b.size());Require((hash=="a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a" || hash=="051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698")||(hash=="1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c" || hash=="baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9"),"exact reviewed .16/.17 required");
  arena=reinterpret_cast<std::uintptr_t>(VirtualAlloc(nullptr,0x16c0000,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE));Require(arena!=0,"arena");
  std::memset(reinterpret_cast<void*>(arena),0xcc,0x1000000);AddVectoredExceptionHandler(0,Diagnostic);
  for(const auto&s:segments){Require(Hash(b.data()+s.rva,s.size)==s.hash,"primitive digest");std::memcpy(reinterpret_cast<void*>(arena+s.rva),b.data()+s.rva,s.size);}

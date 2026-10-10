@@ -509,9 +509,11 @@ def test_stationary_item_readiness_does_not_make_retained_id_power_ready():
 @pytest.mark.parametrize("digest,allowed", [
     ("e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437", True),
     ("1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c", True),
+    ("baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9", True),
     ("78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903", True),
     ("381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5", False),
     ("a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a", False),
+    ("051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698", False),
     ("e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e", False),
     ("ff" * 32, False),
 ])

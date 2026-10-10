@@ -1,4 +1,4 @@
-"""Passive native Hunt Foe result storage for the reviewed Wonderbane .16 client.
+"""Passive native Hunt Foe result storage for the reviewed Wonderbane .16/.17 clients.
 
 Reads the client's owned tracking objects, not rendered labels or system messages.
 A loaded list can survive a previous query: sampling it does not establish response
@@ -16,7 +16,9 @@ from .native_vendor_roster import _text
 
 REVIEWED_TRACK_EXECUTABLES = frozenset({
     "a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a",
+    "051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698",
     "1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c",
+    "baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9",
 })
 
 

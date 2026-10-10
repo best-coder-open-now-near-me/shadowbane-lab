@@ -47,7 +47,13 @@ class ClientBuild(NamedTuple):
         "381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5",
         "wonderbane-1.3.38.16-a145ef49",
     ),
-], ids=["client15", "client16"])
+    ClientBuild(
+        "051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698",
+        "baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9",
+        "a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a",
+        "wonderbane-1.3.38.17-051c55eb",
+    ),
+], ids=["client15", "client16", "client17"])
 def client_build(request):
     return request.param
 
