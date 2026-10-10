@@ -14,9 +14,9 @@ namespace {
 using Decode = void(__thiscall*)(void*, void*);
 using Process = std::uint32_t(__thiscall*)(void*);
 using Destroy = void*(__thiscall*)(void*, unsigned);
-constexpr std::uintptr_t kTable = 0x11520fc, kDecoderReturn = 0x3625bc;
+constexpr std::uintptr_t kTable = 0x115dbc4, kDecoderReturn = 0x3625bc;
 constexpr std::array<std::uintptr_t, 3> kSlots{4, 0x14, 0x1c};
-constexpr std::array<std::uintptr_t, 3> kTargets{0x19b28, 0x13c0a, 0x18c46};
+constexpr std::array<std::uintptr_t, 3> kTargets{0xfcbd, 0x10523, 0xac5e};
 constexpr unsigned kPayload = 1, kScene = 2, kLineage = 4;
 SRWLOCK lock = SRWLOCK_INIT;
 Decode decode_original = nullptr;
@@ -33,6 +33,7 @@ struct Ticket {
     std::uint64_t sequence = 0;
     movement::NativeScene scene{};
     Payload payload{};
+    Key decoded_sender{};
 };
 std::array<Ticket, 16> tickets{};
 std::size_t next_ticket = 0;
@@ -61,13 +62,24 @@ template<std::size_t N> bool Text(std::uintptr_t at, std::array<std::uint16_t,N>
     return Read(at,again.data(),sizeof(again))&&again==data
         &&(!units||Read(begin,copy.data(),units*2))&&copy==out;
 }
-bool Snapshot(void* message,Payload& out) noexcept {
-    out={};const auto at=reinterpret_cast<std::uintptr_t>(message);std::uint32_t table=0;
-    return Word(at,table)&&table==image_base+kTable&&Word(at+0x70,out.channel)&&out.channel==14
-        &&Text(at+0x74,out.sender,out.sender_units)&&out.sender_units
-        &&Text(at+0x8c,out.text,out.text_units)&&out.text_units;
+// GroupChannelMessage: common decoder owns key/status/body; its group decoder
+// adds sender name. ArcChannelMessage is a different, legacy message class.
+bool Snapshot(void* message,Payload& out,Key* decoded_sender=nullptr) noexcept {
+    out={};const auto at=reinterpret_cast<std::uintptr_t>(message);
+    std::uint32_t table=0,status=0;Key key{};
+    if(!Word(at,table)||table!=image_base+kTable
+        ||!Word(at+0x84,out.channel)||out.channel!=14
+        ||!Word(at+0x68,status)||status!=0
+        ||!Read(at+0x60,key.data(),sizeof(key))||!key[0]||!key[1]
+        ||!Text(at+0x90,out.sender,out.sender_units)||!out.sender_units
+        ||!Text(at+0x6c,out.text,out.text_units)||!out.text_units)return false;
+    if(decoded_sender)*decoded_sender=key;
+    return true;
 }
-bool Relevant(void* message) noexcept {std::uint32_t channel=0;return Word(reinterpret_cast<std::uintptr_t>(message)+0x70,channel)&&channel==14;}
+bool Relevant(void* message) noexcept {
+    const auto at=reinterpret_cast<std::uintptr_t>(message);std::uint32_t table=0,channel=0;
+    return Word(at,table)&&table==image_base+kTable&&Word(at+0x84,channel)&&channel==14;
+}
 bool GroupWords(const combat::party::Snapshot& group,std::array<std::uint32_t,55>& words) noexcept {
     if(!group.valid||!group.count)return false;
     words={0x315047U,static_cast<std::uint32_t>(group.scene.window),static_cast<std::uint32_t>(group.manager),static_cast<std::uint32_t>(group.sentinel),static_cast<std::uint32_t>(group.count)};
@@ -77,7 +89,7 @@ bool GroupWords(const combat::party::Snapshot& group,std::array<std::uint32_t,55
     }
     return true;
 }
-bool Qualify(Record& record,const movement::NativeScene& scene) noexcept {
+bool Qualify(Record& record,const movement::NativeScene& scene,const Key& decoded_sender) noexcept {
     combat::party::Snapshot group{},again{};
     if(!combat::party::Capture(image_base,scene,group))return false;
     Key key{};unsigned matches=0;
@@ -87,7 +99,7 @@ bool Qualify(Record& record,const movement::NativeScene& scene) noexcept {
         if(units&&CompareStringOrdinal(reinterpret_cast<const wchar_t*>(name.data()),static_cast<int>(units),
             reinterpret_cast<const wchar_t*>(record.payload.sender.data()),static_cast<int>(record.payload.sender_units),TRUE)==CSTR_EQUAL){key=group.members[i].key;++matches;}
     }
-    if(matches!=1||!combat::party::Capture(image_base,scene,again)||!combat::party::Equal(group,again))return false;
+    if(matches!=1||key!=decoded_sender||!combat::party::Capture(image_base,scene,again)||!combat::party::Equal(group,again))return false;
     record.payload.sender_key=key;return GroupWords(group,record.payload.group);
 }
 bool ActiveSocket(void* socket) noexcept {
@@ -134,7 +146,8 @@ void __fastcall DecodeHook(void* message, void*, void* socket) {
     const DWORD native_error = GetLastError();
     if (!active || !ActiveSocket(socket) || !Relevant(message)) { SetLastError(native_error); return; }
     Record record{}; record.stage = 1; record.caller_rva = static_cast<std::uint32_t>(kDecoderReturn);
-    const bool valid = Snapshot(message, record.payload);
+    Key decoded_sender{};
+    const bool valid = Snapshot(message, record.payload, &decoded_sender);
     if (valid) { record.flags |= kPayload; } else { record.payload = {}; }
     Stamp(record, scene);
     AcquireSRWLockExclusive(&lock);
@@ -144,7 +157,7 @@ void __fastcall DecodeHook(void* message, void*, void* socket) {
         if (valid && sequence && (record.flags & kScene)) {
             auto& ticket = tickets[next_ticket++ % tickets.size()];
             if (ticket.message) { InterlockedIncrement64(&storage->ticket_drops); }
-            ticket.message = message; ticket.sequence = sequence; ticket.scene = scene; ticket.payload = record.payload;
+            ticket.message = message; ticket.sequence = sequence; ticket.scene = scene; ticket.payload = record.payload; ticket.decoded_sender = decoded_sender;
         }
     }
     ReleaseSRWLockExclusive(&lock);
@@ -159,7 +172,8 @@ std::uint32_t __fastcall ProcessHook(void* message, void*) {
         ? static_cast<std::uint32_t>(caller - image_base) : 0;
     movement::NativeScene scene{};
     (void)movement::ReadNativeMovementLifetime(scene);
-    const bool valid = Snapshot(message, record.payload);
+    Key decoded_sender{};
+    const bool valid = Snapshot(message, record.payload, &decoded_sender);
     if (valid) { record.flags |= kPayload; } else { record.payload = {}; }
     Stamp(record, scene);
     AcquireSRWLockExclusive(&lock);
@@ -168,12 +182,13 @@ std::uint32_t __fastcall ProcessHook(void* message, void*) {
         ticket.message = nullptr;
         if (valid && (record.flags & kScene) && ticket.scene.epoch == scene.epoch
             && movement::NativeMovementLifetimeCurrent(ticket.scene)
+            && ticket.decoded_sender == decoded_sender
             && !std::memcmp(&ticket.payload, &record.payload, sizeof(Payload))) {
             record.flags |= kLineage; record.decode_sequence = ticket.sequence;
         }
     }
     if (!valid && storage) { InterlockedIncrement(&storage->rejected); }
-    if ((record.flags & 7) == 7 && Qualify(record, scene)) { record.flags |= 8; }
+    if ((record.flags & 7) == 7 && Qualify(record, scene, decoded_sender)) { record.flags |= 8; }
     (void)PublishLocked(record);
     ReleaseSRWLockExclusive(&lock);
     SetLastError(incoming_error);
@@ -181,7 +196,7 @@ std::uint32_t __fastcall ProcessHook(void* message, void*) {
     const DWORD native_error = GetLastError();
     record.stage = 3;
     if(record.flags&8){Record check=record;check.payload.group={};check.payload.sender_key={};
-        if(!Qualify(check,scene)||check.payload.group!=record.payload.group||check.payload.sender_key!=record.payload.sender_key){
+        if(!Qualify(check,scene,decoded_sender)||check.payload.group!=record.payload.group||check.payload.sender_key!=record.payload.sender_key){
             record.flags&=~8U;record.payload.group={};record.payload.sender_key={};
         }
     }
