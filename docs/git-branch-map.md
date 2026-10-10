@@ -2,17 +2,32 @@
 
 ## Hunt Foe group callouts - October 10
 
-Start from refreshed `main`. The isolated branch
-`codex/hunt-foe-group-callouts-20261009` targets `main` and owns arrival/message
-policy, exact native group sending and the same-owner actor-wire/worker integration.
-The .90/.59 integrated source and mandatory package gates are independently
-reviewed through `2d08db0`; exact composed-release qualification remains. The opt-in
-setting defaults off. No live send or deployment has occurred. Native queue
-acceptance is distinct from server delivery, and no attack authority is added.
-See [the evidence and scope](hunt-foe-group-callouts.md).
-Private disassembly remains under `artifacts/group-chat-20261010`, outside source.
-Next: compose with the installed graphics source, qualify that exact release,
-and complete hosted checks before installation.
+Start new work from refreshed `main`, including PR #139 merge
+`f17c1c57e8390e3ac5abec64a0b33a4ed3f89079`. All 15 hosted checks passed at
+independently reviewed feature head `a43894e7e67a5c6709385b9c31db85a43d406bff`.
+Hunt Foe arrivals use the existing native actor owner and ordinary group-message
+queue, with group revalidation, bounded deduplication and no uncertain replay.
+Queue acceptance is not proof of server delivery or attack authority.
+
+Root's qualified .90/.59 composition is
+`3459d173835657d33ca4b07a92342a26bf73bca2`, pushed on
+`codex/hunt-foe-callouts-release-20261009` in `bot-integration`. It combines the
+installed `14bf5ab` release with reviewed feature `a43894e`, retaining installed
+graphics work outside main. This release branch is not the shared development
+base. Independent qualification checked 140 artifacts, 112 stages, 5,997 host
+passes (41 optional skips), both profiles' 76/86/235 movement/combat/actor IPC
+passes, all four exact-image group-message probes, six installed desktop cases,
+one real worker handshake and 486 installed modules. Existing deferred graphics
+transparency findings remain recorded; no required gate failed.
+
+The .90/.59 package is qualified but NOT installed. The current runtime remains
+.89/.58 at `14bf5ab`. The group-callout setting defaults off and no live send has
+occurred. Next: close the target game, verify the fresh deployment baseline and
+sealed payload, install under standing approval, then enable the requested
+callouts and verify live group delivery. Root owns this qualification record on
+`codex/hunt-foe-callouts-delivery-20261009`, targeting `main`.
+See [the delivery evidence](client-update-20261009.md) and
+[the callout contract](hunt-foe-group-callouts.md).
 
 ## PvE worker maintenance delivery - October 9
 
