@@ -63,14 +63,21 @@ bool NativeUi::Gates(std::uintptr_t native_window, bool& keyboard, bool& pointer
     camera = gesture != 0;
     if (calls_.text()) { keyboard = pointer = true; }
     if (!Current(native_window)) { return false; }
-    // The native predicate checks the active HUD first. Also inspect the native
-    // focused control directly, so a transient HUD change cannot expose text keys.
-    const auto focused = reinterpret_cast<std::uintptr_t>(calls_.focused(reinterpret_cast<void*>(native_window)));
-    if (!Current(native_window)) { return false; }
-    if (focused) {
-        std::uint32_t kind = 0;
-        if (!UiRead(focused + 0x3b8, kind)) { return false; }
-        if (kind == 5 || kind == 6 || kind == 14) { keyboard = pointer = true; }
+    // The sealed native predicate at 0x453c40 first checks this text-enable
+    // global, then the focused control. A closed editor may retain its focus
+    // pointer (including the channel HUD); that pointer alone is not ownership.
+    // Re-read after the predicate so text enabled during that call still gates
+    // the conservative focused-control check. Run() repeats the complete gates.
+    std::uint32_t text_enabled = 0;
+    if (!UiRead(base_ + 0x16ab404, text_enabled)) { return false; }
+    if (text_enabled) {
+        const auto focused = reinterpret_cast<std::uintptr_t>(calls_.focused(reinterpret_cast<void*>(native_window)));
+        if (!Current(native_window)) { return false; }
+        if (focused) {
+            std::uint32_t kind = 0;
+            if (!UiRead(focused + 0x3b8, kind)) { return false; }
+            if (kind == 5 || kind == 6 || kind == 14) { keyboard = pointer = true; }
+        }
     }
     return true;
 }

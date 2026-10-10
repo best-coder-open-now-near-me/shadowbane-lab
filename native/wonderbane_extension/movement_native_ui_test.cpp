@@ -6,7 +6,8 @@
 #include <thread>
 namespace wm = wonderbane::extension::movement;
 namespace {
-int failures = 0, hits = 0;
+int failures = 0, hits = 0, focus_reads = 0;
+bool enable_during_predicate = false, disable_during_focus = false;
 void Check(bool ok, const char* label) { if (!ok) { ++failures; std::cerr << label << '\n'; } }
 std::uintptr_t image = 0, native_window = 0;
 wm::NativeUi* active_ui = nullptr;
@@ -14,8 +15,16 @@ bool text = false, hit = false, change_scene = false, reenter = false, raise_fau
 void* focused = nullptr;
 POINT last_hit{};
 template<class T> void Put(std::uintptr_t address, const T& value) { std::memcpy(reinterpret_cast<void*>(address), &value, sizeof(value)); }
-bool __cdecl Text() { return text; }
-void* __fastcall Focused(void* receiver, void*) { Check(receiver == reinterpret_cast<void*>(native_window), "native focused-control receiver"); return focused; }
+bool __cdecl Text() {
+    if (enable_during_predicate) { Put(image + 0x16ab404, std::uint32_t{1}); }
+    return text;
+}
+void* __fastcall Focused(void* receiver, void*) {
+    ++focus_reads;
+    Check(receiver == reinterpret_cast<void*>(native_window), "native focused-control receiver");
+    if (disable_during_focus) { Put(image + 0x16ab404, std::uint32_t{0}); }
+    return focused;
+}
 void* __fastcall Hit(void* receiver, void*, int x, int y) {
     Check(receiver == reinterpret_cast<void*>(native_window), "native top-level hit receiver");
     ++hits; last_hit = {x, y};
@@ -62,10 +71,36 @@ int main() {
     text = true; const auto before_text = hits;
     Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned && !state.global_owned && hits == before_text, "native text owns keyboard and drag while permitting native controller");
     text = false; focused = control.data();
+    Put(image + 0x16ab404, std::uint32_t{1});
     for (const std::uint32_t kind : {5U, 6U, 14U}) {
         Put(reinterpret_cast<std::uintptr_t>(focused) + 0x3b8, kind);
         Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned && !state.global_owned, "focused text kinds suppress without active-HUD predicate");
     }
+    // Native text disabled with the same retained editor: no stale ownership.
+    Put(image + 0x16ab404, std::uint32_t{0});
+    const auto before_closed = focus_reads;
+    Check(ui.Snapshot(point, state) && !state.keyboard_owned && !state.pointer_owned
+        && focus_reads == before_closed && ui.PreparationCurrent(),
+        "closed text editor releases movement and preparation despite retained focus");
+    enable_during_predicate = true;
+    Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned
+        && !ui.PreparationCurrent(), "text enabled during predicate remains inhibited");
+    enable_during_predicate = false;
+    disable_during_focus = true;
+    Check(ui.Snapshot(point, state) && state.keyboard_owned,
+        "closing during focus query conservatively retains this snapshot only");
+    disable_during_focus = false;
+    Check(ui.Snapshot(point, state) && !state.keyboard_owned && ui.PreparationCurrent(),
+        "next snapshot clears a completed text close");
+    DWORD old_protection = 0, ignored_protection = 0;
+    Check(VirtualProtect(reinterpret_cast<void*>(image + 0x16ab000), 0x1000,
+        PAGE_NOACCESS, &old_protection) != FALSE, "protect native text-enable fixture");
+    Check(!ui.Snapshot(point, state) && !state.available && !ui.PreparationCurrent(),
+        "unreadable native text-enable state remains unavailable");
+    Check(VirtualProtect(reinterpret_cast<void*>(image + 0x16ab000), 0x1000,
+        old_protection, &ignored_protection) != FALSE, "restore native text-enable fixture");
+    Check(ui.Snapshot(point, state) && !state.keyboard_owned,
+        "readable disabled state recovers without reset");
     focused = nullptr;
     Put(image + 0x16a9ee8, std::uintptr_t{1});
     Check(ui.Snapshot(point, state) && state.keyboard_owned && state.pointer_owned && state.global_owned, "native modal suppresses both input paths");
