@@ -18,6 +18,8 @@ bool live=true,read_scene=true,lease_live=true,stop_ok=true,native_activity=fals
 unsigned fail_revalidation{},continuation_checks{};
 bool continuation_current=true,item_effect_present=false,power_effect_present=false,preparation_idle=true,preparation_owner_available=true;
 std::uint64_t preparation_epoch=1,item_deadline{},item_second_deadline{};std::uint32_t item_remaining{};
+unsigned presentation_arms=0,presentation_retires=0;
+w::Id presentation_owner{};
 m::NativeScene fixture_scene{0x10000,0x20000,0x30000,0x40000,{91,53},7};
 m::Grant owner{9,7,m::Owner::automation};
 void Check(bool value,const char* label){++checks;if(!value){std::fprintf(stderr,"FAILED: %s\n",label);std::abort();}}
@@ -419,13 +421,16 @@ int main(){
         query.power_id=429578587;query.recipient=w::Recipient::actor;
         const auto records=a::runtime.journal.Records();const auto has_manifest=a::runtime.has_manifest;
         a::runtime.has_manifest=false;
+        const auto arms_before=presentation_arms;
         const auto track_result=Execute(w::Verb::submit,query);
+        Check(presentation_arms==arms_before+1&&presentation_owner==tracking_owner.parent_id,"queued Track arms exact owner presentation");
         Check(track_result.outcome==w::Outcome::queued&&track_result.entry==w::Entry::entered
             &&track_result.local_settlement==w::LocalSettlement::settled&&track_result.application==w::Application::none,
             "Track has no selector publication or application barrier");
         Check(!std::memcmp(&records,&a::runtime.journal.Records(),sizeof(records)),"Track never mutates buff journal");
         preparation_idle=false;query.request=Id(3);
         Check(Execute(w::Verb::submit,query).reason==w::Reason::manual_activity,"manual preparation veto remains");
+        Check(presentation_arms==arms_before+1,"refused Track cannot acquire presentation ownership");
         auto chat=tracking_owner;chat.request=Id(4);chat.action=w::Action::group_chat;chat.recipient=w::Recipient::actor;
         w::GroupChat message{};message.group.fill(8);message.length=15;std::memcpy(message.text.data(),"Hunt Foe: Alice",15);
         std::memcpy(chat.reserved,&message,sizeof(message));
@@ -438,6 +443,7 @@ int main(){
             "chat exception does not widen tracking or casting admission");
         preparation_idle=true;a::runtime.has_manifest=has_manifest;
         Check(Execute(w::Verb::stop_owner,tracking_owner).closure==w::Closure::local_released,"query has no cast cleanup");
+        Check(presentation_retires>0&&presentation_owner==w::Id{},"stop withdraws presentation policy independently of cast cleanup");
     }
     {
         f::ActorBinding renewal_binding{};auto renewal=Parent(100,renewal_binding);
@@ -489,4 +495,10 @@ int main(){
 namespace wonderbane::extension::item_trace {
 void OwnedReturn(const actor::wire::Command&,const movement::NativeScene&,actor::wire::Outcome,
     actor::wire::Entry,actor::wire::LocalSettlement,std::uint32_t,const combat::power::Receipt*) noexcept {}
+}
+
+namespace wonderbane::extension::tracking::presentation {
+void Arm(const movement::NativeScene&,const Owner& identity) noexcept {++presentation_arms;presentation_owner=identity;}
+void Maintain(const movement::NativeScene&,const Owner&) noexcept {}
+void Retire(const Owner& identity) noexcept {if(identity==presentation_owner){++presentation_retires;presentation_owner={};}}
 }

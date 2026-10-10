@@ -1,5 +1,22 @@
 # Git branch map
 
+## Group receive and automatic Track presentation — October 10
+
+Start shared development from refreshed `main`. Reviewed source fixes are
+combined on `codex/group-chat-receive-20261010` in the managed
+`pve-camp-return-routing` checkout, targeting main in one PR. It includes native
+receive checkpoint `229ca60d` and Track checkpoint `090eb95a` with host .98/native
+.63 version stamps. Independent reviews and focused native/actual-frame tests
+passed. Exact composed release qualification and live acceptance remain next.
+The .97/.62 runtime is still installed; the user-confirmed `/come` reached group
+chat but its legacy observer produced no message record or command.
+
+The pushed Track branch `codex/track-window-lifecycle-20261010` is included in
+this candidate. `bot-integration` composes the final package while retaining
+the already-installed graphics source outside main. No live receive or automatic
+Track-window acceptance is claimed yet. See [receive correction](group-chat-receive.md)
+and [Track presentation](track-window-lifecycle.md).
+
 ## Native current-group commands - October 10
 
 Start shared development from refreshed `main` at PR #155 merge

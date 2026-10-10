@@ -1,4 +1,5 @@
 #include "combat_power_observer.h"
+#include "tracking_presentation.h"
 #include "combat_initiation.h"
 #include "graphics_status.h"
 #include "movement_native_image.h"
@@ -328,7 +329,9 @@ LONG CALLBACK Trap(EXCEPTION_POINTERS* exception) noexcept {
         __except(EXCEPTION_EXECUTE_HANDLER) { SetLastError(error); return EXCEPTION_CONTINUE_SEARCH; }
         context.Esp -= sizeof(DWORD);
         if(i==12) {
-            context.Eip=static_cast<DWORD>(detail::Observer::OwnsTrackFrame(context.Ebp)
+            const bool automatic=detail::Observer::OwnsTrackFrame(context.Ebp);
+            if(!automatic){tracking::presentation::ManualQuery();}
+            context.Eip=static_cast<DWORD>(automatic
                 ? reinterpret_cast<std::uintptr_t>(&detail::Observer::SendHook)
                 : reinterpret_cast<std::uintptr_t>(original_send));
             SetLastError(error);return EXCEPTION_CONTINUE_EXECUTION;
