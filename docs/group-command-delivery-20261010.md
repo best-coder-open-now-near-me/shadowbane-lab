@@ -19,7 +19,7 @@ activated successfully with all 491 installed modules verified and 9,607 retaine
 records preserved without exclusions. Client executables and resources are
 unchanged; the sole client binary replacement is the qualified native DLL.
 Desktop shortcuts target the new host. The earlier .96/.61 candidate was never
-applied and is retired. Fresh game startup, login and live command acceptance
+applied and is retired. Fresh client startup is verified; login and live command acceptance
 remain to be checked. The normal checkout is clean on main at the PR #155 merge.
 
 Installation receipts: apply `f658824b286054c1f8b9d164f05bed586588d79033e31ed77391e22284183116`,
@@ -88,9 +88,18 @@ reproducible archives totaling 214,561,063 bytes. Every unlisted file, extracted
 source, log, XML result and diagnostic receipt remains. The cleanup receipt is
 `1030b4c4a882ce5fd82aa4f71e66c4469d1b9f3eac4096bac2d29a309f824151`.
 
+Vendor Test reopened as PID 8068 with creation identity 134361421939134903,
+window 2884278 and the exact .62 DLL. Launch receipt
+`00634919c10f7962f7829dbf68c3ec0f5200a8a81e538aa7616188f2d64d47fc`
+and post-launch status
+`801ec9261f6f65b71caed4b7d08007bb05f40af2ca9d1cc283d28ecc2062dcca`
+confirm a healthy manager and no bound worker or queued operation before login.
+The user has been asked to log Umbra in. No listener setting or live combat was
+changed before current character verification.
+
 ## Remaining work
 
-1. Installation and manager activation are complete; verify the new game startup.
+1. Installation, manager activation and fresh client startup are complete.
 2. Verify native startup, installation preservation and Umbra's identity, then
    enable her requested listener through the normal settings path.
 3. Check a real group `/come` and an explicitly supplied player `/attack`/cancel;

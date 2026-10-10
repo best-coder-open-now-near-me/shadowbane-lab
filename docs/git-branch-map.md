@@ -19,7 +19,7 @@ verified. Existing diagnostic transparency findings remain explicitly non-gating
 
 Host .97/native .62 is installed and manager activation passed, with all 491
 modules verified and 9,607 retained records preserved. Client executables and
-resources remain unchanged; shortcuts target the new host. Fresh game startup,
+resources remain unchanged; shortcuts target the new host. Fresh client startup passed;
 login, live commands and camp-return acceptance remain pending. The listener has
 its own saved setting, disabled on migration; Umbra's requested listener will be
 enabled after exact character verification. The never-applied .96/.61 VM software
