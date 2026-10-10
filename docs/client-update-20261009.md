@@ -28,9 +28,24 @@ the unchanged native package provenance.
 | Exact source archive | `f74fa802dd7166003e4329ab0a558f8971d2d10d40d360ba03d199fc335192cc` |
 | Reviewed host-only plan | `a4b21103dbb152b887c6cb38a5bceeb97812ceb0e55072049d125414e441c4af` |
 
-Host-only installation is underway. The qualified package and private deployment
-evidence are under `artifacts/bot-deploy/20261009-host91`; no binaries or private
-captures are included in source delivery. Live acceptance remains pending login.
+Host-only installation and independent receipt review are complete. Activation
+verified all 486 modules and preserved 9,532 records with zero exclusions and ten
+typed generated-record changes. The same game process, lifetime, window and .59
+DLL remained open, with zero client-file writes. Manager PID 572 and worker PID
+8988 were healthy. Two manager shortcuts now use .91; three client links remain
+unchanged. Activation receipt SHA-256:
+`9ce07704dab887ab88ae6aebeeaf985abf62877c87334aeb44037fe52af600f1`.
+
+The qualified package and private deployment evidence are under
+`artifacts/bot-deploy/20261009-host91`; no binaries or private captures are included
+in source delivery. All eleven verified obsolete .90 host/wheel paths are absent,
+freeing 57,971,425 bytes. The current native DLL was excluded from removal; no
+rollback copies were retained. Retirement receipt SHA-256:
+`5cd3ccecbfbc85c213597699b975263ca0b89a20c46370d89d9fe4b5b5dd70a2`.
+
+A final passive check identified Umbra on Wonderbane in the same client lifetime,
+with a healthy worker and no active or queued operation. Live multi-encounter
+acceptance and actual group-callout delivery remain unverified.
 
 ## Hunt Foe group-callout qualification (.90/.59), October 10
 
