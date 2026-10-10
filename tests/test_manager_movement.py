@@ -353,3 +353,56 @@ def test_changed_native_owner_cannot_renew_after_parent_cancel():
     assert not session.renew_calls and not session.cleanup.maintain(grant)
     assert not owner.released
     movement.finish()
+
+
+def test_failed_renewal_retains_transport_timing_and_never_reacquires():
+    from shadowbane_lab.client_extension.action_channel import NativeActionChannelBusy
+
+    movement, session, _ = context()
+    assert movement.acquire()
+    grant = movement.dispatcher.grant
+    cleanup = session.cleanup.register(grant)
+    failure = NativeActionChannelBusy("native action host lease expired")
+    failure.add_note("heartbeat_age_ms=1438; renewal_wait_ms=12")
+
+    def fail(current):
+        session.renew_calls.append(current)
+        raise failure
+
+    session.renew = fail
+    movement.maintain()
+    cause = movement.stop_cause
+    assert cause.kind == "interrupted"
+    assert "NativeActionChannelBusy" in cause.reason
+    assert "native action host lease expired" in cause.reason
+    assert "heartbeat_age_ms=1438; renewal_wait_ms=12" in cause.reason
+    assert f"request={movement.request_key}" in cause.reason
+    assert not session.cleanup.maintain(grant)
+    movement.maintain()
+    assert session.renew_calls == [grant]
+    assert len(session.acquire_calls) == 1
+    assert movement.stop_cause == cause
+    session.cleanup.release(cleanup)
+    movement.finish()
+    assert movement.stop_cause == cause
+
+
+def test_renewal_failure_evidence_is_bounded_and_single_line():
+    movement, session, _ = context()
+    assert movement.acquire()
+    failure = OSError("no\r\n" + "x" * 2000)
+    failure.add_note("heartbeat_age_ms=1438; renewal_wait_ms=12\n" + "y" * 2000)
+    failure.add_note("second\t" + "z" * 2000)
+    failure.add_note("ignored" * 2000)
+
+    def fail(_):
+        raise failure
+
+    session.renew = fail
+    movement.maintain()
+    assert len(movement.reason) <= 512
+    assert "\n" not in movement.reason and "\r" not in movement.reason
+    assert "\t" not in movement.reason
+    assert "heartbeat_age_ms=1438; renewal_wait_ms=12" in movement.reason
+    assert movement.request_key in movement.reason
+    movement.finish()

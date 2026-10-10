@@ -1,18 +1,46 @@
 # Git branch map
 
+## PvE worker maintenance - October 9
+
+Root owns `codex/pve-maintenance-scheduling-20261009` in `bot-runtime`, based on
+refreshed main `030acb6` and targeting `main`. Host .89 retains native .58 and
+replaces repeated whole-desktop worker discovery with a retained exact-process
+and window guard. Movement renewal failures now retain bounded transport timing
+and immutable request evidence; acquisition failures retain native outcomes and
+correlated receipt identity through cleanup. Native lease expiry and ownership checks stay
+unchanged. Focused worker/identity and movement checks pass; independent review,
+full checks and exact-source package qualification precede installation.
+The installed .88/.58 runtime remains active while this proceeds. Next: complete
+review/qualification and deliver the host update, then observe a bounded NPC run.
+Hunt Foe group-callout work is separate and has no qualified native send path yet.
+
 ## Concoction early renewal - October 9
 
-Start new work from refreshed `main`. Root owns
-`codex/conc-potion-early-renewal-20261009` in `buff-renewal-lead`, targeting `main`.
-Checkpoints `1cb3cba` and `a53c5d0` add a 15-second native renewal lead for Greater
-Concoction Potion, preserve PRESENT coverage and retain each descriptor's old
-deadline until the full renewal is observed. The `.88/.58` source passed focused
-host/native tests, exact original/prepared `.16` probes and independent review.
-Combined package qualification and hosted checks precede merge and installation.
-Root's `bot-integration` release checkout will preserve the installed graphics
-composition. The installed `.87/.57` runtime is unchanged while this proceeds.
-See [the renewal contract](conc-potion-renewal.md). Next: qualify the composed
-package, integrate, install with the client closed and observe automatic renewal.
+Start new work from refreshed `main` at
+`d35bab594e0e903aac1b9f51872ec3e6ef3d0ee8`. PR #136 merged normally after all
+15 hosted checks passed at reviewed feature head
+`7760803f11cd57c272f84ce5bf1b6ecb73763931`. It adds the exact Concoction
+15-second renewal lead while preserving PRESENT coverage and requiring each
+covered descriptor's deadline to advance before confirming a refresh.
+
+The qualified `.88/.58` release is `00e6ae75a95f63d723f78db49097d716d1425f31`,
+published on `codex/conc-potion-release-20261009` in root-owned `bot-integration`.
+It retains the installed graphics composition. Qualification passed 5,901 host
+cases (41 skips), both native profiles and each profile's 74/86/233 IPC cases,
+plus six installed desktop cases and one worker handshake. Independent verification
+checked 136 artifacts, 108 stages and 484 modules.
+
+Delivery documentation is owned on `codex/conc-potion-delivery-20261009` in
+`conc-renewal-delivery`, targeting `main`. The exact `.88/.58` release is now
+installed and activation-verified: 484 modules, 9,549 retained records, zero
+exclusions and two expected generated changes (startup and dispatch permit).
+The reviewed client launch loaded the exact `.58` DLL and the manager and new
+worker are healthy. The client remains at login with character identity unavailable;
+no in-world early-renewal acceptance is claimed. Obsolete `.87` host/wheels and
+the staged `.57` DLL are retired: all 12 paths are absent and 59,101,750 bytes
+were removed, with current client/DLL and worker health preserved. Next: log
+Umbra in, verify upkeep and observe covered renewal.
+See [the renewal contract](conc-potion-renewal.md).
 
 ## Hunt Foe player-awareness delivery - October 9
 

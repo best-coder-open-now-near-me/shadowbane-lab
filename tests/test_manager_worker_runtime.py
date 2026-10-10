@@ -100,6 +100,21 @@ class _StaticRegistry:
         return ClientRegistrySnapshot(node_id=NODE_ID, clients=self.clients)
 
 
+class _GameIdentityGuard:
+    def __init__(self, binding):
+        self.binding = binding
+        self.checks = 0
+        self.closed = False
+
+    def require_current(self):
+        assert not self.closed
+        self.checks += 1
+
+    def close(self):
+        assert not self.closed
+        self.closed = True
+
+
 class _ProcessInspector:
     def __init__(self, *processes: ProcessLifetimeSnapshot) -> None:
         self.processes = {process.process_id: process for process in processes}
@@ -227,6 +242,7 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
                 _ProcessInspector(worker_process),
                 process_id=WORKER_PROCESS_ID,
                 sleeper=lambda _seconds: setattr(stop, "stopped", True),
+                game_identity_guard_factory=_GameIdentityGuard,
             )
 
             result = runtime.serve(stop_signal=stop)
@@ -270,6 +286,7 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
                 _ProcessInspector(worker_process),
                 process_id=WORKER_PROCESS_ID,
                 sleeper=request_stop,
+                game_identity_guard_factory=_GameIdentityGuard,
             )
 
             result = runtime.serve()
@@ -296,6 +313,7 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
                 _ProcessInspector(worker_process),
                 process_id=WORKER_PROCESS_ID,
                 sleeper=lambda _seconds: None,
+                game_identity_guard_factory=_GameIdentityGuard,
             )
 
             result = runtime.serve()
@@ -361,6 +379,7 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
                 operation_executor=executor,
                 process_id=WORKER_PROCESS_ID,
                 sleeper=drive,
+                game_identity_guard_factory=_GameIdentityGuard,
             )
 
             result = runtime.serve(stop_signal=stop)
@@ -436,6 +455,7 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
                 operation_executor=executor,
                 process_id=WORKER_PROCESS_ID,
                 sleeper=drive,
+                game_identity_guard_factory=_GameIdentityGuard,
             )
 
             result = runtime.serve(stop_signal=stop_runtime)
@@ -620,6 +640,7 @@ def test_operation_maintenance_runs_between_heartbeats_and_stops_on_revocation()
             operation_ledger=operation_ledger, operation_executor=Executor(),
             operation_maintenance=maintain, monotonic_clock=lambda: now,
             process_id=WORKER_PROCESS_ID, heartbeat_interval_seconds=1.0, sleeper=drive,
+            game_identity_guard_factory=_GameIdentityGuard,
         )
         try:
             assert runtime.serve(stop_signal=stop) == 0
