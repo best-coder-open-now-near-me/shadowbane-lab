@@ -2,9 +2,10 @@
 
 ## Current state
 
-PR #155 targets main at reviewed source
-`dba01f1ff89d829dda28d120e5f297654a047f90`. Exact-head hosted checks
-are pending. The qualified host 0.3.97/native 1.8.62 release is pushed on
+PR #155 merged as `b24e8d13be9b1acc33f33e361e5c85024e6555e5` after
+all 15 hosted checks passed at reviewed source
+`dba01f1ff89d829dda28d120e5f297654a047f90`. The qualified host
+0.3.97/native 1.8.62 release is pushed on
 `codex/native-group-command-release-20261010`, commit
 `182077fd9f358ee26a94aeaf0aae84d643acd4ea`.
 
@@ -15,9 +16,9 @@ Official client 1.3.38.17 and its prepared executable remain unchanged.
 
 The VM still runs host .95/native .60. The earlier .96/.61 candidate was prepared
 but never applied; it is superseded by the combined release. The .97/.62 payload
-is staged and preparation is in progress. No active switch or live command
+is staged and preparation succeeded. No active switch or live command
 acceptance is claimed. Vendor Test remains open; installation requires its
-actual closure and the final source merge.
+actual closure. The normal checkout is clean on main at the PR #155 merge.
 
 ## Behavior
 
@@ -60,6 +61,7 @@ reproduced all qualification receipts and checked their logs and fixture bytes.
 | Host wheel | `278489c7cba1e842699075cc48a4c1ad9b14873f5baa5450448a2f67bebcdc50` |
 | Independent verification | `ea8333fae6653273545618fbfc288fed22149f3c49b6ed7febbafd106018130c` |
 | Supplemental verification | `d4a580a98c088a76e7b644db288f1d9d6ac90d7ccaaa47e7e174cf06d031c480` |
+| Successful preparation | `09ea88f95a46434cbe9de161ca6f48005961f25c3a1ed0bab98092a1cbe8231b` |
 | Reviewed update plan | `c765c4e99e071f4b9e86dd5d680554866d2528222437915bf1e3e0e99cb6e406` |
 
 The deployment baseline verified all 486 currently installed .95 modules and
@@ -71,11 +73,10 @@ journals and diagnostic evidence under [the deployment policy](deployment-policy
 
 ## Remaining work
 
-1. Finish exact-head hosted checks and merge PR #155.
-2. Finish preparation; once Vendor Test is closed, verify the baseline and install.
-3. Verify native startup, installation preservation and Umbra's identity, then
+1. Once Vendor Test is closed, verify the baseline and install the prepared update.
+2. Verify native startup, installation preservation and Umbra's identity, then
    enable her requested listener through the normal settings path.
-4. Check a real group `/come` and an explicitly supplied player `/attack`/cancel;
+3. Check a real group `/come` and an explicitly supplied player `/attack`/cancel;
    complete the pending same-camp return check. No live result is assumed.
-5. Retire inspected obsolete software, preserve compact receipts, and update this
+4. Retire inspected obsolete software, preserve compact receipts, and update this
    delivery record and the branch map with actual results.

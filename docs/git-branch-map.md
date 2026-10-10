@@ -2,31 +2,42 @@
 
 ## Native current-group commands - October 10
 
-Start shared development from refreshed `main`. The active source branch
-`codex/native-group-come-20261010` in managed `native-group-come` includes
-PR #154 merge `4713727333d1cd09bb73c44c850c7b3108a3484d` and carries host
-.97/native .62 for exact release qualification. Native receive, host settings,
-worker handoff, single-player attack and dashboard checkpoints are pushed.
-Independent reviews passed; the pre-final source suite passed 6,110 tests with
-42 optional skips, followed by 25 focused tests for the disabled-listener scan
-improvement. Final composed-package qualification and live acceptance remain.
+Start shared development from refreshed `main` at PR #155 merge
+`b24e8d13be9b1acc33f33e361e5c85024e6555e5`. All 15 hosted checks passed
+at reviewed source `dba01f1ff89d829dda28d120e5f297654a047f90`.
+Qualified host .97/native .62 is pushed on
+`codex/native-group-command-release-20261010` in `bot-integration`, commit
+`182077fd9f358ee26a94aeaf0aae84d643acd4ea`. This composition preserves the
+installed graphics outside main and includes PR #154's native input fix.
 
-The commands are literal `/come` and `/attack first_name` from any current group
-member. Listening has its own saved setting, disabled on migration; Umbra's
-requested listener will be enabled after qualified installation. No deployed
-command feature or live command acceptance is claimed. The normal checkout is
-clean on main. See [the implementation boundaries](native-group-commands.md).
+Native `/come` and `/attack first_name` from any current group member are
+implemented and reviewed. Exact package qualification passed all required gates
+across 112 recorded stages, 6,213 host tests (43 optional skips), both native
+profiles, 158 qualification cases, six desktop checks and one worker handshake.
+All 140 artifacts and 491 source/wheel/installed modules were independently
+verified. Existing diagnostic transparency findings remain explicitly non-gating.
+
+Preparation succeeded; the .95/.60 runtime remains active because Vendor Test is
+open. There is no live command or new camp-return acceptance claim. The listener
+has its own saved setting, disabled on migration; Umbra's requested listener will
+be enabled after installation and exact character verification. The earlier
+.96/.61 candidate was prepared but never applied and is now superseded.
+
+Root publishes current delivery notes on `codex/group-command-delivery-20261010`
+in `bot-runtime`, targeting main. The source branch `codex/native-group-come-20261010`
+remains available in `native-group-come` during installation/live acceptance.
+The normal checkout is clean on main. The merged PR #153 delivery branch was
+retired locally/remotely after ancestry checks; its checkout now holds these notes.
+See [qualification and remaining installation work](group-command-delivery-20261010.md)
+and [the implementation boundaries](native-group-commands.md).
 
 ## Native text ownership correction - October 10
 
 PR #154 merged as `4713727333d1cd09bb73c44c850c7b3108a3484d` after all
 15 hosted checks passed at `205cda01249ff6acf0c3c11460b5128388e31d49`.
-The .96/.61 composition `293e44560f2ce43044183ea7f449e9e5a7d111bc` is
-published on `codex/native-text-input-release-20261010`. The managed
-`bot-integration` checkout composes the next qualified runtime.
-Exact package qualification and independent deployment review passed; preparation
-is complete, but installation awaits client closure. The installed .95/.60
-runtime remains unchanged. No retained deployment rollback artifacts were made.
+Its fix is included in the qualified .97/.62 composition above. The separate
+.96/.61 candidate `293e44560f2ce43044183ea7f449e9e5a7d111bc` was qualified
+and prepared without being applied, then superseded by that combined release.
 
 After Who closed, native text entry was disabled but a channel-HUD editor remained
 focused. Our unconditional focused-kind fallback incorrectly inhibited movement
