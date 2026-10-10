@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.63 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.64 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -1320,6 +1320,7 @@ if(BUILD_TESTING)
     set_tests_properties(wonderbane_extension_group_${group_kind} PROPERTIES TIMEOUT 15)
   endforeach()
   add_executable(wonderbane_extension_tracking_responses_test tracking_responses_test.cpp)
+  target_link_libraries(wonderbane_extension_tracking_responses_test PRIVATE bcrypt)
   target_compile_features(wonderbane_extension_tracking_responses_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_tracking_responses_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_tracking_responses_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)

@@ -70,3 +70,27 @@ def test_population_is_lazy_but_receive_and_scene_checks_remain(monkeypatch, ena
     finally:
         source.close()
     character.__exit__.assert_called_once()
+
+
+@pytest.mark.parametrize("flags,tick,scene", [
+    (0, 1000, 7), (m.BINDINGS | m.TERMINAL, 1000, 7),
+    (m.BINDINGS, 400, 7), (m.BINDINGS, 1002, 7), (m.BINDINGS, 1000, 8)])
+def test_final_scene_must_still_be_live_and_fresh(monkeypatch, flags, tick, scene):
+    monkeypatch.setattr(m, "WindowsSharedMemorySnapshotReader", Mock())
+    monkeypatch.setattr(m, "GroupPublicationReader", Mock())
+    source = m.NativeGroupCommandSource(S(game_process_id=123,
+        game_process_started_at_100ns=456, game_window_handle=789))
+    source.character = Mock()
+    source.character.binding = S(object_key=S(object_type=42, object_uuid=53), identity=object())
+    source.group = Mock()
+    source.group.observe_context.return_value = S(members=(), digest=b"g" * 32)
+    source.group.observe.return_value = S(members=[])
+    monkeypatch.setattr(m, "load_pve_settings", Mock(return_value=S(
+        group_commands=S(enabled=True))))
+    monkeypatch.setattr(m, "tick_ms", lambda: 1001)
+    monkeypatch.setattr(m, "read_snapshot", Mock(side_effect=[
+        S(flags=m.BINDINGS, tick=1000, grant=S(scene=7)),
+        S(flags=flags, tick=tick, grant=S(scene=scene))]))
+    with pytest.raises(ValueError, match="scene changed or expired"):
+        source.read()
+    assert source.character is None

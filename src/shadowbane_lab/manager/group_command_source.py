@@ -74,8 +74,11 @@ class NativeGroupCommandSource:
             self.character.require_current()
             final_scene = read_snapshot(NativeClientProcessIdentity(*self.lifetime),
                                         self.binding.game_window_handle)
-            if final_scene.grant.scene != scene.grant.scene:
-                raise ValueError("native scene changed during group observation")
+            final_now = tick_ms()
+            if (final_scene.grant.scene != scene.grant.scene
+                    or not final_scene.flags & BINDINGS or final_scene.flags & TERMINAL
+                    or not 0 <= final_now - final_scene.tick <= 500):
+                raise ValueError("native scene changed or expired during group observation")
             positions = {
                 (c.object_key.object_type, c.object_key.object_uuid): (c.lt, c.lg)
                 for c in (() if population is None else population.characters)

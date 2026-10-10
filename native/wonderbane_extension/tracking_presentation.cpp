@@ -6,7 +6,7 @@
 namespace wonderbane::extension::tracking::presentation {
 namespace {
 constexpr std::uintptr_t kRoot = 0x16a7bfc, kRootTable = 0x1174884;
-constexpr std::uintptr_t kHudTable = 0x116fb58, kClose = 0x5f4e70;
+constexpr std::uintptr_t kHudTable = 0x116fb58, kCloseThunk = 0x17440, kClose = 0x5f4e70;
 constexpr std::uint32_t kHuntFoe = 429578587;
 struct Hud { std::uintptr_t address = 0; std::uint32_t selector = 0; };
 struct State {
@@ -57,10 +57,20 @@ bool Capture(const movement::NativeScene& scene,Hud& out) noexcept {
     return Word(head+4,tail)&&tail==previous&&Word(base+kRoot,again)&&again==root
         &&movement::NativeMovementLifetimeCurrent(scene);
 }
+bool CloseTarget(std::uintptr_t image,std::uint32_t& target) noexcept {
+    // The native vtable points to this exact E9 thunk, not directly to the body.
+    // Both were qualified in the supported original/prepared .16/.17 images.
+    constexpr unsigned char thunk[]{0xe9,0x2b,0xda,0x5d,0x00};
+    constexpr unsigned char body[]{0x55,0x8b,0xec,0x81,0xec,0x04,0x02,0x00,0x00};
+    unsigned char thunk_bytes[sizeof(thunk)]{},body_bytes[sizeof(body)]{};
+    return image&&Word(image+kHudTable+0x10c,target)&&target==image+kCloseThunk
+        &&Copy(image+kCloseThunk,thunk_bytes,sizeof(thunk))&&!std::memcmp(thunk_bytes,thunk,sizeof(thunk))
+        &&Copy(image+kClose,body_bytes,sizeof(body))&&!std::memcmp(body_bytes,body,sizeof(body));
+}
 bool Close(const movement::NativeScene& scene,const Hud& hud) noexcept {
     Hud current{};std::uint32_t target{};
     if(!hud.address||hud.selector!=kHuntFoe||!Capture(scene,current)||current.address!=hud.address
-        ||current.selector!=hud.selector||!Word(base+kHudTable+0x10c,target)||target!=base+kClose){return false;}
+        ||current.selector!=hud.selector||!CloseTarget(base,target)){return false;}
     using Function=void(__thiscall*)(void*,bool);
     // This is the same lifecycle used by ListMsg::Process. Never write flags,
     // unlink nodes or invoke a destructor ourselves.
@@ -102,10 +112,8 @@ void TryClose(const movement::NativeScene& scene,std::uint64_t serial,const Hud&
 bool Bind(std::uintptr_t image) noexcept {
     // Full relocated .text and exact executable hash have already been checked
     // by tracking::Start. Also bind the newly used close slot/prologue explicitly.
-    constexpr unsigned char expected[]{0x55,0x8b,0xec,0x81,0xec,0x04,0x02,0x00,0x00};
-    unsigned char bytes[sizeof(expected)]{};std::uint32_t target{};
-    if(!image||!Copy(image+kClose,bytes,sizeof(bytes))||std::memcmp(bytes,expected,sizeof(bytes))
-        ||!Word(image+kHudTable+0x10c,target)||target!=image+kClose){return false;}
+    std::uint32_t target{};
+    if(!CloseTarget(image,target)){return false;}
     AcquireSRWLockExclusive(&mutex);base=image;state={};ReleaseSRWLockExclusive(&mutex);return true;
 }
 void Unbind() noexcept {
