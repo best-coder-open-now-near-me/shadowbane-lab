@@ -18,19 +18,19 @@ All 140 artifacts and 491 source/wheel/installed modules were independently
 verified. Existing diagnostic transparency findings remain explicitly non-gating.
 
 Host .97/native .62 is installed and manager activation passed, with all 491
-modules verified and 9,607 retained records preserved. Client executables and
-resources remain unchanged; shortcuts target the new host. Fresh client startup passed;
-login, live commands and camp-return acceptance remain pending. The listener has
-its own saved setting, disabled on migration; Umbra's requested listener will be
-enabled after exact character verification. The never-applied .96/.61 VM software
-and inspected local build binaries were retired with diagnostic evidence preserved.
+modules verified and 9,607 retained records preserved. Fresh client startup and
+Umbra/Wonderbane identity are verified. Her group-command listener is enabled;
+all other settings are unchanged. The current native roster is empty, so live
+commands and camp-return acceptance remain pending. All five buffs were present.
+Superseded .95/.96/.61 software was retired with diagnostic evidence preserved.
 
-Root publishes current delivery notes on `codex/group-command-delivery-20261010`
-in `bot-runtime`, targeting main. The source branch `codex/native-group-come-20261010`
-remains available in `native-group-come` during installation/live acceptance.
-The normal checkout is clean on main. The merged PR #153 delivery branch was
-retired locally/remotely after ancestry checks; its checkout now holds these notes.
-See [qualification and remaining installation work](group-command-delivery-20261010.md)
+Delivery notes are on `codex/group-command-delivery-20261010` through PR #156.
+The merged group source remains available on `codex/native-group-come-20261010`.
+Its `native-group-come` checkout now owns `codex/track-window-lifecycle-20261010`,
+based on refreshed main, for the user's newly reported persistent Track panel.
+The normal checkout remains clean on main.
+
+See [installation evidence and remaining live checks](group-command-delivery-20261010.md)
 and [the implementation boundaries](native-group-commands.md).
 
 ## Native text ownership correction - October 10

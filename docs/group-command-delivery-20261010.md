@@ -19,8 +19,10 @@ activated successfully with all 491 installed modules verified and 9,607 retaine
 records preserved without exclusions. Client executables and resources are
 unchanged; the sole client binary replacement is the qualified native DLL.
 Desktop shortcuts target the new host. The earlier .96/.61 candidate was never
-applied and is retired. Fresh client startup is verified; login and live command acceptance
-remain to be checked. The normal checkout is clean on main at the PR #155 merge.
+applied and is retired. Fresh client startup and Umbra/Wonderbane identity are
+verified; her group
+listener is enabled. Live command acceptance remains to be checked. The normal
+checkout is clean on main at the PR #155 merge.
 
 Installation receipts: apply `f658824b286054c1f8b9d164f05bed586588d79033e31ed77391e22284183116`,
 shortcuts `60eb62d37a078ead1b81f7b0d7d190514bf879a46fc141e2ee64289f43ca76c6`,
@@ -36,8 +38,8 @@ native player identity and attacks that exact target until death, cancellation,
 target loss or native failure, without editing saved attack lists.
 
 Listening has its own per-character setting and starts disabled on migration.
-Umbra's authorized listener will be enabled through the installed settings CLI
-once the new runtime and current character are verified. Hunt Foe and buff
+Umbra's authorized listener was enabled using the installed settings CLI
+after verifying the new runtime and current character. Hunt Foe and buff
 preferences remain unchanged. Disabled or ungrouped listeners avoid population
 scans while consuming receive history. Detect Hidden and Reveal are learned
 abilities; these commands do not automatically cast them or claim live effects.
@@ -94,15 +96,27 @@ window 2884278 and the exact .62 DLL. Launch receipt
 and post-launch status
 `801ec9261f6f65b71caed4b7d08007bb05f40af2ca9d1cc283d28ecc2062dcca`
 confirm a healthy manager and no bound worker or queued operation before login.
-The user has been asked to log Umbra in. No listener setting or live combat was
-changed before current character verification.
+Umbra/Wonderbane is now verified in world. Her listener was enabled through the
+supported settings CLI; only `group_commands.enabled` and revision 4 to 5 changed.
+All buff, Hunt Foe, callout and attack preferences were preserved. Evidence index
+`70f87f825e9a4e2f7488bd30ad8b286194f6abf7fdcc18f0c81612ff13dd07ba`
+records all five buffs present, fresh automatic Track, no active/queued operation,
+and an empty native group roster. The listener correctly reports that she is not
+in a group. No live command was sent or accepted during this verification.
+
+The formerly installed .95 host and its staged wheel/native files are retired:
+12 exact paths, 59,250,255 bytes, with current .97/.62 and user data preserved.
+Final installation/retirement index
+`589104a32ee43ce28774e420b86003afcda1633d2aa8fc29d817130934cac657`
+binds all eleven receipts. No deployment cleanup remains.
 
 ## Remaining work
 
-1. Installation, manager activation and fresh client startup are complete.
-2. Verify native startup, installation preservation and Umbra's identity, then
-   enable her requested listener through the normal settings path.
-3. Check a real group `/come` and an explicitly supplied player `/attack`/cancel;
-   complete the pending same-camp return check. No live result is assumed.
-4. Retire inspected obsolete software, preserve compact receipts, and update this
-   delivery record and the branch map with actual results.
+Installation, startup, native character verification, listener enablement and
+obsolete software retirement are complete. Next is a real grouped `/come`, then
+an explicitly supplied player `/attack`/cancel and the pending same-camp return.
+The user has been asked to group Umbra and send `/come` from the other member.
+
+The user also reported the persistent Track panel. Its native presentation fix
+is active on `codex/track-window-lifecycle-20261010` in `native-group-come`;
+that work does not change this installation's live acceptance claims.
