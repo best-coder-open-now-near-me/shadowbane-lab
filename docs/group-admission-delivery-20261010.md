@@ -36,6 +36,9 @@ failed its direct-pointer guard. See [admission semantics](group-command-admissi
 [Track lifecycle](track-window-lifecycle.md) and
 [the preceding delivery evidence](group-track-delivery-20261010.md).
 
+Delivery documentation is published through [PR #159](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/159)
+on `codex/group-admission-delivery-20261010`; documentation merge is pending.
+
 ## Exact qualification
 
 | Artifact | SHA-256 |
@@ -107,9 +110,18 @@ Its preserved-file identity manifest is
 `bae84a13a97cd8d7b93b6e71f08ca040159b58a1ab198d58abb8b989280a5154`.
 A historical baseline test depended on the removed wheel; a later rerun must
 rebuild published `a6a217fb315cd6c7005d84539715467818564503`.
-Guest retirement is separate and is not claimed complete by this local receipt.
+Guest retirement is separately complete. Receipt `retirement.json`, SHA
+`d0ab516377332cea1f2b1ffdf5d840922c9715b1cf98f4758b3ad8c63d777369`,
+records removal of the obsolete .98 host, its ten payload wheels and staged .63
+DLL: 12 exact paths totaling 59,442,143 bytes. User data and diagnostic evidence
+were preserved. Postcheck `post-retirement.json`, SHA
+`d70e5f4fe57a92320d3638a9ef3ee3b0f3528a62cd7bf3da38f736c312fc2d67`,
+confirmed all targets absent with the same manager 8352, game 1868 creation/window
+and qualified .64 DLL. There was one healthy worker and no active/queued operation.
+The character was unavailable at that read and buff state was `needs_attention`;
+this does not establish login, successful Track startup or current buff upkeep.
 
 Next: confirm login/group readiness and record fresh user-authorized command
-and Track presentation results; append guest retirement evidence when verified.
+and Track presentation results.
 The old `/come` must not replay. Successful movement, automatic hiding/manual
 preservation, and all-buffs-present remain unverified in this delivery record.

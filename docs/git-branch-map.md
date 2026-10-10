@@ -12,18 +12,22 @@ Host .99/native .64 is qualified from exact graphics-preserving composition
 `03923b56923ca2d36089ac8b53df12afe91a953c`, pushed on
 `codex/native-group-command-release-20261010` in `bot-integration`.
 All 144 artifacts, required gates across 116 stages and 491 installed modules
-were verified, including
-four actual-image Track binding stages. Qualification passed 6,247 host tests
+were verified, including four actual-image Track binding stages. Qualification
+passed 6,247 host tests
 (44 optional skips), 193 verifier tests and seven installed startup handshakes.
 Installation and fresh launch are verified: 491 modules, 9,627 retained records,
 zero exclusions and two typed activation changes. Fresh live command and Track
 presentation acceptance remain pending login/group readiness.
 
 Delivery notes are on `codex/group-admission-delivery-20261010` in `bot-runtime`,
-based on the merged source. No documentation PR has been opened yet; the next
-checkpoint will append live results and guest retirement. Approved local .63
+based on the merged source, through [PR #159](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/159).
+Its merge awaits required checks; fresh live results remain pending. Approved
+local .63
 binary retirement removed 2,893 files / 208,857,922 bytes; all 6,575 nonlisted
-source/evidence files were verified unchanged. See [qualification and remaining work](group-admission-delivery-20261010.md)
+source/evidence files were verified unchanged. Guest retirement separately
+removed 12 obsolete .98/.63 paths totaling 59,442,143 bytes; the current game,
+manager and .64 DLL identities remained unchanged. Live acceptance is still
+unverified. See [qualification and remaining work](group-admission-delivery-20261010.md)
 and [the admission behavior](group-command-admission.md).
 
 ## Historical installation: group receive and automatic Track presentation - October 10
