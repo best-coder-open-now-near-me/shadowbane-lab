@@ -1,9 +1,12 @@
 # Official client 1.3.38.17 alignment - October 10
 
 The official patch supersedes the unactivated host .92 plan below. Current
-source work is `codex/wonderbane-client-update-20261010`, based on refreshed
-main after PR #147. Intended versions are host 0.3.93 and native 1.8.60. Package
-qualification and installation are pending; no live .17 acceptance is claimed.
+source is reviewed PR #148 at `dde99e07534fb129f697bede403672e9cfdec08e`.
+Host 0.3.93/native 1.8.60 release composition
+`5a46687dce579417f8b8bd086c4c6929a68c513a` is pushed on
+`codex/wonderbane-client17-release-20261010` and independently qualified.
+Installation and reviewed client launch are verified. In-world .17 acceptance
+remains pending user login.
 
 ## Exact client and static review
 
@@ -36,25 +39,124 @@ Private audit evidence is under `artifacts/client-update-20261010`:
 The manifest has 211 entries and exactly five official changes: `sb.exe`,
 `Config/Config.wpak`, `Config/ItemENGLISH.txt`, `cache/CObjects.cache`, and
 `TreasureTables/ModTables.wpak`. Runtime-written DoubleFusion files and user data
-are preserved. Fresh guest census found the game, manager and worker closed.
-The official download is patched; the vendor runtime still has prepared .16,
-native .59 and selected host .91. Inactive .92 preparation is not activation.
+are preserved. The full deployment baseline corrects the earlier coarse census:
+at that baseline no games or workers were running, but the .91 manager was
+healthy and idle with no bindings, requiring the normal reviewed manager-stop
+path. The official download was patched; the vendor runtime still had prepared
+.16, native .59 and selected host .91. Inactive .92 preparation is not activation.
+
+## Qualified combined package
+
+All 6,093 host tests passed (41 optional skips). Both native profiles passed
+required tests and exact-image probes: full 259 / diagnostics-only 255 native
+cases, plus each profile's 76 movement, 86 combat and 237 actor IPC cases. Three
+private-image CTests per profile are skipped in the generic run and independently
+executed with actual images later in the package. All four group-chat probes
+passed their 16 constructor/queue cases. The existing deferred transparency
+findings remain diagnostic-only; no required gate failed.
+
+Independent review verified all 140 artifacts and 112 stages, 486 installed
+modules, six desktop cases and one real worker handshake. Composition review
+confirmed retained graphics and named-camp source plus the source launcher fix.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Independent qualification | `b45f0199cbff9bfe48c4fbf3df2fdcc7e1e3b6821ca7a485c952c0b5843c83f4` |
+| Builder receipt | `e8e03b6a3ca71e3901562faa752b90e283a3857a9e32a900cbe215d0ef1a3e0b` |
+| Package archive | `43490990b2490391b86d5f16ebb9f289ba38b048fd7018bc1d57a7b3588bdb33` |
+| Native .60 DLL | `c0a3f2028ecf410b7d959ce9dcf7ad58c5937f04a9c4b5d9a08b25eaca257c12` |
+| Host .93 wheel | `7f2fa74210ca2730a9f18780e9272aea76f61db9158b6ba8313733cbd16d5afc` |
+| Fresh deployment baseline | `d7d06238c9d62b30aab6bced4302ff99533f5183a1e2b3d4588fa1316426bf26` |
+
+The baseline inventories 9,540 retained records and 486 installed modules.
+Inactive .92 remains prepared, with no apply or activation. Installation helpers
+passed independent review; their final plan must bind the qualified package.
+Private package evidence: `artifacts/b60/ab4666ed`; review/baseline evidence:
+`artifacts/client-update-20261010/{qualification,deployment}`.
+
+## Installed .93/.60 and reviewed launch
+
+PR #148 merged as `1e2d504937047d53c35895dbc831c89da973e909` after all 15
+hosted checks passed at exact head `dde99e07534fb129f697bede403672e9cfdec08e`.
+The main checkout is fast-forwarded; installed release source is still the exact
+qualified graphics composition `5a46687dce579417f8b8bd086c4c6929a68c513a`.
+
+The reviewed plan replaced the five changed official files plus the extension,
+updated host references/shortcuts and activated .93/.60. The normal idle-manager
+stop succeeded. Activation verified all 486 installed modules and 9,582 retained
+records with zero exclusions. The 9,540-row baseline reconciles to added records
+and separately controlled metadata; no user records were lost. Only typed manager
+startup and dispatch-permit records changed during activation. No rollback copies
+were created. The official normal installation was not modified by deployment.
+
+The first launch refused before creating a client: the installation helper had
+left `official_sha256` pointing to .16 while updating source/prepared/DLL fields.
+A separately reviewed atomic correction changed only that official hash from
+`a145ef49...` to `051c55eb...`. It preserved the original sealed plan and receipts,
+verified the unchanged official-client guard, and passed eight focused tests.
+The corrected helper now validates and projects the official hash for future
+full-client updates. Do not copy the original omitted-field projection into a new
+updater. Private corrected source and regression are recorded with the deployment
+launcher-correction evidence.
+
+After correction, the ordinary reviewed launcher opened PID 5108, lifetime
+`134361291422429449`, window 787258, with the exact .60 DLL. This proves launch
+and loaded-extension identity, not character login or combat acceptance.
+
+| Deployment evidence | SHA-256 |
+| --- | --- |
+| Exact update plan | `35c4877592876f8c78da513329568ebf28f3f19e01731113d8508a4ea7b64771` |
+| Preparation | `c577623f64656c8c415133ea84384b757b1c3e737ab59d4f5dfc09858b60d9a7` |
+| Manager stop | `10b025d297938f5ec60fd62e050b8ea5980058a51c13117a3930ba689f76785f` |
+| Apply | `67587e595b783b6aa023cbf9c7e083a4e81d6a7e31f2fbb2c5dc8ae890431ac6` |
+| Shortcuts | `f9383d12041f14e725b43e70c755c407d9db8fa5db9b20ddc6bd9f0d4a4ffebd` |
+| Activation | `2888453949ae79dae2c4eb51445bfb6582eb3ca522a0e896ffbad63c4545129a` |
+| Launcher correction | `80ba91e143f9506f1dcec8997d202c85685fc382907928e59e9f1e3a17a12bb8` |
+
+## Cleanup and user-requested pause
+
+Retirement completed: 23 inspected obsolete software targets (117,203,475 bytes)
+were removed, including hosts .91/.92, 20 old wheels and the staged .59 extension.
+Receipt `ad3af5d866e87b1dd18ebdc70d1cb6ab19e1eca97c2bcc962479ec33d7fbc651`
+and the passive postcheck verify their absence while the current runtime and user
+records remain. No retained rollback artifacts were created.
+
+Umbra subsequently entered Wonderbane. Saved enabled buff preferences caused
+preparation to start automatically. The user explicitly said this was unwanted
+at present, so normal Pause was issued immediately. For the same PID 5108 lifetime,
+manager dispatch is denied, automatic buffs are paused, preparation is disabled
+with no pending actor, tracking is disabled, and active/queued operations are
+empty. Saved buff selections remain intact. No NPC acceptance run or Resume was
+sent; the earlier request for NPC readiness is superseded.
+
+Private `deployment/user-pause-evidence.json` has SHA-256
+`36a9807aa647cf67bf69ef3d916a70bb029e34e0c9fe8dd6d2003380ec0a8010`.
+The persisted disabled control has SHA-256
+`a864a71f213b28d46d94f96ec4ecf3dce03bc11bacd2d4611756dc7b38b6f85e`.
+Source inspection confirms this pause survives worker rebind or manager restart
+for the same game instance. A new game lifetime uses a new control key and can
+currently start from saved enabled preferences; no cross-launch pause guarantee
+is claimed. No restart experiment was performed.
 
 ## Current delivery todo
 
 - Complete: exact image/asset census and independent static compatibility review.
-- Active: finish reviewed source and full .93/.60 package qualification, retaining
-  the installed graphics composition and merged named-camp behavior.
-- Pending: replace the five changed official assets and native extension, activate
-  the qualified host, verify data preservation and launch the test client.
-- Pending: after user login, one normal named-camp acceptance run with buffs.
+- Complete: reviewed source and full .93/.60 package qualification, retaining
+  installed graphics and merged named-camp behavior.
+- Complete: replace official assets/extension, activate the qualified host, verify
+  data preservation and launch the test client after the recorded metadata repair.
+- Complete: retire inspected obsolete .91/.92 software, preserving current runtime
+  and user records.
+- Complete: honor the user-requested pause and verify no active or queued actions.
+- On hold by user: normal named-camp acceptance with buffs. Do not resume gameplay
+  until explicitly requested.
 
 Do not replay the historical .92 host-only plan. Apply the
 [no-retained-rollback policy](deployment-policy.md).
 
 ---
 
-# Native named-camp host .92 - October 10
+# Historical, superseded: native named-camp host .92 - October 10
 
 ## Source and qualification
 
