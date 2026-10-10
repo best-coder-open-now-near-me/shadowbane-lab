@@ -86,7 +86,7 @@ The healthy manager is PID 8352, creation `134361488404740026`, parent 1976,
 creation `134361488404456621`; startup generation is
 `69928fc1a9324c0994450859d05c71ff`. Activation had no games or workers. The
 subsequent reviewed launch created game PID 1868, creation
-`134361489104192381`, HWND 8061748, with the exact qualified `cdde4e4f…`
+`134361489104192381`, HWND 8061748, with the exact qualified `cdde4e4f` prefix
 DLL loaded. A worker was subsequently observed as healthy PID 3476. These are
 startup observations, not proof of in-world command execution or buff completion.
 
