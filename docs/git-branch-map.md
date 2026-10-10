@@ -2,19 +2,24 @@
 
 ## Official client 1.3.38.17 alignment - October 10
 
-Reviewed source PR #148 is `dde99e07534fb129f697bede403672e9cfdec08e`.
-Qualified release `5a46687dce579417f8b8bd086c4c6929a68c513a` is published on
-`codex/wonderbane-client17-release-20261010` in `bot-integration`, combining
-.17 support with named camps and retained installed graphics outside main.
-Host .93/native .60 passed all required package gates and independent review.
-Root owns delivery documentation on `codex/client17-delivery-20261010` in
-`bot-runtime`, targeting main; the normal checkout remains on main.
+Start development from refreshed main at PR #148 merge
+`1e2d504937047d53c35895dbc831c89da973e909`. All 15 checks passed at reviewed
+head `dde99e07534fb129f697bede403672e9cfdec08e`.
+Qualified and installed .93/.60 release `5a46687dce579417f8b8bd086c4c6929a68c513a`
+is published on `codex/wonderbane-client17-release-20261010` in `bot-integration`.
+It retains installed graphics outside main and includes named camps plus .17
+support. This release composition is not the shared development base.
 
-Installation is pending. The full baseline corrects the earlier coarse census:
-no games/workers, but the selected .91 manager is running idle. The prepared .92
-host-only plan is superseded. Next: reviewed full-client installation, preserved
-data verification, test-client launch and user login for one camp acceptance run.
-See [exact evidence and todos](client-update-20261010.md).
+Activation verified 486 modules and 9,582 retained records with zero exclusions.
+A stale official hash in launcher metadata stopped the first launch before a game
+was created; a reviewed one-field correction and unchanged baseline guard passed,
+then the test client launched with the exact .60 DLL. User login/live camp
+acceptance remains pending. The .92 host-only plan is superseded.
+
+Root owns delivery documentation on `codex/client17-delivery-20261010` in
+`bot-runtime`, targeting main. The normal checkout is clean on main. Next: finish
+inspected obsolete .91/.92 software retirement; after user login, one normal
+camp run with buffs. See [exact evidence and todos](client-update-20261010.md).
 
 ## Native named PvE camps - October 10
 

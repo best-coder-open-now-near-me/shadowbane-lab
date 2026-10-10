@@ -5,7 +5,8 @@ source is reviewed PR #148 at `dde99e07534fb129f697bede403672e9cfdec08e`.
 Host 0.3.93/native 1.8.60 release composition
 `5a46687dce579417f8b8bd086c4c6929a68c513a` is pushed on
 `codex/wonderbane-client17-release-20261010` and independently qualified.
-Installation is pending; no live .17 acceptance is claimed.
+Installation and reviewed client launch are verified. In-world .17 acceptance
+remains pending user login.
 
 ## Exact client and static review
 
@@ -73,13 +74,54 @@ passed independent review; their final plan must bind the qualified package.
 Private package evidence: `artifacts/b60/ab4666ed`; review/baseline evidence:
 `artifacts/client-update-20261010/{qualification,deployment}`.
 
+## Installed .93/.60 and reviewed launch
+
+PR #148 merged as `1e2d504937047d53c35895dbc831c89da973e909` after all 15
+hosted checks passed at exact head `dde99e07534fb129f697bede403672e9cfdec08e`.
+The main checkout is fast-forwarded; installed release source is still the exact
+qualified graphics composition `5a46687dce579417f8b8bd086c4c6929a68c513a`.
+
+The reviewed plan replaced the five changed official files plus the extension,
+updated host references/shortcuts and activated .93/.60. The normal idle-manager
+stop succeeded. Activation verified all 486 installed modules and 9,582 retained
+records with zero exclusions. The 9,540-row baseline reconciles to added records
+and separately controlled metadata; no user records were lost. Only typed manager
+startup and dispatch-permit records changed during activation. No rollback copies
+were created. The official normal installation was not modified by deployment.
+
+The first launch refused before creating a client: the installation helper had
+left `official_sha256` pointing to .16 while updating source/prepared/DLL fields.
+A separately reviewed atomic correction changed only that official hash from
+`a145ef49...` to `051c55eb...`. It preserved the original sealed plan and receipts,
+verified the unchanged official-client guard, and passed eight focused tests.
+The corrected helper now validates and projects the official hash for future
+full-client updates. Do not copy the original omitted-field projection into a new
+updater. Private corrected source and regression are recorded with the deployment
+launcher-correction evidence.
+
+After correction, the ordinary reviewed launcher opened PID 5108, lifetime
+`134361291422429449`, window 787258, with the exact .60 DLL. This proves launch
+and loaded-extension identity, not character login or combat acceptance.
+
+| Deployment evidence | SHA-256 |
+| --- | --- |
+| Exact update plan | `35c4877592876f8c78da513329568ebf28f3f19e01731113d8508a4ea7b64771` |
+| Preparation | `c577623f64656c8c415133ea84384b757b1c3e737ab59d4f5dfc09858b60d9a7` |
+| Manager stop | `10b025d297938f5ec60fd62e050b8ea5980058a51c13117a3930ba689f76785f` |
+| Apply | `67587e595b783b6aa023cbf9c7e083a4e81d6a7e31f2fbb2c5dc8ae890431ac6` |
+| Shortcuts | `f9383d12041f14e725b43e70c755c407d9db8fa5db9b20ddc6bd9f0d4a4ffebd` |
+| Activation | `2888453949ae79dae2c4eb51445bfb6582eb3ca522a0e896ffbad63c4545129a` |
+| Launcher correction | `80ba91e143f9506f1dcec8997d202c85685fc382907928e59e9f1e3a17a12bb8` |
+
 ## Current delivery todo
 
 - Complete: exact image/asset census and independent static compatibility review.
 - Complete: reviewed source and full .93/.60 package qualification, retaining
   installed graphics and merged named-camp behavior.
-- Active: replace the five changed official assets and native extension, activate
-  the qualified host, verify data preservation and launch the test client.
+- Complete: replace official assets/extension, activate the qualified host, verify
+  data preservation and launch the test client after the recorded metadata repair.
+- Active: retire inspected obsolete .91/.92 software, preserving current runtime
+  and user records.
 - Pending: after user login, one normal named-camp acceptance run with buffs.
 
 Do not replay the historical .92 host-only plan. Apply the
