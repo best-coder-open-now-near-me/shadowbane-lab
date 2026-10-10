@@ -1,9 +1,11 @@
 # Official client 1.3.38.17 alignment - October 10
 
 The official patch supersedes the unactivated host .92 plan below. Current
-source work is `codex/wonderbane-client-update-20261010`, based on refreshed
-main after PR #147. Intended versions are host 0.3.93 and native 1.8.60. Package
-qualification and installation are pending; no live .17 acceptance is claimed.
+source is reviewed PR #148 at `dde99e07534fb129f697bede403672e9cfdec08e`.
+Host 0.3.93/native 1.8.60 release composition
+`5a46687dce579417f8b8bd086c4c6929a68c513a` is pushed on
+`codex/wonderbane-client17-release-20261010` and independently qualified.
+Installation is pending; no live .17 acceptance is claimed.
 
 ## Exact client and static review
 
@@ -36,16 +38,47 @@ Private audit evidence is under `artifacts/client-update-20261010`:
 The manifest has 211 entries and exactly five official changes: `sb.exe`,
 `Config/Config.wpak`, `Config/ItemENGLISH.txt`, `cache/CObjects.cache`, and
 `TreasureTables/ModTables.wpak`. Runtime-written DoubleFusion files and user data
-are preserved. Fresh guest census found the game, manager and worker closed.
-The official download is patched; the vendor runtime still has prepared .16,
+are preserved. The full deployment baseline corrects the earlier coarse census:
+no games or workers are running, but the .91 manager is healthy and idle with
+no bindings. The normal reviewed manager-stop path applies. The official download
+is patched; the vendor runtime still has prepared .16,
 native .59 and selected host .91. Inactive .92 preparation is not activation.
+
+## Qualified combined package
+
+All 6,093 host tests passed (41 optional skips). Both native profiles passed
+required tests and exact-image probes: full 259 / diagnostics-only 255 native
+cases, plus each profile's 76 movement, 86 combat and 237 actor IPC cases. Three
+private-image CTests per profile are skipped in the generic run and independently
+executed with actual images later in the package. All four group-chat probes
+passed their 16 constructor/queue cases. The existing deferred transparency
+findings remain diagnostic-only; no required gate failed.
+
+Independent review verified all 140 artifacts and 112 stages, 486 installed
+modules, six desktop cases and one real worker handshake. Composition review
+confirmed retained graphics and named-camp source plus the source launcher fix.
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Independent qualification | `b45f0199cbff9bfe48c4fbf3df2fdcc7e1e3b6821ca7a485c952c0b5843c83f4` |
+| Builder receipt | `e8e03b6a3ca71e3901562faa752b90e283a3857a9e32a900cbe215d0ef1a3e0b` |
+| Package archive | `43490990b2490391b86d5f16ebb9f289ba38b048fd7018bc1d57a7b3588bdb33` |
+| Native .60 DLL | `c0a3f2028ecf410b7d959ce9dcf7ad58c5937f04a9c4b5d9a08b25eaca257c12` |
+| Host .93 wheel | `7f2fa74210ca2730a9f18780e9272aea76f61db9158b6ba8313733cbd16d5afc` |
+| Fresh deployment baseline | `d7d06238c9d62b30aab6bced4302ff99533f5183a1e2b3d4588fa1316426bf26` |
+
+The baseline inventories 9,540 retained records and 486 installed modules.
+Inactive .92 remains prepared, with no apply or activation. Installation helpers
+passed independent review; their final plan must bind the qualified package.
+Private package evidence: `artifacts/b60/ab4666ed`; review/baseline evidence:
+`artifacts/client-update-20261010/{qualification,deployment}`.
 
 ## Current delivery todo
 
 - Complete: exact image/asset census and independent static compatibility review.
-- Active: finish reviewed source and full .93/.60 package qualification, retaining
-  the installed graphics composition and merged named-camp behavior.
-- Pending: replace the five changed official assets and native extension, activate
+- Complete: reviewed source and full .93/.60 package qualification, retaining
+  installed graphics and merged named-camp behavior.
+- Active: replace the five changed official assets and native extension, activate
   the qualified host, verify data preservation and launch the test client.
 - Pending: after user login, one normal named-camp acceptance run with buffs.
 

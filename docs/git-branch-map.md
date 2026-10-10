@@ -2,16 +2,19 @@
 
 ## Official client 1.3.38.17 alignment - October 10
 
-Start development from refreshed `main` after PR #147. Root and the native review
-lane own `codex/wonderbane-client-update-20261010` in `bot-runtime`; intended
-host .93/native .60 add the exact official .17 pair. Qualification and installation
-are pending. Compose the release onto `97c4899b` in `bot-integration` to retain
-installed graphics outside main and named camps. The prepared-but-unactivated
-.92 host-only plan below is superseded by this full client update. The selected
-runtime remains .91/.59 with .16; a fresh census found all game/bot processes
-closed. Keep the normal project checkout on main. Next: qualify the composed
-package, update the exact changed assets and host, then user login and one camp
-acceptance check. See [current evidence and todos](client-update-20261010.md).
+Reviewed source PR #148 is `dde99e07534fb129f697bede403672e9cfdec08e`.
+Qualified release `5a46687dce579417f8b8bd086c4c6929a68c513a` is published on
+`codex/wonderbane-client17-release-20261010` in `bot-integration`, combining
+.17 support with named camps and retained installed graphics outside main.
+Host .93/native .60 passed all required package gates and independent review.
+Root owns delivery documentation on `codex/client17-delivery-20261010` in
+`bot-runtime`, targeting main; the normal checkout remains on main.
+
+Installation is pending. The full baseline corrects the earlier coarse census:
+no games/workers, but the selected .91 manager is running idle. The prepared .92
+host-only plan is superseded. Next: reviewed full-client installation, preserved
+data verification, test-client launch and user login for one camp acceptance run.
+See [exact evidence and todos](client-update-20261010.md).
 
 ## Native named PvE camps - October 10
 
