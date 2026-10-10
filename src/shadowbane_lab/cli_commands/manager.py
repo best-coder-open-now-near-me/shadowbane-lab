@@ -948,8 +948,7 @@ class _ExactWorkerEngineExecutor:
         except (NativeActionChannelError, OSError, ValueError) as exc:
             result = WorkerOperationExecution(
                 WorkerOperationState.FAILED,
-                f"native operation failed ({type(exc).__name__}); "
-                f"acquisition={movement.request_key}",
+                movement.failure_detail(exc),
             )
         finally:
             cleanup_problem = movement.finish()
@@ -961,7 +960,12 @@ class _ExactWorkerEngineExecutor:
                 self._navigation_map,
             )
         if cleanup_problem:
-            return WorkerOperationExecution(WorkerOperationState.FAILED, cleanup_problem)
+            primary = " ".join((result.detail or result.state.value).split())[:383]
+            cleanup = " ".join(cleanup_problem.split())[:118]
+            return WorkerOperationExecution(
+                WorkerOperationState.FAILED, f"{primary}; cleanup: {cleanup}",
+                native_cleanup_confirmed=False,
+            )
         return replace(result, native_cleanup_confirmed=movement.cleanup_confirmed)
 
     def initialize(self, worker_id, process) -> None:

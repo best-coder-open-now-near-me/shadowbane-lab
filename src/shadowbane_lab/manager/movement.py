@@ -53,6 +53,7 @@ class OperationMovement:
         self._lock = threading.RLock()
         self._closed = False
         self._acquisition_attempted = False
+        self._acquisition_snapshot: Snapshot | None = None
         self._acquisition_refused = False
         self._cleanup_confirmed = False
 
@@ -89,6 +90,7 @@ class OperationMovement:
             if self._closed or self.is_set():
                 return False
             expected = self.session.snapshot()
+            self._acquisition_snapshot = expected
             # Retry only the exact ambiguous request against the original snapshot.
             for attempt in range(2):
                 if self.is_set():
@@ -123,6 +125,40 @@ class OperationMovement:
                     if attempt:
                         raise
             return False
+
+    def failure_detail(self, error: Exception) -> str:
+        """Bounded original request evidence; never reread a later native snapshot."""
+        outcome = f"/{error.outcome.name}" if isinstance(error, NativeMovementError) else ""
+        parts = [f"native operation failed ({type(error).__name__[:48]}{outcome})",
+                 f"acquisition={self.request_key}"]
+        expected = self._acquisition_snapshot
+
+        def ownership(label, value):
+            grant = value.grant
+            return (f"{label}=g{grant.generation}/s{grant.scene}/{grant.owner.name}"
+                    f"/f{value.flags}/r{value.revision}")
+
+        if isinstance(expected, Snapshot):
+            parts.append(ownership("acquire_expected", expected))
+        receipt = error.receipt if isinstance(error, NativeMovementError) else None
+        if isinstance(receipt, Receipt):
+            # NativeMovementSession already validated the producer/request reply.
+            # Later commands can also fail here; do not label those ACQUIRE replies.
+            if receipt.request_key != self.request_key:
+                parts.append(f"receipt_request={receipt.request_key}")
+            parts.append(ownership("receipt", receipt))
+        elif isinstance(error, NativeMovementError):
+            parts.append("receipt=absent")
+        if isinstance(expected, Snapshot):
+            parts.append(f"game={expected.process_id}/{expected.creation_filetime}"
+                         f"/hwnd{expected.window}; snapshot={expected.sequence}@{expected.tick}")
+        if isinstance(receipt, Receipt):
+            host = receipt.host
+            parts.append(f"producer={host.process_id}/{host.creation_filetime}"
+                         f"/lease{host.lease_generation}; receipt_hwnd={receipt.window}")
+        else:
+            parts.append(" ".join(str(error).split())[:128])
+        return "; ".join(parts)[:512]
 
     def maintain(self) -> None:
         if not self._lock.acquire(blocking=False):

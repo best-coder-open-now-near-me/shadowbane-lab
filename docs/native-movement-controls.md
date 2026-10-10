@@ -195,3 +195,12 @@ an expired heartbeat from generic producer contention without inferring a cause.
 The earlier live stop included a 1.438-second observation gap but discarded the
 transport's detailed reason. Removing full discovery from maintenance addresses
 a concrete blocking path; it does not establish the cause of that historical stop.
+
+Acquisition failures retain the decoded native outcome and original acquisition
+snapshot alongside any correlated receipt: ownership generation/scene, flags,
+settings revision and request identity. Later-command receipts keep their own
+request ID and are not relabeled as acquisition replies. A failed terminal
+cleanup appends bounded evidence without replacing the original rejection.
+Current state sampled after failure is never substituted for the old receipt.
+The native outcome does not expose every internal rejection subreason; the host
+does not infer one or retry a refused acquisition.
