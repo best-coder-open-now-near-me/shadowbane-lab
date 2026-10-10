@@ -14,6 +14,20 @@ remain required before integration. See [the evidence and scope](hunt-foe-group-
 Private disassembly remains under `artifacts/group-chat-20261010`, outside source.
 Next: qualify native sending and group binding, then connect the same owner loop.
 
+## PvE worker maintenance - October 9
+
+PR #138 merged at `f13828521128cc2a7e4525ae4590fefdc9df00a8`; this group-callout
+branch includes that reviewed worker maintenance source. Host .89 retains native .58 and
+replaces repeated whole-desktop worker discovery with a retained exact-process
+and window guard. Movement renewal failures now retain bounded transport timing
+and immutable request evidence; acquisition failures retain native outcomes and
+correlated receipt identity through cleanup. Native lease expiry and ownership checks stay
+unchanged. Focused worker/identity and movement checks pass; independent review,
+full checks and exact-source package qualification precede installation.
+The installed .88/.58 runtime remains active while this proceeds. Next: complete
+review/qualification and deliver the host update, then observe a bounded NPC run.
+Hunt Foe group-callout work is separate and has no qualified native send path yet.
+
 ## Concoction early renewal - October 9
 
 Start new work from refreshed `main` at

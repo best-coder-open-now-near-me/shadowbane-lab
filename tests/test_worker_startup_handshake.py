@@ -83,6 +83,7 @@ def test_redirector_pid_never_becomes_worker_stop_address(tmp_path):
         f._StaticRegistry(f._client()),
         inspector,
         process_id=7028,
+        game_identity_guard_factory=f._GameIdentityGuard,
     )
     assert runtime.serve() == 0
     assert ledger.inspect(f.CLIENT_ID).records[0].runtime_state is WorkerRuntimeState.STOPPED
@@ -251,7 +252,8 @@ class Bound:
         return time.monotonic() >= self.deadline
 runtime = ExactClientWorkerRuntime(f._manifest(), binding,
     WorkerHeartbeatLedger(f._manifest(), Path(sys.argv[1])),
-    f._StaticRegistry(f._client()), ProcessInspector(), heartbeat_interval_seconds=0.1)
+    f._StaticRegistry(f._client()), ProcessInspector(), heartbeat_interval_seconds=0.1,
+    game_identity_guard_factory=f._GameIdentityGuard)
 sys.exit(runtime.serve(stop_signal=Bound()))
 """
     children = []
@@ -322,7 +324,8 @@ def test_runtime_still_rejects_wrong_stop_lifetime(tmp_path, pid, creation):
         )
     )
     runtime = f.ExactClientWorkerRuntime(
-        f._manifest(), binding, ledger, f._StaticRegistry(f._client()), inspector, process_id=7028
+        f._manifest(), binding, ledger, f._StaticRegistry(f._client()), inspector, process_id=7028,
+        game_identity_guard_factory=f._GameIdentityGuard,
     )
     assert runtime.serve() == 1
     record = ledger.inspect(f.CLIENT_ID).records[0]

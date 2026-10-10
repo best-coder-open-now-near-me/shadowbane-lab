@@ -26,6 +26,7 @@ from typing import Protocol
 from shadowbane_lab.client_input.stop import StopCause
 from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
 
+from .game_identity import GameIdentityGuard
 from .manifest import ManagerManifest
 from .model import ClientInstanceSnapshot, ClientRegistrySnapshot
 from .operation import (
@@ -269,7 +270,7 @@ class _ActiveWorkerOperation:
 
 
 class ExactClientWorkerRuntime:
-    """Publish health only while one exact visible game identity remains current."""
+    """Discover once, then supervise one exact game lifetime without enumeration."""
 
     def __init__(
         self,
@@ -279,6 +280,7 @@ class ExactClientWorkerRuntime:
         registry: RegistryProvider,
         process_inspector: ProcessLifetimeInspector,
         *,
+        game_identity_guard_factory: Callable[[ExactClientWorkerBinding], GameIdentityGuard],
         operation_ledger: WorkerOperationLedger | None = None,
         operation_executor: WorkerOperationExecutor | None = None,
         operation_maintenance: Callable[[WorkerOperation, StopSignal], None] | None = None,
@@ -310,6 +312,8 @@ class ExactClientWorkerRuntime:
             raise ValueError("operation_initializer must be callable")
         if operation_maintenance is not None and not callable(operation_maintenance):
             raise ValueError("operation_maintenance must be callable")
+        if not callable(game_identity_guard_factory):
+            raise ValueError("game_identity_guard_factory must be callable")
         if not callable(monotonic_clock):
             raise ValueError("monotonic_clock must be callable")
         if not callable(sleeper):
@@ -339,6 +343,7 @@ class ExactClientWorkerRuntime:
         self._binding = binding
         self._ledger = ledger
         self._registry = registry
+        self._game_identity_guard_factory = game_identity_guard_factory
         self._process = process
         self._interval = float(heartbeat_interval_seconds)
         self._sleep = sleeper
@@ -377,7 +382,13 @@ class ExactClientWorkerRuntime:
         active_operation: _ActiveWorkerOperation | None = None
         evidence_sequence = 0
         next_heartbeat = self._monotonic()
+        game_guard = None
         try:
+            # Full selector/path validation precedes any native owner. Afterwards
+            # renewal must not wait for desktop discovery, titles or geometry.
+            self._require_exact_game_identity()
+            game_guard = self._game_identity_guard_factory(self._binding)
+            game_guard.require_current()
             if self._operation_initializer is not None:
                 self._operation_initializer(publisher.worker_id, self._process)
             if self._preparation_factory is not None:
@@ -405,7 +416,7 @@ class ExactClientWorkerRuntime:
                     )
                     return 0
 
-                self._require_exact_game_identity()
+                game_guard.require_current()
                 if self._preparation is not None:
                     self._preparation.supervise(allowed=not publisher.dispatch_gate().is_set())
                 if active_operation is not None and not active_operation.thread.is_alive():
@@ -484,10 +495,14 @@ class ExactClientWorkerRuntime:
             )
             return 1
         finally:
-            self._stop_preparation(publisher)
-            publisher.close(detail=final_detail)
-            if self._preparation_reporter is not None:
-                self._preparation_reporter.close()
+            try:
+                self._stop_preparation(publisher)
+                publisher.close(detail=final_detail)
+                if self._preparation_reporter is not None:
+                    self._preparation_reporter.close()
+            finally:
+                if game_guard is not None:
+                    game_guard.close()
 
     def _freeze_preparation(self):
         if self._preparation is not None:
