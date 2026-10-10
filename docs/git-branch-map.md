@@ -16,8 +16,9 @@ revalidation, matching the direct CLI. Source, package and deployment reviews
 passed. The same game and extension remained loaded throughout the host update.
 Normal named-camp acceptance passed: three exact NPC health-zero deaths, confirmed
 cleanup, successful cancellation and Resume. Ranged combat progressed without
-route driving; movement completion is not claimed. Obsolete .93 retirement is
-in progress.
+route driving; movement completion is not claimed. All five buff groups are
+present and maintaining with no queued combat. Obsolete .93 retirement removed
+11 paths (58,003,739 bytes); current runtime and user data remain.
 
 Root owns delivery documentation on `codex/pve-startup-delivery-20261010` in
 `bot-runtime`, targeting main. The normal checkout is clean on main. The merged

@@ -66,7 +66,7 @@ changes. The separate retained-manifest export was blocked by automatic approval
 review; receipt-level preservation is verified, but independent row-by-row
 reconciliation of the earlier 9,550-row running baseline is not claimed.
 
-The normal named-camp retry passed; obsolete .93 software retirement remains pending.
+The normal named-camp retry and obsolete .93 software retirement are complete.
 No retained rollback artifacts are allowed under the
 [deployment policy](deployment-policy.md).
 
@@ -105,3 +105,26 @@ Independent review verified the raw journal at
 SHA-256 `b2d6738c747a7b0194e4b129ccabe7b7f9652fe5556ece07ca45fe1cca98efa9`.
 Cleanup, cancellation, status and Resume receipts are private under
 `E:/virtual-machines/shadowbane-testing/diagnostics/host-update-20261010-0.3.94/camp-run/run-89bc9dbdaf154a0e9143ac7690c173eb`.
+
+## Software retirement and next work
+
+Exact inspected retirement removed the obsolete .93 host and ten old wheel files:
+11 paths, 58,003,739 bytes. A fresh postcheck confirms all targets absent, the
+same game lifetime/window/.60 DLL, healthy .94 manager and worker, empty combat
+queue and current maintaining buffs. No user data was deleted and no rollback
+copies were created. Diagnostic evidence and metadata remain.
+
+| Completion evidence | SHA-256 |
+| --- | --- |
+| Retirement receipt | `0fb711642c9a8d61e75f81bf71d859c0b43914915a77a2f0cb52912a27328aba` |
+| Post-retirement verification | `e3d066f7996ff549d2bd1727d1baafcf09cd996f3069a73927eab42fd15d4ccc` |
+| Compact delivery index | `f79f9a35459608347a24d85b1843d260c15153e3a65422df405165ce042d622e` |
+
+These receipts are under `artifacts/bot-deploy/20261010-host94`. The merged source
+branch and clean source worktree were retired after verifying reachability in
+main. Root main and the installed release worktree are clean; delivery notes are
+published on `codex/pve-startup-delivery-20261010`, targeting main.
+
+There are no remaining installation or bounded-camp-test todos. The delivery
+notes await their ordinary integration checks. Actual route-driving acceptance
+remains a future PvE task; this successful ranged run did not exercise it.
