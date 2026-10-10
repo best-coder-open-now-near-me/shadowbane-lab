@@ -1,5 +1,21 @@
 # Git branch map
 
+## PvE terrain route refinement - October 10
+
+Start shared development from refreshed `main`. The focused source branch
+`codex/pve-camp-return-routing-20261010` in managed checkout
+`pve-camp-return-routing` targets main and carries the .95 host correction.
+It is based on PR #151 merge `70da648dac59e99f2f02949a93a656c638d067e1`.
+The installed .94/.60 release remains unchanged pending source review, package
+qualification and deployment. Native and asset files are unchanged.
+
+The later camp run completed three NPC death cleanups and native chase, but
+return routing failed before any host movement dispatch. Exact terrain replay
+reproduced a coarse raster cell blocking the occupied start; bounded finer
+resampling finds a route while preserving explicit and learned obstacles.
+This is offline planning evidence, not completed live return acceptance.
+See [the terrain correction and validation boundary](pve-terrain-routing.md).
+
 ## PvE startup ownership repair - October 10
 
 Start development from refreshed main at PR #150 merge

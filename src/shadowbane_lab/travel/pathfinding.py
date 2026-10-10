@@ -6,7 +6,7 @@ import heapq
 from dataclasses import dataclass, field, replace
 from itertools import pairwise
 from math import floor, hypot, inf, isclose, isfinite, sqrt
-from typing import Literal
+from typing import Literal, Protocol
 
 from shadowbane_lab.client_observation import NativePlayerPositionObservation
 from shadowbane_lab.navigation_inspector.events import (
@@ -17,6 +17,17 @@ from shadowbane_lab.navigation_inspector.events import (
     emit,
 )
 from shadowbane_lab.travel.model import TravelDestination
+
+
+class NavigationTerrainSampler(Protocol):
+    """Immutable terrain evidence that can be sampled at a finer local resolution."""
+
+    @property
+    def minimum_cell_size(self) -> float: ...
+
+    def seed(
+        self, navigation_map: SparseNavigationMap, bounds: tuple[float, float, float, float]
+    ) -> None: ...
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -230,6 +241,9 @@ class SparseNavigationMap:
         self._learned_blocked: set[NavigationCell] = set()
         self._refined_learned_blocked: set[NavigationCell] = set()
         self._costs: dict[NavigationCell, float] = {}
+        self._terrain_blocked: set[NavigationCell] = set()
+        self._terrain_costs: dict[NavigationCell, float] = {}
+        self._terrain_sources: dict[object, NavigationTerrainSampler] = {}
 
     @property
     def cell_size(self) -> float:
@@ -344,7 +358,27 @@ class SparseNavigationMap:
         self._learned_blocked.add(cell)
         self._refined_learned_blocked.add(refined_cell)
 
-    def refined_navigation_map(self) -> SparseNavigationMap:
+    def retain_terrain(self, key: object, sampler: NavigationTerrainSampler) -> None:
+        if not isfinite(sampler.minimum_cell_size) or sampler.minimum_cell_size <= 0:
+            raise ValueError("terrain sampling resolution must be finite and positive")
+        self._terrain_sources[key] = sampler
+
+    def mark_terrain_blocked(self, cell: NavigationCell) -> None:
+        if not isinstance(cell, NavigationCell):
+            raise ValueError("cell must be NavigationCell")
+        self._terrain_blocked.add(cell)
+        self._blocked.add(cell)
+
+    def set_terrain_cost(self, cell: NavigationCell, cost: float) -> None:
+        if not isinstance(cell, NavigationCell) or not isfinite(cost) or cost < 1:
+            raise ValueError("terrain cost requires a cell and finite cost >= 1")
+        self._terrain_costs[cell] = max(cost, self._terrain_costs.get(cell, 1.0))
+
+    def refined_navigation_map(
+        self,
+        *,
+        terrain_bounds: tuple[float, float, float, float] | None = None,
+    ) -> SparseNavigationMap:
         """Build a fine planning view without inventing gaps in known walls.
 
         Structural blockers occupy every child cell. A live collision blocks only
@@ -376,6 +410,18 @@ class SparseNavigationMap:
             for child in self._refined_children(cell):
                 if child not in refined._blocked:
                     refined._costs[child] = cost
+        refined._terrain_sources = self._terrain_sources.copy()
+        if terrain_bounds is None:
+            # Without a bounded re-sampling request, retain conservative terrain.
+            for cell in self._terrain_blocked:
+                for child in self._refined_children(cell):
+                    refined.mark_terrain_blocked(child)
+            for cell, cost in self._terrain_costs.items():
+                for child in self._refined_children(cell):
+                    refined.set_terrain_cost(child, cost)
+        else:
+            for sampler in self._terrain_sources.values():
+                sampler.seed(refined, terrain_bounds)
         return refined
 
     def _refined_children(self, cell: NavigationCell) -> tuple[NavigationCell, ...]:
@@ -472,10 +518,13 @@ class SparseNavigationMap:
         blocked.discard(start)
         if goal not in self._blocked:
             blocked.discard(goal)
+        combined_costs = self._costs.copy()
+        for cell, cost in self._terrain_costs.items():
+            combined_costs[cell] = max(cost, combined_costs.get(cell, 1.0))
         costs = tuple(
             sorted(
                 (cell, cost)
-                for cell, cost in self._costs.items()
+                for cell, cost in combined_costs.items()
                 if (
                     minimum.x <= cell.x <= maximum.x
                     and minimum.y <= cell.y <= maximum.y
@@ -518,6 +567,55 @@ class WeightedAStarPlanner:
         return self._config
 
     def plan(
+        self,
+        navigation_map: SparseNavigationMap,
+        *,
+        start_lt: float,
+        start_lg: float,
+        destination: TravelDestination,
+    ) -> AStarRoute:
+        try:
+            return self._plan(
+                navigation_map, start_lt=start_lt, start_lg=start_lg, destination=destination
+            )
+        except AStarRouteNotFound:
+            if not navigation_map._terrain_sources:
+                raise
+        # A coarse raster discontinuity is evidence to re-sample, not a physical
+        # wall occupying every child cell. Keep the original world planning window
+        # and all explicit/learned obstacles; never enlarge it or erase a blocker.
+        start = navigation_map.cell_for(start_lt, start_lg)
+        goal = navigation_map.cell_for(destination.lt, destination.lg)
+        grid = navigation_map.local_grid(start, goal, self._config)
+        pad = max(1, self._config.obstacle_clearance_cells) * grid.cell_size
+        bounds = (
+            grid.minimum.x * grid.cell_size - pad,
+            grid.minimum.y * grid.cell_size - pad,
+            (grid.maximum.x + 1) * grid.cell_size + pad,
+            (grid.maximum.y + 1) * grid.cell_size + pad,
+        )
+        minimum = min(
+            source.minimum_cell_size for source in navigation_map._terrain_sources.values()
+        )
+        current, config = navigation_map, self._config
+        while current.refined_cell_size >= minimum:
+            try:
+                current = current.refined_navigation_map(terrain_bounds=bounds)
+            except ValueError as exc:
+                raise AStarRouteNotFound(f"terrain refinement unavailable: {exc}") from exc
+            config = replace(
+                config,
+                planning_margin_cells=(config.planning_margin_cells * current.refinement_factor),
+            )
+            try:
+                return WeightedAStarPlanner(config, observer=self._observer)._plan(
+                    current, start_lt=start_lt, start_lg=start_lg, destination=destination
+                )
+            except AStarRouteNotFound:
+                continue
+        raise AStarRouteNotFound("A* found no route after bounded terrain re-sampling")
+
+    def _plan(
         self,
         navigation_map: SparseNavigationMap,
         *,
