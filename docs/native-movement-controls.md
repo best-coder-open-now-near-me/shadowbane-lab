@@ -173,3 +173,34 @@ use the remaining budget; an expired deadline leaves cleanup unconfirmed. The
 subsequent terminal movement-owner STOP is separately bounded by the session
 transport timeout and may retry once with the same request identity. This does
 not weaken native focus/UI/scene/owner checks or create a startup delay.
+
+
+## Worker maintenance identity and failure evidence
+
+A worker binds once to the reviewed client's exact process lifetime and window.
+After its full registry bootstrap, each supervision tick validates that fixed
+process/window directly; maintenance does not rediscover all visible windows or
+read window titles, geometry or foreground state. The retained process handle
+must still be live with the original creation time, and the window must still
+belong to that PID. Loss or unreadable identity stops the operation before renewal.
+The guard closes when worker supervision ends.
+
+Native grant, generation, cancellation and permit checks remain authoritative.
+The one-second producer lease is unchanged: an expired lease is never revived,
+and an interrupted operation never reacquires ownership. Renewal failures retain
+the exception type, bounded message and timing notes, plus the immutable request
+ID, in the existing terminal stop reason. This distinguishes evidence such as
+an expired heartbeat from generic producer contention without inferring a cause.
+
+The earlier live stop included a 1.438-second observation gap but discarded the
+transport's detailed reason. Removing full discovery from maintenance addresses
+a concrete blocking path; it does not establish the cause of that historical stop.
+
+Acquisition failures retain the decoded native outcome and original acquisition
+snapshot alongside any correlated receipt: ownership generation/scene, flags,
+settings revision and request identity. Later-command receipts keep their own
+request ID and are not relabeled as acquisition replies. A failed terminal
+cleanup appends bounded evidence without replacing the original rejection.
+Current state sampled after failure is never substituted for the old receipt.
+The native outcome does not expose every internal rejection subreason; the host
+does not infer one or retry a refused acquisition.

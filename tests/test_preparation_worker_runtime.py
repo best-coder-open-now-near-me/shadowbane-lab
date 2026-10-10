@@ -9,6 +9,7 @@ from test_manager_worker_runtime import (
     WORKER_PROCESS_STARTED,
     ProcessLifetimeSnapshot,
     _client,
+    _GameIdentityGuard,
     _manifest,
     _ProcessInspector,
     _StaticRegistry,
@@ -55,7 +56,8 @@ def setup(tmp_path, proof):
                                        native_cleanup_confirmed=proof)
     runtime = ExactClientWorkerRuntime(manifest, binding, heartbeats,
         _StaticRegistry(client), _ProcessInspector(process), process_id=WORKER_PROCESS_ID,
-        operation_ledger=ledger, operation_executor=SimpleNamespace(execute=execute))
+        operation_ledger=ledger, operation_executor=SimpleNamespace(execute=execute),
+        game_identity_guard_factory=_GameIdentityGuard,)
     publisher = WorkerHeartbeatPublisher(heartbeats, node_id=NODE_ID, client_id=CLIENT_ID,
         instance_id=client.instance_id, process=process, worker_id=WORKER_ID)
     now = time.time()
