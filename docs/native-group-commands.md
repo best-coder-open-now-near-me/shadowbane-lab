@@ -2,8 +2,8 @@
 
 PR #155 merged the native receive, host listener and operation paths into main.
 The combined host 0.3.97/native 1.8.62 release includes the UI-ownership repair
-and passed exact package qualification and independent review. Installation and
-live acceptance remain pending. See the [current delivery record](group-command-delivery-20261010.md)
+and passed exact package qualification and independent review. Installation is
+complete; live acceptance remains pending. See the [current delivery record](group-command-delivery-20261010.md)
 for source identities, preparation state and remaining work.
 
 The authorized commands are literal `/come` and `/attack first_name`, from any

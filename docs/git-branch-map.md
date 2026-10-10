@@ -17,11 +17,13 @@ profiles, 158 qualification cases, six desktop checks and one worker handshake.
 All 140 artifacts and 491 source/wheel/installed modules were independently
 verified. Existing diagnostic transparency findings remain explicitly non-gating.
 
-Preparation succeeded; the .95/.60 runtime remains active because Vendor Test is
-open. There is no live command or new camp-return acceptance claim. The listener
-has its own saved setting, disabled on migration; Umbra's requested listener will
-be enabled after installation and exact character verification. The earlier
-.96/.61 candidate was prepared but never applied and is now superseded.
+Host .97/native .62 is installed and manager activation passed, with all 491
+modules verified and 9,607 retained records preserved. Client executables and
+resources remain unchanged; shortcuts target the new host. Fresh game startup,
+login, live commands and camp-return acceptance remain pending. The listener has
+its own saved setting, disabled on migration; Umbra's requested listener will be
+enabled after exact character verification. The never-applied .96/.61 VM software
+and inspected local build binaries were retired with diagnostic evidence preserved.
 
 Root publishes current delivery notes on `codex/group-command-delivery-20261010`
 in `bot-runtime`, targeting main. The source branch `codex/native-group-come-20261010`

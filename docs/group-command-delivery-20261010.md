@@ -14,11 +14,17 @@ PR #154's native text-input correction. PR #154 merged as
 `4713727333d1cd09bb73c44c850c7b3108a3484d` after all 15 hosted checks passed.
 Official client 1.3.38.17 and its prepared executable remain unchanged.
 
-The VM still runs host .95/native .60. The earlier .96/.61 candidate was prepared
-but never applied; it is superseded by the combined release. The .97/.62 payload
-is staged and preparation succeeded. No active switch or live command
-acceptance is claimed. Vendor Test remains open; installation requires its
-actual closure. The normal checkout is clean on main at the PR #155 merge.
+The user closed Vendor Test, and host .97/native .62 is now installed. The manager
+activated successfully with all 491 installed modules verified and 9,607 retained
+records preserved without exclusions. Client executables and resources are
+unchanged; the sole client binary replacement is the qualified native DLL.
+Desktop shortcuts target the new host. The earlier .96/.61 candidate was never
+applied and is retired. Fresh game startup, login and live command acceptance
+remain to be checked. The normal checkout is clean on main at the PR #155 merge.
+
+Installation receipts: apply `f658824b286054c1f8b9d164f05bed586588d79033e31ed77391e22284183116`,
+shortcuts `60eb62d37a078ead1b81f7b0d7d190514bf879a46fc141e2ee64289f43ca76c6`,
+activation `470bc2622f9b58283eb3de0bbe11f556bd41de7052487229f5d975345a7d32cd`.
 
 ## Behavior
 
@@ -64,7 +70,7 @@ reproduced all qualification receipts and checked their logs and fixture bytes.
 | Successful preparation | `09ea88f95a46434cbe9de161ca6f48005961f25c3a1ed0bab98092a1cbe8231b` |
 | Reviewed update plan | `c765c4e99e071f4b9e86dd5d680554866d2528222437915bf1e3e0e99cb6e406` |
 
-The deployment baseline verified all 486 currently installed .95 modules and
+The deployment baseline verified all 486 then-installed .95 modules and
 9,564 retained records. Compared with the earlier preparation baseline, only the
 three expected live status records changed; no records were missing or added.
 The approved payload contains 26 members and the 491-module candidate manifest.
@@ -73,7 +79,7 @@ journals and diagnostic evidence under [the deployment policy](deployment-policy
 
 The superseded VM candidate is retired: unused host .96 and the eleven staged
 .61 wheel/DLL files are absent, freeing 59,250,267 bytes. Fresh checks confirm
-active .95/.60 and the same running game remain unchanged. The retirement receipt
+the then-active .95/.60 and game were unchanged. The retirement receipt
 is `db3dca7069ac92ae2b8aadcfb50c26643e89515ac7e67cf9997918e808eb8a07`;
 its postcheck is `1784ee7ddeae2197ef5d8b1fa9f2249c3ef8b7cfe9cac84c07adc24000ba4d7e`.
 User data, metadata and diagnostic receipts remain preserved. The separately
@@ -84,7 +90,7 @@ source, log, XML result and diagnostic receipt remains. The cleanup receipt is
 
 ## Remaining work
 
-1. Once Vendor Test is closed, verify the baseline and install the prepared update.
+1. Installation and manager activation are complete; verify the new game startup.
 2. Verify native startup, installation preservation and Umbra's identity, then
    enable her requested listener through the normal settings path.
 3. Check a real group `/come` and an explicitly supplied player `/attack`/cancel;
