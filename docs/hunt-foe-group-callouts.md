@@ -79,7 +79,7 @@ group nonce. The ordinary group sender has no explicit recipient key: the client
 uses the Group message type and channel 14. Actual server delivery is separate
 from local queue acceptance.
 
-The private exact-image constructor/queue probe now passes 16 cases per original
+The committed `combat_group_chat_probe.cpp` exact-image constructor/queue probe passes 16 cases per original
 and prepared `.16` image. It executes both constructors, ArcString wrappers,
 reference counts and ordinary queue. Core.dll string imports, clock, downstream
 transport and final destructor are explicitly substituted; this is not full Core
@@ -100,5 +100,7 @@ and reserved-byte validation. Normal cast/tracking receipts and application
 journals remain separate. Settings default off; the dashboard reports withheld,
 unknown or locally queued callouts without claiming delivery.
 
-Next: independently review the integrated sender and qualify its packaged gates.
+The standard package requires this probe against both official and prepared .16
+images for each native profile, alongside the actual GROUP_CHAT wire roundtrip.
+Next: independently review the integrated sender and qualify the composed release.
 No live send has been performed. Actual group delivery remains a separate fact.
