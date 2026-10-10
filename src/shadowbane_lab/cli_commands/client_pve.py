@@ -8,6 +8,7 @@ from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
 
+from shadowbane_lab.client_extension.action_channel import NativeActionChannelError
 from shadowbane_lab.client_extension.client_guard import NativeClientIdentityGuard
 from shadowbane_lab.client_extension.movement_operation import NativeMovementOperation
 from shadowbane_lab.client_input import (
@@ -139,8 +140,13 @@ def _run_pve(
     native_character_population_profile_path: Path | None = None,
     navigation_map: SparseNavigationMap | None = None,
     movement_dispatcher: TravelDecisionDispatcher | None = None,
+    movement_acquirer: Callable[[], TravelDecisionDispatcher | None] | None = None,
     progress_sink: Callable[[PvEProgress], None] | None = None,
 ) -> int:
+    if movement_acquirer is not None and (
+        not callable(movement_acquirer) or movement_dispatcher is not None
+    ):
+        return _error("movement acquisition must have one owner", as_json=as_json)
     if movement_dispatcher is not None and not isinstance(
         movement_dispatcher, TravelDecisionDispatcher
     ):
@@ -513,6 +519,15 @@ def _run_pve(
             # Revalidate the captured client before acquiring any authority.
             character_session.require_current()
             guard.require_target()
+            if movement_acquirer is not None:
+                # The manager reserves the operation during setup, then acquires
+                # its sole native grant at this same boundary as direct CLI runs.
+                # A cancelled acquisition has no actor/target work to clean up.
+                movement_dispatcher = movement_acquirer()
+                if movement_dispatcher is None:
+                    return 0
+                if not isinstance(movement_dispatcher, TravelDecisionDispatcher):
+                    raise ValueError("acquired movement dispatcher is invalid")
             combat_owner = movement_dispatcher
             if movement_dispatcher is None:
                 native_operation = stack.enter_context(
@@ -574,6 +589,12 @@ def _run_pve(
                         "total_steps": getattr(result, "total_steps", len(result.trace)),
                     }
                 )
+    except NativeActionChannelError as exc:
+        if movement_acquirer is not None:
+            # The manager retains the immutable acquisition/receipt evidence and
+            # owns final cleanup; do not reduce its refusal to a CLI exit code.
+            raise
+        return _error(f"PvE run failed: {exc}", as_json=as_json)
     except (
         NativeHealthProfileLoadError,
         NativeCharacterPopulationError,
