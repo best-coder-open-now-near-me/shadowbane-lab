@@ -2,24 +2,39 @@
 
 ## Group admission and Track binding repair - October 10
 
-Start shared development from refreshed `main`. The reviewed repair candidate is
-`codex/group-command-admission-20261010`, combining host checkpoint `eff4d542`,
-Track checkpoint `e8e3c042`, and installed-delivery notes `8ae02a24`. It targets
-main in one PR with host .99/native .64 stamps. The release checkout
-`bot-integration` retains the previously installed graphics source during
-composition. Independent focused reviews passed; full exact-source qualification,
-installation, and fresh live acceptance remain pending. See
-[group admission](group-command-admission.md) and
-[the installed .98/.63 evidence](group-track-delivery-20261010.md).
+Start shared development from refreshed `main` at PR #158 merge
+`221d25ffa50a165a620d6e5382c89d22eb5e3345`. All 15 hosted checks passed
+at reviewed `72b1f15e4523e3752a4053231253214289cf5cc4` on
+`codex/group-command-admission-20261010`. This includes host admission correction
+`eff4d542`, Track binding correction `e8e3c042`, and prior delivery notes `8ae02a24`.
 
-## Group receive and automatic Track presentation - October 10
+Host .99/native .64 is qualified from exact graphics-preserving composition
+`03923b56923ca2d36089ac8b53df12afe91a953c`, pushed on
+`codex/native-group-command-release-20261010` in `bot-integration`.
+All 144 artifacts, required gates across 116 stages and 491 installed modules
+were verified, including
+four actual-image Track binding stages. Qualification passed 6,247 host tests
+(44 optional skips), 193 verifier tests and seven installed startup handshakes.
+Installation and fresh launch are verified: 491 modules, 9,627 retained records,
+zero exclusions and two typed activation changes. Fresh live command and Track
+presentation acceptance remain pending login/group readiness.
+
+Delivery notes are on `codex/group-admission-delivery-20261010` in `bot-runtime`,
+based on the merged source. No documentation PR has been opened yet; the next
+checkpoint will append live results and guest retirement. Approved local .63
+binary retirement removed 2,893 files / 208,857,922 bytes; all 6,575 nonlisted
+source/evidence files were verified unchanged. See [qualification and remaining work](group-admission-delivery-20261010.md)
+and [the admission behavior](group-command-admission.md).
+
+## Historical installation: group receive and automatic Track presentation - October 10
 
 Start shared development from refreshed `main` at PR #157 merge
 `30f7b87a878cfbee1ef5b746182174e9e3df02cd`. All 15 hosted checks passed
 at reviewed `52349b2bdcbe09fb8a446c9101d097ea001868b1`. Host .98/native .63
 is qualified and installed from `a6a217fb315cd6c7005d84539715467818564503`,
-pushed on `codex/native-group-command-release-20261010` in `bot-integration`.
-This composition preserves already-installed graphics outside main.
+retained in Git history; its release branch has advanced to the .99/.64
+composition above. This composition preserves already-installed graphics outside
+main.
 
 The receiver uses GroupChannelMessage and checks decoded sender key and first
 name against the current native group. A fresh live Pro `/come` is proven received,
@@ -27,18 +42,20 @@ but host evidence expired before admission; no operation or movement followed.
 Automatic upkeep separately reports `needs_attention` because the Track close
 binding expected a direct pointer instead of the real native thunk.
 
-Reviewed native correction `e8e3c042` is pushed on
-`codex/track-close-binding-20261010` in `native-group-come`. The companion host
-repair is on `codex/group-command-admission-20261010`. Root coordinates their
-planned .99/.64 composition; these fixes are not yet installed. Use refreshed
+Reviewed native correction `e8e3c042` was published on
+`codex/track-close-binding-20261010`. The companion host repair is on
+`codex/group-command-admission-20261010`. Both fixes are merged and qualified
+in the .99/.64 composition above;
+replacement activation is now verified as recorded above. Use refreshed
 main for unrelated development, not obsolete topic branches.
 
 The .98/.63 package, installation and launch proofs remain valid: 491 modules,
 9,617 retained records, zero exclusions and two typed activation changes.
 Obsolete .97/.62 guest and local binary outputs have been retired while preserving
 source, diagnostics and user data. Live travel and Track presentation acceptance
-remain pending. Delivery notes are on `codex/group-track-delivery-20261010` in
-`bot-runtime`, awaiting review and PR creation.
+remain pending. Delivery notes from `codex/group-track-delivery-20261010`
+were included in PR #158 through `8ae02a24`; `bot-runtime` now holds the
+current delivery branch above.
 
 See [the current delivery record](group-track-delivery-20261010.md),
 [receive correction](group-chat-receive.md) and [Track presentation](track-window-lifecycle.md).

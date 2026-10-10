@@ -55,6 +55,8 @@ the actual slot, exact jump and body prologue, and still calls through the nativ
 slot. The original synthetic fixture had invented a direct slot; it now follows
 the real thunk. Exact-image binding cases run against original/prepared images
 in both package profiles and reject changed slots, thunks and bodies. No lifecycle
-or publication ABI changes accompany the repair. This source is planned for
-.99/.64; live automatic closure and manual preservation remain unverified.
-See the [delivery record](group-track-delivery-20261010.md).
+or publication ABI changes accompany the repair. PR #158 merged this source,
+and exact .99/.64 qualification passed all four original/prepared binding stages
+in both profiles. Installation and fresh launch are verified; live automatic
+closure and manual preservation remain unverified. See the [current qualification record](group-admission-delivery-20261010.md)
+and [the preceding installation evidence](group-track-delivery-20261010.md).
