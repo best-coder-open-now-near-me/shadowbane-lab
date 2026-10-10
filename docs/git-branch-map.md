@@ -1,5 +1,20 @@
 # Git branch map
 
+## Native text ownership correction - October 10
+
+Start shared development from refreshed `main`. The focused source branch
+`codex/native-text-input-ownership-20261010` reuses the managed
+`pve-camp-return-routing` checkout, based on PR #152 merge
+`e0617db29220624736463b0221d5564e112c95c9`. It carries host .96/native .61
+for review and qualification; the installed .95/.60 runtime is unchanged.
+The prior merged terrain source branch is retired; its source remains in main.
+
+After the user closed Who search, the client disabled native text entry but
+retained a focused channel-HUD editor. Our unconditional focused-kind fallback
+incorrectly kept movement and preparation inhibited. The correction honors the
+sealed native text-enable state while preserving active text and other UI gates.
+See [the evidence and validation boundary](native-text-input-ownership.md).
+
 ## PvE terrain route refinement - October 10
 
 Start shared development from refreshed `main`. The focused source branch
