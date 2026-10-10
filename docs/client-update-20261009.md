@@ -1,13 +1,45 @@
 # Wonderbane official client update — October 9, 2026
 
+## Combat-aware PvE approach (.91/.59), October 10
+
+PR #142 merged at `f12cbf01f570763ca1dd05f88f4aa152679e4ce1` after all 15
+hosted checks passed at `7b033840a24e959ab3ad11e078c9ae8ce8652b7c`.
+Exact composed release `faf9d023abc055d1c27a1efa9c69d0af62f1da1f` is pushed
+on `codex/pve-combat-aware-release-20261009`. Native .59 and client assets
+remain byte-identical to installed `3459d173`; no game restart is required.
+
+Health loss on the admitted NPC yields host steering and stale arrival settling
+for a bounded interval without issuing native PAUSE. When progress expires,
+approach resumes with a fresh movement identity. This is encounter progress,
+not damage credit or measured weapon range. A native path already submitted is
+not claimed canceled. The next live run covers consecutive NPC encounters and
+recovery using the ordinary production runner with saved buffs and opener.
+
+Qualification passed 6,007 host tests with 41 optional skips, both profiles'
+76 movement / 86 combat / 235 actor IPC cases without skips, six installed desktop
+cases and one real worker handshake. Independent review verified 1,512 archived
+source files, all 486 source/wheel/installed modules, all 16 package stages and
+the unchanged native package provenance.
+
+| Qualified identity | SHA-256 |
+| --- | --- |
+| Host qualification receipt | `70f995b85cb3c446f982e90e01bf3d27a3a521c66da1b2b371f09fe4f6334666` |
+| Host .91 wheel | `e91392d60264cbb5fd9934246ea8675bae9508235a4e8096f8fcf50162657518` |
+| Exact source archive | `f74fa802dd7166003e4329ab0a558f8971d2d10d40d360ba03d199fc335192cc` |
+| Reviewed host-only plan | `a4b21103dbb152b887c6cb38a5bceeb97812ceb0e55072049d125414e441c4af` |
+
+Host-only installation is underway. The qualified package and private deployment
+evidence are under `artifacts/bot-deploy/20261009-host91`; no binaries or private
+captures are included in source delivery. Live acceptance remains pending login.
+
 ## Hunt Foe group-callout qualification (.90/.59), October 10
 
 PR #139 merged at `f17c1c57e8390e3ac5abec64a0b33a4ed3f89079` after all 15
 hosted checks passed at reviewed head `a43894e7e67a5c6709385b9c31db85a43d406bff`.
 The exact release is `3459d173835657d33ca4b07a92342a26bf73bca2` on
 `codex/hunt-foe-callouts-release-20261009`, composed from installed `14bf5ab`
-plus that feature. Installed graphics are preserved. The runtime remains .89/.58;
-qualification is not installation or a live group-delivery result.
+plus that feature. Installed graphics are preserved. The .90/.59 runtime is now
+installed; live group delivery remains unverified.
 
 Independent verification of private package `artifacts/b59/2e287aa7` covered
 140 artifacts and 112 stages. Host tests passed 5,997 cases with 41 optional
@@ -39,9 +71,22 @@ prior widget or establish when/why buffs fired. Source permits background
 preparation; actual background buff entry has not been correlated with focus.
 No additional combat attempt or forced potion-expiry test was performed.
 
-Next: fresh baseline and sealed payload review, closed-client installation, then
-requested group-callout activation and live delivery. No rollback artifacts are
-retained; settings, jobs and journals remain preserved in place.
+Installation and independent receipt review are complete. Activation verified
+486 modules and preserved 9,566 settings/history records. Client assets remained
+unchanged except for the intended DLL. The reviewed launcher opened game PID
+4216 with the exact .59 DLL; manager and worker were healthy at the login screen. No new
+combat operation or live group send occurred.
+
+The compact local receipt index is
+`artifacts/bot-deploy/20261009-callouts90/delivery-evidence.json`, SHA-256
+`f6296128bd5bfa7b3cb7d0b63143063d594c3fe3c22561e58a2171e164946942`.
+Activation receipt: `053af23f0b18bf4575769970518dd4b890fbacf306449b73cc9cc75a32edff6f`.
+Retirement receipt: `079f64e725193ceb6635ee484ebd527b573489ebd9cb6e92f4dad7f995d11d22`.
+Twelve verified obsolete paths were removed (59,142,254 bytes); current runtime
+and user data were preserved. No rollback artifacts were created.
+
+Next: log Umbra in, enable requested group callouts and verify live delivery,
+then exercise the separately qualified PvE approach improvement.
 
 ## Host .89 installed with the game open
 

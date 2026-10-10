@@ -2,7 +2,7 @@
 
 The reviewed feature connects Hunt Foe responses to ordinary native group chat
 through the existing actor owner and shared queue. It is opt-in through tracking
-settings and is not installed or live-validated. Queue acceptance is not server
+settings and is installed but not live-validated. Queue acceptance is not server
 delivery or attack authority. PR #139 is merged and exact release `3459d173` is independently qualified.
 
 ## Appearance policy
@@ -103,5 +103,5 @@ unknown or locally queued callouts without claiming delivery.
 The standard package requires this probe against both official and prepared .16
 images for each native profile, alongside the actual GROUP_CHAT wire roundtrip.
 The integrated sender and composed .90/.59 release have passed independent review
-and package qualification. Next: closed-client installation and live delivery.
+and package qualification. Installation is verified. Next: activation after login and live delivery.
 No live send has been performed. Actual group delivery remains a separate fact.
