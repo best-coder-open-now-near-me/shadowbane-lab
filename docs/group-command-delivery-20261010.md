@@ -71,6 +71,15 @@ The approved payload contains 26 members and the 491-module candidate manifest.
 No rollback copies or fallback runtimes are authorized; preserve settings, jobs,
 journals and diagnostic evidence under [the deployment policy](deployment-policy.md).
 
+The superseded VM candidate is retired: unused host .96 and the eleven staged
+.61 wheel/DLL files are absent, freeing 59,250,267 bytes. Fresh checks confirm
+active .95/.60 and the same running game remain unchanged. The retirement receipt
+is `db3dca7069ac92ae2b8aadcfb50c26643e89515ac7e67cf9997918e808eb8a07`;
+its postcheck is `1784ee7ddeae2197ef5d8b1fa9f2249c3ef8b7cfe9cac84c07adc24000ba4d7e`.
+User data, metadata and diagnostic receipts remain preserved. Local superseded
+build binaries have an inventory awaiting precise disposal; none were removed
+as part of the VM cleanup.
+
 ## Remaining work
 
 1. Once Vendor Test is closed, verify the baseline and install the prepared update.
