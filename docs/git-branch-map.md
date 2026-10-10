@@ -1,5 +1,18 @@
 # Git branch map
 
+## Official client 1.3.38.17 alignment - October 10
+
+Start development from refreshed `main` after PR #147. Root and the native review
+lane own `codex/wonderbane-client-update-20261010` in `bot-runtime`; intended
+host .93/native .60 add the exact official .17 pair. Qualification and installation
+are pending. Compose the release onto `97c4899b` in `bot-integration` to retain
+installed graphics outside main and named camps. The prepared-but-unactivated
+.92 host-only plan below is superseded by this full client update. The selected
+runtime remains .91/.59 with .16; a fresh census found all game/bot processes
+closed. Keep the normal project checkout on main. Next: qualify the composed
+package, update the exact changed assets and host, then user login and one camp
+acceptance check. See [current evidence and todos](client-update-20261010.md).
+
 ## Native named PvE camps - October 10
 
 Start new work from refreshed `main` at

@@ -1,3 +1,59 @@
+# Official client 1.3.38.17 alignment - October 10
+
+The official patch supersedes the unactivated host .92 plan below. Current
+source work is `codex/wonderbane-client-update-20261010`, based on refreshed
+main after PR #147. Intended versions are host 0.3.93 and native 1.8.60. Package
+qualification and installation are pending; no live .17 acceptance is claimed.
+
+## Exact client and static review
+
+| Image | SHA-256 |
+| --- | --- |
+| Official 1.3.38.17 | `051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698` |
+| Prepared 1.3.38.17 | `baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9` |
+| Official patch manifest | `084919129715e16d941c33a2ec7600416fc95f13e2c0ac06441d5959568eb17a` |
+
+The executable remains 21,143,613 bytes. Comparison against .16 found 379
+changed bytes in seven ranges, including code changes. At exact qualified .92 source
+composition `97c4899b23273e83a596784136b621c17650cee9`, all 16 applicable
+production profiles / 51 anchors and 149 literal hashed native spans are
+unchanged. Track and group-chat callers, constructors and vtable boundaries
+match. Control-flow review found no current hook conflict; it does not establish
+unchanged gameplay or server behavior. Independent reconstruction confirms
+exactly seven bootstrap writes, with no overlap with the official changes.
+
+New guards admit only the exact reviewed pair. Strict action/session readers
+continue to require the prepared image; original and unknown images remain
+rejected at those boundaries. Character replacement revocation and unknown-affix
+preservation remain enforced. No native offsets or signature spans are relaxed.
+
+Private audit evidence is under `artifacts/client-update-20261010`:
+
+- Binary audit manifest: `75ab2b56faf1f8975ea3460c709314e82600ed8a5e0384b941dd0231c3c50ac5`.
+- Binary audit summary: `ad1ff43fa12bf6f7ef6f9fa7a9b864b591100efe48aa76602e9d730c99d9bdbb`.
+- Full official/vendor asset inventory: `3f8a67b4b03c5a43b3dcd18250070de68872c3e96f518ba3fd234a50ebaf9572`.
+
+The manifest has 211 entries and exactly five official changes: `sb.exe`,
+`Config/Config.wpak`, `Config/ItemENGLISH.txt`, `cache/CObjects.cache`, and
+`TreasureTables/ModTables.wpak`. Runtime-written DoubleFusion files and user data
+are preserved. Fresh guest census found the game, manager and worker closed.
+The official download is patched; the vendor runtime still has prepared .16,
+native .59 and selected host .91. Inactive .92 preparation is not activation.
+
+## Current delivery todo
+
+- Complete: exact image/asset census and independent static compatibility review.
+- Active: finish reviewed source and full .93/.60 package qualification, retaining
+  the installed graphics composition and merged named-camp behavior.
+- Pending: replace the five changed official assets and native extension, activate
+  the qualified host, verify data preservation and launch the test client.
+- Pending: after user login, one normal named-camp acceptance run with buffs.
+
+Do not replay the historical .92 host-only plan. Apply the
+[no-retained-rollback policy](deployment-policy.md).
+
+---
+
 # Native named-camp host .92 - October 10
 
 ## Source and qualification
