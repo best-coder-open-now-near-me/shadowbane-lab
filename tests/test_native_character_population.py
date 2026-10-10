@@ -481,3 +481,136 @@ class NativeCharacterPopulationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _zone_profile():
+    from dataclasses import replace
+
+    from shadowbane_lab.client_observation import load_bundled_native_zone_profile
+    return replace(load_bundled_native_zone_profile(), executable_sha256="a" * 64,
+                   player_pointer_rva=0x100)
+
+
+def _put_zone(process, address=0x90000, *, name="Connauch Henge", key=(578, 79), parent=0):
+    profile = _zone_profile()
+    raw = bytearray(0x220)
+    struct.pack_into("<II", raw, 0x10, 528, 0)
+    struct.pack_into("<II", raw, 0x78, *key)
+    struct.pack_into("<ffffff", raw, 0x8c, -128, 0, -128, 128, 0, 128)
+    struct.pack_into("<ffff", raw, 0xa4, 1, 0, 0, 0)
+    struct.pack_into("<ff", raw, 0xb4, 100, -200)
+    struct.pack_into("<ff", raw, 0xbc, 0, 0)
+    struct.pack_into("<I", raw, 0xec, parent)
+    struct.pack_into("<ff", raw, 0xf0, 128, 128)
+    text = name.encode("utf-16-le")
+    buffer = address + 0x300
+    struct.pack_into("<IIII", raw, 0x1bc, 0, buffer, buffer + len(text), buffer + len(text) + 2)
+    process._write(address, bytes(raw))
+    process._write(buffer, text + b"\0\0")
+    for actor in (process.crab, process.trainer):
+        process._write(actor + profile.current_zone_offset, struct.pack("<I", address))
+    return address
+
+
+class NativeNamedZonePopulationTests(unittest.TestCase):
+    def test_opt_in_enriches_registered_npcs_without_changing_protection(self):
+        process = FakeScanningProcess(_profile())
+        _put_zone(process)
+        frame = NativeCharacterPopulationReader(process.profile, process,
+                                                zone_profile=_zone_profile()).observe()
+        self.assertEqual(2, len(frame.characters))
+        self.assertTrue(all(c.named_zone.name == "Connauch Henge" for c in frame.characters))
+        self.assertEqual([False, True], sorted(c.attack_eligible for c in frame.characters))
+        self.assertEqual(0, process.find_calls)
+        self.assertTrue(all(c.named_zone.object_type == 578 for c in frame.characters))
+
+    def test_default_does_not_read_or_publish_zone(self):
+        process = FakeScanningProcess(_profile())
+        _put_zone(process)
+        frame = NativeCharacterPopulationReader(process.profile, process).observe()
+        self.assertTrue(all(c.named_zone is None for c in frame.characters))
+
+    def test_null_unreadable_and_invalid_placed_zones_are_unknown(self):
+        for variant in ("null", "unreadable", "unplaced", "cycle"):
+            with self.subTest(variant=variant):
+                process = FakeScanningProcess(_profile())
+                zone = _put_zone(process, key=(0, 0) if variant == "unplaced" else (578, 79),
+                                 parent=0x90000 if variant == "cycle" else 0)
+                if variant in ("null", "unreadable"):
+                    process._write(process.crab + _zone_profile().current_zone_offset,
+                                   struct.pack("<I", 0 if variant == "null" else zone + 0x10000))
+                frame = NativeCharacterPopulationReader(process.profile, process,
+                                                        zone_profile=_zone_profile()).observe()
+                crab = next(c for c in frame.characters if c.object_key.object_type == 2001)
+                self.assertIsNone(crab.named_zone)
+                self.assertTrue(crab.attack_eligible)  # Existing eligibility remains separate.
+
+    def test_zone_change_after_character_verification_drops_only_membership(self):
+        process = FakeScanningProcess(_profile())
+        _put_zone(process)
+        original = process.read_block
+        def changed(address, size):
+            value = original(address, size)
+            if address == process.crab and process.block_reads.get(address) == 2:
+                process._write(process.crab + _zone_profile().current_zone_offset,
+                               struct.pack("<I", 0))
+            return value
+        process.read_block = changed
+        frame = NativeCharacterPopulationReader(process.profile, process,
+                                                zone_profile=_zone_profile()).observe()
+        crab = next(c for c in frame.characters if c.object_key.object_type == 2001)
+        self.assertIsNone(crab.named_zone)
+        self.assertEqual(0, frame.rejected_candidates)
+
+    def test_character_reuse_during_zone_read_is_rejected(self):
+        process = FakeScanningProcess(_profile())
+        _put_zone(process)
+        process.identity_changes[process.crab] = (2009, 37)
+        frame = NativeCharacterPopulationReader(process.profile, process,
+                                                zone_profile=_zone_profile()).observe()
+        self.assertEqual(1, frame.rejected_candidates)
+        self.assertFalse(any(c.object_key.object_type == 2001 for c in frame.characters))
+
+    def test_pet_is_not_promoted_to_named_camp_npc(self):
+        process = NativeCharacterPopulationTests()._pet_process()
+        _put_zone(process)
+        frame = NativeCharacterPopulationReader(process.profile, process,
+                                                zone_profile=_zone_profile()).observe()
+        pet = next(c for c in frame.characters if c.object_key.object_type == 2001)
+        self.assertIsNone(pet.named_zone)
+        self.assertEqual(NativeCharacterKind.PET, pet.character_kind)
+        self.assertFalse(pet.attack_eligible)
+
+
+    def test_public_factory_forwards_zone_profile_and_closes_one_owned_handle(self):
+        from unittest.mock import patch
+
+        from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
+        from shadowbane_lab.client_observation.native_population import (
+            open_windows_native_character_population_reader,
+        )
+        process = FakeScanningProcess(_profile())
+        _put_zone(process)
+        with patch.object(WindowsReadOnlyProcessMemory, "open_for_process", return_value=process):
+            with open_windows_native_character_population_reader(
+                process.profile, process_id=process.pid, zone_profile=_zone_profile(),
+            ) as reader:
+                self.assertTrue(all(c.named_zone is not None for c in reader.observe().characters))
+        self.assertTrue(process.closed)
+
+    def test_exact_detail_refresh_keeps_new_current_zone(self):
+        from dataclasses import replace
+
+        from test_pve_selection_independent_observation import readers
+
+        process, _, action = readers()
+        _put_zone(process)
+        population = NativeCharacterPopulationReader(
+            process.profile, process, zone_profile=replace(
+                _zone_profile(), executable_sha256=process.executable_sha256))
+        crab = next(c for c in population.observe().characters if c.object_key.object_type == 2001)
+        _put_zone(process, name="Parent Region", key=(569, 79))
+        detail = population.observe_character_detail(crab.token, crab.object_key, action)
+        self.assertIsNotNone(detail)
+        self.assertEqual("Parent Region", detail.character.named_zone.name)
+        self.assertEqual(crab.object_key, detail.character.object_key)
