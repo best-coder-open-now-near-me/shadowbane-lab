@@ -30,7 +30,9 @@ presentation decision from closing the user's replacement panel.
 
 ## Reviewed native paths
 
-The Track table is RVA `116fb58`; its close slot `10c` resolves to `5f4e70`.
+The Track table is RVA `116fb58`; its close slot `10c` contains thunk `17440`
+(`E9 2B DA 5D 00`), which jumps to body `5f4e70`. The slot is not a direct
+pointer to that body.
 `ArcTrackingListMsg::Process` is `3b2b30`. Existing Track send observation at
 `9bea0` distinguishes an admitted automatic native frame from ordinary manual
 entry. These spans match the reviewed official .16 and .17 images. Runtime
@@ -43,5 +45,16 @@ Native implementation `090eb95a` is published on
 `codex/track-window-lifecycle-20261010`, based on shared main. Both native
 profiles built; all 12 focused tests and 31 actual-frame host tests passed.
 Independent review passed, including the regression preserving a manually
-reopened panel across owner reentry. The installed .97/.62 runtime has not yet
-received this change. Combined .98/.63 qualification and live acceptance remain.
+reopened panel across owner reentry. Combined .98/.63 qualification, installation
+and launch passed; PR #157 is merged. Live inspection then exposed a binding
+regression: the direct-body slot check rejected the real native thunk, preventing
+Track publication startup and leaving upkeep in `needs_attention`.
+
+Reviewed correction `e8e3c042` on `codex/track-close-binding-20261010` validates
+the actual slot, exact jump and body prologue, and still calls through the native
+slot. The original synthetic fixture had invented a direct slot; it now follows
+the real thunk. Exact-image binding cases run against original/prepared images
+in both package profiles and reject changed slots, thunks and bodies. No lifecycle
+or publication ABI changes accompany the repair. This source is planned for
+.99/.64; live automatic closure and manual preservation remain unverified.
+See the [delivery record](group-track-delivery-20261010.md).

@@ -1,23 +1,37 @@
 # Git branch map
 
-## Group receive and automatic Track presentation — October 10
+## Group receive and automatic Track presentation - October 10
 
-Start shared development from refreshed `main`. Reviewed source fixes are
-combined on `codex/group-chat-receive-20261010` in the managed
-`pve-camp-return-routing` checkout, targeting main in one PR. It includes native
-receive checkpoint `229ca60d` and Track checkpoint `090eb95a` with host .98/native
-.63 version stamps. Independent reviews and focused native/actual-frame tests
-passed. Exact composed release qualification and live acceptance remain next.
-The .97/.62 runtime is still installed; the user-confirmed `/come` reached group
-chat but its legacy observer produced no message record or command.
+Start shared development from refreshed `main` at PR #157 merge
+`30f7b87a878cfbee1ef5b746182174e9e3df02cd`. All 15 hosted checks passed
+at reviewed `52349b2bdcbe09fb8a446c9101d097ea001868b1`. Host .98/native .63
+is qualified and installed from `a6a217fb315cd6c7005d84539715467818564503`,
+pushed on `codex/native-group-command-release-20261010` in `bot-integration`.
+This composition preserves already-installed graphics outside main.
 
-The pushed Track branch `codex/track-window-lifecycle-20261010` is included in
-this candidate. `bot-integration` composes the final package while retaining
-the already-installed graphics source outside main. No live receive or automatic
-Track-window acceptance is claimed yet. See [receive correction](group-chat-receive.md)
-and [Track presentation](track-window-lifecycle.md).
+The receiver uses GroupChannelMessage and checks decoded sender key and first
+name against the current native group. A fresh live Pro `/come` is proven received,
+but host evidence expired before admission; no operation or movement followed.
+Automatic upkeep separately reports `needs_attention` because the Track close
+binding expected a direct pointer instead of the real native thunk.
 
-## Native current-group commands - October 10
+Reviewed native correction `e8e3c042` is pushed on
+`codex/track-close-binding-20261010` in `native-group-come`. The companion host
+repair is on `codex/group-command-admission-20261010`. Root coordinates their
+planned .99/.64 composition; these fixes are not yet installed. Use refreshed
+main for unrelated development, not obsolete topic branches.
+
+The .98/.63 package, installation and launch proofs remain valid: 491 modules,
+9,617 retained records, zero exclusions and two typed activation changes.
+Obsolete .97/.62 guest and local binary outputs have been retired while preserving
+source, diagnostics and user data. Live travel and Track presentation acceptance
+remain pending. Delivery notes are on `codex/group-track-delivery-20261010` in
+`bot-runtime`, awaiting review and PR creation.
+
+See [the current delivery record](group-track-delivery-20261010.md),
+[receive correction](group-chat-receive.md) and [Track presentation](track-window-lifecycle.md).
+
+## Historical, superseded: native current-group commands - October 10
 
 Start shared development from refreshed `main` at PR #155 merge
 `b24e8d13be9b1acc33f33e361e5c85024e6555e5`. All 15 hosted checks passed
