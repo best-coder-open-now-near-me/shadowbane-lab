@@ -27,14 +27,35 @@ _MAX_BYTES = 16_384
 
 
 @dataclass(frozen=True, slots=True)
+class GroupCommandSettings:
+    enabled: bool = False
+
+    def __post_init__(self):
+        if type(self.enabled) is not bool:
+            raise ValueError("group commands enabled must be boolean")
+
+    def as_dict(self):
+        return {"enabled": self.enabled}
+
+    @classmethod
+    def from_dict(cls, value):
+        if not isinstance(value, dict) or set(value) != {"enabled"}:
+            raise ValueError("invalid group commands settings")
+        return cls(value["enabled"])
+
+
+@dataclass(frozen=True, slots=True)
 class PvESettings:
     policy: str = "basic"
     opening_skill: str | None = None
     revision: int = 0
     buffs: BuffSettings = BuffSettings()
     tracking: TrackingSettings = TrackingSettings()
+    group_commands: GroupCommandSettings = GroupCommandSettings()
 
     def __post_init__(self) -> None:
+        if not isinstance(self.group_commands, GroupCommandSettings):
+            raise ValueError("group command settings must be typed")
         if not isinstance(self.tracking, TrackingSettings):
             raise ValueError("tracking settings must be typed")
         if not isinstance(self.buffs, BuffSettings):
@@ -62,6 +83,7 @@ class PvESettings:
             "revision": self.revision,
             "buffs": self.buffs.as_dict(),
             "tracking": self.tracking.as_dict(),
+            "group_commands": self.group_commands.as_dict(),
         }
 
 
@@ -112,10 +134,11 @@ def load_pve_settings(identity, *, root: Path | None = None) -> PvESettings:
     value = json.loads(raw, object_pairs_hook=_unique_object)
     fields = {"schema_version", "server", "character", "policy", "opening_skill", "revision"}
     if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
-            or value["schema_version"] not in (1, 2, 3, 4)
+            or value["schema_version"] not in (1, 2, 3, 4, 5)
             or set(value) != (fields if value["schema_version"] == 1 else
                               fields | {"buffs"} if value["schema_version"] == 2 else
-                              fields | {"buffs", "tracking"})):
+                              fields | {"buffs", "tracking"} if value["schema_version"] < 5 else
+                              fields | {"buffs", "tracking", "group_commands"})):
         raise ValueError("PvE settings schema is invalid")
 
     if (value["server"], value["character"]) != _owner(identity):
@@ -130,7 +153,10 @@ def load_pve_settings(identity, *, root: Path | None = None) -> PvESettings:
         value["tracking"] = {**old, "group_callouts_enabled": False}
     tracking = (TrackingSettings() if value["schema_version"] < 3
                 else TrackingSettings.from_dict(value["tracking"]))
-    return PvESettings(value["policy"], value["opening_skill"], value["revision"], buffs, tracking)
+    commands = (GroupCommandSettings() if value["schema_version"] < 5
+                else GroupCommandSettings.from_dict(value["group_commands"]))
+    return PvESettings(value["policy"], value["opening_skill"], value["revision"],
+                       buffs, tracking, commands)
 
 
 def save_pve_settings(
@@ -153,7 +179,7 @@ def save_pve_settings(
         updated = replace(settings, revision=expected.revision + 1)
         server, character = _owner(identity)
         payload = json.dumps(
-            {"schema_version": 4, "server": server, "character": character, **updated.as_dict()},
+            {"schema_version": 5, "server": server, "character": character, **updated.as_dict()},
             ensure_ascii=True,
             allow_nan=False,
         ).encode()

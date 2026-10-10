@@ -29,6 +29,7 @@ def _configure_pve_settings(
     buffs_enabled: bool | None = None,
     tracking: str | None = None,
     group_callouts: str | None = None,
+    group_commands: str | None = None,
 ) -> int:
     try:
         if type(process_id) is not int or process_id <= 0:
@@ -41,6 +42,8 @@ def _configure_pve_settings(
             raise ValueError("buffs-enabled must be boolean")
         if tracking not in (None, "enabled", "disabled"):
             raise ValueError("tracking must be enabled or disabled")
+        if group_commands not in (None, "enabled", "disabled"):
+            raise ValueError("group-commands must be enabled or disabled")
         if group_callouts not in (None, "enabled", "disabled"):
             raise ValueError("group-callouts must be enabled or disabled")
         configured_buffs = None
@@ -56,6 +59,9 @@ def _configure_pve_settings(
             original = load_pve_settings(identity)
             changes = {}
             resolved = None
+            if group_commands is not None:
+                from shadowbane_lab.pve.settings import GroupCommandSettings
+                changes["group_commands"] = GroupCommandSettings(group_commands == "enabled")
             resolved_tracking = None
             if tracking is not None:
                 if tracking == "enabled":

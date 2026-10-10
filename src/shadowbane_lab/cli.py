@@ -782,6 +782,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             buff_config=arguments.buff_config, buffs_enabled=arguments.buffs_enabled,
             tracking=arguments.tracking,
             group_callouts=arguments.group_callouts,
+            group_commands=arguments.group_commands,
         )
     if arguments.command == "client" and arguments.client_command == "run-pve":
         return _run_pve(
