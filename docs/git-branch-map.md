@@ -1,14 +1,30 @@
 # Git branch map
 
-## PvE combat-aware approach - October 9
+## PvE combat-aware approach - October 10
 
-Root owns `codex/pve-combat-aware-approach-20261009` in `bot-runtime`, based on
-refreshed `main` at `126aeeb`. Host .91 retains native .59. The slice passes exact
-engaged-target health progress into approach, yielding host steering and arrival
-settling without canceling native combat. Outbound movement decisions keep one
-sequence across route restarts and later encounters. Main remains the shared
-integration destination. Next: independent review, full host qualification and
-host-only installation after the .90/.59 delivery completes.
+Start new work from refreshed `main`, including PR #142 merge
+`f12cbf01f570763ca1dd05f88f4aa152679e4ce1`. All 15 hosted checks passed at
+reviewed feature head `7b033840a24e959ab3ad11e078c9ae8ce8652b7c`.
+
+Qualified host .91 composition `faf9d023abc055d1c27a1efa9c69d0af62f1da1f` is
+published on `codex/pve-combat-aware-release-20261009` in `bot-integration`.
+It retains installed native .59 and graphics from `3459d173` unchanged; this
+release composition is not the shared development base. Main includes the PvE
+source. The host yields approach and obsolete arrival checks while exact-target
+health loss shows recent progress, then resumes ordinary approach when it stops.
+Movement request identities remain unique across route restarts and encounters.
+
+Independent qualification verified 6,007 host tests (41 optional skips), both
+native IPC profiles, six installed desktop cases, one real worker handshake,
+all 486 modules and all 16 package stages. Host-only installation is verified:
+486 modules, 9,532 preserved records, zero client-file writes and the same game
+lifetime. Eleven obsolete host/wheel paths were removed (57,971,425 bytes);
+current runtime and user data remain. A bounded production run confirmed three
+exact NPC health-zero deaths with cleanup between encounters, then cancellation
+and upkeep Resume. All five buff groups were present. Approach routes were not
+exercised: ranged combat progressed while host steering yielded. Root owns the
+delivery record on
+`codex/pve-approach-delivery-20261010`, targeting `main`.
 
 ## Hunt Foe group callouts - October 10
 
@@ -30,12 +46,13 @@ passes, all four exact-image group-message probes, six installed desktop cases,
 one real worker handshake and 486 installed modules. Existing deferred graphics
 transparency findings remain recorded; no required gate failed.
 
-The .90/.59 package is qualified but NOT installed. The current runtime remains
-.89/.58 at `14bf5ab`. The group-callout setting defaults off and no live send has
-occurred. Next: close the target game, verify the fresh deployment baseline and
-sealed payload, install under standing approval, then enable the requested
-callouts and verify live group delivery. Root owns this qualification record on
-`codex/hunt-foe-callouts-delivery-20261009`, targeting `main`.
+The .90/.59 package is installed at `3459d173`. Activation verified all 486
+modules and preserved 9,566 settings/history records. Twelve verified obsolete
+paths were removed, freeing 59,142,254 bytes without retaining rollback copies.
+The reviewed launcher opened the client with the exact .59 DLL; login remains
+pending. Group callouts still default off and no live send has occurred. Next:
+enable requested callouts after login and verify live group delivery. The earlier
+qualification record reached `main` through PR #141; this release records installation.
 See [the delivery evidence](client-update-20261009.md) and
 [the callout contract](hunt-foe-group-callouts.md).
 
