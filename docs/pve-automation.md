@@ -99,13 +99,32 @@ condition. Cleanup may take its separately bounded settlement time. A finite run
 may finish before a queued potion's remote application becomes observable; this
 is not permission to repeat the item or report its effect as active.
 
-## Camp and approach limitations
+## Named camps and approach
 
-`--camp-radius` currently applies only with `--continuous`, around the starting
-position. Finite mode passes no camp radius to the controller, so adding that flag
-to the finite command above does not enforce a custom starting-camp boundary.
-Native NPC admission retains its own exact-object and nearby eligibility checks;
-those are not a substitute for an arbitrary smaller finite camp.
+Production PvE defaults to a native named camp in both finite and continuous
+runs. It freezes the starting return point and chooses the nearest eligible
+loaded NPC with a stable named-zone identity. The player can still report the
+surrounding area while nearby NPCs report the camp. Admission uses the zone's
+placed object key, not its display name, template, a map circle, or distance from
+the player. All loaded eligible NPCs with that key can be considered, including
+those beyond the former 120-unit default.
+
+The camp does not change when empty. Missing zone evidence grants no new target;
+the controller waits and scans for the same camp's respawns. After admission,
+exact NPC identity remains authoritative through a pull across zone boundaries.
+Native eligibility, protected-role checks and cleanup still apply. The registry
+only exposes loaded objects; this does not claim knowledge of unloaded spawns.
+
+An explicit `--camp-radius` (or worker/listener `--pve-camp-radius`) instead
+requests a circle around the starting point, in either finite or continuous mode.
+Named mode records camp name, placed key and template in its journal and result.
+Its geometry-derived radius is only a navigation envelope, never NPC membership.
+Listed-player interruption retains its existing separate 120-unit starting-point
+policy in named mode; an explicit circular camp retains its configured radius.
+
+The equipped weapon's native ATTACK/chase and the saved opening skill continue
+to govern encounters. The bot does not infer weapon range or class behavior from
+a skill name. It can approach members of this camp but does not roam between camps.
 
 Continuous mode requires durable evidence output and runs until stopped; its
 controller does not apply the finite global kill/session limits. Do not combine
