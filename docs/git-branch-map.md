@@ -5,28 +5,46 @@
 Start from refreshed `main`. The isolated branch
 `codex/hunt-foe-group-callouts-20261009` targets `main` and owns arrival/message
 policy, exact native group sending and the same-owner actor-wire/worker integration.
-The pure policy and native boundary have focused tests; the integrated checkpoint
-is a draft pending independent review and package qualification. The opt-in
+The .90/.59 integrated source and mandatory package gates are independently
+reviewed through `2d08db0`; exact composed-release qualification remains. The opt-in
 setting defaults off. No live send or deployment has occurred. Native queue
 acceptance is distinct from server delivery, and no attack authority is added.
 See [the evidence and scope](hunt-foe-group-callouts.md).
 Private disassembly remains under `artifacts/group-chat-20261010`, outside source.
-Next: review this integrated checkpoint, qualify required package gates, then
-complete the release review with the existing worker maintenance changes retained.
+Next: compose with the installed graphics source, qualify that exact release,
+and complete hosted checks before installation.
 
-## PvE worker maintenance - October 9
+## PvE worker maintenance delivery - October 9
 
-PR #138 merged at `f13828521128cc2a7e4525ae4590fefdc9df00a8`; this group-callout
-branch includes that reviewed worker maintenance source. Host .89 retains native .58 and
-replaces repeated whole-desktop worker discovery with a retained exact-process
-and window guard. Movement renewal failures now retain bounded transport timing
-and immutable request evidence; acquisition failures retain native outcomes and
-correlated receipt identity through cleanup. Native lease expiry and ownership checks stay
-unchanged. Focused worker/identity and movement checks pass; independent review,
-full checks and exact-source package qualification precede installation.
-The installed .88/.58 runtime remains active while this proceeds. Next: complete
-review/qualification and deliver the host update, then observe a bounded NPC run.
-Hunt Foe group-callout work is a separate draft pending integrated review.
+Start new work from refreshed `main`, including PR #138 at
+`f13828521128cc2a7e4525ae4590fefdc9df00a8`. All 15 hosted checks passed at reviewed
+head `3cdd9dbd87d5da5a62b42f95bd51e60892fdc54f`. Host .89 binds a retained exact
+process/window guard once instead of repeating desktop discovery during worker
+maintenance. Acquisition and renewal failures preserve bounded original native
+rejection evidence through cleanup. Native lease expiry and ownership checks
+remain unchanged; the historical stop's exact cause is still unproven.
+
+Qualified and installed release `14bf5abadf9bd49c57e556c7511e40d3bdf41ea4` is
+published on `codex/pve-maintenance-release-20261009` in root-owned
+`bot-integration`. Its native .58 source, assets and installed graphics are
+byte-identical to the previous `00e6ae7` composition. Qualification passed 5,925
+host cases (41 optional skips), both native profiles' 76/86/233 IPC cases, six
+installed desktop cases and the real worker handshake. All 485 modules agree.
+Activation verified 9,518 retained records with zero exclusions, ten expected
+generated changes and no client inventory changes. The same game lifetime and
+DLL remain open; normal Resume succeeded. This is installation evidence, not a
+claim that NPC gameplay or natural Conc-pot renewal has passed.
+
+Root owns delivery documentation on `codex/pve-maintenance-delivery-20261009`,
+targeting `main` through PR #140. Obsolete host .88 and ten wheel files are now
+retired: eleven paths absent, 57,899,147 bytes removed, same game/DLL and healthy
+manager/worker. The single .89 NPC attempt failed before combat with correlated
+native `INHIBITED` evidence and unchanged ownership generation; no blind retry
+was made. Next: identify the underlying current veto without inferring player
+input from the generic label. Hunt Foe arrival callouts remain separate draft
+PR #139 on `codex/hunt-foe-group-callouts-20261009`; they are not installed or live
+qualified. See [the current delivery record](client-update-20261009.md) and
+[the worker maintenance contract](native-movement-controls.md).
 
 ## Concoction early renewal - October 9
 
