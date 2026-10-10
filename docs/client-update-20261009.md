@@ -42,8 +42,16 @@ not an assumption about later process lifetimes.
 
 The preceding .88 NPC attempt failed before combat at movement acquisition; its
 source discarded the decisive native outcome. A later manual-activity sample
-cannot establish that earlier failure's cause. One bounded .89 attempt will use
-the new original-receipt evidence. Conc-pot's sampled remaining duration was
+cannot establish that earlier failure's cause. The one bounded .89 attempt also
+failed before combat, now preserving the correlated native `INHIBITED` outcome:
+operation `operation-5429f8e5a0f442499a4b0e93950da221`, acquisition
+`2113756c-92a4-487c-b515-b90a89002d07`, expected `g2/s1/NONE/f23/r1` and receipt
+`g2/s1/NONE/f7/r1`. No automation ownership was minted; the operation is terminal,
+with no active or queued work. The receipt does not expose the internal veto
+subreason, and no blind retry was made. Exact result evidence SHA-256 is
+`497a3b58b82d6c727a9109c5b3b5a6d90736bb1ee1613d3b205ecaee2d4bb09f`
+(`pve-baseline/pve-brief-inspect.json` in the diagnostic share).
+Conc-pot's sampled remaining duration was
 about 9.8 million milliseconds and decreased normally; natural renewal remains
 pending without forcing another interruption exercise. Group arrival callouts
 are separate draft work and have not been installed or sent live.
@@ -51,8 +59,19 @@ are separate draft work and have not been installed or sent live.
 Private package evidence is under `artifacts/bot-deploy/20261009-host89`;
 deployment receipts are in the testing VM diagnostic share under
 `host-update-20261009-0.3.89`. No client binaries or private captures are included
-in this source delivery. Obsolete-.88 retirement and the bounded NPC result will
-be recorded after their actual checks finish.
+in this source delivery. After fresh dependency inspection and independent review,
+obsolete host .88 (2,159 files) and its ten staged wheel files were removed.
+All eleven targets are verified absent, freeing 57,899,147 bytes. The same game
+and DLL, healthy manager/worker, settings, jobs and evidence remain. Retirement
+receipt SHA-256 is
+`d021a0fdb8110275d842d55d39975a3e1587278617777c6e72dba406d99c0b9b`;
+post-retirement check SHA-256 is
+`36e72a00eaf47afa566763d2ab2995348b6449e190cf16b8e08e7019a2d1fb57`.
+At that sample, preparation was current and maintaining, but four buffs were
+missing; healthy process status does not mean all buffs
+were present. Next: identify the current native/UI/input veto using read-only
+facts, then address any reproduced source defect before another NPC attempt.
+Natural renewal and group-callout qualification remain separate pending work.
 
 The following .86 and earlier sections are historical.
 

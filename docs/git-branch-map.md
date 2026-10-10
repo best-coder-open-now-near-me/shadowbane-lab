@@ -19,11 +19,15 @@ installed desktop cases and the real worker handshake. All 485 modules agree.
 Activation verified 9,518 retained records with zero exclusions, ten expected
 generated changes and no client inventory changes. The same game lifetime and
 DLL remain open; normal Resume succeeded. This is installation evidence, not a
-claim that the next NPC test or natural Conc-pot renewal has passed.
+claim that NPC gameplay or natural Conc-pot renewal has passed.
 
 Root owns delivery documentation on `codex/pve-maintenance-delivery-20261009`,
-targeting `main`. Next: finish obsolete-.88 retirement and the bounded NPC check,
-then record their actual results. Hunt Foe arrival callouts remain separate draft
+targeting `main` through PR #140. Obsolete host .88 and ten wheel files are now
+retired: eleven paths absent, 57,899,147 bytes removed, same game/DLL and healthy
+manager/worker. The single .89 NPC attempt failed before combat with correlated
+native `INHIBITED` evidence and unchanged ownership generation; no blind retry
+was made. Next: identify the underlying current veto without inferring player
+input from the generic label. Hunt Foe arrival callouts remain separate draft
 PR #139 on `codex/hunt-foe-group-callouts-20261009`; they are not installed or live
 qualified. See [the current delivery record](client-update-20261009.md) and
 [the worker maintenance contract](native-movement-controls.md).
