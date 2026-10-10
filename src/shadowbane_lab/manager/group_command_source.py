@@ -43,9 +43,8 @@ class NativeGroupCommandSource:
                     raise ValueError("group observer opened another game lifetime")
                 process = self.character.reader.process
                 self.group = NativeGroupReader(load_bundled_native_group_profile(), process)
-                self.population = NativeCharacterPopulationReader(
-                    load_bundled_native_character_population_profile(), process)
             self.character.require_current()
+            enabled = load_pve_settings(self.character.binding.identity).group_commands.enabled
             scene = read_snapshot(NativeClientProcessIdentity(*self.lifetime),
                                   self.binding.game_window_handle)
             now = tick_ms()
@@ -54,7 +53,15 @@ class NativeGroupCommandSource:
                 raise ValueError("current native group scene unavailable")
             context = self.group.observe_context()
             roster = self.group.observe()
-            population = self.population.observe()
+            # Disabled and ungrouped observers still drain receive history and
+            # validate the exact scene/roster, but need no world population census.
+            population = None
+            if enabled and context.members:
+                if self.population is None:
+                    self.population = NativeCharacterPopulationReader(
+                        load_bundled_native_character_population_profile(),
+                        self.character.reader.process)
+                population = self.population.observe()
             after = self.group.observe_context()
             local = self.character.binding.object_key
             local_key = (local.object_type, local.object_uuid)
@@ -62,7 +69,7 @@ class NativeGroupCommandSource:
             members = {(m.object_type, m.object_uuid): m.first_name for m in roster.members}
             if context != after or keys != set(members):
                 raise ValueError("group identity changed during command observation")
-            if population.local_player_object_key != local:
+            if population is not None and population.local_player_object_key != local:
                 raise ValueError("loaded group positions belong to another character")
             self.character.require_current()
             final_scene = read_snapshot(NativeClientProcessIdentity(*self.lifetime),
@@ -71,15 +78,14 @@ class NativeGroupCommandSource:
                 raise ValueError("native scene changed during group observation")
             positions = {
                 (c.object_key.object_type, c.object_key.object_uuid): (c.lt, c.lg)
-                for c in population.characters
+                for c in (() if population is None else population.characters)
                 if c.object_key is not None and c.character_kind.value == "player"
                 and (c.object_key.object_type, c.object_key.object_uuid) in keys
             }
             current = {"scene": scene.grant.scene, "local": local_key,
                        "group_digest": context.digest.hex(), "members": members,
                        "positions": positions,
-                       "enabled": load_pve_settings(
-                           self.character.binding.identity).group_commands.enabled}
+                       "enabled": enabled}
             return messages, updates, current, now
         except Exception:
             self.resources.close()
