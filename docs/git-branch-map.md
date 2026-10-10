@@ -1,5 +1,17 @@
 # Git branch map
 
+## Hunt Foe group callouts - October 10
+
+Start from refreshed `main`. The isolated branch
+`codex/hunt-foe-group-callouts-20261009` targets `main` and owns arrival/message
+policy plus native group-send investigation. Its pure policy is independently
+reviewed; no sender, user-facing toggle or runtime feature is enabled. Exact `.16`
+static evidence identifies the ordinary `/GROUP` GroupChannelMessage route.
+Native call-through, actual group-lifetime attribution and recipient semantics
+remain required before integration. See [the evidence and scope](hunt-foe-group-callouts.md).
+Private disassembly remains under `artifacts/group-chat-20261010`, outside source.
+Next: qualify native sending and group binding, then connect the same owner loop.
+
 ## Concoction early renewal - October 9
 
 Start new work from refreshed `main` at
