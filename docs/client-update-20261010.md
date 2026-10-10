@@ -5,8 +5,10 @@ source is reviewed PR #148 at `dde99e07534fb129f697bede403672e9cfdec08e`.
 Host 0.3.93/native 1.8.60 release composition
 `5a46687dce579417f8b8bd086c4c6929a68c513a` is pushed on
 `codex/wonderbane-client17-release-20261010` and independently qualified.
-Installation and reviewed client launch are verified. In-world .17 acceptance
-remains pending user login.
+Installation and reviewed client launch are verified. Umbra subsequently logged
+in and the user resumed NPC testing. The resulting host-only .94 startup repair
+and current live status are recorded in [the follow-up delivery](pve-startup-delivery-20261010.md).
+The paused/awaiting-login states below are historical.
 
 ## Exact client and static review
 

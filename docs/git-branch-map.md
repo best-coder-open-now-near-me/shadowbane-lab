@@ -1,6 +1,32 @@
 # Git branch map
 
-## Official client 1.3.38.17 alignment - October 10
+## PvE startup ownership repair - October 10
+
+Start development from refreshed main at PR #150 merge
+`c9a3dfc6d95c1bfd89c954c8e6f0d8d3b13a0849`. All 15 hosted checks passed at
+reviewed head `abef6241d4f81904aa736ae3f72eed470345e02e`.
+Qualified and activated .94/.60 release `c27a7da62b8103900022f6f2c9edd5f79448cec0`
+is published on `codex/pve-startup-release-20261010` in `bot-integration`.
+It retains installed graphics outside main and exact .60 native/assets from
+`5a46687d`. This release composition is not the shared development base.
+
+The user resumed NPC testing. The first operation exposed manager ownership
+acquisition before terrain setup; the fix acquires after setup and exact client
+revalidation, matching the direct CLI. Source, package and deployment reviews
+passed. The same game and extension remained loaded throughout the host update.
+Normal named-camp acceptance passed: three exact NPC health-zero deaths, confirmed
+cleanup, successful cancellation and Resume. Ranged combat progressed without
+route driving; movement completion is not claimed. All five buff groups are
+present and maintaining with no queued combat. Obsolete .93 retirement removed
+11 paths (58,003,739 bytes); current runtime and user data remain.
+
+Root owns delivery documentation on `codex/pve-startup-delivery-20261010` in
+`bot-runtime`, targeting main. The normal checkout is clean on main. The merged
+source branch and clean worktree are retired; the installed release composition
+remains published for source provenance.
+See [the current evidence and remaining work](pve-startup-delivery-20261010.md).
+
+## Historical, superseded: official client 1.3.38.17 alignment - October 10
 
 Start development from refreshed main at PR #148 merge
 `1e2d504937047d53c35895dbc831c89da973e909`. All 15 checks passed at reviewed
