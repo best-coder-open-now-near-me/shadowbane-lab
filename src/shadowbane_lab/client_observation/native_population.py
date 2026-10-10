@@ -611,6 +611,28 @@ class NativeCharacterPopulationReader:
         self._check_registry_budget(registry)
         return actor_address, target_address
 
+    def observe_player_identity(self, token, object_key, reader):
+        """Resolve a registered player without selection or exposed address authority."""
+        from .native_character_config import NativeCharacterConfigReader
+
+        if (not isinstance(reader, NativeCharacterConfigReader)
+                or reader.process.pid != self.process_id
+                or reader.process.executable_sha256.lower()
+                != self._process.executable_sha256.lower()
+                or reader.process_creation_filetime_utc
+                != getattr(self._process, "process_creation_filetime_utc", None)):
+            raise ValueError("player identity reader must use the exact population process")
+        local = reader.observe_local_key()
+        before = self.resolve_combat_addresses(
+            local_key=local, target_token=token, target_key=object_key)
+        result = reader.observe_player_at(before[1], object_key)
+        after = self.resolve_combat_addresses(
+            local_key=local, target_token=token, target_key=object_key)
+        if before != after or reader.observe_local_key() != local:
+            raise NativeCharacterPopulationSnapshotChanged(
+                "registered player changed during identity read")
+        return result
+
     def observe_character_detail(
         self, token: str, object_key: NativeObjectKey, reader: NativeTargetActionReader,
     ) -> NativeCharacterDetailObservation | None:

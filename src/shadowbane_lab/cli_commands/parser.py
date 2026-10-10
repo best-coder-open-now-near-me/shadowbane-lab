@@ -1009,6 +1009,8 @@ def _parser() -> argparse.ArgumentParser:
     settings_buffs.add_argument("--buffs-enabled", dest="buffs_enabled", action="store_true")
     settings_buffs.add_argument("--no-buffs-enabled", dest="buffs_enabled", action="store_false")
     pve_settings.set_defaults(buffs_enabled=None)
+    pve_settings.add_argument("--group-commands", choices=("enabled", "disabled"),
+                              help="Receive fresh /come and /attack commands from group members.")
     pve_settings.add_argument("--group-callouts", choices=("enabled", "disabled"),
                               help="announce new Hunt Foe arrivals to the current native group")
     pve_settings.add_argument("--tracking", choices=("enabled", "disabled"),

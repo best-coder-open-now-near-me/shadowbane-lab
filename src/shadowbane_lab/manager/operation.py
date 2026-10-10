@@ -90,6 +90,7 @@ class WorkerOperationLedgerError(WorkerOperationError):
 class WorkerOperationKind(StrEnum):
     TRAVEL = "travel"
     PVE = "pve"
+    PLAYER_ATTACK = "player_attack"
     VENDOR = "vendor"
     GUARD = "guard"
     CONDEMN = "condemn"
@@ -208,6 +209,42 @@ class WorkerTravelDestination:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkerPlayerAttackTarget:
+    """One exact loaded player authorized for this finite operation only."""
+
+    object_key: tuple[int, int]
+    name: str
+    server: str
+    local_key: tuple[int, int]
+
+    def __post_init__(self) -> None:
+        for key in (self.object_key, self.local_key):
+            if (type(key) is not tuple or len(key) != 2
+                    or any(type(value) is not int or not 0 < value <= 0xffffffff for value in key)
+                    or key[1] != 53):
+                _fail("player attack requires exact calibrated player keys")
+        if self.object_key == self.local_key:
+            _fail("player attack cannot target the local player")
+        for value in (self.name, self.server):
+            if (not isinstance(value, str) or not value or value != value.strip()
+                    or len(value) > 64 or any(ord(c) < 32 or ord(c) == 127 for c in value)):
+                _fail("player attack requires canonical native name/server")
+
+    def to_dict(self) -> dict[str, object]:
+        return {"object_key": list(self.object_key), "name": self.name,
+                "server": self.server, "local_key": list(self.local_key)}
+
+    @classmethod
+    def from_dict(cls, value: object) -> WorkerPlayerAttackTarget:
+        row = _exact_mapping(value, frozenset({"object_key", "name", "server", "local_key"}),
+                             "player attack target")
+        for field_name in ("object_key", "local_key"):
+            if not isinstance(row[field_name], list):
+                _fail("player attack keys must be JSON arrays")
+        return cls(tuple(row["object_key"]), row["name"], row["server"], tuple(row["local_key"]))
+
+
+@dataclass(frozen=True, slots=True)
 class WorkerOperation:
     node_id: str
     client_id: str
@@ -222,6 +259,7 @@ class WorkerOperation:
     destination: WorkerTravelDestination | None
     issued_at: float
     expires_at: float
+    player_target: WorkerPlayerAttackTarget | None = None
     schema_version: int = field(default=WORKER_OPERATION_SCHEMA_VERSION, init=False)
 
     def __post_init__(self) -> None:
@@ -258,6 +296,11 @@ class WorkerOperation:
             _fail("destination must be WorkerTravelDestination or null")
         if self.kind is not WorkerOperationKind.TRAVEL and self.destination is not None:
             _fail("only travel operations may carry a destination")
+        if self.kind is WorkerOperationKind.PLAYER_ATTACK:
+            if not isinstance(self.player_target, WorkerPlayerAttackTarget):
+                _fail("player attack requires an immutable exact target")
+        elif self.player_target is not None:
+            _fail("only player attack operations may carry a player target")
         issued = _finite_time(self.issued_at, "issued_at")
         expires = _finite_time(self.expires_at, "expires_at")
         if expires <= issued:
@@ -295,6 +338,7 @@ class WorkerOperation:
             "destination": None if self.destination is None else self.destination.to_dict(),
             "issued_at": self.issued_at,
             "expires_at": self.expires_at,
+            **({"player_target": self.player_target.to_dict()} if self.player_target else {}),
         }
 
 
@@ -433,6 +477,7 @@ def new_worker_operation(
     command: str,
     *,
     destination: WorkerTravelDestination | None = None,
+    player_target: WorkerPlayerAttackTarget | None = None,
     now: float | None = None,
     ttl_seconds: float = DEFAULT_WORKER_OPERATION_TTL_SECONDS,
     operation_id: str | None = None,
@@ -472,6 +517,7 @@ def new_worker_operation(
                 "kind": kind.value,
                 "command": command,
                 "destination": None if destination is None else destination.to_dict(),
+                **({"player_target": player_target.to_dict()} if player_target else {}),
             },
             ensure_ascii=True,
             allow_nan=False,
@@ -493,11 +539,17 @@ def new_worker_operation(
         destination=destination,
         issued_at=issued_at,
         expires_at=issued_at + float(ttl_seconds),
+        player_target=player_target,
     )
 
 
 def parse_worker_operation(value: object) -> WorkerOperation:
-    payload = _exact_mapping(value, _OPERATION_FIELDS, "worker operation")
+    # Historical envelopes remain byte-shape compatible; only this new kind
+    # carries its additional typed target. Other kinds reject the field.
+    fields = _OPERATION_FIELDS
+    if isinstance(value, Mapping) and value.get("kind") == WorkerOperationKind.PLAYER_ATTACK:
+        fields = fields | {"player_target"}
+    payload = _exact_mapping(value, fields, "worker operation")
     if payload["schema_version"] != WORKER_OPERATION_SCHEMA_VERSION:
         _fail(f"operation schema_version must be {WORKER_OPERATION_SCHEMA_VERSION}")
     try:
@@ -536,6 +588,8 @@ def parse_worker_operation(value: object) -> WorkerOperation:
             payload["deduplication_id"], "deduplication_id", _DEDUPLICATION_ID
         ),
         kind=kind,
+        player_target=(WorkerPlayerAttackTarget.from_dict(payload["player_target"])
+                       if kind is WorkerOperationKind.PLAYER_ATTACK else None),
         command=_command(payload["command"]),
         destination=destination,
         issued_at=_finite_time(payload["issued_at"], "issued_at"),
@@ -1283,6 +1337,7 @@ __all__ = [
     "WorkerOperationState",
     "WorkerOperationSubmission",
     "WorkerTravelDestination",
+    "WorkerPlayerAttackTarget",
     "loads_worker_operation",
     "loads_worker_operation_receipt",
     "new_worker_operation",

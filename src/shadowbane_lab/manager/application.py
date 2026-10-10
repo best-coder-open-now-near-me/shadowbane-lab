@@ -489,6 +489,9 @@ class ManagerDashboardApplication:
                 if isinstance(self._operation_status, WorkerOperationLedger):
                     from .preparation_status import project_status
                     payload["automatic_buffs"] = project_status(preparation_record, worker, binding)
+                    from .group_command_status import inspect_status
+                    payload["group_commands"] = inspect_status(
+                        self._operation_status, worker, binding)
                 extension = self._extension_summary(binding)
                 if extension.state is ExtensionRuntimeState.INITIALIZED:
                     extension_ready_count += 1

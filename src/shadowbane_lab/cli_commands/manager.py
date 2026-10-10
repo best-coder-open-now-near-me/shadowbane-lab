@@ -764,6 +764,7 @@ def _run_manager_worker(
             travel_click_interval_ms=travel_click_interval_ms,
         )
         from shadowbane_lab.manager.game_identity import WindowsGameIdentityGuard
+        from shadowbane_lab.manager.group_commands import create_worker_group_commands
         from shadowbane_lab.manager.native_preparation import create_worker_preparation
         runtime = ExactClientWorkerRuntime(
             manifest,
@@ -778,6 +779,8 @@ def _run_manager_worker(
             operation_initializer=executor.initialize,
             preparation_factory=lambda publisher, process: create_worker_preparation(
                 binding, operation_ledger, publisher, process),
+            group_commands_factory=lambda publisher, process: create_worker_group_commands(
+                binding, operation_ledger, publisher, process, node_id=manifest.node_id),
             heartbeat_interval_seconds=heartbeat_ms / 1_000.0,
         )
         return runtime.serve()
@@ -934,6 +937,12 @@ class _ExactWorkerEngineExecutor:
                 # lease until PvE has finished readers/terrain setup and revalidated
                 # the exact client. Maintenance remains attached to this object.
                 result = self._execute_pve(operation=operation, movement=movement)
+            elif operation.kind is WorkerOperationKind.PLAYER_ATTACK:
+                from .client_player_attack import execute_player_attack
+                result = execute_player_attack(
+                    binding=self._binding, operation=operation,
+                    movement_acquirer=lambda: movement.dispatcher if movement.acquire() else None,
+                    stop_signal=movement, settings=None)
             elif not movement.acquire():
                 result = WorkerOperationExecution(
                     WorkerOperationState.CANCELLED,

@@ -286,6 +286,7 @@ class ExactClientWorkerRuntime:
         operation_maintenance: Callable[[WorkerOperation, StopSignal], None] | None = None,
         operation_initializer: Callable[[str, ProcessLifetimeSnapshot], None] | None = None,
         preparation_factory: Callable | None = None,
+        group_commands_factory: Callable | None = None,
         monotonic_clock: Callable[[], float] = time.monotonic,
         process_id: int | None = None,
         heartbeat_interval_seconds: float = 1.0,
@@ -358,6 +359,10 @@ class ExactClientWorkerRuntime:
         self._preparation = None
         self._preparation_reporter = None
         self._preparation_waiting = False
+        self._group_factory = group_commands_factory
+        self._group_commands = None
+        self._group_operations = {}
+        self._group_cleanup_confirmed = True
 
     @property
     def process(self) -> ProcessLifetimeSnapshot:
@@ -396,6 +401,9 @@ class ExactClientWorkerRuntime:
                 self._preparation.start()
                 from .preparation_status import PreparationStatusPublisher
                 self._preparation_reporter = PreparationStatusPublisher(self._operation_ledger)
+            if self._group_factory is not None:
+                self._group_commands = self._group_factory(publisher, self._process)
+                self._group_commands.start()
             while stop_signal is None or not stop_signal.is_set():
                 request = self._ledger.inspect_stop_request(
                     self._binding.client_id,
@@ -423,8 +431,13 @@ class ExactClientWorkerRuntime:
                     self._complete_active_operation(active_operation)
                     evidence_sequence += 1
                     active_operation = None
+                self._poll_group_commands(publisher, active_operation)
                 if active_operation is None:
                     active_operation = self._start_next_operation(publisher)
+                if active_operation is not None:
+                    command = self._group_operations.get(active_operation.operation.operation_id)
+                    if command is not None and not self._group_command_allowed(command):
+                        active_operation.stop_signal.trip("group command permission changed")
                 if active_operation is not None and self._operation_maintenance is not None:
                     # Renewal is independent of heartbeat publication and runs on
                     # this worker's supervision thread, never the strategy thread.
@@ -496,6 +509,8 @@ class ExactClientWorkerRuntime:
             return 1
         finally:
             try:
+                if self._group_commands is not None:
+                    self._group_commands.close()
                 self._stop_preparation(publisher)
                 publisher.close(detail=final_detail)
                 if self._preparation_reporter is not None:
@@ -521,6 +536,74 @@ class ExactClientWorkerRuntime:
             if self._preparation_reporter is not None:
                 self._preparation_reporter.publish(heartbeat, self._preparation.snapshot)
             self._sleep(.1)
+
+    def _group_command_allowed(self, command):
+        control = self._operation_ledger.inspect_preparation_control(
+            self._binding.client_id, self._binding.instance_id)
+        return ((control is None or control.enabled)
+                and self._group_commands is not None and self._group_commands.permits(command))
+
+    def _poll_group_commands(self, publisher, active):
+        service, ledger = self._group_commands, self._operation_ledger
+        if service is None or ledger is None:
+            return
+        command = service.pending()
+        if command is None:
+            return
+        try:
+            control = ledger.inspect_preparation_control(
+                self._binding.client_id, self._binding.instance_id)
+            if publisher.dispatch_gate().is_set() or (control is not None and not control.enabled):
+                service.note(command, "withheld", "Commands are paused.")
+                return
+            if active is not None:
+                # Local requested stop uses the current operation's existing finally
+                # path. It does not publish global Pause or claim cleanup itself.
+                active.stop_signal.trip("fresh native group command preemption", requested=True)
+                service.note(command, "waiting", "Waiting for the current operation to clean up.")
+                return
+            if not self._group_cleanup_confirmed:
+                service.note(command, "withheld", "Previous native cleanup is unconfirmed.")
+                return
+            pending = ledger.pending_for(
+                client_id=self._binding.client_id, instance_id=self._binding.instance_id,
+                worker_id=publisher.worker_id, worker_process_id=self._process.process_id,
+                worker_process_started_at_100ns=self._process.process_started_at_100ns,
+                now=time.time())
+            if pending:
+                return  # Existing explicit inbox priority remains authoritative.
+            if self._preparation is not None:
+                self._preparation_waiting = True
+                if not self._preparation.request_handoff():
+                    service.note(command, "waiting", "Waiting for native preparation cleanup.")
+                    return
+            claimed = service.claim(command)
+            if claimed is None:
+                return
+            destination, player_target = claimed
+            from .operation import WorkerTravelDestination, new_worker_operation
+            permit = self._ledger.inspect_permit(self._binding.client_id)
+            if permit is None or (permit.instance_id, permit.worker_id, permit.process_id,
+                                  permit.process_started_at_100ns) != (
+                    self._binding.instance_id, publisher.worker_id, self._process.process_id,
+                    self._process.process_started_at_100ns):
+                raise ValueError("group command permit changed worker identity")
+            operation = new_worker_operation(
+                permit,
+                WorkerOperationKind.TRAVEL if command.kind == "come"
+                else WorkerOperationKind.PLAYER_ATTACK,
+                "/come" if command.kind == "come" else f"/attack {command.argument}",
+                destination=None if destination is None else WorkerTravelDestination(*destination),
+                player_target=player_target,
+                operation_id=f"operation-{command.event_id[:32]}",
+                deduplication_id=f"dedup-{command.event_id}")
+            # The immutable ledger owns acknowledgement and prevents replay.
+            service.record_admission(command, operation)
+            ledger.submit(operation)
+            self._group_operations[operation.operation_id] = command
+            service.note(command, "queued", "Submitted to the existing worker.")
+        except (OSError, RuntimeError, ValueError) as exc:
+            service.note(command, "withheld", str(exc)[:200])
 
     def _start_next_operation(
         self,
@@ -553,6 +636,14 @@ class ExactClientWorkerRuntime:
         if not pending:
             return None
         operation = pending[0]
+        group_command = self._group_operations.get(operation.operation_id)
+        if group_command is not None and not self._group_command_allowed(group_command):
+            ledger.publish_receipt(WorkerOperationReceipt.for_operation(
+                operation, WorkerOperationState.REJECTED, observed_at=time.time(),
+                detail="native group command permission changed before execution"))
+            self._group_operations.pop(operation.operation_id, None)
+            self._group_commands.note(group_command, "rejected", "Group permission changed.")
+            return None
         if not ledger.claim_for_execution(operation, now=time.time()):
             return None
         operation_stop = _OperationStopSignal(
@@ -600,7 +691,12 @@ class ExactClientWorkerRuntime:
                     detail=(str(exc)[:512] or "operation thread failed to start"),
                 )
             )
+            if group_command is not None:
+                self._group_operations.pop(operation.operation_id, None)
+                self._group_commands.note(group_command, "failed", "Operation could not start.")
             return None
+        if group_command is not None:
+            self._group_commands.note(group_command, "active", "Running on the existing worker.")
         return _ActiveWorkerOperation(operation, thread, operation_stop, results)
 
     def _complete_active_operation(self, active: _ActiveWorkerOperation) -> None:
@@ -613,6 +709,10 @@ class ExactClientWorkerRuntime:
             raise ExactClientWorkerError(
                 "operation thread exited without a terminal result"
             ) from exc
+        self._group_cleanup_confirmed = result.native_cleanup_confirmed
+        group_command = self._group_operations.pop(active.operation.operation_id, None)
+        if group_command is not None and self._group_commands is not None:
+            self._group_commands.note(group_command, result.state.value, result.detail)
         if self._preparation is not None:
             self._preparation.release_handoff(cleanup_confirmed=result.native_cleanup_confirmed)
             self._preparation_waiting = False
