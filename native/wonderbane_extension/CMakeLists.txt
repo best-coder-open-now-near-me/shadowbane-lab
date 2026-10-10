@@ -31,6 +31,7 @@ add_library(
   targeted_action_trace.cpp
   condemn_responses.cpp
   tracking_responses.cpp
+  tracking_presentation.cpp
   group_messages.cpp
   group_updates.cpp
   item_application_trace.cpp

@@ -1,4 +1,5 @@
 #include "tracking_responses.h"
+#include "tracking_presentation.h"
 #include "graphics_status.h"
 #include "import_hook.h"
 #include "movement_native_image.h"
@@ -172,8 +173,16 @@ std::uint32_t __fastcall ProcessHook(void* message, void*) {
     if (!valid && storage) { InterlockedIncrement(&storage->rejected); }
     (void)PublishLocked(record);
     ReleaseSRWLockExclusive(&lock);
+    const auto presentation = presentation::Begin(scene);
+    std::uint32_t result = 0;
+    bool returned = false;
     SetLastError(incoming_error);
-    const auto result = process_original(message);
+    __try { result = process_original(message); returned = true; }
+    __finally { if (!returned) {
+        const DWORD exception_error = GetLastError();
+        presentation::End(scene, presentation, false, false);
+        SetLastError(exception_error);
+    } }
     const DWORD native_error = GetLastError();
     record.stage = 3;
     if (!movement::NativeMovementLifetimeCurrent(scene)) {
@@ -183,6 +192,8 @@ std::uint32_t __fastcall ProcessHook(void* message, void*) {
     // Keep the copied response body, not native fields mutated by UI processing.
     // Returning from the handler does not establish acceptance or gameplay effect.
     AcquireSRWLockExclusive(&lock); (void)PublishLocked(record); ReleaseSRWLockExclusive(&lock);
+    presentation::End(scene, presentation, record.flags == (kPayload | kScene | kLineage)
+        && record.payload.power_id == 429578587U);
     SetLastError(native_error);
     return result;
 }
@@ -264,13 +275,16 @@ DWORD Start(const ProcessIdentity& identity) noexcept {
     if ((!(GraphicsExecutableSha256Matches("a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a") || GraphicsExecutableSha256Matches("051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698"))
         && !(GraphicsExecutableSha256Matches("1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c") || GraphicsExecutableSha256Matches("baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9")))
         || !movement::VerifyNativeMovementImage(base)) { return ERROR_NOT_SUPPORTED; }
+    if (!presentation::Bind(base)) { return ERROR_NOT_SUPPORTED; }
     std::array<std::uint32_t*, 3> slots{};
     std::array<std::uint32_t, 3> targets{};
     for (std::size_t i = 0; i < slots.size(); ++i) {
         slots[i] = reinterpret_cast<std::uint32_t*>(base + kTable + kSlots[i]);
         targets[i] = static_cast<std::uint32_t>(base + kTargets[i]);
     }
-    return StartBound(identity, base, slots, targets);
+    const auto result = StartBound(identity, base, slots, targets);
+    if (result) { presentation::Unbind(); }
+    return result;
 }
 bool ReadCursor(Cursor& out) noexcept {
     out = {};
@@ -300,6 +314,7 @@ bool ReadAfter(const Cursor& before, Batch& out) noexcept {
     return valid;
 }
 void Stop() noexcept {
+    presentation::Unbind();
     AcquireSRWLockExclusive(&lock);
     const auto hooks = Hooks();
     for (std::size_t i = 0; i < installed_slots.size(); ++i) {
