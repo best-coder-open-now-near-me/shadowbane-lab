@@ -225,6 +225,42 @@
 
       }
 
+      function renderGroupCommands(workerPanel, commands) {
+        if (!commands) return;
+        const panel = document.createElement("section");
+        panel.className = "worker-panel";
+        panel.setAttribute("aria-label", "Group commands");
+        const heading = document.createElement("h3");
+        const state = !commands.enabled ? "Off" : commands.state === "paused" ? "Paused" :
+          commands.current && commands.state === "listening" ? "Listening" : "Unavailable";
+        heading.textContent = `Group commands · ${state}`;
+        panel.append(heading);
+        const usage = document.createElement("p");
+        usage.className = "detail";
+        usage.textContent = "Anyone in the current group can send /come to regroup or /attack first_name to engage a player.";
+        panel.append(usage);
+        const detail = document.createElement("p");
+        detail.className = "detail";
+        detail.textContent = commands.detail || (commands.enabled ?
+          "Waiting for current group-command status." : "Disabled in this character's saved settings.");
+        panel.append(detail);
+        if (commands.last_request) {
+          const last = commands.last_request;
+          const row = document.createElement("p");
+          row.className = "detail";
+          const results = {received: "Received", queued: "Queued", withheld: "Not started",
+            pending: "Waiting", waiting: "Waiting",
+            stopping: "Stopping the current action", ready: "Ready", submitted: "Sent",
+            accepted: "Accepted", active: "Running", succeeded: "Completed", completed: "Completed",
+            failed: "Failed", rejected: "Not accepted", cancelled: "Cancelled",
+            expired: "Expired", ignored: "Ignored", paused: "Paused"};
+          const command = last.command === "come" ? "/come" : last.command === "attack" ? "/attack" : "Command";
+          row.textContent = `Last request: ${command} from ${text(last.sender)} · ${results[last.state] || "Status unavailable"}`;
+          if (last.detail) row.textContent += ` · ${text(last.detail)}`;
+          panel.append(row);
+        }
+        workerPanel.append(panel);
+      }
       function renderTrackingStatus(workerPanel, tracking) {
         if (!tracking || !tracking.enabled) return;
         const panel = document.createElement("section");
@@ -552,6 +588,7 @@
           workerPanel.append(operationDetail);
         }
 
+        renderGroupCommands(workerPanel, slot?.group_commands);
         renderPveStatus(workerPanel, slot?.pve);
         if (slot?.automatic_buffs) renderAutomaticBuffs(workerPanel, slot.automatic_buffs);
         if (!["accepted", "active"].includes(slot?.pve?.operation_state))
