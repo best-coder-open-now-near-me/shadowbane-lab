@@ -1,10 +1,10 @@
 # Native current-group commands
 
-The focused branch `codex/native-group-come-20261010` targets main. Incoming
-command support joins native receive publications to the existing worker operation
-owner. The source is under final review; it is not yet a deployed command feature. No client controls or live group
-messages were used to validate it. Version selection belongs to the release
-composition after the independent UI-ownership fix.
+The focused branch `codex/native-group-come-20261010` targets main with host
+0.3.97/native 1.8.62. The complete native receive, host listener and operation
+paths are implemented and independently reviewed; exact release qualification
+and live acceptance remain pending. The merged UI-ownership repair is included.
+No live group commands were used to validate this source.
 
 The authorized commands are literal `/come` and `/attack first_name`, from any
 current group member. `/come` is a one-time regroup: cancel the current operation

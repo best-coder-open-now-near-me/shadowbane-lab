@@ -2,28 +2,36 @@
 
 ## Native current-group commands - October 10
 
-The active task branch `codex/native-group-come-20261010` in managed checkout
-`native-group-come` targets main. Native receive/position publications, host
-reader/settings and the worker command integration are being delivered as reviewed
-checkpoints. Final coherent validation and release composition remain pending. The commands are literal `/come` and `/attack first_name` from
-any current group member, with exact native identity and the existing worker
-cleanup/handoff boundary. There is no deployed command feature or live command
-acceptance claim yet. Version selection follows the separate UI ownership fix.
-See [native evidence and implementation boundaries](native-group-commands.md).
+Start shared development from refreshed `main`. The active source branch
+`codex/native-group-come-20261010` in managed `native-group-come` includes
+PR #154 merge `4713727333d1cd09bb73c44c850c7b3108a3484d` and carries host
+.97/native .62 for exact release qualification. Native receive, host settings,
+worker handoff, single-player attack and dashboard checkpoints are pushed.
+Independent reviews passed; the pre-final source suite passed 6,110 tests with
+42 optional skips, followed by 25 focused tests for the disabled-listener scan
+improvement. Final composed-package qualification and live acceptance remain.
+
+The commands are literal `/come` and `/attack first_name` from any current group
+member. Listening has its own saved setting, disabled on migration; Umbra's
+requested listener will be enabled after qualified installation. No deployed
+command feature or live command acceptance is claimed. The normal checkout is
+clean on main. See [the implementation boundaries](native-group-commands.md).
 
 ## Native text ownership correction - October 10
 
-Start shared development from refreshed `main`. The focused source branch
-`codex/native-text-input-ownership-20261010` reuses the managed
-`pve-camp-return-routing` checkout, based on PR #152 merge
-`e0617db29220624736463b0221d5564e112c95c9`. It carries host .96/native .61
-for review and qualification; the installed .95/.60 runtime is unchanged.
-The prior merged terrain source branch is retired; its source remains in main.
+PR #154 merged as `4713727333d1cd09bb73c44c850c7b3108a3484d` after all
+15 hosted checks passed at `205cda01249ff6acf0c3c11460b5128388e31d49`.
+The .96/.61 composition `293e44560f2ce43044183ea7f449e9e5a7d111bc` is
+published on `codex/native-text-input-release-20261010`. The managed
+`bot-integration` checkout composes the next qualified runtime.
+Exact package qualification and independent deployment review passed; preparation
+is complete, but installation awaits client closure. The installed .95/.60
+runtime remains unchanged. No retained deployment rollback artifacts were made.
 
-After the user closed Who search, the client disabled native text entry but
-retained a focused channel-HUD editor. Our unconditional focused-kind fallback
-incorrectly kept movement and preparation inhibited. The correction honors the
-sealed native text-enable state while preserving active text and other UI gates.
+After Who closed, native text entry was disabled but a channel-HUD editor remained
+focused. Our unconditional focused-kind fallback incorrectly inhibited movement
+and preparation. The correction honors native text-enable state while preserving
+active text and other UI gates. Live camp-return acceptance remains pending.
 See [the evidence and validation boundary](native-text-input-ownership.md).
 
 ## PvE terrain route refinement - October 10
