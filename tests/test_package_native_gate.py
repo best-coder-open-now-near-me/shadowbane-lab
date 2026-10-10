@@ -273,6 +273,7 @@ def test_power_gate_cannot_count_one_image_twice(pair, feature):
     "wonderbane_extension_actor_effects_native_prepared14",
     "wonderbane_extension_movement_runtime_owner-service",
     "wonderbane_extension_movement_windows_input_mouse",
+    "wonderbane_extension_combat_group_chat",
 ])
 @pytest.mark.parametrize("failure", ["missing", "skipped", "failure", "duplicate"])
 def test_native_combat_entry_and_ownership_are_required_gates(tmp_path, name, failure):
@@ -456,6 +457,10 @@ def test_pretracking_actor_gate_set_cannot_qualify_new_package(tmp_path, profile
     with pytest.raises(RuntimeError, match="actor IPC"):
         builder.validate_actor_ipc_results(path, profile)
     ET.SubElement(suite, "testcase", name="test_real_native_tracking_frame_roundtrip")
+    ET.ElementTree(suite).write(path)
+    with pytest.raises(RuntimeError, match="actor IPC"):
+        builder.validate_actor_ipc_results(path, profile)
+    ET.SubElement(suite, "testcase", name="test_real_native_group_chat_wire_roundtrip")
     ET.ElementTree(suite).write(path)
     builder.validate_actor_ipc_results(path, profile)
 

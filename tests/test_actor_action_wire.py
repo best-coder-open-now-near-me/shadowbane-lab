@@ -667,3 +667,28 @@ def test_group_chat_wire_is_bounded_group_only_and_immutable():
     poisoned[-1] = 1
     with pytest.raises(ValueError):
         Command.decode(bytes(poisoned))
+
+
+def test_real_native_group_chat_wire_roundtrip(tmp_path):
+    import os
+    import subprocess
+
+    exe = os.environ.get("WONDERBANE_ACTOR_ACTION_TEST")
+    if not exe:
+        pytest.skip("WONDERBANE_ACTOR_ACTION_TEST is required for native consumer")
+    parent, _, original, receipt = fixture()
+    command = Command(
+        original.host, original.window, original.grant, RequestId(7),
+        parent.owner_id, None, parent.digest, bytes(32), Action.GROUP_CHAT,
+        recipient=Recipient.ACTOR, group_digest=b"g" * 32,
+        group_text="Hunt Foe: Alice, Bob",
+    )
+    receipt = replace(receipt, request=command.request, command_digest=command.digest,
+                      action=Action.GROUP_CHAT, application=Application.NONE,
+                      flags=OWNER_CLEANUP | OUTBOUND_QUEUED)
+    paths = [tmp_path / "command.hex", tmp_path / "receipt.hex"]
+    for path, value in zip(paths, (command, receipt), strict=True):
+        path.write_text(value.encode().hex(), encoding="ascii")
+    result = subprocess.run([exe, "--group", *map(str, paths)], capture_output=True,
+                            text=True, timeout=15, check=True)
+    assert result.stdout.strip() == "group chat queued wire accepted"
