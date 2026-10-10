@@ -234,7 +234,7 @@ DWORD Start(const ProcessIdentity& identity) noexcept {
         || identity.creation_filetime_utc != ((static_cast<std::uint64_t>(creation.dwHighDateTime) << 32)
             | creation.dwLowDateTime)) { return ERROR_INVALID_DATA; }
     std::uintptr_t base = 0;
-    if(!(GraphicsExecutableSha256Matches("78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903") || (GraphicsExecutableSha256Matches("e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437") || GraphicsExecutableSha256Matches("1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c")))
+    if(!(GraphicsExecutableSha256Matches("78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903") || (GraphicsExecutableSha256Matches("e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437") || (GraphicsExecutableSha256Matches("1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c") || GraphicsExecutableSha256Matches("baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9"))))
         || !movement::VerifyNativeMovementImage(base)){return ERROR_NOT_SUPPORTED;}
     std::array<std::uint32_t*, 6> slots{};
     std::array<std::uint32_t, 6> targets{};
