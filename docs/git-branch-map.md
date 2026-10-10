@@ -1,24 +1,73 @@
 # Git branch map
 
-## Official client 1.3.38.17 alignment - October 10
+## PvE terrain route refinement - October 10
 
-Release composition: `codex/wonderbane-client17-release-20261010` combines
-reviewed source `dde99e07534fb129f697bede403672e9cfdec08e` with qualified
-`97c4899b23273e83a596784136b621c17650cee9`. It includes the source launcher
-follow-up and retains installed graphics outside main. Package checks pending.
+Start shared development from refreshed `main`. The focused source branch
+`codex/pve-camp-return-routing-20261010` in managed checkout
+`pve-camp-return-routing` targets main and carries the .95 host correction.
+It is based on PR #151 merge `70da648dac59e99f2f02949a93a656c638d067e1`.
+The installed .94/.60 release remains unchanged pending source review, package
+qualification and deployment. Native and asset files are unchanged.
 
-Start development from refreshed `main` after PR #147. Root and the native review
-lane own `codex/wonderbane-client-update-20261010` in `bot-runtime`; intended
-host .93/native .60 add the exact official .17 pair. Qualification and installation
-are pending. Compose the release onto `97c4899b` in `bot-integration` to retain
-installed graphics outside main and named camps. The prepared-but-unactivated
-.92 host-only plan below is superseded by this full client update. The selected
-runtime remains .91/.59 with .16; a fresh census found all game/bot processes
-closed. Keep the normal project checkout on main. Next: qualify the composed
-package, update the exact changed assets and host, then user login and one camp
-acceptance check. See [current evidence and todos](client-update-20261010.md).
+The later camp run completed three NPC death cleanups and native chase, but
+return routing failed before any host movement dispatch. Exact terrain replay
+reproduced a coarse raster cell blocking the occupied start; bounded finer
+resampling finds a route while preserving explicit and learned obstacles.
+This is offline planning evidence, not completed live return acceptance.
+See [the terrain correction and validation boundary](pve-terrain-routing.md).
 
-## Native named PvE camps - October 10
+## PvE startup ownership repair - October 10
+
+Start development from refreshed main at PR #150 merge
+`c9a3dfc6d95c1bfd89c954c8e6f0d8d3b13a0849`. All 15 hosted checks passed at
+reviewed head `abef6241d4f81904aa736ae3f72eed470345e02e`.
+Qualified and activated .94/.60 release `c27a7da62b8103900022f6f2c9edd5f79448cec0`
+is published on `codex/pve-startup-release-20261010` in `bot-integration`.
+It retains installed graphics outside main and exact .60 native/assets from
+`5a46687d`. This release composition is not the shared development base.
+
+The user resumed NPC testing. The first operation exposed manager ownership
+acquisition before terrain setup; the fix acquires after setup and exact client
+revalidation, matching the direct CLI. Source, package and deployment reviews
+passed. The same game and extension remained loaded throughout the host update.
+Normal named-camp acceptance passed: three exact NPC health-zero deaths, confirmed
+cleanup, successful cancellation and Resume. Ranged combat progressed without
+route driving; movement completion is not claimed. All five buff groups are
+present and maintaining with no queued combat. Obsolete .93 retirement removed
+11 paths (58,003,739 bytes); current runtime and user data remain.
+
+Root owns delivery documentation on `codex/pve-startup-delivery-20261010` in
+`bot-runtime`, targeting main. The normal checkout is clean on main. The merged
+source branch and clean worktree are retired; the installed release composition
+remains published for source provenance.
+See [the current evidence and remaining work](pve-startup-delivery-20261010.md).
+
+## Historical, superseded: official client 1.3.38.17 alignment - October 10
+
+Start development from refreshed main at PR #148 merge
+`1e2d504937047d53c35895dbc831c89da973e909`. All 15 checks passed at reviewed
+head `dde99e07534fb129f697bede403672e9cfdec08e`.
+Qualified and installed .93/.60 release `5a46687dce579417f8b8bd086c4c6929a68c513a`
+is published on `codex/wonderbane-client17-release-20261010` in `bot-integration`.
+It retains installed graphics outside main and includes named camps plus .17
+support. This release composition is not the shared development base.
+
+Activation verified 486 modules and 9,582 retained records with zero exclusions.
+A stale official hash in launcher metadata stopped the first launch before a game
+was created; a reviewed one-field correction and unchanged baseline guard passed,
+then the test client launched with the exact .60 DLL. Umbra logged in; saved
+automatic buffs started, and the user requested Pause. Pause is verified with no
+active or queued actions. Live camp acceptance is on hold until explicitly
+requested. The .92 host-only plan is superseded.
+
+Root owns delivery documentation on `codex/client17-delivery-20261010` in
+`bot-runtime`, targeting main through PR #149. The normal checkout is clean on
+main. Retirement of 23 inspected obsolete software targets is complete; current
+runtime and user data remain. Next gameplay work is a normal camp run only after
+the user requests resumption. Pause persists for the same client instance; a new
+game lifetime can currently start from saved enabled preferences. See [exact evidence and todos](client-update-20261010.md).
+
+## Historical, superseded: native named PvE camps - October 10
 
 Start new work from refreshed `main` at
 `244d3723892dbff3368cac7b93e598e47f0f4ce1`. Exact-target lifetimes (PR #144), native
