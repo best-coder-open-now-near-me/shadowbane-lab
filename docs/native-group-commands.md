@@ -1,8 +1,8 @@
 # Native current-group commands
 
 The focused branch `codex/native-group-come-20261010` targets main. Incoming
-command support is under implementation; this checkpoint supplies native receive
-publications, not a deployed command feature. No client controls or live group
+command support joins native receive publications to the existing worker operation
+owner. The source is under final review; it is not yet a deployed command feature. No client controls or live group
 messages were used to validate it. Version selection belongs to the release
 composition after the independent UI-ownership fix.
 
@@ -74,9 +74,55 @@ unavailable data and failed reads cannot refresh a position cache. Current
 character, group and exact sender key must be revalidated at execution; original
 processing scene is not proof of the server's originating character session.
 
-The host integration will persist consumption before any effect, avoid historical
-replay after restart/enable, and use the existing worker operation ledger and
-confirmed handoff. The native component alone grants no movement or attack.
+## Host command behavior
+
+`client-pve-settings --group-commands enabled` enables this character's listener;
+`disabled` stops accepting commands. This preference is independent of Hunt Foe,
+tracking callouts, and buff selection. Existing settings migrate with group
+commands disabled. Ordinary Pause and dispatch revocation also prevent commands.
+The dashboard reports listener availability and the last request's sender,
+command, queued/running/terminal or withheld state and reason.
+
+A passive observer reads the exact process mappings and current native roster;
+it never takes a movement producer. Startup, enable, read gaps and unavailable
+streams seed history rather than replay it. Only a new, complete, recent group
+receive with the same scene/local actor and unique current member key can create
+an intent. The highest processing generation wins across nested returns.
+Consumption is recorded before admission. A compact admission record links the
+native event, sender key, group context and exact worker to the immutable
+operation; operation receipts remain the completion authority.
+
+The worker requests cancellation through the current operation's existing stop
+signal. It waits for the actual execution result's native cleanup proof and the
+preparation service's confirmed handoff, then submits one operation to its own
+ledger. A terminal status alone is insufficient. Queued and active commands are
+revalidated against current character, group membership and enabled state.
+Ambiguous submission or an unresolved target is not replayed against later data.
+
+For `/come`, the sender's current position comes from an exact-key native player
+observation or a recent qualified per-member group update. Unavailable rows and
+updates for other members do not refresh it. The destination is captured at
+admission and handed to normal obstacle-aware TRAVEL. This is one-time regroup,
+not continuous following: arrival ends the operation and ordinary maintenance
+resumes, without returning to the previous camp.
+
+For `/attack first_name`, the current native population must resolve one player
+with that first name. Registry membership brackets the native name, server and
+object-key reads. The operation-scoped executor revalidates that exact identity, protects
+the local player/current group, and uses the existing `MANUAL_PLAYER` actor
+context and native attack/pursuit path. It sends no UI selection or hotkeys and
+does not save a persistent attack-list entry. Death, cancellation, target loss or
+a native failure enters the same confirmed owner cleanup path.
+A missing player remains unresolved; neither a selected object nor a Track name
+can replace it. There is no blanket invisible-target rule: native availability
+and existing attack eligibility determine whether that exact player can be used.
+
+Detect Hidden (429513051, SCT-001) and Reveal (429414747, SCT-002) were observed
+as learned abilities. This establishes availability only, not a current detection
+effect or a successful reveal. Reveal Thyself (429429978) is a different power.
+Any future explicit scout utility belongs in the same actor owner's learned-power
+path; these commands do not auto-cast, infer perception from registry presence,
+or authorize attacks from passive detection alone.
 
 ## Validation
 
