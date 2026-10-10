@@ -25,9 +25,10 @@ def _key(value):
 class TrackingSettings:
     enabled: bool = False
     refresh_interval_seconds: int = 10
+    group_callouts_enabled: bool = False
 
     def __post_init__(self):
-        if type(self.enabled) is not bool:
+        if type(self.enabled) is not bool or type(self.group_callouts_enabled) is not bool:
             raise ValueError("tracking enabled must be boolean")
         if (type(self.refresh_interval_seconds) is not int
                 or not 1 <= self.refresh_interval_seconds <= 3600):
@@ -85,12 +86,19 @@ class TrackingStatus:
     capture_incomplete: bool = False
     actor: TrackingActor | None = None
     freshness_seconds: int = 20
+    callout_state: str = "disabled"
+    callout_detail: str | None = None
 
     def __post_init__(self):
         if any(type(v) is not bool for v in (self.enabled, self.current, self.capture_incomplete)):
             raise ValueError("invalid tracking status flags")
         if type(self.freshness_seconds) is not int or not 2 <= self.freshness_seconds <= 7200:
             raise ValueError("invalid tracking freshness bound")
+        if self.callout_state not in {"disabled", "idle", "queued", "unknown", "withheld"}:
+            raise ValueError("invalid group callout state")
+        if self.callout_detail is not None and (not isinstance(self.callout_detail, str)
+                or len(self.callout_detail) > 256 or any(ord(c) < 32 for c in self.callout_detail)):
+            raise ValueError("invalid group callout detail")
         if self.state not in {"disabled", "waiting", "current", "stale", "unavailable"}:
             raise ValueError("invalid tracking state")
         if self.query_state not in {"idle", "queued", "not_ready", "unknown"}:
@@ -136,7 +144,9 @@ class TrackingStatus:
 
     @classmethod
     def from_dict(cls, value):
-        if not isinstance(value, dict) or set(value) != set(cls.__dataclass_fields__):
+        fields = set(cls.__dataclass_fields__)
+        if not isinstance(value, dict) or set(value) not in (
+                fields, fields - {"callout_state", "callout_detail"}):
             raise ValueError("invalid tracking status fields")
         values = dict(value)
         contacts = values["contacts"]

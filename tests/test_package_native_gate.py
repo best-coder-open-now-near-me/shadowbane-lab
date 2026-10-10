@@ -273,6 +273,7 @@ def test_power_gate_cannot_count_one_image_twice(pair, feature):
     "wonderbane_extension_actor_effects_native_prepared14",
     "wonderbane_extension_movement_runtime_owner-service",
     "wonderbane_extension_movement_windows_input_mouse",
+    "wonderbane_extension_combat_group_chat",
 ])
 @pytest.mark.parametrize("failure", ["missing", "skipped", "failure", "duplicate"])
 def test_native_combat_entry_and_ownership_are_required_gates(tmp_path, name, failure):
@@ -515,6 +516,10 @@ def test_pretracking_actor_gate_set_cannot_qualify_new_package(tmp_path, profile
         builder.validate_actor_ipc_results(path, profile)
     ET.SubElement(suite, "testcase", name="test_real_native_tracking_frame_roundtrip")
     ET.ElementTree(suite).write(path)
+    with pytest.raises(RuntimeError, match="actor IPC"):
+        builder.validate_actor_ipc_results(path, profile)
+    ET.SubElement(suite, "testcase", name="test_real_native_group_chat_wire_roundtrip")
+    ET.ElementTree(suite).write(path)
     builder.validate_actor_ipc_results(path, profile)
 
 
@@ -525,3 +530,30 @@ def test_tracking_native_response_and_install_failure_modes_are_required():
         "wonderbane_extension_tracking_install_failure_2",
         "wonderbane_extension_tracking_install_failure_3",
     } <= builder.REQUIRED_COMBAT_TESTS
+
+
+@pytest.mark.parametrize("index", range(4))
+@pytest.mark.parametrize("failure", [None, "missing", "failed", "duplicate",
+                                    "wrong_binary", "same_image"])
+def test_group_chat_probe_requires_both_images_per_profile(index, failure):
+    steps = [
+        {"name": f"{profile}-combat_group_chat-{suffix}", "exit_code": 0,
+         "command": ["wonderbane_extension_combat_group_chat_probe.exe", image]}
+        for profile in ("full", "diagnostics-only")
+        for suffix, image in (("binding", "official.exe"), ("prepared-binding", "prepared.exe"))
+    ]
+    if failure == "missing":
+        steps.pop(index)
+    elif failure == "failed":
+        steps[index]["exit_code"] = 1
+    elif failure == "duplicate":
+        steps.append(dict(steps[index]))
+    elif failure == "wrong_binary":
+        steps[index]["command"][0] = "other.exe"
+    elif failure == "same_image":
+        steps[index]["command"][1] = steps[index ^ 1]["command"][1]
+    if failure is None:
+        assert builder.validate_group_chat_probe_steps(steps, reviewed_client=True)
+    else:
+        with pytest.raises(RuntimeError):
+            builder.validate_group_chat_probe_steps(steps, reviewed_client=True)

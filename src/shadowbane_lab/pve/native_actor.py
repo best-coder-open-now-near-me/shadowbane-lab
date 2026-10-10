@@ -148,6 +148,11 @@ class NativeActorCoordinator:
         self._status_capture_sequence = 0
         self._status_captured_at = None
         self._tracking = self._tracking_command = None
+        self._callouts = self._group_reader = None
+        self._group_context = None
+        self._group_generation = 0
+        self._chat_pending = self._chat_command = None
+        self._chat_state, self._chat_detail = "disabled", None
 
     def _command(self, *, context=None, action=Action.NONE, power_id=0, **kwargs):
         return Command(
@@ -165,7 +170,7 @@ class NativeActorCoordinator:
                 Recipient.NONE
                 if action is Action.NONE
                 else Recipient.ACTOR
-                if action in (Action.SELF_POWER, Action.USE_ITEM, Action.TRACK)
+                if action in (Action.SELF_POWER, Action.USE_ITEM, Action.TRACK, Action.GROUP_CHAT)
                 else Recipient.TARGET
             ),
             **kwargs,
@@ -182,6 +187,7 @@ class NativeActorCoordinator:
         if self._manifest_mapping is not None:
             self._manifest_mapping.close()
         self.session.cleanup.release(self._obligation)
+        self._close_callouts()
         self._closed = self._terminal = True
 
     def close_retired_process(self):
@@ -689,6 +695,7 @@ class NativeActorCoordinator:
         self.session.cleanup.release(self._obligation)
         if self._manifest_mapping is not None:
             self._manifest_mapping.close()
+        self._close_callouts()
         self._closed = self._terminal = True
         self._adopted = False
         self.context = self._context_ticket = None
@@ -754,7 +761,7 @@ class NativeActorCoordinator:
             self._obligation, lambda: self._stop_owner_once(reason), self._last_owner_result
         )
 
-    def configure_tracking(self, settings, *, reader=None, tick_clock=None):
+    def configure_tracking(self, settings, *, reader=None, tick_clock=None, group_reader=None):
         from shadowbane_lab.client_extension.event_reader import WindowsSharedMemorySnapshotReader
         from shadowbane_lab.client_extension.tracking_publication import (
             TrackingResponseReader,
@@ -778,20 +785,139 @@ class NativeActorCoordinator:
             self.parent.client_pid, self.parent.client_creation,
             self.parent.scene, self.parent.actor_key), reader, self._tracking_query,
             tick_clock=tick_clock or tick_ms)
+        if settings.group_callouts_enabled:
+            from shadowbane_lab.client_observation.native_group import (
+                load_bundled_native_group_profile,
+                open_windows_native_group_reader,
+            )
+
+            from .tracking_callouts import TrackingAppearances
+            self._group_reader = group_reader or open_windows_native_group_reader(
+                load_bundled_native_group_profile(), process_id=self.parent.client_pid)
+            self._callouts = TrackingAppearances()
+            self._chat_state = "idle"
         return self._tracking
 
     @property
     def tracking_status(self):
         from .tracking import TrackingStatus
-        return TrackingStatus() if self._tracking is None else self._tracking.status
+        return (TrackingStatus() if self._tracking is None else replace(
+            self._tracking.status, callout_state=self._chat_state,
+            callout_detail=self._chat_detail))
 
     def tracking_step(self, *, allow_new=True):
         if self._tracking is None:
             return self.tracking_status
         self._current()
-        return self._tracking.step(allow_new=allow_new and not (
+        admission = allow_new and not (
             self._terminal or self._closed or self._stop_owner_command is not None
-            or self._stop_context_command is not None))
+            or self._stop_context_command is not None)
+        status = self._tracking.step(allow_new=admission)
+        self._group_callout_step(status, allow_new=admission)
+        return self.tracking_status
+
+    def _close_callouts(self):
+        if self._group_reader is not None:
+            self._group_reader.close()
+            self._group_reader = None
+        if self._callouts is not None:
+            self._callouts.reset()
+        self._chat_pending = None
+        # Immutable unknown command history is kept until owner disposal.
+
+    def _chat_receipt(self, receipt):
+        if receipt is None or receipt.local_settlement is not LocalSettlement.SETTLED:
+            self._chat_state = "unknown"
+            self._chat_detail = "Inspecting the original send; no replay"
+            return False
+        if receipt.entry is Entry.ENTERED:
+            self._chat_state = "queued" if receipt.flags & OUTBOUND_QUEUED else "unknown"
+            self._chat_detail = ("Queued to the native group channel; delivery unconfirmed"
+                                 if receipt.flags & OUTBOUND_QUEUED
+                                 else "Native entry unconfirmed; no replay")
+            self._chat_pending = None
+        elif receipt.entry is Entry.NEVER_ENTERED:
+            self._chat_state = "withheld"
+            self._chat_detail = "Waiting for fresh group-chat admission"
+        else:
+            self._chat_state = "unknown"
+            self._chat_detail = "Inspecting the original send; no replay"
+            return False
+        self._chat_command = None
+        return True
+
+    def _group_callout_step(self, status, *, allow_new):
+        from shadowbane_lab.client_observation.native_group import NativeGroupError
+
+        from .tracking import TrackingActorChanged
+        from .tracking_callouts import coalesce
+
+        if self._callouts is None:
+            return
+        # Polling never replays a submission, including unavailable/changed groups.
+        if self._chat_command is not None:
+            result = self._send(Verb.ACTION_STATUS, self._chat_command)
+            receipt = result.receipt
+            if receipt is not None and receipt.owner_phase in (Phase.RETIRED, Phase.CLOSED):
+                self._close_callouts()
+                raise TrackingActorChanged("group callout owner retired")
+            if not self._chat_receipt(receipt):
+                return
+        try:
+            self._current()
+            group = self._group_reader.observe_context()
+            self._current()
+        except NativeGroupError:
+            self._chat_state, self._chat_detail = "withheld", "Current group is unavailable"
+            return  # A failed observation cannot clear presence or prove a new group.
+        if group != self._group_context:
+            self._group_context = group
+            self._group_generation += 1
+            self._chat_pending = None
+        if not group.grouped:
+            self._chat_state, self._chat_detail = "withheld", "Not in a native group"
+            self._callouts.reset()
+            self._chat_pending = None
+            return
+        decision = self._callouts.observe(status, group_generation=self._group_generation)
+        self._chat_pending = coalesce(self._chat_pending, decision, status,
+                                      group_generation=self._group_generation)
+        pending = self._chat_pending
+        if pending is None:
+            return
+        if not allow_new:
+            self._chat_state, self._chat_detail = "withheld", "New action admission is paused"
+            return
+        # Only a fresh complete response can authorize retaining definite no-entry
+        # work. Departed players, old groups and stale history never become backlog.
+        current_names = {c.name.split(" ", 1)[0].casefold() for c in status.contacts}
+        if (not status.current or status.response_age_seconds is None
+                or status.response_age_seconds > status.freshness_seconds
+                or status.actor != pending.actor
+                or pending.group_generation != self._group_generation
+                or not all(name.casefold() in current_names for name in pending.first_names)):
+            self._chat_state, self._chat_detail = "withheld", "Awaiting fresh player awareness"
+            return
+        if not self._ensure_open():
+            return
+        from shadowbane_lab.client_extension.action_channel import NativeActionChannelUnavailable
+        try:
+            self.session.require_actor_group_chat(self.grant)
+        except NativeActionChannelUnavailable:
+            self._chat_state, self._chat_detail = "withheld", "Native group chat is unavailable"
+            return
+        self._current()
+        try:
+            if self._group_reader.observe_context() != group:
+                self._chat_pending = None
+                return
+        except NativeGroupError:
+            return
+        command = self._command(action=Action.GROUP_CHAT, group_digest=group.digest,
+                                group_text=pending.message)
+        self._chat_command = command
+        result = self._send(Verb.SUBMIT, command)
+        self._chat_receipt(result.receipt)
 
     def _tracking_query(self, power_id, *, allow_new=True):
         from .tracking import TrackingActorChanged, TrackingQueryResult

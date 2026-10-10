@@ -16,6 +16,10 @@ using NativeOwnerReady = bool (*)() noexcept;
 // publishes a process-pinned callback; callers never own or load that runtime.
 inline std::atomic<NativeOwnerReady> combat_owner_ready{nullptr};
 // Track requires both native query entry and copied response publication.
+inline std::atomic<NativeOwnerReady> group_chat_ready{nullptr};
+inline bool NativeGroupChatReady() noexcept {
+    const auto ready=group_chat_ready.load(std::memory_order_acquire);return ready&&ready();
+}
 inline std::atomic<NativeOwnerReady> tracking_response_ready{nullptr};
 inline bool NativeTrackingResponsesReady() noexcept {
     const auto ready = tracking_response_ready.load(std::memory_order_acquire);

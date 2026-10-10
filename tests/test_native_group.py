@@ -364,3 +364,24 @@ class NativeGroupFactoryTests(unittest.TestCase):
             with self.assertRaises(NativeGroupCompatibilityError):
                 open_windows_native_group_reader(_profile(), process_id=process.pid)
         self.assertTrue(process.closed)
+
+
+def test_group_chat_context_reads_only_identity_and_matches_native_digest():
+    import hashlib
+    process, a = _fixture()
+    process.write(a["sentinel"] + 4, _pointer(a["node"]))
+    process.write(a["node"] + 4, _pointer(a["sentinel"]))
+    reader = NativeGroupReader(_profile(), process)
+    value = reader.observe_context()
+    words = (0x315047, a["window"], a["manager"], a["sentinel"], 1,
+             a["node"], a["entry"], 10, 73421, 0x16)
+    assert value.grouped and value.digest == hashlib.sha256(struct.pack("<10I", *words)).digest()
+    process.write(a["entry"] + 0x5c, bytes(24))
+    assert reader.observe_context() == value  # Resources/position do not define group ownership.
+    process.write(a["node"] + 4, _pointer(a["node"]))
+    try:
+        reader.observe_context()
+    except NativeGroupReadError:
+        pass
+    else:
+        raise AssertionError("corrupt list accepted")

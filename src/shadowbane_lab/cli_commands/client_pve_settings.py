@@ -28,6 +28,7 @@ def _configure_pve_settings(
     buff_config: Path | None = None,
     buffs_enabled: bool | None = None,
     tracking: str | None = None,
+    group_callouts: str | None = None,
 ) -> int:
     try:
         if type(process_id) is not int or process_id <= 0:
@@ -40,6 +41,8 @@ def _configure_pve_settings(
             raise ValueError("buffs-enabled must be boolean")
         if tracking not in (None, "enabled", "disabled"):
             raise ValueError("tracking must be enabled or disabled")
+        if group_callouts not in (None, "enabled", "disabled"):
+            raise ValueError("group-callouts must be enabled or disabled")
         configured_buffs = None
         if buff_config is not None:
             from shadowbane_lab.pve.settings import _unique_object
@@ -58,6 +61,12 @@ def _configure_pve_settings(
                 if tracking == "enabled":
                     resolved_tracking = resolve_learned_tracking_ability(session)
                 changes["tracking"] = replace(original.tracking, enabled=tracking == "enabled")
+            if group_callouts is not None:
+                current_tracking = changes.get("tracking", original.tracking)
+                if group_callouts == "enabled" and not current_tracking.enabled:
+                    raise ValueError("enable Hunt Foe tracking before group callouts")
+                changes["tracking"] = replace(current_tracking,
+                    group_callouts_enabled=group_callouts == "enabled")
             if policy is not None:
                 changes["policy"] = policy
             if opening_skill is not None:
@@ -97,6 +106,8 @@ def _configure_pve_settings(
                 f"policy={settings.policy}, opening_skill={settings.opening_skill or 'none'}, "
                 f"buffs={'enabled' if settings.buffs.enabled else 'disabled'}, "
                 f"tracking={'enabled' if settings.tracking.enabled else 'disabled'}, "
+                "group_callouts="
+                f"{'enabled' if settings.tracking.group_callouts_enabled else 'disabled'}, "
                 f"revision={settings.revision}"
             )
         return 0

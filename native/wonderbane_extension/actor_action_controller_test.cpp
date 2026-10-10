@@ -23,8 +23,8 @@ struct Fake final:a::Invoker {
         if(admission_reason!=w::Reason::none){r.outcome=w::Outcome::deferred;r.reason=admission_reason;return r;}
         if(reuse){r.outcome=w::Outcome::power_reuse_blocked;r.reason=w::Reason::power_reuse;return r;}
         r.outcome=w::Outcome::queued;r.entry=w::Entry::entered;r.history=w::outbound_queued;
-        r.local=local_pending&&c.action!=w::Action::track?w::LocalSettlement::pending:w::LocalSettlement::settled;
-        r.application=(c.action==w::Action::attack||c.action==w::Action::track)?w::Application::none:w::Application::pending;
+        r.local=local_pending&&c.action!=w::Action::track&&c.action!=w::Action::group_chat?w::LocalSettlement::pending:w::LocalSettlement::settled;
+        r.application=(c.action==w::Action::attack||c.action==w::Action::track||c.action==w::Action::group_chat)?w::Application::none:w::Application::pending;
         if(unknown_entry){r.outcome=w::Outcome::uncertain;r.entry=w::Entry::unknown;
             r.history=w::uncertain_history;r.local=w::LocalSettlement::pending;r.application=w::Application::unknown;}
         if(reenter){auto stop=Plain(c);stop.context_id={};stop.context_digest={};(void)controller->Execute(w::Verb::stop_owner,stop,true,true,true,*this);}
@@ -66,6 +66,17 @@ int main(int argc,char** argv){
             "query status preserves original cast obligation");
         Check(!w::Valid(w::Verb::cancel_action,query),"query cannot cancel owner combat");
 
+        auto chat=owner;chat.request=Id(4);chat.action=w::Action::group_chat;chat.recipient=w::Recipient::actor;
+        w::GroupChat payload{};payload.group.fill(9);payload.length=15;std::memcpy(payload.text.data(),"Hunt Foe: Alice",15);
+        std::memcpy(chat.reserved,&payload,sizeof(payload));
+        const auto spoken=Run(query_controller,query_native,w::Verb::submit,chat);
+        Check(spoken.outcome==w::Outcome::queued&&spoken.application==w::Application::none
+            &&spoken.local_settlement==w::LocalSettlement::settled,"group chat beside cast without replacing cast");
+        const auto sent_count=query_native.submits;
+        Run(query_controller,query_native,w::Verb::submit,chat);
+        Check(query_native.submits==sent_count,"repeated immutable group command never sends twice");
+        Check(Run(query_controller,query_native,w::Verb::action_status,casting).local_settlement==w::LocalSettlement::pending,
+            "group chat preserves cast responsibility");
         query_native.stop_pending=true;Run(query_controller,query_native,w::Verb::stop_context,context);
         query.request=Id(5);
         Check(Run(query_controller,query_native,w::Verb::submit,query).entry==w::Entry::never_entered,

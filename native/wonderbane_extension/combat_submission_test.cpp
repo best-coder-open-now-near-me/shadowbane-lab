@@ -46,6 +46,18 @@ void ItemComplete(void* owner, cs::AppendResult result) noexcept {
     ++item_completions; item_result = result; SetLastError(994);
 }
 
+void* group_ticket=nullptr;
+cs::AppendResult group_result=cs::AppendResult::fault;
+unsigned group_completions=0;
+cs::AppendClaim GroupClaim(void*,void* value,std::uintptr_t caller) noexcept {
+    Check(caller==cs::append_return,"group callback uses existing queue boundary");
+    return value==group_ticket?cs::AppendClaim{cs::AppendDecision::allow,&group_result}:cs::AppendClaim{};
+}
+void GroupComplete(void* owner,cs::AppendResult result) noexcept {
+    Check(owner==&group_result,"group completion preserves owner");
+    ++group_completions;group_result=result;
+}
+
 
 std::array<std::uint32_t, 0x80 / 4> message{};
 void Check(bool ok, const char* label) { if (!ok) { ++failures; std::cerr << label << '\n'; } }
@@ -567,6 +579,25 @@ int main(int argc, char** argv) {
         queue();
         Check(appends == before + 1 && item_completions == completed && power_completions == power_completed,
             "unclaimed ordinary native traffic forwards unchanged with both observers installed");
+    }
+    Check(cs::RegisterAppendObserver(cs::AppendObserverKind::group_chat,{GroupClaim,GroupComplete}),
+        "group observer registers in third slot");
+    group_ticket=message.data();ticket=group_ticket;
+    {
+        const auto before=appends;
+        queue();
+        Check(appends==before+1&&group_completions==1&&group_result==cs::AppendResult::queued,
+            "sole group ticket uses existing native append exactly once");
+    }
+    {
+        power_ticket=item_ticket=group_ticket;
+        const auto before=appends,consumed=releases;
+        queue();
+        Check(appends==before&&releases==consumed+1&&group_completions==2
+            &&group_result==cs::AppendResult::denied&&power_result==cs::AppendResult::denied
+            &&item_result==cs::AppendResult::denied,
+            "three-way collision denies all owners and releases one transferred reference");
+        power_ticket=item_ticket=group_ticket=nullptr;
     }
     // Hooks are process-lifetime objects. The synthetic image is intentionally
     // left mapped until this test process exits, matching production no-unload.

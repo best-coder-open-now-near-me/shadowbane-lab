@@ -283,7 +283,7 @@ public:
         try{actions_.push_back({c});action=&actions_.back();}catch(...){return Reply(c,v,O::exhausted,p,x);}
         action->result.outcome=O::deferred;
         if(v==wire::Verb::cancel_action){action->result.outcome=O::cancelled;}
-        else if(live&&p==parent_&&p->state.phase==P::bound&&(!x||(x==context_&&x->state.phase==P::bound))&&ContextAllowsEntry()&&(!PendingLocal()||(c.action==wire::Action::track&&QueryAlongsidePendingPower()))){
+        else if(live&&p==parent_&&p->state.phase==P::bound&&(!x||(x==context_&&x->state.phase==P::bound))&&ContextAllowsEntry()&&(!PendingLocal()||((c.action==wire::Action::track&&QueryAlongsidePendingPower())||c.action==wire::Action::group_chat))){
             action->result.entry=E::unknown;action->result.local=L::pending;action->result.outcome=O::uncertain;
             calling_=true;auto result=invoker.Submit(c);calling_=false;
             if(Terminal(p->state)||(x&&Terminal(x->state))){result.local=L::settled;}

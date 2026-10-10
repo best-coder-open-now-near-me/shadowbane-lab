@@ -35,6 +35,17 @@ int Consumer(){
 }
 int wmain(int argc,wchar_t** argv){
     if(argc==2&&!std::wcscmp(argv[1],L"--consumer")){return Consumer();}
+    if(argc==4&&!std::wcscmp(argv[1],L"--group")){
+        const auto c=Read<w::Command>(argv[2]);const auto r=Read<w::Receipt>(argv[3]);
+        assert(w::Valid(w::Verb::submit,c)&&c.action==w::Action::group_chat);
+        const auto chat=w::Chat(c);assert(chat.length==20&&chat.group[0]==0x67);
+        assert(!std::memcmp(chat.text.data(),"Hunt Foe: Alice, Bob",20));
+        assert(w::Correlated(c,w::Verb::submit,r)&&r.application==w::Application::none);
+        assert(r.flags&w::outbound_queued);
+        auto bad=c;bad.reserved[sizeof(bad.reserved)-1]=1;assert(!w::Valid(bad));
+        assert(!w::Valid(w::Verb::cancel_action,c));
+        std::cout<<"group chat queued wire accepted"<<std::endl;return 0;
+    }
     assert(argc==5);
     const auto p=Read<f::ActorBinding>(argv[1]);const auto x=Read<f::ContextBinding>(argv[2]);
     const auto c=Read<w::Command>(argv[3]);const auto r=Read<w::Receipt>(argv[4]);

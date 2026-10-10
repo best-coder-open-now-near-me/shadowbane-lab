@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.58 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.59 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -45,6 +45,7 @@ add_library(
   building_native_target.cpp
   actor_effects_native.cpp
   combat_item_entry.cpp
+  combat_group_chat.cpp
   combat_submission.cpp
   actor_inventory_native.cpp
   actor_buff_observation.cpp
@@ -1696,6 +1697,19 @@ endif()
 
 # Shared native item entry; the test includes its implementation for fault injection.
 if(BUILD_TESTING)
+  add_executable(wonderbane_extension_combat_group_chat_probe EXCLUDE_FROM_ALL combat_group_chat_probe.cpp)
+  target_compile_features(wonderbane_extension_combat_group_chat_probe PRIVATE cxx_std_20)
+  target_compile_options(wonderbane_extension_combat_group_chat_probe PRIVATE /W4 /WX /EHsc)
+  target_link_libraries(wonderbane_extension_combat_group_chat_probe PRIVATE bcrypt)
+  target_link_options(wonderbane_extension_combat_group_chat_probe PRIVATE /SAFESEH:NO)
+  set_property(TARGET wonderbane_extension_combat_group_chat_probe PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
+  add_executable(wonderbane_extension_combat_group_chat_test combat_group_chat_test.cpp)
+  target_link_libraries(wonderbane_extension_combat_group_chat_test PRIVATE bcrypt)
+  target_compile_features(wonderbane_extension_combat_group_chat_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_combat_group_chat_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_combat_group_chat_test PRIVATE /W4 /WX /permissive- /sdl /utf-8)
+  add_test(NAME wonderbane_extension_combat_group_chat COMMAND wonderbane_extension_combat_group_chat_test)
+
   add_executable(wonderbane_extension_combat_item_entry_test combat_item_entry_test.cpp combat_activation_observer.cpp)
   target_link_libraries(wonderbane_extension_combat_item_entry_test PRIVATE bcrypt)
   target_compile_features(wonderbane_extension_combat_item_entry_test PRIVATE cxx_std_20)
