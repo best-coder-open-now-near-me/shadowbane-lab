@@ -1,12 +1,13 @@
 # Native current-group commands
 
-The installed .97/.62 runtime includes native group listening, but its legacy
-chat observer missed a user-confirmed `/come`. The reviewed .98/.63 correction
-on `codex/group-chat-receive-20261010` targets main and uses GroupChannelMessage.
-It also includes automatic Track presentation cleanup. Exact combined package
-qualification and live acceptance remain pending. See the
-[previous delivery record](group-command-delivery-20261010.md) for the installed
-source identity and preserved settings.
+PR #157 merged the .98/.63 receiver and Track presentation changes into main.
+The qualified runtime is installed and its launch is verified. A fresh Pro
+`/come` reached the native GroupChannelMessage observer with current-group
+attribution, but host admission expired; no operation or movement followed.
+Track publication startup separately failed its close-pointer guard and blocked
+automatic upkeep. The reviewed thunk correction and companion admission repair
+are planned for .99/.64; neither is claimed installed here. See the
+[current delivery record](group-track-delivery-20261010.md) for exact evidence.
 
 The authorized commands are literal `/come` and `/attack first_name`, from any
 current group member. `/come` is a one-time regroup: cancel the current operation
@@ -40,11 +41,12 @@ both the decoded key and unique first name to match the current native roster.
 It checks the same roster again after native Process returns. Unicode names
 retain their original text; comparison uses Windows ordinal case folding.
 
-The installed .97/.62 observer incorrectly used the legacy ArcChannelMessage
+The previous .97/.62 observer incorrectly used the legacy ArcChannelMessage
 class. Pro's `/come` appeared on Umbra's group channel but produced no receive
 records, while group-position updates continued. The corrected class and fields
-are verified against identical .16/.17 client code spans; live acceptance of the
-replacement remains pending. See [the receive correction](group-chat-receive.md).
+are verified against identical .16/.17 client code spans. The .98/.63 replacement
+received a fresh live command, but admission/travel remain unverified. See
+[the receive correction](group-chat-receive.md).
 
 Group-update subtypes 1, 2 and 5 carry per-key positions. The subtype 2 and 5
 branches call `0x59ccc0` through thunk `0x21eef`, with the position flag enabled.

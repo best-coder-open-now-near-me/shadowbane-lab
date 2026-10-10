@@ -1,4 +1,4 @@
-# Group chat receive correction — October 10, 2026
+# Group chat receive correction - October 10, 2026
 
 Pro sent `/come` while grouped with Umbra. The user confirmed it appeared in
 Umbra's group channel. The installed .97/.62 observer recorded zero messages
@@ -47,5 +47,9 @@ the object. This is current client evidence, not a server session nonce.
 Both native group publication fixtures and all eight actual-frame Python reader
 tests passed. Added regressions cover same-name/different-key attribution,
 a changed key between Decode and Process, and the native error branch.
-Independent review passed; final combined .98/.63 package qualification follows.
-The installed .97/.62 runtime remains unchanged; live `/come` is still pending.
+Independent review and exact combined .98/.63 package qualification passed.
+PR #157 is merged; installation and launch are verified. A fresh live Pro
+`/come` produced correlated native receive records with current-group attribution.
+The host then withheld admission because group evidence expired; no operation or
+movement followed. The separate admission repair and Track startup correction
+remain to be installed. See [the delivery record](group-track-delivery-20261010.md).

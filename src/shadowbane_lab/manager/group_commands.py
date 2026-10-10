@@ -197,9 +197,11 @@ class GroupCommandService:
         try:
             while not self.stop.is_set():
                 try:
+                    # Ledger reconciliation may block; sample native evidence after it.
+                    allowed = self.allowed()
                     messages, updates, current, now_ms = self.source.read()
                     enabled = current.get("enabled", False)
-                    allowed = self.allowed() and enabled
+                    allowed = allowed and enabled
                     self.policy.ingest(messages, updates, current, allowed=allowed, now_ms=now_ms)
                     candidate = self.policy.pending
                     with self.lock:
@@ -282,10 +284,13 @@ class GroupCommandService:
             command, now = self.pending_value, tick_ms()
             if command is None:
                 return None
-            if (self.current is None or not self.policy.valid(command, self.current, now)
-                    or not 0 <= now - self.now_ms <= 500):
+            if (not self.enabled or not self.seeded or self.current is None
+                    or not self.policy.valid(command, self.current, now)):
                 self.pending_value = None
+                self.taken = command
                 return None
+            if not 0 <= now - self.now_ms <= 500:
+                return None  # Wait for a fresh observation within the receive deadline.
             if command.kind == "attack":
                 return command if self.attack is not None and self.attack[0] == command else None
             try:
@@ -313,12 +318,24 @@ class GroupCommandService:
         with self.lock:
             if command != self.pending_value or command == self.taken:
                 return None
+            now = tick_ms()
+            if (not self.enabled or not self.seeded or self.current is None
+                    or not self.policy.valid(command, self.current, now)):
+                self.pending_value = None
+                self.taken = command
+                raise ValueError(
+                    "group command expired or permission changed before admission "
+                    f"(command age {now - command.tick_ms} ms, "
+                    f"observation age {now - self.now_ms} ms)")
+            if not 0 <= now - self.now_ms <= 500:
+                # No operation was requested. Keep the same received intent until
+                # the observer refreshes, without extending its five-second deadline.
+                self.last_request = {"command": command.kind, "sender": command.sender_name,
+                    "state": "waiting", "detail": "Waiting for fresh native group evidence "
+                    f"(observation age {now - self.now_ms} ms)."}
+                return None
             self.pending_value = None
             self.taken = command
-            now = tick_ms()
-            if (self.current is None or not self.policy.valid(command, self.current, now)
-                    or not 0 <= now - self.now_ms <= 500):
-                raise ValueError("current group evidence expired before command admission")
             destination = (self.policy.destination(
                 command, self.current, now, positions=self.positions)
                 if command.kind == "come" else None)

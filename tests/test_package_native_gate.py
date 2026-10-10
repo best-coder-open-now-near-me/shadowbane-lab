@@ -573,3 +573,30 @@ def test_native_group_receive_publications_are_required():
     assert {
         "wonderbane_extension_group_messages", "wonderbane_extension_group_updates",
     } <= builder.REQUIRED_COMBAT_TESTS
+
+
+@pytest.mark.parametrize("index", range(4))
+@pytest.mark.parametrize("failure", [None, "missing", "failed", "duplicate",
+                                    "wrong_binary", "same_image"])
+def test_tracking_presentation_requires_both_images_per_profile(index, failure):
+    steps = [
+        {"name": f"{profile}-tracking_responses-{suffix}", "exit_code": 0,
+         "command": ["wonderbane_extension_tracking_responses_test.exe", image]}
+        for profile in ("full", "diagnostics-only")
+        for suffix, image in (("binding", "official.exe"), ("prepared-binding", "prepared.exe"))
+    ]
+    if failure == "missing":
+        steps.pop(index)
+    elif failure == "failed":
+        steps[index]["exit_code"] = 1
+    elif failure == "duplicate":
+        steps.append(dict(steps[index]))
+    elif failure == "wrong_binary":
+        steps[index]["command"][0] = "other.exe"
+    elif failure == "same_image":
+        steps[index]["command"][1] = steps[index ^ 1]["command"][1]
+    if failure is None:
+        assert builder.validate_tracking_presentation_steps(steps, reviewed_client=True)
+    else:
+        with pytest.raises(RuntimeError):
+            builder.validate_tracking_presentation_steps(steps, reviewed_client=True)
