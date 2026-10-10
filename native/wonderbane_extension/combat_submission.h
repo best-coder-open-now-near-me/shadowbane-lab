@@ -36,7 +36,7 @@ struct AppendClaim {
     AppendDecision decision = AppendDecision::unrelated;
     void* owner = nullptr;
 };
-enum class AppendObserverKind { power, item };
+enum class AppendObserverKind { power, item, group_chat };
 struct AppendObserver {
     AppendClaim (*claim)(void* container, void* message, std::uintptr_t caller_rva) noexcept = nullptr;
     // The transferred message may be destroyed; complete receives only the owner.

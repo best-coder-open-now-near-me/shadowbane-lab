@@ -31,7 +31,7 @@ bool attempted = false;
 volatile LONG installed = 0;
 thread_local Scope* active = nullptr;
 struct RegisteredObserver { AppendObserver callbacks{}; volatile LONG ready = 0; };
-std::array<RegisteredObserver, 2> append_observers{};
+std::array<RegisteredObserver, 3> append_observers{};
 
 bool Copy(void* destination, std::uintptr_t source, std::size_t size) noexcept {
     __try { std::memcpy(destination, reinterpret_cast<const void*>(source), size); return true; }
@@ -179,7 +179,7 @@ struct Observer {
         // Match the originating frame even while another scope is nested above
         // it. Exact returned-ticket provenance, not keys/class, owns this append.
         while (s && (!s->ticket_ || message != reinterpret_cast<void*>(s->ticket_))) { s = s->previous_; }
-        std::array<AppendClaim, 2> claims{};
+        std::array<AppendClaim, 3> claims{};
         std::size_t claimed = 0, selected = 0;
         for (std::size_t i = 0; i < append_observers.size(); ++i) {
             auto& observer = append_observers[i];
@@ -319,7 +319,8 @@ Boundary::Boundary() noexcept : previous_(active) {}
 void Boundary::Restore() noexcept { active = previous_; }
 bool RegisterAppendObserver(AppendObserverKind kind, const AppendObserver& observer) noexcept {
     const DWORD error = GetLastError();
-    if ((kind != AppendObserverKind::power && kind != AppendObserverKind::item)
+    if ((kind != AppendObserverKind::power && kind != AppendObserverKind::item
+        && kind != AppendObserverKind::group_chat)
         || !observer.claim || !observer.complete) { SetLastError(error); return false; }
     const auto index = static_cast<std::size_t>(kind);
     AcquireSRWLockExclusive(&installation_lock);

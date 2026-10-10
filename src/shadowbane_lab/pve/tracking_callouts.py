@@ -38,8 +38,9 @@ def _message(names: tuple[str, ...]) -> str:
 class TrackingAppearances:
     """Consume copied complete responses once within a qualified group lifetime.
 
-    ``group_generation`` must come from the native group-ownership integration,
-    not a roster hash or clock. This policy does not establish that authority.
+    ``group_generation`` identifies the observed current group context. The
+    integration advances it on known roster/ownership changes; it is not a
+    server group nonce. Sending still requires a current native roster check.
     Missing group authority or unavailable tracking preserves previous presence.
     A new actor/group seeds its first complete response without retrospective
     callouts. Reset on explicit disable/ownership release, not a failed scan.

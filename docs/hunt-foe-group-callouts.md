@@ -2,8 +2,8 @@
 
 The callout feature is not enabled. `pve/tracking_callouts.py` supplies the reviewed
 appearance/message policy only; it does not send messages, expose a setting or
-grant attack authority. Native send and group-lifetime qualification remain the
-next implementation slice.
+grant attack authority. The native sender boundary is now implemented and tested in isolation; actor-wire
+and worker integration remain the next slice. Startup does not enable it yet.
 
 ## Appearance policy
 
@@ -17,12 +17,13 @@ policy bound, not a claimed native protocol maximum. Invalid name data preserves
 the previous presence set. Missed ring history does not invalidate a subsequently
 complete response.
 
-The caller must supply freshly aged `TrackingStatus` and an actual native group
-lifetime generation. A roster hash is not that generation. Reset only on explicit
+The caller must supply freshly aged `TrackingStatus` and an observed group-context
+generation, advancing it on known roster/ownership changes. This is a local
+context marker, not a server nonce. Native sending rechecks the actual group. Reset only on explicit
 disable or ownership release. A returned decision is consumed; a native sender
 must separately retain an uncertain submission rather than replay it on later
 tracking reads. The sender must revalidate the same actor/group immediately before
-entry. No sender or group-generation source is currently wired.
+entry. No actor-wire or worker sender is currently wired.
 
 ## Exact .16 static evidence
 
@@ -70,13 +71,27 @@ Static span digests:
 Existing `combat_party.h` provides a double-read scene-bound group roster:
 `ArcWindowGame+0x98 -> ArcGroupManager+0x9c -> linked member records`, with exact
 member keys and roles. It is suitable for immediate admission revalidation, but
-does not alone prove a group lifetime across leave/rejoin with identical members.
-The ordinary group sender has no explicit recipient key. Server selection of the
-current group is plausible from this path, but not yet claimed as observed delivery.
+is the current-group eligibility boundary, not proof of an unobservable server
+group nonce. The ordinary group sender has no explicit recipient key: the client
+uses the Group message type and channel 14. Actual server delivery is separate
+from local queue acceptance.
 
-Next: execute the actual constructor/string/reference/queue path in an exact-image
-offline arena; qualify the group-update/retirement generation boundary; then use a
-bounded passive capture of one explicitly requested ordinary group-chat marker to
-confirm the recipient-channel/response interpretation. No guessed native calls,
+The private exact-image constructor/queue probe now passes 16 cases per original
+and prepared `.16` image. It executes both constructors, ArcString wrappers,
+reference counts and ordinary queue. Core.dll string imports, clock, downstream
+transport and final destructor are explicitly substituted; this is not full Core
+string or server-delivery qualification. With transport absent, the native queue
+returns normally and releases its reference without forwarding. Production must
+observe the existing queue append hook rather than treating normal return as
+success.
+
+The new `combat_group_chat` module uses that shared hook with an exact message
+pointer, preserves C++/SEH uncertainty, and never retries a quarantined command.
+The focused native tests cover group change during construction, absent transport,
+queued history through faults, pre-entry refusal and no replay; shared queue tests
+cover three-way observer collision with one transferred-reference release.
+
+Next: finish the same-owner wire/worker integration, qualify ordinary string and
+destruction behavior, and independently review the complete sender path. No guessed native calls,
 keyboard fallback or live group send is authorized by these static findings.
 Queued native submission and actual group delivery must remain distinct facts.

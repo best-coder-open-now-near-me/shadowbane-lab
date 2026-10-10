@@ -5,7 +5,9 @@
 Start from refreshed `main`. The isolated branch
 `codex/hunt-foe-group-callouts-20261009` targets `main` and owns arrival/message
 policy plus native group-send investigation. Its pure policy is independently
-reviewed; no sender, user-facing toggle or runtime feature is enabled. Exact `.16`
+reviewed. A tested native group-only constructor/queue boundary now reuses the
+shared append observer; actor-wire and worker integration are unfinished, so no
+user-facing toggle or runtime feature is enabled. Exact `.16`
 static evidence identifies the ordinary `/GROUP` GroupChannelMessage route.
 Native call-through, actual group-lifetime attribution and recipient semantics
 remain required before integration. See [the evidence and scope](hunt-foe-group-callouts.md).
