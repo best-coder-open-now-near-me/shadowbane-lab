@@ -76,9 +76,11 @@ The superseded VM candidate is retired: unused host .96 and the eleven staged
 active .95/.60 and the same running game remain unchanged. The retirement receipt
 is `db3dca7069ac92ae2b8aadcfb50c26643e89515ac7e67cf9997918e808eb8a07`;
 its postcheck is `1784ee7ddeae2197ef5d8b1fa9f2249c3ef8b7cfe9cac84c07adc24000ba4d7e`.
-User data, metadata and diagnostic receipts remain preserved. Local superseded
-build binaries have an inventory awaiting precise disposal; none were removed
-as part of the VM cleanup.
+User data, metadata and diagnostic receipts remain preserved. The separately
+reviewed local .61 inventory is also retired: 2,862 exact generated files and
+reproducible archives totaling 214,561,063 bytes. Every unlisted file, extracted
+source, log, XML result and diagnostic receipt remains. The cleanup receipt is
+`1030b4c4a882ce5fd82aa4f71e66c4469d1b9f3eac4096bac2d29a309f824151`.
 
 ## Remaining work
 
