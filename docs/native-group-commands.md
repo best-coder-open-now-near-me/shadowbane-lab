@@ -1,10 +1,12 @@
 # Native current-group commands
 
-PR #155 merged the native receive, host listener and operation paths into main.
-The combined host 0.3.97/native 1.8.62 release includes the UI-ownership repair
-and passed exact package qualification and independent review. Installation is
-complete; live acceptance remains pending. See the [current delivery record](group-command-delivery-20261010.md)
-for source identities, preparation state and remaining work.
+The installed .97/.62 runtime includes native group listening, but its legacy
+chat observer missed a user-confirmed `/come`. The reviewed .98/.63 correction
+on `codex/group-chat-receive-20261010` targets main and uses GroupChannelMessage.
+It also includes automatic Track presentation cleanup. Exact combined package
+qualification and live acceptance remain pending. See the
+[previous delivery record](group-command-delivery-20261010.md) for the installed
+source identity and preserved settings.
 
 The authorized commands are literal `/come` and `/attack first_name`, from any
 current group member. `/come` is a one-time regroup: cancel the current operation
