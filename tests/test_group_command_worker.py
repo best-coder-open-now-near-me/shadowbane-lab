@@ -81,7 +81,9 @@ def test_replacement_permit_never_redirects_group_command():
     assert r._group_commands.note.call_args.args[1] == "withheld"
 
 
-def test_observer_thread_to_real_operation_consumes_once_and_rechecks_group(tmp_path, monkeypatch):
+@pytest.mark.parametrize("queued_change", ["group", "stale", "unavailable"])
+def test_observer_thread_to_real_operation_consumes_once_and_rechecks_group(
+        tmp_path, monkeypatch, queued_change):
     import queue
     import time
 
@@ -101,11 +103,12 @@ def test_observer_thread_to_real_operation_consumes_once_and_rechecks_group(tmp_
     service = GroupCommandService(Source(), allowed=lambda: True,
                                   record_path=tmp_path / "consumed.json", interval=.001)
     service._publish_status = lambda: published.put(True)
+    clock = [1001]
     monkeypatch.setattr(
-        "shadowbane_lab.client_extension.tracking_publication.tick_ms", lambda: 1001)
+        "shadowbane_lab.client_extension.tracking_publication.tick_ms", lambda: clock[0])
     c = {**current(), "enabled": True, "positions": {(123, 53): (70000., 50000.)}}
     def feed(messages, state=c):
-        inputs.put((messages, batch(), state, 1001))
+        inputs.put((messages, batch(), state, clock[0]))
         assert published.get(timeout=2)
     service.start()
     try:
@@ -130,8 +133,21 @@ def test_observer_thread_to_real_operation_consumes_once_and_rechecks_group(tmp_
         r._poll_group_commands(pub, None)
         assert r._operation_ledger.submit.call_count == 1
         assert service.pending() is None
+        service.note(command, "active", "Running on the existing worker.")
+        clock[0] = 7001
+        feed(batch(sequence=3))
+        assert service.policy.pending is None
+        assert "expired" not in service.policy.detail
+        assert service.last_request["state"] == "active"
+        assert service.pending() is None
         # An accepted receive does not authorize a queued command after a group change.
-        feed(batch(sequence=3), {**c, "group_digest": "replacement"})
+        if queued_change == "group":
+            feed(batch(sequence=3), {**c, "group_digest": "replacement"})
+        elif queued_change == "stale":
+            clock[0] += 501
+        else:
+            with service.lock:
+                service.current = None
         r._operation_executor = Mock()
         r._operation_ledger.pending_for.return_value = (operation,)
         assert r._start_next_operation(pub) is None
@@ -294,3 +310,166 @@ def test_control_io_precedes_native_observation(tmp_path):
     service._publish_status = service.stop.set
     service._run()
     assert order == ["ledger", "native"]
+
+
+@pytest.mark.parametrize("observation", ["stale", "unavailable", "roster"])
+@pytest.mark.parametrize("termination", [None, "cancel", "native", "disabled"])
+def test_running_group_operation_renews_without_observer_lease(
+        tmp_path, monkeypatch, observation, termination):
+    """Actual serve/claim/thread/maintenance path, with a stalled passive reader."""
+    import threading
+    import time
+
+    from test_group_commands import current
+    from test_manager_worker_runtime import (
+        CLIENT_ID,
+        NODE_ID,
+        WORKER_PROCESS_ID,
+        WORKER_PROCESS_STARTED,
+        _client,
+        _GameIdentityGuard,
+        _manifest,
+        _ProcessInspector,
+        _StaticRegistry,
+        _StopSignal,
+    )
+
+    from shadowbane_lab.manager import (
+        ExactClientWorkerBinding,
+        ProcessLifetimeSnapshot,
+        WorkerDispatchPermit,
+        WorkerHealthState,
+        WorkerHeartbeatLedger,
+        WorkerOperationExecution,
+        WorkerOperationLedger,
+        WorkerOperationState,
+        new_worker_operation,
+    )
+    from shadowbane_lab.manager.group_commands import GroupCommandService
+
+    client, manifest = _client(), _manifest()
+    heartbeats = WorkerHeartbeatLedger(manifest, tmp_path)
+    ledger = WorkerOperationLedger(manifest, tmp_path)
+    service = GroupCommandService(Mock(lifetime=(55, 66)), allowed=lambda: True,
+                                  record_path=tmp_path / "consumed.json")
+    service.start = Mock()  # The passive reader is deliberately not scheduled.
+    service.enabled = service.seeded = True
+    service.current = {**current(), "positions": {(123, 53): (70000., 50000.)}}
+    _, _, command = runtime()
+    entered, release = threading.Event(), threading.Event()
+    stop = _StopSignal()
+    now = 0.0
+    maintained, observed = [], []
+    monkeypatch.setattr("shadowbane_lab.client_extension.tracking_publication.tick_ms",
+                        lambda: 1000 + int(now * 1000))
+
+    class Executor:
+        def execute(self, operation, *, stop_signal):
+            entered.set()
+            assert release.wait(5)
+            observed.append(stop_signal.stop_cause)
+            return WorkerOperationExecution(
+                WorkerOperationState.FAILED if termination == "native"
+                else WorkerOperationState.CANCELLED, "owned cleanup", native_cleanup_confirmed=True)
+
+    def drive(delay):
+        nonlocal now
+        now += delay
+        heartbeat = heartbeats.inspect(CLIENT_ID).records[0]
+        stamp = time.time()
+        permit = WorkerDispatchPermit(
+            node_id=NODE_ID, client_id=CLIENT_ID, instance_id=client.instance_id,
+            worker_id=heartbeat.worker_id, process_id=heartbeat.process_id,
+            process_started_at_100ns=heartbeat.process_started_at_100ns,
+            heartbeat_sequence=heartbeat.sequence, health_state=WorkerHealthState.HEALTHY,
+            allowed=True, issued_at=stamp, expires_at=stamp + 30, reason="exact worker")
+        heartbeats.publish_permit(permit)
+        if now == .25:
+            service.pending_value = command
+            service.now_ms = 1250
+        elif now == .5:
+            assert entered.wait(5)
+            with service.lock:
+                if observation == "unavailable":
+                    service.current = None
+                    service.seeded = False
+                elif observation == "roster":
+                    service.current = {**service.current, "group_digest": "new roster"}
+        if now == 1.25:
+            if termination == "cancel":
+                ledger.submit(new_worker_operation(permit, WorkerOperationKind.CANCEL, "/cancel"))
+            elif termination == "disabled":
+                with service.lock:
+                    service.enabled = False
+        if now >= 2:
+            release.set()
+            stop.stopped = True
+
+    def maintain(operation, signal):
+        assert entered.wait(5)
+        assert not signal.is_set()
+        maintained.append(now)
+        if termination == "native" and now == 1.25:
+            signal.trip("native movement owner revoked")
+
+    worker = ExactClientWorkerRuntime(
+        manifest, ExactClientWorkerBinding.from_client(CLIENT_ID, client), heartbeats,
+        _StaticRegistry(client),
+        _ProcessInspector(ProcessLifetimeSnapshot(WORKER_PROCESS_ID, WORKER_PROCESS_STARTED)),
+        game_identity_guard_factory=_GameIdentityGuard, operation_ledger=ledger,
+        operation_executor=Executor(), operation_maintenance=maintain,
+        group_commands_factory=lambda *args: service, monotonic_clock=lambda: now,
+        process_id=WORKER_PROCESS_ID, heartbeat_interval_seconds=1, sleeper=drive)
+    try:
+        assert worker.serve(stop_signal=stop) == 0
+    finally:
+        release.set()
+    assert maintained == ([.25, .5, .75, 1.0, 1.25, 1.5, 1.75] if termination is None
+                          else [.25, .5, .75, 1.0, 1.25] if termination == "native"
+                          else [.25, .5, .75, 1.0])
+    if termination == "native":
+        assert observed[0].reason == "native movement owner revoked"
+        assert observed[0].kind == "interrupted"
+    elif termination:
+        assert observed[0].kind == "requested"
+        # CANCEL latches the normal preparation Pause control on submit.
+        assert "paused or disabled" in observed[0].reason
+    assert service.taken == command
+
+
+def test_consumption_write_never_blocks_active_setting_read(tmp_path):
+    import threading
+
+    from test_group_commands import batch, current
+
+    from shadowbane_lab.manager.group_commands import GroupCommandService
+
+    writing, release, observed = threading.Event(), threading.Event(), threading.Event()
+    source = Mock(lifetime=(55, 66))
+    source.read.return_value = (batch(initial=True), batch(),
+                               {**current(), "enabled": True}, 1001)
+    service = GroupCommandService(source, allowed=lambda: True,
+                                  record_path=tmp_path / "consumed.json")
+    service.enabled = True
+    def persist(record):
+        writing.set()
+        assert release.wait(5)
+    service.policy.persist = persist
+    service._publish_status = service.stop.set
+    service.start()
+    reader = None
+    try:
+        assert writing.wait(5)
+        def read_enabled():
+            assert service.operations_enabled()
+            observed.set()
+        reader = threading.Thread(target=read_enabled)
+        reader.start()
+        assert observed.wait(2), "disk persistence blocked worker renewal permission"
+        assert service.pending_value is None
+    finally:
+        release.set()
+        service.close()
+        if reader is not None:
+            reader.join(2)
+    assert not service.thread.is_alive()

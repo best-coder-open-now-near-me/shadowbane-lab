@@ -57,13 +57,20 @@ class GroupCommandPolicy:
         self.last_counters = None
         self.detail = "Waiting for fresh native group messages."
 
+    def acknowledge(self, command):
+        """Observer-owned removal of an already consumed intent, never a new one."""
+        if command is not None and self.pending == command:
+            self.pending = None
+            self.detail = "Listening for new commands."
+
     def unavailable(self):
         self.seeded = False
         self.pending = None
         self.positions.clear()
         self.detail = "Native group command evidence unavailable."
 
-    def ingest(self, messages, updates, current, *, allowed, now_ms):
+    def consume(self, messages, updates):
+        """Observer-only durable consumption; never called under the worker lock."""
         counters = (messages["sequence"], updates["sequence"])
         # Persist consumption BEFORE publishing any actionable command. A failed
         # write is not permission to execute and retry the same message later.
@@ -71,6 +78,13 @@ class GroupCommandPolicy:
             self.persist({"schema": 1, "process": self.lifetime,
                           "messages": counters[0], "updates": counters[1]})
             self.last_counters = counters
+
+    def ingest(self, messages, updates, current, *, allowed, now_ms):
+        self.consume(messages, updates)
+        self.observe(messages, updates, current, allowed=allowed, now_ms=now_ms)
+
+    def observe(self, messages, updates, current, *, allowed, now_ms):
+        """Apply already consumed frames without file or native I/O."""
         digest = current["group_digest"]
         if self.context != (current["scene"], current["local"], digest):
             self.positions.clear()
@@ -202,9 +216,15 @@ class GroupCommandService:
                     messages, updates, current, now_ms = self.source.read()
                     enabled = current.get("enabled", False)
                     allowed = allowed and enabled
-                    self.policy.ingest(messages, updates, current, allowed=allowed, now_ms=now_ms)
-                    candidate = self.policy.pending
+                    self.policy.consume(messages, updates)
                     with self.lock:
+                        # Claims only publish an acknowledgement under this lock.
+                        # The observer alone mutates policy; acknowledge BEFORE
+                        # ingest can age a consumed intent as never admitted.
+                        self.policy.acknowledge(self.taken)
+                        self.policy.observe(messages, updates, current,
+                                           allowed=allowed, now_ms=now_ms)
+                        candidate = self.policy.pending
                         self.enabled = enabled
                         self.current, self.now_ms = current, now_ms
                         self.positions = dict(self.policy.positions)
@@ -300,8 +320,13 @@ class GroupCommandService:
                 return None
             return command
 
+    def operations_enabled(self):
+        """Last positively read setting; missing observations are not disable commands."""
+        with self.lock:
+            return self.enabled
+
     def permits(self, command):
-        """Refresh group/character permission, not a new receive-event lifetime."""
+        """Fresh authorization before queued execution, never an active lease."""
         from shadowbane_lab.client_extension.tracking_publication import tick_ms
         with self.lock:
             current = self.current
