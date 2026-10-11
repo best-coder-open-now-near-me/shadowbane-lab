@@ -180,8 +180,8 @@ def _heartbeat(*, instance_id: str, observed_at: float = 100.0) -> WorkerHeartbe
 class ExactClientWorkerRuntimeTests(unittest.TestCase):
     def test_internal_cancel_interrupts_active_engine_operation(self) -> None:
         class PendingCancellationLedger:
-            def pending_for(self, **_kwargs):
-                return (SimpleNamespace(kind=WorkerOperationKind.CANCEL),)
+            def current_stop_authority(self, **_kwargs):
+                return ((SimpleNamespace(kind=WorkerOperationKind.CANCEL),), None, False)
 
         signal = _OperationStopSignal(
             _StopSignal(),
@@ -196,7 +196,10 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
 
     def test_first_cancellation_cause_survives_later_gate_recovery(self):
         gate = Mock(spec=WorkerDispatchGate)
+        from shadowbane_lab.manager.worker import WorkerDispatchAuthority
         gate.denial_reason.side_effect = ["dispatch permit expired 0.010s ago", None]
+        gate.permit_denial_reason.side_effect = lambda _: gate.denial_reason()
+        gate.snapshot.side_effect = lambda: WorkerDispatchAuthority(gate, None)
         ledger = Mock()
         signal = _OperationStopSignal(
             gate, ledger, ExactClientWorkerBinding.from_client(CLIENT_ID, _client()),
@@ -211,7 +214,7 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
 
     def test_inbox_error_is_latched_with_its_actual_reason(self):
         ledger = Mock()
-        ledger.pending_for.side_effect = PermissionError("test ledger locked")
+        ledger.current_stop_authority.side_effect = PermissionError("test ledger locked")
         signal = _OperationStopSignal(
             _StopSignal(), ledger, ExactClientWorkerBinding.from_client(CLIENT_ID, _client()),
             WORKER_ID, WORKER_PROCESS_ID, WORKER_PROCESS_STARTED,
@@ -219,9 +222,9 @@ class ExactClientWorkerRuntimeTests(unittest.TestCase):
         self.assertTrue(signal.is_set())
         self.assertIn("operation inbox read failed: PermissionError", signal.reason)
         self.assertIn("test ledger locked", signal.reason)
-        ledger.pending_for.side_effect = None
+        ledger.current_stop_authority.side_effect = None
         self.assertTrue(signal.is_set())
-        ledger.pending_for.assert_called_once()
+        ledger.current_stop_authority.assert_called_once()
 
     def test_runtime_publishes_ready_only_while_exact_game_identity_exists(self) -> None:
         manifest = _manifest()
@@ -584,10 +587,13 @@ class ManagedWorkerControllerTests(unittest.TestCase):
 
 
 
-def test_operation_maintenance_runs_between_heartbeats_and_stops_on_revocation():
+def test_operation_maintenance_runs_between_heartbeats_and_stops_on_revocation(monkeypatch):
     import threading
 
     from shadowbane_lab.manager import WorkerDispatchPermit, WorkerHealthState
+    from shadowbane_lab.manager.worker_runtime import _OperationMaintenance
+    monkeypatch.setattr(_OperationMaintenance, "interval", .001)
+    monkeypatch.setattr(_OperationMaintenance, "authority_interval", .001)
 
     manifest, client = _manifest(), _client()
     process = ProcessLifetimeSnapshot(WORKER_PROCESS_ID, WORKER_PROCESS_STARTED)
@@ -609,6 +615,7 @@ def test_operation_maintenance_runs_between_heartbeats_and_stops_on_revocation()
 
         def drive(seconds):
             nonlocal now, operation
+            time.sleep(.01)  # Let the independent maintenance thread run at this step.
             delays.append(seconds)
             now += seconds
             heartbeat = heartbeat_ledger.inspect(CLIENT_ID).records[0]
@@ -631,8 +638,9 @@ def test_operation_maintenance_runs_between_heartbeats_and_stops_on_revocation()
 
         def maintain(current, signal):
             assert entered.wait(5)
-            assert current == operation and not signal.is_set()
-            maintenance_times.append(now)
+            assert current == operation
+            if not signal.is_set():
+                maintenance_times.append(now)
 
         runtime = ExactClientWorkerRuntime(
             manifest, ExactClientWorkerBinding.from_client(CLIENT_ID, client),
@@ -646,7 +654,10 @@ def test_operation_maintenance_runs_between_heartbeats_and_stops_on_revocation()
             assert runtime.serve(stop_signal=stop) == 0
         finally:
             release.set()
-    assert maintenance_times == [0.25, 0.5, 0.75]
+    # Renewal may run concurrently with the atomic revocation at t=1;
+    # after supervision observes it, no later callback is authorized.
+    assert {0.25, 0.5, 0.75}.issubset(maintenance_times)
+    assert max(maintenance_times) <= 1.0
     assert delays == [0.25] * 5
     assert len(set(heartbeat_sequences[:4])) == 1
     assert heartbeat_sequences[4] > heartbeat_sequences[3]

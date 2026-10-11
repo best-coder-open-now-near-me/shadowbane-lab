@@ -1338,6 +1338,18 @@ class WorkerSupervisor:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class WorkerDispatchAuthority:
+    """An actually read permit; evaluation never rereads or extends its expiry."""
+
+    gate: WorkerDispatchGate
+    permit: WorkerDispatchPermit | None
+    read_error: str | None = None
+
+    def denial_reason(self) -> str | None:
+        return self.read_error or self.gate.permit_denial_reason(self.permit)
+
+
 class WorkerDispatchGate:
     """Worker-side dynamic stop signal backed by the manager's expiring permit."""
 
@@ -1375,13 +1387,24 @@ class WorkerDispatchGate:
         self._clock = clock
         self._future_tolerance = float(future_tolerance_seconds)
 
-    def denial_reason(self) -> str | None:
-        """Evaluate one fresh permit and explain a denial without relaxing it."""
+    def snapshot(self) -> WorkerDispatchAuthority:
+        """Read once on supervision, outside strategy/native maintenance."""
         try:
             permit = self._ledger.inspect_permit(self._client_id)
-            now = _require_time(self._clock(), "clock result")
         except (OSError, RuntimeError, ValueError, WorkerHeartbeatError) as exc:
-            return f"dispatch permit read failed: {type(exc).__name__}: {exc}"[:256]
+            return WorkerDispatchAuthority(
+                self, None, f"dispatch permit read failed: {type(exc).__name__}: {exc}"[:256])
+        return WorkerDispatchAuthority(self, permit)
+
+    def denial_reason(self) -> str | None:
+        return self.snapshot().denial_reason()
+
+    def permit_denial_reason(self, permit: WorkerDispatchPermit | None) -> str | None:
+        """Validate copied exact identity and original expiry, with no ledger I/O."""
+        try:
+            now = _require_time(self._clock(), "clock result")
+        except (RuntimeError, ValueError) as exc:
+            return f"dispatch clock failed: {type(exc).__name__}: {exc}"[:256]
         if permit is None:
             return "dispatch permit is missing"
         if not permit.allowed:

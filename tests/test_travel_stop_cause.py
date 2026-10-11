@@ -10,7 +10,7 @@ from shadowbane_lab.cli_commands import manager
 from shadowbane_lab.client_extension.action_channel import NativeActionChannelError
 from shadowbane_lab.client_extension.movement_wire import Owner
 from shadowbane_lab.manager.operation import WorkerOperationKind
-from shadowbane_lab.manager.worker import WorkerDispatchGate
+from shadowbane_lab.manager.worker import WorkerDispatchAuthority, WorkerDispatchGate
 from shadowbane_lab.manager.worker_runtime import _OperationStopSignal
 
 
@@ -19,8 +19,10 @@ def setup_executor(tmp_path):
     executor = make_executor(tmp_path, session)
     gate = MagicMock(spec=WorkerDispatchGate)
     gate.denial_reason.return_value = None
+    gate.permit_denial_reason.side_effect = lambda _: gate.denial_reason()
+    gate.snapshot.side_effect = lambda: WorkerDispatchAuthority(gate, None)
     ledger = MagicMock()
-    ledger.pending_for.return_value = ()
+    ledger.current_stop_authority.return_value = ((), None, False)
     parent = _OperationStopSignal(gate, ledger, executor._binding, "worker", 222, 333)
     operation = SimpleNamespace(
         client_id="client", instance_id="instance", worker_id="worker",
@@ -50,19 +52,24 @@ def test_travel_preserves_first_stop_cause(tmp_path, monkeypatch, trigger, code,
         assert len(session.acquire_calls) == 1
         if trigger in ("cancel", "stop"):
             kind = WorkerOperationKind.CANCEL if trigger == "cancel" else WorkerOperationKind.STOP
-            ledger.pending_for.return_value = (SimpleNamespace(kind=kind),)
+            ledger.current_stop_authority.return_value = (
+                (SimpleNamespace(kind=kind),), None, False,
+            )
         elif trigger == "permit":
             gate.denial_reason.return_value = "dispatch permit expired 0.010s ago"
         elif trigger == "inbox":
-            ledger.pending_for.side_effect = PermissionError("inbox locked")
+            ledger.current_stop_authority.side_effect = PermissionError("inbox locked")
         else:
             session.observed = replace(session.observed, owner=Owner.NONE,
                                        generation=session.observed.generation + 1)
+        parent.refresh()  # The supervision boundary observes the new control state.
         assert movement.is_set()
         observed.append(movement.stop_cause)
         # A later cancellation and final closure cannot relabel a native failure.
-        ledger.pending_for.side_effect = None
-        ledger.pending_for.return_value = (SimpleNamespace(kind=WorkerOperationKind.CANCEL),)
+        ledger.current_stop_authority.side_effect = None
+        ledger.current_stop_authority.return_value = (
+            (SimpleNamespace(kind=WorkerOperationKind.CANCEL),), None, False,
+        )
         return code
 
     monkeypatch.setattr(manager, "_run_travel", travel)
@@ -116,10 +123,13 @@ def test_real_travel_runner_cli_and_executor_stop_contract(tmp_path, monkeypatch
         movement = kwargs["stop_signal"]
         if trigger in ("cancel", "stop", "cancel_cleanup_failure"):
             kind = WorkerOperationKind.CANCEL if trigger != "stop" else WorkerOperationKind.STOP
-            ledger.pending_for.return_value = (SimpleNamespace(kind=kind),)
+            ledger.current_stop_authority.return_value = (
+                (SimpleNamespace(kind=kind),), None, False,
+            )
         elif trigger == "native":
             session.observed = replace(session.observed, owner=Owner.NONE,
                                        generation=session.observed.generation + 1)
+        parent.refresh()
         reader = SimpleNamespace(observe=MagicMock(side_effect=ValueError("position unavailable")))
         result = TravelRunner(
             controller=TravelController(parse_go_command("go 30 40 2")),
@@ -131,7 +141,10 @@ def test_real_travel_runner_cli_and_executor_stop_contract(tmp_path, monkeypatch
         requested = trigger in ("cancel", "stop", "cancel_cleanup_failure")
         if trigger == "failure_then_cancel":
             assert result.terminal_reason != "emergency_stop"
-            ledger.pending_for.return_value = (SimpleNamespace(kind=WorkerOperationKind.CANCEL),)
+            ledger.current_stop_authority.return_value = (
+                (SimpleNamespace(kind=WorkerOperationKind.CANCEL),), None, False,
+            )
+            parent.refresh()
         else:
             assert result.terminal_reason == "emergency_stop"
         # Only native discovery is substituted by the shared CLI fixture. The

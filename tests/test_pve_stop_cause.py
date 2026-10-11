@@ -154,16 +154,19 @@ def test_actual_worker_executor_preserves_requested_vs_interrupted(tmp_path, mon
 
     from shadowbane_lab.cli_commands import manager
     from shadowbane_lab.manager.operation import WorkerOperationKind
-    from shadowbane_lab.manager.worker import WorkerDispatchGate
+    from shadowbane_lab.manager.worker import WorkerDispatchAuthority, WorkerDispatchGate
     from shadowbane_lab.manager.worker_runtime import _OperationStopSignal
 
     _, session, _ = context()
     executor = make_executor(tmp_path, session)
     gate = MagicMock(spec=WorkerDispatchGate)
     gate.denial_reason.return_value = None
+    gate.permit_denial_reason.side_effect = lambda _: gate.denial_reason()
+    gate.snapshot.side_effect = lambda: WorkerDispatchAuthority(gate, None)
     ledger = MagicMock()
-    ledger.pending_for.return_value = ()
+    ledger.current_stop_authority.return_value = ((), None, False)
     parent = _OperationStopSignal(gate, ledger, executor._binding, 'worker', 222, 333)
+    assert not parent.is_set()
     operation = SimpleNamespace(client_id='client', instance_id='instance', worker_id='worker',
         operation_id='pve-run', kind=WorkerOperationKind.PVE)
     observed = []
@@ -176,13 +179,17 @@ def test_actual_worker_executor_preserves_requested_vs_interrupted(tmp_path, mon
         assert len(session.acquire_calls) == 1
         if cause in ('cancel', 'cancel_cleanup_failure', 'stop'):
             kind = WorkerOperationKind.STOP if cause == 'stop' else WorkerOperationKind.CANCEL
-            ledger.pending_for.return_value = (SimpleNamespace(kind=kind),)
+            ledger.current_stop_authority.return_value = (
+                (SimpleNamespace(kind=kind),), None, False)
         elif cause == 'permit':
             gate.denial_reason.return_value = 'dispatch permit expired 0.010s ago'
         elif cause == 'inbox':
-            ledger.pending_for.side_effect = PermissionError('inbox locked')
+            ledger.current_stop_authority.side_effect = PermissionError('inbox locked')
         else:
             session.observed = Grant(11, 20, Owner.MANUAL)
+        # The independent authority observer publishes the current control;
+        # runner/maintenance stop checks themselves no longer perform ledger I/O.
+        parent.refresh()
         result = run_stopped(kwargs['stop_signal'],
                              cleanup_failure=cause == 'cancel_cleanup_failure')
         observed.append(result)
