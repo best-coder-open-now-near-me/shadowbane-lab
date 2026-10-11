@@ -6,6 +6,7 @@ import ctypes
 import itertools
 import sys
 import threading
+import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -13,10 +14,12 @@ from . import action_channel as channel
 from .combat_fence_v3 import Ordinals
 from .movement_wire import (
     CLEANUP_PENDING,
+    COORDINATE_PARENT_CAPABLE,
     Command,
     Grant,
     Host,
     Outcome,
+    Owner,
     Receipt,
     Settings,
     Snapshot,
@@ -42,6 +45,10 @@ class NativeMovementCleanupPending(channel.NativeActionChannelError):
     """The exact owner is retained for cleanup; no new work was submitted."""
 
 
+class NativeMovementParentPending(NativeMovementCleanupPending):
+    """Only an exact coordinate parent handshake remains unresolved."""
+
+
 @dataclass(frozen=True, slots=True)
 class NativeMovementGrant:
     process_identity: channel.NativeClientProcessIdentity
@@ -49,6 +56,7 @@ class NativeMovementGrant:
     ownership: Grant
     host: Host
     request_key: str
+    coordinate_only: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,8 +157,10 @@ class NativeMovementSession:
         self._combat_ordinals = Ordinals()
         from .actor_action_fence import Ordinals as ActorOrdinals
         self._actor_ordinals = ActorOrdinals()
-        self._acquisitions: dict[str, Command] = {}
+        self._acquisitions: dict[str, tuple[Verb, Command]] = {}
         self._revoked: set[NativeMovementGrant] = set()
+        self._current: dict[NativeMovementGrant, Grant] = {}
+        self._handoffs: dict[NativeMovementGrant, tuple[Command, float]] = {}
         self._stops: dict[NativeMovementGrant, str] = {}
         self._closed = False
         from .cleanup_settlement import CleanupSettlement
@@ -214,10 +224,17 @@ class NativeMovementSession:
         return receipt
 
     def acquire(
-        self, expected: Snapshot, worker_id: str, operation_id: str, request_key: str
+        self, expected: Snapshot, worker_id: str, operation_id: str, request_key: str,
+        *, coordinate_only: bool = False,
     ) -> NativeMovementGrant:
         with self._session_lock:
             self._expected(expected)
+            if type(coordinate_only) is not bool:
+                raise ValueError("coordinate_only must be bool")
+            if coordinate_only and not expected.flags & COORDINATE_PARENT_CAPABLE:
+                raise channel.NativeActionChannelUnavailable(
+                    "coordinate parent continuity unavailable"
+                )
             payload = Command(
                 self._host(acquire=True),
                 self.window,
@@ -228,15 +245,19 @@ class NativeMovementSession:
                 worker_id=worker_id,
                 operation_id=operation_id,
             )
-            previous = self._acquisitions.setdefault(request_key, payload)
-            if previous != payload:
+            verb = Verb.ACQUIRE_COORDINATE if coordinate_only else Verb.ACQUIRE
+            previous = self._acquisitions.setdefault(request_key, (verb, payload))
+            if previous != (verb, payload):
                 raise ValueError(
                     "acquisition retry must preserve its original snapshot, lease and token"
                 )
-            receipt = self._submit(Verb.ACQUIRE, previous)
-            return NativeMovementGrant(
-                self.identity, self.window, receipt.grant, receipt.host, request_key
+            receipt = self._submit(*previous)
+            grant = NativeMovementGrant(
+                self.identity, self.window, receipt.grant, receipt.host,
+                request_key, coordinate_only
             )
+            self._current.setdefault(grant, receipt.grant)
+            return grant
 
     def _check_grant(self, grant: NativeMovementGrant) -> None:
         if not isinstance(grant, NativeMovementGrant):
@@ -246,14 +267,97 @@ class NativeMovementSession:
         if grant in self._revoked or grant.host != self._host(acquire=False):
             raise NativeMovementError(Outcome.STALE)
 
+    def current_ownership(self, grant: NativeMovementGrant) -> Grant:
+        """Last correlated acknowledgement; a status observation cannot advance it."""
+        with self._session_lock:
+            return self._current.get(grant, grant.ownership)
+
+    @staticmethod
+    def _successor(previous: Grant, current: Grant) -> bool:
+        return (current.owner is Owner.AUTOMATION
+                and current.worker_id == previous.worker_id
+                and current.operation_id == previous.operation_id
+                and current.generation > previous.generation and current.scene > previous.scene)
+
+    def synchronize(self, grant: NativeMovementGrant) -> Snapshot:
+        """Prove a coordinate successor under the original lease, never reacquire.
+
+        One command/deadline is retained across a pending or ambiguous reply. No
+        new destination is admitted until that exact handshake has completed.
+        """
+        from .cleanup_settlement import CLEANUP_TIMEOUT_SECONDS
+
+        with self._session_lock:
+            self._check_grant(grant)
+            snapshot = self.snapshot()
+            self._expected(snapshot)
+            current = self.current_ownership(grant)
+            if not owner_maintenance_available(snapshot.flags):
+                self._revoked.add(grant)
+                raise NativeMovementError(Outcome.STALE)
+            pending = self._handoffs.get(grant)
+            if snapshot.grant == current and pending is None:
+                return snapshot
+            if (not grant.coordinate_only
+                    or not snapshot.flags & COORDINATE_PARENT_CAPABLE
+                    or not self._successor(current, snapshot.grant)):
+                self._revoked.add(grant)
+                raise NativeMovementError(Outcome.STALE)
+            # Terminal cancellation dominates an ambiguous resume. Native STOP/PAUSE
+            # maps this exact predecessor to its retained successor; do not replay55.
+            if self.cleanup.blocked(grant) or grant in self._stops:
+                return snapshot
+            if pending is None:
+                payload = Command(grant.host, grant.window, current, str(uuid.uuid4()), revision=1)
+                pending = (payload, self.cleanup.clock() + CLEANUP_TIMEOUT_SECONDS)
+                self._handoffs[grant] = pending
+            payload, deadline = pending
+            remaining = deadline - self.cleanup.clock()
+            if remaining <= 0:
+                self._revoked.add(grant)
+                raise channel.NativeActionChannelError("coordinate parent cleanup deadline expired")
+            try:
+                receipt = self._submit(
+                    Verb.CONTINUE_PARENT, payload,
+                    timeout_ms=min(self.timeout_ms, max(1, int(remaining * 1000))),
+                )
+            except channel.NativeActionChannelTimeout as exc:
+                raise NativeMovementParentPending(
+                    "coordinate parent acknowledgement pending"
+                ) from exc
+            except NativeMovementError as exc:
+                receipt = exc.receipt
+                if (exc.outcome is Outcome.STOP_FAILED and receipt is not None
+                        and self._successor(current, receipt.grant)
+                        and receipt.flags & CLEANUP_PENDING):
+                    raise NativeMovementParentPending("coordinate parent cleanup pending") from exc
+                self._revoked.add(grant)
+                raise
+            if (not self._successor(current, receipt.grant)
+                    or not owner_maintenance_available(receipt.flags)
+                    or receipt.flags & CLEANUP_PENDING):
+                self._revoked.add(grant)
+                raise channel.NativeActionChannelError("invalid coordinate successor receipt")
+            self._current[grant] = receipt.grant
+            del self._handoffs[grant]
+            # A second transition may have happened while the first reply returned.
+            # Never use an older receipt as authority for a newer observed scene.
+            latest = self.snapshot()
+            self._expected(latest)
+            if latest.grant != receipt.grant:
+                if self._successor(receipt.grant, latest.grant):
+                    raise NativeMovementParentPending("coordinate parent advanced again")
+                self._revoked.add(grant)
+                raise NativeMovementError(Outcome.STALE)
+            if not owner_maintenance_available(latest.flags):
+                self._revoked.add(grant)
+                raise NativeMovementError(Outcome.STALE)
+            return latest
+
     def _require_new_work_ready(self, grant: NativeMovementGrant) -> None:
         if self.cleanup.blocked(grant):
             raise NativeMovementError(Outcome.INHIBITED)
-        snapshot = self.snapshot()
-        self._expected(snapshot)
-        if snapshot.grant != grant.ownership or not owner_maintenance_available(snapshot.flags):
-            self._revoked.add(grant)
-            raise NativeMovementError(Outcome.STALE)
+        snapshot = self.synchronize(grant)
         if snapshot.flags & CLEANUP_PENDING:
             raise NativeMovementCleanupPending("native movement cleanup pending")
 
@@ -268,11 +372,22 @@ class NativeMovementSession:
             try:
                 return self._submit(
                     Verb.DESTINATION,
-                    Command(grant.host, grant.window, grant.ownership, request_key, destination),
+                    Command(grant.host, grant.window, self.current_ownership(grant),
+                            request_key, destination),
                 )
             except NativeMovementError as exc:
+                # The parent may change after synchronization but before native
+                # destination admission. Its refusal proves no destination entry;
+                # only a subsequent CONTINUE receipt can adopt that successor.
+                if (grant.coordinate_only and exc.receipt is not None
+                        and exc.outcome in (Outcome.STALE, Outcome.STOP_FAILED)
+                        and self._successor(self.current_ownership(grant), exc.receipt.grant)
+                        and owner_maintenance_available(exc.receipt.flags)):
+                    raise NativeMovementParentPending(
+                        "coordinate parent changed before destination admission"
+                    ) from exc
                 if (exc.outcome is Outcome.STOP_FAILED and exc.receipt is not None
-                        and exc.receipt.grant == grant.ownership
+                        and exc.receipt.grant == self.current_ownership(grant)
                         and exc.receipt.flags & CLEANUP_PENDING):
                     raise NativeMovementCleanupPending("native movement cleanup pending") from exc
                 self._revoked.add(grant)
@@ -281,11 +396,12 @@ class NativeMovementSession:
     def renew(self, grant: NativeMovementGrant) -> None:
         with self._session_lock:
             self._check_grant(grant)
-            snapshot = self.snapshot()
-            self._expected(snapshot)
-            if snapshot.grant != grant.ownership or not owner_maintenance_available(snapshot.flags):
-                self._revoked.add(grant)
-                raise NativeMovementError(Outcome.STALE)
+            try:
+                self.synchronize(grant)
+            except NativeMovementCleanupPending:
+                # Only the bounded original handoff keeps this producer alive.
+                # It grants no destination, actor action, or new ownership.
+                pass
             transport = self._transport
             if transport is None or self._closed:
                 raise channel.NativeActionChannelUnavailable("movement session is closed")
@@ -296,19 +412,24 @@ class NativeMovementSession:
             self._check_grant(grant)
             try:
                 receipt = self._submit(
-                    Verb.PAUSE, Command(grant.host, grant.window, grant.ownership, request_key),
+                    Verb.PAUSE,
+                    Command(grant.host, grant.window, self.current_ownership(grant), request_key),
                     timeout_ms=self.cleanup.timeout_ms(grant, self.timeout_ms),
                 )
             except NativeMovementError as exc:
                 # A correlated failed cleanup can retain the same owner. It is
                 # retryable cleanup, never a new movement or an ownership loss.
                 if (exc.outcome is Outcome.STOP_FAILED and exc.receipt is not None
-                        and exc.receipt.grant == grant.ownership
+                        and (exc.receipt.grant == self.current_ownership(grant)
+                             or (grant.coordinate_only and self._successor(
+                                 self.current_ownership(grant), exc.receipt.grant)))
                         and exc.receipt.flags & CLEANUP_PENDING):
                     raise NativeMovementCleanupPending("native movement cleanup pending") from exc
                 self._revoked.add(grant)
                 raise
-            if receipt.grant != grant.ownership:
+            if (receipt.grant != self.current_ownership(grant)
+                    and not (grant.coordinate_only
+                             and self._successor(self.current_ownership(grant), receipt.grant))):
                 self._revoked.add(grant)
                 raise channel.NativeActionChannelError("pause changed operation ownership")
             if receipt.flags & CLEANUP_PENDING:
@@ -323,7 +444,8 @@ class NativeMovementSession:
                 raise ValueError("ambiguous stop retry must retain its request UUID")
             try:
                 receipt = self._submit(
-                    Verb.STOP, Command(grant.host, grant.window, grant.ownership, request_key)
+                    Verb.STOP,
+                    Command(grant.host, grant.window, self.current_ownership(grant), request_key)
                 )
             except channel.NativeActionChannelTimeout:
                 # Movement stays excluded, but the exact cancellation can be retried.
@@ -357,6 +479,8 @@ class NativeMovementSession:
                 self._transport = None
 
     def _combat_transport(self, grant: NativeMovementGrant, *, require_capability: bool = True):
+        if grant.coordinate_only:
+            raise channel.NativeActionChannelUnavailable("coordinate travel cannot admit combat")
         if grant.process_identity != self.identity or grant.window != self.window:
             raise ValueError("combat grant belongs to another client")
         transport = self._transport
@@ -451,6 +575,10 @@ class NativeMovementSession:
 
 
     def _actor_transport(self, *, grant=None, require_capability=True):
+        if isinstance(grant, NativeMovementGrant) and grant.coordinate_only:
+            raise channel.NativeActionChannelUnavailable(
+                "coordinate travel cannot admit actor actions"
+            )
         if grant is not None and (grant.process_identity != self.identity
                                   or grant.window != self.window):
             raise ValueError("actor Grant belongs to another client")

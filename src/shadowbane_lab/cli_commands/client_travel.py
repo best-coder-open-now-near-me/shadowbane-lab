@@ -231,7 +231,7 @@ def _run_travel(
             guard.require_target()
             if movement_dispatcher is None:
                 native_operation = stack.enter_context(
-                    NativeMovementOperation(guard, active_stop_signal)
+                    NativeMovementOperation(guard, active_stop_signal, coordinate_only=True)
                 )
                 movement_dispatcher = native_operation.dispatcher
                 active_stop_signal = native_operation

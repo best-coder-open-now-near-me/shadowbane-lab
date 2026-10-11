@@ -371,3 +371,11 @@ def test_native_operation_resize_does_not_revoke_but_replacement_does(setup):
         inspector.snapshot = original
         assert operation.is_set()
     session.acquire.assert_called_once()
+
+
+def test_standalone_coordinate_mode_is_explicit_and_passed_before_acquisition(setup):
+    original, session, guard, parent, _, _ = setup
+    operation = module.NativeMovementOperation(guard, parent, coordinate_only=True)
+    with operation:
+        assert session.acquire.call_args.kwargs == {"coordinate_only": True}
+    assert original._coordinate_only is False

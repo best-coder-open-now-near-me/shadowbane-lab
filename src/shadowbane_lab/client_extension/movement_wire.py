@@ -21,7 +21,8 @@ from .controller_profile import (
 
 SCHEMA = 3
 BINDINGS, READY, TERMINAL, CLEANUP_PENDING = 1, 2, 8, 64
-KNOWN_STATUS_FLAGS = 127
+COORDINATE_PARENT_CAPABLE = 128
+KNOWN_STATUS_FLAGS = 255
 
 
 def owner_maintenance_available(flags: int) -> bool:
@@ -57,6 +58,8 @@ class Verb(IntEnum):
     STOP = 5
     CONFIGURE = 6
     PAUSE = 7
+    ACQUIRE_COORDINATE = 54
+    CONTINUE_PARENT = 55
 
 
 class Outcome(IntEnum):
@@ -85,7 +88,7 @@ def _text(value: str, required: bool) -> bytes:
         raise ValueError("token must be text")
     data = value.encode("ascii")
     if len(data) > 95 or (required and not data) or any(c < 32 or c > 126 for c in data):
-        raise ValueError("token must contain 1–95 printable ASCII characters")
+        raise ValueError("token must contain 1-95 printable ASCII characters")
     return data.ljust(96, b"\0")
 
 
@@ -262,14 +265,17 @@ class Command:
         if len(self.destination) != 3 or any(not math.isfinite(v) for v in self.destination):
             raise ValueError("native destination must be finite XYZ")
         if (
-            verb in (Verb.DESTINATION, Verb.STOP, Verb.PAUSE)
+            verb in (Verb.DESTINATION, Verb.STOP, Verb.PAUSE, Verb.CONTINUE_PARENT)
             and self.expected.owner != Owner.AUTOMATION
         ):
             raise ValueError("movement/stop requires an automation grant")
-        if verb != Verb.ACQUIRE and (self.worker_id or self.operation_id):
+        if (verb not in (Verb.ACQUIRE, Verb.ACQUIRE_COORDINATE)
+                and (self.worker_id or self.operation_id)):
             raise ValueError("requested token is only valid for acquisition")
         if verb == Verb.CONFIGURE and not self.revision:
             raise ValueError("configure requires the observed settings revision")
+        if verb == Verb.CONTINUE_PARENT and self.revision not in (0, 1):
+            raise ValueError("parent continuation revision must be adopt or resume")
         return _COMMAND.pack(
             self.host.encode(),
             _uint(self.window, 32, "client HWND", 1),
@@ -278,8 +284,8 @@ class Command:
             *self.destination,
             self.settings.encode(),
             _uint(self.revision, 64, "settings revision"),
-            _text(self.worker_id, verb == Verb.ACQUIRE)
-            + _text(self.operation_id, verb == Verb.ACQUIRE),
+            _text(self.worker_id, verb in (Verb.ACQUIRE, Verb.ACQUIRE_COORDINATE))
+            + _text(self.operation_id, verb in (Verb.ACQUIRE, Verb.ACQUIRE_COORDINATE)),
             bytes(4),
         )
 
