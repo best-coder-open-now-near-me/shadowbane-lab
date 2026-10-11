@@ -2,8 +2,9 @@
 
 ## Worker current authority and native maintenance - October 11
 
-Shared development starts from refreshed `main`, including PR #162 merge
-`1a9807c902a0eccc31ad46d032ef7ca3c047b173`.
+Shared development starts from refreshed `main` at PR #163 merge
+`60c2f7702162b18f245821fc5b7500643e197a4c`, including the reviewed .101
+source and its installation, retirement and failed live-command evidence.
 `codex/worker-native-maintenance-20261011` in `native-group-come` targets `main`
 with host .102 and unchanged native .65. It separates bounded current authority
 and native renewal from historical reconciliation and status writes, preserving
@@ -11,7 +12,8 @@ original manager permit expiry and durable Stop/Cancel recovery. The .101 live
 command was received but failed before movement with a 1,031 ms native producer
 heartbeat age; the capture does not identify the exact host scheduling delay.
 Independent source review and 173 focused tests passed with no skips.
-Graphics-preserving package qualification and a new live `/come` remain. No .102 installation or live arrival is claimed.
+Graphics-preserving package qualification and a new live `/come` remain.
+No .102 installation or live arrival is claimed.
 See [the ownership correction](worker-native-maintenance.md).
 
 ## Group command admission authority - October 11
