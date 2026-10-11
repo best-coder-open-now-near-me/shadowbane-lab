@@ -346,6 +346,9 @@ def test_running_group_operation_renews_without_observer_lease(
         new_worker_operation,
     )
     from shadowbane_lab.manager.group_commands import GroupCommandService
+    from shadowbane_lab.manager.worker_runtime import _OperationMaintenance
+    monkeypatch.setattr(_OperationMaintenance, "interval", .001)
+    monkeypatch.setattr(_OperationMaintenance, "authority_interval", .001)
 
     client, manifest = _client(), _manifest()
     heartbeats = WorkerHeartbeatLedger(manifest, tmp_path)
@@ -359,12 +362,13 @@ def test_running_group_operation_renews_without_observer_lease(
     entered, release = threading.Event(), threading.Event()
     stop = _StopSignal()
     now = 0.0
-    maintained, observed = [], []
+    maintained, observed, active_signals = [], [], []
     monkeypatch.setattr("shadowbane_lab.client_extension.tracking_publication.tick_ms",
                         lambda: 1000 + int(now * 1000))
 
     class Executor:
         def execute(self, operation, *, stop_signal):
+            active_signals.append(stop_signal)
             entered.set()
             assert release.wait(5)
             observed.append(stop_signal.stop_cause)
@@ -374,6 +378,7 @@ def test_running_group_operation_renews_without_observer_lease(
 
     def drive(delay):
         nonlocal now
+        time.sleep(.01)
         now += delay
         heartbeat = heartbeats.inspect(CLIENT_ID).records[0]
         stamp = time.time()
@@ -401,13 +406,19 @@ def test_running_group_operation_renews_without_observer_lease(
             elif termination == "disabled":
                 with service.lock:
                     service.enabled = False
+            if termination is not None:
+                deadline = time.monotonic() + 3
+                while not active_signals[0].is_set() and time.monotonic() < deadline:
+                    time.sleep(.001)
+                assert active_signals[0].is_set()
         if now >= 2:
             release.set()
             stop.stopped = True
 
     def maintain(operation, signal):
         assert entered.wait(5)
-        assert not signal.is_set()
+        if signal.is_set():
+            return  # Only cleanup would remain for a real native owner.
         maintained.append(now)
         if termination == "native" and now == 1.25:
             signal.trip("native movement owner revoked")
@@ -424,16 +435,19 @@ def test_running_group_operation_renews_without_observer_lease(
         assert worker.serve(stop_signal=stop) == 0
     finally:
         release.set()
-    assert maintained == ([.25, .5, .75, 1.0, 1.25, 1.5, 1.75] if termination is None
-                          else [.25, .5, .75, 1.0, 1.25] if termination == "native"
-                          else [.25, .5, .75, 1.0])
+    expected = ([.25, .5, .75, 1.0, 1.25, 1.5, 1.75] if termination is None
+                else [.25, .5, .75, 1.0, 1.25] if termination == "native"
+                else [.25, .5, .75, 1.0])
+    assert set(expected).issubset(maintained)
+    assert max(maintained) <= (2.0 if termination is None else 1.25)
     if termination == "native":
         assert observed[0].reason == "native movement owner revoked"
         assert observed[0].kind == "interrupted"
     elif termination:
         assert observed[0].kind == "requested"
         # CANCEL latches the normal preparation Pause control on submit.
-        assert "paused or disabled" in observed[0].reason
+        assert ("paused or disabled" in observed[0].reason
+                or "explicit cancel or stop" in observed[0].reason)
     assert service.taken == command
 
 

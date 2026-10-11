@@ -41,6 +41,7 @@ from .registry import derive_client_instance_id
 from .supervisor import ProcessLifetimeInspector, ProcessLifetimeSnapshot
 from .worker import (
     DEFAULT_WORKER_HEARTBEAT_TIMEOUT_SECONDS,
+    WorkerDispatchAuthority,
     WorkerDispatchGate,
     WorkerHeartbeat,
     WorkerHeartbeatLedger,
@@ -184,6 +185,22 @@ class WorkerOperationExecutor(Protocol):
     ) -> WorkerOperationExecution: ...
 
 
+class _SynchronizedGameIdentityGuard:
+    """Serialize retained-handle checks/disposal across supervisor and observer."""
+
+    def __init__(self, guard):
+        self.guard = guard
+        self.lock = threading.Lock()
+
+    def require_current(self):
+        with self.lock:
+            self.guard.require_current()
+
+    def close(self):
+        with self.lock:
+            self.guard.close()
+
+
 class _OperationStopSignal:
     def __init__(
         self,
@@ -193,7 +210,10 @@ class _OperationStopSignal:
         worker_id: str,
         worker_process_id: int,
         worker_process_started_at_100ns: int,
+        *, current_owner=None, group_enabled=None,
     ) -> None:
+        self._current_owner = current_owner
+        self._group_enabled = group_enabled
         self._dispatch_gate = dispatch_gate
         self._ledger = operation_ledger
         self._binding = binding
@@ -204,6 +224,8 @@ class _OperationStopSignal:
         self._reason_lock = threading.Lock()
         self._reason: str | None = None
         self._stop_cause: StopCause | None = None
+        self._authority = None
+        self.refresh()
 
     @property
     def stop_cause(self) -> StopCause | None:
@@ -229,15 +251,38 @@ class _OperationStopSignal:
     def is_set(self) -> bool:
         if self._local.is_set():
             return True
-        if isinstance(self._dispatch_gate, WorkerDispatchGate):
-            denial = self._dispatch_gate.denial_reason()
+        with self._reason_lock:
+            authority = self._authority
+        if isinstance(authority, WorkerDispatchAuthority):
+            denial = authority.denial_reason()
         else:
-            denial = "worker dispatch gate stopped" if self._dispatch_gate.is_set() else None
+            # Injected local stop signals have no ledger; production always uses
+            # the immutable WorkerDispatchAuthority above.
+            denial = ("worker dispatch gate stopped"
+                      if authority is None or authority.is_set() else None)
         if denial is not None:
             self.trip(denial)
-            return True
+        return self._local.is_set()
+
+    def refresh(self) -> None:
+        """Supervision-only I/O; a blocked refresh cannot extend existing authority."""
+        if self._local.is_set():
+            return
+        authority = (self._dispatch_gate.snapshot()
+                     if isinstance(self._dispatch_gate, WorkerDispatchGate)
+                     else self._dispatch_gate)
+        denial = (authority.denial_reason() if isinstance(authority, WorkerDispatchAuthority)
+                  else "worker dispatch gate stopped" if authority.is_set() else None)
+        if denial is not None:
+            self.trip(denial)
+            return
         try:
-            pending = self._ledger.pending_for(
+            if self._current_owner is not None:
+                reason = self._current_owner()
+                if reason is not None:
+                    self.trip(reason, requested=True)
+                    return
+            pending, control, unresolved = self._ledger.current_stop_authority(
                 client_id=self._binding.client_id,
                 instance_id=self._binding.instance_id,
                 worker_id=self._worker_id,
@@ -247,18 +292,79 @@ class _OperationStopSignal:
             )
         except (OSError, RuntimeError, ValueError) as exc:
             self.trip(f"operation inbox read failed: {type(exc).__name__}: {exc}")
-            return True
-        interrupted = any(
-            operation.kind
-            in {
-                WorkerOperationKind.CANCEL,
-                WorkerOperationKind.STOP,
-            }
-            for operation in pending
-        )
-        if interrupted:
+            return
+        if any(operation.kind in {WorkerOperationKind.CANCEL, WorkerOperationKind.STOP}
+               for operation in pending):
             self.trip("explicit cancel or stop operation is pending", requested=True)
-        return interrupted
+            return
+        if (self._group_enabled is not None and
+                (unresolved or (control is not None and not control.enabled)
+                 or not self._group_enabled())):
+            self.trip("group commands paused or disabled", requested=True)
+            return
+        # All reads completed; preserve the actual permit's original deadline.
+        if isinstance(authority, WorkerDispatchAuthority):
+            denial = authority.denial_reason()
+            if denial is not None:
+                self.trip(denial)
+                return
+        with self._reason_lock:
+            if not self._local.is_set():
+                self._authority = authority
+
+
+class _OperationMaintenance:
+    """One operation's native maintenance, isolated from ledger/status disk I/O."""
+
+    interval = .25
+    authority_interval = .05
+
+    def __init__(self, operation, signal, callback):
+        self.operation, self.signal, self.callback = operation, signal, callback
+        self.stop = threading.Event()
+        self.thread = None
+        self.observer = None
+
+    def __enter__(self):
+        self.observer = threading.Thread(target=self._observe,
+            name="shadowbane-current-authority", daemon=True)
+        self.observer.start()
+        try:
+            if self.callback is not None:
+                self.thread = threading.Thread(target=self._run,
+                    name="shadowbane-native-maintenance", daemon=True)
+                self.thread.start()
+        except BaseException:
+            self.stop.set()
+            self.observer.join()
+            raise
+        return self
+
+    def _observe(self):
+        while not self.stop.wait(self.authority_interval):
+            try:
+                self.signal.refresh()
+            except Exception as exc:
+                self.signal.trip(f"current authority failed: {type(exc).__name__}: {exc}")
+
+    def _run(self):
+        while not self.stop.is_set():
+            # Expiry latches before the callback. OperationMovement then renews
+            # only its original pending cleanup, never new gameplay authority.
+            self.signal.is_set()
+            try:
+                self.callback(self.operation, self.signal)
+            except Exception as exc:
+                self.signal.trip(
+                    f"native maintenance failed: {type(exc).__name__}: {exc}"[:256])
+            self.stop.wait(self.interval)
+
+    def __exit__(self, *_):
+        self.stop.set()
+        if self.thread is not None:
+            self.thread.join()
+        if self.observer is not None:
+            self.observer.join()
 
 
 @dataclass(slots=True)
@@ -392,8 +498,11 @@ class ExactClientWorkerRuntime:
             # Full selector/path validation precedes any native owner. Afterwards
             # renewal must not wait for desktop discovery, titles or geometry.
             self._require_exact_game_identity()
-            game_guard = self._game_identity_guard_factory(self._binding)
+            game_guard = _SynchronizedGameIdentityGuard(
+                self._game_identity_guard_factory(self._binding))
             game_guard.require_current()
+            if self._operation_ledger is not None:
+                self._operation_ledger.initialize_stop_authority(self._binding.client_id)
             if self._operation_initializer is not None:
                 self._operation_initializer(publisher.worker_id, self._process)
             if self._preparation_factory is not None:
@@ -433,20 +542,7 @@ class ExactClientWorkerRuntime:
                     active_operation = None
                 self._poll_group_commands(publisher, active_operation)
                 if active_operation is None:
-                    active_operation = self._start_next_operation(publisher)
-                if active_operation is not None:
-                    command = self._group_operations.get(active_operation.operation.operation_id)
-                    if command is not None and not self._group_operation_enabled():
-                        active_operation.stop_signal.trip(
-                            "group commands paused or disabled", requested=True)
-                if active_operation is not None and self._operation_maintenance is not None:
-                    # Renewal is independent of heartbeat publication and runs on
-                    # this worker's supervision thread, never the strategy thread.
-                    # A revoked permit is latched before any maintenance callback.
-                    if not active_operation.stop_signal.is_set():
-                        self._operation_maintenance(
-                            active_operation.operation, active_operation.stop_signal
-                        )
+                    active_operation = self._start_next_operation(publisher, game_guard)
                 now = self._monotonic()
                 if self._operation_maintenance is None or now >= next_heartbeat:
                     heartbeat = publisher.publish(
@@ -618,6 +714,7 @@ class ExactClientWorkerRuntime:
     def _start_next_operation(
         self,
         publisher: WorkerHeartbeatPublisher,
+        game_guard=None,
     ) -> _ActiveWorkerOperation | None:
         ledger = self._operation_ledger
         executor = self._operation_executor
@@ -656,6 +753,16 @@ class ExactClientWorkerRuntime:
             return None
         if not ledger.claim_for_execution(operation, now=time.time()):
             return None
+        def current_owner():
+            if game_guard is not None:
+                game_guard.require_current()
+            request = self._ledger.inspect_stop_request(
+                self._binding.client_id, publisher.worker_id)
+            if request is not None:
+                self._require_matching_stop_request(request, publisher)
+                return request.reason
+            return None
+
         operation_stop = _OperationStopSignal(
             publisher.dispatch_gate(),
             ledger,
@@ -663,12 +770,17 @@ class ExactClientWorkerRuntime:
             publisher.worker_id,
             self._process.process_id,
             self._process.process_started_at_100ns,
+            current_owner=current_owner,
+            group_enabled=(self._group_commands.operations_enabled
+                           if group_command is not None else None),
         )
         results: queue.Queue[WorkerOperationExecution] = queue.Queue(maxsize=1)
 
         def execute() -> None:
             try:
-                result = executor.execute(operation, stop_signal=operation_stop)
+                with _OperationMaintenance(
+                        operation, operation_stop, self._operation_maintenance):
+                    result = executor.execute(operation, stop_signal=operation_stop)
                 if not isinstance(result, WorkerOperationExecution):
                     raise ExactClientWorkerError(
                         "worker operation executor returned an invalid result"

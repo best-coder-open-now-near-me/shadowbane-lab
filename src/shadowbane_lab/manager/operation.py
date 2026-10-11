@@ -669,6 +669,36 @@ def loads_worker_operation_receipt(source: str) -> WorkerOperationReceipt:
     )
 
 
+def parse_stop_authority(
+    value, *, node_id, client_id, max_records=DEFAULT_MAX_WORKER_OPERATIONS_PER_SLOT,
+):
+    payload = _exact_mapping(value, frozenset({
+        "schema_version", "node_id", "client_id", "revision", "pending"}),
+        "stop authority")
+    if (type(payload["schema_version"]) is not int or payload["schema_version"] != 1
+            or payload["node_id"] != node_id
+            or payload["client_id"] != client_id
+            or not isinstance(payload["revision"], str)
+            or re.fullmatch(r"[0-9a-f]{32}", payload["revision"]) is None):
+        _fail("stop authority identity or schema is invalid")
+    entries = payload["pending"]
+    if not isinstance(entries, list) or len(entries) > max_records:
+        _fail("stop authority exceeds its bounded limit")
+    seen = set()
+    for entry in entries:
+        entry = _exact_mapping(entry, frozenset({"operation", "preparation_pending"}),
+                               "stop authority entry")
+        operation = parse_worker_operation(entry["operation"])
+        if (operation.kind not in {WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}
+                or operation.node_id != payload["node_id"]
+                or operation.client_id != payload["client_id"]
+                or operation.operation_id in seen
+                or type(entry["preparation_pending"]) is not bool):
+            _fail("stop authority entry is invalid")
+        seen.add(operation.operation_id)
+    return payload
+
+
 class WorkerOperationLedger:
     """Bounded transactional inbox and status store shared by ingress and workers."""
 
@@ -859,6 +889,97 @@ class WorkerOperationLedger:
                 raise WorkerOperationLedgerError("preparation status belongs to another slot")
             return record
 
+    def _stop_projection_unlocked(self, directory):
+        return self._read(directory / "stop-control.json",
+                          lambda raw: _loads(raw, lambda value: parse_stop_authority(
+                              value, node_id=self._manifest.node_id,
+                              client_id=directory.parent.name,
+                              max_records=self._max_records), "stop authority"),
+                          max_bytes=self._max_records * (self._max_bytes + 128) + 1024)
+
+    def _write_stop_projection(self, directory, entries):
+        if len(entries) > self._max_records:
+            raise WorkerOperationLedgerError("stop authority exceeds its bounded limit")
+        import uuid
+        target = directory / "stop-control.json"
+        if target.exists() and self._stop_projection_unlocked(directory)["pending"] == entries:
+            return
+        if target.is_symlink():
+            raise WorkerOperationLedgerError("stop authority must not be a symlink")
+        payload = {"schema_version": 1, "node_id": self._manifest.node_id,
+                   "client_id": directory.parent.name, "revision": uuid.uuid4().hex,
+                   "pending": entries}
+        publish_atomic_record(target, self._encode(payload,
+            max_bytes=self._max_records * (self._max_bytes + 128) + 1024),
+            temporary_label="stop-control")
+
+    def _recover_stop_projection(self, directory):
+        # Cold transaction boundary only. A write-ahead stop is a durable user
+        # intent even if the writer died before publishing its envelope/control.
+        path = directory / "stop-control.json"
+        if path.exists():
+            projection = self._stop_projection_unlocked(directory)
+            for entry in projection["pending"]:
+                operation = parse_worker_operation(entry["operation"])
+                target = directory / f"{operation.operation_id}.json"
+                if target.exists():
+                    if self._read(target, loads_worker_operation) != operation:
+                        raise WorkerOperationLedgerError("stop intent conflicts with envelope")
+                else:
+                    publish_atomic_record(target, self._encode(operation.to_dict()),
+                                          temporary_label=operation.operation_id)
+        self._reconcile_preparation_stops_unlocked(directory)
+        entries = []
+        for snapshot in self._inspect_slot_unlocked(directory):
+            operation, receipt = snapshot.operation, snapshot.receipt
+            if (operation.kind in {WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}
+                    and (receipt is None or (not receipt.state.terminal
+                         and receipt.state is not WorkerOperationState.ACTIVE))):
+                entries.append({"operation": operation.to_dict(), "preparation_pending": False})
+        self._write_stop_projection(directory, entries)
+
+    def initialize_stop_authority(self, client_id):
+        directory = self._directory(client_id)
+        with self._transaction(directory):
+            self._recover_stop_projection(directory)
+
+    def current_stop_authority(self, *, client_id, instance_id, worker_id,
+                               worker_process_id, worker_process_started_at_100ns, now):
+        """Bounded atomic reads only: no ledger lock, history scan or writes.
+
+        The projection bracket prevents an old enabled control read being paired
+        with a newly completed STOP publication. Missing/unstable records deny.
+        """
+        directory = self._directory(client_id)
+        for _ in range(3):
+            before = self._stop_projection_unlocked(directory)
+            control = self._preparation_control_unlocked(directory, instance_id)
+            after = self._stop_projection_unlocked(directory)
+            if before["revision"] == after["revision"]:
+                break
+        else:
+            raise WorkerOperationLedgerError("stop authority changed during read")
+        target = (self._manifest.node_id, self._client_id(client_id), instance_id,
+                  worker_id, worker_process_id, worker_process_started_at_100ns)
+        pending = []
+        unresolved = False
+        for entry in after["pending"]:
+            operation = parse_worker_operation(entry["operation"])
+            unresolved |= (entry["preparation_pending"] and operation.instance_id == instance_id)
+            if operation.target_identity() == target and operation.expires_at > now:
+                pending.append(operation)
+        return tuple(pending), control, unresolved
+
+    def _finish_stop_publication(self, directory, operation):
+        self._latch_preparation_stop_unlocked(directory, operation)
+        if operation.kind not in {WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}:
+            return
+        entries = self._stop_projection_unlocked(directory)["pending"]
+        for entry in entries:
+            if entry["operation"]["operation_id"] == operation.operation_id:
+                entry["preparation_pending"] = False
+        self._write_stop_projection(directory, entries)
+
     def _operation_paths(self, directory: Path) -> list[Path]:
         try:
             return sorted(directory.glob("operation-*.json"))
@@ -934,6 +1055,12 @@ class WorkerOperationLedger:
             )
         except OSError as exc:
             raise WorkerOperationLedgerError(f"could not persist receipt: {exc}") from exc
+        if (operation.kind in {WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}
+                and (receipt.state.terminal or receipt.state is WorkerOperationState.ACTIVE)):
+            entries = self._stop_projection_unlocked(directory)["pending"]
+            self._write_stop_projection(directory, [entry for entry in entries
+                if entry["operation"]["operation_id"] != operation.operation_id
+                or entry["preparation_pending"]])
         return target
 
     def _inspect_slot_unlocked(
@@ -957,7 +1084,9 @@ class WorkerOperationLedger:
         )
 
     def _prune_terminal_unlocked(self, directory: Path, observed_at: float) -> int:
-        self._reconcile_preparation_stops_unlocked(directory)
+        # Reconcile stale write-ahead entries while terminal receipts still prove
+        # completion; otherwise later recovery could resurrect a pruned stop.
+        self._recover_stop_projection(directory)
         cutoff = observed_at - self._terminal_retention_seconds
         if cutoff < 0:
             return 0
@@ -1007,6 +1136,7 @@ class WorkerOperationLedger:
             raise WorkerOperationLedgerError("operation identity does not match the manifest")
         directory = self._directory(canonical)
         with self._transaction(directory):
+            self._recover_stop_projection(directory)
             existing_paths = self._operation_paths(directory)
             for path in existing_paths:
                 existing = self._read(path, loads_worker_operation)
@@ -1026,7 +1156,7 @@ class WorkerOperationLedger:
                     raise WorkerOperationLedgerError(
                         "deduplication_id is already owned by a different immutable operation"
                     )
-                self._latch_preparation_stop_unlocked(directory, existing)
+                self._finish_stop_publication(directory, existing)
                 return WorkerOperationSubmission(existing, duplicate=True)
             observed_at = _finite_time(self._clock(), "clock result")
             self._prune_terminal_unlocked(directory, observed_at)
@@ -1034,22 +1164,36 @@ class WorkerOperationLedger:
                 raise WorkerOperationLedgerError("worker operation inbox reached its bounded limit")
             target = directory / f"{operation.operation_id}.json"
             payload = self._encode(operation.to_dict())
+            # Seal the cancellation before either envelope/control write can block.
+            if operation.kind in {WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}:
+                if target.exists() and self._read(target, loads_worker_operation) != operation:
+                    raise WorkerOperationLedgerError("operation_id has different immutable content")
+                entries = self._stop_projection_unlocked(directory)["pending"]
+                entries = [entry for entry in entries
+                           if entry["operation"]["operation_id"] != operation.operation_id]
+                entries.append({"operation": operation.to_dict(), "preparation_pending": True})
+                self._write_stop_projection(directory, entries)
             try:
-                with target.open("xb") as destination:
-                    destination.write(payload)
-                    destination.flush()
-                    os.fsync(destination.fileno())
+                if operation.kind in {WorkerOperationKind.STOP, WorkerOperationKind.CANCEL}:
+                    if target.exists():
+                        raise FileExistsError(str(target))
+                    publish_atomic_record(target, payload, temporary_label=operation.operation_id)
+                else:
+                    with target.open("xb") as destination:
+                        destination.write(payload)
+                        destination.flush()
+                        os.fsync(destination.fileno())
             except FileExistsError as exc:
                 existing = self._read(target, loads_worker_operation)
                 if existing != operation:
                     raise WorkerOperationLedgerError(
                         "operation_id is already owned by different immutable content"
                     ) from exc
-                self._latch_preparation_stop_unlocked(directory, operation)
+                self._finish_stop_publication(directory, operation)
                 return WorkerOperationSubmission(operation, duplicate=True)
             except OSError as exc:
                 raise WorkerOperationLedgerError(f"could not persist operation: {exc}") from exc
-            self._latch_preparation_stop_unlocked(directory, operation)
+            self._finish_stop_publication(directory, operation)
             return WorkerOperationSubmission(operation, duplicate=False)
 
     def inspect_receipt(
@@ -1096,7 +1240,7 @@ class WorkerOperationLedger:
     def inspect_preparation_control(self, client_id, instance_id):
         directory = self._directory(client_id)
         with self._transaction(directory):
-            self._reconcile_preparation_stops_unlocked(directory, instance_id)
+            self._recover_stop_projection(directory)
             return self._preparation_control_unlocked(directory, instance_id)
 
     def set_preparation_enabled(
@@ -1112,7 +1256,7 @@ class WorkerOperationLedger:
         from .preparation_control import PreparationControl
         directory = self._directory(client_id)
         with self._transaction(directory):
-            self._reconcile_preparation_stops_unlocked(directory, instance_id)
+            self._recover_stop_projection(directory)
             current = self._preparation_control_unlocked(directory, instance_id)
             revision = 0 if current is None else current.revision
             if type(expected_revision) is not int or expected_revision != revision:
@@ -1199,6 +1343,7 @@ class WorkerOperationLedger:
         observed_at = _finite_time(now, "now")
         directory = self._directory(operation.client_id)
         with self._transaction(directory):
+            self._recover_stop_projection(directory)
             stored = self._read(
                 directory / f"{operation.operation_id}.json", loads_worker_operation
             )
