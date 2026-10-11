@@ -73,6 +73,7 @@ class AStarTravelController:
         self._started_at_ms: int | None = None
         self._decision_id = 0
         self._click_count = 0
+        self._attempt_count = 0
         self._replan_count = 0
         self._direct_fallback_count = 0
         self._partial_route_count = 0
@@ -116,7 +117,7 @@ class AStarTravelController:
             return self._stop("session_timeout", observation)
         if observation.player.health_fraction < self._config.minimum_health_fraction:
             return self._stop("low_player_health", observation)
-        if self._click_count >= self._config.maximum_clicks:
+        if self._attempt_count >= self._config.maximum_clicks:
             return self._stop("maximum_clicks", observation)
 
         navigation = self._navigation_source.observe(observation.position)
@@ -140,6 +141,17 @@ class AStarTravelController:
 
         assert self._travel is not None
         decision = self._travel.step(observation)
+        if decision.terminal_reason == "route_corridor_blocked":
+            if self._replan_count >= self._maximum_replans:
+                return self._stop("maximum_replans", observation)
+            try:
+                self._travel, self._travel_reaches_destination, self._route_mode = self._plan(
+                    observation, reason="route_corridor_changed", allow_partial_fallback=True,
+                )
+            except AStarRouteNotFound as exc:
+                return self._stop(self._route_failure(exc), observation)
+            self._replan_count += 1
+            decision = self._travel.step(observation)
         if decision.phase is TravelPhase.COMPLETE and not self._travel_reaches_destination:
             if self._replan_count >= self._maximum_replans:
                 return self._stop("maximum_replans", observation)
@@ -273,6 +285,9 @@ class AStarTravelController:
                 ),
                 self._config,
                 observer=self._planner.observer,
+                shortcut_clear=lambda start, path: route.grid.shortcut_clear(
+                    (start.x, start.y), tuple((point.x, point.y) for point in path)
+                ),
             ),
             reaches_destination,
             route_mode,
@@ -378,6 +393,8 @@ class AStarTravelController:
     def _translate(self, decision: TravelDecision) -> TravelDecision:
         if decision.minimap_direction is not None:
             self._click_count += 1
+            if not decision.progress_refresh:
+                self._attempt_count += 1
         translated = replace(
             decision,
             decision_id=self._next_decision_id(),

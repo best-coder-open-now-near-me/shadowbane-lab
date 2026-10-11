@@ -270,6 +270,7 @@ def _run_travel(
             "at_ms": step.decision.now_ms,
             "distance_remaining": step.decision.distance_remaining,
             "maneuver": step.decision.maneuver.value,
+            "progress_refresh": step.decision.progress_refresh,
             "click_destination": None
             if step.decision.click_destination is None
             else {

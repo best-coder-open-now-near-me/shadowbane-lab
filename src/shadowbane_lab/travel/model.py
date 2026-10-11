@@ -139,6 +139,10 @@ class TravelControllerConfig:
     escape_backtrack_distance: float = 10.0
     maximum_session_ms: int = 300_000
     click_interval_ms: int = 4_000
+    target_refresh_interval_ms: int = 200
+    target_refresh_lead_ms: int = 400
+    # Periodic/recovery attempts; progress-only target replenishments are
+    # counted separately and bounded by refresh cadence plus session duration.
     maximum_clicks: int = 100
     minimum_progress: float = 25.0
     maximum_no_progress_clicks: int = 3
@@ -170,6 +174,8 @@ class TravelControllerConfig:
         for value, field_name in (
             (self.maximum_session_ms, "maximum_session_ms"),
             (self.click_interval_ms, "click_interval_ms"),
+            (self.target_refresh_interval_ms, "target_refresh_interval_ms"),
+            (self.target_refresh_lead_ms, "target_refresh_lead_ms"),
             (self.maximum_clicks, "maximum_clicks"),
             (self.maximum_no_progress_clicks, "maximum_no_progress_clicks"),
             (self.escape_backup_clicks, "escape_backup_clicks"),
@@ -245,8 +251,13 @@ class TravelDecision:
 
     click_destination: Vector2 | None = None
     arrival_destination: TravelDestination | None = None
+    progress_refresh: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.progress_refresh, bool):
+            raise ValueError("progress_refresh must be boolean")
+        if self.progress_refresh and self.maneuver is not TravelManeuver.DIRECT:
+            raise ValueError("progress refresh requires a direct movement command")
         if self.click_destination is not None:
             if not isinstance(self.click_destination, Vector2) or self.minimap_direction is None:
                 raise ValueError("click destination requires a movement direction")
