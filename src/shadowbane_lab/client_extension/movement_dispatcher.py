@@ -106,6 +106,10 @@ class NativeMovementTravelDispatcher:
         if not isinstance(decision, TravelDecision) or not decision.terminal:
             raise ValueError("movement pause requires a terminal approach/travel decision")
         correlation = f"travel:{decision.decision_id}:native_pause"
+        if self.grant.coordinate_only:
+            # Controller timeout/arrival is terminal even before the enclosing
+            # operation sees a parent stop. It must never resume a held target.
+            self.session.cleanup.request_terminal(self.grant)
         if not self.is_set():
             try:
                 self.session.pause(self.grant, self._request("pause", decision))

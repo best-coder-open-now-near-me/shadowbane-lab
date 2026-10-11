@@ -392,3 +392,28 @@ def test_foreign_destination_refusal_is_not_deferrable(native):
     with pytest.raises(NativeMovementError):
         native.session.move(grant, (1, 0, 2), str(uuid.uuid4()))
     assert grant in native.session._revoked
+
+
+
+def test_terminal_travel_pause_never_resumes_pending_parent(native):
+    from shadowbane_lab.client_extension.movement_dispatcher import NativeMovementTravelDispatcher
+    from shadowbane_lab.travel.model import TravelDecision, TravelPhase
+
+    grant = native.acquire()
+    native.parent()
+    native.pending = True
+    native.session.renew(grant)
+    dispatcher = NativeMovementTravelDispatcher(native.session, grant)
+    terminal = TravelDecision(
+        3, 500, TravelPhase.STOPPED, 0, 90, 1, terminal_reason="session_timeout",
+    )
+    assert not dispatcher.stop_movement(terminal).accepted
+    assert native.session.cleanup.blocked(grant)
+    native.pending = False
+    native.flags = 3 | wire.COORDINATE_PARENT_CAPABLE
+    assert dispatcher.stop_movement(terminal).accepted
+    assert [c.kind for c in native.commands] == [
+        wire.Verb.ACQUIRE_COORDINATE, wire.Verb.CONTINUE_PARENT, wire.Verb.PAUSE, wire.Verb.PAUSE,
+    ]
+    with pytest.raises(NativeMovementError):
+        native.session.move(grant, (1, 0, 2), str(uuid.uuid4()))

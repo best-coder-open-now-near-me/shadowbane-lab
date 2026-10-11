@@ -237,6 +237,10 @@ class NativeMovementOperation:
         return self._native.dispatch(decision)
 
     def stop_movement(self, decision: TravelDecision):
+        if not isinstance(decision, TravelDecision) or not decision.terminal:
+            raise ValueError("movement pause requires a terminal travel decision")
+        if self._coordinate_only and self._native is not None:
+            self._session.cleanup.request_terminal(self._native.grant)
         if self.is_set():
             return DispatchResult(
                 "native_movement", f"travel:{decision.decision_id}:cancelled", False, self._reason
