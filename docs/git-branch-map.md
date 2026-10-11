@@ -16,16 +16,37 @@ See [the ownership correction](worker-native-maintenance.md).
 
 ## Group command admission authority - October 11
 
-Shared development starts from refreshed `main` at PR #161 merge
-`568c4075b4004142ea0f52ec924c83d227d584c0`.
-`codex/group-command-authority-20261011` in `native-group-come` targets `main`
-with host .101 and unchanged native .65. It separates fresh group-command
-admission from active native ownership and acknowledges consumed intents without
-blocking maintenance on observer persistence. The focused suite passed 116 tests.
-Independent source review passed; integration precedes release composition/package qualification;
-a fresh live `/come` remains necessary. The .65 Treehugger command was admitted
-but failed before routing; its exact host failing predicate was not captured.
-See [the evidence and ownership boundary](group-travel-continuity.md#admission-authority-correction---october-11).
+Shared development starts from refreshed `main` at PR #162 merge
+`1a9807c902a0eccc31ad46d032ef7ca3c047b173`. Reviewed source
+`358234222d51477520e47743497a042fd41b1c91` on
+`codex/group-command-authority-20261011` is included; all 15 hosted checks passed
+at that exact head before merge.
+Host .101 separates fresh command admission from active native ownership and
+acknowledges consumed intents without blocking maintenance on observer writes.
+Independent source review passed; 116 focused tests passed.
+
+Exact release `4d365500168dd7ad6e819c242598e4d3eec5b9d9` is qualified:
+6,277 host tests passed with 44 optional skips; both IPC profiles and all seven
+startup handshakes passed without skips; 491 installed modules match.
+Native .65, its DLL, graphics and client resources remain unchanged.
+Source is merged and .101 activation is verified: 491 modules, 9,614 retained
+records, zero exclusions and ten typed startup changes. Manager 1956/parent 5264
+and worker 1584 are bound to the same game 4092; both existing game lifetimes and
+the .65 DLL remain unchanged, with no client writes. The fresh .101 Treehugger
+`/come` was admitted but failed before dispatch because native action renewal
+found its heartbeat 1,031 ms old. The exact preceding blocked call was not timed;
+source review found historical ledger reconciliation on the active renewal path.
+That ownership/control separation and live arrival acceptance are next. The
+obsolete .100 host was retired: 2,173 files / 49,065,694 bytes; both games, the
+current manager/worker and native .65 remained unchanged. Upkeep is maintaining
+again without another Resume; the travel result remains failed.
+The .100/.65 Treehugger command was admitted but failed before routing; its exact
+host failing predicate was not captured.
+
+Delivery notes are published from `bot-runtime` on
+`codex/group-authority-delivery-20261011`, based on reviewed source and targeting
+`main` after the completed source merge. See [qualification and delivery](group-command-authority-delivery-20261011.md)
+and [the evidence and ownership boundary](group-travel-continuity.md#admission-authority-correction---october-11).
 
 ## Group travel continuity - October 10
 
