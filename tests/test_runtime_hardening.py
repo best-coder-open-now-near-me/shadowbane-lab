@@ -414,8 +414,8 @@ def test_operation_interruption_stays_latched_after_renewal_or_cancel_receipt():
     class Ledger:
         pending = ()
 
-        def pending_for(self, **kwargs):
-            return self.pending
+        def current_stop_authority(self, **kwargs):
+            return self.pending, None, False
 
     for source in ("permit", "cancel"):
         gate, ledger = Gate(), Ledger()
@@ -432,9 +432,13 @@ def test_operation_interruption_stays_latched_after_renewal_or_cancel_receipt():
             gate.stopped = True
         else:
             ledger.pending = (SimpleNamespace(kind=WorkerOperationKind.CANCEL),)
+        signal.refresh()  # Observe the new bounded authority before hot stop checks.
         assert signal.is_set()
+        cause = signal.stop_cause
         gate.stopped, ledger.pending = False, ()
+        signal.refresh()
         assert signal.is_set()
+        assert signal.stop_cause == cause
         # A separately admitted operation remains independent.
         replacement = _OperationStopSignal(
             gate,
