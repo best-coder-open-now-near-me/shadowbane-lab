@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, fields, replace
 from math import hypot, sqrt
 from typing import Protocol, runtime_checkable
 
@@ -31,6 +31,23 @@ class TravelNavigationSource(Protocol):
         self,
         position: NativePlayerPositionObservation,
     ) -> NavigationMapSnapshot: ...
+
+
+@dataclass(frozen=True)
+class _RouteDispatchCheckpoint:
+    """Route proposal state only; native map observations are not rolled back."""
+
+    _navigation: NavigationMapSnapshot | None
+    _travel: TravelController | None
+    _click_count: int
+    _attempt_count: int
+    _replan_count: int
+    _direct_fallback_count: int
+    _partial_route_count: int
+    _route_mode: str | None
+    _travel_reaches_destination: bool
+    _backtrack_pending: bool
+    _terminal: TravelDecision | None
 
 
 class AStarTravelController:
@@ -73,6 +90,7 @@ class AStarTravelController:
         self._started_at_ms: int | None = None
         self._decision_id = 0
         self._click_count = 0
+        self._attempt_count = 0
         self._replan_count = 0
         self._direct_fallback_count = 0
         self._partial_route_count = 0
@@ -80,6 +98,12 @@ class AStarTravelController:
         self._travel_reaches_destination = False
         self._backtrack_pending = False
         self._terminal: TravelDecision | None = None
+        self._proposal_state: _RouteDispatchCheckpoint | None = None
+        self._proposal_decision: TravelDecision | None = None
+        self._follower_proposals: list[tuple[TravelController, TravelDecision]] = []
+        self._proposed_block: tuple[NavigationMapSnapshot, TravelObservation,
+                                    TravelDestination] | None = None
+        self._last_observation_ms: int | None = None
 
     @property
     def replan_count(self) -> int:
@@ -105,19 +129,112 @@ class AStarTravelController:
     def active_plan(self) -> TravelPlan | None:
         return None if self._travel is None else self._travel.plan
 
-    def step(self, observation: TravelObservation) -> TravelDecision:
+    def propose(self, observation: TravelObservation) -> TravelDecision:
+        if self._proposal_state is not None:
+            raise RuntimeError("previous route proposal has not been resolved")
+        self._proposal_state = _RouteDispatchCheckpoint(
+            **{field.name: getattr(self, field.name) for field in fields(_RouteDispatchCheckpoint)}
+        )
+        try:
+            decision = self.step(observation)
+        except Exception:
+            for follower, proposed in self._follower_proposals:
+                follower.defer_dispatch(proposed, observation)
+            for field in fields(self._proposal_state):
+                setattr(self, field.name, getattr(self._proposal_state, field.name))
+            self._clear_proposal()
+            raise
+        self._proposal_decision = decision
+        return decision
+
+    def acknowledge_dispatch(self, decision: TravelDecision) -> None:
+        self._require_proposal(decision)
+        for follower, proposed in self._follower_proposals:
+            follower.acknowledge_dispatch(proposed)
+        if self._proposed_block is not None:
+            navigation, observation, waypoint = self._proposed_block
+            navigation.navigation_map.mark_blocked_ahead(observation.position, waypoint)
+        self._clear_proposal()
+
+    def defer_dispatch(
+        self, decision: TravelDecision, observation: TravelObservation,
+    ) -> TravelDecision:
+        checkpoint = self._require_proposal(decision)
+        for follower, proposed in self._follower_proposals:
+            follower.defer_dispatch(proposed, observation)
+        for field in fields(checkpoint):
+            setattr(self, field.name, getattr(checkpoint, field.name))
+        self._clear_proposal()
+        return replace(
+            decision, click_count=self._click_count, minimap_direction=None,
+            click_destination=None, maneuver=None, progress_refresh=False,
+            phase=TravelPhase.TRAVELING, terminal_reason=None, arrival_destination=None,
+        )
+
+    def _require_proposal(self, decision: TravelDecision) -> _RouteDispatchCheckpoint:
+        if self._proposal_state is None or self._proposal_decision is not decision:
+            raise RuntimeError("route dispatch acknowledgement does not match its proposal")
+        return self._proposal_state
+
+    def _clear_proposal(self) -> None:
+        self._proposal_state = None
+        self._proposal_decision = None
+        self._follower_proposals.clear()
+        self._proposed_block = None
+
+    def _step_follower(self, observation: TravelObservation) -> TravelDecision:
+        assert self._travel is not None
+        if self._proposal_state is None:
+            return self._travel.step(observation)
+        decision = self._travel.propose(observation)
+        self._follower_proposals.append((self._travel, decision))
+        return decision
+
+    def observe_deferred(self, observation: TravelObservation) -> TravelDecision:
+        if self._proposal_state is not None:
+            raise RuntimeError("previous route proposal has not been resolved")
+        terminal = self._observe_bounds(observation)
+        if terminal is not None:
+            return terminal
+        if self._travel is not None:
+            decision = self._travel.observe_deferred(observation)
+            if decision.phase is TravelPhase.COMPLETE and not self._travel_reaches_destination:
+                # The native pause may carry us onto a horizon/frontier hint.
+                # Keep that physical passage, but let normal ready planning
+                # continue the route; it is never arrival at the global goal.
+                decision = replace(
+                    decision, phase=TravelPhase.TRAVELING, terminal_reason=None,
+                    arrival_destination=None,
+                )
+            return self._translate(decision)
+        return TravelDecision(
+            decision_id=self._next_decision_id(), now_ms=observation.now_ms,
+            phase=TravelPhase.TRAVELING, waypoint_index=0, click_count=self._click_count,
+            distance_remaining=self._destination.distance_from(observation.position),
+        )
+
+    def _observe_bounds(self, observation: TravelObservation) -> TravelDecision | None:
         if not isinstance(observation, TravelObservation):
             raise ValueError("observation must be a TravelObservation")
         if self._terminal is not None:
             return self._terminal
+        if self._last_observation_ms is not None and observation.now_ms < self._last_observation_ms:
+            raise ValueError("observation time cannot move backwards")
+        self._last_observation_ms = observation.now_ms
         if self._started_at_ms is None:
             self._started_at_ms = observation.now_ms
         if observation.now_ms - self._started_at_ms >= self._config.maximum_session_ms:
             return self._stop("session_timeout", observation)
         if observation.player.health_fraction < self._config.minimum_health_fraction:
             return self._stop("low_player_health", observation)
-        if self._click_count >= self._config.maximum_clicks:
+        if self._attempt_count >= self._config.maximum_clicks:
             return self._stop("maximum_clicks", observation)
+        return None
+
+    def step(self, observation: TravelObservation) -> TravelDecision:
+        terminal = self._observe_bounds(observation)
+        if terminal is not None:
+            return terminal
 
         navigation = self._navigation_source.observe(observation.position)
         if self._travel is None or (
@@ -139,7 +256,18 @@ class AStarTravelController:
                 return self._stop(self._route_failure(exc), observation)
 
         assert self._travel is not None
-        decision = self._travel.step(observation)
+        decision = self._step_follower(observation)
+        if decision.terminal_reason == "route_corridor_blocked":
+            if self._replan_count >= self._maximum_replans:
+                return self._stop("maximum_replans", observation)
+            try:
+                self._travel, self._travel_reaches_destination, self._route_mode = self._plan(
+                    observation, reason="route_corridor_changed", allow_partial_fallback=True,
+                )
+            except AStarRouteNotFound as exc:
+                return self._stop(self._route_failure(exc), observation)
+            self._replan_count += 1
+            decision = self._step_follower(observation)
         if decision.phase is TravelPhase.COMPLETE and not self._travel_reaches_destination:
             if self._replan_count >= self._maximum_replans:
                 return self._stop("maximum_replans", observation)
@@ -152,7 +280,7 @@ class AStarTravelController:
             except AStarRouteNotFound as exc:
                 return self._stop(self._route_failure(exc), observation)
             self._replan_count += 1
-            decision = self._travel.step(observation)
+            decision = self._step_follower(observation)
         if (
             decision.maneuver is not None
             and decision.maneuver is not TravelManeuver.DIRECT
@@ -161,10 +289,12 @@ class AStarTravelController:
             assert self._navigation is not None
             if not self._backtrack_pending:
                 active_waypoint = self._travel.plan.destinations[decision.waypoint_index]
-                self._navigation.navigation_map.mark_blocked_ahead(
-                    observation.position,
-                    active_waypoint,
-                )
+                if self._proposal_state is None:
+                    self._navigation.navigation_map.mark_blocked_ahead(
+                        observation.position, active_waypoint,
+                    )
+                else:
+                    self._proposed_block = (self._navigation, observation, active_waypoint)
                 self._backtrack_pending = True
                 return self._translate(decision)
             self._backtrack_pending = False
@@ -181,7 +311,7 @@ class AStarTravelController:
                 self._travel_reaches_destination = reaches_destination
                 self._route_mode = route_mode
                 self._replan_count += 1
-                decision = self._travel.step(observation)
+                decision = self._step_follower(observation)
         elif decision.maneuver is TravelManeuver.DIRECT:
             self._backtrack_pending = False
         return self._translate(decision)
@@ -273,6 +403,9 @@ class AStarTravelController:
                 ),
                 self._config,
                 observer=self._planner.observer,
+                shortcut_clear=lambda start, path: route.grid.shortcut_clear(
+                    (start.x, start.y), tuple((point.x, point.y) for point in path)
+                ),
             ),
             reaches_destination,
             route_mode,
@@ -378,6 +511,8 @@ class AStarTravelController:
     def _translate(self, decision: TravelDecision) -> TravelDecision:
         if decision.minimap_direction is not None:
             self._click_count += 1
+            if not decision.progress_refresh:
+                self._attempt_count += 1
         translated = replace(
             decision,
             decision_id=self._next_decision_id(),

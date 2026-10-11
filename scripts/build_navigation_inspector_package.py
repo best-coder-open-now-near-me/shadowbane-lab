@@ -340,6 +340,7 @@ def validate_combat_power_special_steps(steps, *, reviewed_client):
 
 
 REQUIRED_MOVEMENT_IPC_TESTS = frozenset({
+    "test_actual_coordinate_parent_ipc_preserves_one_operation_and_proves_successor",
     "test_real_service_only_update_gap_preserves_exact_owner_and_cleanup",
     "test_real_parent_cancel_preserves_pending_native_owner_until_cleanup_ack",
     "test_real_cleanup_pending_preserves_owner_until_native_ack",
@@ -738,6 +739,7 @@ def main() -> int:
             run(
                 f"{profile}-movement-ipc",
                 [sys.executable, "-m", "pytest", "tests/test_native_movement_session.py",
+                 "tests/test_coordinate_parent_session.py",
                  "tests/test_manager_movement.py", "tests/test_native_movement_operation.py",
                  "tests/test_movement_boundary.py",
                  "tests/test_controller_profile.py",

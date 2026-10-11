@@ -77,6 +77,7 @@ def test_native_travel_accepts_uncalibrated_client_without_pixel_dispatch(
     if injected:
         f.operation.assert_not_called()
     else:
+        assert f.operation.call_args.kwargs == {"coordinate_only": True}
         guard = f.operation.call_args.args[0]
         assert guard.require_target().process_started_at_100ns == 456
 

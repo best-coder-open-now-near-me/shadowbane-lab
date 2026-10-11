@@ -134,8 +134,101 @@ class NavigationCostGrid:
         )
 
 
+    def segment_cost(
+        self, start_lt: float, start_lg: float, end_lt: float, end_lg: float,
+    ) -> float | None:
+        """Cost through every touched modeled cell, or None outside its clear corridor.
+
+        Uses actual world endpoints, including cell-edge and corner contact. This
+        certifies only this immutable planning grid, not unobserved world geometry.
+        """
+        coordinates = (start_lt, start_lg, end_lt, end_lg)
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not isfinite(v)
+               for v in coordinates):
+            return None
+        sx, sy, ex, ey = (v / self.cell_size for v in coordinates)
+        if not all(isfinite(v) for v in (sx, sy, ex, ey)):
+            return None
+
+        def clear_cost(x: int, y: int, edge_x: bool = False, edge_y: bool = False):
+            cells = tuple(
+                NavigationCell(cx, cy)
+                for cx in ((x - 1, x) if edge_x else (x,))
+                for cy in ((y - 1, y) if edge_y else (y,))
+            )
+            if any(not self.contains(cell) or cell in self.blocked for cell in cells):
+                return None
+            return max(self.traversal_cost(cell) for cell in cells)
+
+        # Endpoints on an edge touch both sides; a corner cannot bypass a wall.
+        for x, y in ((sx, sy), (ex, ey)):
+            if clear_cost(floor(x), floor(y), x == floor(x), y == floor(y)) is None:
+                return None
+        dx, dy = ex - sx, ey - sy
+        length = hypot(end_lt - start_lt, end_lg - start_lg)
+        if not isfinite(length):
+            return None
+        if length == 0:
+            return 0.0
+        step_x, step_y = (1 if dx > 0 else -1), (1 if dy > 0 else -1)
+        x = floor(sx) - int(dx < 0 and sx == floor(sx))
+        y = floor(sy) - int(dy < 0 and sy == floor(sy))
+        edge_x, edge_y = dx == 0 and sx == floor(sx), dy == 0 and sy == floor(sy)
+        time_x = ((x + (dx > 0) - sx) / dx) if dx else inf
+        time_y = ((y + (dy > 0) - sy) / dy) if dy else inf
+        delta_x, delta_y = (1 / abs(dx) if dx else inf), (1 / abs(dy) if dy else inf)
+        elapsed, cost = 0.0, 0.0
+        # Each iteration crosses at least one cell boundary, bounded by the
+        # endpoint cells inside this finite grid. No search or native call occurs.
+        while elapsed < 1:
+            cell_cost = clear_cost(x, y, edge_x, edge_y)
+            if cell_cost is None:
+                return None
+            next_time = min(time_x, time_y, 1.0)
+            cost += max(0.0, next_time - elapsed) * length * cell_cost
+            if next_time >= 1:
+                return cost
+            cross_x = time_x <= time_y or isclose(time_x, time_y, rel_tol=0, abs_tol=1e-12)
+            cross_y = time_y <= time_x or isclose(time_x, time_y, rel_tol=0, abs_tol=1e-12)
+            if cross_x and cross_y:
+                if (clear_cost(x + step_x, y) is None
+                        or clear_cost(x, y + step_y) is None):
+                    return None
+            if cross_x:
+                x += step_x
+                time_x += delta_x
+            if cross_y:
+                y += step_y
+                time_y += delta_y
+            elapsed = next_time
+        return cost
+
+    def segment_clear(
+        self, start_lt: float, start_lg: float, end_lt: float, end_lg: float,
+    ) -> bool:
+        return self.segment_cost(start_lt, start_lg, end_lt, end_lg) is not None
+
+    def shortcut_clear(
+        self, start: tuple[float, float], waypoints: tuple[tuple[float, float], ...],
+    ) -> bool:
+        """Permit a clear shortcut only when it preserves the modeled route cost."""
+        if not waypoints:
+            return False
+        direct = self.segment_cost(*start, *waypoints[-1])
+        if direct is None:
+            return False
+        original = 0.0
+        for first, second in pairwise((start, *waypoints)):
+            part = self.segment_cost(*first, *second)
+            if part is None:
+                return False
+            original += part
+        return direct <= original + 1e-9
+
+
 @dataclass(frozen=True, slots=True)
 class AStarRoute:
+    grid: NavigationCostGrid
     cells: tuple[NavigationCell, ...]
     destinations: tuple[TravelDestination, ...]
     expanded_cells: int
@@ -706,6 +799,7 @@ class WeightedAStarPlanner:
             None,
         )
         return AStarRoute(
+            grid=grid,
             cells=smoothed,
             destinations=tuple(destinations),
             expanded_cells=expanded,
@@ -843,6 +937,7 @@ class WeightedAStarPlanner:
             None,
         )
         return AStarRoute(
+            grid=grid,
             cells=smoothed,
             destinations=tuple(destinations),
             expanded_cells=expanded,

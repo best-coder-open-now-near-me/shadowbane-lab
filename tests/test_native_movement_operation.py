@@ -371,3 +371,36 @@ def test_native_operation_resize_does_not_revoke_but_replacement_does(setup):
         inspector.snapshot = original
         assert operation.is_set()
     session.acquire.assert_called_once()
+
+
+def test_standalone_coordinate_mode_is_explicit_and_passed_before_acquisition(setup):
+    original, session, guard, parent, _, _ = setup
+    operation = module.NativeMovementOperation(guard, parent, coordinate_only=True)
+    with operation:
+        assert session.acquire.call_args.kwargs == {"coordinate_only": True}
+    assert original._coordinate_only is False
+
+
+
+def test_coordinate_terminal_pause_marks_cleanup_before_forwarding_owner_check(setup):
+    from dataclasses import replace
+
+    operation, session, _, _, decision, _ = setup
+    operation._coordinate_only = True
+    operation._session = session
+    operation._native = SimpleNamespace(
+        grant=session.acquire.return_value, stop_movement=MagicMock(),
+    )
+    seen = []
+
+    def stopped():
+        seen.append(session.cleanup.blocked(operation._native.grant))
+        return False
+
+    operation.is_set = stopped
+    operation.stop_movement(replace(
+        decision, phase=TravelPhase.STOPPED, minimap_direction=None, maneuver=None,
+        click_destination=None, terminal_reason="session_timeout",
+    ))
+    assert seen == [True]
+    operation._native.stop_movement.assert_called_once()

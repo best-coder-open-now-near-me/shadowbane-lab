@@ -18,13 +18,14 @@ from shadowbane_lab.client_extension.movement_session import (
 from shadowbane_lab.client_extension.movement_wire import (
     CLEANUP_PENDING,
     Outcome,
+    Owner,
     Receipt,
     Snapshot,
 )
 from shadowbane_lab.client_input import StopSignal
 from shadowbane_lab.client_input.stop import StopCause, observed_stop_cause
 
-from .operation import WorkerOperation
+from .operation import WorkerOperation, WorkerOperationKind
 
 
 class OperationMovement:
@@ -97,11 +98,16 @@ class OperationMovement:
                     return False
                 try:
                     self._acquisition_attempted = True
+                    acquire_options = (
+                        {"coordinate_only": True}
+                        if self.operation.kind is WorkerOperationKind.TRAVEL else {}
+                    )
                     grant = self.session.acquire(
                         expected,
                         self.operation.worker_id,
                         self.operation.operation_id,
                         self.request_key,
+                        **acquire_options,
                     )
                     self.dispatcher = NativeMovementTravelDispatcher(self.session, grant)
                     return not self.is_set()
@@ -228,6 +234,9 @@ class OperationMovement:
                 and (snapshot.grant.generation > grant.ownership.generation
                      or snapshot.grant.scene > grant.ownership.scene)
                 and snapshot.grant != grant.ownership
+                and not (snapshot.grant.owner is Owner.AUTOMATION
+                         and snapshot.grant.worker_id == grant.ownership.worker_id
+                         and snapshot.grant.operation_id == grant.ownership.operation_id)
                 and not snapshot.flags & CLEANUP_PENDING
                 and not self.session.cleanup.has_pending(grant)
             )
@@ -260,6 +269,7 @@ class OperationMovement:
                                 and receipt.outcome is Outcome.ACCEPTED
                                 and not receipt.flags & CLEANUP_PENDING
                                 and receipt.grant != grant.ownership
+                                and receipt.grant.owner is not Owner.AUTOMATION
                                 and receipt.grant.generation > grant.ownership.generation
                                 and not self.session.cleanup.has_pending(grant))
                             break

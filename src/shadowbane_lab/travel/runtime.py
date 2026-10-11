@@ -29,6 +29,10 @@ from shadowbane_lab.travel.model import (
 )
 
 
+class TravelDispatchDeferred(RuntimeError):
+    """A coordinate-parent handoff has not submitted this movement proposal."""
+
+
 @runtime_checkable
 class PositionSource(Protocol):
     def observe(self) -> NativePlayerPositionObservation: ...
@@ -55,6 +59,19 @@ class TravelControl(Protocol):
         reason: str,
         observation: TravelObservation | None = None,
     ) -> TravelDecision: ...
+
+
+@runtime_checkable
+class TransactionalTravelControl(TravelControl, Protocol):
+    def propose(self, observation: TravelObservation) -> TravelDecision: ...
+
+    def acknowledge_dispatch(self, decision: TravelDecision) -> None: ...
+
+    def defer_dispatch(
+        self, decision: TravelDecision, observation: TravelObservation,
+    ) -> TravelDecision: ...
+
+    def observe_deferred(self, observation: TravelObservation) -> TravelDecision: ...
 
 
 class ClientTravelDecisionDispatcher:
@@ -163,6 +180,8 @@ class TravelRunner:
         terminal: TravelDecision | None = None
         stop_input_accepted: bool | None = None
         stop_input_reason: str | None = None
+        transactional = isinstance(self._controller, TransactionalTravelControl)
+        prepare_dispatch = getattr(self._dispatcher, "prepare_dispatch", None)
         while terminal is None:
             if self._stop_signal.is_set():
                 terminal = self._controller.stop("emergency_stop", last_observation)
@@ -175,7 +194,26 @@ class TravelRunner:
                     player=self._player_vitals_reader.observe(),
                 )
                 last_observation = observation
-                decision = self._controller.step(observation)
+                deferred_reason = None
+                if callable(prepare_dispatch):
+                    try:
+                        prepare_dispatch()
+                    except TravelDispatchDeferred as exc:
+                        if not transactional:
+                            raise RuntimeError("controller cannot defer native dispatch") from exc
+                        deferred_reason = f"dispatch_deferred:{exc}"
+                    except Exception as exc:
+                        terminal = self._controller.stop(
+                            f"input_failure:{type(exc).__name__}", observation,
+                        )
+                        trace.append(self._trace(terminal, observation))
+                        break
+                if deferred_reason is not None:
+                    decision = self._controller.observe_deferred(observation)
+                elif transactional:
+                    decision = self._controller.propose(observation)
+                else:
+                    decision = self._controller.step(observation)
             except Exception as exc:
                 consecutive_failures += 1
                 if consecutive_failures < self._maximum_observation_failures:
@@ -192,11 +230,25 @@ class TravelRunner:
             consecutive_failures = 0
 
             accepted = None
-            reason = None
+            reason = deferred_reason
+            proposal_pending = transactional and deferred_reason is None
             if decision.minimap_direction is not None:
                 try:
                     result = self._dispatcher.dispatch(decision)
+                except TravelDispatchDeferred as exc:
+                    if not transactional:
+                        terminal = self._controller.stop(
+                            "input_failure:unsupported_dispatch_deferral", observation,
+                        )
+                        trace.append(self._trace(terminal, observation))
+                        break
+                    decision = self._controller.defer_dispatch(decision, observation)
+                    proposal_pending = False
+                    deferred_reason = f"dispatch_deferred:{exc}"
+                    result = None
                 except Exception as exc:
+                    if proposal_pending:
+                        self._controller.defer_dispatch(decision, observation)
                     reason = f"input_failure:{type(exc).__name__}"
                     trace.append(
                         self._trace(
@@ -209,9 +261,12 @@ class TravelRunner:
                     terminal = self._controller.stop(reason, observation)
                     trace.append(self._trace(terminal, observation))
                     break
-                accepted = result.accepted
-                reason = result.reason
-                if not result.accepted:
+                if result is not None:
+                    accepted = result.accepted
+                    reason = result.reason
+                if result is not None and not result.accepted:
+                    if proposal_pending:
+                        self._controller.defer_dispatch(decision, observation)
                     trace.append(
                         self._trace(
                             decision,
@@ -223,6 +278,11 @@ class TravelRunner:
                     terminal = self._controller.stop("guarded_input_rejected", observation)
                     trace.append(self._trace(terminal, observation))
                     break
+            if proposal_pending:
+                self._controller.acknowledge_dispatch(decision)
+            if deferred_reason is not None:
+                self._debug_result("dispatch_deferred", observation.now_ms, deferred_reason)
+                reason = None  # no native input outcome exists for an unsubmitted proposal
             trace.append(
                 self._trace(
                     decision,

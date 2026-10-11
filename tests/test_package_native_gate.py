@@ -72,6 +72,7 @@ def test_required_runtime_failures_cannot_be_waived(tmp_path, name, diagnostic):
 
 
 @pytest.mark.parametrize("profile_name", [
+    "test_actual_coordinate_parent_ipc_preserves_one_operation_and_proves_successor",
     "test_profile_configuration_crosses_real_native_channel_atomically",
     "test_real_cleanup_pending_preserves_owner_until_native_ack",
     "test_real_parent_cancel_preserves_pending_native_owner_until_cleanup_ack",

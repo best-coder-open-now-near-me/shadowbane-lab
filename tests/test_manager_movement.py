@@ -7,6 +7,7 @@ from shadowbane_lab.client_extension.cleanup_settlement import CleanupSettlement
 from shadowbane_lab.client_extension.movement_session import NativeMovementError
 from shadowbane_lab.client_extension.movement_wire import Outcome, Owner
 from shadowbane_lab.manager.movement import OperationMovement
+from shadowbane_lab.manager.operation import WorkerOperationKind
 from tests.test_native_movement_dispatcher import setup
 
 
@@ -19,7 +20,8 @@ def context():
     session.renew_calls = []
     session.closed = 0
 
-    def acquire(*args):
+    def acquire(*args, **kwargs):
+        session.acquire_options = kwargs
         session.acquire_calls.append(args)
         return grant
 
@@ -34,7 +36,9 @@ def context():
     session.close = close
     session.renew = session.renew_calls.append
     parent = threading.Event()
-    operation = SimpleNamespace(worker_id="worker", operation_id="operation")
+    operation = SimpleNamespace(
+        worker_id="worker", operation_id="operation", kind=WorkerOperationKind.PVE,
+    )
     return OperationMovement(operation, session, parent), session, decision
 
 
@@ -295,7 +299,9 @@ def test_operation_context_uses_real_native_interprocess_movement():
     try:
         pid, creation, window = map(int, process.stdout.readline().split())
         session = NativeMovementSession(NativeClientProcessIdentity(pid, creation), window)
-        operation = SimpleNamespace(worker_id="worker", operation_id=str(uuid.uuid4()))
+        operation = SimpleNamespace(
+            worker_id="worker", operation_id=str(uuid.uuid4()), kind=WorkerOperationKind.PVE,
+        )
         movement = OperationMovement(operation, session, threading.Event())
         assert movement.acquire()  # 1st receipt
         _, _, decision = setup()
