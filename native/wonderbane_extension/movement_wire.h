@@ -10,7 +10,7 @@
 namespace wonderbane::extension::movement::wire {
 constexpr std::uint32_t schema = 3, command_size = 768, result_size = 512, status_size = 512;
 constexpr std::uint32_t command_prefix = 192, result_prefix = 128;
-enum class Verb : std::uint32_t { acquire = 3, destination = 4, stop = 5, configure = 6, pause = 7 };
+enum class Verb : std::uint32_t { acquire = 3, destination = 4, stop = 5, configure = 6, pause = 7, acquire_coordinate = 54, continue_parent = 55 };
 #pragma pack(push, 1)
 struct Host { std::uint32_t process = 0, generation = 0; std::uint64_t creation = 0; };
 struct Token { char worker[96]{}, operation[96]{}; };
@@ -50,7 +50,7 @@ static_assert(offsetof(Command, requested) == 380 && offsetof(Receipt, host) == 
 static_assert(offsetof(Status, grant) == 32 && offsetof(Status, revision) == 352);
 // Status flags describe observations only; none confers a command lease.
 constexpr std::uint32_t bindings = 1, ready = 2, camera = 4, terminal = 8,
-    controller_api = 16, controller_connected = 32, cleanup_pending = 64, known_flags = 127;
+    controller_api = 16, controller_connected = 32, cleanup_pending = 64, coordinate_parent_capable = 128, known_flags = 255;
 // cleanup_pending requires bindings, an unchanged automation Grant and no
 // ready/terminal claim. It permits owner renewal/status/cleanup, never new input.
 inline bool Zero(const void* bytes, std::size_t count) noexcept {
@@ -124,10 +124,11 @@ inline bool Valid(Verb verb, const Command& value) noexcept {
     if (!Valid(value.host) || !value.window || value.window > UINT32_MAX
         || !Decode(value.expected, grant) || Zero(value.request.data(), value.request.size())
         || !Decode(value.settings, settings) || !Zero(value.reserved, sizeof(value.reserved))) { return false; }
-    if (verb == Verb::acquire) {
+    if (verb == Verb::acquire || verb == Verb::acquire_coordinate) {
         return !Zero(value.request.data(), value.request.size()) && Decode(value.requested, token, true);
     }
     if (!Zero(&value.requested, sizeof(value.requested))) { return false; }
+    if (verb == Verb::continue_parent) { return grant.owner == Owner::automation && value.revision <= 1; }
     if (verb == Verb::destination) {
         return grant.owner == Owner::automation && std::isfinite(value.destination.x)
             && std::isfinite(value.destination.y) && std::isfinite(value.destination.z);

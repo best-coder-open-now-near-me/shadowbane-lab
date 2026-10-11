@@ -33,7 +33,10 @@ class NativeMovementOperation:
     A cancelled operation is never rearmed or reacquired.
     """
 
-    def __init__(self, guard: NativeClientTarget, parent: StopSignal):
+    def __init__(self, guard: NativeClientTarget, parent: StopSignal, *, coordinate_only=False):
+        if type(coordinate_only) is not bool:
+            raise ValueError("coordinate_only must be bool")
+        self._coordinate_only = coordinate_only
         self.guard, self.parent = guard, parent
         self._wake = threading.Event()
         self._cancelled = threading.Event()
@@ -111,7 +114,8 @@ class NativeMovementOperation:
             for attempt in range(2):
                 try:
                     grant = self._session.acquire(
-                        expected, "standalone-cli", self._operation, self._operation
+                        expected, "standalone-cli", self._operation, self._operation,
+                        **({"coordinate_only": True} if self._coordinate_only else {}),
                     )
                     break
                 except NativeActionChannelTimeout:
@@ -221,6 +225,10 @@ class NativeMovementOperation:
                     self._interrupt(f"native_movement_stop:{type(exc).__name__}")
                 return
 
+    def prepare_dispatch(self) -> None:
+        if not self.is_set() and self._native is not None:
+            self._native.prepare_dispatch()
+
     def dispatch(self, decision: TravelDecision):
         if self.is_set():
             return DispatchResult(
@@ -229,6 +237,10 @@ class NativeMovementOperation:
         return self._native.dispatch(decision)
 
     def stop_movement(self, decision: TravelDecision):
+        if not isinstance(decision, TravelDecision) or not decision.terminal:
+            raise ValueError("movement pause requires a terminal travel decision")
+        if self._coordinate_only and self._native is not None:
+            self._session.cleanup.request_terminal(self._native.grant)
         if self.is_set():
             return DispatchResult(
                 "native_movement", f"travel:{decision.decision_id}:cancelled", False, self._reason

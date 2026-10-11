@@ -65,7 +65,7 @@ def test_snapshot_and_receipt_preserve_pending_cleanup_bit(owner):
         (PENDING | 8, movement.Owner.AUTOMATION),
         (PENDING, movement.Owner.NONE),
         (PENDING, movement.Owner.MANUAL),
-        (PENDING | 128, movement.Owner.AUTOMATION),
+        (PENDING | 256, movement.Owner.AUTOMATION),
     ],
 )
 def test_pending_flag_cannot_hide_invalid_status(owner, flags, owner_kind):
