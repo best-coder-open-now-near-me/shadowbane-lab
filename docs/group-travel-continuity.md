@@ -94,3 +94,15 @@ maintenance with stale/unavailable observation and changed roster, pre-execution
 rejection, explicit cancellation/disable, native failure, consumed status and
 blocking persistence. This source correction still requires composed-package
 qualification and a fresh live command; it does not establish successful arrival.
+
+## Producer renewal separation - October 11
+
+The .101 source above was integrated through PR #162 and installed from composed
+release `4d365500168dd7ad6e819c242598e4d3eec5b9d9`. A fresh command still failed
+before route dispatch, this time with explicit native producer-heartbeat expiry
+(age 1,031 ms; renewal wait 0 ms). The exact preceding host delay was not captured.
+Host .102 addresses the demonstrated ledger/status coupling through bounded
+committed current authority and independent native maintenance. It preserves
+original permit expiry, Stop/Cancel crash recovery and exact cleanup ownership;
+see [the source boundary and validation](worker-native-maintenance.md). Native .65
+and its timeouts are unchanged. Fresh live movement acceptance remains required.
