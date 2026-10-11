@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass, fields, replace
 from enum import StrEnum
 from math import hypot
 
@@ -30,6 +31,34 @@ class _EscapePhase(StrEnum):
     BACKUP = "backup"
     SWEEP = "sweep"
     BYPASS = "bypass"
+
+
+@dataclass(frozen=True)
+class _DispatchCheckpoint:
+    """Only proposal-owned follower state; feedback, clock and IDs never rewind."""
+
+    _waypoint_index: int
+    _click_count: int
+    _attempt_count: int
+    _handoff_target: TravelDestination | None
+    _last_click_at_ms: int | None
+    _last_click_distance: float | None
+    _progress_at_ms: int | None
+    _last_move_endpoint: Vector2 | None
+    _no_progress_clicks: int
+    _escape_sequence_count: int
+    _escape_step: int
+    _escape_phase: _EscapePhase
+    _escape_forward: Vector2
+    _escape_side_sign: float
+    _escape_phase_origin: Vector2
+    _escape_phase_origin_distance: float
+    _escape_last_position: Vector2
+    _escape_no_motion_clicks: int
+    _escape_side_switches: int
+    _escape_release_distance: float | None
+    _escaping: bool
+    _terminal: TravelDecision | None
 
 
 class TravelController:
@@ -77,6 +106,9 @@ class TravelController:
         self._last_observed_position: Vector2 | None = None
         self._ingress_direction = Vector2(0, 0)
         self._terminal: TravelDecision | None = None
+        self._proposal: tuple[_DispatchCheckpoint, TravelDecision] | None = None
+        self._proposal_checkpoint: _DispatchCheckpoint | None = None
+        self._dispatch_paused = False
 
     @property
     def plan(self) -> TravelPlan:
@@ -124,7 +156,82 @@ class TravelController:
         self._debug_route(observation)
         return self._complete(observation, distance)
 
-    def step(self, observation: TravelObservation) -> TravelDecision:
+    def propose(self, observation: TravelObservation) -> TravelDecision:
+        """Stage one decision until the dispatcher acknowledges its submission."""
+        if self._proposal is not None:
+            raise RuntimeError("previous travel proposal has not been resolved")
+        self._proposal_checkpoint = self._checkpoint()
+        try:
+            decision = self.step(observation)
+        except Exception:
+            self._restore(self._proposal_checkpoint)
+            raise
+        else:
+            self._proposal = (self._proposal_checkpoint, decision)
+            return decision
+        finally:
+            self._proposal_checkpoint = None
+
+    def _checkpoint(self) -> _DispatchCheckpoint:
+        return _DispatchCheckpoint(
+            **{field.name: getattr(self, field.name) for field in fields(_DispatchCheckpoint)}
+        )
+
+    def _restore(self, checkpoint: _DispatchCheckpoint) -> None:
+        for field in fields(checkpoint):
+            setattr(self, field.name, getattr(checkpoint, field.name))
+
+    def acknowledge_dispatch(self, decision: TravelDecision) -> None:
+        self._require_proposal(decision)
+        self._proposal = None
+
+    def defer_dispatch(
+        self, decision: TravelDecision, observation: TravelObservation,
+    ) -> TravelDecision:
+        checkpoint = self._require_proposal(decision)
+        self._restore(checkpoint)
+        self._proposal = None
+        self._pause_progress(observation)
+        return replace(
+            decision, waypoint_index=self._waypoint_index, click_count=self._click_count,
+            minimap_direction=None, click_destination=None, maneuver=None, progress_refresh=False,
+            phase=TravelPhase.TRAVELING, terminal_reason=None, arrival_destination=None,
+        )
+
+    def _require_proposal(self, decision: TravelDecision) -> _DispatchCheckpoint:
+        if self._proposal is None or self._proposal[1] is not decision:
+            raise RuntimeError("travel dispatch acknowledgement does not match its proposal")
+        return self._proposal[0]
+
+    def observe_deferred(self, observation: TravelObservation) -> TravelDecision:
+        """Keep observing safety/session bounds while native cleanup owns the pause."""
+        if self._proposal is not None:
+            raise RuntimeError("previous travel proposal has not been resolved")
+        previous = self._previous_observation
+        terminal = self._observe(observation)
+        if terminal is not None:
+            return terminal
+        progress = self._observe_waypoints(previous, observation)
+        if isinstance(progress, TravelDecision):
+            return progress
+        self._pause_progress(observation)
+        return self._decision(observation, distance=progress)
+
+    def _pause_progress(self, observation: TravelObservation) -> None:
+        # A known native cleanup pause is not evidence of a blocked route. Keep
+        # accepted attempt/escape budgets and the certified handoff hint intact.
+        self._dispatch_paused = True
+        self._last_click_at_ms = None
+        self._last_move_endpoint = None
+        self._progress_at_ms = observation.now_ms
+        self._last_click_distance = self._plan.destinations[self._waypoint_index].distance_from(
+            observation.position
+        )
+        self._no_progress_clicks = 0
+        self._escape_last_position = self._screen_position(observation)
+        self._escape_no_motion_clicks = 0
+
+    def _observe(self, observation: TravelObservation) -> TravelDecision | None:
         if not isinstance(observation, TravelObservation):
             raise ValueError("observation must be TravelObservation")
         if self._terminal is not None:
@@ -139,33 +246,30 @@ class TravelController:
         if self._started_at_ms is None:
             self._started_at_ms = observation.now_ms
             self._debug_event("start", observation)
-        elapsed = observation.now_ms - self._started_at_ms
-        if elapsed < 0:
-            raise ValueError("observation time cannot move backwards")
-        if elapsed >= self._config.maximum_session_ms:
+        if observation.now_ms - self._started_at_ms >= self._config.maximum_session_ms:
             return self._stop("session_timeout", observation)
         if observation.player.health_fraction < self._config.minimum_health_fraction:
             return self._stop("low_player_health", observation)
+        return None
 
-        if self._handoff_target is not None and (
-            self._handoff_target.distance_from(observation.position)
-            <= self._handoff_target.arrival_radius
-            or self._passed_waypoint(previous, observation, self._handoff_target)
-        ):
-            self._handoff_target = None
-        destination = self._plan.destinations[self._waypoint_index]
-        distance = destination.distance_from(observation.position)
-        while distance <= destination.arrival_radius or (
-            self._waypoint_index < len(self._plan.destinations) - 1
-            and self._passed_waypoint(previous, observation, destination)
-        ):
-            if self._waypoint_index == len(self._plan.destinations) - 1:
-                return self._complete(observation, distance)
-            self._waypoint_index += 1
-            self._debug_event("waypoint", observation)
-            self._reset_waypoint_progress()
-            destination = self._plan.destinations[self._waypoint_index]
-            distance = destination.distance_from(observation.position)
+    def step(self, observation: TravelObservation) -> TravelDecision:
+        previous = self._previous_observation
+        terminal = self._observe(observation)
+        if terminal is not None:
+            return terminal
+
+        progress = self._observe_waypoints(previous, observation)
+        if isinstance(progress, TravelDecision):
+            return progress
+        distance = progress
+        resuming = self._dispatch_paused
+        if resuming:
+            self._pause_progress(observation)
+            self._dispatch_paused = False
+        if self._proposal_checkpoint is not None:
+            # Real observed passage remains true even if the next target is not
+            # submitted. Only speculative shortcut/escape advancement is undone.
+            self._proposal_checkpoint = self._checkpoint()
 
         if self._escape_release_distance is not None and (
             self._escape_release_distance - distance >= self._config.escape_budget_reset_progress
@@ -180,7 +284,7 @@ class TravelController:
         )
         if self._escaping:
             return (
-                self._dispatch_escape(observation, distance=distance)
+                self._dispatch_escape(observation, distance=distance, observe_motion=not resuming)
                 if interval_due else self._decision(observation, distance=distance)
             )
 
@@ -257,6 +361,31 @@ class TravelController:
             maneuver=TravelManeuver.DIRECT,
             progress_refresh=not interval_due,
         )
+
+    def _observe_waypoints(
+        self, previous: TravelObservation | None, observation: TravelObservation,
+    ) -> float | TravelDecision:
+        if self._handoff_target is not None and (
+            self._handoff_target.distance_from(observation.position)
+            <= self._handoff_target.arrival_radius
+            or self._passed_waypoint(previous, observation, self._handoff_target)
+        ):
+            self._handoff_target = None
+        destination = self._plan.destinations[self._waypoint_index]
+        distance = destination.distance_from(observation.position)
+        while distance <= destination.arrival_radius or (
+            self._waypoint_index < len(self._plan.destinations) - 1
+            and self._passed_waypoint(previous, observation, destination)
+        ):
+            if self._waypoint_index == len(self._plan.destinations) - 1:
+                return self._complete(observation, distance)
+            self._waypoint_index += 1
+            self._debug_event("waypoint", observation)
+            self._reset_waypoint_progress()
+            destination = self._plan.destinations[self._waypoint_index]
+            distance = destination.distance_from(observation.position)
+
+        return distance
 
     def _reset_waypoint_progress(self) -> None:
         self._last_click_at_ms = None
@@ -510,8 +639,10 @@ class TravelController:
         observation: TravelObservation,
         *,
         distance: float,
+        observe_motion: bool = True,
     ) -> TravelDecision:
-        self._observe_escape_motion(observation)
+        if observe_motion:
+            self._observe_escape_motion(observation)
         if self._escape_step > 0 and (
             self._escape_phase_origin_distance - distance >= self._config.escape_reacquire_progress
         ):
