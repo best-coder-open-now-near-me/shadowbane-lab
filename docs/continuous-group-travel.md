@@ -54,7 +54,9 @@ integration are deprioritized until execution parity is established.
 
 ## Implementation boundaries
 
-The active branch is `codex/continuous-group-travel-20261011`, targeting `main`.
+The combined branch is `codex/coordinate-parent-continuity-20261011`, targeting
+`main`. It contains the follower checkpoint from PR #166 and native continuity
+checkpoint `7dc6355d`; the follower is not a separate deployment.
 Its follower work advances native destinations from observed motion and remaining
 endpoint distance, recognizes intermediate waypoints passed between samples,
 and uses the actual route grid for obstacle and cost-preserving lookahead.
@@ -73,12 +75,25 @@ This preserves existing bounded PvE and travel configurations while avoiding
 endpoint dwell. Grid checks protect modeled obstacles; they do not claim building
 geometry that the planner does not yet have.
 
-Parent-only transitions need their own ownership correction. Current native
-policy preserves manual movement across a verified parent change and revokes
-automation. Coordinate travel continuity must retain the original live producer
-authority while retiring old scene-bound references; character replacement,
-world change, lost lifetime observation and player takeover remain distinct.
-No runtime correction is installed by this source work yet.
+Coordinate-only travel now has a distinct native acquisition mode. A verified
+parent-only transition retains the original producer lease and operation identity,
+retires scene-bound references, and advances the scene and grant generation.
+The host acknowledges that successor through a correlated continuation command
+before sending another destination. Native cleanup must finish first; only the
+last accepted world coordinate may be resumed. The acknowledgement can be retried
+without repeating movement, and cancellation takes priority over continuation.
+Actor replacement, world change, lost lifetime observation, expired authority and
+player takeover still revoke ownership. Combat and PvE mixed-action grants keep
+their existing policy and cannot use coordinate-only continuation.
+
+The fixed-width movement wire remains schema 3. Capability bit 128 and verbs 54
+(coordinate acquisition) and 55 (parent continuation) require a matched host/DLL
+update. Missing capability is rejected before coordinate acquisition; there is no
+silent fallback to an older DLL. The runner stages waypoint decisions until native
+acceptance, deferring unsent proposals during cleanup without consuming movement
+attempts or treating the pause as an obstacle. Session and health limits remain
+active. Learned obstacle changes from an escape proposal commit only after its
+accepted dispatch. No runtime correction is installed by this source work yet.
 
 ## Evidence and current todos
 
@@ -98,7 +113,11 @@ upkeep after confirmed native cleanup. It is a timestamped observation.
   native travel, CLI and PvE validation passed 288 tests before the final-radius
   regression; 58 final follower/consumer tests and 50 independent corridor/follower
   tests passed afterward. Live acceptance is not implied.
-- Active: correct verified parent-transition ownership in the coordinated lane.
+- Complete: native continuity `7dc6355d`, required package IPC gates `c56a3753`,
+  and host continuation `4f80596c` are pushed. Native review and 55 native cases
+  passed; 28 final host continuation cases include actual cross-process IPC.
+- Active: finish independent review of transactional follower dispatch and qualify
+  the combined host .103/native .66 update.
 - Next: verify the preserved `/go` planner and recovery through the corrected
   native execution boundary, qualify the coherent update, then request one fresh
   live run. Revisit obstacle coverage only if the resulting evidence requires it.

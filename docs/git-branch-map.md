@@ -8,9 +8,14 @@ but stopped outside arrival on a verified parent-only native transition; short
 50-unit endpoints at approximately two-second intervals also explain the pacing
 complaint. Building collision is user-reported, not proven by the retained trace.
 
-`codex/continuous-group-travel-20261011` in `native-group-come` owns the active
-follower/corridor correction, targeting `main`. It is unfinished source work;
-installed host .102/native .65 remain unchanged. See
+`codex/coordinate-parent-continuity-20261011` in `bot-runtime` owns the combined
+correction, targeting `main`. It contains the pushed follower branch
+`codex/continuous-group-travel-20261011` through `72de0da9` (draft PR #166),
+merged into this lane at `b851a97b`, and native continuity at `7dc6355d`.
+Host/follower acknowledgement and combined qualification remain in progress;
+installed host .102/native .65 remain unchanged. The separate release composition
+must preserve graphics work from `codex/native-group-command-release-20261010`.
+Normal shared checkout remains on `main`; this feature work is outside it. See
 [continuous group travel](continuous-group-travel.md) for evidence, boundaries
 and remaining work. This entry supersedes the pending-login status below.
 
