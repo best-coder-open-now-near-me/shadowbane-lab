@@ -107,6 +107,7 @@ bool Controls::Retire(StopReason reason, Owner next, Token token,
     }
     ++grant_.generation;
     grant_.owner = next;
+    if (next != Owner::automation) { coordinate_only_ = false; }
     grant_.token = token;
     if (next_scene) { grant_.scene = *next_scene; }
     { const ActuationGuard guard(actuating_); actuator_.Revoked(old, grant_, reason); }
@@ -147,7 +148,7 @@ bool Controls::ConsumesKey(std::uint16_t key) const noexcept {
     if (!settings_.enabled || !settings_.keyboard || !available_ || !foreground_ || text_owned_) { return false; }
     return std::find(settings_.keys.begin(), settings_.keys.end(), key) != settings_.keys.end();
 }
-Result Controls::AcquireAutomation(std::uint64_t expected, Token token, Grant& output) noexcept {
+Result Controls::AcquireAutomation(std::uint64_t expected, Token token, Grant& output, bool coordinate_only) noexcept {
     if (actuating_ || shutdown_pending_) { return Result::inhibited; }
     if (expected != grant_.generation) { return Result::stale; }
     if (!ValidTokenText(token.worker) || !ValidTokenText(token.operation)) { return Result::invalid; }
@@ -159,6 +160,7 @@ Result Controls::AcquireAutomation(std::uint64_t expected, Token token, Grant& o
         return actuator_.Interrupted() ? Result::inhibited : Result::stop_failed;
     }
     if (shutdown_pending_) { Shutdown(); return Result::inhibited; }
+    coordinate_only_ = coordinate_only;
     output = grant_;
     return Result::accepted;
 }
@@ -185,6 +187,7 @@ Result Controls::AutomationDestination(const Grant& grant, GroundPoint point) no
     return Result::accepted;
 }
 Result Controls::BeginAutomationNativeAction(const Grant& grant) noexcept {
+    if (CoordinateOnly()) { return Result::inhibited; }
     if (actuating_ || shutdown_pending_) { return Result::inhibited; }
     if (grant != grant_ || grant.owner != Owner::automation) { return Result::stale; }
     if (!ContinueInput()) { return Result::inhibited; }
@@ -234,6 +237,22 @@ void Controls::ObserveScene(std::uint64_t scene) noexcept {
         Inhibit(StopReason::scene_changed);
         has_tick_ = false;
     }
+}
+
+bool Controls::ObserveCoordinateParentScene(std::uint64_t scene, bool admitted, std::uint64_t tick_ms) noexcept {
+    if (actuating_ || !scene || scene == grant_.scene || shutdown_ || shutdown_pending_
+        || !admitted || !CoordinateOnly() || !available_ || !foreground_ || text_owned_
+        || faulted_ || pending_stop_ || native_activity_ || actuator_.Interrupted()
+        || (has_tick_ && tick_ms < last_tick_)) { return false; }
+    const auto old = grant_;
+    { const ActuationGuard guard(actuating_); actuator_.SceneRetired(old.scene); }
+    // Never stop through an old parent-relative target. The exact actor/world/key
+    // continuity proof belongs to Runtime; cleanup below captures the new frame.
+    moving_ = native_activity_ = pending_stop_ = false;
+    if (!Retire(StopReason::scene_changed, Owner::automation, old.token, scene)) { return false; }
+    has_tick_ = false;
+    if (!StopActive(StopReason::takeover) || !ContinueInput()) { return false; }
+    return CoordinateOnly() && grant_.scene == scene;
 }
 
 bool Controls::ObserveParentScene(std::uint64_t scene, bool manual_admitted, std::uint64_t tick_ms) noexcept {

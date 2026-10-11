@@ -138,6 +138,33 @@ void ActionProfiles() {
     const auto unbound = f.actuator.Count('d'); f.input.left_stick = f.input.right_stick = {1, 0}; f.Step();
     Check(f.actuator.Count('d') == unbound, "unbound sticks never actuate native movement");
 }
+void CoordinateParentContinuity() {
+    for (const bool failed_stop : {false, true}) {
+        Fixture f; Grant original{};
+        Check(f.controls.AcquireAutomation(f.controls.Current().generation, Identity("coordinates"), original, true)
+            == Result::accepted, "coordinate-only owner admitted");
+        Check(f.controls.BeginAutomationNativeAction(original) == Result::inhibited,
+            "coordinate-only owner cannot open target action");
+        Check(f.controls.AutomationDestination(original, {10, 0, -20}) == Result::accepted,
+            "coordinate owner accepts world destination");
+        f.actuator.stop_ok = !failed_stop; ++f.input.scene; f.actuator.events.clear();
+        const bool result = f.controls.ObserveCoordinateParentScene(f.input.scene, true, f.input.tick_ms);
+        const auto next = f.controls.Current();
+        Check(result == !failed_stop && next.owner == Owner::automation && next.token == original.token
+            && next.scene == f.input.scene && next.generation > original.generation,
+            "parent transition keeps exact token only under fresh successor");
+        Check(f.actuator.events.front().kind == 'e' && f.actuator.events.back().kind == 's'
+            && f.actuator.events.back().grant == next && f.actuator.Count('p') == 0,
+            "old references retire before fresh-frame stop with no implicit replay");
+        Check(f.controls.Stop(original) == Result::stale, "unmapped old cleanup cannot touch successor");
+        if (failed_stop) {
+            Check(f.controls.CleanupPending(), "unresolved fresh stop retains cleanup-only owner");
+            f.actuator.stop_ok = true;
+            Check(f.controls.PauseAutomation(next) == Result::accepted && !f.controls.CleanupPending(),
+                "same successor cleanup can settle before any new input");
+        }
+    }
+}
 void ParentContinuity() {
     { Fixture f; ++f.input.scene; f.actuator.events.clear();
       Check(!f.controls.ObserveParentScene(f.input.scene, true, f.input.tick_ms)
@@ -814,6 +841,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    TravelUpdateGaps(); StartupUpdateGaps(); PendingServiceTakeover(); ServiceUpdateGaps(); RetainedCleanupStatus(); ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
+    TravelUpdateGaps(); StartupUpdateGaps(); PendingServiceTakeover(); ServiceUpdateGaps(); RetainedCleanupStatus(); ActionProfiles(); CoordinateParentContinuity(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

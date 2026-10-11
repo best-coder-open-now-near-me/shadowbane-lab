@@ -38,6 +38,10 @@ public:
     std::optional<StopReason> interrupted;
     std::shared_ptr<CommandLease> automation_lease;
     Grant automation_grant{};
+    bool coordinate_pending = false, coordinate_transition_active = false;
+    Grant coordinate_predecessor{};
+    std::optional<GroundPoint> coordinate_destination;
+    std::optional<std::pair<wire::Command, wire::Receipt>> coordinate_receipt;
     std::shared_ptr<CommandLease> executing_lease;
     std::uint64_t executing_deadline = 0;
     static bool MovementAdmission(void* context) noexcept {
@@ -49,7 +53,7 @@ public:
         return !self.automation_lease || self.controls.Current() != self.automation_grant
             || self.automation_lease->Current(self.clock());
     }
-    struct Acquisition { wire::Command request; wire::Receipt receipt; };
+    struct Acquisition { wire::Verb verb; wire::Command request; wire::Receipt receipt; };
     std::map<std::array<std::uint8_t, 16>, Acquisition> acquisitions;
     static constexpr std::size_t acquisition_capacity = 128;
     std::uint64_t retired_acquisition_generation = 0;
@@ -103,10 +107,11 @@ public:
         return stopped;
     }
     Result BeginOwnerAction(const NativeScene& expected, const Grant& grant, const wire::Host& host) noexcept {
-        if (!OwnerActionCurrent(expected, grant, host)) { return Result::stale; }
+        if (controls.CoordinateOnly() || !OwnerActionCurrent(expected, grant, host)) { return Result::stale; }
         return PinOwnerAction(grant);
     }
     Result PinOwnerAction(const Grant& grant) noexcept {
+        if (controls.CoordinateOnly()) { return Result::inhibited; }
         const auto stop = combat_owner_stop.load(std::memory_order_acquire);
         const auto retire = combat_owner_retire.load(std::memory_order_acquire);
         if (!stop || !retire || (owner_activity_stop && (owner_activity_grant != grant
@@ -125,7 +130,7 @@ public:
         // pausing so StopActive cannot acknowledge an idle movement controller
         // while leaving that native combat running. A failed stop keeps this
         // exact callback/Grant pinned even if registration subsequently changes.
-        if (!owner_activity_stop && (combat_owner_stop.load(std::memory_order_acquire)
+        if (!controls.CoordinateOnly() && !owner_activity_stop && (combat_owner_stop.load(std::memory_order_acquire)
                 || combat_owner_retire.load(std::memory_order_acquire))) {
             const auto result = PinOwnerAction(grant);
             if (result != Result::accepted) { return result; }
@@ -142,7 +147,7 @@ public:
             && NativeMovementLifetimeCurrent(expected);
     }
     bool OwnerActionCurrent(const NativeScene& expected, const Grant& grant, const wire::Host& host) noexcept {
-        if (!owner_services_active || owner_stop_active || interrupted || !controls.Ready()
+        if (controls.CoordinateOnly() || !owner_services_active || owner_stop_active || interrupted || !controls.Ready()
             || grant != controls.Current() || grant.owner != Owner::automation
             || !automation_lease || automation_grant != grant
             || std::memcmp(&automation_lease->host, &host, sizeof(host))
@@ -184,6 +189,10 @@ public:
         PublishMovementInputTrace(record);
     }
     void Revoked(const Grant& old, const Grant& next, StopReason reason) noexcept override {
+        if (coordinate_transition_active && old == automation_grant
+            && next.owner == Owner::automation && next.token == old.token) {
+            automation_grant = next;
+        }
         Diagnostic(old, next, static_cast<std::uint32_t>(reason), 2);
     }
     void SceneRetired(std::uint64_t epoch) noexcept override {
@@ -227,7 +236,9 @@ public:
     void Commands(bool phase) noexcept {
         // Tick has already handled deliberate manual input. A revoked automation
         // lease may cancel only its own still-current grant, never the new owner.
-        if (automation_lease && automation_grant != controls.Current()) { automation_lease.reset(); }
+        if (automation_lease && automation_grant != controls.Current()) {
+            automation_lease.reset(); coordinate_pending = false; coordinate_destination.reset();
+        }
         if (automation_lease && !automation_lease->Current(clock())) {
             (void)controls.EmergencyStop(automation_grant, StopReason::stalled); automation_lease.reset();
         }
@@ -243,11 +254,59 @@ public:
         const bool exact = phase && wire::Decode(payload.expected, expected)
             && payload.window == reinterpret_cast<std::uintptr_t>(window)
             && expected.scene == scene.epoch && NativeMovementLifetimeCurrent(scene);
-        if (live && exact && command->verb == wire::Verb::acquire) {
+        const bool same_producer = live && phase && controls.CoordinateOnly() && automation_lease
+            && automation_grant == controls.Current() && automation_lease->Current(clock())
+            && payload.window == reinterpret_cast<std::uintptr_t>(window)
+            && !std::memcmp(&automation_lease->host, &payload.host, sizeof(payload.host))
+            && NativeMovementLifetimeCurrent(scene);
+        // Only this exact producer can bridge its pending coordinate predecessor.
+        // A normal old-scene destination or target action remains stale.
+        Grant predecessor{};
+        const bool old_coordinate = same_producer && coordinate_pending
+            && wire::Decode(payload.expected, predecessor) && predecessor == coordinate_predecessor;
+        Grant accepted_predecessor{};
+        const bool accepted_coordinate = same_producer && coordinate_receipt
+            && wire::Decode(coordinate_receipt->first.expected, accepted_predecessor)
+            && wire::Decode(payload.expected, predecessor) && predecessor == accepted_predecessor;
+        if (same_producer && command->verb == wire::Verb::continue_parent) {
+            if (coordinate_receipt && coordinate_receipt->first.request == payload.request) {
+                if (!std::memcmp(&coordinate_receipt->first, &payload, sizeof(payload))) {
+                    CompleteMovementCommand(command, coordinate_receipt->second); return;
+                }
+                result = Result::invalid;
+            } else if (old_coordinate) {
+                if (!payload.revision) { coordinate_destination.reset(); }
+                result = controls.PauseAutomation(automation_grant);
+                if (result == Result::accepted && !controls.CleanupPending()) {
+                    // Cleanup may invoke native callbacks. Revalidate the exact
+                    // successor before replaying only its immutable world point.
+                    if (!automation_lease->Current(clock()) || automation_grant != controls.Current()
+                        || !NativeMovementLifetimeCurrent(scene) || interrupted) { result = Result::inhibited; }
+                    else if (payload.revision && coordinate_destination) {
+                        result = PreparationBlocksAutomation() ? Result::inhibited
+                            : controls.AutomationDestination(automation_grant, *coordinate_destination);
+                    }
+                    if (result == Result::accepted) {
+                        coordinate_pending = false;
+                        coordinate_receipt = std::make_pair(payload, Receipt(*command, result));
+                    }
+                }
+            }
+        } else if ((old_coordinate || accepted_coordinate)
+                && (command->verb == wire::Verb::stop || command->verb == wire::Verb::pause)) {
+            // Cancellation needs no resume handshake and can never restore input.
+            // The last accepted predecessor also covers an undelivered receipt,
+            // including another parent edge before the host could acknowledge it.
+            coordinate_destination.reset();
+            result = command->verb == wire::Verb::stop ? controls.Stop(automation_grant)
+                : controls.PauseAutomation(automation_grant);
+        } else if (live && exact && (command->verb == wire::Verb::acquire
+                || command->verb == wire::Verb::acquire_coordinate)) {
             const auto prior = acquisitions.find(payload.request);
             if (prior != acquisitions.end()) {
                 // Do not mint a new generation after an ambiguous receipt timeout.
-                if (std::memcmp(&prior->second.request, &payload, sizeof(payload)) == 0) {
+                if (prior->second.verb == command->verb
+                    && std::memcmp(&prior->second.request, &payload, sizeof(payload)) == 0) {
                     CompleteMovementCommand(command, prior->second.receipt); return;
                 }
                 result = Result::invalid;
@@ -258,12 +317,16 @@ public:
                     if (expected.generation <= retired_acquisition_generation) {
                         CompleteMovementCommand(command, Receipt(*command, Result::stale)); return;
                     }
-                    auto [entry, inserted] = acquisitions.emplace(payload.request, Acquisition{payload, Receipt(*command, Result::unavailable)});
+                    auto [entry, inserted] = acquisitions.emplace(payload.request, Acquisition{command->verb, payload, Receipt(*command, Result::unavailable)});
                     if (inserted) {
                         Token token{}; Grant acquired{};
                         result = PreparationBlocksAutomation() ? Result::inhibited : wire::Decode(payload.requested, token, true)
-                            ? controls.AcquireAutomation(expected.generation, token, acquired) : Result::invalid;
-                        if (result == Result::accepted) { automation_lease = command->lease; automation_grant = acquired; }
+                            ? controls.AcquireAutomation(expected.generation, token, acquired,
+                                command->verb == wire::Verb::acquire_coordinate) : Result::invalid;
+                        if (result == Result::accepted) {
+                            automation_lease = command->lease; automation_grant = acquired;
+                            coordinate_pending = false; coordinate_destination.reset(); coordinate_receipt.reset();
+                        }
                         entry->second.receipt = Receipt(*command, result);
                     }
                 } catch (...) { result = Result::unavailable; }
@@ -272,6 +335,7 @@ public:
             if (command->verb == wire::Verb::stop || command->verb == wire::Verb::pause) {
                 if (automation_lease == command->lease || (automation_lease
                     && std::memcmp(&automation_lease->host, &payload.host, sizeof(payload.host)) == 0)) {
+                    coordinate_destination.reset();
                     result = command->verb == wire::Verb::pause ? PauseAutomation(expected) : controls.Stop(expected);
                 }
             } else if (command->verb == wire::Verb::configure) {
@@ -287,8 +351,11 @@ public:
                 }
             } else if (command->verb == wire::Verb::destination) {
                 if (automation_lease && std::memcmp(&automation_lease->host, &payload.host, sizeof(payload.host)) == 0) {
-                    result = PreparationBlocksAutomation() ? Result::inhibited
+                    result = coordinate_pending || PreparationBlocksAutomation() ? Result::inhibited
                         : controls.AutomationDestination(expected, payload.destination);
+                    if (result == Result::accepted && controls.CoordinateOnly()) {
+                        coordinate_destination = payload.destination;
+                    }
                 }
             }
         }
@@ -310,7 +377,7 @@ public:
             | (next.camera_available ? wire::camera : 0) | (next.terminal ? wire::terminal : 0)
             | (next.controller_api_available ? wire::controller_api : 0)
             | (next.controller_connected ? wire::controller_connected : 0)
-            | (next.cleanup_pending ? wire::cleanup_pending : 0);
+            | (next.cleanup_pending ? wire::cleanup_pending : 0) | (initialized ? wire::coordinate_parent_capable : 0);
         PublishMovementCommandStatus(status);
     }
     void FinishDestroyed() noexcept {
@@ -413,9 +480,27 @@ public:
         const bool captured_ok = input.Snapshot(captured);
         auto& sampled = captured.input; sampled.tick_ms = tick; sampled.scene = scene.epoch;
         const bool phase = observed && native.BeginUpdate(receiver, scene);
-        if (parent_transition && !controls.ObserveParentScene(scene.epoch,
-            phase && captured_ok && sampled.exact_foreground && !sampled.ui_owns_input && settings.enabled, tick)) {
-            input.Suspend();
+        if (parent_transition) {
+            const auto prior = controls.Current();
+            const bool coordinate = controls.CoordinateOnly() && automation_lease
+                && automation_grant == prior && automation_lease->Current(clock()) && !owner_activity_stop;
+            const bool admitted = phase && captured_ok && sampled.exact_foreground
+                && !sampled.ui_owns_input && !sampled.text_owns_input;
+            bool continued = false;
+            if (coordinate && admitted) {
+                coordinate_transition_active = true;
+                continued = controls.ObserveCoordinateParentScene(scene.epoch, true, tick);
+                coordinate_transition_active = false;
+                if (controls.CoordinateOnly() && controls.Current().scene == scene.epoch) {
+                    if (!coordinate_pending) { coordinate_predecessor = prior; }
+                    coordinate_pending = true;
+                }
+            }
+            if (!continued && !(coordinate && controls.CleanupPending())) {
+                const bool manual_continued = controls.ObserveParentScene(scene.epoch,
+                    phase && captured_ok && sampled.exact_foreground && !sampled.ui_owns_input && settings.enabled, tick);
+                if (!manual_continued) { input.Suspend(); }
+            }
         }
         sampled.native_available = phase && captured_ok && native.Available();
         if (phase && captured_ok && sampled.exact_foreground && !sampled.ui_owns_input && settings.enabled) {

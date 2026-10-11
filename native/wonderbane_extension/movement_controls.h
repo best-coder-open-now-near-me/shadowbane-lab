@@ -119,7 +119,11 @@ public:
     // the new native phase. Retire old authority and stop fresh current-frame work
     // before preserving admitted manual arm/gesture state. Never resumes automation.
     bool ObserveParentScene(std::uint64_t, bool manual_admitted, std::uint64_t tick_ms) noexcept;
-    Result AcquireAutomation(std::uint64_t expected_generation, Token, Grant&) noexcept;
+    Result AcquireAutomation(std::uint64_t expected_generation, Token, Grant&, bool coordinate_only = false) noexcept;
+    // Verified same-actor parent edge only. Retire old references, then stop in
+    // the fresh frame. The runtime retains the producer and negotiates successor adoption.
+    bool ObserveCoordinateParentScene(std::uint64_t, bool admitted, std::uint64_t tick_ms) noexcept;
+    bool CoordinateOnly() const noexcept { return coordinate_only_ && grant_.owner == Owner::automation; }
     Result AutomationDestination(const Grant&, GroundPoint) noexcept;
     // Owner services call this before their first native side effect. It records
     // exact-Grant stop responsibility without claiming movement or permission to
@@ -176,6 +180,7 @@ private:
     bool shutdown_pending_ = false, shutdown_ = false;
     bool moving_ = false;
     bool native_activity_ = false;
+    bool coordinate_only_ = false;
     bool available_ = false;
     bool faulted_ = false;
     bool camera_faulted_ = false;

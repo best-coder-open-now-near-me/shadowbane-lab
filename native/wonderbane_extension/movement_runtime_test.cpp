@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
     Check(rt.controls.Configure(rt.settings) == wm::Result::accepted && rt.input.Configure(rt.settings), "consumer settings configured");
     const auto step = [&] { rt.Update(f.game_window.data()); };
     step(); step();
-    if (mode == "ipc" || mode == "ipc-profile" || mode == "ipc-cleanup" || mode == "ipc-service-gap") {
+    if (mode == "ipc" || mode == "ipc-profile" || mode == "ipc-cleanup" || mode == "ipc-service-gap" || mode == "ipc-coordinate") {
         FILETIME created{}, exited{}, kernel{}, user{};
         Check(GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user) != FALSE, "IPC client lifetime");
         rt.process = {GetCurrentProcessId(), (static_cast<std::uint64_t>(created.dwHighDateTime) << 32) | created.dwLowDateTime};
@@ -162,8 +162,25 @@ int main(int argc, char** argv) {
         const auto expected_receipts = mode == "ipc-profile" ? 4 : service_gap ? 3 : mode == "ipc-cleanup" ? 2 : 6;
         const auto until = GetTickCount64() + 10000;
         auto* storage = wonderbane::extension::command_channel_detail::g_runtime.storage;
-        while (GetTickCount64() < until && InterlockedCompareExchange64(&storage->header.result_read_sequence, 0, 0) < expected_receipts) {
-            bool delayed = false;
+        bool coordinate_quit = false;
+        while (GetTickCount64() < until && (mode == "ipc-coordinate" ? !coordinate_quit
+                : InterlockedCompareExchange64(&storage->header.result_read_sequence, 0, 0) < expected_receipts)) {
+            bool delayed = false, report_parent = false;
+            if (mode == "ipc-coordinate") {
+                DWORD available = 0; const auto input_pipe = GetStdHandle(STD_INPUT_HANDLE);
+                if (PeekNamedPipe(input_pipe, nullptr, 0, nullptr, &available, nullptr) && available) {
+                    char bytes[64]{}; DWORD read = 0;
+                    if (ReadFile(input_pipe, bytes, (std::min)(available, DWORD{64}), &read, nullptr)) {
+                        coordinate_quit = std::find(bytes, bytes + read, 'q') != bytes + read;
+                        if (std::find(bytes, bytes + read, 'p') != bytes + read) {
+                            parent_from = observed;
+                            observed.parent = observed.parent ? 0 : reinterpret_cast<std::uintptr_t>(f.alternate_world.data());
+                            ++observed.epoch; Put(f.pose.data(), 8, observed.parent); f.parent_basis_variant = observed.parent != 0;
+                            report_parent = true;
+                        }
+                    }
+                }
+            }
             if ((mode == "ipc-cleanup" || service_gap) && !cleanup_allowed) {
                 // Anonymous stdin pipe handshake: no blocking reader thread or
                 // wall-clock auto-completion can manufacture a native stop ack.
@@ -179,6 +196,10 @@ int main(int argc, char** argv) {
             }
             if (delayed) { Sleep(297); }
             step();
+            if (report_parent) {
+                std::printf("parent %llu %llu\n", static_cast<unsigned long long>(rt.controls.Current().generation),
+                    static_cast<unsigned long long>(rt.controls.Current().scene)); std::fflush(stdout);
+            }
             if (delayed) { std::printf("gap\n"); std::fflush(stdout); }
             Sleep(5);
         }
@@ -188,10 +209,13 @@ int main(int argc, char** argv) {
             wonderbane::extension::combat_owner_stop.store(nullptr);
             wonderbane::extension::combat_owner_retire.store(nullptr);
         }
-        Check(storage->header.result_read_sequence == expected_receipts, "Python consumed correlated native receipts");
+        if (mode == "ipc-coordinate") {
+            Check(coordinate_quit && rt.acquisitions.size() == 1 && rt.controls.Current().owner == wm::Owner::none,
+                "Python continued and closed one coordinate acquisition through production IPC");
+        } else { Check(storage->header.result_read_sequence == expected_receipts, "Python consumed correlated native receipts"); }
         wonderbane::extension::StopClientActionCommandChannel(); rt.input.Retire(); return failures ? 1 : 0;
     }
-    if (mode == "commands" || mode == "owner-service") {
+    if (mode == "commands" || mode == "owner-service" || mode.starts_with("coordinate-")) {
         auto lease = std::make_shared<wm::CommandLease>();
         lease->process = OpenProcess(SYNCHRONIZE, FALSE, GetCurrentProcessId());
         lease->host = {GetCurrentProcessId(), 9, 42};
@@ -203,7 +227,7 @@ int main(int argc, char** argv) {
             command->command.host = lease->host; command->command.window = reinterpret_cast<std::uintptr_t>(f.window);
             command->command.expected = wm::wire::Encode(expected); command->command.request[0] = key;
             command->command.settings = wm::wire::Encode(rt.settings); command->command.revision = rt.revision;
-            if (verb == wm::wire::Verb::acquire) {
+            if (verb == wm::wire::Verb::acquire || verb == wm::wire::Verb::acquire_coordinate) {
                 std::memcpy(command->command.requested.worker, "worker", 6);
                 std::memcpy(command->command.requested.operation, "route", 5);
             }
@@ -219,9 +243,107 @@ int main(int argc, char** argv) {
         Check(blocked_acquire->receipt.outcome==static_cast<std::uint32_t>(wm::Result::inhibited)
             &&rt.controls.Current()==original,"preparation arbiter prevents competing automation acquisition");
         wonderbane::extension::preparation_owner_active.store(nullptr);
-        auto acquire = make(wm::wire::Verb::acquire, original, 1);
+        auto acquire = make(mode.starts_with("coordinate-") ? wm::wire::Verb::acquire_coordinate : wm::wire::Verb::acquire, original, 1);
         run(acquire); const auto owned = rt.controls.Current();
         Check(acquire->receipt.outcome == 0 && owned.owner == wm::Owner::automation, "queued acquire obtains native owner");
+        auto cross_mode = make(mode.starts_with("coordinate-") ? wm::wire::Verb::acquire : wm::wire::Verb::acquire_coordinate, original, 1);
+        cross_mode->command = acquire->command; run(cross_mode);
+        Check(cross_mode->receipt.outcome == static_cast<unsigned>(wm::Result::invalid)
+            && rt.controls.Current() == owned, "acquisition UUID pins coordinate versus mixed authority mode");
+        if (mode.starts_with("coordinate-")) {
+            using wm::wire::Verb;
+            auto no_parent = make(Verb::continue_parent, owned, 240); no_parent->command.revision = 1; run(no_parent);
+            Check(no_parent->receipt.outcome == static_cast<unsigned>(wm::Result::stale),
+                "continuation cannot manufacture a successor without a parent transition");
+            Check(rt.controls.CoordinateOnly(), "coordinate acquire records restricted capability");
+            Check(rt.controls.BeginAutomationNativeAction(owned) == wm::Result::inhibited,
+                "coordinate owner cannot acquire mixed native action responsibility");
+            auto move = make(Verb::destination, owned, 2); move->command.destination = {30, 0, -40}; run(move);
+            Check(move->receipt.outcome == 0 && f.moves == 1, "coordinate destination accepted before parent edge");
+            const auto before_moves = f.moves;
+            parent_from = observed; observed.parent = reinterpret_cast<std::uintptr_t>(f.alternate_world.data());
+            ++observed.epoch; Put(f.pose.data(), 8, observed.parent); f.parent_basis_variant = true;
+            if (mode == "coordinate-ui") { ui_blocked = true; }
+            if (mode == "coordinate-lease") { lease_current = false; }
+            if (mode == "coordinate-identity") { ++observed.identity[0]; Put(f.actor.data(), 0x18, observed.identity); }
+            if (mode == "coordinate-notice") { parent_from = {}; }
+            if (mode == "coordinate-cleanup") { f.callback_mode = 9; }
+            if (mode == "coordinate-nested") { interrupt_phase = 's'; }
+            step();
+            const auto successor = rt.controls.Current();
+            if (mode == "coordinate-ui" || mode == "coordinate-lease"
+                || mode == "coordinate-identity" || mode == "coordinate-notice" || mode == "coordinate-cleanup" || mode == "coordinate-nested") {
+                Check(successor.owner == wm::Owner::none && f.moves == before_moves,
+                    "invalid lifetime or admission never gains coordinate successor");
+                rt.input.Retire(); return failures ? 1 : 0;
+            }
+            Check(successor.owner == wm::Owner::automation && successor.token == owned.token
+                && successor.generation > owned.generation && successor.scene > owned.scene
+                && rt.automation_lease == lease && rt.automation_grant == successor && rt.coordinate_pending,
+                "parent handoff preserves producer and operation under successor only");
+            Check(f.moves == before_moves, "parent transition never reissues input before correlated handoff");
+            if (mode == "coordinate-cancel" || mode == "coordinate-pause") {
+                auto cancel = make(mode == "coordinate-cancel" ? Verb::stop : Verb::pause, owned, 3); run(cancel);
+                Check(cancel->receipt.outcome == 0 && f.moves == before_moves && !rt.coordinate_destination,
+                    "old-lineage cancellation cleans successor without restoring destination");
+                if (mode == "coordinate-cancel") {
+                    Check(rt.controls.Current().owner == wm::Owner::none, "old-lineage stop retires successor");
+                    rt.input.Retire(); return failures ? 1 : 0;
+                }
+            }
+            if (mode == "coordinate-repeat") {
+                parent_from = observed; observed.parent = 0; ++observed.epoch; Put(f.pose.data(), 8, observed.parent); step();
+                Check(rt.coordinate_predecessor == owned && rt.coordinate_pending,
+                    "multiple parent edges retain exact last-acknowledged predecessor");
+            }
+            auto stale = make(Verb::destination, owned, 4); stale->command.destination = {31, 0, -41}; run(stale);
+            Check(stale->receipt.outcome == static_cast<unsigned>(wm::Result::stale) && f.moves == before_moves,
+                "old parent destination never crosses handoff");
+            auto unacknowledged = make(Verb::destination, rt.controls.Current(), 241);
+            unacknowledged->command.destination = {31, 0, -41}; run(unacknowledged);
+            Check(unacknowledged->receipt.outcome == static_cast<unsigned>(wm::Result::inhibited)
+                && f.moves == before_moves, "even current-scene movement waits for correlated handoff");
+            auto forged = make(Verb::continue_parent, owned, 242); ++forged->command.expected.generation; run(forged);
+            Check(forged->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "forged predecessor cannot hand off");
+            auto other = make(Verb::continue_parent, owned, 243); ++other->command.host.generation; run(other);
+            Check(other->receipt.outcome == static_cast<unsigned>(wm::Result::stale), "another producer cannot hand off");
+            auto handoff = make(Verb::continue_parent, owned, 5);
+            handoff->command.revision = mode == "coordinate-adopt" ? 0 : 1;
+            run(handoff);
+            const auto adopted = rt.controls.Current();
+            const bool resume = mode != "coordinate-adopt" && mode != "coordinate-pause";
+            Check(handoff->receipt.outcome == 0 && !rt.coordinate_pending
+                && f.moves == before_moves + (resume ? 1 : 0),
+                "confirmed fresh-frame cleanup precedes one world-coordinate continuation");
+            const auto after_moves = f.moves;
+            if (mode == "coordinate-lost" || mode == "coordinate-lost-parent") {
+                if (mode == "coordinate-lost-parent") {
+                    parent_from = observed; observed.parent = 0; ++observed.epoch; Put(f.pose.data(), 8, observed.parent); step();
+                }
+                auto lost_cancel = make(Verb::stop, owned, 244); run(lost_cancel);
+                Check(lost_cancel->receipt.outcome == 0 && rt.controls.Current().owner == wm::Owner::none
+                    && f.moves == after_moves, "last acknowledged predecessor cancels after an undelivered accepted continuation");
+                rt.input.Retire(); return failures ? 1 : 0;
+            }
+            if (mode == "coordinate-retry-parent") {
+                parent_from = observed; observed.parent = 0; ++observed.epoch; Put(f.pose.data(), 8, observed.parent); step();
+            }
+            auto retry = make(Verb::continue_parent, owned, 5); retry->command = handoff->command; run(retry);
+            Check(!std::memcmp(&retry->receipt, &handoff->receipt, sizeof(retry->receipt)) && f.moves == after_moves,
+                "ambiguous exact handoff retry returns same receipt without repeated movement");
+            auto conflict = make(Verb::continue_parent, owned, 5); conflict->command.revision = 1 - handoff->command.revision; run(conflict);
+            Check(conflict->receipt.outcome == static_cast<unsigned>(wm::Result::invalid) && f.moves == after_moves,
+                "same handoff UUID with altered resume intent rejected");
+            if (mode == "coordinate-retry-parent") {
+                auto next = make(Verb::continue_parent, adopted, 245); next->command.revision = 1; run(next);
+                Check(next->receipt.outcome == 0 && rt.controls.Current().scene > adopted.scene
+                    && f.moves == after_moves + 1, "cached prior receipt cannot bypass next exact predecessor handoff");
+            }
+            auto stop = make(Verb::stop, rt.controls.Current(), 6); run(stop);
+            Check(stop->receipt.outcome == 0 && rt.controls.Current().owner == wm::Owner::none,
+                "successor terminal stop closes original operation without reacquiring");
+            rt.input.Retire(); return failures ? 1 : 0;
+        }
         if (mode == "owner-service") {
             // This is the real queued ACQUIRE path, before any native actor
             // service has been pinned. Publication work must not expire its
