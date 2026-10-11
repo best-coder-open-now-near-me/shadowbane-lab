@@ -2,19 +2,31 @@
 
 ## Worker current authority and native maintenance - October 11
 
-Shared development starts from refreshed `main` at PR #163 merge
-`60c2f7702162b18f245821fc5b7500643e197a4c`, including the reviewed .101
-source and its installation, retirement and failed live-command evidence.
-`codex/worker-native-maintenance-20261011` in `native-group-come` targets `main`
-with host .102 and unchanged native .65. It separates bounded current authority
-and native renewal from historical reconciliation and status writes, preserving
-original manager permit expiry and durable Stop/Cancel recovery. The .101 live
-command was received but failed before movement with a 1,031 ms native producer
-heartbeat age; the capture does not identify the exact host scheduling delay.
-Independent source review and 173 focused tests passed with no skips.
-Graphics-preserving package qualification and a new live `/come` remain.
-No .102 installation or live arrival is claimed.
-See [the ownership correction](worker-native-maintenance.md).
+Shared development starts from refreshed `main` at PR #164 merge
+`7198d2d2dee29c4878f36fb7f9cdd81e1c172974`. All 15 hosted checks passed at
+`0182bcc2b26ae9ce790a10a225a2a052845486e6` on
+`codex/worker-native-maintenance-20261011`; its reviewed source is included.
+Host .102 separates bounded current authority and native renewal from historical
+reconciliation/status writes, preserving original permit expiry and durable
+Stop/Cancel recovery. Native .65 is unchanged.
+
+Exact graphics-preserving release `c89941f2ecc94a4da82c3e8ddd379bbcfd593474`
+is qualified: 6,303 host tests passed with 44 optional skips, all 16 package
+stages passed, both IPC profiles and seven startup handshakes passed without
+skips, and 491 modules match. After the visible game closed during preparation,
+its lifetime guard rejected validation before any active switch. The reviewed
+fresh baseline `ee292c23` and revised plan `32c9bd70` reused and revalidated the
+existing .102 environment: preparation `39b0dacd`/recovery `819fa5d1` passed with
+491 modules and no client changes. Active installation and fresh live `/come`
+acceptance remain pending.
+The preceding .101 command was received but failed before movement with a
+1,031 ms native producer heartbeat age. The exact host scheduling delay was not
+captured, so successful live correction is not inferred from source tests.
+
+Delivery documentation is being prepared in `bot-runtime` on
+`codex/worker-renewal-delivery-20261011`, targeting `main` through a draft delivery
+PR. Preparation recovery is recorded; final phase receipts will follow. See [the delivery evidence](worker-renewal-delivery-20261011.md)
+and [the ownership correction](worker-native-maintenance.md).
 
 ## Group command admission authority - October 11
 

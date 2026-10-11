@@ -66,6 +66,9 @@ extend authority. Worker-loop tests preserve prestart rejection, explicit stop,
 settings disable, game identity, native loss and first-cause cleanup behavior.
 
 Independent source review passed. The focused suite passed 173 tests with the
-qualified native movement fixture and no skips. This source still requires
-composed-package qualification and a fresh live command. Passing these tests does not establish live arrival or
-prove which earlier host call caused the captured producer-heartbeat expiry.
+qualified native movement fixture and no skips. PR #164 is merged after all
+15 hosted checks, and the exact composed .102 release passed qualification.
+[Delivery evidence](worker-renewal-delivery-20261011.md) records the package;
+installation verification and a fresh live command remain pending. Passing these
+tests does not establish live arrival or prove which earlier host call caused the
+captured producer-heartbeat expiry.
