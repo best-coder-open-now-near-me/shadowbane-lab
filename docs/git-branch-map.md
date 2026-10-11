@@ -2,20 +2,39 @@
 
 ## Group travel continuity - October 10
 
-Start shared development from refreshed `main` at `cef9d05b`, including merged
-PRs #158 and #159. The combined .100/.65 candidate is
-`codex/group-travel-stall-20261010` in `pve-camp-return-routing`, targeting main.
-It includes reviewed native `d0bd80b0` and host `1e2a0890` (including `fb5e1bf3`).
-The separate host branch is fully included in that candidate. Installed .99/.64
-received and moved for Pro's `/come`, then lost ownership on a 266 ms client
-update gap. The new candidate uses exact producer authority across all activity
-states and preserves travel stop causes. See [evidence and boundaries](group-travel-continuity.md).
+Start shared development from refreshed `main` at PR #160 merge
+`ffb4f6ed425d0d7e159ab1669b57b5ee895405fd`. All 15 hosted checks passed at
+`58bbe597ec14664cace683ad6bf67f0a9138e310` on
+`codex/group-travel-stall-20261010`. It includes reviewed native `d0bd80b0`
+and host `1e2a0890` (including `fb5e1bf3`); the separate host branch is included.
 
-Focused native/host tests and independent reviews passed. Full exact-source
-package qualification, hosted checks, installation and fresh live acceptance
-remain pending. `bot-integration` will compose the candidate with installed
-graphics on `codex/native-group-command-release-20261010`; no runtime update has
-been applied. Normal shared checkout remains clean on main.
+Host .100/native .65 is qualified from graphics-preserving release
+`92bd3e90b9d248733915fc5860835fffc5ea4e6e` on
+`codex/native-group-command-release-20261010` in `bot-integration`.
+Required gates across 116 recorded stages, 144 artifact identities and 491
+installed modules passed. The host suite passed 6,262 tests with 43 optional
+skips, the bound qualifier passed 199 with none, and all seven startup
+handshakes passed. Known non-gating graphics transparency findings remain open.
+
+Apply and shortcuts passed after the user closed the game: 9,640 retained
+records, qualified .65 DLL, executable/resources unchanged. Activation is verified:
+491 modules, zero exclusions, two typed changes and healthy manager 256.
+Fresh game 3408 loaded the qualified .65 DLL with healthy worker 9028.
+Live .65 acceptance remains pending login/group readiness. The preceding .64
+run received and moved for Pro's `/come`, then lost ownership on a 266 ms client
+update gap; its separate Track readiness capture showed the automatic panel
+absent. The new source preserves exact owner authority and travel stop causes.
+
+Delivery documentation is in `bot-runtime` on
+`codex/group-travel-delivery-20261010`, based on the merged source and targeting `main` through a documentation PR.
+The checkpoint records verified installation and both retirement scopes. Approved local B64
+retirement removed 2,893 files / 209,241,625 bytes; all
+6,581 nonlisted source/evidence files were unchanged. Guest retirement removed
+12 old .99/.64 targets / 59,444,579 bytes. Current game, manager and DLL identities
+were unchanged; the final passive read had no active/queued operation, character
+unavailable and upkeep `needs_attention`. Fresh live acceptance remains pending.
+See [delivery evidence](group-travel-delivery-20261010.md) and
+[the source behavior](group-travel-continuity.md).
 
 ## Group admission and Track binding repair - October 10
 

@@ -51,6 +51,7 @@ pending cleanup, producer loss, and fresh manual takeover without usable native
 movement geometry. Host `1e2a0890` passed 92 focused tests with one optional native-fixture skip,
 including 14 stop-cause cases also independently rerun. Its real runner-to-CLI-to-
 worker regressions cover explicit cancellation, interruption and cleanup failure.
-Combined package qualification, hosted checks, installation and a new live `/come`
-acceptance remain pending. These source tests do not claim
-that the updated runtime is installed or that the live route has completed.
+PR #160 is merged after all 15 hosted checks passed. Exact .100/.65 composed
+package qualification and activation also passed. A new live
+`/come` acceptance remains pending. These tests do not claim that the live route
+has completed. See [the delivery record](group-travel-delivery-20261010.md).
