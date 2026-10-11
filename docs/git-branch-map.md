@@ -1,23 +1,26 @@
 # Git branch map
 
-## Active group travel correction - October 11
+## Qualified coordinate travel update - October 11
 
-Shared development starts from refreshed `main` at PR #165 merge `79461bde`.
-The .102 delivery documentation is merged. Its first live `/come` moved Umbra
-but stopped outside arrival on a verified parent-only native transition; short
-50-unit endpoints at approximately two-second intervals also explain the pacing
-complaint. Building collision is user-reported, not proven by the retained trace.
+Shared development starts from `main` at PR #167 merge
+`a7247a364a81ddab45006ae40cd37d33dac5ddff`. All 15 hosted checks passed at
+`011c3b8dbc56fcfb3e7db3bbccd6a235e3d75292` before merge. The follower from
+PR #166 is included and both PRs are merged. The proven `/go` A* and learned
+obstacle recovery remain in use; this update corrects movement pacing and
+coordinate-only continuity across verified native parent transitions.
 
-`codex/coordinate-parent-continuity-20261011` in `bot-runtime` owns the combined
-correction, targeting `main`. It contains the pushed follower branch
-`codex/continuous-group-travel-20261011` through `72de0da9` (draft PR #166),
-merged into this lane at `b851a97b`, and native continuity at `7dc6355d`.
-Host/follower acknowledgement and combined qualification remain in progress;
-installed host .102/native .65 remain unchanged. The separate release composition
-must preserve graphics work from `codex/native-group-command-release-20261010`.
-Normal shared checkout remains on `main`; this feature work is outside it. See
-[continuous group travel](continuous-group-travel.md) for evidence, boundaries
-and remaining work. This entry supersedes the pending-login status below.
+Graphics-preserving release `dc6cbbb4c00f001744c16de8936095b313bf46ad` on
+`codex/native-group-command-release-20261010` is pushed and qualified as
+host .103/native .66. Its graphics composition remains outside `main` as before.
+The normal project checkout is clean on `main`; delivery documentation is on
+`codex/coordinate-travel-delivery-20261011` in `bot-runtime`, targeting `main`.
+Installed software is still .102/.65. The exact local payload is prepared;
+client closure and installation are pending. The visible Umbra client and an
+older windowless client both hold the DLL. No client has been stopped by this
+update. Retain active implementation/release checkouts through live acceptance;
+retire integrated task branches once they are no longer needed by this task.
+See [qualification and pending installation](coordinate-travel-delivery-20261011.md)
+and [the implementation](continuous-group-travel.md).
 
 ## Worker current authority and native maintenance - October 11
 
