@@ -227,28 +227,28 @@ int main(int argc, char** argv) {
             // service has been pinned. Publication work must not expire its
             // stationary grant merely because one owning update took 313ms.
             rt.busy = true;
-            Check(rt.StartupLeaseCurrent(owned) && !rt.AutomationLeaseCurrent(owned),
-                "new stationary grant has exact startup proof without a service hold");
+            Check(rt.AcquiredLeaseCurrent(owned),
+                "new stationary grant has exact producer proof without a service hold");
             auto wrong_startup = owned; ++wrong_startup.generation;
-            Check(!rt.StartupLeaseCurrent(wrong_startup), "startup proof rejects another grant");
+            Check(!rt.AcquiredLeaseCurrent(wrong_startup), "startup proof rejects another grant");
             const auto startup_lease = rt.automation_lease; rt.automation_lease.reset();
-            Check(!rt.StartupLeaseCurrent(owned), "startup proof rejects missing lease");
+            Check(!rt.AcquiredLeaseCurrent(owned), "startup proof rejects missing lease");
             rt.automation_lease = startup_lease;
             lease_current = false;
-            Check(!rt.StartupLeaseCurrent(owned), "startup proof rejects expired or replaced producer lease");
+            Check(!rt.AcquiredLeaseCurrent(owned), "startup proof rejects expired or replaced producer lease");
             lease_current = true;
             const auto startup_handle = lease->process;
             lease->process = CreateEventW(nullptr, TRUE, TRUE, nullptr);
-            Check(!rt.StartupLeaseCurrent(owned), "startup proof rejects dead producer handle");
+            Check(!rt.AcquiredLeaseCurrent(owned), "startup proof rejects dead producer handle");
             CloseHandle(lease->process); lease->process = startup_handle;
             ++rt.automation_grant.generation;
-            Check(!rt.StartupLeaseCurrent(owned), "startup proof rejects changed acquired identity");
+            Check(!rt.AcquiredLeaseCurrent(owned), "startup proof rejects changed acquired identity");
             --rt.automation_grant.generation;
             alive = false;
-            Check(!rt.StartupLeaseCurrent(owned), "startup proof rejects ended native lifetime");
+            Check(!rt.AcquiredLeaseCurrent(owned), "startup proof rejects ended native lifetime");
             alive = true;
             rt.busy = false;
-            Check(!rt.StartupLeaseCurrent(owned), "startup proof exists only inside owning update");
+            Check(!rt.AcquiredLeaseCurrent(owned), "startup proof exists only inside owning update");
             const auto startup_moves = f.moves;
             clock_tick += 313; step();
             Check(rt.controls.Current() == owned && rt.controls.Ready() && f.moves == startup_moves
@@ -358,22 +358,22 @@ int main(int argc, char** argv) {
                 && stops == stops_before_gap, "exact leased service survives delayed update without stop or reacquire");
             // Exercise runtime proof itself without dispatching another command.
             rt.busy = true;
-            Check(rt.AutomationLeaseCurrent(owned) && !rt.StartupLeaseCurrent(owned),
-                "fresh pinned service supplies continuation proof and consumes startup eligibility");
+            Check(rt.AcquiredLeaseCurrent(owned),
+                "pinned service retains the same exact producer authority");
             auto wrong_owner = owned; ++wrong_owner.generation;
-            Check(!rt.AutomationLeaseCurrent(wrong_owner), "replacement grant cannot borrow service proof");
+            Check(!rt.AcquiredLeaseCurrent(wrong_owner), "replacement grant cannot borrow service proof");
             const auto held_lease = rt.automation_lease; rt.automation_lease.reset();
-            Check(!rt.AutomationLeaseCurrent(owned), "missing producer lease is not continuation proof");
+            Check(!rt.AcquiredLeaseCurrent(owned), "missing producer lease is not continuation proof");
             rt.automation_lease = held_lease;
             ++rt.automation_grant.generation;
-            Check(!rt.AutomationLeaseCurrent(owned), "mismatched producer grant is not continuation proof");
+            Check(!rt.AcquiredLeaseCurrent(owned), "mismatched producer grant is not continuation proof");
             --rt.automation_grant.generation;
             const auto process_handle = lease->process;
             lease->process = CreateEventW(nullptr, TRUE, TRUE, nullptr);
-            Check(!rt.AutomationLeaseCurrent(owned), "signalled producer handle denies continuation");
+            Check(!rt.AcquiredLeaseCurrent(owned), "signalled producer handle denies continuation");
             CloseHandle(lease->process); lease->process = process_handle;
             const auto retained_stop = rt.owner_activity_stop; rt.owner_activity_stop = nullptr;
-            Check(!rt.AutomationLeaseCurrent(owned), "unqualified service hold is not continuation proof");
+            Check(rt.AcquiredLeaseCurrent(owned), "service callback pinning does not define producer authority");
             rt.owner_activity_stop = retained_stop; rt.busy = false;
             ++expected_host.generation; step();
             Check(!action_gate, "owner service rejects another producer generation");
@@ -464,9 +464,18 @@ int main(int argc, char** argv) {
         auto moving = make(wm::wire::Verb::destination, owned, 5); moving->command.destination = {30, 0, -40}; run(moving);
         Check(moving->receipt.outcome == 0 && f.destination.x == 130 && f.destination.z == -240,
             "queued world move uses terrain hit transformed by native parent helper");
+        const auto route_moves = f.moves;
+        clock_tick += 266; step();
+        Check(rt.controls.Current() == owned && rt.controls.Ready() && f.moves == route_moves
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 7,
+            "active leased native route survives observed client gap without another destination");
         auto pause = make(wm::wire::Verb::pause, owned, 6); run(pause);
         Check(pause->receipt.outcome == 0 && rt.controls.Current() == owned && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
             "pause cancels native movement while retaining operation grant");
+        clock_tick += 266; step();
+        Check(rt.controls.Current() == owned && rt.controls.Ready() && f.moves == route_moves
+            && Get<std::uint32_t>(f.state.data(), 0x10) == 5,
+            "paused live native route survives gap and remains stopped until next command");
         auto resumed = make(wm::wire::Verb::destination, owned, 7); resumed->command.destination = {31, 0, -41}; run(resumed);
         Check(resumed->receipt.outcome == 0 && rt.controls.Current() == owned, "next PvE approach uses same immutable grant");
         auto delayed = make(wm::wire::Verb::stop, owned, 2);

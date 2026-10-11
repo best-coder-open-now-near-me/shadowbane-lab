@@ -1,5 +1,22 @@
 # Git branch map
 
+## Group travel continuity - October 10
+
+Start shared development from refreshed `main` at `cef9d05b`, including merged
+PRs #158 and #159. The combined .100/.65 candidate is
+`codex/group-travel-stall-20261010` in `pve-camp-return-routing`, targeting main.
+It includes reviewed native `d0bd80b0` and host `1e2a0890` (including `fb5e1bf3`).
+The separate host branch is fully included in that candidate. Installed .99/.64
+received and moved for Pro's `/come`, then lost ownership on a 266 ms client
+update gap. The new candidate uses exact producer authority across all activity
+states and preserves travel stop causes. See [evidence and boundaries](group-travel-continuity.md).
+
+Focused native/host tests and independent reviews passed. Full exact-source
+package qualification, hosted checks, installation and fresh live acceptance
+remain pending. `bot-integration` will compose the candidate with installed
+graphics on `codex/native-group-command-release-20261010`; no runtime update has
+been applied. Normal shared checkout remains clean on main.
+
 ## Group admission and Track binding repair - October 10
 
 Start shared development from refreshed `main` at PR #158 merge

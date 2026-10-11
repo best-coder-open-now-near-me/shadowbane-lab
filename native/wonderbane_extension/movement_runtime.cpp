@@ -202,21 +202,13 @@ public:
         }
         return std::nullopt;
     }
-    bool AcquiredLeaseCurrent(const Grant& grant) const noexcept {
+    bool AcquiredLeaseCurrent(const Grant& grant) const noexcept override {
         // Fresh owning update only; never borrow cleanup's permissive admission.
         return busy && initialized && !terminal && !destroyed && !interrupted
             && GetCurrentThreadId() == thread && grant.owner == Owner::automation
             && controls.Current() == grant && automation_grant == grant
             && automation_lease && automation_lease->Current(clock())
             && grant.scene == scene.epoch && NativeMovementLifetimeCurrent(scene);
-    }
-    bool AutomationLeaseCurrent(const Grant& grant) const noexcept override {
-        return AcquiredLeaseCurrent(grant) && owner_activity_grant == grant
-            && owner_activity_stop && owner_activity_retire;
-    }
-    bool StartupLeaseCurrent(const Grant& grant) const noexcept override {
-        return AcquiredLeaseCurrent(grant) && !owner_activity_stop && !owner_activity_retire
-            && owner_activity_grant == Grant{};
     }
     bool BindingsAvailable() const noexcept {
         return !terminal && !destroyed && initialized && native.Available() && ui.Available()
