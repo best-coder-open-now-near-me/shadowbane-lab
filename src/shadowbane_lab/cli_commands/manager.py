@@ -1022,9 +1022,12 @@ class _ExactWorkerEngineExecutor:
             movement_dispatcher=movement_dispatcher,
         )
         if stop_signal.is_set():
+            cause = observed_stop_cause(stop_signal)
+            cancelled = cause.kind == "requested" and result == 0
             return WorkerOperationExecution(
-                WorkerOperationState.CANCELLED,
-                "travel stopped by priority or dispatch revocation",
+                WorkerOperationState.CANCELLED if cancelled else WorkerOperationState.FAILED,
+                cause.reason if result == 0 or cause.kind == "interrupted"
+                else f"{cause.reason}; travel exited with status {result}",
             )
         return WorkerOperationExecution(
             WorkerOperationState.SUCCEEDED if result == 0 else WorkerOperationState.FAILED,

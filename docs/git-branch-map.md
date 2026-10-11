@@ -1,5 +1,16 @@
 # Git branch map
 
+## Travel stop evidence - October 10
+
+`codex/travel-stop-reason-20261010` in `native-group-come` is a focused host-only
+follow-up based on PR #158 merge `221d25ff`. It preserves the first actual travel
+stop reason and requested/interrupted classification through the manager receipt,
+matching PvE behavior; cleanup failure appends without replacing the primary
+failure. Focused executor tests cover native revocation, permit/inbox failure,
+explicit cancellation and cleanup. The source targets `main` through root's next
+reviewed integration; it is not installed and has no version or native changes.
+
+
 ## Group admission and Track binding repair - October 10
 
 Start shared development from refreshed `main`. The reviewed repair candidate is
