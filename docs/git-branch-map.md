@@ -1,5 +1,19 @@
 # Git branch map
 
+## Active group travel correction - October 11
+
+Shared development starts from refreshed `main` at PR #165 merge `79461bde`.
+The .102 delivery documentation is merged. Its first live `/come` moved Umbra
+but stopped outside arrival on a verified parent-only native transition; short
+50-unit endpoints at approximately two-second intervals also explain the pacing
+complaint. Building collision is user-reported, not proven by the retained trace.
+
+`codex/continuous-group-travel-20261011` in `native-group-come` owns the active
+follower/corridor correction, targeting `main`. It is unfinished source work;
+installed host .102/native .65 remain unchanged. See
+[continuous group travel](continuous-group-travel.md) for evidence, boundaries
+and remaining work. This entry supersedes the pending-login status below.
+
 ## Worker current authority and native maintenance - October 11
 
 Shared development starts from refreshed `main` at PR #163 merge
