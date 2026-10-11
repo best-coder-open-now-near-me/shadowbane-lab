@@ -15,8 +15,11 @@ Private correlated evidence is
 SHA-256 `205e7d504799fbaa5f47f8b263e11187ecde69a999834ce00404206b8cf906ab`.
 The passive capture began after the terminal event; the native boundary trace
 and worker travel output provide the correlated movement and revocation evidence.
-All five buff groups were present afterward. Track copied Pro's contact and
-closed its automatic window. No replay of the consumed command was issued.
+All five buff groups were present afterward. Track copied Pro's contact. The
+separate prior readiness capture, `listener-ready/readiness-234954/index.json`
+(SHA-256 `4782aecf7343b413c057a366aaa3b5b1f403afc6e721ef6714b2ed8d2bf52501`),
+records the automatic Track window absent. That presentation observation precedes
+this command; it is not a HUD capture during travel. No command replay was issued.
 
 ## Ownership boundary
 
@@ -45,6 +48,9 @@ Native checkpoint `d0bd80b013433848889f6f9a1d3f4170d3edd201` passed 40 focused
 controls/runtime cases and independent review. Regressions cover the observed
 266 ms active-route gap, pause and explicit resumption, service completion,
 pending cleanup, producer loss, and fresh manual takeover without usable native
-movement geometry. Host correction, combined package qualification, installation
-and a new live `/come` acceptance remain pending. These source tests do not claim
+movement geometry. Host `1e2a0890` passed 92 focused tests with one optional native-fixture skip,
+including 14 stop-cause cases also independently rerun. Its real runner-to-CLI-to-
+worker regressions cover explicit cancellation, interruption and cleanup failure.
+Combined package qualification, hosted checks, installation and a new live `/come`
+acceptance remain pending. These source tests do not claim
 that the updated runtime is installed or that the live route has completed.
