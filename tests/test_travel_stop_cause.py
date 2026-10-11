@@ -100,3 +100,62 @@ def test_travel_cleanup_failure_appends_without_erasing_primary(tmp_path, monkey
     assert result.native_cleanup_confirmed is False
     assert len(session.acquire_calls) == len(session.stop_calls) == session.closed == 1
     assert executor._movement is None
+
+
+@pytest.mark.parametrize("trigger", [
+    "cancel", "stop", "native", "failure_then_cancel", "cancel_cleanup_failure",
+])
+def test_real_travel_runner_cli_and_executor_stop_contract(tmp_path, monkeypatch, trigger):
+    from test_cli import ClientCliTests
+
+    from shadowbane_lab.travel import TravelController, TravelPhase, TravelRunner, parse_go_command
+
+    executor, session, _, ledger, parent, operation = setup_executor(tmp_path)
+
+    def travel(**kwargs):
+        movement = kwargs["stop_signal"]
+        if trigger in ("cancel", "stop", "cancel_cleanup_failure"):
+            kind = WorkerOperationKind.CANCEL if trigger != "stop" else WorkerOperationKind.STOP
+            ledger.pending_for.return_value = (SimpleNamespace(kind=kind),)
+        elif trigger == "native":
+            session.observed = replace(session.observed, owner=Owner.NONE,
+                                       generation=session.observed.generation + 1)
+        reader = SimpleNamespace(observe=MagicMock(side_effect=ValueError("position unavailable")))
+        result = TravelRunner(
+            controller=TravelController(parse_go_command("go 30 40 2")),
+            position_reader=reader, player_vitals_reader=reader,
+            dispatcher=kwargs["movement_dispatcher"], stop_signal=movement,
+            sleeper=lambda _: None,
+        ).run()
+        assert result.final_phase is TravelPhase.STOPPED
+        requested = trigger in ("cancel", "stop", "cancel_cleanup_failure")
+        if trigger == "failure_then_cancel":
+            assert result.terminal_reason != "emergency_stop"
+            ledger.pending_for.return_value = (SimpleNamespace(kind=WorkerOperationKind.CANCEL),)
+        else:
+            assert result.terminal_reason == "emergency_stop"
+        # Only native discovery is substituted by the shared CLI fixture. The
+        # actual runner result passes through the production JSON/exit boundary.
+        return ClientCliTests()._assert_travel_process_binding(
+            native_movement=True, run_result=result, stop_signal=movement,
+            expected_exit=0 if requested else 2, expected_cancelled=requested,
+        )
+
+    if trigger == "cancel_cleanup_failure":
+        def failed_stop(*args):
+            session.stop_calls.append(args)
+            raise NativeActionChannelError("cleanup transport failed")
+        session.stop = failed_stop
+    monkeypatch.setattr(manager, "_run_travel", travel)
+    result = executor.execute(operation, stop_signal=parent)
+    assert result.state.value == ("cancelled" if trigger in ("cancel", "stop") else "failed")
+    if trigger == "native":
+        assert result.detail == "native_movement_owner_revoked"
+    elif trigger == "failure_then_cancel":
+        assert result.detail.endswith("travel exited with status 2")
+    elif trigger == "cancel_cleanup_failure":
+        assert result.detail.startswith("explicit cancel or stop operation is pending; cleanup:")
+        assert result.native_cleanup_confirmed is False
+    else:
+        assert result.detail == "explicit cancel or stop operation is pending"
+    assert len(session.acquire_calls) == len(session.stop_calls) == session.closed == 1
