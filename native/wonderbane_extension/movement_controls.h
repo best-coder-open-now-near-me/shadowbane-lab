@@ -100,10 +100,9 @@ public:
     // A safety event nested inside this input/command's native callback can
     // veto its remaining work before a replacement grant or move is accepted.
     virtual std::optional<StopReason> Interrupted() const noexcept { return std::nullopt; }
-    // Fresh exact-owner lease and pinned native-service proof, never inferred
-    // from elapsed time or permissive stop admission. Unknown remains false.
-    virtual bool AutomationLeaseCurrent(const Grant&) const noexcept { return false; }
-    virtual bool StartupLeaseCurrent(const Grant&) const noexcept { return false; }
+    // Fresh exact acquired-owner and producer lease proof. Frame timing and
+    // activity/cleanup state are not ownership lifetimes. Unknown remains false.
+    virtual bool AcquiredLeaseCurrent(const Grant&) const noexcept { return false; }
 };
 
 // Exactly one instance per injected client. All calls (including automation
@@ -172,14 +171,11 @@ private:
     Grant grant_{1, 0, Owner::none, {}};
     Grant pending_grant_{};
     StopReason pending_reason_ = StopReason::release;
-    bool pending_service_only_ = false;
     bool pending_stop_ = false;
     bool actuating_ = false;
     bool shutdown_pending_ = false, shutdown_ = false;
     bool moving_ = false;
     bool native_activity_ = false;
-    // Proven only by a successful acquisition; never reconstructed from idle flags.
-    bool startup_stationary_ = false;
     bool available_ = false;
     bool faulted_ = false;
     bool camera_faulted_ = false;

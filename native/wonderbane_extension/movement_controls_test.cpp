@@ -19,11 +19,7 @@ struct Actuator final : NativeActuator {
     bool camera_ok = true;
     bool lease_current = false;
     Grant lease_grant{};
-    bool startup_lease_current = false;
-    bool StartupLeaseCurrent(const Grant& grant) const noexcept override {
-        return startup_lease_current && lease_grant == grant;
-    }
-    bool AutomationLeaseCurrent(const Grant& grant) const noexcept override {
+    bool AcquiredLeaseCurrent(const Grant& grant) const noexcept override {
         return lease_current && lease_grant == grant;
     }
     Controls* reenter_controls = nullptr;
@@ -575,8 +571,8 @@ void ServiceUpdateGaps() {
       Check(f.controls.Current() == grant && f.controls.Ready() && !f.controls.CleanupPending(),
           "confirmed service cleanup restores same owner after delayed update");
       f.Step(297);
-      Check(f.controls.Current().owner == Owner::none,
-          "completed service does not leave a reusable gap exemption"); }
+      Check(f.controls.Current() == grant && f.controls.Ready(),
+          "completed service preserves live operation ownership while idle"); }
     for (unsigned failure = 0; failure != 9; ++failure) {
         Fixture f; const auto grant = acquire(f);
         if (failure == 0) { f.actuator.lease_current = false; }
@@ -597,8 +593,9 @@ void ServiceUpdateGaps() {
         Check(f.controls.AutomationDestination(grant, {1,0,2}) == Result::accepted, "route shares service owner");
         if (pending) { f.actuator.stop_ok = false; (void)f.controls.PauseAutomation(grant); }
         f.Step(297);
-        Check(f.controls.Current().owner == Owner::none && f.controls.Current() != grant,
-            "active or pending movement route cannot become service-only after moving flag clears");
+        Check(f.controls.Current() == grant && f.controls.Ready() == !pending
+            && f.controls.CleanupPending() == pending,
+            "live route survives gap while unresolved cleanup still blocks writes");
     }
     { Fixture f; const auto grant = acquire(f); f.actuator.stop_ok = false;
       (void)f.controls.PauseAutomation(grant); f.actuator.lease_current = false; f.Step(297);
@@ -710,7 +707,7 @@ void StartupUpdateGaps() {
         Grant g{};
         Check(f.controls.AcquireAutomation(f.controls.Current().generation, Identity("startup"), g)
             == Result::accepted, "stationary startup acquired");
-        f.actuator.lease_grant = g; f.actuator.startup_lease_current = true;
+        f.actuator.lease_grant = g; f.actuator.lease_current = true;
         f.actuator.events.clear(); return g;
     };
     { Fixture f; const auto g = acquire(f); f.input.right_stick = {1,0};
@@ -722,10 +719,10 @@ void StartupUpdateGaps() {
       for (const auto& e:f.actuator.events) { if(e.kind=='c') {Check(Near(e.vector.x,0)&&Near(e.vector.y,0), "startup camera has no catchup dt");} }
       Check(f.controls.BeginAutomationNativeAction(g) == Result::accepted, "actor can open after delayed startup");
       f.Step(313);
-      Check(f.controls.Current() != g, "startup proof cannot replace missing pinned service lease"); }
+      Check(f.controls.Current() == g, "same live producer owns startup and subsequent service work"); }
     for (unsigned failure=0;failure<9;++failure) {
         Fixture f; const auto g=acquire(f);
-        if(failure==0){f.actuator.startup_lease_current=false;}
+        if(failure==0){f.actuator.lease_current=false;}
         if(failure==1){++f.actuator.lease_grant.generation;}
         if(failure==2){f.input.exact_foreground=false;}
         if(failure==3){f.input.ui_owns_input=true;}
@@ -757,7 +754,41 @@ void StartupUpdateGaps() {
         if(history==2){(void)f.controls.PauseAutomation(g);}
         if(history==3){(void)f.controls.AutomationDestination(g,{std::numeric_limits<float>::quiet_NaN(),0,2});}
         f.Step(313);
-        Check(f.controls.Current()!=g, "used paused or attempted route never reconstructs startup proof");
+        Check(f.controls.Current()==g && f.controls.Ready(), "live operation retains ownership through movement pause and rejected input");
+    }
+}
+void TravelUpdateGaps() {
+    { Fixture f; const auto g = f.Automate();
+      f.actuator.lease_current = true; f.actuator.lease_grant = g;
+      const auto stops = f.actuator.Count('s'), moves = f.actuator.Count('p');
+      f.input.right_stick = {1,0}; f.Step(266);
+      Check(f.controls.Current() == g && f.controls.Ready()
+          && f.actuator.Count('s') == stops && f.actuator.Count('p') == moves
+          && f.actuator.Count('c') == 0,
+          "266ms loaded-player gap preserves native destination without resend or camera catchup");
+      Check(f.controls.PauseAutomation(g) == Result::accepted, "same operation can pause its route");
+      f.Step(266);
+      Check(f.controls.Current() == g && f.controls.Ready() && f.actuator.Count('p') == moves,
+          "paused live route survives client delay without automatic resume");
+      Check(f.controls.AutomationDestination(g, {30,0,40}) == Result::accepted,
+          "next explicit destination uses original grant after paused gap");
+      f.actuator.lease_current = false; f.Step(266);
+      Check(f.controls.Current().owner == Owner::none && f.controls.Current() != g,
+          "expired producer retires an active route across the same frame gap"); }
+    for (unsigned input = 0; input != 3; ++input) {
+        Fixture f; const auto g = f.Automate();
+        f.actuator.lease_current = true; f.actuator.lease_grant = g;
+        const auto moves = f.actuator.Count('p');
+        if (input == 0) { f.input.keys['W'] = true; f.input.camera_basis_valid = false; }
+        if (input == 1) { f.input.left_stick = {1,0}; f.input.camera_basis_valid = false; }
+        if (input == 2) {
+            f.input.keys[f.settings.drag_button] = true; f.Step();
+            f.input.pointer_x += f.settings.drag_threshold_pixels + 1; f.input.ground_valid = false;
+        }
+        f.Step(266);
+        Check(f.controls.Current() != g && f.actuator.Count('p') == moves
+            && f.actuator.Count('d') == 0,
+            "fresh manual route takeover survives delayed invalid basis or terrain without unsafe movement");
     }
 }
 void FrameRatesAndSettings() {
@@ -783,6 +814,6 @@ void FrameRatesAndSettings() {
 }
 }
 int main() {
-    StartupUpdateGaps(); PendingServiceTakeover(); ServiceUpdateGaps(); RetainedCleanupStatus(); ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
+    TravelUpdateGaps(); StartupUpdateGaps(); PendingServiceTakeover(); ServiceUpdateGaps(); RetainedCleanupStatus(); ActionProfiles(); ParentContinuity(); ManualUpdateGaps(); KeyboardFirstStart(); Interpretation(); Ownership(); CameraFailure(); Gates(); Devices(); Drag(); BufferedInput(); FailureAndScene(); NativeIntentTakeover(); NestedSafety(); EmergencyStops(); DisabledAutomation(); OwnerServiceStopResponsibility(); FrameRatesAndSettings();
     return failures ? 1 : 0;
 }

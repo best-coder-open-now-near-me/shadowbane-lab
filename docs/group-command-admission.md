@@ -32,5 +32,7 @@ Regression coverage delays the real worker path between pending and claim,
 verifies no initial operation, refreshes evidence, and verifies one submission.
 Additional cases cover deadline, group/enable changes, and invalid final scenes.
 The combined .99/.64 release also corrects the Track close-function thunk.
-Live movement and automatic Track presentation remain pending qualification,
-installation, and a new user command; the previous receive must not be replayed.
+PR #158 is merged and the exact .99/.64 composition is qualified and installed.
+Fresh live movement/automatic Track presentation acceptance remains pending;
+the previous receive must not be replayed. See the
+[qualification record](group-admission-delivery-20261010.md).

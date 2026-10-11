@@ -1057,7 +1057,10 @@ class ClientCliTests(unittest.TestCase):
     def test_travel_uses_injected_movement_without_minimap_or_mouse_backend(self) -> None:
         self._assert_travel_process_binding(native_movement=True)
 
-    def _assert_travel_process_binding(self, *, native_movement: bool = False) -> None:
+    def _assert_travel_process_binding(
+        self, *, native_movement: bool = False, run_result=None, stop_signal=None,
+        expected_exit: int = 0, expected_cancelled: bool = False,
+    ) -> int:
         movement_dispatcher = (
             SimpleNamespace(dispatch=MagicMock(), stop_movement=MagicMock())
             if native_movement
@@ -1139,7 +1142,9 @@ class ClientCliTests(unittest.TestCase):
             ) as inspector_session,
             redirect_stdout(output),
         ):
-            travel_runner.return_value.run.return_value = completed_run
+            travel_runner.return_value.run.return_value = (
+                completed_run if run_result is None else run_result
+            )
             result = _run_travel(
                 lt=1000,
                 lg=2000,
@@ -1154,7 +1159,7 @@ class ClientCliTests(unittest.TestCase):
                 click_interval_ms=4000,
                 live=True,
                 as_json=True,
-                stop_signal=EventEmergencyStop(),
+                stop_signal=EventEmergencyStop() if stop_signal is None else stop_signal,
                 client_process_id=4320,
                 movement_dispatcher=movement_dispatcher,
             )
@@ -1170,9 +1175,15 @@ class ClientCliTests(unittest.TestCase):
             native_operation.return_value.__exit__.assert_called_once()
         mouse_backend.assert_not_called()
         inspector_session.assert_called_once_with(position_reader)
-        self.assertEqual(0, result)
+        self.assertEqual(expected_exit, result)
+        payload = json.loads(output.getvalue())
+        self.assertEqual(expected_cancelled, payload["cancelled"])
+        if expected_cancelled:
+            self.assertFalse(payload["arrival_confirmed"])
+            self.assertEqual("requested", payload["stop_cause"]["kind"])
         open_position.assert_called_once_with(position_profile, process_id=4320)
         open_vitals.assert_called_once_with(vitals_profile, process_id=4320)
+        return result
 
     def test_travel_enables_adaptive_zone_astar_and_reports_telemetry(self) -> None:
         template = Path(__file__).parents[1] / "configs" / "wonderbane-travel.template.json"

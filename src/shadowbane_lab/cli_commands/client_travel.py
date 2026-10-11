@@ -14,6 +14,7 @@ from shadowbane_lab.client_input import (
     WindowsForegroundWindowInspector,
     WindowsHotkeyEmergencyStop,
 )
+from shadowbane_lab.client_input.stop import observed_stop_cause
 from shadowbane_lab.client_observation import (
     NativePlayerPositionError,
     NativePlayerVitalsError,
@@ -243,6 +244,13 @@ def _run_travel(
                 poll_interval_ms=poll_ms,
                 observer=navigation_observer,
             ).run()
+            # Capture before the owned context closes: cleanup must not invent
+            # a requested stop or replace the initiating native interruption.
+            stop_cause = (
+                observed_stop_cause(active_stop_signal)
+                if result.final_phase is TravelPhase.STOPPED
+                and result.terminal_reason == "emergency_stop" else None
+            )
     except (
         NativePlayerPositionError,
         NativePlayerVitalsError,
@@ -274,8 +282,11 @@ def _run_travel(
         for step in result.trace
         if step.decision.minimap_direction is not None
     ]
+    cancelled = stop_cause is not None and stop_cause.kind == "requested"
     payload = {
-        "ok": result.final_phase is TravelPhase.COMPLETE,
+        "ok": result.final_phase is TravelPhase.COMPLETE or cancelled,
+        "cancelled": cancelled,
+        "stop_cause": None if stop_cause is None else stop_cause.as_dict(),
         "final_phase": result.final_phase.value,
         "terminal_reason": result.terminal_reason,
         "destination": {"lt": lt, "lg": lg, "radius": radius},
