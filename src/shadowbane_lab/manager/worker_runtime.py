@@ -436,8 +436,9 @@ class ExactClientWorkerRuntime:
                     active_operation = self._start_next_operation(publisher)
                 if active_operation is not None:
                     command = self._group_operations.get(active_operation.operation.operation_id)
-                    if command is not None and not self._group_command_allowed(command):
-                        active_operation.stop_signal.trip("group command permission changed")
+                    if command is not None and not self._group_operation_enabled():
+                        active_operation.stop_signal.trip(
+                            "group commands paused or disabled", requested=True)
                 if active_operation is not None and self._operation_maintenance is not None:
                     # Renewal is independent of heartbeat publication and runs on
                     # this worker's supervision thread, never the strategy thread.
@@ -536,6 +537,15 @@ class ExactClientWorkerRuntime:
             if self._preparation_reporter is not None:
                 self._preparation_reporter.publish(heartbeat, self._preparation.snapshot)
             self._sleep(.1)
+
+    def _group_operation_enabled(self):
+        # Receive freshness and roster identity authorize admission, not renewal.
+        # Native owner/scene and exact worker/game guards continue independently.
+        control = self._operation_ledger.inspect_preparation_control(
+            self._binding.client_id, self._binding.instance_id)
+        return ((control is None or control.enabled)
+                and self._group_commands is not None
+                and self._group_commands.operations_enabled())
 
     def _group_command_allowed(self, command):
         control = self._operation_ledger.inspect_preparation_control(
