@@ -2,8 +2,8 @@
 
 Host 0.3.102 is merged, qualified, installed and activation-verified. Native
 1.8.65 and client resources remain unchanged by this host-only update. A fresh
-client launch is verified and obsolete local .101 binaries are retired. Guest
-retirement and fresh live `/come` arrival acceptance remain pending.
+client launch is verified and obsolete local and guest .101 software is retired.
+Fresh login/group readiness and live `/come` arrival acceptance remain pending.
 
 ## Source and qualification
 
@@ -52,6 +52,9 @@ Private evidence lives under `artifacts/bot-deploy/20261011-host102/`:
 | `launch-receipt.json` | `c966b0b67134aab70a78995bf32dbaf192b29c86edb11f704a9953bb9f26e554` |
 | `launch-result.json` | `3b36683cbb3be16338f19f15403796d4f858616ab432e7bf794042df40baddd6` |
 | `local-host101-retired.json` | `e4a20d6f9d9d5aef78b7f5b422fe2ebd632f32f2646f582c3bb982676817d8e5` |
+| `retirement.json` | `f412796996372b9e7d204b71314174140b7300a5370ecb06121fd954dc45e08b` |
+| `post-retirement.json` | `23094a9aff7e70b7347ee7ef0064ff74be5c7598a4cb508435e01184435bc08e` |
+| `delivery-index.json` (15 evidence members) | `829370982bd9653b30e14cdecdf7c621a441139851cce82c0b1876c0f214ff83` |
 
 Native source remains `92bd3e90b9d248733915fc5860835fffc5ea4e6e`, version
 1.8.65, DLL SHA-256
@@ -93,15 +96,25 @@ validation and final activation. Future private updates use the corrected
 
 The reviewed launcher created game 6832, creation `134362063150691379`, window
 394196, with the exact .65 DLL loaded; old game 3408 remains unchanged. The
-manager is healthy with no bound worker at the login screen and no active or
-queued operation. Historical worker 1584 is stopped and unbound; this capture
-does not establish current .102 worker readiness or in-world buff coverage.
+initial launch capture showed a healthy manager with no bound worker at login
+and no active or queued operation. Historical worker 1584 was stopped and unbound;
+that capture did not establish .102 worker readiness or in-world buff coverage.
 
 Local retirement verified 491 old module identities and removed the exact .101
 `package/installed-wheel` tree and two .101 wheel copies: 1,859 files totaling
 35,680,712 bytes. Current .102 software, native B65 and diagnostic evidence remain
-preserved. Guest obsolete-host retirement and fresh live command acceptance
-remain pending; launch alone does not establish movement or arrival.
+preserved. Guest retirement removed the one obsolete .101 host directory: 2,173
+files totaling 49,069,543 bytes. Its native-payload removal list is empty; current
+.65 native software was not retired. User data and diagnostic evidence remain
+preserved, with no rollback copies.
+
+The final postcheck verifies the same manager 4652, new game 6832, preserved game
+3408 and exact .65 DLL. Worker 5736 is now attached and healthy, with no active or
+queued operation. Character identity is unavailable at login and buffs are paused,
+not current in-world coverage. Fresh login/group readiness and a new live command
+remain pending; launch and retirement do not establish movement or arrival.
+Preservation is evidenced by the stopped-capture/activation receipts; no ancillary
+retained-manifest export is claimed.
 
 The preceding .101 command was received and admitted but failed before route
 dispatch with native producer-heartbeat expiry (age 1,031 ms, renewal wait 0 ms).
@@ -113,7 +126,7 @@ SHA-256 `9f9e45e5bab4b7db2babe9039baa03fc14b5007c25244b6d2a8995fa14f34f9c`.
 
 Delivery documentation is prepared on
 `codex/worker-renewal-delivery-20261011` in `bot-runtime`, targeting `main` through
-draft PR [#165](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/165).
-Source, qualification, activation and launch verification are complete. Guest
-retirement and fresh live acceptance remain. The deployment policy forbids
+PR [#165](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/165).
+Source, qualification, activation, launch and retirement verification are
+complete. Fresh live acceptance remains. The deployment policy forbids
 retained rollback copies; preserve user data and diagnostic evidence in place.

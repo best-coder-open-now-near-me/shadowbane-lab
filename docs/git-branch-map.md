@@ -24,18 +24,22 @@ existing windowless game 3408 and native .65 remain unchanged. A reviewed privat
 validator correction `73a1af25` accounts for intentionally hidden inactive slots;
 it only validates the already-running manager, with no runtime rebuild/restart
 or sealed-payload mutation. Launch `c966b0b6` verifies new game 6832 and its exact
-.65 DLL; login/current-worker readiness and fresh live `/come` acceptance remain
-pending. Local .101 retirement `e4a20d6f` removed 1,859 reproducible files totaling
-35,680,712 bytes while preserving current software and evidence. Guest obsolete
-host retirement is still pending.
+.65 DLL. Local .101 retirement `e4a20d6f` removed 1,859 reproducible files totaling
+35,680,712 bytes. Guest retirement `f4127969` removed one old .101 host directory,
+2,173 files totaling 49,069,543 bytes, with no native-payload removal. Final
+postcheck `23094a9a` retains both games, manager 4652 and the exact native DLL;
+worker 5736 is healthy with no active or queued operation. Character identity is
+unavailable at login and buffs are paused. Fresh login/group readiness and live
+`/come` acceptance remain pending; current software, user data and evidence are
+preserved.
 The preceding .101 command was received but failed before movement with a
 1,031 ms native producer heartbeat age. The exact host scheduling delay was not
 captured, so successful live correction is not inferred from source tests.
 
 Delivery documentation is being prepared in `bot-runtime` on
-`codex/worker-renewal-delivery-20261011`, targeting `main` through draft
+`codex/worker-renewal-delivery-20261011`, targeting `main` through
 PR [#165](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/165).
-Preparation recovery and verified activation are recorded. See
+Preparation recovery, activation, launch and retirement are recorded. See
 [the delivery evidence](worker-renewal-delivery-20261011.md)
 and [the ownership correction](worker-native-maintenance.md).
 
