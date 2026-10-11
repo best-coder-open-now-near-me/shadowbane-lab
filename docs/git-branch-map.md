@@ -17,15 +17,26 @@ skips, and 491 modules match. After the visible game closed during preparation,
 its lifetime guard rejected validation before any active switch. The reviewed
 fresh baseline `ee292c23` and revised plan `32c9bd70` reused and revalidated the
 existing .102 environment: preparation `39b0dacd`/recovery `819fa5d1` passed with
-491 modules and no client changes. Active installation and fresh live `/come`
-acceptance remain pending.
+491 modules and no client changes. Actual application `6a4bd36c` and activation
+`4c989ee5` verify 491 modules, 9,620 retained records, zero exclusions and two typed
+startup/permit changes. At activation, manager 4652/parent 3980 is healthy with zero bound workers;
+existing windowless game 3408 and native .65 remain unchanged. A reviewed private
+validator correction `73a1af25` accounts for intentionally hidden inactive slots;
+it only validates the already-running manager, with no runtime rebuild/restart
+or sealed-payload mutation. Launch `c966b0b6` verifies new game 6832 and its exact
+.65 DLL; login/current-worker readiness and fresh live `/come` acceptance remain
+pending. Local .101 retirement `e4a20d6f` removed 1,859 reproducible files totaling
+35,680,712 bytes while preserving current software and evidence. Guest obsolete
+host retirement is still pending.
 The preceding .101 command was received but failed before movement with a
 1,031 ms native producer heartbeat age. The exact host scheduling delay was not
 captured, so successful live correction is not inferred from source tests.
 
 Delivery documentation is being prepared in `bot-runtime` on
-`codex/worker-renewal-delivery-20261011`, targeting `main` through a draft delivery
-PR. Preparation recovery is recorded; final phase receipts will follow. See [the delivery evidence](worker-renewal-delivery-20261011.md)
+`codex/worker-renewal-delivery-20261011`, targeting `main` through draft
+PR [#165](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/165).
+Preparation recovery and verified activation are recorded. See
+[the delivery evidence](worker-renewal-delivery-20261011.md)
 and [the ownership correction](worker-native-maintenance.md).
 
 ## Group command admission authority - October 11

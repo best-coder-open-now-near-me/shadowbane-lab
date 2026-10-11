@@ -68,7 +68,7 @@ settings disable, game identity, native loss and first-cause cleanup behavior.
 Independent source review passed. The focused suite passed 173 tests with the
 qualified native movement fixture and no skips. PR #164 is merged after all
 15 hosted checks, and the exact composed .102 release passed qualification.
-[Delivery evidence](worker-renewal-delivery-20261011.md) records the package;
-installation verification and a fresh live command remain pending. Passing these
-tests does not establish live arrival or prove which earlier host call caused the
+[Delivery evidence](worker-renewal-delivery-20261011.md) records the package and
+verified .102 activation and client launch with unchanged native .65. Fresh live
+command acceptance remains pending. Passing these tests does not establish live arrival or prove which earlier host call caused the
 captured producer-heartbeat expiry.
