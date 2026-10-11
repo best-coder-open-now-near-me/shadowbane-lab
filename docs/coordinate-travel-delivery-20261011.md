@@ -80,13 +80,28 @@ At the post-launch check, character identity is unavailable at login; the worker
 is healthy with no active or queued operation, and automatic buffs are paused. This verifies launch, not live
 movement acceptance. No previous command was replayed.
 
+## Obsolete software retirement
+
+After verified activation and launch, exact reviewed inventories were retired.
+Local receipt `807ca134e14ef108ff876782e4fe92944baf3652c794752cff008401f73a6331`
+records 4,753 obsolete files removed (244,995,781 bytes), with all 9,220 nonlisted
+files unchanged. The current B66 package and VM were outside that local scope.
+Guest receipt `689e3c7df96ea6f04f19236edc6fffc3900a1d649183dec08ab25274632fcbe0`
+records 22 obsolete .102/.65 targets removed (68,620,488 bytes). Final postcheck
+`aadf389b207d7728c69a48285be5add04f208ff32645a0ec96b420c286cdaf70`
+verifies the same current manager, client lifetime/window and exact .66 DLL.
+User data, source and diagnostic evidence were preserved; no rollback copies
+were retained. At that check the worker is healthy with no active/queued action;
+character identity remains unavailable at login and upkeep is `needs_attention`.
+Fresh in-world readiness is still required before claiming automatic upkeep.
+
 ## Remaining work
 
-- Complete: source integration, package qualification, installation and verified launch.
+- Complete: source integration, package qualification, installation, verified launch
+  and obsolete software retirement.
 - Active: request fresh login/group readiness, then one new grouped `/come` to
   check sustained movement, endpoint pacing and existing obstacle recovery.
-- Next: record live outcome and retire verified obsolete reproducible software;
-  preserve all user data and diagnostic evidence.
+- Next: record the live outcome; preserve all user data and diagnostic evidence.
 
 The prior retained trace proves a parent interruption and slow endpoint pacing.
 The reported building obstruction remains a live acceptance question; successful
