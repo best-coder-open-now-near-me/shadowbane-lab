@@ -22,8 +22,10 @@ the .65 DLL remain unchanged, with no client writes. The fresh .101 Treehugger
 `/come` was admitted but failed before dispatch because native action renewal
 found its heartbeat 1,031 ms old. The exact preceding blocked call was not timed;
 source review found historical ledger reconciliation on the active renewal path.
-That ownership/control separation is next; live arrival acceptance and obsolete
-.100 host retirement remain pending.
+That ownership/control separation and live arrival acceptance are next. The
+obsolete .100 host was retired: 2,173 files / 49,065,694 bytes; both games, the
+current manager/worker and native .65 remained unchanged. Upkeep is maintaining
+again without another Resume; the travel result remains failed.
 The .100/.65 Treehugger command was admitted but failed before routing; its exact
 host failing predicate was not captured.
 

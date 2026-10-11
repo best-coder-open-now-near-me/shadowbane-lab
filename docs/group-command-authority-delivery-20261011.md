@@ -87,7 +87,17 @@ that active renewal still performs repeated historical operation reconciliation
 and inbox scans under a shared five-second lock, despite the one-second native
 producer lease. The next source work separates bounded active authority from
 history/control I/O; merely widening a timeout is not the planned correction.
-Fresh live arrival acceptance and obsolete .100 host retirement remain pending.
+Fresh live arrival acceptance remains pending.
+
+The obsolete .100 host was retired after verified activation: one directory,
+2,173 files / 49,065,694 bytes. Both game lifetimes, manager 1956, worker 1584 and
+native .65 remained unchanged. No native package or payload was removed. The
+postcheck found upkeep current and maintaining again without another Resume;
+the earlier idle capture was transient. The failed travel remains failed.
+Retirement receipt `retirement.json` is
+`bd760727e0c8bfb1f86f676da39e02e26e5f3ab3e0e8437b654c63cc724d50c4`;
+`post-retirement.json` is
+`9c55df434473af3bf6cd437d8e002553b19de3baddd1a099092436038df3e487`.
 
 Delivery documentation is on `codex/group-authority-delivery-20261011` in
 `bot-runtime`, based on reviewed source and targeting `main`; PR #162 is merged.
