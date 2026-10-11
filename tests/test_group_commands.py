@@ -113,3 +113,17 @@ def test_decoded_self_member_is_not_excluded_from_any_member_policy():
     r["payload"]["sender_key"] = (42, 53)
     p.ingest(batch([r]), batch(), c, allowed=True, now_ms=1001)
     assert p.pending.sender_key == (42, 53)
+
+
+def test_acknowledgement_only_removes_the_consumed_intent():
+    p = ready()
+    p.ingest(batch([chat()]), batch(), current(), allowed=True, now_ms=1001)
+    consumed = p.pending
+    p.acknowledge(consumed)
+    p.ingest(batch(sequence=3), batch(), current(), allowed=True, now_ms=7001)
+    assert p.pending is None
+    assert "expired" not in p.detail
+    p.ingest(batch([chat(5, tick=7001)]), batch(), current(), allowed=True, now_ms=7001)
+    newer = p.pending
+    p.acknowledge(consumed)
+    assert p.pending == newer and newer != consumed

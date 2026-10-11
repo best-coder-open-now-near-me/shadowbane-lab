@@ -1,5 +1,18 @@
 # Git branch map
 
+## Group command admission authority - October 11
+
+Shared development starts from refreshed `main` at PR #161 merge
+`568c4075b4004142ea0f52ec924c83d227d584c0`.
+`codex/group-command-authority-20261011` in `native-group-come` targets `main`
+with host .101 and unchanged native .65. It separates fresh group-command
+admission from active native ownership and acknowledges consumed intents without
+blocking maintenance on observer persistence. The focused suite passed 116 tests.
+Independent source review passed; integration precedes release composition/package qualification;
+a fresh live `/come` remains necessary. The .65 Treehugger command was admitted
+but failed before routing; its exact host failing predicate was not captured.
+See [the evidence and ownership boundary](group-travel-continuity.md#admission-authority-correction---october-11).
+
 ## Group travel continuity - October 10
 
 Start shared development from refreshed `main` at PR #160 merge
