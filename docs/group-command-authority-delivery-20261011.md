@@ -73,10 +73,21 @@ was required.
 | `shortcuts.json` | `376d6a9c9b461bcdf8830133aa2bf28285503642d60fc92ee00b182d6a209faf` |
 | `activation.json` | `0d999f9185cadb94f471fd16e3c137d2189885ca45e2442690204ae5dc6e4ab3` |
 
-Fresh .101 `/come` live acceptance and obsolete .100 host retirement remain
-pending. No .101 movement or arrival is claimed. The next acceptance is a fresh
-authorized group command, preserving explicit stop and cleanup evidence; no
-buffered command should be replayed for this test.
+The fresh .101 Treehugger `/come` was admitted but failed before route submission.
+Its native action renewal found a heartbeat 1,031 ms old with zero milliseconds
+spent waiting inside that renewal call. The native owner changed from automation
+to none after 1,625 ms, on a 125 ms client sample interval. Travel recorded one
+step, zero dispatched actions and no arrival. No retry or buffered replay was
+issued. Upkeep was idle in the post-terminal capture.
+
+Private correlated evidence is `listener-ready/come-result-index.json`, SHA-256
+`9f9e45e5bab4b7db2babe9039baa03fc14b5007c25244b6d2a8995fa14f34f9c`.
+The exact blocking host call was not timed. Source review separately established
+that active renewal still performs repeated historical operation reconciliation
+and inbox scans under a shared five-second lock, despite the one-second native
+producer lease. The next source work separates bounded active authority from
+history/control I/O; merely widening a timeout is not the planned correction.
+Fresh live arrival acceptance and obsolete .100 host retirement remain pending.
 
 Delivery documentation is on `codex/group-authority-delivery-20261011` in
 `bot-runtime`, based on reviewed source and targeting `main`; PR #162 is merged.

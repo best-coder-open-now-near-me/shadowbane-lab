@@ -18,8 +18,12 @@ Native .65, its DLL, graphics and client resources remain unchanged.
 Source is merged and .101 activation is verified: 491 modules, 9,614 retained
 records, zero exclusions and ten typed startup changes. Manager 1956/parent 5264
 and worker 1584 are bound to the same game 4092; both existing game lifetimes and
-the .65 DLL remain unchanged, with no client writes. Fresh `/come` live acceptance
-and obsolete .100 host retirement remain pending.
+the .65 DLL remain unchanged, with no client writes. The fresh .101 Treehugger
+`/come` was admitted but failed before dispatch because native action renewal
+found its heartbeat 1,031 ms old. The exact preceding blocked call was not timed;
+source review found historical ledger reconciliation on the active renewal path.
+That ownership/control separation is next; live arrival acceptance and obsolete
+.100 host retirement remain pending.
 The .100/.65 Treehugger command was admitted but failed before routing; its exact
 host failing predicate was not captured.
 
