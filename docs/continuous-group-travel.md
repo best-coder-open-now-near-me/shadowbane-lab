@@ -23,6 +23,35 @@ contain height discontinuity blockers and population density costs, but no
 placed building footprints. A downward native terrain ray validates endpoint
 height, not the horizontal corridor.
 
+## Parity with the accepted `/go` route
+
+The accepted `/go lat long` baseline is source `7e719d6f`. The recorded tree
+runs in [the navigation handoff](handoffs/navigation-inspector.md) exercised
+measured stall detection, a physical backtrack, learned fine-cell blockers,
+local refinement and confirmed arrival. That working bot route is the reuse
+boundary; native movement internals are not evidence of usable obstacle routing.
+
+Compared with current shared `main` at `79461bde`, that baseline has byte-identical
+`travel/controller.py`, `adaptive.py`, `model.py`, `runtime.py` and `arrival.py`.
+Both the current `/go` listener and group-command manager call `_run_travel` with
+the active-zone terrain source and shared learned navigation map. The supported
+listener and manager defaults agree on a 200 ms observation poll, 2,000 ms periodic
+dispatch interval and 300-second session. The manager loads and saves the same
+learned-map schema; later persistence changes merge evidence under a lock rather
+than removing it. Terrain resampling improvements are separate from the follower.
+
+The substantive execution migration replaced the old calibrated minimap input
+adapter with native movement dispatch and a scene-bound operation grant. The
+latest `/come` record still used A*, refreshed terrain twice and recorded zero
+learned replans before the parent-only ownership interruption. It therefore does
+not demonstrate that the established obstacle recovery was omitted or that a
+building defeated it. The continuous follower checkpoint is
+[`5f5990ad`](https://github.com/best-coder-open-now-near-me/shadowbane-lab/commit/5f5990adbd64117bbc05959127af8b3f1f6e4b6b),
+under [PR #166](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/166).
+It changes endpoint pacing and qualified waypoint handoffs while retaining that
+planner and recovery. New obstacle geometry and speculative native-route
+integration are deprioritized until execution parity is established.
+
 ## Implementation boundaries
 
 The active branch is `codex/continuous-group-travel-20261011`, targeting `main`.
@@ -70,5 +99,6 @@ upkeep after confirmed native cleanup. It is a timestamped observation.
   regression; 58 final follower/consumer tests and 50 independent corridor/follower
   tests passed afterward. Live acceptance is not implied.
 - Active: correct verified parent-transition ownership in the coordinated lane.
-- Next: establish the durable obstacle source, qualify the coherent update, then
-  request one fresh live run.
+- Next: verify the preserved `/go` planner and recovery through the corrected
+  native execution boundary, qualify the coherent update, then request one fresh
+  live run. Revisit obstacle coverage only if the resulting evidence requires it.
