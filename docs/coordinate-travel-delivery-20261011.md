@@ -1,4 +1,4 @@
-# Coordinate travel qualification and pending installation
+# Coordinate travel qualification and installation
 
 ## Source and behavior
 
@@ -50,40 +50,58 @@ acceptance.
 | Independent package verification | `d8038a50a870d9d658659bdb71ca7bfbd7bbce8cc52e329024524c89f0684efa` |
 | Supplemental startup verification | `abae552b834b7bc7590c086820a7c7d75d1bc48d365eb59a7f63427cf784d869` |
 
-## Current runtime and installation boundary
+## Installed runtime
 
-The testing VM remains on host .102/native .65. Fresh read-only baseline
-`76ffb19604dc715c258703ea483b62de86ad7407d702096c222c02f45325cdeb`
-verifies the installed .102 source and 491 modules, unchanged .17 client/resources,
-and 9,636 retained records. Four live writers were recorded as unstable without
-preservation exemptions; a fresh stopped capture still governs installation.
-Umbra's worker is healthy with no active or queued operation. Both the visible
-client and an older windowless copy map the exact DLL to replace. The user has
-been asked whether to close both or have this task close them. That response is
-pending; no guest staging, process control, or runtime replacement has occurred.
+The user closed the clients and restarted the VM. A fresh closed baseline
+`5ff920963b0fbf2ca85c760634ad7ac923071e623cf0c7ac82308a684944a8f8`
+verified no client, manager or worker. The reviewed already-absent manager path
+performed fresh dependency checks without restarting or killing old software.
+The resealed plan is
+`54550753d77f5b13bf4e868e244b75265cb87f61871452e14c95a5090a808b56`.
 
-The local concrete payload is prepared under
-`artifacts/bot-deploy/20261011-host103/payload` with plan SHA-256
-`ab7c2ee9c762cbd3349577f171cdeec1973d71a3958cde6b1887eae650cd5e3f`.
-Independent package/payload member review passed. This candidate plan is bound
-to the active baseline; after client closure, capture a fresh closed baseline and
-reseal the plan and wrappers before preparation. The activation validator compares
-exact client bindings and must not be weakened to reuse an active-world baseline.
-Its procedure preserves settings, jobs, history
-and typed stop-control records, uses the corrected filtered-slot activation
-validator, and replaces exactly one DLL with associated provenance. It follows
-[the no-retained-rollback policy](deployment-policy.md); runtime recovery uses
-committed source and official client assets.
+Host .103/native .66 is installed from exact release `dc6cbbb4`.
+Independent phase review verified 491 modules, 9,686 retained records, zero
+exclusions, exactly one DLL replacement and two typed startup/permit changes.
+The official client executable and resources are unchanged. No rollback copies
+were created. Private receipts remain under
+`artifacts/bot-deploy/20261011-host103`:
+
+| Phase | SHA-256 |
+| --- | --- |
+| Manager stopped/verified absent | `bbb0165c7ea6d1889d505dbb65f3d25cc4bbd5e4f31abb77a36dffbb2689b204` |
+| Apply | `3f08bf7db0d3e40f27bc0c9543d11714dc2b26c22fc544fb1fe66066b2c88927` |
+| Shortcuts | `b7606ddbf29a0545baf675010b8fac6d2083ec872875c95590747356ffe0f8e9` |
+| Activation | `fbd9adfca6253fbd91008d0d55bb8b3c83a2bf9fb85bd007e650d8aa4847561b` |
+| Client launch | `a8bdfefb729fb4344f5b3c93e828d211412dc4b40937b15d156a96dfd33dee5c` |
+
+The reviewed launcher opened client 5640, lifetime 134362122977715513,
+window 196970, with the exact .66 DLL. Manager 4756 and worker 5544 are healthy.
+At the post-launch check, character identity is unavailable at login; the worker
+is healthy with no active or queued operation, and automatic buffs are paused. This verifies launch, not live
+movement acceptance. No previous command was replayed.
+
+## Obsolete software retirement
+
+After verified activation and launch, exact reviewed inventories were retired.
+Local receipt `807ca134e14ef108ff876782e4fe92944baf3652c794752cff008401f73a6331`
+records 4,753 obsolete files removed (244,995,781 bytes), with all 9,220 nonlisted
+files unchanged. The current B66 package and VM were outside that local scope.
+Guest receipt `689e3c7df96ea6f04f19236edc6fffc3900a1d649183dec08ab25274632fcbe0`
+records 22 obsolete .102/.65 targets removed (68,620,488 bytes). Final postcheck
+`aadf389b207d7728c69a48285be5add04f208ff32645a0ec96b420c286cdaf70`
+verifies the same current manager, client lifetime/window and exact .66 DLL.
+User data, source and diagnostic evidence were preserved; no rollback copies
+were retained. At that check the worker is healthy with no active/queued action;
+character identity remains unavailable at login and upkeep is `needs_attention`.
+Fresh in-world readiness is still required before claiming automatic upkeep.
 
 ## Remaining work
 
-- Complete: source reviews, exact package qualification and source integration.
-- Active: after actual DLL users close, capture the closed baseline, reseal and
-  review the concrete plan, then install.
-- Next: start the verified runtime and request one fresh grouped `/come` to check
-  sustained movement, endpoint pacing and the existing obstacle recovery.
-- Next: record live outcome and retire verified obsolete reproducible software;
-  preserve all user data and diagnostic evidence.
+- Complete: source integration, package qualification, installation, verified launch
+  and obsolete software retirement.
+- Active: request fresh login/group readiness, then one new grouped `/come` to
+  check sustained movement, endpoint pacing and existing obstacle recovery.
+- Next: record the live outcome; preserve all user data and diagnostic evidence.
 
 The prior retained trace proves a parent interruption and slow endpoint pacing.
 The reported building obstruction remains a live acceptance question; successful

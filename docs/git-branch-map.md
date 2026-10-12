@@ -14,12 +14,16 @@ Graphics-preserving release `dc6cbbb4c00f001744c16de8936095b313bf46ad` on
 host .103/native .66. Its graphics composition remains outside `main` as before.
 The normal project checkout is clean on `main`; delivery documentation is on
 `codex/coordinate-travel-delivery-20261011` in `bot-runtime`, targeting `main`.
-Installed software is still .102/.65. The exact local payload is prepared;
-client closure and installation are pending. The visible Umbra client and an
-older windowless client both hold the DLL. No client has been stopped by this
-update. Retain active implementation/release checkouts through live acceptance;
-retire integrated task branches once they are no longer needed by this task.
-See [qualification and pending installation](coordinate-travel-delivery-20261011.md)
+Installed software is now .103/.66 from exact release `dc6cbbb4`.
+Independent installation review verifies 491 modules, 9,686 retained records,
+zero exclusions and unchanged client executable/resources. Verified client 5640
+loads the exact .66 DLL; manager and worker are healthy with no queued operation.
+Character identity is unavailable at login and upkeep needs attention; fresh
+in-world/group readiness and one new `/come` remain pending. Reviewed obsolete
+local .102/.65 software (244,995,781 bytes) and guest software (68,620,488 bytes)
+were retired while preserving user data, source, evidence and current software.
+Retain implementation/release checkouts through live acceptance; retire integrated
+task branches once no longer needed. See [qualification and installation](coordinate-travel-delivery-20261011.md)
 and [the implementation](continuous-group-travel.md).
 
 ## Worker current authority and native maintenance - October 11
