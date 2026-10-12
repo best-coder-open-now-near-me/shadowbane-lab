@@ -19,6 +19,7 @@ from shadowbane_lab.travel.model import (
     TravelPlan,
 )
 from shadowbane_lab.travel.pathfinding import (
+    AStarRoute,
     AStarRouteNotFound,
     NavigationMapSnapshot,
     WeightedAStarPlanner,
@@ -39,6 +40,11 @@ class _RouteDispatchCheckpoint:
 
     _navigation: NavigationMapSnapshot | None
     _travel: TravelController | None
+    _itinerary: AStarRoute | None
+    _itinerary_index: int
+    _itinerary_reaches_destination: bool
+    _itinerary_mode: str | None
+    _leg_completes_waypoint: bool
     _click_count: int
     _attempt_count: int
     _replan_count: int
@@ -87,6 +93,11 @@ class AStarTravelController:
         self._plan_id = plan_id
         self._navigation: NavigationMapSnapshot | None = None
         self._travel: TravelController | None = None
+        self._itinerary: AStarRoute | None = None
+        self._itinerary_index = 0
+        self._itinerary_reaches_destination = False
+        self._itinerary_mode: str | None = None
+        self._leg_completes_waypoint = False
         self._started_at_ms: int | None = None
         self._decision_id = 0
         self._click_count = 0
@@ -196,6 +207,11 @@ class AStarTravelController:
         terminal = self._observe_bounds(observation)
         if terminal is not None:
             return terminal
+        if (
+            self._destination.distance_from(observation.position)
+            <= self._destination.arrival_radius
+        ):
+            return self._arrive(observation)
         if self._travel is not None:
             decision = self._travel.observe_deferred(observation)
             if decision.phase is TravelPhase.COMPLETE and not self._travel_reaches_destination:
@@ -236,6 +252,12 @@ class AStarTravelController:
         if terminal is not None:
             return terminal
 
+        if (
+            self._destination.distance_from(observation.position)
+            <= self._destination.arrival_radius
+        ):
+            return self._arrive(observation)
+
         navigation = self._navigation_source.observe(observation.position)
         if self._travel is None or (
             self._navigation is not None and navigation.token != self._navigation.token
@@ -269,17 +291,25 @@ class AStarTravelController:
             self._replan_count += 1
             decision = self._step_follower(observation)
         if decision.phase is TravelPhase.COMPLETE and not self._travel_reaches_destination:
-            if self._replan_count >= self._maximum_replans:
-                return self._stop("maximum_replans", observation)
+            # Physical completion of a fine slice is ordinary route progress,
+            # not an obstacle recovery. Keep the committed coarse suffix.
+            assert self._itinerary is not None
+            itinerary_complete = (
+                self._leg_completes_waypoint
+                and self._itinerary_index == len(self._itinerary.destinations) - 1
+            )
+            if self._leg_completes_waypoint and not itinerary_complete:
+                self._itinerary_index += 1
             try:
-                self._travel, self._travel_reaches_destination, self._route_mode = self._plan(
-                    observation,
-                    reason="frontier_complete",
-                    allow_partial_fallback=True,
-                )
+                if itinerary_complete:
+                    replacement = self._plan(
+                        observation, reason="frontier_complete", allow_partial_fallback=True,
+                    )
+                else:
+                    replacement = self._plan_leg(observation)
+                self._travel, self._travel_reaches_destination, self._route_mode = replacement
             except AStarRouteNotFound as exc:
                 return self._stop(self._route_failure(exc), observation)
-            self._replan_count += 1
             decision = self._step_follower(observation)
         if (
             decision.maneuver is not None
@@ -314,6 +344,13 @@ class AStarTravelController:
                 decision = self._step_follower(observation)
         elif decision.maneuver is TravelManeuver.DIRECT:
             self._backtrack_pending = False
+        if decision.phase is TravelPhase.COMPLETE and not self._travel_reaches_destination:
+            # A replacement leg may already be physically complete. Continue
+            # on the next observation instead of looping or claiming arrival.
+            decision = replace(
+                decision, phase=TravelPhase.TRAVELING, terminal_reason=None,
+                arrival_destination=None,
+            )
         return self._translate(decision)
 
     def stop(
@@ -358,63 +395,81 @@ class AStarTravelController:
             route_mode = "astar_partial"
         else:
             route_mode = "astar_final" if reaches_destination else "astar_horizon"
-            if reason == "learned_obstacle":
-                try:
-                    refined_route = self._planner.plan_refined(
-                        self._navigation.navigation_map,
-                        start_lt=observation.position.lt,
-                        start_lg=observation.position.lg,
-                        # Keep the coarse route's next required turn. Projecting
-                        # toward the global goal can send a local fine route back
-                        # into the concavity that the coarse route already avoids.
-                        destination=next(
-                            (
-                                waypoint for waypoint in route.destinations
-                                if hypot(
-                                    waypoint.lt - observation.position.lt,
-                                    waypoint.lg - observation.position.lg,
-                                ) > waypoint.arrival_radius
-                            ),
-                            route.destinations[-1],
-                        ),
-                        maximum_distance=(
-                            self._navigation.navigation_map.cell_size * 6
-                        ),
-                    )
-                except AStarRouteNotFound:
-                    # Re-emit the route we will actually follow after the failed
-                    # fine-grid attempt so the inspector never shows a stale plan.
-                    route = self._planner.plan(
-                        self._navigation.navigation_map,
-                        start_lt=observation.position.lt,
-                        start_lg=observation.position.lg,
-                        destination=planning_destination,
-                    )
-                else:
-                    route = refined_route
-                    reaches_planning_destination = (
-                        route.destinations[-1] == planning_destination
-                    )
-                    reaches_destination = (
-                        reaches_destination and reaches_planning_destination
-                    )
-                    route_mode = (
-                        "astar_refined_final"
-                        if reaches_destination
-                        else "astar_refined_horizon"
-                        if reaches_planning_destination
-                        else "astar_refined_local"
-                    )
+        self._itinerary = route
+        self._itinerary_index = 0
+        self._itinerary_reaches_destination = reaches_destination
+        self._itinerary_mode = route_mode
+        return self._plan_leg(observation)
+
+    def _plan_leg(
+        self, observation: TravelObservation,
+    ) -> tuple[TravelController, bool, str]:
+        """Refine the next coarse leg, retaining later mandatory turns unchanged."""
+
+        assert self._navigation is not None and self._itinerary is not None
+        guide = self._itinerary
+        index = self._itinerary_index
+        while index < len(guide.destinations) - 1:
+            waypoint = guide.destinations[index]
+            if waypoint.distance_from(observation.position) > waypoint.arrival_radius:
+                break
+            index += 1
+        self._itinerary_index = index
+        target = guide.destinations[index]
+        try:
+            route = self._planner.plan_refined(
+                self._navigation.navigation_map,
+                start_lt=observation.position.lt,
+                start_lg=observation.position.lg,
+                destination=target,
+                maximum_distance=self._navigation.navigation_map.cell_size * 6,
+            )
+            # A grid path can start on a subcell boundary touching clearance.
+            # Require the same exact-world corridor used by the follower before
+            # choosing this fine route over its already valid coarse guide.
+            previous = (observation.position.lt, observation.position.lg)
+            for waypoint in route.destinations:
+                point = (waypoint.lt, waypoint.lg)
+                if not route.grid.segment_clear(*previous, *point):
+                    raise AStarRouteNotFound("fine route corridor unavailable")
+                previous = point
+        except AStarRouteNotFound:
+            # Retain the already accepted coarse suffix and its exact grid.
+            # No direct fallback or removal of an observed obstacle is allowed.
+            route = replace(guide, destinations=guide.destinations[index:])
+            self._itinerary_index = len(guide.destinations) - 1
+            self._leg_completes_waypoint = True
+            reaches_destination = self._itinerary_reaches_destination
+            assert self._itinerary_mode is not None
+            route_mode = self._itinerary_mode
+        else:
+            endpoint = route.destinations[-1]
+            self._leg_completes_waypoint = (
+                hypot(endpoint.lt - target.lt, endpoint.lg - target.lg)
+                + endpoint.arrival_radius <= target.arrival_radius + 1e-9
+            )
+            # The planner may choose a different endpoint inside a blocked
+            # goal's arrival region. Its entire arrival disk must fit inside
+            # the original goal before the local follower may finish travel.
+            reaches_destination = (
+                self._itinerary_reaches_destination
+                and index == len(guide.destinations) - 1
+                and hypot(endpoint.lt - self._destination.lt, endpoint.lg - self._destination.lg)
+                + endpoint.arrival_radius <= self._destination.arrival_radius + 1e-9
+            )
+            route_mode = "astar_refined_final" if reaches_destination else "astar_refined_local"
         return (
             TravelController(
                 TravelPlan(
                     plan_id=(
-                        f"{self._plan_id}:{reason}:{self._replan_count}:{self._navigation.token}"
+                        f"{self._plan_id}:leg:{self._itinerary_index}:{self._replan_count}:"
+                        f"{self._decision_id}:{self._navigation.token}"
                     ),
                     destinations=route.destinations,
                 ),
                 self._config,
                 observer=self._planner.observer,
+                final_is_frontier=not reaches_destination,
                 shortcut_clear=lambda start, path: route.grid.shortcut_clear(
                     (start.x, start.y), tuple((point.x, point.y) for point in path)
                 ),
@@ -422,6 +477,16 @@ class AStarTravelController:
             reaches_destination,
             route_mode,
         )
+
+    def _arrive(self, observation: TravelObservation) -> TravelDecision:
+        self._terminal = TravelDecision(
+            decision_id=self._next_decision_id(), now_ms=observation.now_ms,
+            phase=TravelPhase.COMPLETE, waypoint_index=self._itinerary_index,
+            click_count=self._click_count,
+            distance_remaining=self._destination.distance_from(observation.position),
+            terminal_reason="destination_reached", arrival_destination=self._destination,
+        )
+        return self._terminal
 
     def _planning_destination(self, observation: TravelObservation) -> TravelDestination:
         """Project a far goal just beyond the next terrain refresh boundary."""
@@ -529,6 +594,8 @@ class AStarTravelController:
             decision,
             decision_id=self._next_decision_id(),
             click_count=self._click_count,
+            arrival_destination=(self._destination if decision.phase is TravelPhase.COMPLETE
+                                 else decision.arrival_destination),
         )
         if translated.terminal:
             self._terminal = translated

@@ -72,8 +72,9 @@ def test_recovery_keeps_known_detour_instead_of_entering_long_pocket(costly):
         controller.acknowledge_dispatch(decision)
         now += 100
     assert decision.phase is TravelPhase.TRAVELING
-    assert controller.replan_count == 2
-    assert controller.active_plan.destinations[-1] == TravelDestination(305, 5, 75)
+    assert controller.replan_count == 1
+    assert controller._itinerary.destinations[-1] == TravelDestination(305, 5, 75)
+    assert controller.route_mode == "astar_refined_local"
     assert navigation.refined_learned_blocked == learned
 
 

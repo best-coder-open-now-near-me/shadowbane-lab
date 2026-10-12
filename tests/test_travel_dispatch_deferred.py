@@ -277,14 +277,14 @@ def test_observed_horizon_during_pause_is_not_global_arrival():
     travel = AStarTravelController(TravelDestination(500, 5, 5), config(), source)
     first = travel.propose(observation(0))
     travel.acknowledge_dispatch(first)
-    assert travel.route_mode == "astar_horizon"
+    assert travel.route_mode == "astar_refined_local"
     frontier = travel.active_plan.destinations[-1]
     waiting = travel.observe_deferred(observation(100, frontier.lt, frontier.lg))
     assert waiting.phase is TravelPhase.TRAVELING
     assert waiting.arrival_destination is None and waiting.terminal_reason is None
     continued = travel.propose(observation(200, frontier.lt, frontier.lg))
     assert continued.phase is TravelPhase.TRAVELING
-    assert continued.click_destination is not None and travel.replan_count == 1
+    assert continued.click_destination is not None and travel.replan_count == 0
     travel.acknowledge_dispatch(continued)
 
 

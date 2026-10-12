@@ -1,5 +1,16 @@
 # Git branch map
 
+## Fine routing from the first leg - October 12
+
+Shared development starts from `main` at PR #170 merge `420deb91`. The focused
+`codex/hierarchical-travel-routing-20261012` branch in managed checkout
+`hierarchical-travel-routing` targets `main`. It reuses the accepted subgrid from
+the first leg and retains coarse itinerary progress; see
+[implementation and historical parity](hierarchical-travel-routing.md).
+This source is not installed or versioned yet. Installed .104/.66 remains exact
+release `590d3600`; qualification and installation of this new slice remain pending.
+Other delivery documentation is owned by the parent task in `bot-runtime`.
+
 ## Local refinement guidance - October 12
 
 Shared development starts from `main` at `4b69decc`. The focused host-routing

@@ -69,11 +69,15 @@ class TravelController:
         *,
         observer: DiagnosticObserver | None = None,
         shortcut_clear: Callable[[Vector2, tuple[Vector2, ...]], bool] | None = None,
+        final_is_frontier: bool = False,
     ) -> None:
         if not isinstance(plan, TravelPlan):
             raise ValueError("plan must be TravelPlan")
         if config is not None and not isinstance(config, TravelControllerConfig):
             raise ValueError("config must be TravelControllerConfig")
+        if not isinstance(final_is_frontier, bool):
+            raise ValueError("final_is_frontier must be a boolean")
+        self._final_is_frontier = final_is_frontier
         self._shortcut_clear = shortcut_clear
         self._previous_observation: TravelObservation | None = None
         self._progress_at_ms: int | None = None
@@ -260,6 +264,10 @@ class TravelController:
 
         progress = self._observe_waypoints(previous, observation)
         if isinstance(progress, TravelDecision):
+            if self._proposal_checkpoint is not None:
+                # Observed completion of a local frontier survives a deferred
+                # proposal for the next leg, just like intermediate passage.
+                self._proposal_checkpoint = self._checkpoint()
             return progress
         distance = progress
         resuming = self._dispatch_paused
@@ -374,7 +382,7 @@ class TravelController:
         destination = self._plan.destinations[self._waypoint_index]
         distance = destination.distance_from(observation.position)
         while distance <= destination.arrival_radius or (
-            self._waypoint_index < len(self._plan.destinations) - 1
+            (self._waypoint_index < len(self._plan.destinations) - 1 or self._final_is_frontier)
             and self._passed_waypoint(previous, observation, destination)
         ):
             if self._waypoint_index == len(self._plan.destinations) - 1:

@@ -158,7 +158,7 @@ class AStarTravelControllerTests(unittest.TestCase):
         decision = controller.step(_observation(0, 5.0, 5.0))
 
         self.assertEqual(TravelPhase.TRAVELING, decision.phase)
-        self.assertEqual("astar_horizon", controller.route_mode)
+        self.assertEqual("astar_refined_local", controller.route_mode)
         self.assertEqual(0, controller.direct_fallback_count)
         assert controller.active_plan is not None
         horizon = controller.active_plan.destinations[-1]
@@ -185,7 +185,7 @@ class AStarTravelControllerTests(unittest.TestCase):
 
         self.assertEqual(TravelPhase.TRAVELING, decision.phase)
         self.assertEqual(TravelManeuver.DIRECT, decision.maneuver)
-        self.assertEqual("astar_partial", controller.route_mode)
+        self.assertEqual("astar_refined_local", controller.route_mode)
         self.assertEqual(0, controller.direct_fallback_count)
         self.assertEqual(1, controller.partial_route_count)
         assert controller.active_plan is not None
@@ -242,13 +242,22 @@ class AStarTravelControllerTests(unittest.TestCase):
         self.assertEqual(TravelPhase.TRAVELING, first.phase)
         self.assertEqual(TravelPhase.TRAVELING, continued.phase)
         self.assertEqual(2, continued.click_count)
-        self.assertEqual(1, controller.replan_count)
-        self.assertNotEqual("astar_partial", controller.route_mode)
+        self.assertEqual(0, controller.replan_count)
+        # Successful fine-slice continuation retains the coarse frontier.
+        for _ in range(100):
+            waypoint = controller.active_plan.destinations[-1]
+            continued = controller.step(_observation(
+                continued.now_ms + 100, waypoint.lt, waypoint.lg,
+            ))
+            if controller._itinerary_mode != "astar_partial":
+                break
+        self.assertEqual(0, controller.replan_count)
+        self.assertNotEqual("astar_partial", controller._itinerary_mode)
         assert controller.active_plan is not None
         self.assertTrue(
             any(
                 destination.lt > 35.0 and abs(destination.lg) >= 125.0
-                for destination in controller.active_plan.destinations
+                for destination in controller._itinerary.destinations
             )
         )
 
