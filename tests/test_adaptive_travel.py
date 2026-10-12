@@ -130,7 +130,7 @@ class AStarTravelControllerTests(unittest.TestCase):
             navigation.learned_blocked,
         )
         self.assertEqual(TravelManeuver.DIRECT, replanned.maneuver)
-        self.assertEqual("astar_refined_final", controller.route_mode)
+        self.assertEqual("astar_refined_local", controller.route_mode)
         self.assertEqual(
             frozenset({NavigationCell(8881, 4506)}),
             navigation.refined_learned_blocked,
@@ -138,7 +138,11 @@ class AStarTravelControllerTests(unittest.TestCase):
         assert replanned.minimap_direction is not None
         self.assertNotEqual(0.0, replanned.minimap_direction.x)
         assert controller.active_plan is not None
-        self.assertGreater(len(controller.active_plan.destinations), 1)
+        # Refinement now preserves the coarse detour turn as a local frontier.
+        self.assertNotEqual(
+            TravelDestination(88819.0, 45122.0, 5.0),
+            controller.active_plan.destinations[-1],
+        )
 
     def test_far_destination_plans_to_receding_terrain_horizon(self) -> None:
         navigation = SparseNavigationMap(cell_size=10.0)
