@@ -54,8 +54,9 @@ integration are deprioritized until execution parity is established.
 
 ## Implementation boundaries
 
-The combined branch is `codex/coordinate-parent-continuity-20261011`, targeting
-`main`. It contains the follower checkpoint from PR #166 and native continuity
+The combined branch `codex/coordinate-parent-continuity-20261011` is merged
+into `main` through PR #167 at `a7247a36`. It contains the follower checkpoint
+from PR #166 and native continuity
 checkpoint `7dc6355d`; the follower is not a separate deployment.
 Its follower work advances native destinations from observed motion and remaining
 endpoint distance, recognizes intermediate waypoints passed between samples,
@@ -116,8 +117,10 @@ upkeep after confirmed native cleanup. It is a timestamped observation.
 - Complete: native continuity `7dc6355d`, required package IPC gates `c56a3753`,
   and host continuation `4f80596c` are pushed. Native review and 55 native cases
   passed; 28 final host continuation cases include actual cross-process IPC.
-- Active: finish independent review of transactional follower dispatch and qualify
-  the combined host .103/native .66 update.
+- Complete: transactional follower `011c3b8d`, independent review, exact release
+  qualification at `dc6cbbb4`, and PR #167 integration after all 15 hosted checks.
+- Active: install the qualified host .103/native .66 update after both exact DLL
+  users close; the user closure response is pending.
 - Next: verify the preserved `/go` planner and recovery through the corrected
-  native execution boundary, qualify the coherent update, then request one fresh
-  live run. Revisit obstacle coverage only if the resulting evidence requires it.
+  native execution boundary in one fresh post-installation live run. Revisit
+  obstacle coverage only if the resulting evidence requires it.

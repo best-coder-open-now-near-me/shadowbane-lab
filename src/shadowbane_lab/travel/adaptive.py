@@ -364,7 +364,19 @@ class AStarTravelController:
                         self._navigation.navigation_map,
                         start_lt=observation.position.lt,
                         start_lg=observation.position.lg,
-                        destination=planning_destination,
+                        # Keep the coarse route's next required turn. Projecting
+                        # toward the global goal can send a local fine route back
+                        # into the concavity that the coarse route already avoids.
+                        destination=next(
+                            (
+                                waypoint for waypoint in route.destinations
+                                if hypot(
+                                    waypoint.lt - observation.position.lt,
+                                    waypoint.lg - observation.position.lg,
+                                ) > waypoint.arrival_radius
+                            ),
+                            route.destinations[-1],
+                        ),
                         maximum_distance=(
                             self._navigation.navigation_map.cell_size * 6
                         ),
