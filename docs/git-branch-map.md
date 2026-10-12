@@ -7,11 +7,13 @@ Shared development starts from `main` at PR #170 merge
 `cd3f341b143118e7e50930cf898335661e2e65e4`. The focused source is included.
 Graphics-preserving release `590d36007eeb16dd1430ce324f13818e0e8741af` is
 pushed and qualified as host .104/native .66. The native/assets trees are unchanged
-from `dc6cbbb4`. Installation is pending the fresh VM baseline and concrete plan;
-installed software remains .103/.66. Delivery records are on
+from `dc6cbbb4`. Host .104 is now installed and activated: 491 modules, 9,657 stopped records,
+zero exclusions and zero client-file writes. The same game/native .66 remains open. Delivery records are on
 `codex/travel-refinement-delivery-20261012` in `bot-runtime`, targeting `main`.
-Next: qualified host installation, upkeep and fresh grouped `/come` efficiency
-acceptance. See [evidence and qualification](travel-refinement-guidance.md).
+Normal Resume and upkeep/listener readiness passed. A fresh .104 `/come`
+arrived within range, with three backtracks/six replans and an initial stall;
+finer initial routing remains next. One obsolete local .103 wheel is retired.
+Guest retirement is pending; finer initial routing proceeds as a separate slice. See [evidence and qualification](travel-refinement-guidance.md).
 
 
 ## Qualified coordinate travel update - October 11
