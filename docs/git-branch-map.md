@@ -1,5 +1,16 @@
 # Git branch map
 
+## Local refinement guidance - October 12
+
+Shared development starts from `main` at `4b69decc`. The focused host-routing
+correction on `codex/travel-refinement-guidance-20261012` in the managed
+`travel-refinement-guidance` checkout targets `main`; it is not installed yet.
+It preserves the coarse detour's next mandatory bend during local fine recovery.
+See [evidence and validation scope](travel-refinement-guidance.md). Existing
+native movement authority and learned obstacles are unchanged; the candidate is
+host .104 with native .66.
+
+
 ## Qualified coordinate travel update - October 11
 
 Shared development starts from `main` at PR #167 merge
