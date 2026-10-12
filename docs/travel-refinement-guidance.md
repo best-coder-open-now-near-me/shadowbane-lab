@@ -97,7 +97,7 @@ completed within the 75-unit arrival radius at 63.9466 units. Private evidence
 index `de499176c62cdacc223b480f7c181a294c052c875ab2915cf4da3e0881273add`
 is under `artifacts/bot-deploy/20261012-host104/come-4b46d8-evidence`. It issued 25 accepted
 destinations, six replans and three backtracks at 21.016, 29.000 and 35.734 seconds;
-last dispatch was at 40.125 seconds. Initial movement stalled around 16.4–20.6
+last dispatch was at 40.125 seconds. Initial movement stalled around 16.4-20.6
 seconds. Upkeep resumed after terminal success. Different route lengths prevent
 using duration alone as a before/after improvement measure.
 
