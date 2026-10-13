@@ -5,11 +5,14 @@
 Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
 through open PR #174. Host .108 source adds one warehouse withdrawal and one shop
 deposit for an entire available-capacity batch, with native reserve/quote checks
-and return to the saved recipe. Focused validation passed 147 tests; broader
-release qualification and installation remain pending. Installed software is
-still .107/.67/client .18. The current third Create remains unresolved and its
+and return to the saved recipe. Implementation `f4945955` is pushed; release
+`0061a5ae5c3997742675a1a2d0ac49291e709c2b` on `codex/vendor-release-20261013`
+is qualified: 6,461 host tests passed with 46 optional skips, both IPC profiles
+and seven startup handshakes passed, and 493 modules match. Installation remains
+pending. Installed software is still .107/.67/client .18. The current third Create
+remains unresolved and its
 journal is preserved. No automatic gold movement or recycling has run.
-Next: qualify/install .108, clear the native blocker through a new game session,
+Next: install .108 after the requested game closure, then use a new game session
 then verify one funded batch and Keep. Guard work remains outside scope.
 
 ## Vendor menu transport installed; funding next - October 13

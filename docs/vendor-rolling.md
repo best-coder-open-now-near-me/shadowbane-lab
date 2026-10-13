@@ -25,8 +25,20 @@ the host never assumes its resource key. This does not prove the earlier third
 Create's outcome. Focused funding/cost/menu/worker/real-producer tests passed
 147 cases, including whole-batch funding at 1, 2, 7 and 16 slots; the existing
 shared transfer/navigation suite passed 102 with four
-fixture-dependent skips. Host .108 is source-only pending broader qualification
-and installation. The installed runtime and unresolved batch below are unchanged.
+fixture-dependent skips. Source `f4945955631e3c8eb03e036644207708f5b78705` is pushed
+on `codex/vendor-rolling-20261013`, targeting main through open PR #174.
+Graphics-preserving release `0061a5ae5c3997742675a1a2d0ac49291e709c2b` is pushed
+on `codex/vendor-release-20261013` and fully qualified: 6,461 host tests passed
+with 46 optional skips; both native IPC profiles and all seven real startup
+cases passed. All 493 packaged modules match the exact source. Native/assets
+remain byte-for-byte unchanged from `68163f32`.
+Wheel SHA-256: `63b535271faeb3328b69306cff22dbd68ea5c89e60533f1a496b301432fd51e9`.
+Qualification receipt SHA-256:
+`0d73e87e71286b7ae744fc4325d7ef83784b1dca9fbcdf4c3584eed1af29813e`.
+Installation and funded live acceptance remain pending. The user has been asked
+to keep the two confirmed completed items and close the game to clear its native
+unresolved state; manual funding is no longer requested. The installed .107
+runtime and interrupted journal below are unchanged. Do not replay that Create.
 
 Host .107 is qualified and installed from graphics-preserving release
 `d9d579d2f70a7ea265f9ecabfbe6551e029440d7`; native .67 and client .18 are unchanged.
