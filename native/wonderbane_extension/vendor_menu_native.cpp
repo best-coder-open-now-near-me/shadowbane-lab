@@ -28,14 +28,15 @@ struct Reader {
         }
         return count;
     }
-    bool Name(std::uint32_t p, const wchar_t* wanted) noexcept {
-        const auto begin = Word(p + 0x168), end = Word(p + 0x16c), cap = Word(p + 0x170);
+    bool Text(std::uint32_t p, const wchar_t* wanted) noexcept {
+        const auto begin = Word(p + 4), end = Word(p + 8), cap = Word(p + 12);
         const auto length = std::wcslen(wanted);
         if (!ok || begin < 0x10000 || (begin | end | cap) % 2 || begin > end || end > cap
             || cap >= 0x80000000U || end - begin > 512 || end - begin != length * 2) { return false; }
         std::array<wchar_t, 256> text{};
         return (!length || Read(begin, text.data(), length * 2)) && std::equal(text.begin(), text.begin() + length, wanted);
     }
+    bool Name(std::uint32_t p, const wchar_t* wanted) noexcept { return Text(p + 0x164, wanted); }
     bool Visible(std::uint32_t p) noexcept { return Word(p + 0x1a8) == 0 && (Word(p + 0x304) & 0xff00) == 0 && ok; }
     bool Action(std::uint32_t p, std::uint32_t id) noexcept {
         Require(p + 0x1d0, id); Require(p + 0x1d4, 0); Require(p + 0x1d8, 0);
@@ -274,6 +275,30 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
     auto valid = s; valid.revision = 1;
     if (!r.ok || !wire::ValidSnapshot(valid) || !movement::NativeMovementLifetimeCurrent(scene)) { return false; }
     out = s; return true;
+}
+bool OrderCostMatches(std::uintptr_t base, const vendor::wire::Snapshot& s,
+    const vendor::wire::OrderBudget& budget, std::uint32_t minimum_gold) noexcept {
+    if (!vendor::wire::ValidSnapshot(s) || !vendor::wire::RandomOrder(s)
+        || budget.version != 1 || !budget.resource || !budget.cost) { return false; }
+    Reader r{static_cast<std::uint32_t>(base)};
+    std::array<std::uint32_t, 512> children{};
+    const auto count = r.Vector(s.recipe + 0x54, children);
+    std::uint32_t listing = 0;
+    for (std::size_t i = 0; r.ok && i < count; ++i) {
+        const auto child = children[i]; r.Require(child + 0x3bc, s.recipe);
+        if (r.Word(child) != r.base + 0x116acf0 || !r.Name(child, L"ResourceCostList")) { continue; }
+        if (listing) { return false; } listing = child;
+    }
+    if (!r.ok || !listing) { return false; }
+    std::array<std::uint32_t, 32> controls{};
+    if (r.Vector(listing + 0x408, controls) != 1) { return false; }
+    const auto control = controls[0];
+    r.Require(control, r.base + 0x116aebc); r.Require(control + 0x3bc, s.recipe);
+    r.Require(control + 0x458, listing);
+    const auto entry = r.Word(control + 0x44c); r.Require(entry, r.base + 0x116f258);
+    r.Require(entry + 0x20, budget.resource); r.Require(entry + 0x48, budget.cost);
+    const auto balance = r.Word(s.manager + 0x1cc);
+    return r.ok && r.Text(entry + 0x30, L"Gold") && balance <= INT32_MAX && balance >= minimum_gold;
 }
 wire::Outcome Invoke(std::uintptr_t base, const movement::NativeScene& scene, wire::Verb verb,
     const wire::Command& command, Admission admit, void* context) noexcept {

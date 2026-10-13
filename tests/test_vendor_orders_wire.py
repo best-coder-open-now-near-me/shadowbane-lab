@@ -16,6 +16,7 @@ from shadowbane_lab.client_extension.vendor_wire import (
     READY,
     Command,
     Host,
+    NativeOrderBudget,
     Outcome,
     Receipt,
     Slot,
@@ -67,14 +68,25 @@ def test_quantity_create_requires_a_distinct_batch_identity_without_legacy_fallb
                       replace(Receipt.decode(raw_receipt()).snapshot, multiple=0))
     with pytest.raises(ValueError):
         command.encode(Verb.CREATE_ORDERS)
-    grouped = replace(command, batch_key="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+    grouped = replace(command, batch_key="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+                      order_budget=NativeOrderBudget(1, 2308551, 1660))
     data = grouped.encode(Verb.CREATE_ORDERS)
-    assert data[332:348] == uuid.UUID(grouped.batch_key).bytes and data[348:] == bytes(228)
+    assert data[332:348] == uuid.UUID(grouped.batch_key).bytes
+    assert data[348:372] == grouped.order_budget.encode(10) and data[372:] == bytes(204)
     for verb in (Verb.CREATE, Verb.CREATE_RANDOM, Verb.KEEP):
         with pytest.raises(ValueError):
             grouped.encode(verb)
     with pytest.raises(ValueError):
         replace(grouped, expected=replace(command.expected, quantity=1)).encode(Verb.CREATE_ORDERS)
+
+
+@pytest.mark.parametrize("budget", [NativeOrderBudget(0, 1, 1), NativeOrderBudget(17, 1, 1),
+    NativeOrderBudget(True, 1, 1), NativeOrderBudget(7, 0, 1660),
+    NativeOrderBudget(7, 1, True), NativeOrderBudget(7, 1, 0),
+    NativeOrderBudget(7, 1, (2**31 - 1) // 7 + 1)])
+def test_native_budget_cannot_exceed_capacity_or_integer_gold_limits(budget):
+    with pytest.raises(ValueError):
+        budget.encode(10)
 
 
 @pytest.mark.parametrize("wrong_profile", [False, True])

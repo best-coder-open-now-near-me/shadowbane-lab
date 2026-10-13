@@ -5,7 +5,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 
-from .vendor_wire import Snapshot, uint
+from .vendor_wire import NativeOrderBudget, Snapshot, uint
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +54,13 @@ class VendorBatchBudget:
     def total_costs(self) -> dict[int, int]:
         # The owned recipe price already includes quantity and native rounding.
         return {key: amount * self.free_slots for key, amount in self.costs_per_slot}
+
+    @property
+    def native_budget(self) -> NativeOrderBudget:
+        if len(self.costs_per_slot) != 1 or not self.free_slots:
+            raise ValueError("native quantity orders require one funded resource")
+        resource, cost = self.costs_per_slot[0]
+        return NativeOrderBudget(self.free_slots, resource, cost)
 
     @classmethod
     def from_snapshot(cls, state: Snapshot, costs: dict[int, int]) -> VendorBatchBudget:

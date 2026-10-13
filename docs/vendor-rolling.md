@@ -5,8 +5,12 @@
 ### Active: ten items per production slot
 
 The source now adds explicit quantity-order Create (verb 61). Its command carries
-a nonzero immutable batch UUID in the first 16 extension bytes; all other command
-padding stays zero. Legacy Create/Keep commands cannot carry or adopt this profile.
+a nonzero immutable batch UUID in the first 16 extension bytes, followed by six
+32-bit budget fields: version 1, initial free orders, quantity, resource, quoted
+cost per order and whole-batch total. The final 204 bytes stay zero. Legacy
+Create/Keep commands cannot carry or adopt this profile. Automatic Create accepts
+single-slot quantities 2–10; all-free-slots quantity dispatch is deliberately
+unavailable. Recipe preparation still supports either UI mode.
 Native acceptance requires the exact number of new slot orders and raw remaining
 count `quantity - 1` for every new item. A count mismatch, excess arrival, changed
 owner or timeout becomes uncertainty and is never retried. Quantity-ten server
@@ -24,9 +28,24 @@ allocate or adopt unrelated orders. The runtime repeats that ownership check
 immediately before native dispatch and requires the permanent recorder to be
 available. Named recipes remain excluded. Both recipe modes can be prepared
 through the normal native setter, and old single-item intent is unchanged.
-Ten native tests and 258 relevant host checks pass; the extension rebuild
-succeeds. This remains uninstalled source. Next: persist quantity-order filling
-and item/inventory progress in the worker, then qualify and install one update.
+Native admission now checks the exact owned Gold row, quoted price and full
+building balance before the first order, and caps accepted orders at the immutable
+quota even after rank growth. The quantity-aware funder performs one withdrawal
+and deposit for the entire batch and requires the permanent observer before any
+menu or gold action. Existing shop/carried funds still take precedence over the
+warehouse route.
+
+Schema-4 queue journals persist intent before every Create, retain exact quantity
+preparation and count receipts, and preserve the production bookmark/cursor.
+Queue admission means orders were observed, not that all 70 items were generated
+or kept. Recipe closure can be handled through separate native preparation proof
+before the next order. Existing or interrupted journals are never replayed;
+missing counts, lost replies, capture gaps and mismatched owners require review.
+The updated focused host suite passes 133 tests, including seven-slot funding,
+quota growth, recipe reopening, lost acknowledgements and historical corruption;
+four affected native executables pass. This remains uninstalled source. Next:
+wire durable item/inventory progress into the worker, then qualify one update and
+perform the connected quantity-ten test.
 
 Source .110/native .68 now also includes a permanent, optional crafting receive
 recorder. It uses the existing ArcItemProductionMessage decode/process/destruction

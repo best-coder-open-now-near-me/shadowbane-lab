@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from . import action_channel as channel
 from .movement_wire import Host
-from .vendor_wire import UNRESOLVED, Command, Outcome, Receipt, Snapshot, Verb
+from .vendor_wire import UNRESOLVED, Command, NativeOrderBudget, Outcome, Receipt, Snapshot, Verb
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +47,7 @@ class NativeVendorSession:
     def _submit(
         self, verb: Verb, request_key: str, expected: Snapshot | None = None, item: int = 0,
         *, batch_key: str | None = None,
+        order_budget: NativeOrderBudget | None = None,
     ) -> Receipt:
         if self._closed:
             raise channel.NativeActionChannelUnavailable("vendor session is closed")
@@ -55,7 +56,8 @@ class NativeVendorSession:
         host = Host(
             process.process_id, transport.host_lease_generation, process.creation_filetime_utc
         )
-        command = Command(host, self.window, request_key, expected or Snapshot(), item, batch_key)
+        command = Command(host, self.window, request_key, expected or Snapshot(), item,
+                          batch_key, order_budget)
         result = transport.submit(
             NativeVendorCommand(next(self._ids), verb, command), timeout_ms=750
         )
@@ -113,8 +115,10 @@ class NativeVendorSession:
         """Read raw per-slot order counts; this grants no quantity-ten dispatch."""
         return self._inspect(Verb.INSPECT_ORDERS)
 
-    def create_orders(self, expected: Snapshot, request_key: str, *, batch_key: str) -> Receipt:
-        return self._submit(Verb.CREATE_ORDERS, request_key, expected, batch_key=batch_key)
+    def create_orders(self, expected: Snapshot, request_key: str, *, batch_key: str,
+                      budget: NativeOrderBudget) -> Receipt:
+        return self._submit(Verb.CREATE_ORDERS, request_key, expected, batch_key=batch_key,
+                            order_budget=budget)
 
     def create_random(self, expected: Snapshot, request_key: str) -> Receipt:
         return self._submit(Verb.CREATE_RANDOM, request_key, expected)

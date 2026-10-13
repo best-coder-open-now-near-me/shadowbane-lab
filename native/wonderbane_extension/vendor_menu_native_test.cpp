@@ -30,7 +30,8 @@ constexpr std::uint32_t ROOT=0x1000, MANAGER=0x2000, MENU=0x3000, HIRE=0x4000,
  OPEN=0x13000, VIEW=0x14000, CANCEL=0x15000, MAGIC=0x16000, INVENTORY=0x17000,
  ICANCEL=0x18000, WRAPPER=0x19000, TAB=0x1a000, HEAD=0x1b000, ILIST=0x1c000, ICANCEL2=0x1d000, CREATECONTROL=0x1e000,
  TAB2=0x20000, TAB3=0x21000, TAB4=0x22000, QPANEL=0x23000,
- QBODY=0x24000, QSLIDER=0x25000, QWRAPPER=0x26000, OPENORDER=0x27000;
+ QBODY=0x24000, QSLIDER=0x25000, QWRAPPER=0x26000, OPENORDER=0x27000,
+ COSTLIST=0x28000, COSTCONTROL=0x29000, COSTENTRY=0x2a000;
 std::uint32_t P(std::uint32_t off) { return base + off; }
 void Put(std::uint32_t off, std::uint32_t value) { std::memcpy(reinterpret_cast<void*>(P(off)), &value, 4); }
 std::uint32_t Word(std::uint32_t off) { std::uint32_t v; std::memcpy(&v, reinterpret_cast<void*>(P(off)), 4); return v; }
@@ -39,11 +40,12 @@ void Vector(std::uint32_t off, std::initializer_list<std::uint32_t> values) {
     for(auto v:values) { Put(data_at+n*4,P(v)); ++n; }
     Put(off+4,P(data_at+n*4)); Put(off+8,P(data_at+n*4)); data_at+=0x100;
 }
-void Name(std::uint32_t off,const wchar_t* name) {
+void Text(std::uint32_t off,const wchar_t* name) {
     const auto bytes=static_cast<std::uint32_t>(std::wcslen(name)*2);
     std::memcpy(reinterpret_cast<void*>(P(text_at)),name,bytes);
-    Put(off+0x168,P(text_at)); Put(off+0x16c,P(text_at+bytes)); Put(off+0x170,P(text_at+bytes)); text_at+=0x100;
+    Put(off+4,P(text_at)); Put(off+8,P(text_at+bytes)); Put(off+12,P(text_at+bytes)); text_at+=0x100;
 }
+void Name(std::uint32_t off,const wchar_t* name) { Text(off+0x164,name); }
 void Control(std::uint32_t off,std::uint32_t cls,std::uint32_t owner,const wchar_t* name=L"") {
     Put(off,P(cls)); Put(off+0x3bc,P(owner)); Name(off,name);
 }
@@ -268,6 +270,18 @@ int main() {
     assert(n::InvokeRandomCreate(base,scene,random_expected,&Admit,nullptr,true)==O::submitted && calls==1);
     RandomReady(); Put(RECIPE+0x4d4,10); Put(RECIPE+0x540,0x100); random_expected.quantity=10;
     assert(n::InvokeRandomCreate(base,scene,random_expected,&Admit,nullptr,true)==O::stale && !calls);
+    RandomReady(); Put(RECIPE+0x4d4,10); random_expected.quantity=10;
+    Control(COSTLIST,0x116acf0,RECIPE,L"ResourceCostList");
+    Control(COSTCONTROL,0x116aebc,RECIPE); Put(COSTCONTROL+0x458,P(COSTLIST)); Put(COSTCONTROL+0x44c,P(COSTENTRY));
+    Put(COSTENTRY,P(0x116f258)); Put(COSTENTRY+0x20,2308551); Put(COSTENTRY+0x48,1660); Text(COSTENTRY+0x30,L"Gold");
+    Vector(COSTLIST+0x408,{COSTCONTROL}); Vector(RECIPE+0x54,{PAGES,CANCEL,CREATECONTROL,COSTLIST});
+    Put(MANAGER+0x1cc,11620);
+    const wonderbane::extension::vendor::wire::OrderBudget budget{1,7,10,2308551,1660,11620};
+    assert(n::OrderCostMatches(base,random_expected,budget,11620));
+    Put(MANAGER+0x1cc,1660); assert(!n::OrderCostMatches(base,random_expected,budget,11620));
+    Put(MANAGER+0x1cc,11620); Put(COSTENTRY+0x48,1661); assert(!n::OrderCostMatches(base,random_expected,budget,11620));
+    Put(COSTENTRY+0x48,1660); Put(COSTENTRY+0x20,555); assert(!n::OrderCostMatches(base,random_expected,budget,11620));
+    Put(COSTENTRY+0x20,2308551); Text(COSTENTRY+0x30,L"Stone"); assert(!n::OrderCostMatches(base,random_expected,budget,11620));
     RandomReady(); reenter_create=true; assert(RandomCreate()==O::submitted && calls==1 && nested==O::unavailable);
     RandomReady(); deny_at=2; assert(RandomCreate()==O::stale && !calls);
     RandomReady(); detach_create=true; assert(RandomCreate()==O::stale && !calls);

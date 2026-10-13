@@ -32,6 +32,9 @@ struct Command {
     std::uint32_t item = 0;
     std::uint8_t reserved[244]{};
 };
+struct OrderBudget {
+    std::uint32_t version = 0, orders = 0, quantity = 0, resource = 0, cost = 0, total = 0;
+};
 struct Receipt {
     std::array<std::uint8_t, 16> request{};
     movement::wire::Host host{};
@@ -44,6 +47,7 @@ struct Receipt {
 };
 #pragma pack(pop)
 static_assert(sizeof(Snapshot) == 288 && sizeof(Command) == 576 && sizeof(Receipt) == 384);
+static_assert(sizeof(OrderBudget) == 24);
 inline bool Equal(const Snapshot& a, const Snapshot& b) noexcept {
     return std::memcmp(&a, &b, sizeof(a)) == 0;
 }
@@ -71,8 +75,10 @@ inline bool RandomSingle(const Snapshot& s) noexcept {
 }
 inline bool RandomOrder(const Snapshot& s) noexcept {
     return s.recipe && s.item_template && s.table && s.mode == 1 && s.prefix == 3362971591U
-        && s.suffix == s.prefix && s.quantity >= 1 && s.quantity <= 10 && s.multiple <= 1
-        && (s.quantity > 1 || s.multiple == 1);
+        && s.suffix == s.prefix && s.quantity >= 2 && s.quantity <= 10 && s.multiple == 0;
+}
+inline OrderBudget Budget(const Command& command) noexcept {
+    OrderBudget result{}; std::memcpy(&result, command.reserved + 16, sizeof(result)); return result;
 }
 inline bool IsCreate(Verb verb) noexcept {
     return verb == Verb::create || verb == Verb::create_random || verb == Verb::create_orders;
@@ -86,8 +92,12 @@ inline bool Valid(Verb verb, const Command& c) noexcept {
     if (verb == Verb::create_orders) {
         // The immutable batch UUID scopes active quantity orders. Legacy verbs
         // retain all-zero padding and cannot adopt this new command profile.
-        if (movement::wire::Zero(c.reserved, 16)
-            || !movement::wire::Zero(c.reserved + 16, sizeof(c.reserved) - 16)) { return false; }
+        const auto budget = Budget(c);
+        if (movement::wire::Zero(c.reserved, 16) || budget.version != 1 || !budget.orders || budget.orders > 16
+            || budget.quantity != c.expected.quantity || !budget.resource || !budget.cost || budget.cost > INT32_MAX
+            || static_cast<std::uint64_t>(budget.orders) * budget.cost > INT32_MAX
+            || budget.total != budget.orders * budget.cost
+            || !movement::wire::Zero(c.reserved + 40, sizeof(c.reserved) - 40)) { return false; }
     } else if (!movement::wire::Zero(c.reserved, sizeof(c.reserved))) { return false; }
     if (IsInspect(verb)) {
         return !c.item && movement::wire::Zero(&c.expected, sizeof(c.expected));

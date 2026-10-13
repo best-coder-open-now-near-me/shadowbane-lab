@@ -57,10 +57,30 @@ class Controller {
 public:
     bool Busy() const noexcept { return pending_ || uncertain_; }
     const wire::Snapshot& Current() const noexcept { return current_; }
+    std::uint32_t OrdersAccepted(const wire::Snapshot& snapshot, const wire::Command& command) const noexcept {
+        std::uint32_t count = 0;
+        for (const auto& [request, record] : records_) {
+            (void)request;
+            if (record.verb == wire::Verb::create_orders && SameOwner(snapshot, record.command.expected)
+                && !std::memcmp(record.command.reserved, command.reserved, 16)) { count += record.accepted_count; }
+        }
+        return count;
+    }
     bool OrderItemsOwned(const wire::Snapshot& snapshot, const wire::RemainingCounts& remaining,
         const wire::Command& command) const noexcept {
         if (snapshot.count > snapshot.slots.size() || !SameOwner(snapshot, command.expected)
             || movement::wire::Zero(command.reserved, 16)) { return false; }
+        const auto budget = wire::Budget(command);
+        const auto accepted = OrdersAccepted(snapshot, command);
+        std::uint32_t free = 0;
+        for (std::size_t i = 0; i < snapshot.count; ++i) { free += !snapshot.slots[i].item; }
+        if (accepted >= budget.orders || (!accepted && budget.orders != free)) { return false; }
+        for (const auto& [request, record] : records_) {
+            (void)request;
+            if (record.verb == wire::Verb::create_orders && SameOwner(snapshot, record.command.expected)
+                && !std::memcmp(record.command.reserved, command.reserved, 16)
+                && std::memcmp(record.command.reserved + 16, command.reserved + 16, 24)) { return false; }
+        }
         for (std::size_t i = 0; i < snapshot.count; ++i) {
             if (remaining[i] > UINT8_MAX) { return false; }
             if (!snapshot.slots[i].item || !remaining[i]) { continue; }

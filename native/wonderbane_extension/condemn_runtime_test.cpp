@@ -65,6 +65,8 @@ bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&, std:
 bool InvokeNative(std::uintptr_t, wire::Verb, const wire::Snapshot&, std::uint32_t) noexcept { ++other_writes; return false; }
 }
 namespace vendor_menu {
+bool OrderCostMatches(std::uintptr_t, const vendor::wire::Snapshot&,
+    const vendor::wire::OrderBudget&, std::uint32_t) noexcept { ++other_reads; return false; }
 vendor::wire::Outcome InvokeRandomCreate(std::uintptr_t, const movement::NativeScene&,
     const vendor::wire::Snapshot&, Admission, void*, bool) noexcept { ++other_writes; return vendor::wire::Outcome::unavailable; }
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }

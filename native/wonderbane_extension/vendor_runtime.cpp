@@ -57,8 +57,11 @@ public:
         wire::Snapshot fresh{}; wire::RemainingCounts remaining{}; bool present = false, top = false;
         if (!Capture(image_base, self.scene_, fresh, 0, present, top, &remaining) || !top) { return false; }
         fresh.revision = self.command_->command.expected.revision;
+        const auto budget = wire::Budget(self.command_->command);
+        const auto minimum = controller.OrdersAccepted(fresh, self.command_->command) ? 0U : budget.total;
         return wire::Equal(fresh, self.command_->command.expected)
-            && controller.OrderItemsOwned(fresh, remaining, self.command_->command);
+            && controller.OrderItemsOwned(fresh, remaining, self.command_->command)
+            && vendor_menu::OrderCostMatches(image_base, fresh, budget, minimum);
     }
     wire::Outcome Invoke(wire::Verb verb, const wire::Snapshot& expected, std::uint32_t item) noexcept override {
         if (verb == wire::Verb::create_random || verb == wire::Verb::create_orders) {

@@ -15,6 +15,7 @@ _SNAPSHOT = struct.Struct("<QQ16I")
 _SLOT = struct.Struct("<III")
 _COMMAND = struct.Struct("<16sQ16s288sI244s")
 _RECEIPT = struct.Struct("<16s16sQII288sII16s24s")
+_ORDER_BUDGET = struct.Struct("<6I")
 
 
 class Verb(IntEnum):
@@ -107,8 +108,7 @@ class Snapshot:
     def random_order(self) -> bool:
         return bool(self.recipe and self.item_template and self.table and self.mode == 1
                     and self.prefix == self.suffix == 3362971591
-                    and 1 <= self.quantity <= 10 and self.multiple in (0, 1)
-                    and (self.quantity > 1 or self.multiple == 1))
+                    and 2 <= self.quantity <= 10 and self.multiple == 0)
 
     def encode(self) -> bytes:
         if type(self.slots) is not tuple or any(type(s) is not Slot for s in self.slots):
@@ -149,6 +149,23 @@ class Snapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class NativeOrderBudget:
+    orders: int
+    resource: int
+    cost_per_order: int
+
+    def encode(self, quantity: int) -> bytes:
+        if (type(self.orders) is not int or not 1 <= self.orders <= 16
+                or not uint(self.resource, 32, "order resource")
+                or type(self.cost_per_order) is not int or not 0 < self.cost_per_order <= 2**31 - 1
+                or self.orders * self.cost_per_order > 2**31 - 1
+                or type(quantity) is not int or not 2 <= quantity <= 10):
+            raise ValueError("invalid native whole-batch order budget")
+        return _ORDER_BUDGET.pack(1, self.orders, quantity, self.resource,
+                                  self.cost_per_order, self.orders * self.cost_per_order)
+
+
+@dataclass(frozen=True, slots=True)
 class Command:
     host: Host
     window: int
@@ -156,6 +173,7 @@ class Command:
     expected: Snapshot = Snapshot()
     item: int = 0
     batch_key: str | None = None
+    order_budget: NativeOrderBudget | None = None
 
     def encode(self, verb: Verb) -> bytes:
         verb = Verb(verb)
@@ -174,11 +192,13 @@ class Command:
         ) or (verb == Verb.KEEP and not self.item):
             raise ValueError("invalid vendor action arguments")
         if verb == Verb.CREATE_ORDERS:
-            if type(self.batch_key) is not str:
+            if type(self.batch_key) is not str or type(self.order_budget) is not NativeOrderBudget:
                 raise ValueError("quantity-order Create requires a canonical batch identity")
-            padding = request_bytes(self.batch_key) + bytes(228)
+            padding = (request_bytes(self.batch_key)
+                       + self.order_budget.encode(self.expected.quantity)
+                       + bytes(204))
         else:
-            if self.batch_key is not None:
+            if self.batch_key is not None or self.order_budget is not None:
                 raise ValueError("batch identity is only valid for quantity-order Create")
             padding = bytes(244)
         return _COMMAND.pack(

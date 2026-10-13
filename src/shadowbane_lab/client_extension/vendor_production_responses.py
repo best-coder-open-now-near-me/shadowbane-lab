@@ -159,6 +159,12 @@ class VendorProductionReader:
         return dict(process_id=self.process_id, creation=self.creation, **self._last,
                     capture_incomplete=self._incomplete, read_errors=self._read_errors)
 
+    def available(self) -> dict:
+        """Check the exact live recorder without establishing a job's bookmark."""
+        snapshot = self._read()
+        return dict(process_id=self.process_id, creation=self.creation,
+                    sequence=snapshot["sequence"], command_admitted=False)
+
     def bookmark(self) -> dict:
         if self._last is not None:
             raise VendorProductionError("an existing observation cursor cannot be reset")

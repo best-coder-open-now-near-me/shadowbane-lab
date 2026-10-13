@@ -3,6 +3,13 @@
 ## Vendor queue-depth correction in progress - October 13
 
 Latest quantity work remains on `codex/vendor-rolling-20261013` for draft PR #174.
+The latest checkpoint adds quantity-aware whole-batch funding and schema-4 queue
+admission journals. Native Create binds the initial quota, resource and price,
+requires the full batch balance before its first order, and refuses extra orders
+after rank growth. Lost replies or existing journals cannot replay Create.
+Focused host validation passes 133 tests; four affected native suites pass.
+This is uninstalled source. Active next: worker integration and full produced-item
+inventory reconciliation, then coherent release qualification and live testing.
 Explicit native quantity Create now carries a batch UUID and checks both order
 count and per-order remaining count. Active quantity items must belong to that
 same accepted batch. Automatic filling will use one ten-item single-slot order

@@ -21,6 +21,10 @@ w::Command Command(const v::Controller& controller, unsigned request = 1) {
     w::Command c{}; c.host = {1, 1, 1}; c.window = 1000;
     c.request[0] = static_cast<unsigned char>(request); c.expected = controller.Current(); return c;
 }
+void Budget(w::Command& command, std::uint32_t orders = 2) {
+    const w::OrderBudget budget{1,orders,command.expected.quantity,2308551,1660,orders*1660};
+    std::memcpy(command.reserved + 16, &budget, sizeof(budget));
+}
 bool Is(const w::Receipt& r, w::Outcome o) { return r.signature == w::magic && r.outcome == static_cast<unsigned>(o); }
 int main(int argc, char**) {
     if (argc > 2) {
@@ -80,12 +84,12 @@ int main(int argc, char**) {
     {
         v::Controller c; Fake f; auto s=Snapshot(); s.quantity=10;
         w::RemainingCounts counts{}; counts[0]=counts[1]=1;
-        c.Observe(s,true,false,100,counts); auto first=Command(c); first.reserved[0]=42;
+        c.Observe(s,true,false,100,counts); auto first=Command(c); first.reserved[0]=42; Budget(first);
         assert(w::Valid(w::Verb::create_orders,first));
         auto sent=c.Execute(w::Verb::create_orders,first,true,true,f,100);
         assert(sent.signature==w::orders_magic && sent.outcome==1 && sent.flags==w::in_flight && f.calls==1);
         s.slots[0]={600,123,1}; counts[0]=9; c.Observe(s,true,false,101,counts);
-        auto next=Command(c,2); next.reserved[0]=43;
+        auto next=Command(c,2); next.reserved[0]=43; Budget(next);
         auto rejected=c.Execute(w::Verb::create_orders,next,true,true,f,102);
         assert(rejected.signature==w::orders_magic && rejected.outcome==3 && f.calls==1);
         next.reserved[0]=42;
@@ -97,16 +101,18 @@ int main(int argc, char**) {
         assert(accepted.flags==w::ready && accepted.transition_request==next.request
             && accepted.transition_item==124 && accepted.snapshot.count==3 && accepted.reserved[0]==9);
         assert(c.Execute(w::Verb::create_orders,next,true,true,f,106).outcome==1 && f.calls==2);
+        auto extra=Command(c,3); extra.reserved[0]=42; Budget(extra);
+        assert(c.Execute(w::Verb::create_orders,extra,true,true,f,106).outcome==3 && f.calls==2);
         next.reserved[0]=44;
         assert(c.Execute(w::Verb::create_orders,next,true,true,f,107).outcome==4 && f.calls==2);
     }
     for(unsigned failure=0;failure<4;++failure) {
-        v::Controller c; Fake f; auto s=Snapshot(); s.quantity=10; s.multiple=1;
+        v::Controller c; Fake f; auto s=Snapshot(); s.quantity=10;
         w::RemainingCounts counts{}; counts[0]=counts[1]=1;
-        c.Observe(s,true,false,100,counts); auto command=Command(c); command.reserved[0]=42;
+        c.Observe(s,true,false,100,counts); auto command=Command(c); command.reserved[0]=42; Budget(command);
         assert(c.Execute(w::Verb::create_orders,command,true,true,f,100).outcome==1);
         s.slots[0]={600,123,1}; counts[0]=failure==0?0:9;
-        if(failure==1) { s.count=3; s.slots[1]={700,124,1}; s.slots[2]={800,125,1}; counts[1]=counts[2]=9; }
+        if(failure==1) { s.slots[1]={700,124,1}; counts[1]=9; }
         if(failure==2) { ++s.vendor; }
         c.Observe(s,true,false,failure==3?5101:101,counts);
         auto probe=Command(c,9); probe.expected={};
@@ -116,10 +122,10 @@ int main(int argc, char**) {
     {
         auto s=Snapshot(); s.revision=1; s.quantity=10;
         w::Command command{}; command.host={1,1,1}; command.window=1000; command.request[0]=1; command.expected=s;
-        assert(!w::Valid(w::Verb::create_orders,command)); command.reserved[0]=42;
+        assert(!w::Valid(w::Verb::create_orders,command)); command.reserved[0]=42; Budget(command);
         assert(w::Valid(w::Verb::create_orders,command) && !w::Valid(w::Verb::create_random,command));
-        command.reserved[16]=1; assert(!w::Valid(w::Verb::create_orders,command));
-        command.reserved[16]=0; command.expected.quantity=11; assert(!w::Valid(w::Verb::create_orders,command));
+        command.reserved[40]=1; assert(!w::Valid(w::Verb::create_orders,command));
+        command.reserved[40]=0; command.expected.quantity=11; assert(!w::Valid(w::Verb::create_orders,command));
     }
     {
         v::Controller c; Fake f; c.Observe(Snapshot(), true, false); auto command = Command(c);
