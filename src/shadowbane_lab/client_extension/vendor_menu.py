@@ -163,6 +163,10 @@ def _run(
                     if not state.random_recipe(template, table):
                         raise VendorBatchStopped(
                             "observed recipe does not match the requested table")
+            elif operation == "close_recipe":
+                if state.inventory:
+                    state = perform(Verb.CLOSE_INVENTORY, inventory_closed)
+                state = perform(Verb.CLOSE_RECIPE, recipe_closed)
             else:
                 if state.recipe:
                     state = perform(Verb.CLOSE_RECIPE, recipe_closed)
@@ -211,6 +215,13 @@ def open_recipe_catalog(
                 before_action=before_action, cancelled=cancelled, clock=clock, sleeper=sleeper)
 
 
+def close_recipe(session, journal, expected_owner, *, cancelled=lambda: False):
+    """Return to the owned personal menu before a treasury visit."""
+    return _run(session, journal, expected_owner, operation="close_recipe",
+                before_action=lambda: None, cancelled=cancelled,
+                clock=time.monotonic, sleeper=time.sleep)
+
+
 def open_inventory(
     session: MenuSession, journal: Path, expected_owner: Snapshot, *,
     before_action: Callable[[], None] = lambda: None,
@@ -236,7 +247,7 @@ def validate_completed_menu(raw: bytes) -> tuple[dict, Snapshot, Snapshot]:
         record = json.loads(raw)
         if (type(record["schema_version"]) is not int or record["schema_version"] != 1
                 or record["operation"] not in (
-                    "prepare_recipe", "open_inventory", "open_recipe_catalog")
+                    "prepare_recipe", "open_inventory", "open_recipe_catalog", "close_recipe")
                 or record["state"] != "complete"):
             raise ValueError("invalid completed menu operation")
         request_bytes(record["operation_id"])
@@ -272,6 +283,10 @@ def validate_completed_menu(raw: bytes) -> tuple[dict, Snapshot, Snapshot]:
             if (requested is not None or not final.recipe or final.multiple
                     or final.front_hud != final.recipe):
                 raise ValueError("final single recipe catalog was not observed")
+        elif record["operation"] == "close_recipe":
+            if (requested is not None or final.recipe or final.inventory
+                    or final.front_hud != final.menu):
+                raise ValueError("final personal vendor menu was not observed")
         elif requested is not None or not final.inventory or final.front_hud != final.inventory:
             raise ValueError("final Inventory was not observed")
         requests = record["requests"]
@@ -279,6 +294,8 @@ def validate_completed_menu(raw: bytes) -> tuple[dict, Snapshot, Snapshot]:
                   Verb.SELECT_RECIPE, Verb.RANDOM_MODE] if preparation
                  else [Verb.CLOSE_INVENTORY, Verb.CLOSE_RECIPE, Verb.OPEN_RECIPE]
                  if record["operation"] == "open_recipe_catalog"
+                 else [Verb.CLOSE_INVENTORY, Verb.CLOSE_RECIPE]
+                 if record["operation"] == "close_recipe"
                  else [Verb.CLOSE_RECIPE, Verb.OPEN_INVENTORY])
         if not isinstance(requests, list) or len(requests) > len(order):
             raise ValueError("invalid menu request count")

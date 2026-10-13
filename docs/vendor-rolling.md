@@ -2,6 +2,32 @@
 
 ## Current continuation - October 13, 2026
 
+Host .108 adds worker-owned warehouse funding before a saved-recipe Start.
+The user reaffirmed batch-only production: calculate the whole batch as current
+free slots times the current random recipe cost, then make at most one warehouse
+withdrawal and one shop deposit. There is no per-item funding loop.
+It prepares and reads the current random recipe, chooses one verified local
+Seneschal, respects the live Gold reserve, uses carried gold first, withdraws
+only the remaining shortfall, deposits into the exact shop, then returns and
+revalidates the saved recipe and production before any Create. Navigation,
+funding and menu adapters share one producer lease and command sequence.
+Every mutation has a durable intent and requires its correlated receipt;
+interrupted funding and the existing review job cannot be replayed.
+Unsupported materials, changed prices/capacity/ownership and insufficient gold
+stop before crafting. Recycling and guard actions are not part of this path.
+
+The exact .18 client cost routine is qualified for random single-item recipes:
+base requirements at recipe +0x53c are multiplied by float32(1 + markup),
+rounded by adding 0.5 and truncating (640230/2df880). Live read-only verification
+matches the visible 166 gold for Malik's Gilded Scepter (base 151, markup 0.1),
+with five currently free slots. The native warehouse reader identifies Gold;
+the host never assumes its resource key. This does not prove the earlier third
+Create's outcome. Focused funding/cost/menu/worker/real-producer tests passed
+147 cases, including whole-batch funding at 1, 2, 7 and 16 slots; the existing
+shared transfer/navigation suite passed 102 with four
+fixture-dependent skips. Host .108 is source-only pending broader qualification
+and installation. The installed runtime and unresolved batch below are unchanged.
+
 Host .107 is qualified and installed from graphics-preserving release
 `d9d579d2f70a7ea265f9ecabfbe6551e029440d7`; native .67 and client .18 are unchanged.
 The real Windows borrowed-producer regression verifies all seven typed recipe
