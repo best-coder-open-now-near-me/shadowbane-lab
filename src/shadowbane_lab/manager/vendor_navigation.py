@@ -33,9 +33,14 @@ def open_navigation_session(binding, *, journal=None):
 
 
 def read_roster(binding, *, window):
+    if window not in ("building", "vendor"):
+        raise ValueError("roster window must be vendor or building")
     memory = _memory(binding)
     try:
-        return read_native_vendor_roster(memory, window=window)
+        # Hireling membership belongs to the still-active parent building HUD.
+        # The personal vendor HUD contains services/production, not that roster.
+        # Navigation receipts independently fence the selected vendor and HUD.
+        return read_native_vendor_roster(memory, window="building")
     finally:
         memory.close()
 
@@ -346,14 +351,14 @@ def _run_building_discovery(
                     detail = verify_roster(
                         state, building_id, window=noun, vendor_id=vendor_id,
                     )
+                    def keys(observation):
+                        return {
+                            (r[row_key]["object_id"], r[row_key]["object_type"])
+                            for r in observation[rows_key]
+                        }
+                    if keys(detail) != keys(roster):
+                        raise VendorBatchStopped("The building hireling membership changed.")
                     if guard:
-                        def keys(observation):
-                            return {
-                                (r["hireling"]["object_id"], r["hireling"]["object_type"])
-                                for r in observation["hirelings"]
-                            }
-                        if keys(detail) != keys(roster):
-                            raise VendorBatchStopped("The building hireling membership changed.")
                         row["observation"] = detail
                     row.update(state="verified", window_verified=True)
                     record[plural] += 1

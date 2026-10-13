@@ -17,6 +17,37 @@ from shadowbane_lab.client_extension.vendor_navigation_wire import (
 from shadowbane_lab.manager.vendor_job import VendorJobStore
 from shadowbane_lab.manager.vendor_navigation import run_building_discovery
 
+
+@pytest.mark.parametrize("window", ["building", "vendor"])
+def test_membership_comes_from_parent_even_when_personal_menu_has_no_roster(monkeypatch, window):
+    from unittest.mock import Mock
+
+    from shadowbane_lab.client_observation.native_vendor_dialog import (
+        NativeVendorDialogCaptureError,
+    )
+    from shadowbane_lab.client_observation.native_vendor_roster import read_native_vendor_roster
+    from shadowbane_lab.manager import vendor_navigation
+    from tests.test_native_vendor_queue import MANAGER
+    from tests.test_native_vendor_roster import building_roster_fixture
+
+    memory = building_roster_fixture()
+    personal = 0x410000
+    memory.put(MANAGER + 0x78, "<I", personal)
+    memory.put(personal, "<I", memory.base_address + 0x116A058)
+    memory.put(personal + 0x104, "<I", MANAGER)
+    # Both HUDs remain active; the personal menu has an empty child vector.
+    memory.put(0x190000, "<II", 0x190100, 0x190200)
+    memory.put(0x190100, "<I", 0x190200)
+    memory.put(0x190200, "<III", 0x190000, 0x190100, personal)
+    with pytest.raises(NativeVendorDialogCaptureError, match="no visible hireling roster"):
+        read_native_vendor_roster(memory)
+    memory.close = Mock()
+    monkeypatch.setattr(vendor_navigation, "_memory", lambda binding: memory)
+    result = vendor_navigation.read_roster(object(), window=window)
+    assert result["source_window"] == "building"
+    assert [r["vendor"]["object_id"] for r in result["vendors"]] == [101, 102]
+    memory.close.assert_called_once_with()
+
 REQUEST = "01000000-0000-0000-0000-000000000000"
 
 
@@ -211,6 +242,21 @@ def test_empty_window_does_not_claim_complete_empty_roster(fixture):
     assert result["vendors"] == result["buildings_verified"] == 0
     assert not result["roster_complete"]
     assert all(row["state"] == "no_visible_hirelings" for row in result["roster"])
+
+
+def test_parent_membership_change_after_vendor_selection_stops_before_next_open(fixture):
+    f = fixture
+
+    def changed(binding, *, window):
+        result = f.reader(binding, window=window)
+        if window == "vendor":
+            result["vendors"].append({"vendor": {"object_id": 999, "object_type": 42}})
+        return result
+
+    with pytest.raises(VendorBatchStopped, match="membership changed"):
+        f.run(reader=changed)
+    assert [(b, v) for b, v, _ in f.session.calls] == [(123, 0), (123, 1230)]
+    assert json.loads(f.path.read_text())["state"] == "review"
 
 
 def test_cancelled_and_unresolved_states_never_open(fixture):

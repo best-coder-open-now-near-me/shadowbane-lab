@@ -2,6 +2,17 @@
 
 ## Current continuation - October 13, 2026
 
+Live discovery opened City Command and found 14 nearby buildings. It verified
+the Tree of Life's parent roster, then stopped at Viktor the Runemaster because
+the personal service menu contains no hireling roster. A read-only comparison
+confirmed that the owned parent roster remains active and stable underneath it.
+Host .106 corrects discovery to read parent membership for both phases while
+the native navigation receipt still verifies the selected vendor and front HUD.
+Changed parent membership stops discovery before another open. The focused
+vendor/roster/navigation and existing guard regressions passed 104 cases with
+two fixture-dependent skips. Qualification and installation of this host-only
+correction remain pending; native .67 and the running game need no replacement.
+
 Start from refreshed main; the original vendor-town-workflow source is included.
 The saved random recipe picker and typed recipe/Inventory operations are in
 source. Their supervised acceptance and durable town scheduling remain open.
