@@ -29,11 +29,12 @@ int main() {
         v::wire::Command payload{};
         payload.host = {identity.process_id, wrong_lease ? 8U : 7U, identity.creation_filetime_utc};
         payload.window = 123; payload.request[0] = static_cast<unsigned char>(sequence);
-        if(kind==32) {
+        if(kind==32 || kind==61) {
             auto& s=payload.expected; s.scene=s.revision=1; s.root=100; s.manager=200; s.menu=300;
             s.recipe=400; s.hireling=500; s.building=600; s.vendor=700; s.item_template=5051080;
             s.table=16; s.mode=1; s.prefix=s.suffix=3362971591U; s.quantity=1; s.multiple=multiple;
             s.count=1; s.slots[0].entry=800;
+            if(kind==61) { s.quantity=10; payload.reserved[0]=42; }
         }
         std::memcpy(&slot.movement, &payload, sizeof(payload));
         InterlockedExchange64(&slot.committed_sequence, static_cast<LONG64>(sequence));
@@ -92,6 +93,14 @@ int main() {
     std::memcpy(&returned, &storage.results[7].movement, sizeof(returned));
     assert(returned.signature == v::wire::orders_magic
         && returned.outcome == static_cast<unsigned>(v::wire::Outcome::stale) && !v::Take());
+    publish(9,false,61);
+    assert(d::DrainCommands(storage,runtime.result_signal,now)==ERROR_IO_PENDING);
+    auto ordered=v::Take(); assert(ordered && ordered->verb==v::wire::Verb::create_orders);
+    receipt={}; receipt.signature=v::wire::orders_magic; receipt.host=ordered->command.host;
+    receipt.request=ordered->command.request; receipt.window=ordered->command.window; receipt.outcome=1;
+    v::Complete(ordered,receipt);
+    assert(d::DrainCommands(storage,runtime.result_signal,now)==ERROR_SUCCESS);
+    assert(!std::strcmp(storage.results[8].detail,"native_vendor_orders_receipt_v2"));
     SetEvent(release_worker);
     StopClientActionCommandChannel();
     CloseHandle(entered); CloseHandle(release_worker);

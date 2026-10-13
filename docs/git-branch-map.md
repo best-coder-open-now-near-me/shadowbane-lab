@@ -3,6 +3,13 @@
 ## Vendor queue-depth correction in progress - October 13
 
 Latest quantity work remains on `codex/vendor-rolling-20261013` for draft PR #174.
+Explicit native quantity Create now carries a batch UUID and checks both order
+count and per-order remaining count. Active quantity items must belong to that
+same accepted batch. Automatic filling will use one ten-item single-slot order
+per funded slot to avoid the server-side rank-up race of an all-slots request.
+Both native recipe modes are supported without changing old saved intent.
+This is locally validated, uninstalled source; worker filling/progress and the
+connected quantity-ten acceptance test remain unfinished.
 The uninstalled source now includes permanent crafting receive observation with
 durable, non-resettable host cursors, so the first ten-item batch can be observed
 beyond the old five-minute diagnostic limit. Exact .18 callbacks, copied payload

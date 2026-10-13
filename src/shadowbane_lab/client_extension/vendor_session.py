@@ -45,7 +45,8 @@ class NativeVendorSession:
         self._closed = False
 
     def _submit(
-        self, verb: Verb, request_key: str, expected: Snapshot | None = None, item: int = 0
+        self, verb: Verb, request_key: str, expected: Snapshot | None = None, item: int = 0,
+        *, batch_key: str | None = None,
     ) -> Receipt:
         if self._closed:
             raise channel.NativeActionChannelUnavailable("vendor session is closed")
@@ -54,11 +55,11 @@ class NativeVendorSession:
         host = Host(
             process.process_id, transport.host_lease_generation, process.creation_filetime_utc
         )
-        command = Command(host, self.window, request_key, expected or Snapshot(), item)
+        command = Command(host, self.window, request_key, expected or Snapshot(), item, batch_key)
         result = transport.submit(
             NativeVendorCommand(next(self._ids), verb, command), timeout_ms=750
         )
-        orders = verb == Verb.INSPECT_ORDERS
+        orders = verb in (Verb.INSPECT_ORDERS, Verb.CREATE_ORDERS)
         expected_detail = ("native_vendor_orders_receipt_v2" if orders
                            else "native_vendor_receipt_v1")
         if result.detail != expected_detail:
@@ -111,6 +112,9 @@ class NativeVendorSession:
     def inspect_orders(self) -> Receipt:
         """Read raw per-slot order counts; this grants no quantity-ten dispatch."""
         return self._inspect(Verb.INSPECT_ORDERS)
+
+    def create_orders(self, expected: Snapshot, request_key: str, *, batch_key: str) -> Receipt:
+        return self._submit(Verb.CREATE_ORDERS, request_key, expected, batch_key=batch_key)
 
     def create_random(self, expected: Snapshot, request_key: str) -> Receipt:
         return self._submit(Verb.CREATE_RANDOM, request_key, expected)

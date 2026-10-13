@@ -24,6 +24,7 @@ class Verb(IntEnum):
     CREATE_RANDOM = 32
     INSPECT_RANDOM = 33
     INSPECT_ORDERS = 56
+    CREATE_ORDERS = 61
 
 
 class Outcome(IntEnum):
@@ -102,6 +103,13 @@ class Snapshot:
             and self.quantity == 1 and self.multiple == 0
         )
 
+    @property
+    def random_order(self) -> bool:
+        return bool(self.recipe and self.item_template and self.table and self.mode == 1
+                    and self.prefix == self.suffix == 3362971591
+                    and 1 <= self.quantity <= 10 and self.multiple in (0, 1)
+                    and (self.quantity > 1 or self.multiple == 1))
+
     def encode(self) -> bytes:
         if type(self.slots) is not tuple or any(type(s) is not Slot for s in self.slots):
             raise ValueError("slots must be an immutable tuple of Slot values")
@@ -147,6 +155,7 @@ class Command:
     request_key: str
     expected: Snapshot = Snapshot()
     item: int = 0
+    batch_key: str | None = None
 
     def encode(self, verb: Verb) -> bytes:
         verb = Verb(verb)
@@ -160,11 +169,21 @@ class Command:
             verb == Verb.CREATE and (self.item or not self.expected.random_scepter)
         ) or (
             verb == Verb.CREATE_RANDOM and (self.item or not self.expected.random_single)
+        ) or (
+            verb == Verb.CREATE_ORDERS and (self.item or not self.expected.random_order)
         ) or (verb == Verb.KEEP and not self.item):
             raise ValueError("invalid vendor action arguments")
+        if verb == Verb.CREATE_ORDERS:
+            if type(self.batch_key) is not str:
+                raise ValueError("quantity-order Create requires a canonical batch identity")
+            padding = request_bytes(self.batch_key) + bytes(228)
+        else:
+            if self.batch_key is not None:
+                raise ValueError("batch identity is only valid for quantity-order Create")
+            padding = bytes(244)
         return _COMMAND.pack(
             self.host.encode(), self.window, request_bytes(self.request_key),
-            self.expected.encode(), self.item, bytes(244),
+            self.expected.encode(), self.item, padding,
         )
 
 

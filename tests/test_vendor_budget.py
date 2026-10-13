@@ -32,7 +32,7 @@ def test_seven_ten_item_orders_cost_the_whole_seventy_item_batch_once():
 
 
 @pytest.mark.parametrize("changes", [
-    {"quantity": 11}, {"quantity": True}, {"quantity": 10, "multiple": 0},
+    {"quantity": 11}, {"quantity": True}, {"quantity": 10, "multiple": 2},
     {"mode": 2}, {"prefix": 1}, {"suffix": 1}, {"recipe": 0},
 ])
 def test_invalid_or_unowned_recipe_cannot_be_budgeted(changes):

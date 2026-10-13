@@ -24,7 +24,6 @@ class VendorBatchBudget:
                 or any(not uint(value, 32, "recipe key") for value in self.recipe[:2])
                 or type(self.recipe[2]) is not int or not 1 <= self.recipe[2] <= 10
                 or type(self.recipe[3]) is not int or self.recipe[3] not in (0, 1)
-                or self.recipe[2] > 1 and self.recipe[3] != 1
                 or type(self.capacity) is not int or not 1 <= self.capacity <= 16
                 or type(self.occupied) is not tuple
                 or len(self.occupied) > self.capacity

@@ -62,6 +62,21 @@ def test_orders_inspection_carries_no_mutation_and_ten_item_create_stays_rejecte
         replace(command, item=123).encode(Verb.INSPECT_ORDERS)
 
 
+def test_quantity_create_requires_a_distinct_batch_identity_without_legacy_fallback():
+    command = Command(Host(1, 1, 1), 1000, KEY,
+                      replace(Receipt.decode(raw_receipt()).snapshot, multiple=0))
+    with pytest.raises(ValueError):
+        command.encode(Verb.CREATE_ORDERS)
+    grouped = replace(command, batch_key="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
+    data = grouped.encode(Verb.CREATE_ORDERS)
+    assert data[332:348] == uuid.UUID(grouped.batch_key).bytes and data[348:] == bytes(228)
+    for verb in (Verb.CREATE, Verb.CREATE_RANDOM, Verb.KEEP):
+        with pytest.raises(ValueError):
+            grouped.encode(verb)
+    with pytest.raises(ValueError):
+        replace(grouped, expected=replace(command.expected, quantity=1)).encode(Verb.CREATE_ORDERS)
+
+
 @pytest.mark.parametrize("wrong_profile", [False, True])
 def test_session_requires_the_explicit_order_profile(wrong_profile):
     with patch("shadowbane_lab.client_extension.vendor_session.channel."

@@ -87,6 +87,15 @@ def test_changes_only_quantity_when_same_random_order_is_selected(tmp_path):
     assert session.calls == ["order_quantity"]
 
 
+def test_single_slot_quantity_ten_keeps_native_fanout_bounded(tmp_path):
+    spec = RandomOrderSpec(SPEC.recipe, 10, multiple=False)
+    session = OrderSession(tmp_path / "prepare.json", state())
+    result = run(session, spec)
+    assert session.calls == ["open_recipe", "select_recipe", "random_mode", "order_quantity"]
+    assert spec.matches(validate_completed_menu(session.path.read_bytes())[2])
+    assert result["requested_recipe"]["multiple"] is False
+
+
 def test_single_recipe_is_closed_and_reopened_in_multiple_mode(tmp_path):
     session = OrderSession(tmp_path / "prepare.json", replace(ready(1), multiple=0))
     run(session)

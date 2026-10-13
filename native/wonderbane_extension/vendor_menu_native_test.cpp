@@ -170,6 +170,8 @@ int main() {
     Jump(0x63f320,reinterpret_cast<std::uintptr_t>(&QuantityPage));
     Jump(0x63f6e0,reinterpret_cast<std::uintptr_t>(&Quantity));
     OrderReady(); Prepare(10); assert(Invoke(V::order_quantity)==O::submitted && quantities==1 && quantity_pages==1);
+    OrderReady(); Put(RECIPE+0x3d8,0); Prepare(10);
+    assert(Invoke(V::order_quantity)==O::submitted && quantities==1 && quantity_pages==1);
     Prepare(10); assert(Invoke(V::order_quantity)==O::observed && quantities==1);
     for(unsigned quantity:{0U,11U}) {
         OrderReady(); Prepare(quantity); assert(Invoke(V::order_quantity)==O::invalid && !quantities && !quantity_pages);
@@ -262,6 +264,10 @@ int main() {
     Reset(); Prepare(); command.reserved[0]=1; assert(Invoke(V::random_mode)==O::invalid && !calls);
     Reset(); Prepare(); live=false; assert(Invoke(V::random_mode)==O::stale && !calls);
     RandomReady(); assert(RandomCreate()==O::submitted && calls==1 && random_expected.item_template==5051080);
+    RandomReady(); Put(RECIPE+0x4d4,10); Put(PAGES+0x40c,3); random_expected.quantity=10;
+    assert(n::InvokeRandomCreate(base,scene,random_expected,&Admit,nullptr,true)==O::submitted && calls==1);
+    RandomReady(); Put(RECIPE+0x4d4,10); Put(RECIPE+0x540,0x100); random_expected.quantity=10;
+    assert(n::InvokeRandomCreate(base,scene,random_expected,&Admit,nullptr,true)==O::stale && !calls);
     RandomReady(); reenter_create=true; assert(RandomCreate()==O::submitted && calls==1 && nested==O::unavailable);
     RandomReady(); deny_at=2; assert(RandomCreate()==O::stale && !calls);
     RandomReady(); detach_create=true; assert(RandomCreate()==O::stale && !calls);

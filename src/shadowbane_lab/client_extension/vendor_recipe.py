@@ -52,10 +52,12 @@ class RandomRecipeSpec:
 class RandomOrderSpec:
     recipe: RandomRecipeSpec
     quantity: int = 10
+    multiple: bool = True
 
     def __post_init__(self):
         if (type(self.recipe) is not RandomRecipeSpec or type(self.quantity) is not int
-                or not 1 <= self.quantity <= 10):
+                or not 1 <= self.quantity <= 10 or type(self.multiple) is not bool
+                or self.quantity == 1 and not self.multiple):
             raise ValueError("a random recipe and quantity 1–10 per slot are required")
 
     @property
@@ -67,13 +69,13 @@ class RandomOrderSpec:
         return self.recipe.table
 
     def as_dict(self) -> dict:
-        return dict(self.recipe.as_dict(), quantity=self.quantity, multiple=True)
+        return dict(self.recipe.as_dict(), quantity=self.quantity, multiple=self.multiple)
 
     @classmethod
     def from_dict(cls, value) -> RandomOrderSpec:
         try:
             result = cls(RandomRecipeSpec(value["template"]["object_id"], value["table"]),
-                         value["quantity"])
+                         value["quantity"], value["multiple"])
             if json.dumps(value, sort_keys=True) != json.dumps(result.as_dict(), sort_keys=True):
                 raise ValueError("noncanonical order recipe specification")
             return result
@@ -90,7 +92,8 @@ class RandomOrderSpec:
         return bool(snapshot.recipe and snapshot.item_template == self.template
                     and snapshot.table == self.table and snapshot.mode == 1
                     and snapshot.prefix == snapshot.suffix == RANDOM_SENTINEL
-                    and snapshot.quantity == self.quantity and snapshot.multiple == 1)
+                    and snapshot.quantity == self.quantity
+                    and snapshot.multiple == int(self.multiple))
 
 
 def validate_recipe_preparation(

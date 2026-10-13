@@ -75,6 +75,52 @@ int main(int argc, char**) {
         r = c.Execute(w::Verb::inspect_orders, probe, true, true, f);
         assert(r.outcome == static_cast<unsigned>(w::Outcome::invalid) && !f.calls);
     }
+    // Single-slot quantity orders share one immutable batch identity. A rank-up
+    // can expose capacity without changing how much one request is allowed to add.
+    {
+        v::Controller c; Fake f; auto s=Snapshot(); s.quantity=10;
+        w::RemainingCounts counts{}; counts[0]=counts[1]=1;
+        c.Observe(s,true,false,100,counts); auto first=Command(c); first.reserved[0]=42;
+        assert(w::Valid(w::Verb::create_orders,first));
+        auto sent=c.Execute(w::Verb::create_orders,first,true,true,f,100);
+        assert(sent.signature==w::orders_magic && sent.outcome==1 && sent.flags==w::in_flight && f.calls==1);
+        s.slots[0]={600,123,1}; counts[0]=9; c.Observe(s,true,false,101,counts);
+        auto next=Command(c,2); next.reserved[0]=43;
+        auto rejected=c.Execute(w::Verb::create_orders,next,true,true,f,102);
+        assert(rejected.signature==w::orders_magic && rejected.outcome==3 && f.calls==1);
+        next.reserved[0]=42;
+        assert(c.Execute(w::Verb::create_orders,next,true,true,f,103).outcome==1 && f.calls==2);
+        s.count=3; s.slots[2]={800,0,0}; counts[2]=1;
+        s.slots[1]={700,124,1}; counts[1]=9; c.Observe(s,true,false,104,counts);
+        auto probe=Command(c,9); probe.expected={};
+        const auto accepted=c.Execute(w::Verb::inspect_orders,probe,true,true,f,105);
+        assert(accepted.flags==w::ready && accepted.transition_request==next.request
+            && accepted.transition_item==124 && accepted.snapshot.count==3 && accepted.reserved[0]==9);
+        assert(c.Execute(w::Verb::create_orders,next,true,true,f,106).outcome==1 && f.calls==2);
+        next.reserved[0]=44;
+        assert(c.Execute(w::Verb::create_orders,next,true,true,f,107).outcome==4 && f.calls==2);
+    }
+    for(unsigned failure=0;failure<4;++failure) {
+        v::Controller c; Fake f; auto s=Snapshot(); s.quantity=10; s.multiple=1;
+        w::RemainingCounts counts{}; counts[0]=counts[1]=1;
+        c.Observe(s,true,false,100,counts); auto command=Command(c); command.reserved[0]=42;
+        assert(c.Execute(w::Verb::create_orders,command,true,true,f,100).outcome==1);
+        s.slots[0]={600,123,1}; counts[0]=failure==0?0:9;
+        if(failure==1) { s.count=3; s.slots[1]={700,124,1}; s.slots[2]={800,125,1}; counts[1]=counts[2]=9; }
+        if(failure==2) { ++s.vendor; }
+        c.Observe(s,true,false,failure==3?5101:101,counts);
+        auto probe=Command(c,9); probe.expected={};
+        assert(c.Execute(w::Verb::inspect_orders,probe,true,true,f,5102).flags&w::unresolved);
+        assert(c.Execute(w::Verb::create_orders,command,true,true,f,5103).outcome==1 && f.calls==1);
+    }
+    {
+        auto s=Snapshot(); s.revision=1; s.quantity=10;
+        w::Command command{}; command.host={1,1,1}; command.window=1000; command.request[0]=1; command.expected=s;
+        assert(!w::Valid(w::Verb::create_orders,command)); command.reserved[0]=42;
+        assert(w::Valid(w::Verb::create_orders,command) && !w::Valid(w::Verb::create_random,command));
+        command.reserved[16]=1; assert(!w::Valid(w::Verb::create_orders,command));
+        command.reserved[16]=0; command.expected.quantity=11; assert(!w::Valid(w::Verb::create_orders,command));
+    }
     {
         v::Controller c; Fake f; c.Observe(Snapshot(), true, false); auto command = Command(c);
         assert(Is(c.Execute(w::Verb::create, command, false, true, f), w::Outcome::stale));

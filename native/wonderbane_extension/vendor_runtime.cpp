@@ -8,6 +8,7 @@
 #include "guard_upgrade_controller.h"
 #include "guard_upgrade_command_queue.h"
 #include "vendor_native.h"
+#include "vendor_production_responses.h"
 #include "vendor_controller.h"
 #include "vendor_command_queue.h"
 #include "city_window_command_queue.h"
@@ -46,17 +47,26 @@ public:
     static bool AdmitRandom(void* context) noexcept {
         auto& self = *static_cast<NativeInvoker*>(context);
         const auto now = GetTickCount64();
-        return !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy()
+        const bool live = !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy()
             && !navigation_controller.Busy() && !menu_controller.Busy()
             && self.command_->lease && self.command_->lease->Current(now) && now <= self.command_->deadline
             && self.command_->command.window == reinterpret_cast<std::uintptr_t>(self.window_)
             && GetForegroundWindow() == self.window_ && !IsIconic(self.window_)
             && movement::NativeMovementLifetimeCurrent(self.scene_);
+        if (!live || self.command_->verb != wire::Verb::create_orders) { return live; }
+        wire::Snapshot fresh{}; wire::RemainingCounts remaining{}; bool present = false, top = false;
+        if (!Capture(image_base, self.scene_, fresh, 0, present, top, &remaining) || !top) { return false; }
+        fresh.revision = self.command_->command.expected.revision;
+        return wire::Equal(fresh, self.command_->command.expected)
+            && controller.OrderItemsOwned(fresh, remaining, self.command_->command);
     }
     wire::Outcome Invoke(wire::Verb verb, const wire::Snapshot& expected, std::uint32_t item) noexcept override {
-        if (verb == wire::Verb::create_random) {
+        if (verb == wire::Verb::create_random || verb == wire::Verb::create_orders) {
             if (item || !AdmitRandom(this)) { return wire::Outcome::stale; }
-            return vendor_menu::InvokeRandomCreate(image_base, scene_, expected, &AdmitRandom, this);
+            const bool orders = verb == wire::Verb::create_orders;
+            vendor_production::Cursor cursor{};
+            if (orders && !vendor_production::ReadCursor(cursor)) { return wire::Outcome::unavailable; }
+            return vendor_menu::InvokeRandomCreate(image_base, scene_, expected, &AdmitRandom, this, orders);
         }
         wire::Snapshot fresh{}; bool present = false, top = false;
         const auto now = GetTickCount64();

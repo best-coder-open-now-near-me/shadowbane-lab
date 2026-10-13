@@ -6,7 +6,7 @@
 
 namespace wonderbane::extension::vendor::wire {
 enum class Verb : std::uint32_t { inspect = 8, create = 9, keep = 10, create_random = 32, inspect_random = 33,
-    inspect_orders = 56 };
+    inspect_orders = 56, create_orders = 61 };
 enum class Outcome : std::uint32_t { observed = 0, submitted = 1, stale = 2,
     unavailable = 3, invalid = 4, pending = 5, uncertain = 6, exhausted = 7 };
 constexpr std::uint32_t magic = 0x57425631, ready = 1, in_flight = 2, unresolved = 4;
@@ -69,20 +69,33 @@ inline bool RandomSingle(const Snapshot& s) noexcept {
     return s.recipe && s.item_template && s.table && s.mode == 1 && s.prefix == 3362971591U
         && s.suffix == s.prefix && s.quantity == 1 && s.multiple == 0;
 }
-inline bool IsCreate(Verb verb) noexcept { return verb == Verb::create || verb == Verb::create_random; }
+inline bool RandomOrder(const Snapshot& s) noexcept {
+    return s.recipe && s.item_template && s.table && s.mode == 1 && s.prefix == 3362971591U
+        && s.suffix == s.prefix && s.quantity >= 1 && s.quantity <= 10 && s.multiple <= 1
+        && (s.quantity > 1 || s.multiple == 1);
+}
+inline bool IsCreate(Verb verb) noexcept {
+    return verb == Verb::create || verb == Verb::create_random || verb == Verb::create_orders;
+}
 inline bool IsInspect(Verb verb) noexcept {
     return verb == Verb::inspect || verb == Verb::inspect_random || verb == Verb::inspect_orders;
 }
 inline bool Valid(Verb verb, const Command& c) noexcept {
     if (!movement::wire::Valid(c.host) || !c.window || c.window > UINT32_MAX
-        || movement::wire::Zero(c.request.data(), c.request.size())
-        || !movement::wire::Zero(c.reserved, sizeof(c.reserved))) { return false; }
+        || movement::wire::Zero(c.request.data(), c.request.size())) { return false; }
+    if (verb == Verb::create_orders) {
+        // The immutable batch UUID scopes active quantity orders. Legacy verbs
+        // retain all-zero padding and cannot adopt this new command profile.
+        if (movement::wire::Zero(c.reserved, 16)
+            || !movement::wire::Zero(c.reserved + 16, sizeof(c.reserved) - 16)) { return false; }
+    } else if (!movement::wire::Zero(c.reserved, sizeof(c.reserved))) { return false; }
     if (IsInspect(verb)) {
         return !c.item && movement::wire::Zero(&c.expected, sizeof(c.expected));
     }
     return ValidSnapshot(c.expected)
         && ((verb == Verb::create && !c.item && RandomScepter(c.expected))
             || (verb == Verb::create_random && !c.item && RandomSingle(c.expected))
+            || (verb == Verb::create_orders && !c.item && RandomOrder(c.expected))
             || (verb == Verb::keep && c.item));
 }
 }

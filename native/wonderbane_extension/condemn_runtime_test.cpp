@@ -66,10 +66,13 @@ bool InvokeNative(std::uintptr_t, wire::Verb, const wire::Snapshot&, std::uint32
 }
 namespace vendor_menu {
 vendor::wire::Outcome InvokeRandomCreate(std::uintptr_t, const movement::NativeScene&,
-    const vendor::wire::Snapshot&, Admission, void*) noexcept { ++other_writes; return vendor::wire::Outcome::unavailable; }
+    const vendor::wire::Snapshot&, Admission, void*, bool) noexcept { ++other_writes; return vendor::wire::Outcome::unavailable; }
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }
 wire::Outcome Invoke(std::uintptr_t, const movement::NativeScene&, wire::Verb,
     const wire::Command&, Admission, void*) noexcept { ++other_writes; return wire::Outcome::unavailable; }
+}
+namespace vendor_production {
+bool ReadCursor(Cursor&) noexcept { ++other_reads; return false; }
 }
 namespace city_window {
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }

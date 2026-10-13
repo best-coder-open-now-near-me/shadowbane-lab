@@ -55,6 +55,7 @@ def _run(
     session: MenuSession, journal: Path, expected_owner: Snapshot, *,
     operation: str, template: int = 0, table: int | None = None,
     quantity: int = 1,
+    multiple: bool = False,
     before_action: Callable[[], None], cancelled: Callable[[], bool],
     clock: Callable[[], float], sleeper: Callable[[float], None],
 ) -> dict:
@@ -77,7 +78,7 @@ def _run(
             requested_recipe=(dict(template=dict(object_id=template, object_type=0),
                                    mode=1, table=table, sentinel=3362971591,
                                    prefix=3362971591, suffix=3362971591,
-                                   quantity=quantity, multiple=orders) if template else None),
+                                   quantity=quantity, multiple=multiple) if template else None),
             requests=[],
         )
 
@@ -163,18 +164,22 @@ def _run(
             if operation in ("prepare_recipe", "prepare_order", "open_recipe_catalog"):
                 if state.inventory:
                     state = perform(Verb.CLOSE_INVENTORY, inventory_closed)
-                if state.recipe and (state.multiple != int(orders)
-                                     or orders and not state.random_order(template, table)):
+                if state.recipe and (state.multiple != int(multiple)
+                                     or orders and not state.random_order(
+                                         template, table, multiple=multiple)):
                     state = perform(Verb.CLOSE_RECIPE, recipe_closed)
-                state = perform(Verb.OPEN_ORDER_RECIPE if orders else Verb.OPEN_RECIPE,
+                state = perform(Verb.OPEN_ORDER_RECIPE if multiple else Verb.OPEN_RECIPE,
                                 lambda s: bool(s.recipe and s.front_hud == s.recipe
-                                               and s.multiple == int(orders)))
+                                               and s.multiple == int(multiple)))
                 if orders:
-                    state = perform(Verb.SELECT_ORDER_RECIPE, lambda s: s.selected(template))
-                    state = perform(Verb.RANDOM_ORDER_MODE, lambda s: s.random_order(template))
+                    state = perform(Verb.SELECT_ORDER_RECIPE if multiple else Verb.SELECT_RECIPE,
+                                    lambda s: s.selected(template))
+                    state = perform(Verb.RANDOM_ORDER_MODE if multiple else Verb.RANDOM_MODE,
+                                    lambda s: s.random_order(template, multiple=multiple))
                     state = perform(Verb.ORDER_QUANTITY,
-                                    lambda s: s.random_order(template, quantity=quantity))
-                    if not state.random_order(template, table, quantity):
+                                    lambda s: s.random_order(template, quantity=quantity,
+                                                            multiple=multiple))
+                    if not state.random_order(template, table, quantity, multiple):
                         raise VendorBatchStopped(
                             "observed order does not match the requested recipe")
                 elif operation == "prepare_recipe":
@@ -237,7 +242,8 @@ def prepare_order(
         raise ValueError("an immutable random order specification is required")
     return _run(session, journal, expected_owner, operation="prepare_order",
                 template=specification.template, table=specification.table,
-                quantity=specification.quantity, before_action=before_action,
+                quantity=specification.quantity, multiple=specification.multiple,
+                before_action=before_action,
                 cancelled=cancelled, clock=clock, sleeper=sleeper)
 
 
@@ -304,25 +310,28 @@ def validate_completed_menu(raw: bytes) -> tuple[dict, Snapshot, Snapshot]:
             raise ValueError("menu owner changed")
         preparation = record["operation"] in ("prepare_recipe", "prepare_order")
         requested = record["requested_recipe"]
-        template, table, quantity = 0, None, 1
+        template, table, quantity, multiple = 0, None, 1, False
         if preparation:
             template = requested["template"]["object_id"]
             table = requested["table"]
             quantity = requested["quantity"]
+            multiple = requested["multiple"]
             if not uint(template, 32, "template"):
                 raise ValueError("missing recipe template")
             if table is not None and not uint(table, 32, "table"):
                 raise ValueError("missing recipe table")
             if (type(quantity) is not int or not 1 <= quantity <= 10
-                    or not orders and quantity != 1 or orders and table is None):
+                    or type(multiple) is not bool
+                    or not orders and (quantity != 1 or multiple)
+                    or orders and (table is None or quantity == 1 and not multiple)):
                 raise ValueError("invalid requested order quantity or table")
             canonical = dict(template=dict(object_id=template, object_type=0), mode=1,
                              table=table, sentinel=RANDOM_SENTINEL, prefix=RANDOM_SENTINEL,
-                             suffix=RANDOM_SENTINEL, quantity=quantity, multiple=orders)
+                             suffix=RANDOM_SENTINEL, quantity=quantity, multiple=multiple)
             # JSON boolean/int equality must not admit changed typed expectations.
             if json.dumps(requested, sort_keys=True) != json.dumps(canonical, sort_keys=True):
                 raise ValueError("invalid requested recipe identity")
-            if not (final.random_order(template, table, quantity) if orders
+            if not (final.random_order(template, table, quantity, multiple) if orders
                     else final.random_recipe(template, table)):
                 raise ValueError("final recipe does not match the saved expectation")
         elif record["operation"] == "open_recipe_catalog":
@@ -336,8 +345,11 @@ def validate_completed_menu(raw: bytes) -> tuple[dict, Snapshot, Snapshot]:
         elif requested is not None or not final.inventory or final.front_hud != final.inventory:
             raise ValueError("final Inventory was not observed")
         requests = record["requests"]
-        order = ([Verb.CLOSE_INVENTORY, Verb.CLOSE_RECIPE, Verb.OPEN_ORDER_RECIPE,
-                  Verb.SELECT_ORDER_RECIPE, Verb.RANDOM_ORDER_MODE, Verb.ORDER_QUANTITY] if orders
+        order = ([Verb.CLOSE_INVENTORY, Verb.CLOSE_RECIPE,
+                  Verb.OPEN_ORDER_RECIPE if multiple else Verb.OPEN_RECIPE,
+                  Verb.SELECT_ORDER_RECIPE if multiple else Verb.SELECT_RECIPE,
+                  Verb.RANDOM_ORDER_MODE if multiple else Verb.RANDOM_MODE,
+                  Verb.ORDER_QUANTITY] if orders
                  else [Verb.CLOSE_INVENTORY, Verb.CLOSE_RECIPE, Verb.OPEN_RECIPE,
                   Verb.SELECT_RECIPE, Verb.RANDOM_MODE] if preparation
                  else [Verb.CLOSE_INVENTORY, Verb.CLOSE_RECIPE, Verb.OPEN_RECIPE]
@@ -385,7 +397,8 @@ def validate_completed_menu(raw: bytes) -> tuple[dict, Snapshot, Snapshot]:
                 Verb.SELECT_ORDER_RECIPE: after.selected(template) and after.multiple == 1,
                 Verb.RANDOM_ORDER_MODE: after.random_order(before.item_template),
                 Verb.ORDER_QUANTITY: (after.selected(before.item_template)
-                                      and after.quantity == quantity and after.multiple == 1),
+                                      and after.quantity == quantity
+                                      and after.multiple == int(multiple)),
             }
             if (not reached[verb] or (verb in (Verb.SELECT_RECIPE, Verb.RANDOM_MODE,
                     Verb.SELECT_ORDER_RECIPE, Verb.RANDOM_ORDER_MODE, Verb.ORDER_QUANTITY)

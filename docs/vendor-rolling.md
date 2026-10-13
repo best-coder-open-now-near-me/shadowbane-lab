@@ -4,6 +4,30 @@
 
 ### Active: ten items per production slot
 
+The source now adds explicit quantity-order Create (verb 61). Its command carries
+a nonzero immutable batch UUID in the first 16 extension bytes; all other command
+padding stays zero. Legacy Create/Keep commands cannot carry or adopt this profile.
+Native acceptance requires the exact number of new slot orders and raw remaining
+count `quantity - 1` for every new item. A count mismatch, excess arrival, changed
+owner or timeout becomes uncertainty and is never retried. Quantity-ten server
+acceptance still needs the connected test; the raw-nine requirement is currently
+the deliberately fail-closed expectation, not a claim of live qualification.
+
+Automatic batching will use quantity ten in single-slot mode, issuing one native
+order for each initially funded slot after one whole-batch funding step. This
+bounds work even if a rank unlock occurs between client inspection and server
+handling; an all-free-slots server request cannot provide that bound. Each new
+request can coexist with active quantity orders only when their item IDs were
+accepted by this native controller for the same batch and scene/owner. IDs are
+stored in the already-allocated immutable request record; observation does not
+allocate or adopt unrelated orders. The runtime repeats that ownership check
+immediately before native dispatch and requires the permanent recorder to be
+available. Named recipes remain excluded. Both recipe modes can be prepared
+through the normal native setter, and old single-item intent is unchanged.
+Ten native tests and 258 relevant host checks pass; the extension rebuild
+succeeds. This remains uninstalled source. Next: persist quantity-order filling
+and item/inventory progress in the worker, then qualify and install one update.
+
 Source .110/native .68 now also includes a permanent, optional crafting receive
 recorder. It uses the existing ArcItemProductionMessage decode/process/destruction
 boundary and copies item IDs, raw remaining counts, completion fields, deposited

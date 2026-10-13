@@ -105,7 +105,7 @@ def test_order_quantity_rejects_outside_the_observed_slider_range(quantity):
 def test_order_commands_cannot_adopt_single_recipe_or_foreign_selection():
     observed = recipe(item_template=25860, selected_template=25860,
                       activated_template=25860, quantity=1, multiple=0)
-    for verb, argument in ((Verb.ORDER_QUANTITY, 10), (Verb.SELECT_ORDER_RECIPE, 25860),
+    for verb, argument in ((Verb.SELECT_ORDER_RECIPE, 25860),
                            (Verb.RANDOM_ORDER_MODE, 0)):
         with pytest.raises(ValueError):
             Command(Host(123, 7, 456), 999, KEY, observed, argument).encode(verb)

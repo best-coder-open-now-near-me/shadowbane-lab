@@ -77,11 +77,11 @@ class Snapshot:
                     and self.quantity == 1 and self.multiple == 0)
 
     def random_order(self, template: int, table: int | None = None,
-                     quantity: int | None = None) -> bool:
+                     quantity: int | None = None, multiple: bool = True) -> bool:
         return bool(self.selected(template) and self.mode == 1 and self.table
                     and (table is None or self.table == table)
                     and self.prefix == self.suffix == self.sentinel == RANDOM_SENTINEL
-                    and self.multiple == 1
+                    and self.multiple == int(multiple)
                     and (quantity is None or self.quantity == quantity))
 
     def encode(self) -> bytes:
@@ -144,7 +144,7 @@ class Command:
                     s.front_hud == s.menu or recipe_front and s.multiple == 1),
                 Verb.SELECT_ORDER_RECIPE: recipe_front and s.multiple == 1,
                 Verb.RANDOM_ORDER_MODE: s.selected(s.item_template) and s.multiple == 1,
-                Verb.ORDER_QUANTITY: (s.selected(s.item_template) and s.multiple == 1
+                Verb.ORDER_QUANTITY: (s.selected(s.item_template)
                                       and 1 <= self.template <= 10),
             }
             if not allowed[verb]:

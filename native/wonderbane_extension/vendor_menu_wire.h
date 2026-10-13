@@ -67,7 +67,7 @@ inline bool Reached(Verb verb, const Command& c, const Snapshot& s) noexcept {
     case Verb::random_order_mode: return s.multiple == 1 && s.recipe == c.expected.recipe
         && s.recipe_list == c.expected.recipe_list && Selected(s, c.expected.item_template)
         && s.mode == 1 && s.table && s.prefix == s.sentinel && s.suffix == s.sentinel;
-    case Verb::order_quantity: return s.multiple == 1 && s.recipe == c.expected.recipe
+    case Verb::order_quantity: return s.multiple == c.expected.multiple && s.recipe == c.expected.recipe
         && s.recipe_list == c.expected.recipe_list && Selected(s, c.expected.item_template)
         && s.quantity == c.item_template;
     case Verb::close_recipe: return !s.recipe && s.front_hud == s.menu;
@@ -93,7 +93,7 @@ inline bool Valid(Verb verb, const Command& c) noexcept {
     case Verb::select_order_recipe: return c.item_template && s.recipe && s.front_hud == s.recipe && s.multiple == 1;
     case Verb::random_mode: return Selected(s, s.item_template) && !s.multiple;
     case Verb::random_order_mode: return Selected(s, s.item_template) && s.multiple == 1;
-    case Verb::order_quantity: return Selected(s, s.item_template) && s.multiple == 1
+    case Verb::order_quantity: return Selected(s, s.item_template)
         && c.item_template >= 1 && c.item_template <= 10;
     case Verb::close_recipe: return !s.inventory && (s.front_hud == s.menu || (s.recipe && s.front_hud == s.recipe));
     case Verb::open_inventory: return !s.recipe && (s.front_hud == s.menu || (s.inventory && s.front_hud == s.inventory));
