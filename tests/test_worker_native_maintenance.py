@@ -217,7 +217,10 @@ def test_replacement_issued_before_original_expiry_authorizes_later_instant(tmp_
     assert permit.expires_at < now[0] < replacement.expires_at
     assert not signal.is_set()
     assert signal._authority.permit == replacement
-    assert movement.maintain()
+    before = len(session.renew_calls)
+    movement.maintain()
+    assert len(session.renew_calls) > before
+    assert not signal.is_set()
     now[0] = replacement.expires_at
     assert signal.is_set()
     movement.finish()
