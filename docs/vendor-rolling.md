@@ -28,8 +28,23 @@ were observed, scene/root and the last target/request still match, and no action
 is in flight or unresolved. Installer regressions passed 157 with one optional
 skip, plus four shortcut cases. The focused recovery, worker, menu,
 navigation and whole-batch funding suite passed 116 cases with two optional
-native-fixture skips. An online host-only update is next;
-native .67 and the running game do not need replacement for this correction.
+native-fixture skips. Host .109 is now installed and fully activated online.
+All 493 installed modules match and 9,795 retained records are preserved with
+zero exclusions and ten typed startup/reservation/capability/status changes.
+No client files were written; game 9652/lifetime 134363834764625370 remains
+running with the unchanged .67 DLL. Fresh manager 2432 and worker 1136 are healthy;
+the preparation cleanup block is gone. Apply receipt SHA-256:
+`40860515374cde3e34a3f5576d6df74dce9f466b4c83f820a11d917f46c7f209`.
+Activation receipt SHA-256:
+`1c30682a6e9fbd776fe7b071e3cfa9298aafe844a8c6711905c504d6df114f84`.
+
+Fresh discovery `operation-76aa2d9e5894424b9c187d3262a58487` succeeded: 25
+personal vendor windows across 13 of 14 candidates. The remaining church had
+no visible hirelings; full town coverage remains unverified. Both Malik the
+Irekei Sage and the warehouse Seneschal are verified in this loaded scene.
+The worker returned idle with no active or queued operation. Next: open Malik's
+management menu, activate the retained saved recipe, then verify one whole
+funded batch and automatic Keep. No gold transfer or new Create has run yet.
 
 Host .108 adds worker-owned warehouse funding before a saved-recipe Start.
 The user reaffirmed batch-only production: calculate the whole batch as current

@@ -12,8 +12,13 @@ both IPC profiles, seven startup cases and 493 exact modules. Native/assets are
 unchanged. Host .109 adds bounded read-only retries and exact journal/native
 proof for failed-scan cleanup, preserving every mutation's no-retry rule.
 Fresh live proof confirms all 49 window transitions observed and native idle.
-Next: install .109 without restarting the game, rediscover, then
-activate Malik's saved recipe and verify one whole funded batch and Keep.
+Host .109 is installed and activated online with 493 exact modules, 9,795
+preserved records, zero exclusions and no client writes. The same game lifetime
+remains running. Fresh discovery succeeded with 25 vendor windows across 13
+buildings, including Malik and the warehouse Seneschal; full town coverage is
+unverified. The new worker returned idle without the previous cleanup block.
+Next: activate Malik's saved recipe and verify one whole funded batch and Keep;
+the user has been asked to open his management menu. No new gold/Create ran.
 Main remains the clean shared checkout; graphics composition and PR #174 are
 outside main. See [current evidence](vendor-rolling.md).
 
