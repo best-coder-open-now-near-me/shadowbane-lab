@@ -2,6 +2,38 @@
 
 ## Current continuation - October 13, 2026
 
+Host .107 is qualified and installed from graphics-preserving release
+`d9d579d2f70a7ea265f9ecabfbe6551e029440d7`; native .67 and client .18 are unchanged.
+The real Windows borrowed-producer regression verifies all seven typed recipe
+menu verbs through the production transport. Qualification passed 6,411 host
+tests with 46 optional skips, both native IPC profiles and seven startup cases.
+Installation verified 491 modules and preserved 9,748 records with zero
+exclusions; no client files were written. Obsolete host .106 was retired.
+
+Malik's ordinary recipe catalog and saved random Gilded Scepter selection were
+accepted live. Seven production slots were free. The batch observed two exact
+queue additions, then its third Create remained unconfirmed and became native
+unresolved. The job is in review, with its original journal preserved. Both
+confirmed scepters are now complete in production; no automatic Keep or Junk
+ran. The job's summary still reports zero created because partial counts are
+only copied at phase completion; the Create journal records the two additions.
+The building displayed zero gold, which is a possible explanation, not proof
+that the third request failed. Do not retry it or clear its journal.
+Private Create journal SHA-256:
+`77562430e189e3cbb6ce29ceb504993d75fb2d6d356cef95e6f852e9e1321af2`.
+
+The user directed funding through recycling or warehouse gold. Continue with
+warehouse funding before further crafting: the generalized recipe path retains
+all results pending affix qualification, so recycling unknowns is not allowed.
+Reuse the typed two-sided transfer receipts and durable spending journal without
+running guard jobs. Qualify recipe costs, reserves, capacity and return to the
+saved vendor before spending. A fresh game session is still required to clear
+the current native unresolved state; the old job remains unreplayed.
+Next: vendor funding preflight, then a funded capacity batch and automatic Keep;
+selected-vendor controls, Tier 1/2 exclusion qualification and town scheduling
+remain open. Source `6a2c5026` passed all 15 hosted checks in PR #174; it remains
+outside main. The following .106 discovery record is retained as evidence.
+
 Live discovery opened City Command and found 14 nearby buildings. It verified
 the Tree of Life's parent roster, then stopped at Viktor the Runemaster because
 the personal service menu contains no hireling roster. A read-only comparison
