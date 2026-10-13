@@ -1,5 +1,24 @@
 # Git branch map
 
+## Vendor menu transport installed; funding next - October 13
+
+Shared development starts from main at `ef02070f`; the normal checkout is clean.
+Continue vendor work on `codex/vendor-rolling-20261013` in its matching worktree.
+Source `6a2c50260d0a54417140f2889dc7a2a87e8b8a7c` passed all 15 hosted checks in
+[PR #174](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/174),
+targeting main and still open. Graphics-preserving release
+`d9d579d2f70a7ea265f9ecabfbe6551e029440d7` on `codex/vendor-release-20261013`
+is installed as host .107 with unchanged native .67/client .18. The graphics
+composition remains outside main. The same game lifetime was preserved.
+
+Saved Gilded Scepter selection passed live. Of seven free slots, two Creates
+were confirmed; the third is unresolved and must never be replayed. Both
+confirmed items are complete but uncollected. The user directed warehouse or
+recycling funding; use warehouse gold while unknown affixes remain retained.
+Next: qualify vendor funding and return navigation, then a funded batch/Keep.
+Partial progress reporting, exclusion qualification and town scheduling remain.
+Guard work is outside scope. See [current evidence](vendor-rolling.md).
+
 ## Vendor parent-roster correction installed - October 13
 
 Shared development starts from main at PR #173 merge `ef02070f`.
