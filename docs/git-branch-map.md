@@ -27,6 +27,9 @@ The corrected cost/funding/worker suite passed 86 tests. This source is not
 installed; the existing failed handback block and quantity-ten command lifecycle
 still require completion. Optional Computer Use is stopped after Escape; native
 workflow work continues without GUI actions.
+Pushed correction `ad1b02206cfde970359a17b65561b7f41fd31148` also passed a live
+read-only quantity-ten cost check (1,660 Gold per slot / 11,620 for seven slots).
+No runtime modules, funds or production changed; .110 remains uninstalled.
 
 ## Vendor discovery recovery candidate - October 13
 

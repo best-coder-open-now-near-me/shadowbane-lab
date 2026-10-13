@@ -19,6 +19,13 @@ suite passed 86 tests, including absent warehouse access with sufficient shop
 or carried gold, displayed-cost ownership/mismatch, non-gold resources and
 resource-label changes after a deposit. This correction is committed source
 work, not an installed runtime change. No new GUI skill is needed for transfers.
+Implementation `ad1b02206cfde970359a17b65561b7f41fd31148` is pushed on the
+existing task branch. Its exact cost-reader source was also exercised as a
+read-only diagnostic against the live .18 process: quantity ten, multiple-slot
+mode, seven empty slots, Gold cost 1,660 and calculated full-batch cost 11,620
+all match. It granted no commands and sent zero native mutations; installed
+host .109/native .67 were not modified. Next remains the quantity-ten native/
+host queue lifecycle, then proof-based recovery and full-batch acceptance.
 
 The user clarified that every slot can queue ten items. Seven free slots must
 therefore be planned as up to 70 scepters, not a seven-item batch. Native .67's
