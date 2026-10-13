@@ -62,6 +62,18 @@ class NativeVendorNavigationSession:
         self._transport = channel.WindowsNativeActionCommandTransport(identity)
         self._ids = itertools.count(1)
         self._closed = False
+        self._parent = None
+
+    @classmethod
+    def borrow(cls, parent, *, journal):
+        """Navigate under the active worker producer without a lease handoff."""
+        if parent._closed:
+            raise channel.NativeActionChannelUnavailable("parent session is closed")
+        adapter = cls.__new__(cls)
+        adapter.identity, adapter.window = parent.identity, parent.window
+        adapter._transport, adapter._ids = parent._transport, parent._ids
+        adapter._journal, adapter._closed, adapter._parent = journal, False, parent
+        return adapter
 
     def _submit(
         self,
@@ -71,7 +83,7 @@ class NativeVendorNavigationSession:
         building_id: int = 0,
         vendor_id: int = 0,
     ) -> Receipt:
-        if self._closed:
+        if self._closed or (self._parent is not None and self._parent._closed):
             raise channel.NativeActionChannelUnavailable("vendor_navigation session is closed")
         transport = self._transport
         process = transport.host_process_identity
@@ -156,9 +168,12 @@ class NativeVendorNavigationSession:
         return self._submit(Verb.WAREHOUSE, request_key, expected, building_id, source_id)
 
     def renew_lease(self) -> None:
+        if self._closed or (self._parent is not None and self._parent._closed):
+            raise channel.NativeActionChannelUnavailable("navigation session is closed")
         self._transport.renew_lease()
 
     def close(self) -> None:
         if not self._closed:
             self._closed = True
-            self._transport.close()
+            if self._parent is None:
+                self._transport.close()

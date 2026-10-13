@@ -260,7 +260,11 @@ def open_vendor_session(binding):
 class VendorWorkerExecutor:
     def __init__(self, root, node_id, binding, *, session_factory=open_vendor_session,
                  city_session_factory=open_city_session,
-                 navigation_session_factory=open_navigation_session, recipe_reader=read_context):
+                 navigation_session_factory=open_navigation_session, recipe_reader=read_context,
+                 funding_runner=None):
+        from .vendor_funding import fund_saved_vendor
+
+        self.funding_runner = funding_runner or fund_saved_vendor
         self.node_id = node_id
         self.recipe_reader = recipe_reader
         self.city_session_factory = city_session_factory
@@ -400,6 +404,10 @@ class VendorWorkerExecutor:
             selection = None
             if operation.command.startswith("vendor start "):
                 selection = VendorRecipeStore(store).current(operation.command.split()[2])
+                selection = require_saved_owner(
+                    selection, binding, session, reader=self.recipe_reader)
+                self.funding_runner(store, binding, operation, session, selection,
+                                    cancelled=stop_signal.is_set)
                 selection = require_saved_owner(
                     selection, binding, session, reader=self.recipe_reader)
             elif resume and current.get("schema_version") == 2:

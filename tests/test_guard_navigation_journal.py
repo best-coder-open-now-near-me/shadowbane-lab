@@ -152,7 +152,7 @@ def test_spending_blocks_navigation_before_dispatch(tmp_path):
 
 def test_navigation_requires_explicit_supported_operation(tmp_path):
     journal = GuardSpendingJournal(tmp_path)
-    for verb in (None, nav.Verb.INSPECT, nav.Verb.VENDOR):
+    for verb in (None, nav.Verb.INSPECT, 999):
         with pytest.raises(ValueError):
             journal.submit(IDENTITY, command(), Mock(), navigation_verb=verb)
     with pytest.raises(ValueError):

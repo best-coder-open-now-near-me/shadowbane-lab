@@ -329,8 +329,10 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup):
         return observed
     session.inspect = complete_observation
     binding = ExactClientWorkerBinding(CLIENT_ID, INSTANCE_ID, 988, 1234567, 1000, WORKER_ID)
+    funding_calls = []
     worker = VendorWorkerExecutor(test.root, NODE_ID, binding, session_factory=lambda _: session,
-                                  recipe_reader=session.reader)
+                                  recipe_reader=session.reader,
+                                  funding_runner=lambda *args, **kwargs: funding_calls.append(args))
     lifecycle = _RecordingSession(ManagerSessionSnapshot(
         node_id=NODE_ID,
         slots=(_slot(CLIENT_ID, instance_id=INSTANCE_ID), _slot("client-02")),
@@ -383,6 +385,7 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup):
         assert op.command == f"vendor recipe {catalog_id} 25860"
         revision = recipes.current()["revision"]
         op = execute("vendor-start", dict(recipe_revision=revision))
+        assert len(funding_calls) == 1
         assert op.command == "vendor start " + revision
         assert test.store.current()["state"] == "complete" and len(session.calls) == 2
         assert session.closed_count == 3

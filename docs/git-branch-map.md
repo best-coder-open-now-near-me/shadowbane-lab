@@ -1,5 +1,17 @@
 # Git branch map
 
+## Vendor whole-batch funding candidate - October 13
+
+Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
+through open PR #174. Host .108 source adds one warehouse withdrawal and one shop
+deposit for an entire available-capacity batch, with native reserve/quote checks
+and return to the saved recipe. Focused validation passed 147 tests; broader
+release qualification and installation remain pending. Installed software is
+still .107/.67/client .18. The current third Create remains unresolved and its
+journal is preserved. No automatic gold movement or recycling has run.
+Next: qualify/install .108, clear the native blocker through a new game session,
+then verify one funded batch and Keep. Guard work remains outside scope.
+
 ## Vendor menu transport installed; funding next - October 13
 
 Shared development starts from main at `ef02070f`; the normal checkout is clean.

@@ -311,6 +311,7 @@ def test_navigation_session_uses_production_transport_and_shared_memory_ring(mon
         transport._command_signal = 17  # notification is handled by the fixture peer
         monkeypatch.setattr(transport._kernel, "set_event", consume)
         session = NativeVendorNavigationSession.__new__(NativeVendorNavigationSession)
+        session._parent = None
         session._journal = None
         session.identity = channel.NativeClientProcessIdentity(988, 123)
         session.window = 1000
@@ -429,6 +430,80 @@ def test_borrowed_vendor_menu_workflow_uses_production_transport_and_ring(monkey
             parent.menu_session().open_recipe(initial, str(uuid.uuid4()))
         assert seen == list(Verb)
         assert transport._read_i64(channel._COMMAND_WRITE_SEQUENCE_OFFSET) == 7
+    finally:
+        transport._command_signal = None
+        _close(transport, memory)
+
+
+def test_vendor_funding_adapters_share_actual_ring_lease_and_sequence(monkeypatch):
+    import itertools
+    import struct
+    from types import SimpleNamespace
+
+    from shadowbane_lab.client_extension import (
+        guard_funding_wire as gold,
+    )
+    from shadowbane_lab.client_extension import (
+        vendor_navigation_wire as nav,
+    )
+    from shadowbane_lab.client_extension.guard_funding_session import NativeGuardFundingSession
+    from shadowbane_lab.client_extension.vendor_navigation_session import (
+        NativeVendorNavigationSession,
+    )
+
+    transport, memory = _transport("Local\\WonderBane.VendorFunding." + uuid.uuid4().hex)
+    seen = []
+    states = {
+        int(gold.Verb.INSPECT): (gold, gold.Snapshot(
+            scene=1, revision=1, root=100, actor=900,
+            character_id=11, character_type=53, manager=200, hud=300, source_object=400,
+            source_id=500, source_type=42, direction=1, resource=555, balance=1000, reserve=100)),
+        int(nav.Verb.INSPECT): (nav, nav.Snapshot(scene=1, revision=1, root=100, manager=200)),
+    }
+
+    def consume(_event):
+        sequence = transport._read_i64(channel._COMMAND_WRITE_SEQUENCE_OFFSET)
+        offset = channel.CLIENT_ACTION_COMMAND_RING_OFFSET + (sequence - 1) * 768
+        raw = bytes(memory[offset:offset + 768])
+        header = channel._COMMAND.unpack(raw[:192])
+        codec, state = states[header[2]]
+        seen.append((header[1], header[2], raw[192:208]))
+        reply = codec._RECEIPT.pack(raw[216:232], raw[192:208],
+            struct.unpack('<Q', raw[208:216])[0], codec.Outcome.OBSERVED,
+            codec.READY, state.encode(), bytes(16), codec.MAGIC, bytes(220))
+        detail = (b'native_guard_funding_receipt_v1' if codec is gold
+                  else b'native_vendor_navigation_receipt_v3')
+        result = channel._RESULT.pack(sequence, header[1], sequence,
+            channel.NativeActionResultStage.SUBMITTED_TO_CLIENT, 0,
+            transport._kernel.tick_count(), 77, len(detail), detail, bytes(8)) + reply
+        result_offset = channel.CLIENT_ACTION_RESULT_RING_OFFSET + (sequence - 1) * 512
+        memory[result_offset:result_offset + 512] = result
+        transport._exchange_i64(channel._COMMAND_READ_SEQUENCE_OFFSET, sequence)
+        transport._exchange_i64(channel._RESULT_WRITE_SEQUENCE_OFFSET, sequence)
+
+    try:
+        transport._claim_host_lease()
+        transport._command_signal = 17
+        monkeypatch.setattr(transport._kernel, 'set_event', consume)
+        parent = SimpleNamespace(identity=channel.NativeClientProcessIdentity(988,123),window=1000,
+                                 _transport=transport,_ids=itertools.count(1),_closed=False)
+        funding = NativeGuardFundingSession.borrow(parent, journal=None)
+        navigation = NativeVendorNavigationSession.borrow(parent, journal=None)
+        funding.inspect(gold.Direction.WAREHOUSE)
+        navigation.inspect()
+        funding.inspect(gold.Direction.WAREHOUSE)
+        assert [row[0] for row in seen] == [1,2,3]
+        assert len({row[2] for row in seen}) == 1
+        navigation.close()
+        assert transport._owns_host_lease()
+        parent._closed = True
+        with pytest.raises(channel.NativeActionChannelUnavailable):
+            funding.inspect(gold.Direction.WAREHOUSE)
+        with pytest.raises(channel.NativeActionChannelUnavailable):
+            funding.renew_lease()
+        funding.close()
+        assert transport._owns_host_lease()
+        assert len(seen) == 3
     finally:
         transport._command_signal = None
         _close(transport, memory)

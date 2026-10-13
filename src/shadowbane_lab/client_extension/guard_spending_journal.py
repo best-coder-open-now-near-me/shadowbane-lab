@@ -24,6 +24,7 @@ Receipt = upgrade.Receipt | funding.Receipt | navigation.Receipt
 
 _NAVIGATION = {
     "navigate_building": navigation.Verb.BUILDING,
+    "navigate_vendor": navigation.Verb.VENDOR,
     "navigate_guard": navigation.Verb.GUARD,
     "navigate_warehouse": navigation.Verb.WAREHOUSE,
 }
