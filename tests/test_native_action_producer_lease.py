@@ -373,14 +373,16 @@ def test_borrowed_vendor_menu_workflow_uses_production_transport_and_ring(monkey
         assert Host.decode(raw[192:208]) == Host(
             identity.process_id, transport.host_lease_generation, identity.creation_filetime_utc)
         template = struct.unpack("<I", raw[328:332])[0]
-        assert template == (777 if verb == Verb.SELECT_RECIPE else 0)
+        assert template == (777 if verb in (Verb.SELECT_RECIPE, Verb.SELECT_ORDER_RECIPE)
+                            else 10 if verb == Verb.ORDER_QUANTITY else 0)
         seen.append(verb)
-        if verb == Verb.OPEN_RECIPE:
+        if verb in (Verb.OPEN_RECIPE, Verb.OPEN_ORDER_RECIPE):
             state = replace(state, front_hud=700, recipe=700, recipe_list=710,
-                            sentinel=RANDOM_SENTINEL)
-        elif verb == Verb.SELECT_RECIPE:
+                            sentinel=RANDOM_SENTINEL, quantity=1,
+                            multiple=int(verb == Verb.OPEN_ORDER_RECIPE))
+        elif verb in (Verb.SELECT_RECIPE, Verb.SELECT_ORDER_RECIPE):
             state = replace(state, item_template=777, selected_template=777, activated_template=777)
-        elif verb == Verb.RANDOM_MODE:
+        elif verb in (Verb.RANDOM_MODE, Verb.RANDOM_ORDER_MODE):
             state = replace(state, mode=1, table=57, quantity=1,
                             prefix=RANDOM_SENTINEL, suffix=RANDOM_SENTINEL)
         elif verb == Verb.CLOSE_RECIPE:
@@ -389,6 +391,8 @@ def test_borrowed_vendor_menu_workflow_uses_production_transport_and_ring(monkey
             state = replace(state, front_hud=800, inventory=800)
         elif verb == Verb.CLOSE_INVENTORY:
             state = initial
+        elif verb == Verb.ORDER_QUANTITY:
+            state = replace(state, quantity=template)
         reply = _RECEIPT.pack(
             raw[216:232], raw[192:208], struct.unpack("<Q", raw[208:216])[0],
             Outcome.OBSERVED if verb == Verb.INSPECT else Outcome.SUBMITTED,
@@ -417,9 +421,14 @@ def test_borrowed_vendor_menu_workflow_uses_production_transport_and_ring(monkey
         assert randomized.snapshot.random_recipe(777, 57)
         closed = menu.close_recipe(randomized.snapshot, str(uuid.uuid4()))
         inventory = menu.open_inventory(closed.snapshot, str(uuid.uuid4()))
-        menu.close_inventory(inventory.snapshot, str(uuid.uuid4()))
+        closed_inventory = menu.close_inventory(inventory.snapshot, str(uuid.uuid4()))
+        opened_order = menu.open_order_recipe(closed_inventory.snapshot, str(uuid.uuid4()))
+        selected_order = menu.select_order_recipe(opened_order.snapshot, 777, str(uuid.uuid4()))
+        random_order = menu.random_order_mode(selected_order.snapshot, str(uuid.uuid4()))
+        ten = menu.order_quantity(random_order.snapshot, 10, str(uuid.uuid4()))
+        assert ten.snapshot.random_order(777, 57, 10, True)
         assert seen == list(Verb)
-        assert transport._read_i64(channel._RESULT_READ_SEQUENCE_OFFSET) == 7
+        assert transport._read_i64(channel._RESULT_READ_SEQUENCE_OFFSET) == 11
         menu.close()
         assert transport._owns_host_lease()  # the parent still owns the producer
         with pytest.raises(ValueError, match="command must be"):
@@ -429,7 +438,7 @@ def test_borrowed_vendor_menu_workflow_uses_production_transport_and_ring(monkey
         with pytest.raises(channel.NativeActionChannelBusy, match="lease was lost"):
             parent.menu_session().open_recipe(initial, str(uuid.uuid4()))
         assert seen == list(Verb)
-        assert transport._read_i64(channel._COMMAND_WRITE_SEQUENCE_OFFSET) == 7
+        assert transport._read_i64(channel._COMMAND_WRITE_SEQUENCE_OFFSET) == 11
     finally:
         transport._command_signal = None
         _close(transport, memory)
