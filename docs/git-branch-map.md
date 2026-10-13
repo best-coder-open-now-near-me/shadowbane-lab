@@ -1,5 +1,22 @@
 # Git branch map
 
+## Vendor startup repaired - October 13
+
+Start shared development from `main` at PR #172 merge
+`ed138274d2ba4e4f515a10e92e64540a499eba72`. The exact client .18 alignment
+passed all 15 hosted checks at `f4913f22c2ec99073bc2bcb1de7b1c1258079999`.
+The pushed graphics-preserving release `68163f32139cc1923a37a4763521d5c7990229e7`
+on `codex/vendor-release-20261013` is qualified and installed as host .105/native
+.67; its graphics composition remains outside main. Client .18 launches from the
+original Vendor Test shortcut with the exact DLL, a healthy manager/worker and
+no active or queued operation. All 491 modules and 9,718 retained records were
+verified. The normal checkout is clean on merged main.
+
+`codex/vendor-rolling-20261013` records delivery and continues the vendor workflow;
+integration destination is main. Next: Treehugger in Rooty, saved recipe selection
+and one available-capacity batch before durable town scheduling. Guard work is
+outside this task. See [installed update evidence](client-update-20261013.md).
+
 ## Vendor rolling continuation and client .18 - October 13
 
 Shared main is 420deb91; the earlier vendor-town-workflow branch is included.
