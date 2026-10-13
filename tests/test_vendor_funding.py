@@ -12,7 +12,7 @@ from shadowbane_lab.client_extension.guard_spending_journal import (
     GuardSpendingStopped,
 )
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
-from shadowbane_lab.client_extension.vendor_recipe import RandomRecipeSpec
+from shadowbane_lab.client_extension.vendor_recipe import RandomOrderSpec, RandomRecipeSpec
 from shadowbane_lab.manager import vendor_funding as module
 from shadowbane_lab.manager.vendor_job import VendorJobStore
 from tests.test_guard_funding_cycle import IDENTITY, Session, World
@@ -104,6 +104,7 @@ def setup(tmp_path, monkeypatch):
             creation_recipe={"window_address": 700},
             building={"object_id": 123},
             vendor={"object_id": 888},
+            recipe_resource_costs={"555": {"label": "Gold", "amount": 166}},
             slots=[{"item": {"object_id": 0}, "state": "empty"}] * len(parent.snapshot.slots),
         ), {555: 166}
 
@@ -122,9 +123,10 @@ def setup(tmp_path, monkeypatch):
             selection,
             cancelled=changes.get("cancelled", lambda: False),
             cost_reader=changes.get("cost_reader", cost_reader),
-            target_reader=lambda *args: (999, 999),
+            target_reader=changes.get("target_reader", lambda *args: (999, 999)),
             clock=clock,
             sleep=lambda _: None,
+            order=changes.get("order"),
         )
 
     return SimpleNamespace(
@@ -133,6 +135,7 @@ def setup(tmp_path, monkeypatch):
         run=run,
         parent=parent,
         calls=calls,
+        reader=cost_reader,
         binding=binding,
         path=store.root / "funding" / operation.operation_id / "funding.json",
     )
@@ -152,6 +155,56 @@ def test_warehouse_funds_only_shortfall_then_returns_to_exact_vendor(setup):
     with pytest.raises(VendorBatchStopped, match="already attempted"):
         setup.run()
     assert setup.world.calls == previous
+
+
+def test_quantity_ten_funds_all_seventy_items_with_one_withdrawal_and_deposit(setup, monkeypatch):
+    order = RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=False)
+    setup.world.gold = 100000
+    setup.parent.snapshot = replace(setup.parent.snapshot,
+                                    slots=tuple(vendor.Slot(1100 + i * 100) for i in range(7)))
+    observed = []
+    prepared = []
+    monkeypatch.setattr(module, "ensure_order_observer", lambda binding: observed.append(binding))
+    def prepare(*args, **kwargs):
+        prepared.append(args[3])
+        setup.parent.snapshot = replace(setup.parent.snapshot, quantity=10, multiple=0)
+    monkeypatch.setattr(module, "prepare_order", prepare)
+    def inspect():
+        before = setup.parent.inspect_random()
+        return replace(before, remaining_counts=tuple(1 for _ in before.snapshot.slots))
+    setup.parent.inspect_orders = inspect
+    def costs(binding):
+        queue, _ = setup.reader(binding)
+        queue["recipe_resource_costs"] = {"555": {"label": "Gold", "amount": 1660}}
+        return queue, {555: 1660}
+    result = setup.run(order=order, cost_reader=costs)
+    assert len(observed) == 1 and prepared == [order, order]
+    assert result["schema_version"] == 2 and result["state"] == "funded"
+    assert result["required"] == 11620 and result["batch_budget"]["total_items"] == 70
+    assert result["order_spec"] == order.as_dict()
+    assert setup.world.calls.count("withdraw") == setup.world.calls.count("deposit") == 1
+    assert (result["withdrawn"], result["deposited"]) == (11590, 11610)
+    assert setup.world.funds == 11620
+
+
+def test_missing_production_observer_stops_before_gold_or_menu_actions(setup, monkeypatch):
+    def missing(_):
+        raise VendorBatchStopped("recorder unavailable")
+    monkeypatch.setattr(module, "ensure_order_observer", missing)
+    with pytest.raises(VendorBatchStopped, match="recorder unavailable"):
+        setup.run(order=RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=False))
+    assert not setup.world.calls and not setup.path.exists()
+
+
+def test_prior_quantity_order_is_not_adopted_by_another_funding_batch(setup, monkeypatch):
+    monkeypatch.setattr(module, "ensure_order_observer", lambda _: None)
+    setup.parent.snapshot = replace(setup.parent.snapshot,
+                                    slots=(vendor.Slot(1100, 123, 1), vendor.Slot(1200)))
+    setup.parent.inspect_orders = lambda: replace(setup.parent.inspect_random(),
+                                                  remaining_counts=(9, 1))
+    with pytest.raises(VendorBatchStopped, match="Recover existing quantity orders"):
+        setup.run(order=RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=False))
+    assert not setup.world.calls and not setup.path.exists()
 
 
 @pytest.mark.parametrize("size", [1, 2, 7, 16])
@@ -175,9 +228,13 @@ def test_existing_gold_avoids_unnecessary_money_movements(
     setup, funds, purse, withdrawn, deposited
 ):
     setup.world.funds, setup.world.purse = funds, purse
-    result = setup.run()
+    def warehouse_unavailable(*args):
+        raise AssertionError("Existing shop/carried gold must not require warehouse access")
+
+    result = setup.run(target_reader=warehouse_unavailable)
     assert (result["withdrawn"], result["deposited"]) == (withdrawn, deposited)
     assert "withdraw" not in setup.world.calls
+    assert "warehouse" not in setup.world.calls
 
 
 def test_reserve_prevents_withdrawal_or_deposit(setup):
@@ -224,6 +281,7 @@ def test_unqualified_material_is_never_treated_as_gold(setup):
             creation_recipe={"window_address": 700},
             building={"object_id": 123},
             vendor={"object_id": 888},
+            recipe_resource_costs={"555": {"label": "Gold", "amount": 166}},
             slots=[{"item": {"object_id": 0}, "state": "empty"}] * 2,
         )
         return queue, {555: 166, 777: 20}
@@ -271,6 +329,8 @@ def test_cost_change_after_transfer_stops_before_crafting(setup):
             creation_recipe={"window_address": 700},
             building={"object_id": 123},
             vendor={"object_id": 888},
+            recipe_resource_costs={"555": {"label": "Gold", "amount":
+                                          166 if len(setup.calls) == 1 else 200}},
             slots=[{"item": {"object_id": 0}, "state": "empty"}] * 2,
         ), {555: 166 if len(setup.calls) == 1 else 200}
 
@@ -278,6 +338,30 @@ def test_cost_change_after_transfer_stops_before_crafting(setup):
         setup.run(cost_reader=read)
     assert setup.world.funds == 332
     assert json.loads(setup.path.read_text())["state"] == "review"
+
+
+def test_changed_gold_label_after_transfer_stops_before_crafting(setup):
+    def read(binding):
+        queue, costs = setup.reader(binding)
+        if len(setup.calls) > 1:
+            queue["recipe_resource_costs"]["555"]["label"] = "Iron"
+        return queue, costs
+
+    with pytest.raises(VendorBatchStopped, match="changed during funding"):
+        setup.run(cost_reader=read)
+    assert setup.world.funds == 332
+    assert json.loads(setup.path.read_text())["state"] == "review"
+
+
+def test_non_gold_display_stops_before_any_navigation_or_transfer(setup):
+    def read(binding):
+        queue, costs = setup.reader(binding)
+        queue["recipe_resource_costs"]["555"]["label"] = "Iron"
+        return queue, costs
+
+    with pytest.raises(VendorBatchStopped, match="non-gold"):
+        setup.run(cost_reader=read)
+    assert setup.world.calls == []
 
 
 @pytest.mark.parametrize(

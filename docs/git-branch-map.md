@@ -1,15 +1,113 @@
 # Git branch map
 
+## Vendor queue-depth correction in progress - October 13
+
+The worker now implements the complete bounded quantity-ten job in uninstalled
+host .110/native .68 source: one batch funding pass, one ten-item order per initial
+free slot, permanent observation during pause/focus waits, distinct generated-ID
+reconciliation and existing native Keep with inventory proof. Schema-4 jobs and
+progress journals never replay uncertain actions and preserve old job schemas.
+The dashboard separates queued orders from produced/kept counts. Next: qualify
+one graphics-preserving release, install after game closure, and verify the whole
+live batch. Raw-nine server admission and .18 disposal remain unqualified; retain
+unknowns and do not resume guard work. PR #174 remains draft for main integration.
+
+Earlier checkpoints:
+
+Latest quantity work remains on `codex/vendor-rolling-20261013` for draft PR #174.
+Pure item reconciliation now binds decreasing counts to observed slot ancestry
+and exact copied reply lineage; all 70 IDs need positive inventory proof. Native
+and host inventory readers cover a full 160-item batch without claiming server
+capacity. Twenty-four focused host checks, the native inventory executable and
+the extension rebuild pass. Worker/progress journal integration remains active;
+this source is uninstalled and quantity-ten server acceptance is unverified.
+The latest checkpoint adds quantity-aware whole-batch funding and schema-4 queue
+admission journals. Native Create binds the initial quota, resource and price,
+requires the full batch balance before its first order, and refuses extra orders
+after rank growth. Lost replies or existing journals cannot replay Create.
+Focused host validation passes 133 tests; four affected native suites pass.
+This is uninstalled source. Active next: worker integration and full produced-item
+inventory reconciliation, then coherent release qualification and live testing.
+Explicit native quantity Create now carries a batch UUID and checks both order
+count and per-order remaining count. Active quantity items must belong to that
+same accepted batch. Automatic filling will use one ten-item single-slot order
+per funded slot to avoid the server-side rank-up race of an all-slots request.
+Both native recipe modes are supported without changing old saved intent.
+This is locally validated, uninstalled source; worker filling/progress and the
+connected quantity-ten acceptance test remain unfinished.
+The uninstalled source now includes permanent crafting receive observation with
+durable, non-resettable host cursors, so the first ten-item batch can be observed
+beyond the old five-minute diagnostic limit. Exact .18 callbacks, copied payload
+layout, lifecycle and loss handling are locally verified. Continue quantity-aware
+Create acceptance and full item/inventory reconciliation, then qualify one update.
+Non-spending multiple-order preparation is also implemented and locally validated:
+the existing native menu channel can restore quantity ten using the ordinary
+native setter, with distinct immutable order intent and correlated schema-2 menu
+journals. The fourth-tab observation failure is corrected. This is uninstalled
+source; quantity-ten Create and whole-workflow reconciliation remain next.
+Source .110/native .68 adds a separately identified, read-only per-slot remaining
+count receipt through the existing vendor channel; legacy encodings and
+quantity-one spending admission are preserved. It is not installed. Continue
+quantity-aware planning/progress and dispatch qualification before deploying a
+coherent end-to-end update. The ordinary checkout remains clean on main.
+Whole-batch funding now carries a canonical quantity/capacity budget into schema-3
+funded jobs. New fills stay within their initial funded work even if the vendor
+ranks up; new capacity is picked up by the next batch. Historical growing-batch
+journals are preserved and remain readable. Quantity-ten dispatch/completion,
+funding handback and live batch acceptance are still active todos.
+
+Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
+through draft PR #174. Installed software remains host .109/native .67 from
+release `fdc07896`; source candidate .110 is not packaged or installed.
+The user clarified ten items per slot, so seven free slots represent up to 70
+items. Read-only cost support now includes quantity 1–10 with native double
+rounding; command dispatch still accepts quantity one only. Focused cost/funding
+checks passed 57 cases, plus 77 existing recipe/HTTP worker checks. The attempted
+funding stopped on an uninitialized
+warehouse View Resources reference, before any gold or crafting action; its
+rejected journal remains preserved and the worker's cleanup block remains.
+Active next: observe the quantity-ten recipe/queue lifecycle, then implement
+matching production receipts and funding recovery, and verify a whole batch.
+The user has been asked to leave the quantity-ten menu before Create; the bounded
+read-only observer timed out without seeing it. See
+[current evidence and exact pending work](vendor-rolling.md).
+
+The quantity-ten recipe is now observed live in multiple-slot mode with seven
+empty slots. Native transfer automation already exists; .110 source corrects
+vendor routing to check shop/carried gold before resolving warehouse access.
+The owned recipe resource list proves the Gold identity and current price, so
+sufficient carried gold no longer depends on an initialized warehouse HUD.
+The corrected cost/funding/worker suite passed 86 tests. This source is not
+installed; the existing failed handback block and quantity-ten command lifecycle
+still require completion. Optional Computer Use is stopped after Escape; native
+workflow work continues without GUI actions.
+Pushed correction `ad1b02206cfde970359a17b65561b7f41fd31148` also passed a live
+read-only quantity-ten cost check (1,660 Gold per slot / 11,620 for seven slots).
+No runtime modules, funds or production changed; .110 remains uninstalled.
+
 ## Vendor discovery recovery candidate - October 13
 
 Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
 through open PR #174. Installed .108 funding has not moved gold or crafted yet.
 Treehugger is in Rooty; a non-spending scan verified 23 vendor windows before
 typed STALE observations stopped it. The missing cleanup receipt then blocked
-worker handoff. Host .109 adds bounded read-only retries and exact journal/native
+worker handoff. Pushed implementation `d3e0964c` and graphics-preserving release
+`fdc078966d1404310d8a326d1dbab2a9b64230bb` qualify host .109: 6,512 host tests,
+both IPC profiles, seven startup cases and 493 exact modules. Native/assets are
+unchanged. Host .109 adds bounded read-only retries and exact journal/native
 proof for failed-scan cleanup, preserving every mutation's no-retry rule.
-Next: qualify and install .109 without restarting the game, rediscover, then
-activate Malik's saved recipe and verify one whole funded batch and Keep.
+Fresh live proof confirms all 49 window transitions observed and native idle.
+Host .109 is installed and activated online with 493 exact modules, 9,795
+preserved records, zero exclusions and no client writes. The same game lifetime
+remains running. Fresh discovery succeeded with 25 vendor windows across 13
+buildings, including Malik and the warehouse Seneschal; full town coverage is
+unverified. The new worker returned idle without the previous cleanup block.
+Next: activate Malik's saved recipe and verify one whole funded batch and Keep;
+the user has been asked to open his management menu. No new gold/Create ran.
+All 15 hosted checks passed at implementation `d3e0964c`. Verified obsolete
+.108 runtime/build/payload copies and the .109 temporary staging payload were
+retired; user data and diagnostic receipts remain intact. The task and release
+branches are pushed and clean, with PR #174 still open for main integration.
 Main remains the clean shared checkout; graphics composition and PR #174 are
 outside main. See [current evidence](vendor-rolling.md).
 
@@ -18,12 +116,19 @@ outside main. See [current evidence](vendor-rolling.md).
 Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
 through open PR #174. Host .108 source adds one warehouse withdrawal and one shop
 deposit for an entire available-capacity batch, with native reserve/quote checks
-and return to the saved recipe. Focused validation passed 147 tests; broader
-release qualification and installation remain pending. Installed software is
-still .107/.67/client .18. The current third Create remains unresolved and its
-journal is preserved. No automatic gold movement or recycling has run.
-Next: qualify/install .108, clear the native blocker through a new game session,
-then verify one funded batch and Keep. Guard work remains outside scope.
+and return to the saved recipe. Implementation `f4945955` is pushed; release
+`0061a5ae5c3997742675a1a2d0ac49291e709c2b` on `codex/vendor-release-20261013`
+is qualified and installed: 6,461 host tests passed with 46 optional skips, both
+IPC profiles and seven startup handshakes passed, and 493 modules match.
+Activation preserved 9,772 records with zero exclusions and no client writes.
+The obsolete .107 host was retired; fresh game 9652 loads unchanged native .67
+with client .18, and the .108 manager/worker are healthy. All 15 hosted checks
+passed at `cb0da1e6` before installation. PR #174 remains open outside main;
+the normal checkout remains clean on main. The user reported keeping both
+completed scepters before the restart. The third Create's old journal is
+preserved and unreplayed. No automatic gold movement or recycling has run.
+Next: Treehugger login in Rooty, fresh discovery, then one funded batch and Keep.
+Guard work remains outside scope. See [installation evidence](vendor-rolling.md).
 
 ## Vendor menu transport installed; funding next - October 13
 

@@ -5,10 +5,15 @@
 #include <cstring>
 
 namespace wonderbane::extension::vendor::wire {
-enum class Verb : std::uint32_t { inspect = 8, create = 9, keep = 10, create_random = 32, inspect_random = 33 };
+enum class Verb : std::uint32_t { inspect = 8, create = 9, keep = 10, create_random = 32, inspect_random = 33,
+    inspect_orders = 56, create_orders = 61 };
 enum class Outcome : std::uint32_t { observed = 0, submitted = 1, stale = 2,
     unavailable = 3, invalid = 4, pending = 5, uncertain = 6, exhausted = 7 };
 constexpr std::uint32_t magic = 0x57425631, ready = 1, in_flight = 2, unresolved = 4;
+// Additive read-only profile: raw remaining counts occupy the first 16 receipt
+// extension bytes in snapshot slot order. Old receipts retain zero padding.
+constexpr std::uint32_t orders_magic = 0x57425632;
+using RemainingCounts = std::array<std::uint32_t, 16>;
 #pragma pack(push, 1)
 struct Slot { std::uint32_t entry = 0, item = 0, state = 0; };
 struct Snapshot {
@@ -27,6 +32,9 @@ struct Command {
     std::uint32_t item = 0;
     std::uint8_t reserved[244]{};
 };
+struct OrderBudget {
+    std::uint32_t version = 0, orders = 0, quantity = 0, resource = 0, cost = 0, total = 0;
+};
 struct Receipt {
     std::array<std::uint8_t, 16> request{};
     movement::wire::Host host{};
@@ -39,6 +47,7 @@ struct Receipt {
 };
 #pragma pack(pop)
 static_assert(sizeof(Snapshot) == 288 && sizeof(Command) == 576 && sizeof(Receipt) == 384);
+static_assert(sizeof(OrderBudget) == 24);
 inline bool Equal(const Snapshot& a, const Snapshot& b) noexcept {
     return std::memcmp(&a, &b, sizeof(a)) == 0;
 }
@@ -64,18 +73,39 @@ inline bool RandomSingle(const Snapshot& s) noexcept {
     return s.recipe && s.item_template && s.table && s.mode == 1 && s.prefix == 3362971591U
         && s.suffix == s.prefix && s.quantity == 1 && s.multiple == 0;
 }
-inline bool IsCreate(Verb verb) noexcept { return verb == Verb::create || verb == Verb::create_random; }
-inline bool IsInspect(Verb verb) noexcept { return verb == Verb::inspect || verb == Verb::inspect_random; }
+inline bool RandomOrder(const Snapshot& s) noexcept {
+    return s.recipe && s.item_template && s.table && s.mode == 1 && s.prefix == 3362971591U
+        && s.suffix == s.prefix && s.quantity >= 2 && s.quantity <= 10 && s.multiple == 0;
+}
+inline OrderBudget Budget(const Command& command) noexcept {
+    OrderBudget result{}; std::memcpy(&result, command.reserved + 16, sizeof(result)); return result;
+}
+inline bool IsCreate(Verb verb) noexcept {
+    return verb == Verb::create || verb == Verb::create_random || verb == Verb::create_orders;
+}
+inline bool IsInspect(Verb verb) noexcept {
+    return verb == Verb::inspect || verb == Verb::inspect_random || verb == Verb::inspect_orders;
+}
 inline bool Valid(Verb verb, const Command& c) noexcept {
     if (!movement::wire::Valid(c.host) || !c.window || c.window > UINT32_MAX
-        || movement::wire::Zero(c.request.data(), c.request.size())
-        || !movement::wire::Zero(c.reserved, sizeof(c.reserved))) { return false; }
+        || movement::wire::Zero(c.request.data(), c.request.size())) { return false; }
+    if (verb == Verb::create_orders) {
+        // The immutable batch UUID scopes active quantity orders. Legacy verbs
+        // retain all-zero padding and cannot adopt this new command profile.
+        const auto budget = Budget(c);
+        if (movement::wire::Zero(c.reserved, 16) || budget.version != 1 || !budget.orders || budget.orders > 16
+            || budget.quantity != c.expected.quantity || !budget.resource || !budget.cost || budget.cost > INT32_MAX
+            || static_cast<std::uint64_t>(budget.orders) * budget.cost > INT32_MAX
+            || budget.total != budget.orders * budget.cost
+            || !movement::wire::Zero(c.reserved + 40, sizeof(c.reserved) - 40)) { return false; }
+    } else if (!movement::wire::Zero(c.reserved, sizeof(c.reserved))) { return false; }
     if (IsInspect(verb)) {
         return !c.item && movement::wire::Zero(&c.expected, sizeof(c.expected));
     }
     return ValidSnapshot(c.expected)
         && ((verb == Verb::create && !c.item && RandomScepter(c.expected))
             || (verb == Verb::create_random && !c.item && RandomSingle(c.expected))
+            || (verb == Verb::create_orders && !c.item && RandomOrder(c.expected))
             || (verb == Verb::keep && c.item));
 }
 }

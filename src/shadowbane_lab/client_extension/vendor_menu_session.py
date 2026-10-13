@@ -122,6 +122,18 @@ class NativeVendorMenuSession:
     def random_mode(self, expected: Snapshot, request_key: str) -> Receipt:
         return self._submit(Verb.RANDOM_MODE, request_key, expected)
 
+    def open_order_recipe(self, expected: Snapshot, request_key: str) -> Receipt:
+        return self._submit(Verb.OPEN_ORDER_RECIPE, request_key, expected)
+
+    def select_order_recipe(self, expected: Snapshot, template: int, request_key: str) -> Receipt:
+        return self._submit(Verb.SELECT_ORDER_RECIPE, request_key, expected, template)
+
+    def random_order_mode(self, expected: Snapshot, request_key: str) -> Receipt:
+        return self._submit(Verb.RANDOM_ORDER_MODE, request_key, expected)
+
+    def order_quantity(self, expected: Snapshot, quantity: int, request_key: str) -> Receipt:
+        return self._submit(Verb.ORDER_QUANTITY, request_key, expected, quantity)
+
     def close_recipe(self, expected: Snapshot, request_key: str) -> Receipt:
         return self._submit(Verb.CLOSE_RECIPE, request_key, expected)
 

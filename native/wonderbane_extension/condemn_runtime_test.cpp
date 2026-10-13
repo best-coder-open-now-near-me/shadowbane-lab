@@ -61,15 +61,20 @@ Result Invoke(std::uintptr_t, const movement::NativeScene&, const Target&, Actio
 }
 }
 namespace vendor {
-bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&, std::uint32_t, bool&, bool&) noexcept { ++other_reads; return false; }
+bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&, std::uint32_t, bool&, bool&, wire::RemainingCounts*) noexcept { ++other_reads; return false; }
 bool InvokeNative(std::uintptr_t, wire::Verb, const wire::Snapshot&, std::uint32_t) noexcept { ++other_writes; return false; }
 }
 namespace vendor_menu {
+bool OrderCostMatches(std::uintptr_t, const vendor::wire::Snapshot&,
+    const vendor::wire::OrderBudget&, std::uint32_t) noexcept { ++other_reads; return false; }
 vendor::wire::Outcome InvokeRandomCreate(std::uintptr_t, const movement::NativeScene&,
-    const vendor::wire::Snapshot&, Admission, void*) noexcept { ++other_writes; return vendor::wire::Outcome::unavailable; }
+    const vendor::wire::Snapshot&, Admission, void*, bool) noexcept { ++other_writes; return vendor::wire::Outcome::unavailable; }
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }
 wire::Outcome Invoke(std::uintptr_t, const movement::NativeScene&, wire::Verb,
     const wire::Command&, Admission, void*) noexcept { ++other_writes; return wire::Outcome::unavailable; }
+}
+namespace vendor_production {
+bool ReadCursor(Cursor&) noexcept { ++other_reads; return false; }
 }
 namespace city_window {
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }

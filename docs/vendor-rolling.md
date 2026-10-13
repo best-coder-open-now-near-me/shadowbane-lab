@@ -2,6 +2,251 @@
 
 ## Current continuation - October 13, 2026
 
+The quantity-ten worker slice is implemented in uninstalled host .110/native .68
+source on `codex/vendor-rolling-20261013`, targeting main through draft PR #174.
+New saved-recipe starts derive separate quantity-ten, single-slot order intent,
+fund the whole initial batch once, queue one order per funded slot, and reconcile
+every produced item. The saved single-item recipe preference stays unchanged.
+Seven free slots therefore queue seven orders and plan 70 items. Rank growth is
+deferred to the next batch. All Gold checks use the exact owned recipe quote;
+shop/carried funds precede warehouse withdrawal, and no per-item top-up occurs.
+
+Schema-4 jobs persist the immutable budget, order specification, preparation,
+Create transitions, production cursor and full item/inventory evidence. The
+permanent recorder continues draining during local pause and focus waits. Keep
+uses the existing native hook, writes intent before dispatch and requires its
+correlated inventory transition. Generated IDs need both copied reply lineage and
+observed order ancestry. Automatically deposited items also need positive owned
+inventory presence. Completion requires every planned ID and empty batch production.
+Unknown affixes are retained; Tier 1–2 disposal on client .18 remains unqualified.
+
+Explicit recovery reconstructs progress from bounded historical evidence; partial
+or uncertain Create/menu/Keep records cannot replay. Stop after fully admitted
+orders preserves progress and can hand back only with native idle proof. Quantity
+jobs have a two-hour bound, accommodating the roughly 56-minute ten-item recipe;
+historical single-item jobs retain their existing one-hour limit and schemas.
+The dashboard now distinguishes queued orders, generated items and inventory
+confirmations. Full manager/HTTP fixture tests exercise a seven-Create / 70-Keep
+batch, pause/focus observation, no-replay recovery, corruption and safe Stop.
+The combined worker, recipe/HTTP, funding, queue and progress suite passes 148
+tests; Ruff and diff whitespace checks pass. These are local fixture checks,
+not a connected server acceptance receipt.
+
+Installed software remains host .109/native .67, client 1.3.38.18. Nothing from
+this source candidate has been installed or invoked. Next: qualify the complete
+graphics-preserving release, install once after game closure, then verify native
+quantity-ten server acceptance and the complete live inventory chain. The native
+raw-nine admission rule is deliberately fail-closed and still awaits live proof.
+Town scheduling and affix disposal qualification follow that batch; guard work
+is outside this task. Existing failed funding evidence remains preserved.
+
+## Earlier source checkpoints - October 13
+
+### Quantity protocol and reconciliation
+
+The pure order reconciler now tracks every generated item separately. New items
+need a continuous decoded/processing/returned reply from the same character,
+scene, building and vendor, plus an observed predecessor-slot count decrement.
+A correlated Keep may prove a single successor when the client reallocates its
+slot entry. Replies alone cannot adopt items. Skipped counts, excess items, old
+items reappearing or ambiguous ancestry require review. Completion requires all
+planned IDs positively confirmed in inventory and no batch item left in production.
+The displayed inventory bound is now 512, covering 16 × 10 items; it still makes
+no server-capacity or absence claim. Twenty-four focused host checks and the native
+160-item inventory check pass; the full extension rebuild succeeds. Worker/job
+integration, recovery journaling and connected server behavior remain next.
+
+The source now adds explicit quantity-order Create (verb 61). Its command carries
+a nonzero immutable batch UUID in the first 16 extension bytes, followed by six
+32-bit budget fields: version 1, initial free orders, quantity, resource, quoted
+cost per order and whole-batch total. The final 204 bytes stay zero. Legacy
+Create/Keep commands cannot carry or adopt this profile. Automatic Create accepts
+single-slot quantities 2–10; all-free-slots quantity dispatch is deliberately
+unavailable. Recipe preparation still supports either UI mode.
+Native acceptance requires the exact number of new slot orders and raw remaining
+count `quantity - 1` for every new item. A count mismatch, excess arrival, changed
+owner or timeout becomes uncertainty and is never retried. Quantity-ten server
+acceptance still needs the connected test; the raw-nine requirement is currently
+the deliberately fail-closed expectation, not a claim of live qualification.
+
+Automatic batching will use quantity ten in single-slot mode, issuing one native
+order for each initially funded slot after one whole-batch funding step. This
+bounds work even if a rank unlock occurs between client inspection and server
+handling; an all-free-slots server request cannot provide that bound. Each new
+request can coexist with active quantity orders only when their item IDs were
+accepted by this native controller for the same batch and scene/owner. IDs are
+stored in the already-allocated immutable request record; observation does not
+allocate or adopt unrelated orders. The runtime repeats that ownership check
+immediately before native dispatch and requires the permanent recorder to be
+available. Named recipes remain excluded. Both recipe modes can be prepared
+through the normal native setter, and old single-item intent is unchanged.
+Native admission now checks the exact owned Gold row, quoted price and full
+building balance before the first order, and caps accepted orders at the immutable
+quota even after rank growth. The quantity-aware funder performs one withdrawal
+and deposit for the entire batch and requires the permanent observer before any
+menu or gold action. Existing shop/carried funds still take precedence over the
+warehouse route.
+
+Schema-4 queue journals persist intent before every Create, retain exact quantity
+preparation and count receipts, and preserve the production bookmark/cursor.
+Queue admission means orders were observed, not that all 70 items were generated
+or kept. Recipe closure can be handled through separate native preparation proof
+before the next order. Existing or interrupted journals are never replayed;
+missing counts, lost replies, capture gaps and mismatched owners require review.
+The updated focused host suite passes 133 tests, including seven-slot funding,
+quota growth, recipe reopening, lost acknowledgements and historical corruption;
+four affected native executables pass. This remains uninstalled source. Next:
+wire durable item/inventory progress into the worker, then qualify one update and
+perform the connected quantity-ten test.
+
+Source .110/native .68 now also includes a permanent, optional crafting receive
+recorder. It uses the existing ArcItemProductionMessage decode/process/destruction
+boundary and copies item IDs, raw remaining counts, completion fields, deposited
+item/template identities and serialized gold into a lifetime-bound 256-record
+ring. Native pointers never leave the callback. Exact live .18 vtable targets
+resolve to destructor 3F9290, process 3F9680 and the already-inspected decoder
+3FA240. Decoder lineage is single-use and tied to the current character scene;
+native calls, return values, errors and late callbacks retain their original
+behavior. Unsupported or failed observation cannot disable the normal client.
+
+The host reader bookmarks before a new order, explicitly labels discarded old
+history, and drains only later records. A saved cursor can resume in the same
+client lifetime; a gap, new rejection, lost ticket or read failure remains
+incomplete across restarts. Existing cursors cannot be reset to hide loss, and a
+closed or regressed recorder cannot rebind. A returned handler alone never
+claims server acceptance. This replaces the five-minute diagnostic limitation
+for observing a roughly 56-minute ten-item workflow once integrated with the job.
+Four native recorder tests and 31 host mapping/cursor checks pass, including an
+independent reader and exact C++/Python layout fixture. The extension rebuild
+succeeds. No new runtime was installed or invoked in the game. Next remains
+quantity-aware Create acceptance and full order/inventory reconciliation before
+qualifying and installing the complete update.
+
+The next source checkpoint adds non-spending multiple-order preparation through
+the existing menu channel (verbs 57–60). It opens the observed
+`BTNCREATEMULTIPLEITEM` / action 0x5A2, selects the saved template, selects random
+mode and sets quantity through the client's ordinary 63F320/63F6E0 initializer
+and setter. The quantity panel, callback, widget ownership, slider action and
+range are checked before invocation and again after initialization. A lost lease
+or changed owner after initialization becomes uncertainty, never a replay.
+Live read-only evidence confirms the current slider maximum 10, index 9, action
+652 with empty parameters and an allocated empty native string. No setter was
+invoked in the game. The native builder code encodes quantity one as raw zero
+and quantity ten as raw ten; that is static client evidence, not server acceptance.
+
+The observer now reads the recipe while its fourth tab is selected. Selection,
+random-mode actions and legacy Create retain their original page/action guards.
+`RandomOrderSpec` keeps quantity intent separate from immutable old single-item
+saved recipes. Schema-2 preparation journals bind every menu transition and exact
+quantity to the owner and client lifetime; old schema-1 journals are unchanged.
+The native menu suite passed three executables and 221 relevant host tests passed;
+the full extension rebuild succeeds. Source remains uninstalled, and quantity-ten
+Create admission plus complete item/inventory reconciliation are still pending.
+
+Whole-batch funding now produces an immutable cost/capacity budget. The budget
+supports quantities 1–10 per slot, multiplies the displayed per-slot order price
+by the initially free slots exactly once, and pins the scene, root, building,
+vendor, template, table, quantity, slot mode and pre-existing item IDs. Thus seven
+empty quantity-ten slots at 1,660 Gold mean 70 items / 11,620 Gold. Funding records
+retain the budget and its canonical digest. The worker requires that proof before
+starting a saved-recipe job; funded jobs use schema 3 and validate the original
+budget on recovery. A rank/capacity change before the job starts or before its
+first Create stops without crafting an unfunded larger batch.
+
+New Create journals fix planned work at their initial available capacity.
+Newly unlocked slots remain visible, but belong to the next funded batch. If
+capacity grows during an already-sent multiple Create, the original correlated
+request finishes without issuing a second Create for those slots. Existing
+growing-capacity journals remain readable without being rewritten or replayed.
+This corrects the old path that could silently grow a batch after funding.
+Quantity-ten Create, automatic intermediate-item inventory receipts and final
+Keep still require the native/host lifecycle work below; budget support alone
+does not broaden installed command authority.
+
+The source candidate now adds `inspect_orders` (verb 56) through the existing
+vendor command channel. Its `WBV2` receipt preserves the 288-byte snapshot and
+the 384-byte receipt ABI, using a separately identified 16-byte raw count array
+followed by eight zero bytes. Counts follow sorted slot entry identities; zero
+is preserved and an empty row's raw count is never treated as occupied work.
+Changes in counts advance the native observation revision. Counts above 255
+return unavailable rather than being truncated. Old commands, `WBV1` receipts,
+saved recipes and historical journals keep their exact encoding. An older
+runtime cannot silently satisfy this new feature inspection. Create authority
+still accepts quantity one only: this observation addition is not permission to
+send an unqualified ten-item order. Source native version is now 1.8.68; installed
+native .67 and host .109 are unchanged. Next: durable quantity-aware batch
+planning/progress, funding handback and correlated ten-item dispatch/completion.
+
+The established native funding primitives already automate withdrawals and
+deposits. The vendor-specific routing was unnecessarily visiting the warehouse
+before checking current shop funds and carried gold. Source candidate .110 now
+identifies Gold directly from the owned recipe's `ResourceCostList`, requiring
+its typed controls/entries, exact ownership and displayed amount to match the
+computed requirements. Live quantity-ten observation verifies resource 2308551,
+label Gold and amount 1,660 on that list; no resource key is hardcoded.
+Funding now visits the shop first and uses the existing quote/transfer commands.
+Only a carried-gold shortfall resolves and visits the warehouse; its reserve,
+resource identity and exact two-sided balance checks remain required. Reopening
+the recipe revalidates both its costs and labels. The focused cost/funding/worker
+suite passed 86 tests, including absent warehouse access with sufficient shop
+or carried gold, displayed-cost ownership/mismatch, non-gold resources and
+resource-label changes after a deposit. This correction is committed source
+work, not an installed runtime change. No new GUI skill is needed for transfers.
+Implementation `ad1b02206cfde970359a17b65561b7f41fd31148` is pushed on the
+existing task branch. Its exact cost-reader source was also exercised as a
+read-only diagnostic against the live .18 process: quantity ten, multiple-slot
+mode, seven empty slots, Gold cost 1,660 and calculated full-batch cost 11,620
+all match. It granted no commands and sent zero native mutations; installed
+host .109/native .67 were not modified. Next remains the quantity-ten native/
+host queue lifecycle, then proof-based recovery and full-batch acceptance.
+
+The user clarified that every slot can queue ten items. Seven free slots must
+therefore be planned as up to 70 scepters, not a seven-item batch. Native .67's
+generalized dispatcher and saved recipe deliberately accept quantity one only;
+ten-item production is not enabled or qualified yet.
+
+Malik's retained Gilded Scepter recipe was activated successfully in the fresh
+.109 session. Start `operation-9eab8d942bb24efa888f702a675cfac6` observed seven
+free slots and a 166-gold unit cost. Its warehouse building and Seneschal opens
+were confirmed, but View Resources returned UNAVAILABLE before entering that
+action. The exact submission is preserved as `navigate_warehouse`; it has no
+completion, no unresolved flag and the shared active pointer is null. Funding
+remains review and preparation is blocked after the failed handback. No
+withdrawal, deposit, Create, Keep or disposal was sent. Do not replay this record.
+
+The existing warehouse hook requires its resources HUD's owned NPC reference
+and the ordinary 20-unit interaction predicate. This login has not initialized
+that HUD; opening the personal Seneschal menu alone does not initialize it.
+No guard operation is part of this investigation. Recovery must prove native
+idle and preserve the rejected funding journal; never clear the block by hand.
+
+Read-only inspection of exact client .18 cost code (640230/2df880) confirms two
+rounding passes: random markup is rounded to an integer before multiplying by
+the per-slot quantity. The source cost observer now supports quantities 1–10
+in either slot mode, without granting command authority. For this recipe the
+calculated quantity-ten cost is 1,660 gold per slot, or 11,620 across seven slots;
+the server debit for a ten-item order is not live-qualified. The cost/funding
+regressions passed 57 cases; existing saved-recipe/HTTP worker checks passed 77.
+The HTTP check first encountered the sandbox's localhost socket restriction and
+passed with the required local socket access. This is source candidate host .110 only; installed
+host .109 and native .67 remain unchanged.
+
+Active next: inspect the user's ten-per-slot recipe before Create, then qualify
+its full queue/completion lifecycle and implement matching native/host receipts.
+The user left the menu at quantity ten. A fresh read-only snapshot confirms
+multiple-slot mode, the saved template/table/random sentinels and seven empty
+slots. The earlier bounded observer had timed out before this setup. An attempted
+optional Windows UI detour restored VirtualBox to a small window; the user
+stopped Computer Use with Escape. No game control input succeeded, and no funds
+or items moved. Subsequent layout inspection was rejected by approval review;
+GUI control remains stopped. Vendor work continues through existing native APIs.
+Next after that: warehouse initialization and
+proof-based funding handback, then one fully funded capacity batch and Keep.
+Tier 1–2 disposal remains unqualified; unknowns remain retained. PR #174 is draft
+while the corrected queue-depth workflow remains unfinished.
+
+### Installed recovery and earlier discovery evidence
+
 Treehugger is logged into Rooty on the fresh .108 game lifetime. Discovery
 verified 23 personal vendor windows across 12 of 14 candidate buildings before
 two typed read-only observations returned STALE. Every recorded window mutation
@@ -15,10 +260,45 @@ ownership stop immediately. Mutations retain their existing no-retry behavior.
 A failed non-spending discovery can report cleanup only when its exact lifetime
 journal confirms every unique window intent, no spending job remains active,
 and a fresh idle native receipt still owns the last confirmed target and request.
-The original failed record is preserved. The focused recovery, worker, menu,
+The original failed record is preserved. Implementation `d3e0964c` is pushed;
+graphics-preserving release `fdc078966d1404310d8a326d1dbab2a9b64230bb`
+passed 6,512 host tests with 45 optional skips, both IPC profiles, all seven
+startup cases and all 16 qualification gates. Its 493 modules match source;
+native/assets remain unchanged. Wheel SHA-256:
+`ce3fbce3d2eae24c804b4c33a148a22572ebf2103f9c17ccf48baf934aee52b9`.
+Qualification receipt SHA-256:
+`149c0f67e26d28e906237221f21b6486178e4ce5f9f9297c497d1303348e44b0`.
+The fresh read-only native proof confirms all 49 recorded window transitions
+were observed, scene/root and the last target/request still match, and no action
+is in flight or unresolved. Installer regressions passed 157 with one optional
+skip, plus four shortcut cases. The focused recovery, worker, menu,
 navigation and whole-batch funding suite passed 116 cases with two optional
-native-fixture skips. Qualification and an online host-only update are next;
-native .67 and the running game do not need replacement for this correction.
+native-fixture skips. Host .109 is now installed and fully activated online.
+All 493 installed modules match and 9,795 retained records are preserved with
+zero exclusions and ten typed startup/reservation/capability/status changes.
+No client files were written; game 9652/lifetime 134363834764625370 remains
+running with the unchanged .67 DLL. Fresh manager 2432 and worker 1136 are healthy;
+the preparation cleanup block is gone. Apply receipt SHA-256:
+`40860515374cde3e34a3f5576d6df74dce9f466b4c83f820a11d917f46c7f209`.
+Activation receipt SHA-256:
+`1c30682a6e9fbd776fe7b071e3cfa9298aafe844a8c6711905c504d6df114f84`.
+
+Fresh discovery `operation-76aa2d9e5894424b9c187d3262a58487` succeeded: 25
+personal vendor windows across 13 of 14 candidates. The remaining church had
+no visible hirelings; full town coverage remains unverified. Both Malik the
+Irekei Sage and the warehouse Seneschal are verified in this loaded scene.
+The worker returned idle with no active or queued operation. Next: open Malik's
+management menu, activate the retained saved recipe, then verify one whole
+funded batch and automatic Keep. No gold transfer or new Create has run yet.
+
+All 15 hosted checks passed for implementation `d3e0964c`. Verified obsolete
+.108 guest software was retired (2,177 files / 49,250,381 bytes), together with
+its old payload binaries/dependencies and the temporary .109 staging payload.
+Local obsolete .108 qualification/staging output was also retired after source,
+wheel/archive and installed-module hash checks (4,305 files / 96,054,833 bytes).
+Qualification logs, compact hash receipts, user settings, saved recipes and all
+historical journals remain intact. No rollback copies are retained. Main and
+both task/release checkouts are clean; PR #174 remains open outside main.
 
 Host .108 adds worker-owned warehouse funding before a saved-recipe Start.
 The user reaffirmed batch-only production: calculate the whole batch as current
@@ -43,8 +323,40 @@ the host never assumes its resource key. This does not prove the earlier third
 Create's outcome. Focused funding/cost/menu/worker/real-producer tests passed
 147 cases, including whole-batch funding at 1, 2, 7 and 16 slots; the existing
 shared transfer/navigation suite passed 102 with four
-fixture-dependent skips. Host .108 is source-only pending broader qualification
-and installation. The installed runtime and unresolved batch below are unchanged.
+fixture-dependent skips. Source `f4945955631e3c8eb03e036644207708f5b78705` is pushed
+on `codex/vendor-rolling-20261013`, targeting main through open PR #174.
+Graphics-preserving release `0061a5ae5c3997742675a1a2d0ac49291e709c2b` is pushed
+on `codex/vendor-release-20261013` and fully qualified: 6,461 host tests passed
+with 46 optional skips; both native IPC profiles and all seven real startup
+cases passed. All 493 packaged modules match the exact source. Native/assets
+remain byte-for-byte unchanged from `68163f32`.
+Wheel SHA-256: `63b535271faeb3328b69306cff22dbd68ea5c89e60533f1a496b301432fd51e9`.
+Qualification receipt SHA-256:
+`0d73e87e71286b7ae744fc4325d7ef83784b1dca9fbcdf4c3584eed1af29813e`.
+Host .108 is installed and activated from that exact release. All 493 installed
+modules match; 9,772 retained records were verified with zero exclusions and
+only two typed startup changes. No client files were written. Installer
+preflight first rejected a stale old-wheel pin, then exposed a Windows long-path
+failure in the saved-recipe journal inventory; both failed before any runtime
+switch. The corrected helpers use extended Win32 access while retaining the
+original logical evidence keys and full byte-integrity checks. Their 157
+regressions passed with one optional skip, including a real deep journal's
+inventory, preservation and changed-content rejection. Four shortcut cases passed.
+Apply receipt SHA-256:
+`6cad2d1f62e3898d8411c84444605e1bc01a875d9d3533ae88f5a586ffbd0f29`.
+Activation receipt SHA-256:
+`ed94ed14fa999def55ba6996aca0cf4567e290f5e8bdc7d95718ac063649025c`.
+
+The user reported keeping both confirmed scepters before closing the old game;
+the interrupted Create journal remains preserved and unreplayed. The obsolete
+.107 environment was retired after exact module, process and shortcut checks:
+2,173 reproducible files / 49,189,125 bytes, with no retained rollback copies.
+The original Vendor Test shortcut launched new game 9652, lifetime
+134363834764625370, with the exact unchanged .67 DLL. The .108 manager and its
+new bound worker are healthy. Treehugger login, fresh discovery and funded
+batch/Keep acceptance are next; no automatic gold transfer is claimed yet.
+All 15 hosted checks passed at `cb0da1e6` before installation. PR #174 remains
+open and outside main. The following .107 record is historical evidence.
 
 Host .107 is qualified and installed from graphics-preserving release
 `d9d579d2f70a7ea265f9ecabfbe6551e029440d7`; native .67 and client .18 are unchanged.

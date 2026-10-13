@@ -9,11 +9,13 @@ from enum import IntEnum
 from .movement_wire import Host, request_bytes
 
 MAGIC = 0x57425631
+ORDERS_MAGIC = 0x57425632
 READY, IN_FLIGHT, UNRESOLVED = 1, 2, 4
 _SNAPSHOT = struct.Struct("<QQ16I")
 _SLOT = struct.Struct("<III")
 _COMMAND = struct.Struct("<16sQ16s288sI244s")
 _RECEIPT = struct.Struct("<16s16sQII288sII16s24s")
+_ORDER_BUDGET = struct.Struct("<6I")
 
 
 class Verb(IntEnum):
@@ -22,6 +24,8 @@ class Verb(IntEnum):
     KEEP = 10
     CREATE_RANDOM = 32
     INSPECT_RANDOM = 33
+    INSPECT_ORDERS = 56
+    CREATE_ORDERS = 61
 
 
 class Outcome(IntEnum):
@@ -100,6 +104,12 @@ class Snapshot:
             and self.quantity == 1 and self.multiple == 0
         )
 
+    @property
+    def random_order(self) -> bool:
+        return bool(self.recipe and self.item_template and self.table and self.mode == 1
+                    and self.prefix == self.suffix == 3362971591
+                    and 2 <= self.quantity <= 10 and self.multiple == 0)
+
     def encode(self) -> bytes:
         if type(self.slots) is not tuple or any(type(s) is not Slot for s in self.slots):
             raise ValueError("slots must be an immutable tuple of Slot values")
@@ -139,30 +149,61 @@ class Snapshot:
 
 
 @dataclass(frozen=True, slots=True)
+class NativeOrderBudget:
+    orders: int
+    resource: int
+    cost_per_order: int
+
+    def encode(self, quantity: int) -> bytes:
+        if (type(self.orders) is not int or not 1 <= self.orders <= 16
+                or not uint(self.resource, 32, "order resource")
+                or type(self.cost_per_order) is not int or not 0 < self.cost_per_order <= 2**31 - 1
+                or self.orders * self.cost_per_order > 2**31 - 1
+                or type(quantity) is not int or not 2 <= quantity <= 10):
+            raise ValueError("invalid native whole-batch order budget")
+        return _ORDER_BUDGET.pack(1, self.orders, quantity, self.resource,
+                                  self.cost_per_order, self.orders * self.cost_per_order)
+
+
+@dataclass(frozen=True, slots=True)
 class Command:
     host: Host
     window: int
     request_key: str
     expected: Snapshot = Snapshot()
     item: int = 0
+    batch_key: str | None = None
+    order_budget: NativeOrderBudget | None = None
 
     def encode(self, verb: Verb) -> bytes:
         verb = Verb(verb)
         if not uint(self.window, 32, "window"):
             raise ValueError("window is required")
         uint(self.item, 32, "item")
-        if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM):
+        if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM, Verb.INSPECT_ORDERS):
             if not self.expected.empty or self.item:
                 raise ValueError("inspect cannot carry action arguments")
         elif self.expected.empty or (
             verb == Verb.CREATE and (self.item or not self.expected.random_scepter)
         ) or (
             verb == Verb.CREATE_RANDOM and (self.item or not self.expected.random_single)
+        ) or (
+            verb == Verb.CREATE_ORDERS and (self.item or not self.expected.random_order)
         ) or (verb == Verb.KEEP and not self.item):
             raise ValueError("invalid vendor action arguments")
+        if verb == Verb.CREATE_ORDERS:
+            if type(self.batch_key) is not str or type(self.order_budget) is not NativeOrderBudget:
+                raise ValueError("quantity-order Create requires a canonical batch identity")
+            padding = (request_bytes(self.batch_key)
+                       + self.order_budget.encode(self.expected.quantity)
+                       + bytes(204))
+        else:
+            if self.batch_key is not None or self.order_budget is not None:
+                raise ValueError("batch identity is only valid for quantity-order Create")
+            padding = bytes(244)
         return _COMMAND.pack(
             self.host.encode(), self.window, request_bytes(self.request_key),
-            self.expected.encode(), self.item, bytes(244),
+            self.expected.encode(), self.item, padding,
         )
 
 
@@ -176,21 +217,27 @@ class Receipt:
     snapshot: Snapshot
     transition_item: int = 0
     transition_request: str | None = None
+    # None identifies a historical v1 receipt; zero raw counts are real values.
+    remaining_counts: tuple[int, ...] | None = None
 
     @classmethod
     def decode(cls, data: bytes) -> Receipt:
         request, host, window, outcome, flags, snapshot, magic, item, transition, pad = (
             _RECEIPT.unpack(data)
         )
-        if magic != MAGIC or flags & ~7 or any(pad) or not window or window >= 2**32:
+        if magic not in (MAGIC, ORDERS_MAGIC) or flags & ~7 or not window or window >= 2**32:
             raise ValueError("invalid vendor receipt")
         key = str(uuid.UUID(bytes=request))
         request_bytes(key)
         state = Snapshot.decode(snapshot)
+        if ((magic == MAGIC and any(pad)) or (magic == ORDERS_MAGIC
+                and any(pad[len(state.slots):]))):
+            raise ValueError("invalid vendor receipt extension")
+        counts = tuple(pad[:len(state.slots)]) if magic == ORDERS_MAGIC else None
         if flags & READY and (state.empty or flags & (IN_FLIGHT | UNRESOLVED)):
             raise ValueError("contradictory vendor readiness")
         transition_key = str(uuid.UUID(bytes=transition)) if any(transition) else None
         if bool(item) != bool(transition_key):
             raise ValueError("incomplete vendor transition identity")
         return cls(key, Host.decode(host), window, Outcome(outcome), flags, state,
-                   item, transition_key)
+                   item, transition_key, counts)

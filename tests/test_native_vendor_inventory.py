@@ -41,6 +41,28 @@ def inventory_fixture() -> Memory:
 
 
 class NativeVendorInventoryTests(unittest.TestCase):
+    def test_displayed_list_can_prove_all_160_quantity_batch_items(self):
+        m = inventory_fixture()
+        vector = 0x280000
+        for index in range(160):
+            control = 0x300000 + index * 0x1000
+            entry, instance, item = control + 0x500, control + 0x600, control + 0x800
+            m.put(vector + index * 4, "<I", control)
+            for address, value in ((control, 0x156AEBC), (control + 0x3BC, HUD),
+                                   (control + 0x458, LIST), (control + 0x44C, entry),
+                                   (entry, 0x15696C8), (entry + 0x20, instance),
+                                   (entry + 0x24, item), (instance, 0x154BB68),
+                                   (item, 0x1542748)):
+                m.put(address, "<I", value)
+            m.put(entry + 0x10, "<II", index + 1, 40)
+            m.put(instance + 0x10, "<IIII", 26990, 0, index + 1, 40)
+            m.put(item + 0x10, "<IIII", 26990, 0, index + 1, 40)
+        m.put(LIST + 0x408, "<III", vector, vector + 160 * 4, vector + 160 * 4)
+        observed = read_native_vendor_queue(m)["inventory"]
+        self.assertEqual(list(range(1, 161)), [row["item"]["object_id"]
+                                             for row in observed["items"]])
+        self.assertFalse(observed["complete_inventory"])
+
     def test_matches_owned_entry_instance_native_item_and_effects(self):
         out = read_native_vendor_queue(inventory_fixture())
         inventory = out["inventory"]

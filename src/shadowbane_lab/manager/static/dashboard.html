@@ -624,7 +624,9 @@
           const progress = document.createElement("p");
           progress.className = "detail";
           progress.textContent = vendor
-            ? `${vendor.created} started · ${vendor.kept} kept · ${vendor.capacity} production slots`
+            ? vendor.planned_items !== undefined
+              ? `${vendor.queued_orders} orders queued · ${vendor.created}/${vendor.planned_items} produced · ${vendor.kept} kept`
+              : `${vendor.created} started · ${vendor.kept} kept · ${vendor.capacity} production slots`
             : "One batch. Unknown affixes are kept. No items are discarded.";
           if (vendor?.excluded) {
             progress.textContent += ` · ${vendor.excluded} excluded items remain in production`;

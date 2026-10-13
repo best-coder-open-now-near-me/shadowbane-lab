@@ -99,6 +99,7 @@ def validate_completed_batch(raw: bytes) -> tuple[dict, Snapshot]:
         initial = Snapshot.decode(bytes.fromhex(batch["initial_snapshot"]))
         items, capacity = batch["items"], batch["capacity"]
         history = batch["capacity_history"]
+        policy = batch.get("capacity_policy", "growing")
         recipe = None
         if batch["schema_version"] == 3:
             recipe = RandomRecipeSpec.from_dict(batch["recipe_spec"])
@@ -126,7 +127,9 @@ def validate_completed_batch(raw: bytes) -> tuple[dict, Snapshot]:
             or history != sorted(set(history))
             or history[0] != len(initial.slots) or history[-1] != capacity
             or type(batch["planned_rolls"]) is not int
-            or batch["planned_rolls"] != capacity - len(_items(initial))
+            or policy not in ("initial", "growing")
+            or batch["planned_rolls"] != (
+                initial.free_slots if policy == "initial" else capacity - len(_items(initial)))
             or not isinstance(items, list) or len(items) != batch["planned_rolls"]
             or any(type(item) is not int or not 0 < item < 2**32 for item in items)
             or len(set(items)) != len(items) or set(items) & _items(initial)

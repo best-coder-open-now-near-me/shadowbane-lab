@@ -12,12 +12,14 @@ import time
 import uuid
 
 from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
+from shadowbane_lab.client_extension.event_reader import WindowsSharedMemorySnapshotReader
 from shadowbane_lab.client_extension.guard_funding_session import NativeGuardFundingSession
 from shadowbane_lab.client_extension.guard_funding_wire import Direction
 from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
+from shadowbane_lab.client_extension.vendor_budget import VendorBatchBudget
 from shadowbane_lab.client_extension.vendor_completion import _read_record
-from shadowbane_lab.client_extension.vendor_menu import close_recipe, prepare_recipe
+from shadowbane_lab.client_extension.vendor_menu import close_recipe, prepare_order, prepare_recipe
 from shadowbane_lab.client_extension.vendor_navigation_session import NativeVendorNavigationSession
 from shadowbane_lab.client_extension.vendor_navigation_wire import (
     IN_FLIGHT,
@@ -25,7 +27,8 @@ from shadowbane_lab.client_extension.vendor_navigation_wire import (
     UNRESOLVED,
     Outcome,
 )
-from shadowbane_lab.client_extension.vendor_recipe import RandomRecipeSpec
+from shadowbane_lab.client_extension.vendor_production_responses import VendorProductionReader
+from shadowbane_lab.client_extension.vendor_recipe import RandomOrderSpec, RandomRecipeSpec
 from shadowbane_lab.client_observation.native_vendor_cost import read_native_vendor_cost
 from shadowbane_lab.record_store import exclusive_record_lock
 
@@ -39,6 +42,13 @@ def read_cost(binding):
         return read_native_vendor_cost(memory)
     finally:
         memory.close()
+
+
+def ensure_order_observer(binding):
+    reader = VendorProductionReader(binding.game_process_id,
+                                    binding.game_process_started_at_100ns,
+                                    WindowsSharedMemorySnapshotReader())
+    reader.available()
 
 
 def warehouse_target(store, binding, scene, root):
@@ -235,6 +245,7 @@ def fund_saved_vendor(
     target_reader=warehouse_target,
     clock=time.monotonic,
     sleep=time.sleep,
+    order: RandomOrderSpec | None = None,
 ):
     """Fund one current-capacity batch and return to its saved recipe; never craft."""
     if not re.fullmatch(r"operation-[0-9a-f]{32}", operation.operation_id):
@@ -256,7 +267,14 @@ def fund_saved_vendor(
         journal.assert_idle()
         if path.exists():
             raise VendorBatchStopped("This vendor funding was already attempted; no replay sent.")
-        first = parent.inspect_random()
+        base_recipe = RandomRecipeSpec.from_dict(selection["recipe_spec"])
+        if (order is not None and (type(order) is not RandomOrderSpec
+                                   or order.recipe != base_recipe or order.multiple)):
+            raise ValueError("funding requires the saved recipe's bounded single-slot order")
+        if order is not None:
+            ensure_order_observer(binding)
+        inspect = parent.inspect_orders if order is not None else parent.inspect_random
+        first = inspect()
         if (
             first.outcome != Outcome.OBSERVED
             or first.flags & (IN_FLIGHT | UNRESOLVED)
@@ -264,9 +282,19 @@ def fund_saved_vendor(
             or first.snapshot.vendor != selection["vendor"]["object_id"]
         ):
             raise VendorBatchStopped("The saved vendor is not ready for funding.")
-        spec = RandomRecipeSpec.from_dict(selection["recipe_spec"])
+        if order is not None and (
+            first.remaining_counts is None
+            or len(first.remaining_counts) != len(first.snapshot.slots)
+            or any(type(count) is not int or not 0 <= count <= 255
+                   for count in first.remaining_counts)
+            or any(slot.item and count for slot, count in
+                   zip(first.snapshot.slots, first.remaining_counts, strict=True))
+        ):
+            raise VendorBatchStopped(
+                "Recover existing quantity orders before funding another batch.")
+        spec = order or base_recipe
         record = dict(
-            schema_version=1,
+            schema_version=2 if order is not None else 1,
             identity=list(store.identity),
             operation_id=operation.operation_id,
             process_id=binding.game_process_id,
@@ -277,12 +305,14 @@ def fund_saved_vendor(
             building=first.snapshot.building,
             vendor=first.snapshot.vendor,
             recipe_revision=selection["revision"],
-            recipe_sha256=spec.canonical_digest,
+            recipe_sha256=base_recipe.canonical_digest,
             state="running",
             actions=[],
             withdrawn=0,
             deposited=0,
         )
+        if order is not None:
+            record.update(order_spec=order.as_dict(), order_sha256=order.canonical_digest)
 
         def save():
             _write(path, record)
@@ -292,24 +322,23 @@ def fund_saved_vendor(
         navigation = NativeVendorNavigationSession.borrow(parent, journal=journal)
         funding = NativeGuardFundingSession.borrow(parent, journal=journal)
         menus = parent.menu_session()
+        def prepare(path):
+            if order is not None:
+                return prepare_order(menus, path, menus.inspect().snapshot, order,
+                                     cancelled=cancelled)
+            return prepare_recipe(menus, path, menus.inspect().snapshot, spec.template,
+                                  table=spec.table, cancelled=cancelled)
         try:
             cycle.observe(
                 parent,
-                parent.inspect_random,
+                inspect,
                 lambda state: (
                     (state.building, state.vendor) == (record["building"], record["vendor"])
                 ),
             )
-            prepare_recipe(
-                menus,
-                directory / "prepare.json",
-                menus.inspect().snapshot,
-                spec.template,
-                table=spec.table,
-                cancelled=cancelled,
-            )
+            prepare(directory / "prepare.json")
             queue, costs = cost_reader(binding)
-            fresh = parent.inspect_random()
+            fresh = inspect()
             if (
                 fresh.flags & (IN_FLIGHT | UNRESOLVED)
                 or fresh.outcome != Outcome.OBSERVED
@@ -345,40 +374,46 @@ def fund_saved_vendor(
             ):
                 raise VendorBatchStopped("Recipe cost or production ownership changed.")
             free = fresh.snapshot.free_slots
+            budget = VendorBatchBudget.from_snapshot(fresh.snapshot, costs)
             record.update(
                 capacity=len(fresh.snapshot.slots),
                 free_slots=free,
                 costs={str(key): value for key, value in costs.items()},
+                batch_budget=budget.as_dict(), batch_budget_sha256=budget.canonical_digest,
             )
             save()
             if free:
-                warehouse, source = target_reader(store, binding, record["scene"], record["root"])
-                record.update(warehouse=warehouse, source=source)
+                displayed = queue.get("recipe_resource_costs")
+                if (not isinstance(displayed, dict) or len(displayed) != 1
+                        or set(displayed) != {str(key) for key in costs}
+                        or any(row != {"label": "Gold", "amount": costs[int(key)]}
+                               for key, row in displayed.items())):
+                    raise VendorBatchStopped("This recipe needs unqualified non-gold resources.")
+                resource = next(iter(costs))
+                required = budget.total_costs[resource]
+                if not 0 < required <= 2**31 - 1:
+                    raise VendorBatchStopped("The vendor batch gold requirement exceeds bounds.")
+                record.update(required=required, resource=resource)
                 save()
                 close_recipe(
                     menus, directory / "close.json", menus.inspect().snapshot, cancelled=cancelled
                 )
-                cycle.visit(navigation, warehouse, source, warehouse=True)
-                source_state = cycle.funds(funding, Direction.WAREHOUSE, source)
-                # The native warehouse reader proves the displayed Gold resource;
-                # never assume a resource key or fund missing non-gold materials.
-                if set(costs) != {source_state.resource}:
-                    raise VendorBatchStopped("This recipe needs unqualified non-gold resources.")
-                required = costs[source_state.resource] * free
-                if not 0 < required <= 2**31 - 1:
-                    raise VendorBatchStopped("The vendor batch gold requirement exceeds bounds.")
-                record.update(required=required, reserve=source_state.reserve)
-                save()
                 cycle.visit(navigation, record["building"])
                 destination = cycle.funds(funding, Direction.STRUCTURE, record["building"])
                 shortfall = max(0, required - destination.balance)
                 missing = max(0, shortfall - destination.purse)
                 if missing:
+                    warehouse, source = target_reader(
+                        store, binding, record["scene"], record["root"])
+                    record.update(warehouse=warehouse, source=source)
+                    save()
                     cycle.visit(navigation, warehouse, source, warehouse=True)
                     source_state = cycle.funds(funding, Direction.WAREHOUSE, source)
+                    record["reserve"] = source_state.reserve
+                    save()
                     missing = max(0, shortfall - source_state.purse)
                     if (
-                        source_state.resource not in costs
+                        source_state.resource != resource
                         or missing > max(0, source_state.balance - source_state.reserve)
                         or missing > 2**31 - 1 - source_state.purse
                     ):
@@ -398,16 +433,9 @@ def fund_saved_vendor(
                     destination = cycle.transfer(funding, destination, shortfall)
                 record["confirmed_building_balance"] = destination.balance
                 cycle.visit(navigation, record["building"], record["vendor"])
-                prepare_recipe(
-                    menus,
-                    directory / "return.json",
-                    menus.inspect().snapshot,
-                    spec.template,
-                    table=spec.table,
-                    cancelled=cancelled,
-                )
+                prepare(directory / "return.json")
                 after_queue, after_costs = cost_reader(binding)
-                after = parent.inspect_random()
+                after = inspect()
                 if (
                     after.outcome != Outcome.OBSERVED
                     or after.flags & (IN_FLIGHT | UNRESOLVED)
@@ -420,6 +448,7 @@ def fund_saved_vendor(
                     )
                     != (record["scene"], record["root"], record["building"], record["vendor"])
                     or after_costs != costs
+                    or after_queue.get("recipe_resource_costs") != queue["recipe_resource_costs"]
                     or (
                         after_queue["process_id"],
                         after_queue["process_creation_filetime_utc"],
@@ -441,6 +470,7 @@ def fund_saved_vendor(
                     or [slot.item for slot in after.snapshot.slots]
                     != [row["item"]["object_id"] for row in after_queue["slots"]]
                     or after.snapshot.free_slots != free
+                    or not budget.matches(after.snapshot)
                 ):
                     raise VendorBatchStopped(
                         "Vendor recipe, capacity or production changed during funding."

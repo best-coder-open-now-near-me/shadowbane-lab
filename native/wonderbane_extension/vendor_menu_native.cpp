@@ -28,14 +28,15 @@ struct Reader {
         }
         return count;
     }
-    bool Name(std::uint32_t p, const wchar_t* wanted) noexcept {
-        const auto begin = Word(p + 0x168), end = Word(p + 0x16c), cap = Word(p + 0x170);
+    bool Text(std::uint32_t p, const wchar_t* wanted) noexcept {
+        const auto begin = Word(p + 4), end = Word(p + 8), cap = Word(p + 12);
         const auto length = std::wcslen(wanted);
         if (!ok || begin < 0x10000 || (begin | end | cap) % 2 || begin > end || end > cap
             || cap >= 0x80000000U || end - begin > 512 || end - begin != length * 2) { return false; }
         std::array<wchar_t, 256> text{};
         return (!length || Read(begin, text.data(), length * 2)) && std::equal(text.begin(), text.begin() + length, wanted);
     }
+    bool Name(std::uint32_t p, const wchar_t* wanted) noexcept { return Text(p + 0x164, wanted); }
     bool Visible(std::uint32_t p) noexcept { return Word(p + 0x1a8) == 0 && (Word(p + 0x304) & 0xff00) == 0 && ok; }
     bool Action(std::uint32_t p, std::uint32_t id) noexcept {
         Require(p + 0x1d0, id); Require(p + 0x1d4, 0); Require(p + 0x1d8, 0);
@@ -55,7 +56,7 @@ struct Recipe {
 bool Contains(const Recipe& g, std::uint32_t p) noexcept {
     return std::find(g.nodes.begin(), g.nodes.begin() + g.node_count, p) != g.nodes.begin() + g.node_count;
 }
-bool RecipeGraph(Reader& r, const wire::Snapshot& s, Recipe& g) noexcept {
+bool RecipeGraph(Reader& r, const wire::Snapshot& s, Recipe& g, bool first_page = true) noexcept {
     if (!s.recipe) { return false; }
     std::array<std::uint32_t, 512> children{};
     const auto count = r.Vector(s.recipe + 0x54, children);
@@ -63,13 +64,13 @@ bool RecipeGraph(Reader& r, const wire::Snapshot& s, Recipe& g) noexcept {
     g.pages = r.Word(s.recipe + 0x518);
     if (std::find(children.begin(), children.begin() + count, g.pages) == children.begin() + count) { return false; }
     r.Require(g.pages, r.base + 0x116b510); r.Require(g.pages + 0x3bc, s.recipe);
-    r.Require(g.pages + 0x40c, 0);
+    if (r.Word(g.pages + 0x40c) > 3 || (first_page && r.Word(g.pages + 0x40c))) { return false; }
     if (!r.Name(g.pages, L"ItemCreationPages")) { return false; }
     std::array<std::uint32_t, 8> tabs{};
     if (!r.Vector(g.pages + 0x400, tabs)) { return false; }
     g.panel = r.Word(tabs[0] + 4);
     r.Require(g.panel, r.base + 0x1169ec0); r.Require(g.panel + 0x3bc, s.recipe);
-    if (!r.Visible(g.pages) || !r.Visible(g.panel)) { return false; }
+    if (first_page && (!r.Visible(g.pages) || !r.Visible(g.panel))) { return false; }
     const auto callback = r.Word(tabs[0] + 0x50);
     r.Require(callback, r.base + 0x116c2c0); r.Require(callback + 4, s.recipe);
     r.Require(callback + 8, r.base + 0x238ad); r.Require(callback + 12, 0);
@@ -179,6 +180,54 @@ bool CallScroll(std::uintptr_t base, std::uint32_t list, std::uint32_t index) no
     __try { reinterpret_cast<Fn>(base + 0x612660)(reinterpret_cast<void*>(list), index); return true; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
+bool QuantityPanel(Reader& r, const wire::Snapshot& s, std::uint32_t& panel, bool initialized = false) noexcept {
+    Recipe g{};
+    if (!RecipeGraph(r, s, g, false)) { return false; }
+    std::array<std::uint32_t, 8> tabs{};
+    if (r.Vector(g.pages + 0x400, tabs) != 4) { return false; }
+    panel = r.Word(tabs[3] + 4);
+    r.Require(panel, r.base + 0x1169ec0); r.Require(panel + 0x3bc, s.recipe);
+    r.Require(panel + 0xe8, g.pages);
+    const auto callback = r.Word(tabs[3] + 0x50);
+    r.Require(callback, r.base + 0x116c2c0); r.Require(callback + 4, s.recipe);
+    r.Require(callback + 8, r.base + 0x25888); r.Require(callback + 12, 0);
+    if (!r.ok || !r.Name(panel, L"ItemCreation4")) { return false; }
+    std::array<std::uint32_t, 64> nodes{}, depths{}; std::size_t count = 1;
+    nodes[0] = panel; std::uint32_t slider = 0;
+    for (std::size_t i = 0; r.ok && i < count; ++i) {
+        const auto node = nodes[i], cls = r.Word(node);
+        if (cls == r.base + 0x1169ec0 && r.Name(node, L"SLIDER")) {
+            if (slider || !r.Action(node, 0x28c)) { return false; }
+            slider = node;
+        }
+        if (cls != r.base + 0x1169ec0 && cls != r.base + 0x11657c8) { continue; }
+        std::array<std::uint32_t, 64> children{};
+        const auto n = r.Vector(node + 0x40, children);
+        if ((n && depths[i] >= 8) || n > nodes.size() - count) { return false; }
+        for (std::size_t j = 0; j < n; ++j) {
+            if (std::find(nodes.begin(), nodes.begin() + count, children[j]) != nodes.begin() + count) { return false; }
+            r.Require(children[j] + 0x3bc, s.recipe); r.Require(children[j] + 0xe8, node);
+            depths[count] = depths[i] + 1; nodes[count++] = children[j];
+        }
+    }
+    if (!slider) { return false; }
+    r.Require(slider + 0x32c, 10);
+    const auto index = r.Word(slider + 0x330);
+    // The native setter uses quantity minus one as the slider position.
+    return r.ok && index < 10 && (!initialized || index + 1 == s.quantity);
+}
+bool CallQuantityPage(std::uintptr_t base, std::uint32_t recipe, std::uint32_t panel) noexcept {
+    using Fn = void (__thiscall*)(void*, void*);
+    __try { reinterpret_cast<Fn>(base + 0x63f320)(reinterpret_cast<void*>(recipe),
+        reinterpret_cast<void*>(panel)); return true; }
+    __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
+bool CallQuantity(std::uintptr_t base, std::uint32_t recipe, std::uint32_t panel, std::uint32_t quantity) noexcept {
+    using Fn = void (__thiscall*)(void*, std::uint32_t, void*);
+    __try { reinterpret_cast<Fn>(base + 0x63f6e0)(reinterpret_cast<void*>(recipe), quantity,
+        reinterpret_cast<void*>(panel)); return true; }
+    __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
 std::atomic_flag invoking = ATOMIC_FLAG_INIT;
 struct InvokeGuard { ~InvokeGuard() { invoking.clear(std::memory_order_release); } };
 }
@@ -215,7 +264,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
         s.item_template = v.item_template; s.prefix = v.prefix; s.suffix = v.suffix; s.mode = v.mode;
         s.table = v.table; s.quantity = v.quantity; s.multiple = v.multiple;
         s.sentinel = r.Word(s.recipe + 0x400); Recipe g{};
-        if (!RecipeGraph(r, s, g)) { return false; }
+        if (!RecipeGraph(r, s, g, false)) { return false; }
         s.recipe_list = g.list;
         for (std::size_t i = 0; i < g.row_count; ++i) {
             if (g.rows[i] == g.selected) { s.selected_template = g.ids[i]; }
@@ -227,6 +276,30 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
     if (!r.ok || !wire::ValidSnapshot(valid) || !movement::NativeMovementLifetimeCurrent(scene)) { return false; }
     out = s; return true;
 }
+bool OrderCostMatches(std::uintptr_t base, const vendor::wire::Snapshot& s,
+    const vendor::wire::OrderBudget& budget, std::uint32_t minimum_gold) noexcept {
+    if (!vendor::wire::ValidSnapshot(s) || !vendor::wire::RandomOrder(s)
+        || budget.version != 1 || !budget.resource || !budget.cost) { return false; }
+    Reader r{static_cast<std::uint32_t>(base)};
+    std::array<std::uint32_t, 512> children{};
+    const auto count = r.Vector(s.recipe + 0x54, children);
+    std::uint32_t listing = 0;
+    for (std::size_t i = 0; r.ok && i < count; ++i) {
+        const auto child = children[i]; r.Require(child + 0x3bc, s.recipe);
+        if (r.Word(child) != r.base + 0x116acf0 || !r.Name(child, L"ResourceCostList")) { continue; }
+        if (listing) { return false; } listing = child;
+    }
+    if (!r.ok || !listing) { return false; }
+    std::array<std::uint32_t, 32> controls{};
+    if (r.Vector(listing + 0x408, controls) != 1) { return false; }
+    const auto control = controls[0];
+    r.Require(control, r.base + 0x116aebc); r.Require(control + 0x3bc, s.recipe);
+    r.Require(control + 0x458, listing);
+    const auto entry = r.Word(control + 0x44c); r.Require(entry, r.base + 0x116f258);
+    r.Require(entry + 0x20, budget.resource); r.Require(entry + 0x48, budget.cost);
+    const auto balance = r.Word(s.manager + 0x1cc);
+    return r.ok && r.Text(entry + 0x30, L"Gold") && balance <= INT32_MAX && balance >= minimum_gold;
+}
 wire::Outcome Invoke(std::uintptr_t base, const movement::NativeScene& scene, wire::Verb verb,
     const wire::Command& command, Admission admit, void* context) noexcept {
     using O = wire::Outcome;
@@ -237,7 +310,17 @@ wire::Outcome Invoke(std::uintptr_t base, const movement::NativeScene& scene, wi
     if (!admit(context) || !Matches(base, scene, expected)) { return O::stale; }
     if (wire::Reached(verb, command, expected)) { return O::observed; }
     auto current = expected;
-    if (verb == wire::Verb::select_recipe) {
+    if (verb == wire::Verb::order_quantity) {
+        std::uint32_t panel = 0, checked = 0; Reader r{static_cast<std::uint32_t>(base)};
+        if (!QuantityPanel(r, current, panel)) { return O::unavailable; }
+        if (!admit(context) || !Matches(base, scene, current)) { return O::stale; }
+        if (!CallQuantityPage(base, current.recipe, panel)) { return O::uncertain; }
+        Reader q{static_cast<std::uint32_t>(base)};
+        if (!admit(context) || !Matches(base, scene, current)
+            || !QuantityPanel(q, current, checked, true) || checked != panel) { return O::uncertain; }
+        return CallQuantity(base, current.recipe, panel, command.item_template) ? O::submitted : O::uncertain;
+    }
+    if (verb == wire::Verb::select_recipe || verb == wire::Verb::select_order_recipe) {
         Recipe initial{}; Reader r{static_cast<std::uint32_t>(base)};
         if (!RecipeGraph(r, current, initial)) { return O::unavailable; }
         std::size_t index = 0;
@@ -277,10 +360,12 @@ wire::Outcome Invoke(std::uintptr_t base, const movement::NativeScene& scene, wi
         Reader r{static_cast<std::uint32_t>(base)};
         switch (verb) {
         case wire::Verb::open_recipe: return Button(r, current.menu, L"BTNCREATEITEM", 0x5a1, control);
+        case wire::Verb::open_order_recipe: return Button(r, current.menu, L"BTNCREATEMULTIPLEITEM", 0x5a2, control);
         case wire::Verb::open_inventory: return Button(r, current.menu, L"BTNVIEW", 0x58c, control);
         case wire::Verb::close_recipe: return Button(r, current.recipe, L"CANCEL", 50, control);
         case wire::Verb::close_inventory: return InventoryClose(r, current, control);
-        case wire::Verb::random_mode: {
+        case wire::Verb::random_mode:
+        case wire::Verb::random_order_mode: {
             Recipe g{}; if (!RecipeGraph(r, current, g)) { return false; } control = 0;
             for (std::size_t i = 0; r.ok && i < g.node_count; ++i) {
                 const auto p = g.nodes[i];
@@ -299,15 +384,22 @@ wire::Outcome Invoke(std::uintptr_t base, const movement::NativeScene& scene, wi
     return CallButton(base, control) ? O::submitted : O::uncertain;
 }
 vendor::wire::Outcome InvokeRandomCreate(std::uintptr_t base, const movement::NativeScene& scene,
-    const vendor::wire::Snapshot& expected, Admission admit, void* context) noexcept {
+    const vendor::wire::Snapshot& expected, Admission admit, void* context, bool orders) noexcept {
     using O = vendor::wire::Outcome;
     if (invoking.test_and_set(std::memory_order_acquire)) { return O::unavailable; }
     InvokeGuard guard;
-    if (!admit || !vendor::wire::ValidSnapshot(expected) || !vendor::wire::RandomSingle(expected)) { return O::invalid; }
+    if (!admit || !vendor::wire::ValidSnapshot(expected)
+        || !(orders ? vendor::wire::RandomOrder(expected) : vendor::wire::RandomSingle(expected))) { return O::invalid; }
     auto qualify = [&](wire::Snapshot& menu, std::uint32_t& control) noexcept {
         if (!admit(context)) { return false; }
-        vendor::wire::Snapshot current{}; bool contains = false, top = false;
-        if (!vendor::Capture(base, scene, current, 0, contains, top) || !top) { return false; }
+        vendor::wire::Snapshot current{}; vendor::wire::RemainingCounts remaining{};
+        bool contains = false, top = false;
+        if (!vendor::Capture(base, scene, current, 0, contains, top, &remaining) || !top) { return false; }
+        if (orders) {
+            for (std::size_t i = 0; i < current.count; ++i) {
+                if (remaining[i] > UINT8_MAX) { return false; }
+            }
+        }
         current.revision = expected.revision;
         if (!vendor::wire::Equal(current, expected) || !Capture(base, scene, menu)
             || menu.scene != expected.scene || menu.root != expected.root || menu.manager != expected.manager
@@ -316,16 +408,21 @@ vendor::wire::Outcome InvokeRandomCreate(std::uintptr_t base, const movement::Na
             || menu.front_hud != expected.recipe || menu.item_template != expected.item_template
             || menu.selected_template != expected.item_template || menu.activated_template != expected.item_template
             || menu.table != expected.table || menu.mode != 1 || menu.prefix != 3362971591U
-            || menu.suffix != menu.prefix || menu.quantity != 1 || menu.multiple) { return false; }
+            || menu.suffix != menu.prefix || menu.quantity != expected.quantity
+            || menu.multiple != expected.multiple) { return false; }
         Reader r{static_cast<std::uint32_t>(base)};
-        return Button(r, menu.recipe, L"CREATE", 0x458, control)
+        Recipe first_page{};
+        if (orders && ((r.Word(menu.recipe + 0x540) >> 8) & 255)) { return false; }
+        return RecipeGraph(r, menu, first_page, !orders)
+            && Button(r, menu.recipe, L"CREATE", 0x458, control)
             && movement::NativeMovementLifetimeCurrent(scene);
     };
     wire::Snapshot first{}, second{}; std::uint32_t control = 0, checked = 0;
     if (!qualify(first, control) || !qualify(second, checked)
         || checked != control || !wire::Equal(first, second)) { return O::stale; }
     // Full control dispatch -> 63c350 resource/cost/name checks -> 63ce40.
-    // Dispatch is not acceptance: the shared ledger must observe one queue addition.
+    // Dispatch is not acceptance: the ledger checks the exact order additions
+    // and each order's raw remaining count before publishing its transition.
     return CallButton(base, control) ? O::submitted : O::uncertain;
 }
 

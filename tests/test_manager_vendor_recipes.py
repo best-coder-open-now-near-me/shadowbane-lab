@@ -300,10 +300,11 @@ def control_setup():
         test.doCleanups()
 
 
-def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup):
+def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup, monkeypatch):
     import http.client
     import threading
 
+    from shadowbane_lab.manager import vendor_order_job
     from shadowbane_lab.manager.dashboard import DashboardError, DashboardServer
     from shadowbane_lab.manager.live_configuration import LiveConfiguredManagerApplication
     from shadowbane_lab.manager.operation import WorkerOperationReceipt, WorkerOperationState
@@ -318,21 +319,34 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup):
         _slot,
     )
     from tests.test_manager_operation import CLIENT_ID, INSTANCE_ID, NODE_ID, WORKER_ID
+    from tests.test_manager_vendor_orders import Session as OrderSession
     test = control_setup
-    session = Session(test.store)
-    original_inspect = session.inspect
-    def complete_observation():
-        observed = original_inspect()
-        if not session.state.free_slots:
-            session.cook(0)
-            observed = replace(observed, snapshot=session.state)
-        return observed
-    session.inspect = complete_observation
+    session = OrderSession(test.store)
+    session.state = replace(session.state, quantity=1)
+    run_orders = vendor_order_job.run_order_job
+    def run_with_native_fixtures(store, native, record, **kwargs):
+        return run_orders(store, native, record, cancelled=kwargs["cancelled"],
+                          clock=lambda: session.time, sleeper=session.sleep,
+                          reader_factory=lambda *args: session.recorder,
+                          inventory_reader=lambda *args: sorted(session.inventory))
+    monkeypatch.setattr(vendor_order_job, "run_order_job", run_with_native_fixtures)
     binding = ExactClientWorkerBinding(CLIENT_ID, INSTANCE_ID, 988, 1234567, 1000, WORKER_ID)
     funding_calls = []
+    def fund(*args, **kwargs):
+        from shadowbane_lab.client_extension.vendor_budget import VendorBatchBudget
+
+        funding_calls.append(args)
+        # The real funder returns with the saved recipe activated.
+        order = kwargs["order"]
+        assert order.quantity == 10 and not order.multiple
+        session.state = replace(session.state, recipe=400, quantity=10)
+        budget = VendorBatchBudget.from_snapshot(session.state, {555: 1660})
+        return dict(state="funded", batch_budget=budget.as_dict(),
+                    batch_budget_sha256=budget.canonical_digest,
+                    order_spec=order.as_dict(), order_sha256=order.canonical_digest)
     worker = VendorWorkerExecutor(test.root, NODE_ID, binding, session_factory=lambda _: session,
                                   recipe_reader=session.reader,
-                                  funding_runner=lambda *args, **kwargs: funding_calls.append(args))
+                                  funding_runner=fund)
     lifecycle = _RecordingSession(ManagerSessionSnapshot(
         node_id=NODE_ID,
         slots=(_slot(CLIENT_ID, instance_id=INSTANCE_ID), _slot("client-02")),
@@ -388,6 +402,7 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup):
         assert len(funding_calls) == 1
         assert op.command == "vendor start " + revision
         assert test.store.current()["state"] == "complete" and len(session.calls) == 2
+        assert len(session.keeps) == 20 and test.store.current()["planned_items"] == 20
         assert session.closed_count == 3
         assert test.control.recipe_summary(CLIENT_ID, INSTANCE_ID)["saved"]["revision"] == revision
         completed = test.operations.inspect_slot(CLIENT_ID)

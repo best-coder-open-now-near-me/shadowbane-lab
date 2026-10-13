@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <utility>
 namespace wonderbane::extension::vendor {
 namespace {
 bool Block(std::uint32_t address, void* out, std::size_t count) noexcept {
@@ -35,11 +36,14 @@ struct Reader {
 };
 }
 bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snapshot& out,
-    std::uint32_t find_item, bool& inventory_contains, bool& top_menu) noexcept {
+    std::uint32_t find_item, bool& inventory_contains, bool& top_menu,
+    wire::RemainingCounts* remaining) noexcept {
     out = {}; inventory_contains = top_menu = false;
+    if (remaining) { *remaining = {}; }
     if (!base || base > UINT32_MAX || !scene.epoch || !movement::NativeMovementLifetimeCurrent(scene)) { return false; }
     Reader r{static_cast<std::uint32_t>(base)};
     wire::Snapshot s{}; s.scene = scene.epoch;
+    std::array<std::pair<std::uint32_t, std::uint32_t>, 16> counts{};
     s.root = r.Word(r.base + 0x16A7BFC);
     if (s.root != scene.window) { return false; }
     r.Require(s.root, r.base + 0x1174884); r.Require(s.root + 0x64, 2);
@@ -103,6 +107,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
             const auto complete = flags & 0xff, active = (flags >> 8) & 0xff, modified = (flags >> 16) & 0xff;
             if (complete > 1 || active > 1 || modified > 1
                 || (!item && (type || complete || active)) || (item && (type != 40 || !active))) { return false; }
+            counts[s.count] = {entry, r.Word(entry + 0x44)};
             s.slots[s.count++] = {entry, item, item ? (complete ? 2U : 1U) : 0U};
         }
     }
@@ -116,14 +121,16 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
             const auto count = r.Vector(inventory + 0x54, children);
             if (std::find(children.begin(), children.begin() + count, listing) == children.begin() + count) { return false; }
             r.Require(listing, r.base + 0x116ACF0); r.Require(listing + 0x3BC, inventory);
-            std::array<std::uint32_t, 128> controls{}, item_ids{};
+            // Sixteen quantity-ten orders may retain 160 distinct items.
+            // This is a bounded displayed-list read, never server capacity.
+            std::array<std::uint32_t, 512> controls{}, item_ids{};
             const auto items = r.Vector(listing + 0x408, controls);
             for (std::size_t i = 0; r.ok && i < items; ++i) {
                 const auto control = controls[i]; r.Require(control, r.base + 0x116AEBC);
                 r.Require(control + 0x3BC, inventory); r.Require(control + 0x458, listing);
                 const auto entry = r.Word(control + 0x44C); r.Require(entry, r.base + 0x11696C8);
                 const auto item = r.Word(entry + 0x10); r.Require(entry + 0x14, 40);
-                if (!item || std::find(item_ids.begin(), item_ids.begin() + i, item) != item_ids.begin() + i) { return false; }
+                if (!item) { return false; }
                 item_ids[i] = item;
                 const auto instance = r.Word(entry + 0x20), native = r.Word(entry + 0x24);
                 r.Require(instance, r.base + 0x114BB68); r.Require(native, r.base + 0x1142748);
@@ -134,12 +141,18 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
                 r.Require(instance + 0x14, 0); r.Require(native + 0x10, item_template); r.Require(native + 0x14, 0);
                 inventory_contains |= item == find_item;
             }
+            std::sort(item_ids.begin(), item_ids.begin() + items);
+            if (std::adjacent_find(item_ids.begin(), item_ids.begin() + items) != item_ids.begin() + items) { return false; }
         }
     }
     top_menu = front && (front == s.menu || front == s.recipe || front == s.inventory);
     std::sort(s.slots.begin(), s.slots.begin() + s.count, [](const auto& a, const auto& b) { return a.entry < b.entry; });
     s.revision = 1;
     if (!r.ok || !wire::ValidSnapshot(s) || !movement::NativeMovementLifetimeCurrent(scene)) { return false; }
+    if (remaining) {
+        std::sort(counts.begin(), counts.begin() + s.count);
+        for (std::size_t i = 0; i < s.count; ++i) { (*remaining)[i] = counts[i].second; }
+    }
     s.revision = 0; out = s; return true;
 }
 bool InvokeNative(std::uintptr_t base, wire::Verb verb, const wire::Snapshot& s, std::uint32_t item) noexcept {
