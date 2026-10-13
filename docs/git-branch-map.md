@@ -7,13 +7,17 @@ through open PR #174. Host .108 source adds one warehouse withdrawal and one sho
 deposit for an entire available-capacity batch, with native reserve/quote checks
 and return to the saved recipe. Implementation `f4945955` is pushed; release
 `0061a5ae5c3997742675a1a2d0ac49291e709c2b` on `codex/vendor-release-20261013`
-is qualified: 6,461 host tests passed with 46 optional skips, both IPC profiles
-and seven startup handshakes passed, and 493 modules match. Installation remains
-pending. Installed software is still .107/.67/client .18. The current third Create
-remains unresolved and its
-journal is preserved. No automatic gold movement or recycling has run.
-Next: install .108 after the requested game closure, then use a new game session
-then verify one funded batch and Keep. Guard work remains outside scope.
+is qualified and installed: 6,461 host tests passed with 46 optional skips, both
+IPC profiles and seven startup handshakes passed, and 493 modules match.
+Activation preserved 9,772 records with zero exclusions and no client writes.
+The obsolete .107 host was retired; fresh game 9652 loads unchanged native .67
+with client .18, and the .108 manager/worker are healthy. All 15 hosted checks
+passed at `cb0da1e6` before installation. PR #174 remains open outside main;
+the normal checkout remains clean on main. The user reported keeping both
+completed scepters before the restart. The third Create's old journal is
+preserved and unreplayed. No automatic gold movement or recycling has run.
+Next: Treehugger login in Rooty, fresh discovery, then one funded batch and Keep.
+Guard work remains outside scope. See [installation evidence](vendor-rolling.md).
 
 ## Vendor menu transport installed; funding next - October 13
 

@@ -35,10 +35,30 @@ remain byte-for-byte unchanged from `68163f32`.
 Wheel SHA-256: `63b535271faeb3328b69306cff22dbd68ea5c89e60533f1a496b301432fd51e9`.
 Qualification receipt SHA-256:
 `0d73e87e71286b7ae744fc4325d7ef83784b1dca9fbcdf4c3584eed1af29813e`.
-Installation and funded live acceptance remain pending. The user has been asked
-to keep the two confirmed completed items and close the game to clear its native
-unresolved state; manual funding is no longer requested. The installed .107
-runtime and interrupted journal below are unchanged. Do not replay that Create.
+Host .108 is installed and activated from that exact release. All 493 installed
+modules match; 9,772 retained records were verified with zero exclusions and
+only two typed startup changes. No client files were written. Installer
+preflight first rejected a stale old-wheel pin, then exposed a Windows long-path
+failure in the saved-recipe journal inventory; both failed before any runtime
+switch. The corrected helpers use extended Win32 access while retaining the
+original logical evidence keys and full byte-integrity checks. Their 157
+regressions passed with one optional skip, including a real deep journal's
+inventory, preservation and changed-content rejection. Four shortcut cases passed.
+Apply receipt SHA-256:
+`6cad2d1f62e3898d8411c84444605e1bc01a875d9d3533ae88f5a586ffbd0f29`.
+Activation receipt SHA-256:
+`ed94ed14fa999def55ba6996aca0cf4567e290f5e8bdc7d95718ac063649025c`.
+
+The user reported keeping both confirmed scepters before closing the old game;
+the interrupted Create journal remains preserved and unreplayed. The obsolete
+.107 environment was retired after exact module, process and shortcut checks:
+2,173 reproducible files / 49,189,125 bytes, with no retained rollback copies.
+The original Vendor Test shortcut launched new game 9652, lifetime
+134363834764625370, with the exact unchanged .67 DLL. The .108 manager and its
+new bound worker are healthy. Treehugger login, fresh discovery and funded
+batch/Keep acceptance are next; no automatic gold transfer is claimed yet.
+All 15 hosted checks passed at `cb0da1e6` before installation. PR #174 remains
+open and outside main. The following .107 record is historical evidence.
 
 Host .107 is qualified and installed from graphics-preserving release
 `d9d579d2f70a7ea265f9ecabfbe6551e029440d7`; native .67 and client .18 are unchanged.
