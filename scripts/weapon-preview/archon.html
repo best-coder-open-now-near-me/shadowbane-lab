@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Archon's Blade — moon-fire study</title>
+<style>
+  html,body{margin:0;height:100%;background:#11151b;color:#e4e9ef;font:15px system-ui}
+  main{display:grid;grid-template-columns:1fr 310px;height:100%}
+  canvas{width:100%;height:100%;display:block;touch-action:none}
+  aside{overflow:auto;padding:26px;background:#191f28;border-left:1px solid #303945}
+  h1{font-size:24px;margin:0 0 8px} h2{font-size:16px;margin:24px 0 12px}
+  p,small{color:#aebac8;line-height:1.55}small{display:block;margin-top:16px}
+  button{padding:9px 14px;background:#293748;border:1px solid #657b91;color:white;border-radius:6px;cursor:pointer}
+  label{display:block;margin:16px 0} input[type=range]{display:block;width:100%;margin-top:8px;accent-color:#c5e3ff}
+  output{float:right;font-variant-numeric:tabular-nums;color:#c5e3ff}
+  img{width:100%;max-height:36vh;object-fit:contain;background:repeating-conic-gradient(#343b44 0 25%,#242a32 0 50%) 0/16px 16px;border:1px solid #465160}
+  details{margin-top:24px}summary{cursor:pointer;color:#c5d3e2}#error{color:#ff9b9b}
+  @media(max-width:700px){main{grid-template-columns:1fr 230px}aside{padding:16px}}
+</style>
+<main>
+  <canvas aria-label="Interactive katana with animated white diamond chain"></canvas>
+  <aside>
+    <h1>Archon's Blade</h1>
+    <p>White moon-fire study<br>Drag to rotate · scroll to zoom.</p>
+    <button id="reset">Reset view</button>
+    <h2>Square chain</h2>
+    <label><input type="checkbox" id="effect" checked> Show moon-fire</label>
+    <label>Square size <output id="size-value">100%</output><input aria-label="Square size" id="size" type="range" min="60" max="150" value="100"></label>
+    <label>Spacing <output id="spacing-value">80%</output><input aria-label="Spacing" id="spacing" type="range" min="80" max="150" value="80"></label>
+    <label>Pulse <output id="pulse-value">35%</output><input aria-label="Pulse" id="pulse" type="range" min="0" max="35" value="35"></label>
+    <label>Hilt diamond size <output id="anchor-size-value">125%</output><input aria-label="Hilt diamond size" id="anchor-size" type="range" min="25" max="250" value="125"></label>
+    <h2>Blade glow</h2>
+    <label>Glow strength <output id="glow-strength-value">111%</output><input aria-label="Glow strength" id="glow-strength" type="range" min="0" max="150" value="111"></label>
+    <label>Glow width <output id="glow-width-value">86%</output><input aria-label="Glow width" id="glow-width" type="range" min="40" max="400" value="86"></label>
+    <button id="pause" aria-pressed="false">Pause animation</button>
+    <p>Actual game model; proposed effect. This preview helps judge the shape and rhythm. Native attachment, glow and sorting still need an in-game check.</p>
+    <details><summary>Model &amp; lighting</summary>
+      <label><input type="checkbox" id="lighting" checked> Preview lighting</label>
+      <label>Exposure<input aria-label="Preview exposure" id="exposure" type="range" min="1" max="8" step=".25" value="4"></label>
+      <img id="texture" alt="Original blade texture atlas">
+      <small>Mesh 29243 · 40 vertices · 41 triangles<br>Texture 8029210 · 256 × 512</small>
+    </details>
+    <p id="error" role="alert"></p>
+  </aside>
+</main>
+<script>
+const asset = __ASSET__;
+const $ = id => document.getElementById(id);
+const canvas = document.querySelector('canvas');
+const gl = canvas.getContext('webgl', {antialias:true, alpha:false});
+if (!gl) { $('error').textContent='WebGL is unavailable in this browser.'; throw Error('WebGL unavailable'); }
+function programFrom(vertex, fragment) {
+  const program=gl.createProgram();
+  for (const [type,source] of [[gl.VERTEX_SHADER,vertex],[gl.FRAGMENT_SHADER,fragment]]) {
+    const s=gl.createShader(type); gl.shaderSource(s,source); gl.compileShader(s);
+    if (!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(s));
+    gl.attachShader(program,s);
+  }
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program,gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(program));
+  return program;
+}
+const program=programFrom(`
+  attribute vec3 p; attribute vec3 n; attribute vec2 uv; attribute float bladeY;
+  uniform mat4 m; uniform vec2 turn; varying vec2 t; varying vec3 normal; varying float localY;
+  void main(){
+    float c=cos(turn.x),s=sin(turn.x),c2=cos(turn.y),s2=sin(turn.y);
+    mat3 r=mat3(c,0.,-s,0.,1.,0.,s,0.,c),q=mat3(1.,0.,0.,0.,c2,s2,0.,-s2,c2);
+    gl_Position=m*vec4(q*r*p,1.); normal=q*r*n; t=uv; localY=bladeY;
+  }`, `
+  precision mediump float; uniform sampler2D tex; uniform float lit,exposure,glow;
+  varying vec2 t; varying vec3 normal; varying float localY;
+  void main(){
+    vec4 col=texture2D(tex,t); if(col.a<.05)discard;
+    vec3 n=normalize(normal); if(!gl_FrontFacing)n=-n;
+    float light=.55+.45*max(dot(n,normalize(vec3(.3,.35,1.))),0.);
+    vec3 emission=vec3(.75,.88,1.)*glow*.45*smoothstep(.17,.24,localY);
+    gl_FragColor=vec4(col.rgb*exposure*mix(1.,light,lit)+emission,1.);
+  }`);
+const fireProgram=programFrom(`
+  attribute vec3 p; attribute vec2 uv; attribute float alpha,shape;
+  uniform mat4 m; varying vec2 t; varying float a,rect;
+  void main(){gl_Position=m*vec4(p,1.);t=uv;a=alpha;rect=shape;}`, `
+  precision mediump float; varying vec2 t; varying float a,rect;
+  void main(){
+    if(rect>1.5){
+      float halo=exp(-5.*t.x*t.x)*(1.-smoothstep(.88,1.,abs(t.y)));
+      halo*=1.-smoothstep(.8,1.,abs(t.x));
+      gl_FragColor=vec4(.72,.86,1.,halo*a);return;
+    }
+    float edge=mix(abs(t.x)+abs(t.y),max(abs(t.x),abs(t.y)),rect);
+    float coverage=1.-smoothstep(mix(.93,.55,rect),1.,edge);
+    if(coverage<=0.)discard;
+    vec3 color=mix(vec3(.87,.94,1.),vec3(1.),1.-smoothstep(.1,.95,edge));
+    gl_FragColor=vec4(color,coverage*a);
+  }`);
+const vertices=asset.vertices,indices=asset.indices,normals=vertices.map(()=>[0,0,0]);
+for(let i=0;i<indices.length;i+=3){
+  const ids=indices.slice(i,i+3),a=vertices[ids[0]],b=vertices[ids[1]],c=vertices[ids[2]];
+  const u=b.map((v,k)=>v-a[k]),v=c.map((v,k)=>v-a[k]);
+  const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+  for(const id of ids) for(let k=0;k<3;k++) normals[id][k]+=n[k];
+}
+const min=[0,1,2].map(k=>Math.min(...vertices.map(v=>v[k])));
+const max=[0,1,2].map(k=>Math.max(...vertices.map(v=>v[k])));
+const center=min.map((v,k)=>(v+max[k])/2),height=max[1]-min[1];
+const meshAttributes=[];
+function meshAttribute(name,values,size){
+  const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(values),gl.STATIC_DRAW);
+  meshAttributes.push({location:gl.getAttribLocation(program,name),buffer,size});
+}
+meshAttribute('p',vertices.flatMap(v=>v.map((x,k)=>(x-center[k])/height)),3);
+meshAttribute('bladeY',vertices.map(v=>v[1]),1);
+meshAttribute('n',normals.flat(),3);meshAttribute('uv',asset.uv.flat(),2);
+const buffer=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,buffer);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);
+const fireBuffer=gl.createBuffer(),fireData=new Float32Array((64+5)*6*7);
+const fireAttributes=[['p',3,0],['uv',2,12],['alpha',1,20],['shape',1,24]].map(([name,size,offset])=>({location:gl.getAttribLocation(fireProgram,name),size,offset}));
+const glowData=new Float32Array(6*7);
+const maxAttributes=gl.getParameter(gl.MAX_VERTEX_ATTRIBS);
+const texture=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,texture);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.REPEAT);
+let yaw=0,pitch=0,zoom=1,drag=null,ready=false,time=0,lastFrame=null,paused=false;
+const image=new Image();image.onload=()=>{
+  gl.bindTexture(gl.TEXTURE_2D,texture);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);ready=true;
+};
+image.onerror=()=>{$('error').textContent='The embedded blade texture could not be loaded.';};
+image.src=asset.texture;$('texture').src=asset.texture;
+function transform(v){
+  const c=Math.cos(yaw),s=Math.sin(yaw),c2=Math.cos(pitch),s2=Math.sin(pitch);
+  const x=c*v[0]+s*v[2],z=-s*v[0]+c*v[2];
+  return [x,c2*v[1]-s2*z,s2*v[1]+c2*z];
+}
+// Inspection anchors in this mesh's coordinates: above the guard, below the tip.
+// These do not claim the native game's bone coordinate system.
+function chainGeometry(seconds){
+  const side=.108*Number($('size').value)/100;
+  const step=.108*Number($('spacing').value)/100;
+  const first=.415,last=2.28,count=Math.min(64,Math.floor((last-first)/step)+1);
+  const tangent=transform([0,1,0]),len=Math.hypot(tangent[0],tangent[1]);
+  const along=len>.0001?[tangent[0]/len,tangent[1]/len]:[0,1];
+  const across=[along[1],-along[0]],amplitude=Number($('pulse').value)/100;
+  const corners=[[-1,-1],[1,-1],[1,1],[-1,-1],[1,1],[-1,1]];
+  const localPoint=v=>transform(v.map((x,k)=>(x-center[k])/height));
+  let cursor=0;
+  function vertex(p,u,v,alpha,shape){
+    for(const value of [...p,u,v,alpha,shape])fireData[cursor++]=value;
+  }
+  function diamond(position,width,wave,alpha){
+    const p=localPoint(position),radius=width*(1+amplitude*wave)/(2*height);
+    for(const [u,v] of corners){
+      vertex([p[0]+radius*(across[0]*u+along[0]*v),
+        p[1]+radius*(across[1]*u+along[1]*v),p[2]],u,v,alpha,0);
+    }
+  }
+  // A narrow band wraps the blade root in model space, so it stays on the
+  // collar when rotated. Four faces share the existing depth-tested pass.
+  const rim=[[-.05,-.014],[.044,-.014],[.044,.014],[-.05,.014]];
+  for(let face=0;face<4;face++){
+    const a=rim[face],b=rim[(face+1)%4];
+    for(const [u,v] of corners){
+      const t=(u+1)/2;
+      vertex(localPoint([a[0]+(b[0]-a[0])*t,.194+v*.014,a[1]+(b[1]-a[1])*t]),u,v,.86,1);
+    }
+  }
+  const anchorWave=Math.sin(seconds*2*Math.PI/3.6);
+  diamond([-.003,.29,.016],.1404*Number($('anchor-size').value)/100,anchorWave,.8+.08*amplitude/.35*anchorWave);
+  for(let i=0;i<count;i++){
+    const y=first+i*step,fraction=(y-first)/(last-first);
+    const wave=Math.sin(seconds*2*Math.PI/1.8-i*.65);
+    diamond([-.003+.017*fraction,y,.015],side,wave,.66+.12*amplitude/.35*wave);
+  }
+  return cursor/7;
+}
+// A soft ribbon around the projected blade complements the mesh emission.
+// Width is in model units so it follows zoom; this is preview glow, not native bloom.
+function glowGeometry(){
+  const a=transform([(-.003-center[0])/height,(.18-center[1])/height,-center[2]/height]);
+  const b=transform([(.014-center[0])/height,(2.39-center[1])/height,-center[2]/height]);
+  const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy);
+  const across=length>.0001?[dy/length,-dx/length]:[1,0];
+  const radius=.16*Number($('glow-width').value)/100/height;
+  const alpha=Number($('glow-strength').value)/100*.55;
+  let cursor=0;
+  for(const [u,v] of [[-1,-1],[1,-1],[1,1],[-1,-1],[1,1],[-1,1]]){
+    const f=(v+1)/2;
+    const p=[a[0]+dx*f+across[0]*radius*u,a[1]+dy*f+across[1]*radius*u,
+      a[2]+(b[2]-a[2])*f+.05/height];
+    for(const value of [...p,u,v,alpha,2])glowData[cursor++]=value;
+  }
+}
+function drawFire(data,count,matrix,additive=false){
+  gl.useProgram(fireProgram);clearAttributes();
+  gl.bindBuffer(gl.ARRAY_BUFFER,fireBuffer);gl.bufferData(gl.ARRAY_BUFFER,data.subarray(0,count*7),gl.DYNAMIC_DRAW);
+  for(const a of fireAttributes){gl.enableVertexAttribArray(a.location);gl.vertexAttribPointer(a.location,a.size,gl.FLOAT,false,28,a.offset);}
+  gl.uniformMatrix4fv(gl.getUniformLocation(fireProgram,'m'),false,matrix);
+  gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,additive?gl.ONE:gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+  gl.drawArrays(gl.TRIANGLES,0,count);gl.depthMask(true);gl.disable(gl.BLEND);
+}
+function clearAttributes(){for(let i=0;i<maxAttributes;i++)gl.disableVertexAttribArray(i);}
+function draw(){
+  if(!ready||gl.isContextLost())return;
+  const d=Math.min(devicePixelRatio,2),w=Math.round(canvas.clientWidth*d),h=Math.round(canvas.clientHeight*d);
+  if(!w||!h)return;
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+  gl.viewport(0,0,w,h);gl.clearColor(.065,.082,.106,1);gl.depthMask(true);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.enable(gl.DEPTH_TEST);gl.disable(gl.BLEND);
+  const y=1.65*zoom,x=y/(w/h),matrix=new Float32Array([x,0,0,0,0,y,0,0,0,0,-1,0,0,0,0,1]);
+  gl.useProgram(program);clearAttributes();
+  for(const a of meshAttributes){gl.bindBuffer(gl.ARRAY_BUFFER,a.buffer);gl.enableVertexAttribArray(a.location);gl.vertexAttribPointer(a.location,a.size,gl.FLOAT,false,0,0);}
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,buffer);gl.bindTexture(gl.TEXTURE_2D,texture);
+  gl.uniformMatrix4fv(gl.getUniformLocation(program,'m'),false,matrix);
+  gl.uniform2f(gl.getUniformLocation(program,'turn'),yaw,pitch);
+  gl.uniform1f(gl.getUniformLocation(program,'lit'),$('lighting').checked?1:0);
+  gl.uniform1f(gl.getUniformLocation(program,'exposure'),Number($('exposure').value));
+  gl.uniform1f(gl.getUniformLocation(program,'glow'),$('effect').checked?Number($('glow-strength').value)/100:0);
+  gl.drawElements(gl.TRIANGLES,indices.length,gl.UNSIGNED_SHORT,0);
+  if($('effect').checked){
+    if(Number($('glow-strength').value)>0){glowGeometry();drawFire(glowData,6,matrix,true);}
+    const count=chainGeometry(time);drawFire(fireData,count,matrix);
+  }
+}
+function frame(now){
+  if(lastFrame!==null&&!paused&&!document.hidden)time+=Math.min((now-lastFrame)/1000,.05);
+  lastFrame=now;if(!document.hidden)draw();requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+canvas.onpointerdown=e=>{drag=[e.clientX,e.clientY];canvas.setPointerCapture(e.pointerId);};
+canvas.onpointermove=e=>{if(!drag)return;yaw+=(e.clientX-drag[0])*.012;pitch+=(e.clientY-drag[1])*.008;drag=[e.clientX,e.clientY];};
+canvas.onpointerup=canvas.onpointercancel=()=>drag=null;
+canvas.onwheel=e=>{e.preventDefault();zoom=Math.max(.5,Math.min(6,zoom*Math.exp(-e.deltaY*.001)));};
+$('reset').onclick=()=>{yaw=0;pitch=0;zoom=1;};
+$('pause').onclick=()=>{paused=!paused;$('pause').textContent=paused?'Play animation':'Pause animation';$('pause').setAttribute('aria-pressed',String(paused));};
+for(const id of ['size','spacing','pulse','anchor-size','glow-strength','glow-width']) $(id).oninput=()=>{$(id+'-value').value=$(id).value+'%';};
+$('exposure').oninput=()=>{$('texture').style.filter='brightness('+$('exposure').value+')';};
+$('exposure').oninput();
+canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();$('error').textContent='Graphics context lost. Reload this preview to restore it.';});
+</script>
+</html>

@@ -1,3 +1,4 @@
+#include "weapon_appearance.h"
 #include "cel_shading.h"
 #include "render_lifetime.h"
 #include "sky_runtime.h"
@@ -1758,6 +1759,9 @@ __declspec(noinline) void APIENTRY StrongMatrixMode(const unsigned int mode) noe
 
 void APIENTRY StrongCallList(const unsigned int list) noexcept {
     const RenderCallbackLease lease;
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    weapon::DrawScale weapon_scale;
+#endif
     const auto original = LoadFunction<GlCallList>(&g_original_call_list);
     if (original != nullptr) {
         if (IsCompilingDisplayListOnCurrentThread()) {
@@ -1832,6 +1836,9 @@ void APIENTRY StrongDrawArrays(
     const int count
 ) noexcept {
     const RenderCallbackLease lease;
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    weapon::DrawScale weapon_scale;
+#endif
     const auto original = LoadFunction<GlDrawArrays>(&g_original_draw_arrays);
     if (original != nullptr) {
         TerrainTraceDraw(TerrainSubmission::arrays,
@@ -1884,6 +1891,9 @@ void APIENTRY StrongDrawElements(
     const void* const indices
 ) noexcept {
     const RenderCallbackLease lease;
+#if !defined(WONDERBANE_EXTENSION_DIAGNOSTICS_ONLY)
+    weapon::DrawScale weapon_scale;
+#endif
     const auto original = LoadFunction<GlDrawElements>(&g_original_draw_elements);
     if (original != nullptr) {
         TerrainTraceDraw(TerrainSubmission::elements,

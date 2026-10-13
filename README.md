@@ -1,5 +1,8 @@
 # shadowbane-lab
 
+Katana demo: [continue on another computer](docs/handoffs/katana-demo-new-machine.md)
+from `codex/katana-moonfire` ([PR #106](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/106)).
+
 Navigation diagnostics: [inspector usage, review branch and acceptance status](docs/navigation-inspector.md).
 
 ## Finding the current code

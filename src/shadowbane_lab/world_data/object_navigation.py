@@ -37,6 +37,9 @@ class RenderNavigationMetadata:
     collides: bool
     calculates_bounding_box: bool
     parsed_size: int
+    target_bone: str = ""
+    texture_keys: tuple[ZoneResourceKey, ...] = ()
+    specular_key: ZoneResourceKey = ZoneResourceKey(0, 0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,7 +110,7 @@ def parse_render_navigation_metadata(payload: bytes) -> RenderNavigationMetadata
     reader.u32("clip map")
     reader.u32("two-side lighting")
     reader.u32("cull face")
-    reader.resource_key("specular map")
+    specular_key = reader.resource_key("specular map")
     reader.f32("shininess")
     has_mesh = reader.boolean("mesh flag")
     mesh_keys: tuple[ZoneResourceKey, ...] = ()
@@ -120,7 +123,7 @@ def parse_render_navigation_metadata(payload: bytes) -> RenderNavigationMetadata
             reader.boolean(f"mesh {index} double-sided flag")
         mesh_keys = tuple(meshes)
 
-    reader.string("target bone")
+    target_bone = reader.string("target bone")
     scale = reader.tuple3("scale")
     has_location = reader.binary_u32("location flag")
     location = None
@@ -130,10 +133,11 @@ def parse_render_navigation_metadata(payload: bytes) -> RenderNavigationMetadata
         child_count = reader.count("children")
         child_keys = tuple(reader.resource_key(f"child {index}") for index in range(child_count))
 
+    textures: list[ZoneResourceKey] = []
     if reader.boolean("texture-set flag"):
         texture_count = reader.count("texture sets")
         for _ in range(texture_count):
-            _skip_texture_set(reader, depth=0)
+            _skip_texture_set(reader, depth=0, textures=textures)
     collides = reader.boolean("collision flag")
     calculates_bounding_box = reader.boolean("bounding-box flag")
     return RenderNavigationMetadata(
@@ -144,6 +148,9 @@ def parse_render_navigation_metadata(payload: bytes) -> RenderNavigationMetadata
         collides=collides,
         calculates_bounding_box=calculates_bounding_box,
         parsed_size=reader.offset,
+        target_bone=target_bone,
+        texture_keys=tuple(textures),
+        specular_key=specular_key,
     )
 
 
@@ -266,11 +273,13 @@ class ObjectNavigationResolver:
         return cached
 
 
-def _skip_texture_set(reader: _NavigationReader, *, depth: int) -> None:
+def _skip_texture_set(
+    reader: _NavigationReader, *, depth: int, textures: list[ZoneResourceKey]
+) -> None:
     if depth >= _MAX_TEXTURE_DEPTH:
         raise ObjectNavigationFormatError("Render texture nesting exceeds its bound")
     texture_type = reader.u32("texture type")
-    reader.resource_key("texture resource")
+    textures.append(reader.resource_key("texture resource"))
     reader.u32("texture transparency")
     for field_name in (
         "compression flag",
@@ -293,7 +302,7 @@ def _skip_texture_set(reader: _NavigationReader, *, depth: int) -> None:
         reader.u32("animated texture frame randomizer")
         nested_count = reader.count("animated texture sets")
         for _ in range(nested_count):
-            _skip_texture_set(reader, depth=depth + 1)
+            _skip_texture_set(reader, depth=depth + 1, textures=textures)
         return
     raise ObjectNavigationFormatError(f"Render texture type {texture_type} is unsupported")
 
