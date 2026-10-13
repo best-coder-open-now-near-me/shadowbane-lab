@@ -1,5 +1,24 @@
 # Git branch map
 
+## Vendor parent-roster correction installed - October 13
+
+Shared development starts from main at PR #173 merge `ef02070f`.
+`codex/vendor-rolling-20261013` contains implementation `b9088ded`, which passed
+all 15 hosted checks in [PR #174](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/174)
+and targets main; it is not merged yet. The normal checkout stays clean on main.
+Pushed graphics-preserving release `e72b8703d2367cd2cf677675ca0fe02cccbfcc64`
+on `codex/vendor-release-20261013` is qualified and installed as host .106.
+Native .67 remains from `68163f32139cc1923a37a4763521d5c7990229e7`; the live
+Treehugger game was not restarted. Qualification passed 6,411 host tests with
+45 optional skips, both IPC profiles and all seven startup handshakes.
+Installation verified 491 modules and preserved 9,738 records with zero exclusions.
+
+Live discovery verified 24 vendor windows across 12 of 14 nearby buildings,
+including the Irekei and Lizardman sages. Two buildings had no populated rows;
+full town coverage remains unverified. Next: saved recipe and one capacity batch,
+then selected-vendor dashboard controls and durable town scheduling. No crafting
+or disposal ran during discovery. See [current vendor evidence](vendor-rolling.md).
+
 ## Vendor startup repaired - October 13
 
 Start shared development from `main` at PR #172 merge
