@@ -2,6 +2,13 @@
 
 ## Vendor queue-depth correction in progress - October 13
 
+Latest quantity work remains on `codex/vendor-rolling-20261013` for draft PR #174.
+Source .110/native .68 adds a separately identified, read-only per-slot remaining
+count receipt through the existing vendor channel; legacy encodings and
+quantity-one spending admission are preserved. It is not installed. Continue
+quantity-aware planning/progress and dispatch qualification before deploying a
+coherent end-to-end update. The ordinary checkout remains clean on main.
+
 Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
 through draft PR #174. Installed software remains host .109/native .67 from
 release `fdc07896`; source candidate .110 is not packaged or installed.

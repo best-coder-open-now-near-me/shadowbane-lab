@@ -277,10 +277,10 @@ void Update(void* root, HWND window) noexcept {
     if (GetWindowThreadProcessId(window, &pid) != GetCurrentThreadId() || pid != GetCurrentProcessId()) { return; }
     busy = true;
     movement::NativeScene scene{};
-    wire::Snapshot snapshot{}; bool present = false, top = false;
+    wire::Snapshot snapshot{}; wire::RemainingCounts remaining{}; bool present = false, top = false;
     const bool valid = movement::ReadNativeMovementLifetime(scene) && scene.window == reinterpret_cast<std::uintptr_t>(root)
-        && Capture(image_base, scene, snapshot, controller.PendingKeep(), present, top);
-    controller.Observe(snapshot, valid, present, GetTickCount64());
+        && Capture(image_base, scene, snapshot, controller.PendingKeep(), present, top, &remaining);
+    controller.Observe(snapshot, valid, present, GetTickCount64(), remaining);
     auto menu_command = vendor_menu::Take();
     vendor_menu::wire::Snapshot menu_snapshot{};
     bool menu_valid = false;

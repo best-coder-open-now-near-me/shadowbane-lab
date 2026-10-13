@@ -23,6 +23,17 @@ w::Command Command(const v::Controller& controller, unsigned request = 1) {
 }
 bool Is(const w::Receipt& r, w::Outcome o) { return r.signature == w::magic && r.outcome == static_cast<unsigned>(o); }
 int main(int argc, char**) {
+    if (argc > 2) {
+        v::Controller c; auto s = Snapshot(); s.quantity = 10; s.multiple = 1;
+        s.slots[0] = {600, 123, 1};
+        w::RemainingCounts counts{}; counts[0] = 9; counts[1] = 1;
+        c.Observe(s, true, false, 100, counts); Fake f;
+        auto command = Command(c, 9); command.expected = {};
+        const auto r = c.Execute(w::Verb::inspect_orders, command, true, true, f);
+        const auto* bytes = reinterpret_cast<const unsigned char*>(&r);
+        for (std::size_t i = 0; i < sizeof(r); ++i) { std::printf("%02x", bytes[i]); }
+        std::printf("\n"); return 0;
+    }
     if (argc > 1) {
         auto s = Snapshot(); s.revision = 1;
         w::Command c{}; c.host = {1234, 7, 0x1122334455667788}; c.window = 0x76543210;
@@ -38,6 +49,32 @@ int main(int argc, char**) {
         print(s); print(c); print(r); return 0;
     }
 
+    // Quantity-aware inspection does not expand Create authority or replay actions.
+    {
+        v::Controller c; Fake f; auto s = Snapshot(); s.quantity = 10; s.multiple = 1;
+        s.slots[0] = {600, 123, 1};
+        w::RemainingCounts counts{}; counts[0] = 9; counts[1] = 1;
+        c.Observe(s, true, false, 100, counts);
+        auto probe = Command(c, 9); probe.expected = {};
+        auto r = c.Execute(w::Verb::inspect_orders, probe, true, true, f);
+        assert(r.signature == w::orders_magic && r.flags == w::ready);
+        assert(r.reserved[0] == 9 && r.reserved[1] == 1 && !r.reserved[2]);
+        const auto revision = r.snapshot.revision;
+        counts[0] = 8; c.Observe(s, true, false, 101, counts);
+        r = c.Execute(w::Verb::inspect_orders, probe, true, true, f);
+        assert(r.snapshot.revision > revision && r.reserved[0] == 8);
+        assert(Is(c.Execute(w::Verb::create_random, Command(c), true, true, f), w::Outcome::invalid));
+        assert(Is(c.Execute(w::Verb::create, Command(c), true, true, f), w::Outcome::invalid));
+        r = c.Execute(w::Verb::inspect_random, probe, true, true, f);
+        assert(r.signature == w::magic && wonderbane::extension::movement::wire::Zero(r.reserved, sizeof(r.reserved)));
+        counts[0] = 256; c.Observe(s, true, false, 102, counts);
+        r = c.Execute(w::Verb::inspect_orders, probe, true, true, f);
+        assert(r.signature == w::orders_magic && r.outcome == static_cast<unsigned>(w::Outcome::unavailable));
+        assert(!r.flags && !r.snapshot.scene && !f.calls);
+        probe.item = 123;
+        r = c.Execute(w::Verb::inspect_orders, probe, true, true, f);
+        assert(r.outcome == static_cast<unsigned>(w::Outcome::invalid) && !f.calls);
+    }
     {
         v::Controller c; Fake f; c.Observe(Snapshot(), true, false); auto command = Command(c);
         assert(Is(c.Execute(w::Verb::create, command, false, true, f), w::Outcome::stale));

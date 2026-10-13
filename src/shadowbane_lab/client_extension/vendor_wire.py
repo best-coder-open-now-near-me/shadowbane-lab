@@ -9,6 +9,7 @@ from enum import IntEnum
 from .movement_wire import Host, request_bytes
 
 MAGIC = 0x57425631
+ORDERS_MAGIC = 0x57425632
 READY, IN_FLIGHT, UNRESOLVED = 1, 2, 4
 _SNAPSHOT = struct.Struct("<QQ16I")
 _SLOT = struct.Struct("<III")
@@ -22,6 +23,7 @@ class Verb(IntEnum):
     KEEP = 10
     CREATE_RANDOM = 32
     INSPECT_RANDOM = 33
+    INSPECT_ORDERS = 56
 
 
 class Outcome(IntEnum):
@@ -151,7 +153,7 @@ class Command:
         if not uint(self.window, 32, "window"):
             raise ValueError("window is required")
         uint(self.item, 32, "item")
-        if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM):
+        if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM, Verb.INSPECT_ORDERS):
             if not self.expected.empty or self.item:
                 raise ValueError("inspect cannot carry action arguments")
         elif self.expected.empty or (
@@ -176,21 +178,27 @@ class Receipt:
     snapshot: Snapshot
     transition_item: int = 0
     transition_request: str | None = None
+    # None identifies a historical v1 receipt; zero raw counts are real values.
+    remaining_counts: tuple[int, ...] | None = None
 
     @classmethod
     def decode(cls, data: bytes) -> Receipt:
         request, host, window, outcome, flags, snapshot, magic, item, transition, pad = (
             _RECEIPT.unpack(data)
         )
-        if magic != MAGIC or flags & ~7 or any(pad) or not window or window >= 2**32:
+        if magic not in (MAGIC, ORDERS_MAGIC) or flags & ~7 or not window or window >= 2**32:
             raise ValueError("invalid vendor receipt")
         key = str(uuid.UUID(bytes=request))
         request_bytes(key)
         state = Snapshot.decode(snapshot)
+        if ((magic == MAGIC and any(pad)) or (magic == ORDERS_MAGIC
+                and any(pad[len(state.slots):]))):
+            raise ValueError("invalid vendor receipt extension")
+        counts = tuple(pad[:len(state.slots)]) if magic == ORDERS_MAGIC else None
         if flags & READY and (state.empty or flags & (IN_FLIGHT | UNRESOLVED)):
             raise ValueError("contradictory vendor readiness")
         transition_key = str(uuid.UUID(bytes=transition)) if any(transition) else None
         if bool(item) != bool(transition_key):
             raise ValueError("incomplete vendor transition identity")
         return cls(key, Host.decode(host), window, Outcome(outcome), flags, state,
-                   item, transition_key)
+                   item, transition_key, counts)

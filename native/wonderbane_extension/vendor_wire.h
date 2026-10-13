@@ -5,10 +5,15 @@
 #include <cstring>
 
 namespace wonderbane::extension::vendor::wire {
-enum class Verb : std::uint32_t { inspect = 8, create = 9, keep = 10, create_random = 32, inspect_random = 33 };
+enum class Verb : std::uint32_t { inspect = 8, create = 9, keep = 10, create_random = 32, inspect_random = 33,
+    inspect_orders = 56 };
 enum class Outcome : std::uint32_t { observed = 0, submitted = 1, stale = 2,
     unavailable = 3, invalid = 4, pending = 5, uncertain = 6, exhausted = 7 };
 constexpr std::uint32_t magic = 0x57425631, ready = 1, in_flight = 2, unresolved = 4;
+// Additive read-only profile: raw remaining counts occupy the first 16 receipt
+// extension bytes in snapshot slot order. Old receipts retain zero padding.
+constexpr std::uint32_t orders_magic = 0x57425632;
+using RemainingCounts = std::array<std::uint32_t, 16>;
 #pragma pack(push, 1)
 struct Slot { std::uint32_t entry = 0, item = 0, state = 0; };
 struct Snapshot {
@@ -65,7 +70,9 @@ inline bool RandomSingle(const Snapshot& s) noexcept {
         && s.suffix == s.prefix && s.quantity == 1 && s.multiple == 0;
 }
 inline bool IsCreate(Verb verb) noexcept { return verb == Verb::create || verb == Verb::create_random; }
-inline bool IsInspect(Verb verb) noexcept { return verb == Verb::inspect || verb == Verb::inspect_random; }
+inline bool IsInspect(Verb verb) noexcept {
+    return verb == Verb::inspect || verb == Verb::inspect_random || verb == Verb::inspect_orders;
+}
 inline bool Valid(Verb verb, const Command& c) noexcept {
     if (!movement::wire::Valid(c.host) || !c.window || c.window > UINT32_MAX
         || movement::wire::Zero(c.request.data(), c.request.size())

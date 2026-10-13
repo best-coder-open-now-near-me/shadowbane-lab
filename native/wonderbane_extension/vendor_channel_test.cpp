@@ -76,6 +76,22 @@ int main() {
     publish(6,false,32,true);
     assert(d::DrainCommands(storage,runtime.result_signal,now)==ERROR_SUCCESS);
     assert(!v::Take() && storage.results[5].stage==static_cast<unsigned>(ClientActionResultStage::failed));
+    publish(7, false, 56);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
+    auto orders = v::Take(); assert(orders && orders->verb == v::wire::Verb::inspect_orders);
+    receipt = {}; receipt.signature = v::wire::orders_magic;
+    receipt.host = orders->command.host; receipt.request = orders->command.request;
+    receipt.window = orders->command.window; v::Complete(orders, receipt);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
+    assert(!std::strcmp(storage.results[6].detail, "native_vendor_orders_receipt_v2"));
+    std::memcpy(&returned, &storage.results[6].movement, sizeof(returned));
+    assert(returned.signature == v::wire::orders_magic);
+    publish(8, false, 56);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
+    assert(d::DrainCommands(storage, runtime.result_signal, now + 101) == ERROR_SUCCESS);
+    std::memcpy(&returned, &storage.results[7].movement, sizeof(returned));
+    assert(returned.signature == v::wire::orders_magic
+        && returned.outcome == static_cast<unsigned>(v::wire::Outcome::stale) && !v::Take());
     SetEvent(release_worker);
     StopClientActionCommandChannel();
     CloseHandle(entered); CloseHandle(release_worker);

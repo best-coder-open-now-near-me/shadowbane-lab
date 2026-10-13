@@ -61,7 +61,7 @@ Result Invoke(std::uintptr_t, const movement::NativeScene&, const Target&, Actio
 }
 }
 namespace vendor {
-bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&, std::uint32_t, bool&, bool&) noexcept { ++other_reads; return false; }
+bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&, std::uint32_t, bool&, bool&, wire::RemainingCounts*) noexcept { ++other_reads; return false; }
 bool InvokeNative(std::uintptr_t, wire::Verb, const wire::Snapshot&, std::uint32_t) noexcept { ++other_writes; return false; }
 }
 namespace vendor_menu {

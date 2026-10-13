@@ -58,10 +58,13 @@ class NativeVendorSession:
         result = transport.submit(
             NativeVendorCommand(next(self._ids), verb, command), timeout_ms=750
         )
-        if result.detail != "native_vendor_receipt_v1":
+        orders = verb == Verb.INSPECT_ORDERS
+        expected_detail = ("native_vendor_orders_receipt_v2" if orders
+                           else "native_vendor_receipt_v1")
+        if result.detail != expected_detail:
             error = (
                 _RetryableInspectionError
-                if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM)
+                if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM, Verb.INSPECT_ORDERS)
                 and result.stage == channel.NativeActionResultStage.FAILED
                 and result.error_code == 13
                 and result.detail == "invalid_or_expired_vendor_lease"
@@ -72,6 +75,8 @@ class NativeVendorSession:
                 f"(stage={result.stage.name}, error={result.error_code})"
             )
         receipt = Receipt.decode(result.movement_payload)
+        if (receipt.remaining_counts is not None) != orders:
+            raise channel.NativeActionChannelError("vendor receipt profile mismatch")
         if (
             receipt.host != host or receipt.window != self.window
             or receipt.request_key != request_key
@@ -102,6 +107,10 @@ class NativeVendorSession:
     def inspect_random(self) -> Receipt:
         """Prove generalized single-recipe support without spending."""
         return self._inspect(Verb.INSPECT_RANDOM)
+
+    def inspect_orders(self) -> Receipt:
+        """Read raw per-slot order counts; this grants no quantity-ten dispatch."""
+        return self._inspect(Verb.INSPECT_ORDERS)
 
     def create_random(self, expected: Snapshot, request_key: str) -> Receipt:
         return self._submit(Verb.CREATE_RANDOM, request_key, expected)

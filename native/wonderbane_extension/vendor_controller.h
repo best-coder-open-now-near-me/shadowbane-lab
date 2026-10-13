@@ -13,6 +13,7 @@ class Controller {
     std::map<std::array<std::uint8_t, 16>, Record> records_;
     Record* pending_ = nullptr;
     wire::Snapshot current_{};
+    wire::RemainingCounts remaining_{};
     std::uint64_t revision_ = 0, random_deadline_ = 0;
     bool uncertain_ = false;
     std::array<std::uint8_t, 16> transition_request_{};
@@ -26,13 +27,27 @@ class Controller {
             && a.menu == b.menu && a.hireling == b.hireling && a.building == b.building
             && a.vendor == b.vendor;
     }
-    wire::Receipt Receipt(const wire::Command& command, wire::Outcome outcome, bool ready) const noexcept {
+    wire::Receipt Receipt(const wire::Command& command, wire::Outcome outcome, bool ready,
+        bool orders = false) const noexcept {
         wire::Receipt result{};
         result.request = command.request; result.host = command.host; result.window = command.window;
         result.snapshot = current_; result.outcome = static_cast<std::uint32_t>(outcome);
         result.flags = (ready && current_.scene && !uncertain_ && !pending_ ? wire::ready : 0)
             | (pending_ ? wire::in_flight : 0) | (uncertain_ ? wire::unresolved : 0);
         result.transition_request = transition_request_; result.transition_item = transition_item_;
+        if (orders) {
+            result.signature = wire::orders_magic;
+            for (std::size_t i = 0; i < current_.count; ++i) {
+                if (remaining_[i] > UINT8_MAX) {
+                    result.snapshot = {}; result.flags &= ~wire::ready;
+                    if (outcome == wire::Outcome::observed) {
+                        result.outcome = static_cast<std::uint32_t>(wire::Outcome::unavailable);
+                    }
+                    std::memset(result.reserved, 0, sizeof(result.reserved)); return result;
+                }
+                result.reserved[i] = static_cast<std::uint8_t>(remaining_[i]);
+            }
+        }
         return result;
     }
 public:
@@ -43,14 +58,16 @@ public:
     }
     // Called only on the owning thread, after fresh native ownership validation.
     // A displayed inventory item proves presence; its absence never proves failure.
-    void Observe(wire::Snapshot snapshot, bool valid, bool kept_in_inventory, std::uint64_t now = 0) noexcept {
+    void Observe(wire::Snapshot snapshot, bool valid, bool kept_in_inventory, std::uint64_t now = 0,
+        wire::RemainingCounts remaining = {}) noexcept {
         snapshot.revision = current_.revision;
-        if (!valid || !wire::Equal(snapshot, current_)) {
+        if (!valid || !wire::Equal(snapshot, current_) || remaining != remaining_) {
             if (revision_ == UINT64_MAX) { uncertain_ = true; current_ = {}; return; }
             snapshot.revision = ++revision_;
         }
         const auto previous = current_;
         current_ = valid ? snapshot : wire::Snapshot{};
+        remaining_ = valid ? remaining : wire::RemainingCounts{};
         if (!pending_ || uncertain_) { return; }
         // The ordinary generalized Create may show a native rejection dialog.
         // Absence of a correlated addition becomes uncertainty, never a retry.
@@ -87,9 +104,10 @@ public:
     wire::Receipt Execute(wire::Verb verb, const wire::Command& command,
         bool live, bool ready, Invoker& invoker, std::uint64_t now = 0) noexcept {
         using O = wire::Outcome;
-        if (!wire::Valid(verb, command)) { return Receipt(command, O::invalid, ready); }
-        if (!live) { return Receipt(command, O::stale, false); }
-        if (wire::IsInspect(verb)) { return Receipt(command, O::observed, ready); }
+        const bool orders = verb == wire::Verb::inspect_orders;
+        if (!wire::Valid(verb, command)) { return Receipt(command, O::invalid, ready, orders); }
+        if (!live) { return Receipt(command, O::stale, false, orders); }
+        if (wire::IsInspect(verb)) { return Receipt(command, O::observed, ready, orders); }
         const auto previous = records_.find(command.request);
         if (previous != records_.end()) {
             if (previous->second.verb != verb

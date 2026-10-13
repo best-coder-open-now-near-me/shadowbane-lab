@@ -4,6 +4,20 @@
 
 ### Active: ten items per production slot
 
+The source candidate now adds `inspect_orders` (verb 56) through the existing
+vendor command channel. Its `WBV2` receipt preserves the 288-byte snapshot and
+the 384-byte receipt ABI, using a separately identified 16-byte raw count array
+followed by eight zero bytes. Counts follow sorted slot entry identities; zero
+is preserved and an empty row's raw count is never treated as occupied work.
+Changes in counts advance the native observation revision. Counts above 255
+return unavailable rather than being truncated. Old commands, `WBV1` receipts,
+saved recipes and historical journals keep their exact encoding. An older
+runtime cannot silently satisfy this new feature inspection. Create authority
+still accepts quantity one only: this observation addition is not permission to
+send an unqualified ten-item order. Source native version is now 1.8.68; installed
+native .67 and host .109 are unchanged. Next: durable quantity-aware batch
+planning/progress, funding handback and correlated ten-item dispatch/completion.
+
 The established native funding primitives already automate withdrawals and
 deposits. The vendor-specific routing was unnecessarily visiting the warehouse
 before checking current shop funds and carried gold. Source candidate .110 now
