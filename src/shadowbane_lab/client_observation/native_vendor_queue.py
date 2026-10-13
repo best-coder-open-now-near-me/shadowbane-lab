@@ -24,6 +24,7 @@ _LIST_CONTROL_VTABLE = 0x116AEBC
 _PRODUCTION_VTABLE = 0x1169560
 _MAX_CONTROLS = 512
 _MAX_LIST_ENTRIES = 128
+_MAX_INVENTORY_ENTRIES = 512
 _MAX_SLOTS = 16
 
 
@@ -185,7 +186,7 @@ def _inventory(
     items = []
     seen_entries: set[int] = set()
     seen_items: set[int] = set()
-    for control in r.vector(listing + 0x408, _MAX_LIST_ENTRIES):
+    for control in r.vector(listing + 0x408, _MAX_INVENTORY_ENTRIES):
         r.require(control, base + _LIST_CONTROL_VTABLE, "inventory control type")
         r.require(control + 0x3BC, hud, "inventory control HUD owner")
         r.require(control + 0x458, listing, "inventory control list owner")

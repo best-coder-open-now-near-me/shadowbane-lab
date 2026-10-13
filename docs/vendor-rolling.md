@@ -4,6 +4,18 @@
 
 ### Active: ten items per production slot
 
+The pure order reconciler now tracks every generated item separately. New items
+need a continuous decoded/processing/returned reply from the same character,
+scene, building and vendor, plus an observed predecessor-slot count decrement.
+A correlated Keep may prove a single successor when the client reallocates its
+slot entry. Replies alone cannot adopt items. Skipped counts, excess items, old
+items reappearing or ambiguous ancestry require review. Completion requires all
+planned IDs positively confirmed in inventory and no batch item left in production.
+The displayed inventory bound is now 512, covering 16 × 10 items; it still makes
+no server-capacity or absence claim. Twenty-four focused host checks and the native
+160-item inventory check pass; the full extension rebuild succeeds. Worker/job
+integration, recovery journaling and connected server behavior remain next.
+
 The source now adds explicit quantity-order Create (verb 61). Its command carries
 a nonzero immutable batch UUID in the first 16 extension bytes, followed by six
 32-bit budget fields: version 1, initial free orders, quantity, resource, quoted

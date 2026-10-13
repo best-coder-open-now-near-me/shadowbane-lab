@@ -3,6 +3,12 @@
 ## Vendor queue-depth correction in progress - October 13
 
 Latest quantity work remains on `codex/vendor-rolling-20261013` for draft PR #174.
+Pure item reconciliation now binds decreasing counts to observed slot ancestry
+and exact copied reply lineage; all 70 IDs need positive inventory proof. Native
+and host inventory readers cover a full 160-item batch without claiming server
+capacity. Twenty-four focused host checks, the native inventory executable and
+the extension rebuild pass. Worker/progress journal integration remains active;
+this source is uninstalled and quantity-ten server acceptance is unverified.
 The latest checkpoint adds quantity-aware whole-batch funding and schema-4 queue
 admission journals. Native Create binds the initial quota, resource and price,
 requires the full batch balance before its first order, and refuses extra orders
