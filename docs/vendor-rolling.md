@@ -2,7 +2,7 @@
 
 ## Current continuation - October 13, 2026
 
-### Qualified update; game closure required before installation
+### Installed update; quantity-ten live acceptance pending
 
 Host .110/native .68 is fully packaged from graphics-preserving release
 `65692cefd433bf28a21b21f3e5d374dcc6a5f2fd`, pushed on
@@ -25,19 +25,36 @@ Exact package identities:
 - Independent verification: `855c7ec79f8e9773051e3e1da73cfee8e1815e633d41f60933ac95062692f7fd`.
 - Supplemental startup verification: `48cd4732cb4dd8879db86912da0da634dc00781f0dcda0e3605bee39729216c7`.
 
-The read-only VM census still verifies host .109/native .67/client .18 and the
-original game lifetime, with no active or queued manager operation. Only census
-source and diagnostic evidence have been copied to the VM; no runtime, funds,
-Create, Keep or disposal changed. The user has been asked to close Shadowbane;
-the manager may remain open. Next: stop the idle manager after confirmed game
-closure, capture a fresh stable baseline, seal/install the one-DLL/host update and
-relaunch the same Vendor Test shortcut. Preserve settings and every historical
-journal in place. Then verify quantity-ten server acceptance and all 70 inventory
-receipts; raw-nine admission, disposal and town scheduling remain unqualified.
+After the user confirmed game closure, the idle, unbound .109 manager was stopped
+and a stable census sealed 9,765 retained records. Host .110/native .68 is now
+installed and activated in the test VM. All 499 module files and 9,819 retained
+records passed verification with zero exclusions; only typed manager startup and
+dispatch-permit changes were accepted. The client executable and resources were
+not written. The sole client binary replacement is the qualified extension DLL.
+The same Vendor Test launcher started PID 5744 / creation 134364054554569645 with
+that exact DLL. Its permanent production recorder is available, sequence zero,
+without admitting a command. Obsolete host .109 was retired: 2,177 reproducible
+files / 49,260,976 bytes, with no retained rollback copy. Settings and historical
+journals remain in place. No funds, Create, Keep or disposal were sent.
+
+Compact private receipt identities (SHA-256):
+
+- Sealed update plan: `322f90c589c18463e98a750557de94600edc9498a956630df88be4f173427a8b`.
+- Apply: `59063258f079ffbb05d1049c9501984111c7e1286d4218723007748c5d25b19e`.
+- Activation: `b42d8186bfbf9bb29418bc3523d57035a2ae00c35c6d87d2f1bfdab4c6f23844`.
+- Launch: `18490091f4d522f402c00cd2ead6b2d8b67213add34a5bc65120805d73651f65`.
+- Retirement: `f61c96de2b21b19169eca85b40bd08d8d2dfd401848e19dbada8707883f7ee07`.
+
+Evidence remains private under `artifacts/h110/installed` and the VM's
+`diagnostics/vendor-resume-20261013`; no captures or binaries are published.
+Active next: Treehugger's login to Rooty, fresh vendor discovery, whole-batch
+funding and quantity-ten server acceptance, then every planned inventory receipt.
+Seven free slots would plan 70 items; capacity and price must be read afresh.
+Raw-nine admission, disposal and town scheduling remain unqualified.
 
 ### Implemented behavior
 
-The quantity-ten worker slice is implemented in uninstalled host .110/native .68
+The quantity-ten worker slice is implemented in installed host .110/native .68
 source on `codex/vendor-rolling-20261013`, targeting main through draft PR #174.
 New saved-recipe starts derive separate quantity-ten, single-slot order intent,
 fund the whole initial batch once, queue one order per funded slot, and reconcile
@@ -67,10 +84,10 @@ The combined worker, recipe/HTTP, funding, queue and progress suite passes 148
 tests; Ruff and diff whitespace checks pass. These are local fixture checks,
 not a connected server acceptance receipt.
 
-Installed software remains host .109/native .67, client 1.3.38.18. Nothing from
-this source candidate has been installed or invoked. The complete release above
-is qualified locally. Next: install once after game closure, then verify native
-quantity-ten server acceptance and the complete live inventory chain. The native
+Installed software is host .110/native .68, client 1.3.38.18, from the complete
+qualified release above. Native production observation is available; no quantity
+order has been dispatched. Next: verify native quantity-ten server acceptance
+and the complete live inventory chain. The native
 raw-nine admission rule is deliberately fail-closed and still awaits live proof.
 Town scheduling and affix disposal qualification follow that batch; guard work
 is outside this task. Existing failed funding evidence remains preserved.

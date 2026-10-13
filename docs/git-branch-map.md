@@ -1,27 +1,29 @@
 # Git branch map
 
-## Vendor queue-depth correction in progress - October 13
+## Vendor quantity-ten update installed - October 13
 
 Qualified release `65692cefd433bf28a21b21f3e5d374dcc6a5f2fd` is pushed on
 `codex/vendor-release-20261013`, preserving installed graphics. Implementation
 through `725a1e63` is pushed on `codex/vendor-rolling-20261013`, targeting main in
 draft PR #174. Qualification passes 6,737 host tests, both native/IPC profiles,
 seven Windows startup cases and 499 exact installed modules; 147 updater checks
-pass. This is qualified local software, not an installed or live-accepted batch.
-The VM remains .109/.67/.18 with its original game running and manager idle.
-Game closure has been requested for the loaded DLL replacement. Next: fresh stable
-baseline, install once, then complete quantity-ten server/inventory acceptance.
+pass. Host .110/native .68/client .18 is now installed and its manager is healthy.
+Activation verifies 499 modules and 9,819 retained records with zero exclusions;
+the executable/resources are unchanged. The same Vendor Test launcher started
+the exact .68 DLL and its production recorder is available. Obsolete host .109
+was retired without rollback copies. No funding, Create, Keep or disposal was
+sent. Next: Treehugger in Rooty, fresh discovery, whole-batch funding, then complete
+quantity-ten server/inventory acceptance. A live batch is not yet qualified.
 Main and both delivery branches are clean and published. Keep the two active
 worktrees until installation/live acceptance; do not retire their unmerged source.
 
-The worker now implements the complete bounded quantity-ten job in uninstalled
+The worker now implements the complete bounded quantity-ten job in installed
 host .110/native .68 source: one batch funding pass, one ten-item order per initial
 free slot, permanent observation during pause/focus waits, distinct generated-ID
 reconciliation and existing native Keep with inventory proof. Schema-4 jobs and
 progress journals never replay uncertain actions and preserve old job schemas.
-The dashboard separates queued orders from produced/kept counts. Next: qualify
-one graphics-preserving release, install after game closure, and verify the whole
-live batch. Raw-nine server admission and .18 disposal remain unqualified; retain
+The dashboard separates queued orders from produced/kept counts. Next: verify
+the whole live batch. Raw-nine server admission and .18 disposal remain unqualified; retain
 unknowns and do not resume guard work. PR #174 remains draft for main integration.
 
 Earlier checkpoints:
