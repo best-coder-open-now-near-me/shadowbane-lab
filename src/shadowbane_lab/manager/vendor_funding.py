@@ -16,6 +16,7 @@ from shadowbane_lab.client_extension.guard_funding_session import NativeGuardFun
 from shadowbane_lab.client_extension.guard_funding_wire import Direction
 from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
+from shadowbane_lab.client_extension.vendor_budget import VendorBatchBudget
 from shadowbane_lab.client_extension.vendor_completion import _read_record
 from shadowbane_lab.client_extension.vendor_menu import close_recipe, prepare_recipe
 from shadowbane_lab.client_extension.vendor_navigation_session import NativeVendorNavigationSession
@@ -345,10 +346,12 @@ def fund_saved_vendor(
             ):
                 raise VendorBatchStopped("Recipe cost or production ownership changed.")
             free = fresh.snapshot.free_slots
+            budget = VendorBatchBudget.from_snapshot(fresh.snapshot, costs)
             record.update(
                 capacity=len(fresh.snapshot.slots),
                 free_slots=free,
                 costs={str(key): value for key, value in costs.items()},
+                batch_budget=budget.as_dict(), batch_budget_sha256=budget.canonical_digest,
             )
             save()
             if free:
@@ -359,7 +362,7 @@ def fund_saved_vendor(
                                for key, row in displayed.items())):
                     raise VendorBatchStopped("This recipe needs unqualified non-gold resources.")
                 resource = next(iter(costs))
-                required = costs[resource] * free
+                required = budget.total_costs[resource]
                 if not 0 < required <= 2**31 - 1:
                     raise VendorBatchStopped("The vendor batch gold requirement exceeds bounds.")
                 record.update(required=required, resource=resource)
@@ -446,6 +449,7 @@ def fund_saved_vendor(
                     or [slot.item for slot in after.snapshot.slots]
                     != [row["item"]["object_id"] for row in after_queue["slots"]]
                     or after.snapshot.free_slots != free
+                    or not budget.matches(after.snapshot)
                 ):
                     raise VendorBatchStopped(
                         "Vendor recipe, capacity or production changed during funding."

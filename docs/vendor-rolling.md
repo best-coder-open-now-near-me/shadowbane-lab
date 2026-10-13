@@ -4,6 +4,26 @@
 
 ### Active: ten items per production slot
 
+Whole-batch funding now produces an immutable cost/capacity budget. The budget
+supports quantities 1–10 per slot, multiplies the displayed per-slot order price
+by the initially free slots exactly once, and pins the scene, root, building,
+vendor, template, table, quantity, slot mode and pre-existing item IDs. Thus seven
+empty quantity-ten slots at 1,660 Gold mean 70 items / 11,620 Gold. Funding records
+retain the budget and its canonical digest. The worker requires that proof before
+starting a saved-recipe job; funded jobs use schema 3 and validate the original
+budget on recovery. A rank/capacity change before the job starts or before its
+first Create stops without crafting an unfunded larger batch.
+
+New Create journals fix planned work at their initial available capacity.
+Newly unlocked slots remain visible, but belong to the next funded batch. If
+capacity grows during an already-sent multiple Create, the original correlated
+request finishes without issuing a second Create for those slots. Existing
+growing-capacity journals remain readable without being rewritten or replayed.
+This corrects the old path that could silently grow a batch after funding.
+Quantity-ten Create, automatic intermediate-item inventory receipts and final
+Keep still require the native/host lifecycle work below; budget support alone
+does not broaden installed command authority.
+
 The source candidate now adds `inspect_orders` (verb 56) through the existing
 vendor command channel. Its `WBV2` receipt preserves the 288-byte snapshot and
 the 384-byte receipt ABI, using a separately identified 16-byte raw count array

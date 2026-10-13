@@ -216,7 +216,7 @@ class VendorBatchTests(unittest.TestCase):
             self.assertEqual(0, session.state.free_slots)
             self.assertEqual([16], result["capacity_history"])
 
-    def test_rank_growth_during_and_between_creates_fills_new_capacity(self):
+    def test_rank_growth_during_and_between_creates_keeps_initial_budget(self):
         for during in (True, False):
             with self.subTest(during=during), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "batch.json"
@@ -236,10 +236,10 @@ class VendorBatchTests(unittest.TestCase):
                 session.inspect = inspect
                 result = self.run_batch(path, session)
                 self.assertEqual("complete", result["state"])
-                self.assertEqual(6, len(session.calls))
-                self.assertEqual([2, 4, 6], result["capacity_history"])
-                self.assertEqual(6, result["planned_rolls"])
-                self.assertEqual(0, session.state.free_slots)
+                self.assertEqual(2, len(session.calls))
+                self.assertEqual([2, 4], result["capacity_history"])
+                self.assertEqual(2, result["planned_rolls"])
+                self.assertEqual(2, session.state.free_slots)
 
     def test_capacity_loss_stops_after_pending_send_without_retry(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -400,6 +400,7 @@ class MultipleBatchTests(unittest.TestCase):
             session.inspect = inspect
             result = self.run_batch(path, session)
             self.assertEqual("complete", result["state"])
-            self.assertEqual([3, 1], [r["expected_item_count"] for r in result["requests"]])
-            self.assertEqual(4, len(result["items"]))
+            self.assertEqual([3], [r["expected_item_count"] for r in result["requests"]])
+            self.assertEqual(3, len(result["items"]))
+            self.assertEqual(1, session.state.free_slots)
             self.assertEqual([3, 4], result["capacity_history"])

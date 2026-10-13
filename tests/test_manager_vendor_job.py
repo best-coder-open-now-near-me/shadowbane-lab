@@ -514,7 +514,7 @@ class VendorJobTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.directory("../escape")
 
-    def test_rank_growth_uses_new_slots_within_the_same_fill(self):
+    def test_rank_growth_leaves_new_slots_for_the_next_funded_batch(self):
         def grow():
             if len(self.session.calls) == 1:
                 self.session.state = replace(
@@ -524,7 +524,7 @@ class VendorJobTests(unittest.TestCase):
 
         self.session.after_create = grow
         result = self.run_job()
-        self.assertEqual((3, 3, 3), (result["created"], result["kept"], result["capacity"]))
+        self.assertEqual((2, 2, 3), (result["created"], result["kept"], result["capacity"]))
 
     def test_permit_revoked_after_journal_flush_prevents_native_send(self):
         from shadowbane_lab.client_extension import vendor_batch

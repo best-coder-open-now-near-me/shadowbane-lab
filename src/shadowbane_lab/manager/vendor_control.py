@@ -417,11 +417,16 @@ class VendorWorkerExecutor:
                 selection = VendorRecipeStore(store).current(operation.command.split()[2])
                 selection = require_saved_owner(
                     selection, binding, session, reader=self.recipe_reader)
-                self.funding_runner(store, binding, operation, session, selection,
-                                    cancelled=stop_signal.is_set)
+                funded = self.funding_runner(store, binding, operation, session, selection,
+                                             cancelled=stop_signal.is_set)
+                if (not isinstance(funded, dict) or funded.get("state") != "funded"
+                        or "batch_budget" not in funded or "batch_budget_sha256" not in funded):
+                    raise VendorBatchStopped("whole-batch funding evidence is missing")
                 selection = require_saved_owner(
                     selection, binding, session, reader=self.recipe_reader)
-            elif resume and current.get("schema_version") == 2:
+                selection = dict(selection, batch_budget=funded["batch_budget"],
+                                 batch_budget_sha256=funded["batch_budget_sha256"])
+            elif resume and current.get("schema_version") in (2, 3):
                 from shadowbane_lab.client_extension.vendor_wire import Snapshot
 
                 initial = Snapshot.decode(bytes.fromhex(current["initial_snapshot"]))

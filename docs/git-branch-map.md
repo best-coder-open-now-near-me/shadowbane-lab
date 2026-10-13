@@ -8,6 +8,11 @@ count receipt through the existing vendor channel; legacy encodings and
 quantity-one spending admission are preserved. It is not installed. Continue
 quantity-aware planning/progress and dispatch qualification before deploying a
 coherent end-to-end update. The ordinary checkout remains clean on main.
+Whole-batch funding now carries a canonical quantity/capacity budget into schema-3
+funded jobs. New fills stay within their initial funded work even if the vendor
+ranks up; new capacity is picked up by the next batch. Historical growing-batch
+journals are preserved and remain readable. Quantity-ten dispatch/completion,
+funding handback and live batch acceptance are still active todos.
 
 Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
 through draft PR #174. Installed software remains host .109/native .67 from

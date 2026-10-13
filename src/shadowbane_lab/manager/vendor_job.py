@@ -22,6 +22,7 @@ from shadowbane_lab.client_extension.vendor_batch import (
     _owner,
     fill_available_slots,
 )
+from shadowbane_lab.client_extension.vendor_budget import VendorBatchBudget
 from shadowbane_lab.client_extension.vendor_completion import (
     _read_record,
     keep_completed_batch,
@@ -98,7 +99,7 @@ class VendorJobStore:
     def read(self, job_id: str) -> dict:
         record = json.loads(_read_record(self.directory(job_id) / "job.json"))
         if (
-            record.get("schema_version") not in (1, 2)
+            record.get("schema_version") not in (1, 2, 3)
             or record.get("job_id") != job_id
             or tuple(record.get("identity", ())) != self.identity
             or record.get("phase") not in {"preparing", "filling", "waiting", "keeping"}
@@ -113,11 +114,17 @@ class VendorJobStore:
             }
         ):
             raise ValueError("invalid vendor job record")
-        if record["schema_version"] == 2:
+        if record["schema_version"] in (2, 3):
             spec = RandomRecipeSpec.from_dict(record["recipe_spec"])
             if (record.get("recipe_sha256") != spec.canonical_digest
                     or not _JOB.fullmatch(record.get("recipe_revision", ""))):
                 raise ValueError("saved recipe job specification changed")
+        if record["schema_version"] == 3 or "batch_budget" in record:
+            budget = VendorBatchBudget.from_dict(record["batch_budget"])
+            initial = Snapshot.decode(bytes.fromhex(record["initial_snapshot"]))
+            if (budget.canonical_digest != record.get("batch_budget_sha256")
+                    or not budget.matches(initial)):
+                raise ValueError("funded vendor batch budget changed")
         return record
 
     def save(self, record: dict) -> None:
@@ -129,6 +136,12 @@ class VendorJobStore:
             raise VendorBatchStopped("resume or review the existing vendor job first")
         spec = RandomRecipeSpec.from_dict(selection["recipe_spec"]) if selection else None
         first = session.inspect_random() if spec else session.inspect()
+        budget = None
+        if selection and "batch_budget" in selection:
+            budget = VendorBatchBudget.from_dict(selection["batch_budget"])
+            if (budget.canonical_digest != selection.get("batch_budget_sha256")
+                    or not budget.matches(first.snapshot)):
+                raise VendorBatchStopped("vendor capacity or recipe changed after funding")
         if (
             first.outcome != Outcome.OBSERVED
             or first.window != window
@@ -154,7 +167,7 @@ class VendorJobStore:
         finally:
             menus.close()
         record = {
-            "schema_version": 2 if spec else 1,
+            "schema_version": 3 if budget else (2 if spec else 1),
             "job_id": uuid.uuid4().hex,
             "identity": self.identity,
             "state": "running",
@@ -176,6 +189,9 @@ class VendorJobStore:
             record.update(recipe_spec=spec.as_dict(), recipe_sha256=spec.canonical_digest,
                           recipe_revision=selection["revision"], recipe_owner=selection["owner"],
                           recipe_label=selection["display_name"])
+        if budget:
+            record.update(batch_budget=budget.as_dict(),
+                          batch_budget_sha256=budget.canonical_digest)
         self.save(record)
         _write(self.directory(record["job_id"]) / "control.json", {"mode": "run"})
         _write(self.root / "current.json", {"job_id": record["job_id"]})
@@ -303,7 +319,7 @@ def run_vendor_job(
         menu_path = directory / "inventory-menu.json"
         preparation_path = directory / "recipe-preparation.json"
         spec = (RandomRecipeSpec.from_dict(record["recipe_spec"])
-                if record["schema_version"] == 2 else None)
+                if record["schema_version"] in (2, 3) else None)
         preparation_raw = None
 
         def update(state: str, detail: str):

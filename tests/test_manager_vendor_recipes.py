@@ -330,9 +330,18 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup):
     session.inspect = complete_observation
     binding = ExactClientWorkerBinding(CLIENT_ID, INSTANCE_ID, 988, 1234567, 1000, WORKER_ID)
     funding_calls = []
+    def fund(*args, **kwargs):
+        from shadowbane_lab.client_extension.vendor_budget import VendorBatchBudget
+
+        funding_calls.append(args)
+        # The real funder returns with the saved recipe activated.
+        session.state = replace(session.state, recipe=400)
+        budget = VendorBatchBudget.from_snapshot(session.state, {555: 166})
+        return dict(state="funded", batch_budget=budget.as_dict(),
+                    batch_budget_sha256=budget.canonical_digest)
     worker = VendorWorkerExecutor(test.root, NODE_ID, binding, session_factory=lambda _: session,
                                   recipe_reader=session.reader,
-                                  funding_runner=lambda *args, **kwargs: funding_calls.append(args))
+                                  funding_runner=fund)
     lifecycle = _RecordingSession(ManagerSessionSnapshot(
         node_id=NODE_ID,
         slots=(_slot(CLIENT_ID, instance_id=INSTANCE_ID), _slot("client-02")),
