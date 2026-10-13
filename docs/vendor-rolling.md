@@ -36,6 +36,11 @@ that exact DLL. Its permanent production recorder is available, sequence zero,
 without admitting a command. Obsolete host .109 was retired: 2,177 reproducible
 files / 49,260,976 bytes, with no retained rollback copy. Settings and historical
 journals remain in place. No funds, Create, Keep or disposal were sent.
+Subsequent read-only status confirms one healthy exact worker, an empty operation
+queue and character identity unavailable at login. Obsolete local .109 package,
+source-mirror and dependency outputs were retired (4,306 files / 96,098,527 bytes),
+as were 22 obsolete guest payload binaries (40,695,787 bytes). Original logs,
+hash inventories and receipts remain; current software and user data are preserved.
 
 Compact private receipt identities (SHA-256):
 
