@@ -1,6 +1,6 @@
 # Player-owned vendor rolling
 
-## Current continuation - October13,2026
+## Current continuation - October 13, 2026
 
 Start from refreshed main; the original vendor-town-workflow source is included.
 The saved random recipe picker and typed recipe/Inventory operations are in
@@ -8,11 +8,11 @@ source. Their supervised acceptance and durable town scheduling remain open.
 Current task branch: codex/vendor-rolling-20261013; integration destination: main.
 Guard work is outside this task. Target: Treehugger in Rooty on the test VM.
 
-Active dependency: the official client updated to.18 while the modded runtime
-still has reviewed.17. Its launcher correctly blocks that mismatch. See
+Active dependency: the official client updated to .18 while the modded runtime
+still has reviewed .17. Its launcher correctly blocks that mismatch. See
 [the exact client update and validation state](client-update-20261013.md).
 Finish the matching qualified update and verify launch before resuming crafting.
-Keep the user's exclusion policy: confirmed Tier1/2 excluded, unknowns retained.
+Keep the user's exclusion policy: confirmed Tier 1/2 excluded, unknowns retained.
 No old pending request is replayed and no rollback runtime is retained.
 
 The dated delivery and historical branch instructions below describe earlier

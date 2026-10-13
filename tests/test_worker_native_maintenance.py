@@ -81,7 +81,13 @@ def test_locked_history_longer_than_native_lease_does_not_block_renewal(tmp_path
             # actually observed fresh permits can keep this same owner alive.
             time.sleep(2.35)
             assert not signal.is_set()
-            assert signal._authority.permit.issued_at > permit.expires_at
+            now = 100 + time.monotonic() - began
+            assert now > permit.expires_at
+            # A replacement can be issued before the original expires and still
+            # authorize this later instant. Requiring issue after that boundary
+            # incorrectly rejects valid renewal when the manager is scheduled late.
+            assert signal._authority.permit.issued_at > permit.issued_at
+            assert signal._authority.permit.expires_at > now
             assert len(session.renew_calls) >= 8
             movement.finish()
             after = len(session.renew_calls)
@@ -198,3 +204,21 @@ def test_retained_game_handle_close_waits_for_inflight_exact_check():
         reader.join(3)
         closer.join(3)
     assert closed.is_set()
+
+
+def test_replacement_issued_before_original_expiry_authorizes_later_instant(tmp_path):
+    now = [100.]
+    _, heartbeats, permit, signal, movement, session = setup(tmp_path, lambda: now[0])
+    replacement = replace(permit, issued_at=101.5, expires_at=103.5)
+    now[0] = replacement.issued_at
+    heartbeats.publish_permit(replacement)
+    signal.refresh()  # The real observer reads it while prior authority is valid.
+    now[0] = 102.35
+    assert permit.expires_at < now[0] < replacement.expires_at
+    assert not signal.is_set()
+    assert signal._authority.permit == replacement
+    assert movement.maintain()
+    now[0] = replacement.expires_at
+    assert signal.is_set()
+    movement.finish()
+    assert session.closed == 1
