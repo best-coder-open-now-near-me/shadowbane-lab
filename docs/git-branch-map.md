@@ -1,5 +1,23 @@
 # Git branch map
 
+## Vendor queue-depth correction in progress - October 13
+
+Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
+through draft PR #174. Installed software remains host .109/native .67 from
+release `fdc07896`; source candidate .110 is not packaged or installed.
+The user clarified ten items per slot, so seven free slots represent up to 70
+items. Read-only cost support now includes quantity 1–10 with native double
+rounding; command dispatch still accepts quantity one only. Focused cost/funding
+checks passed 57 cases, plus 77 existing recipe/HTTP worker checks. The attempted
+funding stopped on an uninitialized
+warehouse View Resources reference, before any gold or crafting action; its
+rejected journal remains preserved and the worker's cleanup block remains.
+Active next: observe the quantity-ten recipe/queue lifecycle, then implement
+matching production receipts and funding recovery, and verify a whole batch.
+The user has been asked to leave the quantity-ten menu before Create; the bounded
+read-only observer timed out without seeing it. See
+[current evidence and exact pending work](vendor-rolling.md).
+
 ## Vendor discovery recovery candidate - October 13
 
 Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main

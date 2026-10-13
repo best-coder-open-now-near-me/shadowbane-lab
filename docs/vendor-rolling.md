@@ -2,6 +2,50 @@
 
 ## Current continuation - October 13, 2026
 
+### Active: ten items per production slot
+
+The user clarified that every slot can queue ten items. Seven free slots must
+therefore be planned as up to 70 scepters, not a seven-item batch. Native .67's
+generalized dispatcher and saved recipe deliberately accept quantity one only;
+ten-item production is not enabled or qualified yet.
+
+Malik's retained Gilded Scepter recipe was activated successfully in the fresh
+.109 session. Start `operation-9eab8d942bb24efa888f702a675cfac6` observed seven
+free slots and a 166-gold unit cost. Its warehouse building and Seneschal opens
+were confirmed, but View Resources returned UNAVAILABLE before entering that
+action. The exact submission is preserved as `navigate_warehouse`; it has no
+completion, no unresolved flag and the shared active pointer is null. Funding
+remains review and preparation is blocked after the failed handback. No
+withdrawal, deposit, Create, Keep or disposal was sent. Do not replay this record.
+
+The existing warehouse hook requires its resources HUD's owned NPC reference
+and the ordinary 20-unit interaction predicate. This login has not initialized
+that HUD; opening the personal Seneschal menu alone does not initialize it.
+No guard operation is part of this investigation. Recovery must prove native
+idle and preserve the rejected funding journal; never clear the block by hand.
+
+Read-only inspection of exact client .18 cost code (640230/2df880) confirms two
+rounding passes: random markup is rounded to an integer before multiplying by
+the per-slot quantity. The source cost observer now supports quantities 1–10
+in either slot mode, without granting command authority. For this recipe the
+calculated quantity-ten cost is 1,660 gold per slot, or 11,620 across seven slots;
+the server debit for a ten-item order is not live-qualified. The cost/funding
+regressions passed 57 cases; existing saved-recipe/HTTP worker checks passed 77.
+The HTTP check first encountered the sandbox's localhost socket restriction and
+passed with the required local socket access. This is source candidate host .110 only; installed
+host .109 and native .67 remain unchanged.
+
+Active next: inspect the user's ten-per-slot recipe before Create, then qualify
+its full queue/completion lifecycle and implement matching native/host receipts.
+The user has been asked to leave that menu at quantity ten. The bounded read-only
+observer timed out without seeing a crafting menu and sent no game input.
+Next after that: warehouse initialization and
+proof-based funding handback, then one fully funded capacity batch and Keep.
+Tier 1–2 disposal remains unqualified; unknowns remain retained. PR #174 is draft
+while the corrected queue-depth workflow remains unfinished.
+
+### Installed recovery and earlier discovery evidence
+
 Treehugger is logged into Rooty on the fresh .108 game lifetime. Discovery
 verified 23 personal vendor windows across 12 of 14 candidate buildings before
 two typed read-only observations returned STALE. Every recorded window mutation

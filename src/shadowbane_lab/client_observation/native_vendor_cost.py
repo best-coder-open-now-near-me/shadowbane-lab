@@ -13,11 +13,13 @@ from .native_vendor_dialog import (
 from .native_vendor_queue import _ReadSet, read_native_vendor_queue
 
 
-def random_cost(amount: int, markup: float) -> int:
+def random_cost(amount: int, markup: float, quantity: int = 1) -> int:
     """Mirror 640230/2df880: float32 multiplier, add 0.5, truncate.
 
-    The client applies this once for random mode and again for quantity one.
-    Fractions retain the exact float32 product used by the x87 path.
+    The client rounds the random markup first, then scales and rounds the
+    resulting integer for the per-slot quantity. Fractions retain the exact
+    float32 product used by the x87 path; combining the two multipliers changes
+    the native result.
     Named production has a separate multiplier and is deliberately unavailable.
     """
     if (
@@ -25,12 +27,17 @@ def random_cost(amount: int, markup: float) -> int:
         or not 0 < amount <= 2**31 - 1
         or not math.isfinite(markup)
         or not 0 <= markup <= 100
+        or type(quantity) is not int
+        or not 1 <= quantity <= 10
     ):
         raise NativeVendorDialogCaptureError("invalid random recipe cost")
     factor = struct.unpack("<f", struct.pack("<f", 1 + markup))[0]
     cost = int(Fraction(amount) * Fraction(factor) + Fraction(1, 2))
     if not 0 < cost <= 2**31 - 1:
         raise NativeVendorDialogCaptureError("random recipe cost exceeds gold bounds")
+    cost *= quantity
+    if cost > 2**31 - 1:
+        raise NativeVendorDialogCaptureError("random recipe quantity cost exceeds gold bounds")
     return cost
 
 
@@ -53,13 +60,14 @@ def read_native_vendor_cost(memory):
     if (
         recipe is None
         or recipe["mode_raw"] != 1
-        or recipe["quantity"] != 1
-        or recipe["multiple_slots"]
+        or type(recipe["quantity"]) is not int
+        or not 1 <= recipe["quantity"] <= 10
         or recipe["template"] is None
         or recipe["prefix_selection_raw"] != recipe["suffix_selection_raw"]
         or recipe["prefix_selection_raw"] != recipe["random_sentinel_raw"]
     ):
-        raise NativeVendorDialogCaptureError("an owned random single recipe is required")
+        raise NativeVendorDialogCaptureError(
+            "an owned random recipe quantity from 1 to 10 is required")
     hud = recipe["window_address"]
     if r.read(hud + 0x540, 4)[1]:
         raise NativeVendorDialogCaptureError("named recipe funding is unavailable")
@@ -74,7 +82,7 @@ def read_native_vendor_cost(memory):
         key, amount = r.word(node + 8), r.word(node + 12)
         if not key or key in costs:
             raise NativeVendorDialogCaptureError("duplicate recipe resource")
-        costs[key] = random_cost(amount, markup)
+        costs[key] = random_cost(amount, markup, recipe["quantity"])
         previous, node = node, r.word(node)
     r.require(head + 4, previous, "recipe requirement tail")
     if not costs:

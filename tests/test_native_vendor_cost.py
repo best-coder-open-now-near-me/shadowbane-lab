@@ -53,8 +53,8 @@ def test_invalid_or_overflow_cost_is_unavailable(amount, markup):
     "address,fmt,value",
     [
         (CREATION + 0x404, "<I", 0),
-        (CREATION + 0x4D4, "<I", 2),
-        (CREATION + 0x3D8, "<I", 1),
+        (CREATION + 0x4D4, "<I", 11),
+        (CREATION + 0x4D4, "<I", 0),
         (CREATION + 0x540, "<I", 256),
         (0x210100 + 4, "<I", 0),
         (0x210100, "<I", 0x210100),
@@ -72,5 +72,35 @@ def test_changed_recipe_or_malformed_requirements_are_rejected(address, fmt, val
 def test_changing_cost_is_never_adopted_by_retry():
     m = memory()
     m.change = (0x210100 + 12, 4, (999).to_bytes(4, "little"))
+    with pytest.raises(NativeVendorDialogCaptureError, match="changed"):
+        read_native_vendor_cost(m)
+
+
+@pytest.mark.parametrize("multiple", [0, 1])
+def test_ten_per_slot_cost_rounds_markup_before_quantity_without_granting_actions(multiple):
+    m = memory()
+    m.put(CREATION + 0x4D4, "<I", 10)
+    m.put(CREATION + 0x3D8, "<I", multiple)
+    queue, costs = read_native_vendor_cost(m)
+    assert costs == {2308551: 1660}  # Rounding only after multiplying would produce 1661.
+    assert queue["creation_recipe"]["quantity"] == 10
+    assert queue["creation_recipe"]["multiple_slots"] is bool(multiple)
+    assert queue["command_admitted"] is False
+
+
+@pytest.mark.parametrize("quantity", [True, 0, -1, 11, 1.5])
+def test_invalid_per_slot_quantity_is_rejected(quantity):
+    with pytest.raises(NativeVendorDialogCaptureError):
+        random_cost(151, .1, quantity)
+
+
+def test_quantity_overflow_is_rejected_after_native_markup_rounding():
+    with pytest.raises(NativeVendorDialogCaptureError, match="quantity cost"):
+        random_cost(2**30, 0, 10)
+
+
+def test_quantity_change_during_observation_is_rejected():
+    m = memory()
+    m.change = (CREATION + 0x4D4, 4, (10).to_bytes(4, "little"))
     with pytest.raises(NativeVendorDialogCaptureError, match="changed"):
         read_native_vendor_cost(m)
