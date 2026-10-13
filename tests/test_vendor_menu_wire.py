@@ -78,6 +78,11 @@ def test_commands_admit_only_owned_typed_arguments(verb):
     if verb == Verb.INSPECT:
         snapshot = Snapshot()
     template = 25860 if verb == Verb.SELECT_RECIPE else 0
+    if verb in (Verb.SELECT_ORDER_RECIPE, Verb.RANDOM_ORDER_MODE, Verb.ORDER_QUANTITY):
+        snapshot = recipe(item_template=25860, selected_template=25860,
+                          activated_template=25860, multiple=1, quantity=1)
+        template = (25860 if verb == Verb.SELECT_ORDER_RECIPE
+                    else 10 if verb == Verb.ORDER_QUANTITY else 0)
     command = Command(Host(123, 7, 456), 999, KEY, snapshot, template)
     assert len(command.encode(verb)) == 576
     with pytest.raises(ValueError):
@@ -87,6 +92,23 @@ def test_commands_admit_only_owned_typed_arguments(verb):
             replace(command, expected=Snapshot()).encode(verb)
         with pytest.raises(ValueError):
             replace(command, expected=replace(snapshot, front_hud=123456)).encode(verb)
+
+
+@pytest.mark.parametrize("quantity", [0, 11, True, -1, 2**32])
+def test_order_quantity_rejects_outside_the_observed_slider_range(quantity):
+    observed = recipe(item_template=25860, selected_template=25860,
+                      activated_template=25860, quantity=1, multiple=1)
+    with pytest.raises(ValueError):
+        Command(Host(123, 7, 456), 999, KEY, observed, quantity).encode(Verb.ORDER_QUANTITY)
+
+
+def test_order_commands_cannot_adopt_single_recipe_or_foreign_selection():
+    observed = recipe(item_template=25860, selected_template=25860,
+                      activated_template=25860, quantity=1, multiple=0)
+    for verb, argument in ((Verb.ORDER_QUANTITY, 10), (Verb.SELECT_ORDER_RECIPE, 25860),
+                           (Verb.RANDOM_ORDER_MODE, 0)):
+        with pytest.raises(ValueError):
+            Command(Host(123, 7, 456), 999, KEY, observed, argument).encode(verb)
 
 
 def test_selection_requires_single_mode_and_random_mode_requires_matching_keys():

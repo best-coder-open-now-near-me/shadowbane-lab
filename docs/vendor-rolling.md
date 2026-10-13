@@ -4,6 +4,27 @@
 
 ### Active: ten items per production slot
 
+The next source checkpoint adds non-spending multiple-order preparation through
+the existing menu channel (verbs 57–60). It opens the observed
+`BTNCREATEMULTIPLEITEM` / action 0x5A2, selects the saved template, selects random
+mode and sets quantity through the client's ordinary 63F320/63F6E0 initializer
+and setter. The quantity panel, callback, widget ownership, slider action and
+range are checked before invocation and again after initialization. A lost lease
+or changed owner after initialization becomes uncertainty, never a replay.
+Live read-only evidence confirms the current slider maximum 10, index 9, action
+652 with empty parameters and an allocated empty native string. No setter was
+invoked in the game. The native builder code encodes quantity one as raw zero
+and quantity ten as raw ten; that is static client evidence, not server acceptance.
+
+The observer now reads the recipe while its fourth tab is selected. Selection,
+random-mode actions and legacy Create retain their original page/action guards.
+`RandomOrderSpec` keeps quantity intent separate from immutable old single-item
+saved recipes. Schema-2 preparation journals bind every menu transition and exact
+quantity to the owner and client lifetime; old schema-1 journals are unchanged.
+The native menu suite passed three executables and 221 relevant host tests passed;
+the full extension rebuild succeeds. Source remains uninstalled, and quantity-ten
+Create admission plus complete item/inventory reconciliation are still pending.
+
 Whole-batch funding now produces an immutable cost/capacity budget. The budget
 supports quantities 1–10 per slot, multiplies the displayed per-slot order price
 by the initially free slots exactly once, and pins the scene, root, building,

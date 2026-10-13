@@ -3,7 +3,8 @@
 namespace wonderbane::extension::vendor_menu::wire {
 using Outcome = vendor::wire::Outcome;
 enum class Verb : std::uint32_t { inspect = 25, open_recipe = 26, select_recipe = 27,
-    random_mode = 28, close_recipe = 29, open_inventory = 30, close_inventory = 31 };
+    random_mode = 28, close_recipe = 29, open_inventory = 30, close_inventory = 31,
+    open_order_recipe = 57, select_order_recipe = 58, random_order_mode = 59, order_quantity = 60 };
 constexpr std::uint32_t magic = 0x57424d31, ready = 1, in_flight = 2, unresolved = 4;
 #pragma pack(push, 1)
 struct Snapshot {
@@ -55,11 +56,20 @@ inline bool Reached(Verb verb, const Command& c, const Snapshot& s) noexcept {
     if (!ValidSnapshot(s) || !SameOwner(c.expected, s)) { return false; }
     switch (verb) {
     case Verb::open_recipe: return s.recipe && s.front_hud == s.recipe && !s.multiple;
+    case Verb::open_order_recipe: return s.recipe && s.front_hud == s.recipe && s.multiple == 1;
     case Verb::select_recipe: return s.recipe == c.expected.recipe
+        && s.recipe_list == c.expected.recipe_list && Selected(s, c.item_template);
+    case Verb::select_order_recipe: return s.multiple == 1 && s.recipe == c.expected.recipe
         && s.recipe_list == c.expected.recipe_list && Selected(s, c.item_template);
     case Verb::random_mode: return s.recipe == c.expected.recipe && s.recipe_list == c.expected.recipe_list
         && Selected(s, c.expected.item_template) && s.mode == 1 && s.table
         && s.prefix == s.sentinel && s.suffix == s.sentinel && s.quantity == 1 && !s.multiple;
+    case Verb::random_order_mode: return s.multiple == 1 && s.recipe == c.expected.recipe
+        && s.recipe_list == c.expected.recipe_list && Selected(s, c.expected.item_template)
+        && s.mode == 1 && s.table && s.prefix == s.sentinel && s.suffix == s.sentinel;
+    case Verb::order_quantity: return s.multiple == 1 && s.recipe == c.expected.recipe
+        && s.recipe_list == c.expected.recipe_list && Selected(s, c.expected.item_template)
+        && s.quantity == c.item_template;
     case Verb::close_recipe: return !s.recipe && s.front_hud == s.menu;
     case Verb::open_inventory: return s.inventory && s.front_hud == s.inventory;
     case Verb::close_inventory: return !s.inventory && s.front_hud == s.menu;
@@ -71,12 +81,20 @@ inline bool Valid(Verb verb, const Command& c) noexcept {
         || movement::wire::Zero(c.request.data(), c.request.size())
         || !movement::wire::Zero(c.reserved, sizeof(c.reserved))) { return false; }
     if (verb == Verb::inspect) { return !c.item_template && movement::wire::Zero(&c.expected, sizeof(c.expected)); }
-    if (!ValidSnapshot(c.expected) || (verb != Verb::select_recipe && c.item_template)) { return false; }
+    const bool argument = verb == Verb::select_recipe || verb == Verb::select_order_recipe
+        || verb == Verb::order_quantity;
+    if (!ValidSnapshot(c.expected) || (!argument && c.item_template)) { return false; }
     const auto& s = c.expected;
     switch (verb) {
     case Verb::open_recipe: return !s.inventory && (s.front_hud == s.menu || (s.recipe && s.front_hud == s.recipe && !s.multiple));
+    case Verb::open_order_recipe: return !s.inventory && (s.front_hud == s.menu
+        || (s.recipe && s.front_hud == s.recipe && s.multiple == 1));
     case Verb::select_recipe: return c.item_template && s.recipe && s.front_hud == s.recipe && !s.multiple;
+    case Verb::select_order_recipe: return c.item_template && s.recipe && s.front_hud == s.recipe && s.multiple == 1;
     case Verb::random_mode: return Selected(s, s.item_template) && !s.multiple;
+    case Verb::random_order_mode: return Selected(s, s.item_template) && s.multiple == 1;
+    case Verb::order_quantity: return Selected(s, s.item_template) && s.multiple == 1
+        && c.item_template >= 1 && c.item_template <= 10;
     case Verb::close_recipe: return !s.inventory && (s.front_hud == s.menu || (s.recipe && s.front_hud == s.recipe));
     case Verb::open_inventory: return !s.recipe && (s.front_hud == s.menu || (s.inventory && s.front_hud == s.inventory));
     case Verb::close_inventory: return !s.recipe && (s.front_hud == s.menu || (s.inventory && s.front_hud == s.inventory));

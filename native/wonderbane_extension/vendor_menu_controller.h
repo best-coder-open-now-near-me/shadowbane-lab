@@ -35,7 +35,8 @@ public:
         current_ = valid ? s : wire::Snapshot{};
         if (!pending_ || unresolved_) { return; }
         const bool same_recipe_required = pending_->verb == wire::Verb::select_recipe
-            || pending_->verb == wire::Verb::random_mode;
+            || pending_->verb == wire::Verb::random_mode || pending_->verb == wire::Verb::select_order_recipe
+            || pending_->verb == wire::Verb::random_order_mode || pending_->verb == wire::Verb::order_quantity;
         const bool replaced_recipe = valid && same_recipe_required
             && (s.recipe != pending_->command.expected.recipe
                 || s.recipe_list != pending_->command.expected.recipe_list);

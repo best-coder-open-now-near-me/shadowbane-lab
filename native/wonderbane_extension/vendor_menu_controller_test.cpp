@@ -34,6 +34,21 @@ static std::string Hex(const void* data, std::size_t size) {
     return out;
 }
 int main(int argc, char** argv) {
+    for(unsigned failure=0; failure<4; ++failure) {
+        m::Controller orders; Invoker dispatch; auto s=Recipe(); s.multiple=1;
+        orders.Observe(s,true,1); auto request=Command(orders.Current()); request.item_template=10;
+        assert(w::Valid(w::Verb::order_quantity,request));
+        const auto sent=orders.Execute(w::Verb::order_quantity,request,true,true,1,dispatch);
+        assert(sent.flags==w::in_flight && dispatch.calls==1);
+        auto after=s; after.quantity=10;
+        if(failure==1) { ++after.recipe; after.front_hud=after.recipe; }
+        if(failure==2) { ++after.recipe_list; }
+        orders.Observe(after,true,failure==3?5002:2);
+        assert(orders.Busy()==(failure!=0));
+        const auto replay=orders.Execute(w::Verb::order_quantity,request,true,true,5003,dispatch);
+        assert(!std::memcmp(&sent,&replay,sizeof(sent)) && dispatch.calls==1);
+        request.item_template=11; assert(!w::Valid(w::Verb::order_quantity,request));
+    }
     Invoker i;
     m::Controller c;
     c.Observe(Menu(), true, 10);

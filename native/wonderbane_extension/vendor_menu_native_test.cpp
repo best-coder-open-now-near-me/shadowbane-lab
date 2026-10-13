@@ -16,6 +16,8 @@ bool NativeMovementLifetimeCurrent(const NativeScene& s) noexcept { return live 
 std::uint32_t base = 0, data_at = 0, text_at = 0;
 m::NativeScene scene{}; n::wire::Command command{};
 unsigned calls = 0, selects = 0, activates = 0, scrolls = 0, admissions = 0;
+unsigned quantity_pages = 0, quantities = 0;
+bool detach_quantity_page = false;
 unsigned deny_at = 0, mutate_at = 0;
 bool detach_select = false, revoke_select = false, stale_select = false, reenter = false, detach_scroll = false;
 bool reenter_create = false, detach_create = false;
@@ -26,7 +28,9 @@ constexpr std::uint32_t ROOT=0x1000, MANAGER=0x2000, MENU=0x3000, HIRE=0x4000,
  PANEL=0xa000, BORDER=0xb000, LIST=0xc000, ROW1=0xd000, ROW2=0xe000,
  ENTRY1=0xf000, ENTRY2=0x10000, TEMPLATE1=0x11000, TEMPLATE2=0x12000,
  OPEN=0x13000, VIEW=0x14000, CANCEL=0x15000, MAGIC=0x16000, INVENTORY=0x17000,
- ICANCEL=0x18000, WRAPPER=0x19000, TAB=0x1a000, HEAD=0x1b000, ILIST=0x1c000, ICANCEL2=0x1d000, CREATECONTROL=0x1e000;
+ ICANCEL=0x18000, WRAPPER=0x19000, TAB=0x1a000, HEAD=0x1b000, ILIST=0x1c000, ICANCEL2=0x1d000, CREATECONTROL=0x1e000,
+ TAB2=0x20000, TAB3=0x21000, TAB4=0x22000, QPANEL=0x23000,
+ QBODY=0x24000, QSLIDER=0x25000, QWRAPPER=0x26000, OPENORDER=0x27000;
 std::uint32_t P(std::uint32_t off) { return base + off; }
 void Put(std::uint32_t off, std::uint32_t value) { std::memcpy(reinterpret_cast<void*>(P(off)), &value, 4); }
 std::uint32_t Word(std::uint32_t off) { std::uint32_t v; std::memcpy(&v, reinterpret_cast<void*>(P(off)), 4); return v; }
@@ -77,11 +81,23 @@ bool __fastcall Button(void* self,void*,std::uint32_t event,std::uint32_t flag) 
     if(reenter_create) nested=n::InvokeRandomCreate(base,scene,random_expected,&Admit,nullptr);
     const auto p=reinterpret_cast<std::uint32_t>(self);
     if(p==P(OPEN)) Huds({RECIPE,MENU});
+    else if(p==P(OPENORDER)) { Put(RECIPE+0x3d8,1); Huds({RECIPE,MENU}); }
     else if(p==P(VIEW)) { Put(MANAGER+0x7c,P(INVENTORY)); Put(MANAGER+0x58,1); Huds({INVENTORY,MENU}); }
     else if(p==P(CANCEL)||p==P(ICANCEL)) Huds({MENU});
     else if(p==P(CREATECONTROL)) { /* Dispatch may reject costs: no fake queue acceptance. */ }
     else { assert(p==P(MAGIC)); Put(RECIPE+0x404,1); Put(RECIPE+0x40c,3362971591U); Put(RECIPE+0x434,3362971591U); }
     return false; // Generic handler return is not action completion.
+}
+void __fastcall QuantityPage(void* self, void*, void* panel) {
+    assert(reinterpret_cast<std::uint32_t>(self) == P(RECIPE));
+    assert(reinterpret_cast<std::uint32_t>(panel) == P(QPANEL)); ++quantity_pages;
+    Put(QSLIDER+0x330, Word(RECIPE+0x4d4)-1);
+    if(detach_quantity_page) Put(QPANEL+0xe8,0);
+}
+void __fastcall Quantity(void* self, void*, unsigned quantity, void* panel) {
+    assert(reinterpret_cast<std::uint32_t>(self) == P(RECIPE));
+    assert(reinterpret_cast<std::uint32_t>(panel) == P(QPANEL)); ++quantities;
+    Put(RECIPE+0x4d4, quantity); Put(QSLIDER+0x330,quantity-1);
 }
 void Jump(std::uint32_t off,std::uintptr_t target) {
     auto* p=reinterpret_cast<unsigned char*>(P(off)); p[0]=0xb8; Put(off+1,static_cast<std::uint32_t>(target)); p[5]=0xff; p[6]=0xe0;
@@ -92,6 +108,7 @@ void Reset(bool recipe=true) {
     data_at=0x30000; text_at=0x40000; live=true; calls=selects=activates=scrolls=admissions=0;
     deny_at=mutate_at=0; detach_select=revoke_select=stale_select=reenter=detach_scroll=false;
     reenter_create=detach_create=false; random_expected={}; nested=O::invalid;
+    quantity_pages=quantities=0; detach_quantity_page=false;
     Put(0x16a7bfc,P(ROOT)); Put(ROOT,P(0x1174884)); Put(ROOT+0x64,2); Put(ROOT+0xa4,P(MANAGER)); Put(ROOT+0x20,P(HEAD));
     Put(MANAGER,P(0x1171adc)); Put(MANAGER+0x78,P(MENU)); Put(MANAGER+0xf0,123); Put(MANAGER+0xf4,8); Put(MANAGER+0xf8,123); Put(MANAGER+0xfc,8); Put(MANAGER+0x384,P(HIRE));
     Put(HIRE,P(0x1169518)); Put(HIRE+0x10,777); Put(HIRE+0x14,42);
@@ -121,6 +138,16 @@ void Reset(bool recipe=true) {
     if(recipe) Huds({RECIPE,MENU}); else Huds({MENU});
     scene={}; scene.epoch=1; scene.window=P(ROOT);
 }
+void OrderReady() {
+    Reset(); Put(RECIPE+0x3d8,1);
+    Vector(PAGES+0x400,{TAB,TAB2,TAB3,TAB4}); Put(TAB4+4,P(QPANEL)); Put(TAB4+0x50,P(QWRAPPER));
+    Put(QWRAPPER,P(0x116c2c0)); Put(QWRAPPER+4,P(RECIPE)); Put(QWRAPPER+8,P(0x25888));
+    Control(QPANEL,0x1169ec0,RECIPE,L"ItemCreation4"); Put(QPANEL+0xe8,P(PAGES));
+    Control(QBODY,0x11657c8,RECIPE); Put(QBODY+0xe8,P(QPANEL)); Vector(QPANEL+0x40,{QBODY});
+    Control(QSLIDER,0x1169ec0,RECIPE,L"SLIDER"); Put(QSLIDER+0xe8,P(QBODY));
+    Put(QSLIDER+0x1d0,0x28c); Put(QSLIDER+0x32c,10); Vector(QBODY+0x40,{QSLIDER});
+    Put(PAGES+0x40c,3); // Capture works on the quantity tab; legacy Create still requires its original page.
+}
 void Prepare(std::uint32_t wanted=0) {
     command={}; command.host={1,1,1}; command.window=1; command.request[0]=1; command.item_template=wanted;
     assert(n::Capture(base,scene,command.expected)); command.expected.revision=1;
@@ -140,6 +167,28 @@ int main() {
     assert(memory); base=reinterpret_cast<std::uint32_t>(memory);
     Jump(0x5f5440,reinterpret_cast<std::uintptr_t>(&Button)); Jump(0x613520,reinterpret_cast<std::uintptr_t>(&Select));
     Jump(0x61c7f0,reinterpret_cast<std::uintptr_t>(&Activate)); Jump(0x612660,reinterpret_cast<std::uintptr_t>(&Scroll));
+    Jump(0x63f320,reinterpret_cast<std::uintptr_t>(&QuantityPage));
+    Jump(0x63f6e0,reinterpret_cast<std::uintptr_t>(&Quantity));
+    OrderReady(); Prepare(10); assert(Invoke(V::order_quantity)==O::submitted && quantities==1 && quantity_pages==1);
+    Prepare(10); assert(Invoke(V::order_quantity)==O::observed && quantities==1);
+    for(unsigned quantity:{0U,11U}) {
+        OrderReady(); Prepare(quantity); assert(Invoke(V::order_quantity)==O::invalid && !quantities && !quantity_pages);
+    }
+    OrderReady(); Prepare(10); deny_at=2; assert(Invoke(V::order_quantity)==O::stale && !quantity_pages && !quantities);
+    OrderReady(); Prepare(10); deny_at=3; assert(Invoke(V::order_quantity)==O::uncertain && quantity_pages==1 && !quantities);
+    OrderReady(); Prepare(10); detach_quantity_page=true;
+    assert(Invoke(V::order_quantity)==O::uncertain && quantity_pages==1 && !quantities);
+    for(auto off:{QPANEL+0xe8,QPANEL+0x3bc,QWRAPPER+4,QWRAPPER+8,QSLIDER+0x32c,QSLIDER+0x1d0,QSLIDER+0x3bc,QBODY+0xe8}) {
+        OrderReady(); Prepare(10); Put(off,1);
+        assert(Invoke(V::order_quantity)!=O::submitted && !quantities && !quantity_pages);
+    }
+    OrderReady(); Prepare(10); Name(QSLIDER,L"other");
+    assert(Invoke(V::order_quantity)==O::unavailable && !quantity_pages && !quantities);
+    Reset(false); Control(OPENORDER,0x1169ec0,MENU,L"BTNCREATEMULTIPLEITEM"); Put(OPENORDER+0x1d0,0x5a2);
+    Vector(MENU+0x54,{PROD,OPEN,VIEW,OPENORDER}); Prepare();
+    assert(Invoke(V::open_order_recipe)==O::submitted && calls==1 && Word(RECIPE+0x3d8)==1);
+    Prepare(); assert(Invoke(V::random_order_mode)==O::submitted && calls==2);
+    Prepare(5051080); assert(Invoke(V::select_order_recipe)==O::submitted && selects==1);
     Reset(false); Prepare(); assert(!command.expected.recipe && !command.expected.item_template && !command.expected.recipe_list);
     assert(Invoke(V::open_recipe)==O::submitted && calls==1); Prepare(); assert(Invoke(V::open_recipe)==O::observed && calls==1);
     Reset(false); Prepare(); reenter=true; assert(Invoke(V::open_recipe)==O::submitted && nested==O::unavailable && calls==1);
@@ -161,7 +210,7 @@ int main() {
         Reset(); Prepare(5051080); Put(off,1); assert(Invoke(V::select_recipe)!=O::submitted && !selects && !activates);
     }
     Reset(); Prepare(5051080); Put(BORDER+0xe8,P(BORDER)); assert(Invoke(V::select_recipe)==O::stale && !selects);
-    Reset(); Prepare(5051080); Put(PAGES+0x40c,1); assert(Invoke(V::select_recipe)==O::stale && !selects);
+    Reset(); Prepare(5051080); Put(PAGES+0x40c,1); assert(Invoke(V::select_recipe)==O::unavailable && !selects);
     Reset(); Prepare(5051080); Put(RECIPE+0x408,P(TEMPLATE2)); assert(Invoke(V::select_recipe)==O::stale && !selects);
     Reset(); Prepare(5051080); Put(ROW2+0x1e0,P(0x45000)); Put(ROW2+0x1e4,P(0x45002)); Put(ROW2+0x1e8,P(0x45002)); assert(Invoke(V::select_recipe)==O::stale && !selects);
     Reset(); Prepare(); assert(Invoke(V::random_mode)==O::submitted && calls==1); Prepare(); assert(Invoke(V::random_mode)==O::observed && calls==1);

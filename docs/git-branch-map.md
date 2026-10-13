@@ -3,6 +3,11 @@
 ## Vendor queue-depth correction in progress - October 13
 
 Latest quantity work remains on `codex/vendor-rolling-20261013` for draft PR #174.
+Non-spending multiple-order preparation is also implemented and locally validated:
+the existing native menu channel can restore quantity ten using the ordinary
+native setter, with distinct immutable order intent and correlated schema-2 menu
+journals. The fourth-tab observation failure is corrected. This is uninstalled
+source; quantity-ten Create and whole-workflow reconciliation remain next.
 Source .110/native .68 adds a separately identified, read-only per-slot remaining
 count receipt through the existing vendor channel; legacy encodings and
 quantity-one spending admission are preserved. It is not installed. Continue

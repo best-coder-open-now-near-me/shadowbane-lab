@@ -954,7 +954,7 @@ inline DWORD DrainCommands(
             }
             InterlockedExchange64(&storage.header.command_read_sequence, expected_sequence); continue;
         }
-        if (snapshot.kind >= 25U && snapshot.kind <= 31U) {
+        if ((snapshot.kind >= 25U && snapshot.kind <= 31U) || (snapshot.kind >= 57U && snapshot.kind <= 60U)) {
             const auto verb = static_cast<vendor_menu::wire::Verb>(snapshot.kind);
             vendor_menu::wire::Command payload{};
             std::memcpy(&payload, &snapshot.movement, sizeof(payload));

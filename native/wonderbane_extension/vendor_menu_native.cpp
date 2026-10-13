@@ -55,7 +55,7 @@ struct Recipe {
 bool Contains(const Recipe& g, std::uint32_t p) noexcept {
     return std::find(g.nodes.begin(), g.nodes.begin() + g.node_count, p) != g.nodes.begin() + g.node_count;
 }
-bool RecipeGraph(Reader& r, const wire::Snapshot& s, Recipe& g) noexcept {
+bool RecipeGraph(Reader& r, const wire::Snapshot& s, Recipe& g, bool first_page = true) noexcept {
     if (!s.recipe) { return false; }
     std::array<std::uint32_t, 512> children{};
     const auto count = r.Vector(s.recipe + 0x54, children);
@@ -63,13 +63,13 @@ bool RecipeGraph(Reader& r, const wire::Snapshot& s, Recipe& g) noexcept {
     g.pages = r.Word(s.recipe + 0x518);
     if (std::find(children.begin(), children.begin() + count, g.pages) == children.begin() + count) { return false; }
     r.Require(g.pages, r.base + 0x116b510); r.Require(g.pages + 0x3bc, s.recipe);
-    r.Require(g.pages + 0x40c, 0);
+    if (r.Word(g.pages + 0x40c) > 3 || (first_page && r.Word(g.pages + 0x40c))) { return false; }
     if (!r.Name(g.pages, L"ItemCreationPages")) { return false; }
     std::array<std::uint32_t, 8> tabs{};
     if (!r.Vector(g.pages + 0x400, tabs)) { return false; }
     g.panel = r.Word(tabs[0] + 4);
     r.Require(g.panel, r.base + 0x1169ec0); r.Require(g.panel + 0x3bc, s.recipe);
-    if (!r.Visible(g.pages) || !r.Visible(g.panel)) { return false; }
+    if (first_page && (!r.Visible(g.pages) || !r.Visible(g.panel))) { return false; }
     const auto callback = r.Word(tabs[0] + 0x50);
     r.Require(callback, r.base + 0x116c2c0); r.Require(callback + 4, s.recipe);
     r.Require(callback + 8, r.base + 0x238ad); r.Require(callback + 12, 0);
@@ -179,6 +179,54 @@ bool CallScroll(std::uintptr_t base, std::uint32_t list, std::uint32_t index) no
     __try { reinterpret_cast<Fn>(base + 0x612660)(reinterpret_cast<void*>(list), index); return true; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
+bool QuantityPanel(Reader& r, const wire::Snapshot& s, std::uint32_t& panel, bool initialized = false) noexcept {
+    Recipe g{};
+    if (!RecipeGraph(r, s, g, false)) { return false; }
+    std::array<std::uint32_t, 8> tabs{};
+    if (r.Vector(g.pages + 0x400, tabs) != 4) { return false; }
+    panel = r.Word(tabs[3] + 4);
+    r.Require(panel, r.base + 0x1169ec0); r.Require(panel + 0x3bc, s.recipe);
+    r.Require(panel + 0xe8, g.pages);
+    const auto callback = r.Word(tabs[3] + 0x50);
+    r.Require(callback, r.base + 0x116c2c0); r.Require(callback + 4, s.recipe);
+    r.Require(callback + 8, r.base + 0x25888); r.Require(callback + 12, 0);
+    if (!r.ok || !r.Name(panel, L"ItemCreation4")) { return false; }
+    std::array<std::uint32_t, 64> nodes{}, depths{}; std::size_t count = 1;
+    nodes[0] = panel; std::uint32_t slider = 0;
+    for (std::size_t i = 0; r.ok && i < count; ++i) {
+        const auto node = nodes[i], cls = r.Word(node);
+        if (cls == r.base + 0x1169ec0 && r.Name(node, L"SLIDER")) {
+            if (slider || !r.Action(node, 0x28c)) { return false; }
+            slider = node;
+        }
+        if (cls != r.base + 0x1169ec0 && cls != r.base + 0x11657c8) { continue; }
+        std::array<std::uint32_t, 64> children{};
+        const auto n = r.Vector(node + 0x40, children);
+        if ((n && depths[i] >= 8) || n > nodes.size() - count) { return false; }
+        for (std::size_t j = 0; j < n; ++j) {
+            if (std::find(nodes.begin(), nodes.begin() + count, children[j]) != nodes.begin() + count) { return false; }
+            r.Require(children[j] + 0x3bc, s.recipe); r.Require(children[j] + 0xe8, node);
+            depths[count] = depths[i] + 1; nodes[count++] = children[j];
+        }
+    }
+    if (!slider) { return false; }
+    r.Require(slider + 0x32c, 10);
+    const auto index = r.Word(slider + 0x330);
+    // The native setter uses quantity minus one as the slider position.
+    return r.ok && index < 10 && (!initialized || index + 1 == s.quantity);
+}
+bool CallQuantityPage(std::uintptr_t base, std::uint32_t recipe, std::uint32_t panel) noexcept {
+    using Fn = void (__thiscall*)(void*, void*);
+    __try { reinterpret_cast<Fn>(base + 0x63f320)(reinterpret_cast<void*>(recipe),
+        reinterpret_cast<void*>(panel)); return true; }
+    __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
+bool CallQuantity(std::uintptr_t base, std::uint32_t recipe, std::uint32_t panel, std::uint32_t quantity) noexcept {
+    using Fn = void (__thiscall*)(void*, std::uint32_t, void*);
+    __try { reinterpret_cast<Fn>(base + 0x63f6e0)(reinterpret_cast<void*>(recipe), quantity,
+        reinterpret_cast<void*>(panel)); return true; }
+    __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
+}
 std::atomic_flag invoking = ATOMIC_FLAG_INIT;
 struct InvokeGuard { ~InvokeGuard() { invoking.clear(std::memory_order_release); } };
 }
@@ -215,7 +263,7 @@ bool Capture(std::uintptr_t base, const movement::NativeScene& scene, wire::Snap
         s.item_template = v.item_template; s.prefix = v.prefix; s.suffix = v.suffix; s.mode = v.mode;
         s.table = v.table; s.quantity = v.quantity; s.multiple = v.multiple;
         s.sentinel = r.Word(s.recipe + 0x400); Recipe g{};
-        if (!RecipeGraph(r, s, g)) { return false; }
+        if (!RecipeGraph(r, s, g, false)) { return false; }
         s.recipe_list = g.list;
         for (std::size_t i = 0; i < g.row_count; ++i) {
             if (g.rows[i] == g.selected) { s.selected_template = g.ids[i]; }
@@ -237,7 +285,17 @@ wire::Outcome Invoke(std::uintptr_t base, const movement::NativeScene& scene, wi
     if (!admit(context) || !Matches(base, scene, expected)) { return O::stale; }
     if (wire::Reached(verb, command, expected)) { return O::observed; }
     auto current = expected;
-    if (verb == wire::Verb::select_recipe) {
+    if (verb == wire::Verb::order_quantity) {
+        std::uint32_t panel = 0, checked = 0; Reader r{static_cast<std::uint32_t>(base)};
+        if (!QuantityPanel(r, current, panel)) { return O::unavailable; }
+        if (!admit(context) || !Matches(base, scene, current)) { return O::stale; }
+        if (!CallQuantityPage(base, current.recipe, panel)) { return O::uncertain; }
+        Reader q{static_cast<std::uint32_t>(base)};
+        if (!admit(context) || !Matches(base, scene, current)
+            || !QuantityPanel(q, current, checked, true) || checked != panel) { return O::uncertain; }
+        return CallQuantity(base, current.recipe, panel, command.item_template) ? O::submitted : O::uncertain;
+    }
+    if (verb == wire::Verb::select_recipe || verb == wire::Verb::select_order_recipe) {
         Recipe initial{}; Reader r{static_cast<std::uint32_t>(base)};
         if (!RecipeGraph(r, current, initial)) { return O::unavailable; }
         std::size_t index = 0;
@@ -277,10 +335,12 @@ wire::Outcome Invoke(std::uintptr_t base, const movement::NativeScene& scene, wi
         Reader r{static_cast<std::uint32_t>(base)};
         switch (verb) {
         case wire::Verb::open_recipe: return Button(r, current.menu, L"BTNCREATEITEM", 0x5a1, control);
+        case wire::Verb::open_order_recipe: return Button(r, current.menu, L"BTNCREATEMULTIPLEITEM", 0x5a2, control);
         case wire::Verb::open_inventory: return Button(r, current.menu, L"BTNVIEW", 0x58c, control);
         case wire::Verb::close_recipe: return Button(r, current.recipe, L"CANCEL", 50, control);
         case wire::Verb::close_inventory: return InventoryClose(r, current, control);
-        case wire::Verb::random_mode: {
+        case wire::Verb::random_mode:
+        case wire::Verb::random_order_mode: {
             Recipe g{}; if (!RecipeGraph(r, current, g)) { return false; } control = 0;
             for (std::size_t i = 0; r.ok && i < g.node_count; ++i) {
                 const auto p = g.nodes[i];
@@ -318,7 +378,8 @@ vendor::wire::Outcome InvokeRandomCreate(std::uintptr_t base, const movement::Na
             || menu.table != expected.table || menu.mode != 1 || menu.prefix != 3362971591U
             || menu.suffix != menu.prefix || menu.quantity != 1 || menu.multiple) { return false; }
         Reader r{static_cast<std::uint32_t>(base)};
-        return Button(r, menu.recipe, L"CREATE", 0x458, control)
+        Recipe first_page{};
+        return RecipeGraph(r, menu, first_page) && Button(r, menu.recipe, L"CREATE", 0x458, control)
             && movement::NativeMovementLifetimeCurrent(scene);
     };
     wire::Snapshot first{}, second{}; std::uint32_t control = 0, checked = 0;
