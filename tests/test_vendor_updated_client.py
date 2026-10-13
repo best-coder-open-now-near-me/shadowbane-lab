@@ -56,6 +56,7 @@ def test_reviewed_vendor_readers_and_discovery_preserve_identity(digest):
     "381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5",
     "a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a",
     "051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698",
+    "28a745925fceb4e3f08537504a7192782afe2227758e34febdd95cc4539f8db0",
     "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e"])
 def test_unknown_generic_family_and_unprepared_builds_cannot_admit_vendor_reads(digest):
     for factory, reader in ((fixture, read_native_vendor_queue),

@@ -145,7 +145,7 @@ bool Ready() noexcept{return InterlockedCompareExchange(&installed,0,0)!=0&&subm
 bool Start(std::uintptr_t image) noexcept {
     const auto error=GetLastError();std::uintptr_t verified{};
     const bool ok=image&&(GraphicsExecutableSha256Matches(
-        "1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c") || GraphicsExecutableSha256Matches("baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9"))
+        "1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c") || (GraphicsExecutableSha256Matches("baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9") || GraphicsExecutableSha256Matches("366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a")))
         &&movement::VerifyNativeMovementImage(verified)&&verified==image&&StartBound(image);
     SetLastError(error);return ok;
 }

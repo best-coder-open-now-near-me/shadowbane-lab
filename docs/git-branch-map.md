@@ -1,5 +1,18 @@
 # Git branch map
 
+## Vendor rolling continuation and client.18 - October13
+
+Shared main is420deb91; the earlier vendor-town-workflow branch is included.
+Develop vendor continuation on codex/vendor-rolling-20261013 in its matching
+.worktrees checkout; target reviewed main. Guard work is no longer active.
+Installed software is host.104/native.66 with prepared client.17. The official
+client.18 now triggers the reviewed launcher's baseline guard, before gameplay.
+Exact-pair support is in development as host.105/native.67; no installation
+change is claimed. Preserve the already-installed graphics composition outside
+main when building the release. Next: qualify and repair launch, then saved
+recipe acceptance and town vendor scheduling. See [current evidence](client-update-20261013.md).
+
+
 ## Local refinement guidance - October 12
 
 Shared development starts from `main` at `4b69decc`. The focused host-routing
