@@ -51,6 +51,11 @@ class Transport:
             return replace(result, stage=NativeActionResultStage.FAILED, error_code=13,
                            detail="invalid_or_expired_vendor_menu_lease"
                            if self.mode == "expired" else "unknown_command_kind")
+        if self.mode == "stale":
+            return replace(result, stage=NativeActionResultStage.REJECTED_BY_CLIENT,
+                           error_code=1235, movement_payload=raw_receipt(
+                               request=uuid.UUID(command.payload.request_key).bytes,
+                               outcome=Outcome.STALE, flags=0))
         return result
 
     def renew_lease(self):
@@ -103,6 +108,15 @@ def test_mutations_never_retry(session, mode):
     session._transport.mode = mode
     with pytest.raises(NativeActionChannelError):
         session.open_recipe(state(), KEY)
+    assert len(session._transport.commands) == 1
+
+
+def test_typed_stale_wire_receipt_retries_only_inspection(session):
+    session._transport.mode = "stale"
+    assert session.inspect().outcome == Outcome.STALE
+    assert len(session._transport.commands) == 3
+    session._transport.commands.clear()
+    assert session.open_recipe(state(), KEY).outcome == Outcome.STALE
     assert len(session._transport.commands) == 1
 
 

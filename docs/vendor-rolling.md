@@ -2,6 +2,24 @@
 
 ## Current continuation - October 13, 2026
 
+Treehugger is logged into Rooty on the fresh .108 game lifetime. Discovery
+verified 23 personal vendor windows across 12 of 14 candidate buildings before
+two typed read-only observations returned STALE. Every recorded window mutation
+was already observed; no gold transfer or Create ran. A second discovery request
+expired before activation because preparation correctly retained the missing
+native-cleanup block. Neither request was replayed.
+
+Host .109 is the recovery candidate. Typed STALE read-only observations receive
+at most three fresh, correlated attempts; unresolved flags and lost producer
+ownership stop immediately. Mutations retain their existing no-retry behavior.
+A failed non-spending discovery can report cleanup only when its exact lifetime
+journal confirms every unique window intent, no spending job remains active,
+and a fresh idle native receipt still owns the last confirmed target and request.
+The original failed record is preserved. The focused recovery, worker, menu,
+navigation and whole-batch funding suite passed 116 cases with two optional
+native-fixture skips. Qualification and an online host-only update are next;
+native .67 and the running game do not need replacement for this correction.
+
 Host .108 adds worker-owned warehouse funding before a saved-recipe Start.
 The user reaffirmed batch-only production: calculate the whole batch as current
 free slots times the current random recipe cost, then make at most one warehouse

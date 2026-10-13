@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass
 
 from . import action_channel as channel
-from .guard_funding_wire import Command, Direction, Outcome, Receipt, Snapshot, Verb
+from .guard_funding_wire import UNRESOLVED, Command, Direction, Outcome, Receipt, Snapshot, Verb
 from .guard_spending_journal import GuardSpendingJournal, GuardSpendingStopped
 from .movement_wire import Host
 
@@ -143,11 +143,13 @@ class NativeGuardFundingSession:
         # identity and still passes the native lifetime/lease/receipt checks.
         for attempt in range(3):
             try:
-                return self._submit(Verb.INSPECT, str(uuid.uuid4()), direction=int(direction))
+                receipt = self._submit(Verb.INSPECT, str(uuid.uuid4()), direction=int(direction))
+                if receipt.outcome != Outcome.STALE or receipt.flags & UNRESOLVED or attempt == 2:
+                    return receipt
             except (_RetryableInspectionError, channel.NativeActionChannelTimeout):
                 if attempt == 2:
                     raise
-                time.sleep(0.05)
+            time.sleep(0.05)
         raise AssertionError("unreachable inspection retry")
 
     def open_quote(self, expected: Snapshot, request_key: str) -> Receipt:
