@@ -4,6 +4,50 @@ Branch: codex/vendor-rolling-20261013, based on refreshed main 420deb91.
 Integration destination: reviewed main. Guard work is no longer active.
 The current task resumes vendor rolling for Treehugger in Rooty on the test VM.
 
+## Installed and launched
+
+PR #172 merged as `ed138274d2ba4e4f515a10e92e64540a499eba72` after all 15
+hosted checks passed at `f4913f22c2ec99073bc2bcb1de7b1c1258079999`.
+The graphics-preserving release on `codex/vendor-release-20261013` is
+`68163f32139cc1923a37a4763521d5c7990229e7`; its existing graphics composition
+remains outside main. The normal checkout is clean on the merged main.
+
+Host 0.3.105/native 1.8.67 and client 1.3.38.18 are installed in the existing
+test VM runtime. The original Vendor Test shortcut launched client 1888 with
+window 2359496 and the exact qualified DLL. The manager and bound worker are
+healthy, with no active or queued operation. Login and vendor acceptance remain
+pending; startup success does not qualify crafting or disposal.
+
+The final package passed 6,408 host tests (45 optional skips), both required native
+profiles and actual-image/IPC checks. Independent verification checked 144
+artifacts and 116 stages. Seven supplemental desktop/worker startup cases passed
+without skips. The installation helpers passed 119 focused regressions; the
+final preservation guard change passed all 10 affected installer cases.
+
+Installation verified all 491 host modules, eight changed client inventory rows
+(seven official assets plus the extension), and 9,718 retained records with zero
+exclusions. The original 9,666-record baseline was rechecked before replacement;
+the expanded snapshot also covers settings and historical launch receipts.
+Only typed launch provenance, manager startup and dispatch-permit changes were
+accepted. Existing settings, recipes and journals remain in place; no historical
+Create or Keep was replayed. No deployment rollback copies were created.
+
+| Private receipt | SHA-256 |
+| --- | --- |
+| Package archive | 86dc5befdc05e5219f471aecd014b479887ac6ed53cc71bd8e7654f778f976a0 |
+| Independent package verification | 65eb63d4190b48ffdca49707d29289e174d36d3faf6bfca4e3f42b6e632849ef |
+| Installed DLL | eaaec4f6d80ce1ec8c7e0195466a3e0095708985a8cfe95cd84c3e2262eedcb7 |
+| Apply | 92a4b558c2645419f187e5f13e7744dee4be8dc235d9a63fa23fd5b58d5f8d3f |
+| Activation | 17a291c0c287e12a1c209e37a62f6a29b3369c23fec4b005d7db7ca3be0e0670 |
+| Launch/status | ff2139cdc1f536dd8a0315fc7d92ea70c1c454fcc813d0aa802254cb891e3296 |
+
+Next: log Treehugger into Rooty, qualify saved recipe selection and one batch
+using the currently observed free slots, then continue durable town scheduling.
+The user policy remains exclude confirmed Tier 1/2 and keep unknowns; destructive
+affix qualification remains a separate gate.
+
+The investigation notes below record earlier states and are historical.
+
 ## Startup failure and exact identities
 
 The Modded Client, Inspector/TextFix and Vendor Test shortcuts all use the same
