@@ -33,7 +33,11 @@ from .vendor_job import (
     require_vendor_handoff_idle,
     run_vendor_job,
 )
-from .vendor_navigation import open_navigation_session, run_building_discovery
+from .vendor_navigation import (
+    open_navigation_session,
+    require_failed_discovery_idle,
+    run_building_discovery,
+)
 from .vendor_recipes import (
     VendorRecipeStore,
     read_context,
@@ -355,6 +359,13 @@ class VendorWorkerExecutor:
                     store, binding, operation, navigation, record, cancelled=stop_signal.is_set,
                 )
                 _require_local_idle(navigation, binding, NavigationReceipt)
+            except (OSError, RuntimeError, ValueError) as exc:
+                try:
+                    require_failed_discovery_idle(store, binding, operation, navigation)
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError):
+                    raise exc from None
+                return WorkerOperationExecution(
+                    WorkerOperationState.FAILED, str(exc), native_cleanup_confirmed=True)
             finally:
                 navigation.close()
             return WorkerOperationExecution(WorkerOperationState.SUCCEEDED, record["detail"],
