@@ -336,6 +336,104 @@ def test_navigation_session_uses_production_transport_and_shared_memory_ring(mon
         _close(transport, memory)
 
 
+def test_borrowed_vendor_menu_workflow_uses_production_transport_and_ring(monkeypatch):
+    """Exercise admission and publication for every menu verb without a game."""
+    import itertools
+    import struct
+    from dataclasses import replace
+
+    from shadowbane_lab.client_extension.vendor_menu_wire import (
+        _RECEIPT,
+        MAGIC,
+        RANDOM_SENTINEL,
+        READY,
+        Host,
+        Outcome,
+        Snapshot,
+        Verb,
+    )
+    from shadowbane_lab.client_extension.vendor_session import NativeVendorSession
+
+    transport, memory = _transport("Local\\WonderBane.VendorMenuTransport." + uuid.uuid4().hex)
+    initial = Snapshot(1, 1, 100, 200, front_hud=300, menu=300,
+                       hireling=400, building=500, vendor=600)
+    state, seen = initial, []
+
+    def consume(_event):
+        nonlocal state
+        sequence = transport._read_i64(channel._COMMAND_WRITE_SEQUENCE_OFFSET)
+        offset = channel.CLIENT_ACTION_COMMAND_RING_OFFSET + (sequence - 1) * 768
+        raw = bytes(memory[offset:offset + 768])
+        header = channel._COMMAND.unpack(raw[:192])
+        verb = Verb(header[2])
+        assert header[0] == sequence and header[5] == header[4] + 750
+        assert Snapshot.decode(raw[232:328]) == (Snapshot() if verb == Verb.INSPECT else state)
+        identity = transport.host_process_identity
+        assert Host.decode(raw[192:208]) == Host(
+            identity.process_id, transport.host_lease_generation, identity.creation_filetime_utc)
+        template = struct.unpack("<I", raw[328:332])[0]
+        assert template == (777 if verb == Verb.SELECT_RECIPE else 0)
+        seen.append(verb)
+        if verb == Verb.OPEN_RECIPE:
+            state = replace(state, front_hud=700, recipe=700, recipe_list=710,
+                            sentinel=RANDOM_SENTINEL)
+        elif verb == Verb.SELECT_RECIPE:
+            state = replace(state, item_template=777, selected_template=777, activated_template=777)
+        elif verb == Verb.RANDOM_MODE:
+            state = replace(state, mode=1, table=57, quantity=1,
+                            prefix=RANDOM_SENTINEL, suffix=RANDOM_SENTINEL)
+        elif verb == Verb.CLOSE_RECIPE:
+            state = initial
+        elif verb == Verb.OPEN_INVENTORY:
+            state = replace(state, front_hud=800, inventory=800)
+        elif verb == Verb.CLOSE_INVENTORY:
+            state = initial
+        reply = _RECEIPT.pack(
+            raw[216:232], raw[192:208], struct.unpack("<Q", raw[208:216])[0],
+            Outcome.OBSERVED if verb == Verb.INSPECT else Outcome.SUBMITTED,
+            READY if verb == Verb.INSPECT else 0, state.encode(), bytes(16), MAGIC, bytes(220))
+        detail = b"native_vendor_menu_receipt_v1"
+        result = channel._RESULT.pack(
+            sequence, header[1], sequence, channel.NativeActionResultStage.SUBMITTED_TO_CLIENT,
+            0, transport._kernel.tick_count(), 77, len(detail), detail, bytes(8)) + reply
+        result_offset = channel.CLIENT_ACTION_RESULT_RING_OFFSET + (sequence - 1) * 512
+        memory[result_offset:result_offset + 512] = result
+        transport._exchange_i64(channel._COMMAND_READ_SEQUENCE_OFFSET, sequence)
+        transport._exchange_i64(channel._RESULT_WRITE_SEQUENCE_OFFSET, sequence)
+
+    try:
+        transport._claim_host_lease()
+        transport._command_signal = 17
+        monkeypatch.setattr(transport._kernel, "set_event", consume)
+        parent = NativeVendorSession.__new__(NativeVendorSession)
+        parent.identity, parent.window = channel.NativeClientProcessIdentity(988, 123), 1000
+        parent._transport, parent._ids, parent._closed = transport, itertools.count(1), False
+        menu = parent.menu_session()
+        before = menu.inspect()
+        opened = menu.open_recipe(before.snapshot, str(uuid.uuid4()))
+        selected = menu.select_recipe(opened.snapshot, 777, str(uuid.uuid4()))
+        randomized = menu.random_mode(selected.snapshot, str(uuid.uuid4()))
+        assert randomized.snapshot.random_recipe(777, 57)
+        closed = menu.close_recipe(randomized.snapshot, str(uuid.uuid4()))
+        inventory = menu.open_inventory(closed.snapshot, str(uuid.uuid4()))
+        menu.close_inventory(inventory.snapshot, str(uuid.uuid4()))
+        assert seen == list(Verb)
+        assert transport._read_i64(channel._RESULT_READ_SEQUENCE_OFFSET) == 7
+        menu.close()
+        assert transport._owns_host_lease()  # the parent still owns the producer
+        with pytest.raises(ValueError, match="command must be"):
+            transport.submit(object(), timeout_ms=750)
+        transport._exchange_i32(channel._HOST_LEASE_GENERATION_OFFSET,
+                                transport.host_lease_generation + 1)
+        with pytest.raises(channel.NativeActionChannelBusy, match="lease was lost"):
+            parent.menu_session().open_recipe(initial, str(uuid.uuid4()))
+        assert seen == list(Verb)
+        assert transport._read_i64(channel._COMMAND_WRITE_SEQUENCE_OFFSET) == 7
+    finally:
+        transport._command_signal = None
+        _close(transport, memory)
+
+
 def test_expired_lease_records_timing_without_renewing(monkeypatch):
     transport, memory = _transport("Local\\WonderBane.LeaseTiming." + uuid.uuid4().hex)
     try:
