@@ -43,6 +43,11 @@ REQUIRED_VENDOR_TESTS = frozenset({
     "wonderbane_extension_vendor_controller",
     "wonderbane_extension_vendor_native",
     "wonderbane_extension_vendor_channel",
+    "wonderbane_extension_vendor_menu_controller",
+    "wonderbane_extension_vendor_menu_native",
+    "wonderbane_extension_vendor_menu_channel",
+    "wonderbane_extension_vendor_production",
+    *(f"wonderbane_extension_vendor_production_install_{step}" for step in range(1, 4)),
 })
 
 
@@ -523,6 +528,12 @@ def main() -> int:
                 raise RuntimeError(f"{profile}: {condemn_source} must have one owner")
             if included_sources.count(condemn_source + "_test.cpp"):
                 raise RuntimeError(f"{profile}: Condemn test entered runtime")
+        for vendor_source in ("vendor_runtime", "vendor_native", "vendor_menu_native",
+                              "vendor_production_responses"):
+            if included_sources.count(vendor_source + ".cpp") != 1:
+                raise RuntimeError(f"{profile}: {vendor_source} must have one owner")
+            if included_sources.count(vendor_source + "_test.cpp"):
+                raise RuntimeError(f"{profile}: vendor test entered runtime")
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
         for combat_source in ("combat_group_chat.cpp", "combat_submission.cpp",
