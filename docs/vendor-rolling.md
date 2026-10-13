@@ -2,6 +2,41 @@
 
 ## Current continuation - October 13, 2026
 
+### Qualified update; game closure required before installation
+
+Host .110/native .68 is fully packaged from graphics-preserving release
+`65692cefd433bf28a21b21f3e5d374dcc6a5f2fd`, pushed on
+`codex/vendor-release-20261013`. Implementation is pushed on
+`codex/vendor-rolling-20261013` through `725a1e63`, targeting main in draft PR #174.
+The normal checkout remains on clean main; neither vendor branch is merged there.
+
+Qualification passed 6,737 host tests with 45 optional skips, all required native
+tests in both profiles (284 full / 280 diagnostics), both sets of native/host IPC,
+exact original/prepared client bindings and all seven Windows startup cases.
+Independent verification seals 144 artifacts, 116 build steps and 499 installed
+wheel modules. The existing two stretch-only transparency findings remain recorded
+for each profile; they are unchanged and do not waive any required vendor gate.
+The native-only updater passes 147 isolated preservation/refusal checks.
+
+Exact package identities:
+
+- Full DLL: `94df2c23308e5e531dbf87eee7feb7aa1b48fefb9d9617c339d5ece187f570b7`.
+- Host wheel: `96c788bc549475fb2e72948b6b193d5d592b4ab51ad305dadad1426e602e99c4`.
+- Independent verification: `855c7ec79f8e9773051e3e1da73cfee8e1815e633d41f60933ac95062692f7fd`.
+- Supplemental startup verification: `48cd4732cb4dd8879db86912da0da634dc00781f0dcda0e3605bee39729216c7`.
+
+The read-only VM census still verifies host .109/native .67/client .18 and the
+original game lifetime, with no active or queued manager operation. Only census
+source and diagnostic evidence have been copied to the VM; no runtime, funds,
+Create, Keep or disposal changed. The user has been asked to close Shadowbane;
+the manager may remain open. Next: stop the idle manager after confirmed game
+closure, capture a fresh stable baseline, seal/install the one-DLL/host update and
+relaunch the same Vendor Test shortcut. Preserve settings and every historical
+journal in place. Then verify quantity-ten server acceptance and all 70 inventory
+receipts; raw-nine admission, disposal and town scheduling remain unqualified.
+
+### Implemented behavior
+
 The quantity-ten worker slice is implemented in uninstalled host .110/native .68
 source on `codex/vendor-rolling-20261013`, targeting main through draft PR #174.
 New saved-recipe starts derive separate quantity-ten, single-slot order intent,
@@ -33,8 +68,8 @@ tests; Ruff and diff whitespace checks pass. These are local fixture checks,
 not a connected server acceptance receipt.
 
 Installed software remains host .109/native .67, client 1.3.38.18. Nothing from
-this source candidate has been installed or invoked. Next: qualify the complete
-graphics-preserving release, install once after game closure, then verify native
+this source candidate has been installed or invoked. The complete release above
+is qualified locally. Next: install once after game closure, then verify native
 quantity-ten server acceptance and the complete live inventory chain. The native
 raw-nine admission rule is deliberately fail-closed and still awaits live proof.
 Town scheduling and affix disposal qualification follow that batch; guard work

@@ -2,6 +2,18 @@
 
 ## Vendor queue-depth correction in progress - October 13
 
+Qualified release `65692cefd433bf28a21b21f3e5d374dcc6a5f2fd` is pushed on
+`codex/vendor-release-20261013`, preserving installed graphics. Implementation
+through `725a1e63` is pushed on `codex/vendor-rolling-20261013`, targeting main in
+draft PR #174. Qualification passes 6,737 host tests, both native/IPC profiles,
+seven Windows startup cases and 499 exact installed modules; 147 updater checks
+pass. This is qualified local software, not an installed or live-accepted batch.
+The VM remains .109/.67/.18 with its original game running and manager idle.
+Game closure has been requested for the loaded DLL replacement. Next: fresh stable
+baseline, install once, then complete quantity-ten server/inventory acceptance.
+Main and both delivery branches are clean and published. Keep the two active
+worktrees until installation/live acceptance; do not retire their unmerged source.
+
 The worker now implements the complete bounded quantity-ten job in uninstalled
 host .110/native .68 source: one batch funding pass, one ten-item order per initial
 free slot, permanent observation during pause/focus waits, distinct generated-ID
