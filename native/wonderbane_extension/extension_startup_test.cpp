@@ -96,6 +96,15 @@ DWORD Start(const ProcessIdentity& identity) noexcept {
 void Stop() noexcept {++stops;}
 }
 namespace vendor { bool Start() noexcept { return true; } }
+namespace vendor_production {
+int starts = 0, stops = 0;
+DWORD result = ERROR_SUCCESS;
+DWORD Start(const ProcessIdentity& identity) noexcept {
+    assert(identity.process_id == GetCurrentProcessId() && identity.creation_filetime_utc);
+    assert(graphics_identity_ready); ++starts; return result;
+}
+void Stop() noexcept { ++stops; }
+}
 namespace combat {
 int starts = 0;
 bool Start(const ProcessIdentity& identity) noexcept {
@@ -170,6 +179,7 @@ int main() {
     tracking::readable = true;
     assert(item_trace::starts==1 && item_trace::stops==0);
     assert(group_messages::starts==1 && group_updates::starts==1);
+    assert(vendor_production::starts == 1 && vendor_production::stops == 0);
     assert(combat::starts == 1 && actor_effects::starts == 1);
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS && movement::starts == 1);
     assert(actor_effects::starts == 1 && graphics_starts == 1);
@@ -179,6 +189,7 @@ int main() {
     targeted_result = ERROR_NOT_SUPPORTED; condemn::result = ERROR_NOT_SUPPORTED;
     tracking::result = ERROR_NOT_SUPPORTED;
     group_messages::result=group_updates::result=ERROR_NOT_SUPPORTED;
+    vendor_production::result = ERROR_NOT_SUPPORTED;
     trace_result = ERROR_ACCESS_DENIED; movement::start_result = ERROR_NOT_SUPPORTED;
     assert(SetEnvironmentVariableW(kPerformanceProfileEnvironment, L"frame"));
     assert(WonderBaneExtensionInitialize() == ERROR_SUCCESS);
@@ -188,17 +199,20 @@ int main() {
     assert(tracking::starts == 2 && tracking::stops == 0 && !NativeTrackingResponsesReady());
     assert(movement::starts == 2); // Unsupported optional controls preserve client startup.
     assert(group_messages::starts==2 && group_updates::starts==2);
+    assert(vendor_production::starts == 2 && vendor_production::stops == 0);
     assert(DeleteFileW(g_heartbeat_path));
     InterlockedExchange(&g_state, static_cast<LONG>(WonderBaneExtensionState::uninitialized));
     targeted_result = ERROR_SUCCESS; condemn::result = ERROR_SUCCESS;
     tracking::result = ERROR_SUCCESS;
     group_messages::result=group_updates::result=ERROR_SUCCESS;
+    vendor_production::result = ERROR_SUCCESS;
     telemetry_result = ERROR_SUCCESS; trace_result = ERROR_SUCCESS; fail_heartbeat = true;
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED);
     assert(targeted_starts == 3 && targeted_stops == 1);
     assert(condemn::starts == 3 && condemn::stops == 1);
     assert(tracking::starts == 3 && tracking::stops == 1 && !NativeTrackingResponsesReady());
     assert(item_trace::starts==3 && item_trace::stops==1);
+    assert(vendor_production::starts == 3 && vendor_production::stops == 1);
     assert(group_messages::starts==3 && group_updates::starts==3 && group_messages::stops==1 && group_updates::stops==1);
     assert(renderer_stops == 1 && telemetry_stops == 1 && effects_stops == 1 && trace_stops == 2);
     assert(movement::starts == 2); // Failed shared startup did not register a consumer.
@@ -220,11 +234,13 @@ int main() {
     const int before_targeted = targeted_starts;
     const int before_tracking = tracking::starts;
     const int before_group = group_messages::starts;
+    const int before_production = vendor_production::starts;
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED);
     assert(graphics_starts == before_graphics + 1 && !graphics_identity_ready);
     assert(actor_effects::starts == before_observer && targeted_starts == before_targeted);
     assert(tracking::starts == before_tracking && !NativeTrackingResponsesReady());
     assert(group_messages::starts==before_group && group_updates::starts==before_group);
+    assert(vendor_production::starts == before_production);
     assert(WonderBaneExtensionInitialize() == ERROR_ACCESS_DENIED);
     assert(graphics_starts == before_graphics + 1 && actor_effects::starts == before_observer);
     return 0;
