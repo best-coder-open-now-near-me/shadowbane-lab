@@ -19,6 +19,10 @@ buildings, including Malik and the warehouse Seneschal; full town coverage is
 unverified. The new worker returned idle without the previous cleanup block.
 Next: activate Malik's saved recipe and verify one whole funded batch and Keep;
 the user has been asked to open his management menu. No new gold/Create ran.
+All 15 hosted checks passed at implementation `d3e0964c`. Verified obsolete
+.108 runtime/build/payload copies and the .109 temporary staging payload were
+retired; user data and diagnostic receipts remain intact. The task and release
+branches are pushed and clean, with PR #174 still open for main integration.
 Main remains the clean shared checkout; graphics composition and PR #174 are
 outside main. See [current evidence](vendor-rolling.md).
 

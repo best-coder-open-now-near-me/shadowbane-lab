@@ -46,6 +46,15 @@ The worker returned idle with no active or queued operation. Next: open Malik's
 management menu, activate the retained saved recipe, then verify one whole
 funded batch and automatic Keep. No gold transfer or new Create has run yet.
 
+All 15 hosted checks passed for implementation `d3e0964c`. Verified obsolete
+.108 guest software was retired (2,177 files / 49,250,381 bytes), together with
+its old payload binaries/dependencies and the temporary .109 staging payload.
+Local obsolete .108 qualification/staging output was also retired after source,
+wheel/archive and installed-module hash checks (4,305 files / 96,054,833 bytes).
+Qualification logs, compact hash receipts, user settings, saved recipes and all
+historical journals remain intact. No rollback copies are retained. Main and
+both task/release checkouts are clean; PR #174 remains open outside main.
+
 Host .108 adds worker-owned warehouse funding before a saved-recipe Start.
 The user reaffirmed batch-only production: calculate the whole batch as current
 free slots times the current random recipe cost, then make at most one warehouse
