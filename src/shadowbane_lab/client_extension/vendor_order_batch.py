@@ -26,6 +26,7 @@ def queue_quantity_orders(
     session, journal: Path, specification: RandomOrderSpec, budget: VendorBatchBudget,
     preparation_raw: bytes, production_reader, *, before_action=lambda: None,
     prepare_next=None,
+    await_authority=None,
     cancelled=lambda: False, clock=time.monotonic, sleeper=time.sleep,
     acceptance_timeout: float = 15.0,
 ) -> dict:
@@ -111,7 +112,12 @@ def queue_quantity_orders(
         save()
         try:
             for index in range(budget.free_slots):
-                before_action()
+                if await_authority is None:
+                    before_action()
+                else:
+                    # Long focus/pause waits must keep the permanent ring drained
+                    # into this same journal, never a second observation owner.
+                    await_authority(drain)
                 drain()
                 if cancelled():
                     record["state"] = "stopped"

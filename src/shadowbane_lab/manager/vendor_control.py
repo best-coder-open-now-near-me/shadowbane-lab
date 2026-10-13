@@ -13,6 +13,7 @@ from shadowbane_lab.client_extension.vendor_completion import _read_record
 from shadowbane_lab.client_extension.vendor_menu import validate_completed_menu
 from shadowbane_lab.client_extension.vendor_menu_wire import Receipt as MenuReceipt
 from shadowbane_lab.client_extension.vendor_navigation_wire import Receipt as NavigationReceipt
+from shadowbane_lab.client_extension.vendor_recipe import RandomOrderSpec, RandomRecipeSpec
 from shadowbane_lab.client_extension.vendor_session import NativeVendorSession
 from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, UNRESOLVED, Outcome
 from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
@@ -417,16 +418,21 @@ class VendorWorkerExecutor:
                 selection = VendorRecipeStore(store).current(operation.command.split()[2])
                 selection = require_saved_owner(
                     selection, binding, session, reader=self.recipe_reader)
+                order = RandomOrderSpec(RandomRecipeSpec.from_dict(selection["recipe_spec"]),
+                                        10, multiple=False)
                 funded = self.funding_runner(store, binding, operation, session, selection,
-                                             cancelled=stop_signal.is_set)
+                                             cancelled=stop_signal.is_set, order=order)
                 if (not isinstance(funded, dict) or funded.get("state") != "funded"
-                        or "batch_budget" not in funded or "batch_budget_sha256" not in funded):
+                        or "batch_budget" not in funded or "batch_budget_sha256" not in funded
+                        or funded.get("order_spec") != order.as_dict()
+                        or funded.get("order_sha256") != order.canonical_digest):
                     raise VendorBatchStopped("whole-batch funding evidence is missing")
                 selection = require_saved_owner(
                     selection, binding, session, reader=self.recipe_reader)
                 selection = dict(selection, batch_budget=funded["batch_budget"],
-                                 batch_budget_sha256=funded["batch_budget_sha256"])
-            elif resume and current.get("schema_version") in (2, 3):
+                                 batch_budget_sha256=funded["batch_budget_sha256"],
+                                 order_spec=order.as_dict(), order_sha256=order.canonical_digest)
+            elif resume and current.get("schema_version") in (2, 3, 4):
                 from shadowbane_lab.client_extension.vendor_wire import Snapshot
 
                 initial = Snapshot.decode(bytes.fromhex(current["initial_snapshot"]))

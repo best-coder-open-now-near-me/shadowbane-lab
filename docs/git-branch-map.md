@@ -2,6 +2,18 @@
 
 ## Vendor queue-depth correction in progress - October 13
 
+The worker now implements the complete bounded quantity-ten job in uninstalled
+host .110/native .68 source: one batch funding pass, one ten-item order per initial
+free slot, permanent observation during pause/focus waits, distinct generated-ID
+reconciliation and existing native Keep with inventory proof. Schema-4 jobs and
+progress journals never replay uncertain actions and preserve old job schemas.
+The dashboard separates queued orders from produced/kept counts. Next: qualify
+one graphics-preserving release, install after game closure, and verify the whole
+live batch. Raw-nine server admission and .18 disposal remain unqualified; retain
+unknowns and do not resume guard work. PR #174 remains draft for main integration.
+
+Earlier checkpoints:
+
 Latest quantity work remains on `codex/vendor-rolling-20261013` for draft PR #174.
 Pure item reconciliation now binds decreasing counts to observed slot ancestry
 and exact copied reply lineage; all 70 IDs need positive inventory proof. Native

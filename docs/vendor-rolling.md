@@ -2,7 +2,47 @@
 
 ## Current continuation - October 13, 2026
 
-### Active: ten items per production slot
+The quantity-ten worker slice is implemented in uninstalled host .110/native .68
+source on `codex/vendor-rolling-20261013`, targeting main through draft PR #174.
+New saved-recipe starts derive separate quantity-ten, single-slot order intent,
+fund the whole initial batch once, queue one order per funded slot, and reconcile
+every produced item. The saved single-item recipe preference stays unchanged.
+Seven free slots therefore queue seven orders and plan 70 items. Rank growth is
+deferred to the next batch. All Gold checks use the exact owned recipe quote;
+shop/carried funds precede warehouse withdrawal, and no per-item top-up occurs.
+
+Schema-4 jobs persist the immutable budget, order specification, preparation,
+Create transitions, production cursor and full item/inventory evidence. The
+permanent recorder continues draining during local pause and focus waits. Keep
+uses the existing native hook, writes intent before dispatch and requires its
+correlated inventory transition. Generated IDs need both copied reply lineage and
+observed order ancestry. Automatically deposited items also need positive owned
+inventory presence. Completion requires every planned ID and empty batch production.
+Unknown affixes are retained; Tier 1–2 disposal on client .18 remains unqualified.
+
+Explicit recovery reconstructs progress from bounded historical evidence; partial
+or uncertain Create/menu/Keep records cannot replay. Stop after fully admitted
+orders preserves progress and can hand back only with native idle proof. Quantity
+jobs have a two-hour bound, accommodating the roughly 56-minute ten-item recipe;
+historical single-item jobs retain their existing one-hour limit and schemas.
+The dashboard now distinguishes queued orders, generated items and inventory
+confirmations. Full manager/HTTP fixture tests exercise a seven-Create / 70-Keep
+batch, pause/focus observation, no-replay recovery, corruption and safe Stop.
+The combined worker, recipe/HTTP, funding, queue and progress suite passes 148
+tests; Ruff and diff whitespace checks pass. These are local fixture checks,
+not a connected server acceptance receipt.
+
+Installed software remains host .109/native .67, client 1.3.38.18. Nothing from
+this source candidate has been installed or invoked. Next: qualify the complete
+graphics-preserving release, install once after game closure, then verify native
+quantity-ten server acceptance and the complete live inventory chain. The native
+raw-nine admission rule is deliberately fail-closed and still awaits live proof.
+Town scheduling and affix disposal qualification follow that batch; guard work
+is outside this task. Existing failed funding evidence remains preserved.
+
+## Earlier source checkpoints - October 13
+
+### Quantity protocol and reconciliation
 
 The pure order reconciler now tracks every generated item separately. New items
 need a continuous decoded/processing/returned reply from the same character,
