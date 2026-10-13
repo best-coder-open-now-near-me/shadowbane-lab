@@ -2,16 +2,30 @@
 
 ## Current continuation - October 13, 2026
 
+Live discovery opened City Command and found 14 nearby buildings. It verified
+the Tree of Life's parent roster, then stopped at Viktor the Runemaster because
+the personal service menu contains no hireling roster. A read-only comparison
+confirmed that the owned parent roster remains active and stable underneath it.
+Host .106 corrects discovery to read parent membership for both phases while
+the native navigation receipt still verifies the selected vendor and front HUD.
+Changed parent membership stops discovery before another open. The focused
+vendor/roster/navigation and existing guard regressions passed 104 cases with
+two fixture-dependent skips. Qualification and installation of this host-only
+correction remain pending; native .67 and the running game need no replacement.
+
 Start from refreshed main; the original vendor-town-workflow source is included.
 The saved random recipe picker and typed recipe/Inventory operations are in
 source. Their supervised acceptance and durable town scheduling remain open.
 Current task branch: codex/vendor-rolling-20261013; integration destination: main.
 Guard work is outside this task. Target: Treehugger in Rooty on the test VM.
 
-Active dependency: the official client updated to .18 while the modded runtime
-still has reviewed .17. Its launcher correctly blocks that mismatch. See
+Startup dependency complete: host .105/native .67 and client .18 are installed
+and the original Vendor Test shortcut launches with the exact qualified extension.
+The manager and bound worker are healthy; settings, recipes and journals were
+preserved. See
 [the exact client update and validation state](client-update-20261013.md).
-Finish the matching qualified update and verify launch before resuming crafting.
+Next: Treehugger login in Rooty, saved recipe acceptance and one capacity batch,
+then durable town scheduling. No crafting or disposal acceptance is implied by launch.
 Keep the user's exclusion policy: confirmed Tier 1/2 excluded, unknowns retained.
 No old pending request is replayed and no rollback runtime is retained.
 
