@@ -10,8 +10,29 @@ Host .106 corrects discovery to read parent membership for both phases while
 the native navigation receipt still verifies the selected vendor and front HUD.
 Changed parent membership stops discovery before another open. The focused
 vendor/roster/navigation and existing guard regressions passed 104 cases with
-two fixture-dependent skips. Qualification and installation of this host-only
-correction remain pending; native .67 and the running game need no replacement.
+two fixture-dependent skips. The host-only correction is now qualified and
+installed as .106 from graphics-preserving release
+`e72b8703d2367cd2cf677675ca0fe02cccbfcc64` on
+`codex/vendor-release-20261013`. Native .67 remains from `68163f32`; the original
+game 1888 and its process lifetime/window were preserved throughout installation.
+The full host suite passed 6,411 tests with 45 optional skips, both IPC profiles
+and seven real startup cases passed, and all 491 installed modules match.
+Installation preserved 9,738 records with zero exclusions and only ten typed
+startup changes; zero client files were written.
+
+Fresh worker discovery succeeded: 24 personal vendor windows were verified
+across 12 of 14 nearby building candidates, including Malik the Irekei Sage,
+So'skath the Lizardman Sage and Fen the Sage in the Feudal Magic Shop. The Feudal
+Church and Wizard Shrine exposed no populated hireling rows; this does not prove
+full town coverage. No Create, Keep or Junk ran during discovery.
+Private discovery receipt SHA-256:
+`0c7219956119cb24d4da0ac7c73978dd003e166ce6fffe3136c4eb318bc6c8e8`.
+
+Implementation `b9088deda855efcfe7f57ebc6a764b7add18ee09` passed all 15 hosted
+checks in [PR #174](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/174),
+targeting main. It remains outside main pending integration. Next: select Malik
+once for saved Gilded Scepter recipe and capacity-batch acceptance. A dashboard
+control to return to a selected vendor and durable town scheduling remain open.
 
 Start from refreshed main; the original vendor-town-workflow source is included.
 The saved random recipe picker and typed recipe/Inventory operations are in
