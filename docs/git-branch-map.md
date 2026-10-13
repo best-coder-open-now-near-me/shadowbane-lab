@@ -3,6 +3,11 @@
 ## Vendor queue-depth correction in progress - October 13
 
 Latest quantity work remains on `codex/vendor-rolling-20261013` for draft PR #174.
+The uninstalled source now includes permanent crafting receive observation with
+durable, non-resettable host cursors, so the first ten-item batch can be observed
+beyond the old five-minute diagnostic limit. Exact .18 callbacks, copied payload
+layout, lifecycle and loss handling are locally verified. Continue quantity-aware
+Create acceptance and full item/inventory reconciliation, then qualify one update.
 Non-spending multiple-order preparation is also implemented and locally validated:
 the existing native menu channel can restore quantity ten using the ordinary
 native setter, with distinct immutable order intent and correlated schema-2 menu

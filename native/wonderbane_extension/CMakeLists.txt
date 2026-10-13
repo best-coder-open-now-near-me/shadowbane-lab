@@ -40,6 +40,7 @@ add_library(
   movement_windows_input.cpp
   movement_runtime.cpp
   vendor_runtime.cpp
+  vendor_production_responses.cpp
   vendor_menu_native.cpp
   vendor_native.cpp
   guard_upgrade_native.cpp
@@ -1179,6 +1180,14 @@ endif()
 
 if(BUILD_TESTING)
   add_executable(wonderbane_extension_vendor_controller_test vendor_controller_test.cpp)
+  add_executable(wonderbane_extension_vendor_production_test vendor_production_responses_test.cpp)
+  target_compile_features(wonderbane_extension_vendor_production_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_vendor_production_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_vendor_production_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_vendor_production COMMAND wonderbane_extension_vendor_production_test)
+  foreach(step RANGE 1 3)
+    add_test(NAME wonderbane_extension_vendor_production_install_${step} COMMAND wonderbane_extension_vendor_production_test ${step})
+  endforeach()
   target_compile_features(wonderbane_extension_vendor_controller_test PRIVATE cxx_std_20)
   target_compile_definitions(wonderbane_extension_vendor_controller_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_vendor_controller_test PRIVATE /W4 /WX /permissive- /utf-8)

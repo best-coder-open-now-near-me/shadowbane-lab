@@ -4,6 +4,29 @@
 
 ### Active: ten items per production slot
 
+Source .110/native .68 now also includes a permanent, optional crafting receive
+recorder. It uses the existing ArcItemProductionMessage decode/process/destruction
+boundary and copies item IDs, raw remaining counts, completion fields, deposited
+item/template identities and serialized gold into a lifetime-bound 256-record
+ring. Native pointers never leave the callback. Exact live .18 vtable targets
+resolve to destructor 3F9290, process 3F9680 and the already-inspected decoder
+3FA240. Decoder lineage is single-use and tied to the current character scene;
+native calls, return values, errors and late callbacks retain their original
+behavior. Unsupported or failed observation cannot disable the normal client.
+
+The host reader bookmarks before a new order, explicitly labels discarded old
+history, and drains only later records. A saved cursor can resume in the same
+client lifetime; a gap, new rejection, lost ticket or read failure remains
+incomplete across restarts. Existing cursors cannot be reset to hide loss, and a
+closed or regressed recorder cannot rebind. A returned handler alone never
+claims server acceptance. This replaces the five-minute diagnostic limitation
+for observing a roughly 56-minute ten-item workflow once integrated with the job.
+Four native recorder tests and 31 host mapping/cursor checks pass, including an
+independent reader and exact C++/Python layout fixture. The extension rebuild
+succeeds. No new runtime was installed or invoked in the game. Next remains
+quantity-aware Create acceptance and full order/inventory reconciliation before
+qualifying and installing the complete update.
+
 The next source checkpoint adds non-spending multiple-order preparation through
 the existing menu channel (verbs 57–60). It opens the observed
 `BTNCREATEMULTIPLEITEM` / action 0x5A2, selects the saved template, selects random
