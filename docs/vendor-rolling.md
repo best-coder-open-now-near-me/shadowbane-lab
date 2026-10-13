@@ -15,9 +15,20 @@ ownership stop immediately. Mutations retain their existing no-retry behavior.
 A failed non-spending discovery can report cleanup only when its exact lifetime
 journal confirms every unique window intent, no spending job remains active,
 and a fresh idle native receipt still owns the last confirmed target and request.
-The original failed record is preserved. The focused recovery, worker, menu,
+The original failed record is preserved. Implementation `d3e0964c` is pushed;
+graphics-preserving release `fdc078966d1404310d8a326d1dbab2a9b64230bb`
+passed 6,512 host tests with 45 optional skips, both IPC profiles, all seven
+startup cases and all 16 qualification gates. Its 493 modules match source;
+native/assets remain unchanged. Wheel SHA-256:
+`ce3fbce3d2eae24c804b4c33a148a22572ebf2103f9c17ccf48baf934aee52b9`.
+Qualification receipt SHA-256:
+`149c0f67e26d28e906237221f21b6486178e4ce5f9f9297c497d1303348e44b0`.
+The fresh read-only native proof confirms all 49 recorded window transitions
+were observed, scene/root and the last target/request still match, and no action
+is in flight or unresolved. Installer regressions passed 157 with one optional
+skip, plus four shortcut cases. The focused recovery, worker, menu,
 navigation and whole-batch funding suite passed 116 cases with two optional
-native-fixture skips. Qualification and an online host-only update are next;
+native-fixture skips. An online host-only update is next;
 native .67 and the running game do not need replacement for this correction.
 
 Host .108 adds worker-owned warehouse funding before a saved-recipe Start.

@@ -6,9 +6,13 @@ Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting mai
 through open PR #174. Installed .108 funding has not moved gold or crafted yet.
 Treehugger is in Rooty; a non-spending scan verified 23 vendor windows before
 typed STALE observations stopped it. The missing cleanup receipt then blocked
-worker handoff. Host .109 adds bounded read-only retries and exact journal/native
+worker handoff. Pushed implementation `d3e0964c` and graphics-preserving release
+`fdc078966d1404310d8a326d1dbab2a9b64230bb` qualify host .109: 6,512 host tests,
+both IPC profiles, seven startup cases and 493 exact modules. Native/assets are
+unchanged. Host .109 adds bounded read-only retries and exact journal/native
 proof for failed-scan cleanup, preserving every mutation's no-retry rule.
-Next: qualify and install .109 without restarting the game, rediscover, then
+Fresh live proof confirms all 49 window transitions observed and native idle.
+Next: install .109 without restarting the game, rediscover, then
 activate Malik's saved recipe and verify one whole funded batch and Keep.
 Main remains the clean shared checkout; graphics composition and PR #174 are
 outside main. See [current evidence](vendor-rolling.md).
