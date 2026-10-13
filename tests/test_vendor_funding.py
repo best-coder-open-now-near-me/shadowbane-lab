@@ -104,6 +104,7 @@ def setup(tmp_path, monkeypatch):
             creation_recipe={"window_address": 700},
             building={"object_id": 123},
             vendor={"object_id": 888},
+            recipe_resource_costs={"555": {"label": "Gold", "amount": 166}},
             slots=[{"item": {"object_id": 0}, "state": "empty"}] * len(parent.snapshot.slots),
         ), {555: 166}
 
@@ -122,7 +123,7 @@ def setup(tmp_path, monkeypatch):
             selection,
             cancelled=changes.get("cancelled", lambda: False),
             cost_reader=changes.get("cost_reader", cost_reader),
-            target_reader=lambda *args: (999, 999),
+            target_reader=changes.get("target_reader", lambda *args: (999, 999)),
             clock=clock,
             sleep=lambda _: None,
         )
@@ -133,6 +134,7 @@ def setup(tmp_path, monkeypatch):
         run=run,
         parent=parent,
         calls=calls,
+        reader=cost_reader,
         binding=binding,
         path=store.root / "funding" / operation.operation_id / "funding.json",
     )
@@ -175,9 +177,13 @@ def test_existing_gold_avoids_unnecessary_money_movements(
     setup, funds, purse, withdrawn, deposited
 ):
     setup.world.funds, setup.world.purse = funds, purse
-    result = setup.run()
+    def warehouse_unavailable(*args):
+        raise AssertionError("Existing shop/carried gold must not require warehouse access")
+
+    result = setup.run(target_reader=warehouse_unavailable)
     assert (result["withdrawn"], result["deposited"]) == (withdrawn, deposited)
     assert "withdraw" not in setup.world.calls
+    assert "warehouse" not in setup.world.calls
 
 
 def test_reserve_prevents_withdrawal_or_deposit(setup):
@@ -224,6 +230,7 @@ def test_unqualified_material_is_never_treated_as_gold(setup):
             creation_recipe={"window_address": 700},
             building={"object_id": 123},
             vendor={"object_id": 888},
+            recipe_resource_costs={"555": {"label": "Gold", "amount": 166}},
             slots=[{"item": {"object_id": 0}, "state": "empty"}] * 2,
         )
         return queue, {555: 166, 777: 20}
@@ -271,6 +278,8 @@ def test_cost_change_after_transfer_stops_before_crafting(setup):
             creation_recipe={"window_address": 700},
             building={"object_id": 123},
             vendor={"object_id": 888},
+            recipe_resource_costs={"555": {"label": "Gold", "amount":
+                                          166 if len(setup.calls) == 1 else 200}},
             slots=[{"item": {"object_id": 0}, "state": "empty"}] * 2,
         ), {555: 166 if len(setup.calls) == 1 else 200}
 
@@ -278,6 +287,30 @@ def test_cost_change_after_transfer_stops_before_crafting(setup):
         setup.run(cost_reader=read)
     assert setup.world.funds == 332
     assert json.loads(setup.path.read_text())["state"] == "review"
+
+
+def test_changed_gold_label_after_transfer_stops_before_crafting(setup):
+    def read(binding):
+        queue, costs = setup.reader(binding)
+        if len(setup.calls) > 1:
+            queue["recipe_resource_costs"]["555"]["label"] = "Iron"
+        return queue, costs
+
+    with pytest.raises(VendorBatchStopped, match="changed during funding"):
+        setup.run(cost_reader=read)
+    assert setup.world.funds == 332
+    assert json.loads(setup.path.read_text())["state"] == "review"
+
+
+def test_non_gold_display_stops_before_any_navigation_or_transfer(setup):
+    def read(binding):
+        queue, costs = setup.reader(binding)
+        queue["recipe_resource_costs"]["555"]["label"] = "Iron"
+        return queue, costs
+
+    with pytest.raises(VendorBatchStopped, match="non-gold"):
+        setup.run(cost_reader=read)
+    assert setup.world.calls == []
 
 
 @pytest.mark.parametrize(

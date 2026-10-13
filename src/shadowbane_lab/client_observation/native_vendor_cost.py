@@ -11,6 +11,29 @@ from .native_vendor_dialog import (
     NativeVendorDialogCompatibilityError,
 )
 from .native_vendor_queue import _ReadSet, read_native_vendor_queue
+from .native_vendor_roster import _text
+
+
+def _displayed_costs(r, base, hud):
+    lists = []
+    for child in r.vector(hud + 0x54, 512):
+        r.require(child + 0x3BC, hud, "recipe cost child owner")
+        if r.word(child) == base + 0x116ACF0 and _text(r, child + 0x164) == "ResourceCostList":
+            lists.append(child)
+    if len(lists) != 1:
+        raise NativeVendorDialogCaptureError("one owned recipe resource cost list is required")
+    listing, result = lists[0], {}
+    for control in r.vector(listing + 0x408, 128):
+        r.require(control, base + 0x116AEBC, "recipe resource control type")
+        r.require(control + 0x3BC, hud, "recipe resource control owner")
+        r.require(control + 0x458, listing, "recipe resource listing owner")
+        entry = r.word(control + 0x44C)
+        r.require(entry, base + 0x116F258, "recipe resource entry type")
+        key, amount, label = r.word(entry + 0x20), r.word(entry + 0x48), _text(r, entry + 0x30)
+        if not key or key in result or not label or not 0 < amount <= 2**31 - 1:
+            raise NativeVendorDialogCaptureError("invalid or duplicate displayed recipe resource")
+        result[key] = dict(label=label, amount=amount)
+    return result
 
 
 def random_cost(amount: int, markup: float, quantity: int = 1) -> int:
@@ -87,5 +110,10 @@ def read_native_vendor_cost(memory):
     r.require(head + 4, previous, "recipe requirement tail")
     if not costs:
         raise NativeVendorDialogCaptureError("recipe resource costs are unavailable")
+    displayed = _displayed_costs(r, memory.base_address, hud)
+    if costs != {key: row["amount"] for key, row in displayed.items()}:
+        raise NativeVendorDialogCaptureError(
+            "displayed recipe costs disagree with native requirements")
+    queue["recipe_resource_costs"] = {str(key): row for key, row in displayed.items()}
     r.verify()
     return queue, costs

@@ -352,33 +352,37 @@ def fund_saved_vendor(
             )
             save()
             if free:
-                warehouse, source = target_reader(store, binding, record["scene"], record["root"])
-                record.update(warehouse=warehouse, source=source)
+                displayed = queue.get("recipe_resource_costs")
+                if (not isinstance(displayed, dict) or len(displayed) != 1
+                        or set(displayed) != {str(key) for key in costs}
+                        or any(row != {"label": "Gold", "amount": costs[int(key)]}
+                               for key, row in displayed.items())):
+                    raise VendorBatchStopped("This recipe needs unqualified non-gold resources.")
+                resource = next(iter(costs))
+                required = costs[resource] * free
+                if not 0 < required <= 2**31 - 1:
+                    raise VendorBatchStopped("The vendor batch gold requirement exceeds bounds.")
+                record.update(required=required, resource=resource)
                 save()
                 close_recipe(
                     menus, directory / "close.json", menus.inspect().snapshot, cancelled=cancelled
                 )
-                cycle.visit(navigation, warehouse, source, warehouse=True)
-                source_state = cycle.funds(funding, Direction.WAREHOUSE, source)
-                # The native warehouse reader proves the displayed Gold resource;
-                # never assume a resource key or fund missing non-gold materials.
-                if set(costs) != {source_state.resource}:
-                    raise VendorBatchStopped("This recipe needs unqualified non-gold resources.")
-                required = costs[source_state.resource] * free
-                if not 0 < required <= 2**31 - 1:
-                    raise VendorBatchStopped("The vendor batch gold requirement exceeds bounds.")
-                record.update(required=required, reserve=source_state.reserve)
-                save()
                 cycle.visit(navigation, record["building"])
                 destination = cycle.funds(funding, Direction.STRUCTURE, record["building"])
                 shortfall = max(0, required - destination.balance)
                 missing = max(0, shortfall - destination.purse)
                 if missing:
+                    warehouse, source = target_reader(
+                        store, binding, record["scene"], record["root"])
+                    record.update(warehouse=warehouse, source=source)
+                    save()
                     cycle.visit(navigation, warehouse, source, warehouse=True)
                     source_state = cycle.funds(funding, Direction.WAREHOUSE, source)
+                    record["reserve"] = source_state.reserve
+                    save()
                     missing = max(0, shortfall - source_state.purse)
                     if (
-                        source_state.resource not in costs
+                        source_state.resource != resource
                         or missing > max(0, source_state.balance - source_state.reserve)
                         or missing > 2**31 - 1 - source_state.purse
                     ):
@@ -420,6 +424,7 @@ def fund_saved_vendor(
                     )
                     != (record["scene"], record["root"], record["building"], record["vendor"])
                     or after_costs != costs
+                    or after_queue.get("recipe_resource_costs") != queue["recipe_resource_costs"]
                     or (
                         after_queue["process_id"],
                         after_queue["process_creation_filetime_utc"],

@@ -18,6 +18,16 @@ The user has been asked to leave the quantity-ten menu before Create; the bounde
 read-only observer timed out without seeing it. See
 [current evidence and exact pending work](vendor-rolling.md).
 
+The quantity-ten recipe is now observed live in multiple-slot mode with seven
+empty slots. Native transfer automation already exists; .110 source corrects
+vendor routing to check shop/carried gold before resolving warehouse access.
+The owned recipe resource list proves the Gold identity and current price, so
+sufficient carried gold no longer depends on an initialized warehouse HUD.
+The corrected cost/funding/worker suite passed 86 tests. This source is not
+installed; the existing failed handback block and quantity-ten command lifecycle
+still require completion. Optional Computer Use is stopped after Escape; native
+workflow work continues without GUI actions.
+
 ## Vendor discovery recovery candidate - October 13
 
 Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main

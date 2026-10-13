@@ -4,6 +4,22 @@
 
 ### Active: ten items per production slot
 
+The established native funding primitives already automate withdrawals and
+deposits. The vendor-specific routing was unnecessarily visiting the warehouse
+before checking current shop funds and carried gold. Source candidate .110 now
+identifies Gold directly from the owned recipe's `ResourceCostList`, requiring
+its typed controls/entries, exact ownership and displayed amount to match the
+computed requirements. Live quantity-ten observation verifies resource 2308551,
+label Gold and amount 1,660 on that list; no resource key is hardcoded.
+Funding now visits the shop first and uses the existing quote/transfer commands.
+Only a carried-gold shortfall resolves and visits the warehouse; its reserve,
+resource identity and exact two-sided balance checks remain required. Reopening
+the recipe revalidates both its costs and labels. The focused cost/funding/worker
+suite passed 86 tests, including absent warehouse access with sufficient shop
+or carried gold, displayed-cost ownership/mismatch, non-gold resources and
+resource-label changes after a deposit. This correction is committed source
+work, not an installed runtime change. No new GUI skill is needed for transfers.
+
 The user clarified that every slot can queue ten items. Seven free slots must
 therefore be planned as up to 70 scepters, not a seven-item batch. Native .67's
 generalized dispatcher and saved recipe deliberately accept quantity one only;
@@ -37,8 +53,13 @@ host .109 and native .67 remain unchanged.
 
 Active next: inspect the user's ten-per-slot recipe before Create, then qualify
 its full queue/completion lifecycle and implement matching native/host receipts.
-The user has been asked to leave that menu at quantity ten. The bounded read-only
-observer timed out without seeing a crafting menu and sent no game input.
+The user left the menu at quantity ten. A fresh read-only snapshot confirms
+multiple-slot mode, the saved template/table/random sentinels and seven empty
+slots. The earlier bounded observer had timed out before this setup. An attempted
+optional Windows UI detour restored VirtualBox to a small window; the user
+stopped Computer Use with Escape. No game control input succeeded, and no funds
+or items moved. Subsequent layout inspection was rejected by approval review;
+GUI control remains stopped. Vendor work continues through existing native APIs.
 Next after that: warehouse initialization and
 proof-based funding handback, then one fully funded capacity batch and Keep.
 Tier 1–2 disposal remains unqualified; unknowns remain retained. PR #174 is draft
