@@ -118,8 +118,10 @@ int ImageBinding(const char* path){
     std::string identity;for(auto byte:digest){identity+="0123456789abcdef"[byte>>4];identity+="0123456789abcdef"[byte&15];}
     if(identity!="a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a"
         &&identity!="051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698"
+        &&identity!="28a745925fceb4e3f08537504a7192782afe2227758e34febdd95cc4539f8db0"
         &&identity!="1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c"
-        &&identity!="baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9"){return 2;}
+        &&identity!="baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9"
+        &&identity!="366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a"){return 2;}
     const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(bytes.data());
     const auto* nt=reinterpret_cast<const IMAGE_NT_HEADERS32*>(bytes.data()+dos->e_lfanew);
     const auto* sections=IMAGE_FIRST_SECTION(nt);
