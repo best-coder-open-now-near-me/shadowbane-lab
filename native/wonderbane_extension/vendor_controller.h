@@ -121,9 +121,9 @@ public:
                 }
             }
             if (additions > expected) { uncertain_ = true; return; }
-            if (additions < expected) { return; }
+            if (pending_->verb != wire::Verb::create_orders && additions < expected) { return; }
             if (pending_->verb == wire::Verb::create_orders) {
-                if (order_proof != OrderProof::verified) { return; }
+                if (!additions || order_proof != OrderProof::verified) { return; }
             }
             // transition_item represents one member; the correlated snapshot contains all additions.
         } else {

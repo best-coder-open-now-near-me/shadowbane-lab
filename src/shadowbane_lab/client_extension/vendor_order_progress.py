@@ -29,13 +29,17 @@ class OrderProgress:
         self.capacity = self.admission["capacity"]
         self.revision = self.initial.revision
         self.visible = set(self.admission["initial_items"])
+        self.server_finished = False
 
     @property
     def sequence(self):
         return self.replies.sequence
 
     def receive(self, records):
+        before = set(self.items)
         self.replies.receive(records)
+        if set(self.items) != before:
+            self.server_finished = False
 
     def expect_keep(self, item):
         self.replies.expect_keep(item)
@@ -54,6 +58,10 @@ class OrderProgress:
         if kept_item and kept_item not in self.replies.keep_intents:
             raise VendorBatchStopped("quantity queue carries an unrelated Keep")
         self.capacity, self.revision, self.visible = len(state.slots), state.revision, visible
+        if any(slot.state == 1 for slot in state.slots if slot.item in self.items):
+            self.server_finished = False
+        elif self._terminal_ready(state):
+            self.server_finished = True
 
     def confirm_inventory(self, items):
         if (type(items) is not list or len(items) > 512
@@ -62,22 +70,33 @@ class OrderProgress:
             raise VendorBatchStopped("invalid positive inventory evidence")
         self.inventory_confirmed.update(set(items) & set(self.items))
 
-    def keep_candidate(self, state):
+    def _terminal_ready(self, state):
         # The server automatically retains intermediate items. Never race that
-        # workflow with Keep; finish only after the full fixed quota is observed
-        # and every remaining batch item has both UI and server terminal proof.
+        # workflow with Keep. Every remaining item must have UI and server
+        # terminal proof; every absent item needs deposit and inventory proof.
+        # Funding is an upper bound, not authority to fabricate missing items.
         current = [slot for slot in state.slots if slot.item in self.items]
-        if (self.replies.failed or len(self.items) != self.admission["planned_items"] or not current
-                or any(slot.state != 2 or not self.items[slot.item]["complete"]
-                       for slot in current)):
+        absent = set(self.items) - {slot.item for slot in current}
+        return (not self.replies.failed and _owner(state) == _owner(self.initial)
+                and bool(current) and not self.replies.lineage
+                and all(slot.state == 2 and self.items[slot.item]["complete"]
+                        and self.items[slot.item]["seconds"] == 0
+                        and self.items[slot.item]["duration"] == 0 for slot in current)
+                and absent <= self.inventory_confirmed
+                & self.replies.removed & self.replies.deposited)
+
+    def keep_candidate(self, state):
+        if not self._terminal_ready(state):
             return None
+        current = [slot for slot in state.slots if slot.item in self.items]
         return next((slot.item for slot in current
                      if slot.item not in self.inventory_confirmed), None)
 
     @property
     def complete(self):
         return (not self.replies.failed
-                and len(self.items) == self.admission["planned_items"]
+                and self.server_finished and bool(self.items)
+                and len(self.items) <= self.admission["planned_items"]
                 and set(self.items) <= self.inventory_confirmed
                 and set(self.items) <= self.replies.removed & self.replies.deposited
                 and not self.visible and not self.replies.lineage)
@@ -85,4 +104,6 @@ class OrderProgress:
     def summary(self):
         return dict(generated=len(self.items), kept=len(self.inventory_confirmed),
                     planned_items=self.admission["planned_items"], capacity=self.capacity,
-                    complete=self.complete)
+                    complete=self.complete, server_finished=self.server_finished,
+                    shortfall=(self.admission["planned_items"] - len(self.items)
+                               if self.server_finished else None))

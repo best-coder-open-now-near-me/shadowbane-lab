@@ -90,6 +90,8 @@ class Session(BaseSession):
             for index, slot in enumerate(slots):
                 if slot.item:
                     continue
+                if self.behavior == "partial" and index:
+                    continue
                 self.next_item += 1
                 slots[index] = replace(slot, item=self.next_item, state=1)
                 counts[index] = 1
@@ -139,6 +141,14 @@ def test_seven_slots_are_seventy_items_with_one_journaled_batch_create(tmp_path)
     assert len(session.calls) == 1 and len(result["initial_items"]) == 7
     assert result["batch_budget"]["total_costs"] == {"555": 11620}
     assert validate_queued_orders(session.path.read_bytes())[0] == result
+
+
+def test_server_can_start_fewer_rows_without_another_create_or_smaller_budget(tmp_path):
+    session = Session(tmp_path / "create.json", behavior="partial", capacity=2)
+    record = run(session)
+    assert record["planned_items"] == 20 and record["planned_orders"] == 2
+    assert len(record["initial_items"]) == len(session.calls) == 1
+    validate_queued_orders(session.path.read_bytes())
 
 
 def test_growth_defers_extra_slot_to_next_batch(tmp_path):

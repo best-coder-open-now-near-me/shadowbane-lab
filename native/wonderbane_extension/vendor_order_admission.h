@@ -104,7 +104,11 @@ public:
                 ++additions;
             }
         }
-        return free && arrivals_.size() == free && additions == free;
+        // The server may admit fewer rows than the displayed maximum. This
+        // proves a started request, never that every reserved row was accepted.
+        // The same batch ID still cannot dispatch a second Create.
+        return free && !arrivals_.empty() && arrivals_.size() <= free
+            && additions == arrivals_.size() && tickets_.empty();
     }
 };
 }

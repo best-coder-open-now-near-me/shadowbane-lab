@@ -124,7 +124,8 @@ def run_order_job(store, session, record, *, cancelled=lambda: False, clock=time
         if ledger is not None:
             summary = ledger.progress.summary()
             record.update(created=summary["generated"], kept=summary["kept"],
-                          capacity=summary["capacity"])
+                          capacity=summary["capacity"], server_finished=summary["server_finished"],
+                          shortfall=summary["shortfall"])
         if record != previous:
             store.save(record)
 
@@ -212,7 +213,7 @@ def run_order_job(store, session, record, *, cancelled=lambda: False, clock=time
                              resume=progress_path.exists())
         if reader is None:
             reader = reader_factory(session, ledger.record["cursor"])
-        record.update(phase="waiting", queued_orders=admission["planned_orders"],
+        record.update(phase="waiting", queued_orders=len(admission["initial_items"]),
                       planned_items=admission["planned_items"])
         update("cooking", "Orders queued. Tracking each item; unknown affixes are retained.")
         opened = False
@@ -241,7 +242,8 @@ def run_order_job(store, session, record, *, cancelled=lambda: False, clock=time
             if p.complete:
                 ledger.record["state"] = "complete"
                 ledger.save()
-                update("complete", "Batch finished; every planned item is confirmed in inventory.")
+                update("complete", f"Server batch finished: {len(p.items)}/{budget.total_items} "
+                       "requested items retained in inventory.")
                 return record
             item = p.keep_candidate(fresh.snapshot)
             if item is None:

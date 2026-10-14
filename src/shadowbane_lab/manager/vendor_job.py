@@ -137,6 +137,14 @@ class VendorJobStore:
                     or not 0 <= record["kept"] <= record["created"] <= budget.total_items
                     or record["excluded"] != 0):
                 raise ValueError("quantity job order intent changed")
+            if "server_finished" in record or "shortfall" in record:
+                finished = record.get("server_finished")
+                shortfall = record.get("shortfall")
+                if (type(finished) is not bool
+                        or finished and (type(shortfall) is not int
+                                         or shortfall != budget.total_items - record["created"])
+                        or not finished and shortfall is not None):
+                    raise ValueError("quantity server outcome changed")
         return record
 
     def save(self, record: dict) -> None:
@@ -262,6 +270,9 @@ class VendorJobStore:
         if record["schema_version"] == 4:
             result.update(planned_items=record["planned_items"],
                           queued_orders=record["queued_orders"])
+            if "server_finished" in record:
+                result.update(server_finished=record["server_finished"],
+                              shortfall=record["shortfall"])
         return result
 
 

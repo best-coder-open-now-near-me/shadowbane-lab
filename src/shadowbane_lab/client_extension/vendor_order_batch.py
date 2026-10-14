@@ -30,11 +30,11 @@ def queue_quantity_orders(
     cancelled=lambda: False, clock=time.monotonic, sleeper=time.sleep,
     acceptance_timeout: float = 15.0,
 ) -> dict:
-    """Submit one full-capacity quantity request and verify every funded slot.
+    """Submit one full-capacity request and prove the server started its batch.
 
-    The initial item ID represents one order, not all its future generated items.
-    This finishes queue admission only; inventory completion is a separate phase.
-    Rank growth cannot increase this batch's quota or cause another funding pass.
+    Initial IDs prove that the server started this request. Inventory completion
+    is separate. The immutable funding budget remains an upper bound: neither
+    unfilled rows nor rank growth can authorize another Create or funding pass.
     """
     if (type(specification) is not RandomOrderSpec or not specification.multiple
             or type(budget) is not VendorBatchBudget or not 0 < acceptance_timeout <= 60):
@@ -178,7 +178,7 @@ def queue_quantity_orders(
                     raise VendorBatchStopped("ambiguous quantity-order arrival")
                 if observed.transition_request == key:
                     if (observed.flags & (IN_FLIGHT | UNRESOLVED)
-                            or len(additions) != budget.free_slots
+                            or not 0 < len(additions) <= budget.free_slots
                             or observed.transition_item not in additions
                             or not proof.admits(sorted(additions))):
                         raise VendorBatchStopped("native order admission lacks qualified replies")
@@ -252,7 +252,7 @@ def validate_queued_orders(raw: bytes) -> tuple[dict, Snapshot]:
                 or record["planned_orders"] != budget.free_slots
                 or record["planned_items"] != budget.total_items
                 or len(record["requests"]) != 1
-                or len(record["initial_items"]) != budget.free_slots
+                or not 0 < len(record["initial_items"]) <= budget.free_slots
                 or not len(initial.slots) <= record["capacity"] <= 16
                 or record["capacity_history"] != sorted(set(record["capacity_history"]))
                 or record["capacity_history"][0] != len(initial.slots)
@@ -277,7 +277,7 @@ def validate_queued_orders(raw: bytes) -> tuple[dict, Snapshot]:
             if (key in keys or request["state"] != "observed"
                     or request["transition_request"] != key
                     or type(items) is not list or items != record["initial_items"]
-                    or len(set(items)) != budget.free_slots or items != sorted(items)
+                    or len(set(items)) != len(items) or items != sorted(items)
                     or any(type(item) is not int or not 0 < item < 2**32 for item in items)
                     or _owner(before) != _owner(initial) or _owner(after) != _owner(initial)
                     or not spec.matches(before)

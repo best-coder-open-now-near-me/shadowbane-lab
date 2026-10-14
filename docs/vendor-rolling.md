@@ -1,5 +1,32 @@
 # Player-owned vendor rolling
 
+## Server terminal short batch confirmed - October 14
+
+The complete V3 capture now has 106 contiguous records, no rejections/drops and
+exactly one outgoing quantity-ten/multiple Create. The server produced 12 new
+items, acknowledged 11 paired automatic removals/deposits and sent an explicit
+terminal reply for the remaining item. An independent queue read confirms that
+item completed, no cooking items, the five earlier completed items untouched and
+one empty row. Gold is 216,284: 1,992 charged, exactly 12 starts at 166. The
+20-item / 3,320-gold funding reservation did not establish a server production
+guarantee. The cause of its shorter run is unproved.
+
+Source admission now proves a started server request from an exact serialized
+request and correlated queue arrivals, including a server-admitted subset of
+the displayed maximum. That consumes the entire one-shot batch identity;
+unfilled rows cannot trigger another Create. Completion follows explicit server
+terminal replies and a current completed queue, requiring paired deposit plus
+positive inventory proof for every absent item. It retains the final items and
+reports actual production and shortfall against the unchanged funding bound.
+No replacement rolls are issued to fill a deficit.
+
+Candidate packaging was stopped before deployment when this new terminal
+evidence invalidated its exact-count completion assumption. .116/.72 remains
+installed; both review jobs and the passive recorder remain intact. Active next:
+validate this terminal settlement, add durable collection of pre-existing
+completed results before batch funding, then qualify one coherent .117/.73
+candidate. Inventory filtering and town scheduling follow quantity acceptance.
+
 ## Candidate .117/.73 prepared from verified source - October 14
 
 Published source `e9befe0b170abc38a280cd71f577142d483ab213` passes the full
