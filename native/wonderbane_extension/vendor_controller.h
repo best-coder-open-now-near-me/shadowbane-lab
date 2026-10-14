@@ -2,6 +2,7 @@
 #include "vendor_wire.h"
 #include <map>
 namespace wonderbane::extension::vendor {
+enum class OrderProof { waiting, verified, invalid };
 class Invoker {
 public:
     virtual ~Invoker() = default;
@@ -11,8 +12,6 @@ public:
 class Controller {
     struct Record {
         wire::Verb verb; wire::Command command; wire::Receipt receipt;
-        std::array<std::uint32_t, 16> accepted_items{};
-        std::uint32_t accepted_count = 0;
     };
     std::map<std::array<std::uint8_t, 16>, Record> records_;
     Record* pending_ = nullptr;
@@ -57,44 +56,24 @@ class Controller {
 public:
     bool Busy() const noexcept { return pending_ || uncertain_; }
     const wire::Snapshot& Current() const noexcept { return current_; }
-    std::uint32_t OrdersAccepted(const wire::Snapshot& snapshot, const wire::Command& command) const noexcept {
-        std::uint32_t count = 0;
-        for (const auto& [request, record] : records_) {
-            (void)request;
-            if (record.verb == wire::Verb::create_orders && SameOwner(snapshot, record.command.expected)
-                && !std::memcmp(record.command.reserved, command.reserved, 16)) { count += record.accepted_count; }
-        }
-        return count;
-    }
+    bool PendingOrders() const noexcept { return pending_ && pending_->verb == wire::Verb::create_orders; }
     bool OrderItemsOwned(const wire::Snapshot& snapshot, const wire::RemainingCounts& remaining,
         const wire::Command& command) const noexcept {
         if (snapshot.count > snapshot.slots.size() || !SameOwner(snapshot, command.expected)
             || movement::wire::Zero(command.reserved, 16)) { return false; }
         const auto budget = wire::Budget(command);
-        const auto accepted = OrdersAccepted(snapshot, command);
         std::uint32_t free = 0;
         for (std::size_t i = 0; i < snapshot.count; ++i) { free += !snapshot.slots[i].item; }
-        if (accepted >= budget.orders || (!accepted && budget.orders != free)) { return false; }
+        if (budget.orders != free) { return false; }
         for (const auto& [request, record] : records_) {
             (void)request;
             if (record.verb == wire::Verb::create_orders && SameOwner(snapshot, record.command.expected)
                 && !std::memcmp(record.command.reserved, command.reserved, 16)
-                && std::memcmp(record.command.reserved + 16, command.reserved + 16, 24)) { return false; }
+                && (&record != pending_ || record.command.request != command.request
+                    || std::memcmp(&record.command, &command, sizeof(command)))) { return false; }
         }
         for (std::size_t i = 0; i < snapshot.count; ++i) {
-            if (remaining[i] > UINT8_MAX) { return false; }
-            if (!snapshot.slots[i].item || remaining[i] <= 1) { continue; }
-            bool owned = false;
-            for (const auto& [request, record] : records_) {
-                (void)request;
-                if (record.verb != wire::Verb::create_orders
-                    || std::memcmp(record.command.reserved, command.reserved, 16)
-                    || !SameOwner(snapshot, record.command.expected)) { continue; }
-                for (std::size_t j = 0; j < record.accepted_count; ++j) {
-                    owned |= record.accepted_items[j] == snapshot.slots[i].item;
-                }
-            }
-            if (!owned) { return false; }
+            if (remaining[i] > UINT8_MAX || snapshot.slots[i].state == 1) { return false; }
         }
         return true;
     }
@@ -104,7 +83,7 @@ public:
     // Called only on the owning thread, after fresh native ownership validation.
     // A displayed inventory item proves presence; its absence never proves failure.
     void Observe(wire::Snapshot snapshot, bool valid, bool kept_in_inventory, std::uint64_t now = 0,
-        wire::RemainingCounts remaining = {}) noexcept {
+        wire::RemainingCounts remaining = {}, OrderProof order_proof = OrderProof::waiting) noexcept {
         snapshot.revision = current_.revision;
         if (!valid || !wire::Equal(snapshot, current_) || remaining != remaining_) {
             if (revision_ == UINT64_MAX) { uncertain_ = true; current_ = {}; return; }
@@ -114,6 +93,7 @@ public:
         current_ = valid ? snapshot : wire::Snapshot{};
         remaining_ = valid ? remaining : wire::RemainingCounts{};
         if (!pending_ || uncertain_) { return; }
+        if (PendingOrders() && order_proof == OrderProof::invalid) { uncertain_ = true; return; }
         // The ordinary generalized Create may show a native rejection dialog.
         // Absence of a correlated addition becomes uncertainty, never a retry.
         if ((pending_->verb == wire::Verb::create_random || pending_->verb == wire::Verb::create_orders)
@@ -137,19 +117,13 @@ public:
             for (std::size_t i = 0; i < current_.count; ++i) {
                 const auto item = current_.slots[i].item;
                 if (item && !Contains(before, item)) {
-                    if (pending_->verb == wire::Verb::create_orders
-                        && remaining_[i] != before.quantity) { uncertain_ = true; return; }
                     ++additions; new_item = item;
                 }
             }
             if (additions > expected) { uncertain_ = true; return; }
             if (additions < expected) { return; }
             if (pending_->verb == wire::Verb::create_orders) {
-                for (std::size_t i = 0; i < current_.count; ++i) {
-                    if (current_.slots[i].item && !Contains(before, current_.slots[i].item)) {
-                        pending_->accepted_items[pending_->accepted_count++] = current_.slots[i].item;
-                    }
-                }
+                if (order_proof != OrderProof::verified) { return; }
             }
             // transition_item represents one member; the correlated snapshot contains all additions.
         } else {

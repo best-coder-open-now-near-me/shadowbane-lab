@@ -1,8 +1,78 @@
 # Player-owned vendor rolling
 
+## Quantity request and automatic turnover verified - October 14
+
+Treehugger's .116/.72 session is initialized, bound and nonterminal. Fresh
+native discovery verifies 25 vendors across 13 nearby buildings. Malik's
+displayed inventory positively contains all 45 deposits from the preceding
+batch. Its four new completed items and the earlier completed item remain in
+production; shop gold is unchanged at 218,276. Reopening the queue resets the
+displayed raw count to one, further disproving a remaining-roll interpretation.
+
+A separate, one-shot protocol capture reserves the two empty rows as an upper
+bound of 20 items / 3,320 gold. Exactly one outgoing request carries quantity
+10, multiple enabled, Gilded Scepter and table 12. Both rows receive qualified
+server cooking replies, charging 332 gold. The legacy native count check stops
+the manager in review as expected. Neither this job nor the earlier review job
+may retry. The first automatic turnover has two correlated removals/deposits
+and two subsequent cooking replies, with no additional outgoing Create and no
+lost/rejected records. The bounded passive recorder remains active.
+
+The source correction now gates native admission on the exact serialized
+request and complete decoded/processing/returned arrival lineage, rather than
+the raw count. It also prevents a second request for the same batch identity
+after rows become empty, and keeps the full funding minimum on every dispatch.
+The full x86 extension compiles with warnings as errors and the native admission
+regressions pass. This source checkpoint is not installed or release-qualified;
+the host's legacy admission/progress model still requires replacement.
+
+Active next: finish host tracking of server automatic production, capture the
+complete bounded batch, then qualify one coherent native/host update. Inventory
+filtering (exclude confirmed T1-2, retain unknowns) and town scheduling remain
+after quantity acceptance. No Keep or disposal has been sent in this capture.
+
+## V3 workflow recorder installed - October 14
+
+Host .116/native .72 is qualified and installed from pushed graphics-preserving
+release `71af337ff41feceb3e63f1ac1334b44ff24b409b`. Implementation checkpoint
+`d3b34ab7f07908c8f609d9d087d815c7bb7ce458` passes all 15 hosted checks; draft
+PR #174 still targets main and quantity automation remains unaccepted.
+
+Qualification passes 6,806 host tests (45 optional skips), 291 full-profile and
+287 diagnostics native tests, both IPC profiles and all seven real Windows
+startup cases. All 341 bound verifier/installer checks pass. Apply and activation
+verify 499 modules and 9,988 retained records with zero exclusions. Only the
+native DLL changed among client assets; executable and resources were not written.
+An unstable dispatch-permit read stopped the initial switch before any runtime
+write. A stopped baseline proved every retained file unchanged except the
+authorized revoked permit; the same prepared host was revalidated without
+reinstallation. Original failure and revalidation receipts remain private.
+
+The same Vendor Test launcher opened process 3028 / creation 134364608409050346
+with exact .72 DLL and an available V3 mapping, zero rejected/dropped records and
+zero native commands. In-world initialization is pending login and movement.
+The bounded passive V3 recorder is active and sends no commands. Obsolete .115
+software was retired after replacement verification: 2,189 reproducible files /
+49,485,503 bytes, with no rollback copy. Settings, jobs and diagnostic evidence
+remain in place.
+
+The completed .115 trace contains all 429 contiguous records and 45 positively
+correlated automatic deposits; four new items remain completed, beside the
+earlier completed item. Its uncertain Create journal remains in review forever
+unless separately reconciled; installation does not authorize replay or adopting
+its quota as accepted. The actual batch produced 49 new items / 8,134 gold.
+
+Active next: Treehugger logs into Rooty and moves once; require initialized,
+nonterminal native bindings, then inspect V3 quantity/order receipts and the
+remaining inventory. Actual server capacity, admission and completion must
+replace the legacy remaining-count assumptions before accepting automation.
+After that, qualify Tier 1-2 inventory filtering with unknowns retained, then
+town scheduling. No disposal is enabled during this acceptance work. See
+[exact runtime receipts](client-update-20261014.md).
+
 ## Native automatic quantity production confirmed - October 14
 
-Installed software is host .115/native .71 from pushed graphics-preserving
+The preceding software was host .115/native .71 from pushed graphics-preserving
 release `c0c464da7992484d06809c1ab70052e739eba03e`. Qualification passes
 6,780 host tests (46 optional skips), both real IPC profiles, seven startup
 handshakes and 157 installer checks (one privilege-dependent skip). Activation
@@ -121,7 +191,52 @@ is claimed yet. See
 
 ## Current continuation - October 13, 2026
 
-### Live quantity correction: source .111/.69, not installed
+### Corrected .111/.69 installed - October 14
+
+The graphics-preserving release `f0546c0434a8cf967bb0d588fb56aceee35022b5`
+is pushed on `codex/vendor-release-20261013`, fully qualified and installed in
+the test VM. Qualification passes 6,740 host tests (45 optional skips), all
+required native tests in both profiles (284 full / 280 diagnostics), native/host
+IPC, exact original/prepared .18 bindings and all seven Windows startup cases.
+Independent verification seals 144 artifacts, 116 steps and 499 wheel modules;
+147 native-only updater checks also pass. Existing stretch-only transparency
+findings remain recorded; no required gate was waived.
+
+After the user requested closure, the game window disappeared but its exact
+process remained. Only that verified windowless lifetime and the idle, unbound
+.110 manager were stopped. A stable closed census captured 9,828 retained
+records. Apply and activation verify all 499 installed modules and 9,884 retained
+records, with zero exclusions and only typed startup/dispatch changes. The sole
+client binary replacement is the .69 DLL; executable and resources were not
+written. Settings, the earlier one-item roll and its interrupted journal remain
+in place. No funding, Create, Keep or disposal was sent during installation.
+
+The unchanged Vendor Test shortcut launched PID 1712 / creation
+134364443669883415 with the exact DLL. The V2 production mapping is readable,
+sequence zero, without rejected or dropped records. Its exact worker is healthy
+and the operation queue is empty. Unused installed host .110 was retired:
+2,189 reproducible files / 49,477,069 bytes, without a retained rollback copy.
+Earlier uninstalled qualification packages remain private audit artifacts after
+automatic approval review rejected their broader deletion; they are not active
+runtime dependencies and must not be used for this installation.
+
+Exact SHA-256 receipts:
+
+- DLL: `d1e856514aa8e45a7bcf203f4718859a436b77ef07432d6b104cd7135234d027`.
+- Wheel: `108e94dda0f7ee97efccf53cc18bb036dca944ed2f796a87ce08f60c62221faf`.
+- Package verification: `a97d339ef7e42f148d4c5ad176302973ece3c0681c96ecaabe185832f25d19c6`.
+- Startup qualification: `d5a1c827e23f4b128486c622c8644fe6ee7a93cb4fc22f8ef7bfd54ae2845d07`.
+- Sealed update plan: `80726e3b0184a93521fd33befae33b58cc27fc8dc80701eae4158a0159acbcbf`.
+- Apply: `7dc1a99a0d9c43a56161189946b422457feaf8f69d6468452d51eaa3febd8f3f`.
+- Activation: `b56523407c7d2c6eaf0cfb4aa4f4ebf0d25bf9823880798c83f9e16e68cd9de4`.
+
+Active next: Treehugger logs into Rooty and moves once before fresh discovery;
+then verify one full-capacity quantity-ten request and every resulting inventory
+receipt. Do not replay the earlier review job. Client .18 disposal remains
+disabled and unknowns are retained. Draft PR #174 targets main; implementation
+and graphics-preserving release remain outside main pending live acceptance.
+
+### Live quantity correction and preserved .110 history
 
 After restart and movement, discovery succeeded: 25 vendor windows across 13
 buildings. The existing hooks returned to Malik and activated saved Gilded Scepter
@@ -157,9 +272,9 @@ Validation: 140 focused host checks, four affected native suites, repository Ruf
 and diff whitespace checks pass. The V2 correction additionally passes 83 host
 checks and all four recorder/install-failure native cases, including ten-item
 active and completed messages, typed-template rejection and V1 refusal.
-Installed software remains .110/.68. Active next:
-qualify a graphics-preserving .111/.69 release, then install and verify a fresh
-full-capacity request plus the complete inventory chain. The one live item remains
+The resulting .111/.69 release is now qualified and installed as recorded above.
+Active next: verify a fresh full-capacity request plus the complete inventory
+chain. The one earlier item remains
 untouched; unknowns are retained and client .18 disposal remains disabled.
 
 ### Installed update; quantity-ten live acceptance pending
