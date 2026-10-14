@@ -1,6 +1,58 @@
 # Official client alignment for vendor rolling - October 14
 
-## Qualified and installed
+## Corrected startup qualified and installed
+
+Host .113/native .71 is installed from graphics-preserving release
+`11133fcf9a12eeb84089b94068e6f6b90f9c99b6`, pushed on
+`codex/vendor-release-20261013`. The implementation through
+`85874dcb7ca46cb07f0a5e1e48697c919fe17217` is pushed on
+`codex/vendor-rolling-20261013`, targeting main in draft PR #174.
+
+Qualification passes 6,766 host tests (45 optional skips), 290 full-profile and
+286 diagnostics native tests, both sets of IPC (107 movement / 86 combat / 249
+actor), all exact original/prepared image checks and all seven real Windows
+startup/stop cases. Independent verification seals 144 artifacts, 116 steps and
+499 modules. All 147 native-only updater checks pass against the final package
+pins. Existing stretch-only transparency findings remain recorded; no required
+gate was waived.
+
+The existing manager gracefully closed the exact idle game lifetime. A stable
+closed census captured 9,853 retained records. Apply replaced only the DLL;
+the aligned executable/resources were not written. Activation verifies all 499
+modules and 9,911 retained records with zero exclusions and only typed startup/
+dispatch changes. Both failed inspection history and the earlier one-item Create
+remain preserved without replay. Unused installed host .112 was retired: 2,189
+reproducible files / 49,483,575 bytes, without retaining a fallback runtime.
+
+Vendor Test launched PID 4028 / creation 134364535913650718 with the exact .71
+DLL. Read-only live inspection reports event capabilities 3, proving the expanded
+world-map startup gate enabled; action transport capability 1 is the normal
+conservative transport value. The V2 recorder is available with zero rejection,
+loss or records and the native command queue is empty. Native initialization is
+unpublished at the login screen, with no terminal flag; in-world initialization
+and the corrected batch still require live acceptance. No funds, Create, Keep
+or disposal were sent during this update.
+
+Exact SHA-256 receipts:
+
+- DLL: `b291d9340d9b197e3de85f7935d66b4a10bbf22f4e6c8233740b4fa09d36bb33`.
+- Wheel: `b539c4890026f13dd32a3fd025e29d6d69deaf5908ef49117df0a0ae783ab6dc`.
+- Package: `28fda1a7196e03342aae5cdaf821aaeb50a80a81d85156c5eccd53fd272f5e7b`.
+- Package verification: `de8484dde3cd52431c0617685f46bcb7360108d10944a0b5fd503c05d07d8609`.
+- Startup qualification: `c0649b8404190902518a2af06abf197a5aa2569e25c9ec831d4f6fec150e4639`.
+- Update plan: `d3adcdc0c0a6eaaab3193482dd3b647d297bf9de20b8fef35fcefdbdafc691bc`.
+- Apply: `618c5d911cdfe3b262444cbda8766805e0555faedf6877744540c513637341b7`.
+- Activation: `1b35b63e8dee2cebde462df917fa41b09ce08523533881092131378839613a89`.
+
+Active next: Treehugger logs into Rooty and moves once. Read the native snapshot
+and require initialized, nonterminal bindings before discovery; healthy manager
+identity alone does not prove callback readiness. Then activate Malik's saved
+recipe, fund the complete initial capacity once, and verify one quantity-ten
+request plus every resulting inventory receipt. No corrected live batch is
+claimed yet. Main and both source worktrees remain clean and published; current
+vendor tips remain outside main pending live acceptance and review.
+
+## Earlier .112/.70 installation and startup diagnosis
 
 Host .112/native .70/client .19 is installed from graphics-preserving release
 `a7f0b65d8b9d9930a505face3b45ac660a4fcc53`, pushed on
@@ -51,8 +103,9 @@ layout/lifetime cases and the actual original/prepared movement probe pass. The
 real-image probe exercises both startup-layout admission and the free import
 binding, proves the former constant fails on .19 and rejects loaded-header drift
 with all proof outputs cleared. The new layout test is a mandatory package gate.
-Active next: qualify/install .113/.71, then resume fresh discovery and the complete
-quantity-ten inventory chain. Installed software remains .112/.70 for now.
+The .113/.71 release is now qualified and installed as recorded above. Active
+next: confirm in-world initialization, then fresh discovery and the complete
+quantity-ten inventory chain.
 
 Exact SHA-256 receipts:
 

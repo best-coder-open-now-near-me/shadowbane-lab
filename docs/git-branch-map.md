@@ -1,6 +1,28 @@
 # Git branch map
 
-## Official client alignment installed - October 14
+## Native client .19 startup correction installed - October 14
+
+Continue vendor work on `codex/vendor-rolling-20261013` through source
+`85874dcb7ca46cb07f0a5e1e48697c919fe17217`, targeting main in draft PR #174.
+Pushed graphics-preserving release `11133fcf9a12eeb84089b94068e6f6b90f9c99b6`
+on `codex/vendor-release-20261013` is qualified and installed as .113/.71.
+Authenticated image extent now reaches the lifetime import binding and the
+seven-section world-map gate requires the exact authenticated layout.
+
+All 6,766 host checks, both native/IPC profiles, real image probes, seven Windows
+startup cases and 147 updater checks pass. Activation verifies 499 modules and
+9,911 retained records with zero exclusions. Vendor Test loads the exact .71 DLL;
+event capabilities 3 prove its expanded startup gate enabled, and the V2 recorder
+and empty command queue are verified. Old installed host .112 is retired.
+Active next: login/movement and a direct initialized/nonterminal native snapshot
+before discovery, then full quantity-ten batch/inventory acceptance. Preserve
+the failed .112 inspections and earlier one-item Create without replay. Main and
+both source lanes are clean/published; neither current vendor tip is merged yet.
+Keep the two active worktrees through live acceptance. See
+[current installation evidence](client-update-20261014.md). Guard work remains
+out of scope.
+
+## Earlier official client alignment installed - October 14
 
 Continue on `codex/vendor-rolling-20261013`, targeting main in draft PR #174.
 The user patched the official client to manifest 1.0.25 / internal 1.3.38.19.

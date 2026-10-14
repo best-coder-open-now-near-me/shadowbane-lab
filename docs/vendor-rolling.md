@@ -1,6 +1,20 @@
 # Player-owned vendor rolling
 
-## Official client alignment installed - October 14
+## Native startup correction installed - October 14
+
+Qualified release `11133fcf9a12eeb84089b94068e6f6b90f9c99b6` is installed as
+host .113/native .71. It fixes the lifetime import bound that retired the .19
+callback runtime and requires authenticated proof for the seven-section map
+layout. All 499 installed modules and 9,911 retained records passed verification
+with zero exclusions. The same Vendor Test shortcut loads the exact .71 DLL;
+event capabilities 3 and the available V2 recorder are verified, with no native
+commands sent. Active next: Treehugger login/movement, direct initialized and
+nonterminal native status, then fresh discovery and one whole funded quantity-ten
+batch with every inventory receipt. Old review journals remain preserved and no
+corrected live batch is claimed. See
+[complete qualification and installation evidence](client-update-20261014.md).
+
+## Earlier official client alignment installed - October 14
 
 The user's official patch is now aligned in Vendor Test as host .112/native .70,
 manifest 1.0.25 / internal client 1.3.38.19. Qualified graphics-preserving release
