@@ -69,6 +69,12 @@ def _snapshot_slots(snapshot):
                   for slot in snapshot.slots)
 
 
+def _queue_production(queue):
+    # Reopening the vendor rebuilds entry allocations. Item identities and the
+    # number of empty slots survive navigation; pointers only bind one reading.
+    return sorted((item, state) for _, item, state in _queue_slots(queue))
+
+
 def warehouse_target(store, binding, scene, root):
     """Choose only one freshly navigable Seneschal from verified local discovery."""
     paths = sorted(
@@ -479,7 +485,7 @@ def fund_saved_vendor(
                         record["building"],
                         record["vendor"],
                     )
-                    or _queue_slots(after_queue) != _queue_slots(queue)
+                    or _queue_production(after_queue) != _queue_production(queue)
                     or _snapshot_slots(after.snapshot) != _queue_slots(after_queue)
                     or after.snapshot.free_slots != free
                     or not budget.matches(after.snapshot)

@@ -250,6 +250,36 @@ def test_entry_reconciliation_rejects_real_queue_changes(setup, change, after_tr
     assert setup.world.calls.count("withdraw") == int(after_transfer)
 
 
+def test_quantity_ten_reopening_rebuilds_entries_without_changing_funded_production(
+    setup, monkeypatch
+):
+    order = RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True)
+    setup.world.funds = 10000
+    setup.parent.snapshot = replace(setup.parent.snapshot, slots=(
+        vendor.Slot(1100), vendor.Slot(1200, 4321, 2), vendor.Slot(1300)))
+    monkeypatch.setattr(module, "ensure_order_observer", lambda _: None)
+    def prepare(*args, **kwargs):
+        setup.parent.snapshot = replace(setup.parent.snapshot, quantity=10, multiple=1)
+    monkeypatch.setattr(module, "prepare_order", prepare)
+    setup.parent.inspect_orders = lambda: replace(
+        setup.parent.inspect_random(), remaining_counts=(1, 1, 1))
+    def costs(binding):
+        if setup.calls:
+            # A real return visit allocates new entries and changes their order;
+            # both independently read views must agree on the new allocation.
+            setup.parent.snapshot = replace(setup.parent.snapshot, recipe=701, slots=(
+                vendor.Slot(2100, 4321, 2), vendor.Slot(2300), vendor.Slot(2200)))
+        queue, _ = setup.reader(binding)
+        queue["creation_recipe"]["window_address"] = setup.parent.snapshot.recipe
+        queue["slots"].reverse()
+        queue["recipe_resource_costs"]["555"]["amount"] = 1660
+        return queue, {555: 1660}
+    result = setup.run(order=order, cost_reader=costs)
+    assert result["state"] == "funded" and result["required"] == 3320
+    assert result["batch_budget"]["occupied"] == [4321]
+    assert result["withdrawn"] == result["deposited"] == 0
+
+
 def test_missing_production_observer_stops_before_gold_or_menu_actions(setup, monkeypatch):
     def missing(_):
         raise VendorBatchStopped("recorder unavailable")
