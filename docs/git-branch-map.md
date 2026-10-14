@@ -1,5 +1,15 @@
 # Git branch map
 
+## Vendor batch recycling receipt source - October 14
+
+Continue the vendor lane in `codex/vendor-rolling-20261013`; draft PR #174 targets
+main and remains unmerged. Its command-free recycle receipt reducer passes the
+actual user's seven-item manual workflow and 89 focused recycle/affix/reply
+checks. Installed graphics-preserving release remains `93ba59d2` (.119/.73).
+Native batch dispatch and durable exclusions remain unfinished; no automatic
+disposal is enabled. Both vendor worktrees stay active and the normal checkout
+stays clean on main. See [workflow and next todo](vendor-rolling.md).
+
 ## Uninstalled owned-affix observer draft - October 14
 
 The current `codex/vendor-rolling-20261013` tip also contains the command-free

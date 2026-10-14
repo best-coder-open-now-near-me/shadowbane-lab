@@ -1,5 +1,33 @@
 # Player-owned vendor rolling
 
+## Manual batch Recycle captured and receipt boundary verified - October 14
+
+The user's manual workflow issued one action-3 request with seven owned scepter
+references. The server returned action 7 with exactly that set (in a different
+order), and shop gold rose from 205,328 to 206,385: seven base values of 151.
+The same owned inventory changed from 240 to 233 entries; all seven selected
+identities disappeared and every other entry remained unchanged. Twenty-five
+contiguous records, sequence 658-682, have no gaps, rejections or ticket drops.
+Seven empty action-7 updates precede the populated receipt and do not acknowledge
+recycling. Exact decode/processing/return lineage is preserved. The passive
+recorder was explicitly stopped after verification; its trace is unchanged.
+
+The new command-free `RecycleEvidence` boundary validates the qualified image,
+owner/lifetime, bounded immutable item set, base-value refund, unique request,
+complete server callback and independent inventory corroboration. Gaps, repeated
+sends, duplicate acknowledgments, changed identities, errors, unrelated stock
+changes and absence-only evidence fail closed. Eighty-nine focused recycle,
+affix and production-reply tests pass; Ruff passes across source/tests/scripts.
+The actual private capture also passes this reducer. These are observations of
+the manual operation, not authority to replay it or a claim of automatic Recycle.
+
+The fresh passive affix check protects all 132 remaining scepters, including
+20 unknowns; none qualify for automatic exclusion. Installed .119/.73 remains
+unchanged and automatic disposal remains off. Completed: full manual recycling
+capture and its causal receipt boundary. Active next: native batch admission and
+dispatch qualification, then durable exclusion integration and town scheduling.
+Draft PR #174 remains unmerged; this source is not installed.
+
 ## Current-image owned affix assessment source candidate - October 14
 
 The read-only observer now binds displayed inventory membership to each native
