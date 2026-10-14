@@ -215,8 +215,11 @@ def read_native_vendor_affixes(memory, *, building, vendor, effects_dictionary, 
         definitions = [parents.get(e["token"]) for e in row.get("effects", [])]
         assessment = _assess(row, label, definitions, names, base_name, reference)
         items.append(dict(item=row["item"], template=row["template"], display_name=label,
-                          effects=row.get("effects"), assessment=assessment))
+                          effects=row.get("effects"), assessment=assessment, inventory_row=row))
     _protect_conflicting_labels(items)
+    gold = r.word(manager + 0x1CC)
+    if gold > 2**31 - 1:
+        raise NativeVendorDialogCaptureError("affix inventory strongbox balance is invalid")
     r.verify()
     return dict(schema_version=1, record_type="owned_vendor_affix_assessment",
                 process_id=memory.pid, process_creation_filetime_utc=lifetime,
@@ -225,4 +228,4 @@ def read_native_vendor_affixes(memory, *, building, vendor, effects_dictionary, 
                 effects_dictionary_sha256=_EFFECTS_SHA, item_dictionary_sha256=_ITEMS_SHA,
                 reference_edition=reference.edition, reference_sha256=reference.source_sha256,
                 scope="displayed_entries", complete_inventory=False, items=items,
-                command_admitted=False)
+                strongbox_gold=gold, command_admitted=False)

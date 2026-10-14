@@ -1,5 +1,30 @@
 # Player-owned vendor rolling
 
+## Native recycle manifest and selection boundary source - October 14
+
+The next source slice binds each eligible owned item's identity, inventory
+addresses, base/value/quantity, durability, custom and displayed names, and all
+effect words into a SHA-256 manifest. The owner reconstructs that manifest before
+selection and immediately before sending. Admission requires the exact .19 image,
+current vendor/inventory ownership, an empty production queue and no pre-existing
+manual selection. It populates the native selection map through the client's own
+InstanceInfo-copy and selection functions, then invokes its ordinary batch sender
+once. Partial selection or failed final validation returns uncertainty, with no
+automatic clearing, replay or fallback send.
+
+The command-free planner considers only this job's inventory-confirmed identities,
+retains unknowns and unrelated stock, and divides eligible results into bounded
+batches of at most 48. Whole-batch funding remains separate and unchanged. Ninety-five
+focused host checks pass, including an executed cross-language digest comparison
+against the compiled x86 native capture. The native memory/selection test passes
+with MSVC warnings as errors; it uses instrumented native-call stand-ins and is
+not a live Recycle acceptance claim. Ruff passes. The candidate is not installed
+or exposed through the command service yet. Installed .119/.73 remains unchanged.
+
+Active next: correlate native server receipts and integrate the durable command/job
+boundary, then qualify one complete update before requesting a game restart.
+Town scheduling remains after recycling. Automatic disposal remains disabled.
+
 ## Manual batch Recycle captured and receipt boundary verified - October 14
 
 The user's manual workflow issued one action-3 request with seven owned scepter
