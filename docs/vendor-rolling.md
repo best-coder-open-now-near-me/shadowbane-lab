@@ -1,5 +1,30 @@
 # Player-owned vendor rolling
 
+## Current-image owned affix assessment source candidate - October 14
+
+The read-only observer now binds displayed inventory membership to each native
+item's cached full name, the current parent-action registry at RVA 0x1387738,
+canonical PRE/SUF IDs and the parent's exact applied-child list. It requires
+complete effect coverage, the exact .19 prepared image and current English
+dictionary hashes. Reused/ambiguous tiers, unrecognized children, custom names,
+unsupported action classes and unresolved identities remain KEEP. A known low
+tier paired with an unknown affix remains KEEP. The observer cannot authorize
+recycling, infer stock absence or claim complete inventory capacity.
+
+Fifty-four focused ownership, registry, inventory, reference and policy checks
+pass, including owner/definition mutation, malformed maps, extra/missing effects,
+unsupported builds/dictionaries and unknown-over-low-tier protection. Ruff passes.
+The passive live check assesses 139 owned Gilded Scepters: 118 have confirmed
+retained tiers and 21 are unknown/protected; none qualify for exclusion. It sends
+zero commands. This source is not installed; .119/.73 and the completed batch
+remain unchanged.
+
+Active next: capture one complete manual batch-recycling workflow through the
+existing V3 recorder, then qualify the native recycling boundary and connect it
+to these fresh owned-item assessments. Production action 3 and its bounded
+reference list are already observable without a reinstall. No automatic disposal
+is enabled. Town scheduling follows the qualified exclusion/recycling slice.
+
 ## Quantity batch accepted live on installed .119/.73 - October 14
 
 The same admitted batch finished through the normal manager with every one of

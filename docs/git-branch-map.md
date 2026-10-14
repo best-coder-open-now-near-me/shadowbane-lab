@@ -1,5 +1,15 @@
 # Git branch map
 
+## Uninstalled owned-affix observer draft - October 14
+
+The current `codex/vendor-rolling-20261013` tip also contains the command-free
+current-image affix observer and its tests; this source is an uninstalled draft.
+Its passive check protects all 139 observed scepters, including 21 unknowns.
+Installed software remains .119/.73 from release `93ba59d2`, whose successful
+quantity acceptance is recorded at task commit `c0950f8c`. Continue the recycling
+workflow capture/qualification next, then town scheduling. Draft PR #174 remains
+unmerged; both vendor worktrees stay active. See [current todos](vendor-rolling.md).
+
 ## Vendor .119/.73 installed; quantity batch accepted - October 14
 
 Shared development starts from refreshed main `ef02070f`. Continue the vendor
