@@ -1,5 +1,19 @@
 # Git branch map
 
+## Terminal vendor accounting and preflight collection - October 14
+
+Continue vendor work on `codex/vendor-rolling-20261013`, draft PR #174 to main.
+`3708247b` replaces the exact-quota completion assumption with explicit server
+terminal accounting: the controlled request produced twelve items against a
+twenty-item funding bound, without automatic replacement. Completed-result
+collection now precedes batch planning/funding and retains unknowns. Its
+independent journals cannot replay or adopt historical Create jobs. Compose these
+changes into `codex/vendor-release-20261013` before qualifying .117/.73.
+Installed .116/.72 is unchanged; the passive capture stopped at 106 records with
+zero commands. Both worktrees remain active. Shared main remains `ef02070f`.
+Next: package qualification and live collection/quantity acceptance, then affix
+filtering and town scheduling. Guard work is outside scope; PR #174 stays draft.
+
 ## Automatic vendor batch source correction - October 14
 
 Continue the unfinished vendor workflow in `codex/vendor-rolling-20261013`.

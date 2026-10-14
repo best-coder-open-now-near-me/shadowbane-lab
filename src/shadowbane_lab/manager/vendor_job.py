@@ -278,6 +278,9 @@ class VendorJobStore:
 
 def require_vendor_handoff_idle(store, session, record):
     """Prove current local receipt and every retained job action before handback."""
+    from .vendor_collection import require_collections_idle
+
+    require_collections_idle(store)
     from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
     with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
         record = store.read(record["job_id"])
@@ -346,7 +349,10 @@ def run_vendor_job(
     lost manager permit or Stop interrupts immediately and never retries it.
     Recovery is explicit and permitted only at a fully durable phase boundary.
     """
+    from .vendor_collection import require_collections_idle
+
     with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
+        require_collections_idle(store)
         CondemnProgressStore(store.root).assert_idle()
         if cancelled():
             raise VendorBatchStopped("worker dispatch is paused")
