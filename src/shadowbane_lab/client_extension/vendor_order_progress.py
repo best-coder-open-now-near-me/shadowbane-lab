@@ -90,6 +90,11 @@ class OrderProgress:
                 raise VendorBatchStopped("the vendor returned a production error")
             if payload["action"] != 8:
                 continue
+            if "stack_count_raw" in payload:
+                # V3 corrects the old interpretation: this is an item stack,
+                # not a future-roll counter. Legacy ancestry cannot adopt it.
+                raise VendorBatchStopped(
+                    "automatic quantity ancestry requires verified order receipts")
             item, kind = payload["item"]
             if item in self.baseline:
                 continue

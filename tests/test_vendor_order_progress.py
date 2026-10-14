@@ -34,6 +34,17 @@ def setup(tmp_path, capacity=2):
     return session, progress
 
 
+def test_v3_stack_cannot_be_adopted_as_legacy_remaining_quota(tmp_path):
+    session = Session(tmp_path / "create.json", capacity=1)
+    run(session)
+    progress = OrderProgress(session.path.read_bytes(), CHARACTER)
+    records = replies(progress, session.state.slots[0].item, 9, stack_count_raw=1)
+    for record in records:
+        del record["payload"]["remaining_count_raw"]
+    with pytest.raises(VendorBatchStopped, match="verified order receipts"):
+        progress.receive(records)
+
+
 def test_full_seventy_item_batch_needs_every_distinct_id_in_inventory(tmp_path):
     session, progress = setup(tmp_path, 7)
     progress.observe(session.state, session.counts)

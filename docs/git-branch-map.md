@@ -1,6 +1,45 @@
 # Git branch map
 
-## Official client alignment installed - October 14
+## Vendor automatic quantity workflow investigation - October 14
+
+Start shared development from refreshed `main` at `ef02070f3fccbb0636da8c313737fd19814a88a6`.
+Vendor continuation remains in the matching worktree on
+`codex/vendor-rolling-20261013`, targeting main through draft PR #174. Funding
+fixes through `3ee6dbd6cc09060c3dcb2bcbcad00552490a8564` are pushed, outside main.
+Graphics-preserving release `c0c464da7992484d06809c1ab70052e739eba03e` on
+`codex/vendor-release-20261013` is qualified and installed as .115/.71.
+
+The native server batch is cycling automatically after one Create. Its job is
+preserved in review and must not replay. Candidate .116/.72 corrects the response
+recorder's stack/flag interpretation and adds copied outgoing evidence; it is
+not installed or accepted. Retain both active worktrees and the .115 passive
+recorder through batch capture. Next: preserve the current batch, qualify V3,
+then implement verified automatic capacity/completion before further Create.
+See [vendor workflow](vendor-rolling.md) and [runtime evidence](client-update-20261014.md).
+
+## Native client .19 startup correction installed - October 14
+
+Continue vendor work on `codex/vendor-rolling-20261013` through source
+`85874dcb7ca46cb07f0a5e1e48697c919fe17217`, targeting main in draft PR #174.
+Pushed graphics-preserving release `11133fcf9a12eeb84089b94068e6f6b90f9c99b6`
+on `codex/vendor-release-20261013` is qualified and installed as .113/.71.
+Authenticated image extent now reaches the lifetime import binding and the
+seven-section world-map gate requires the exact authenticated layout.
+
+All 6,766 host checks, both native/IPC profiles, real image probes, seven Windows
+startup cases and 147 updater checks pass. Activation verifies 499 modules and
+9,911 retained records with zero exclusions. Vendor Test loads the exact .71 DLL;
+event capabilities 3 prove its expanded startup gate enabled, and the V2 recorder
+and empty command queue are verified. Old installed host .112 is retired.
+Active next: login/movement and a direct initialized/nonterminal native snapshot
+before discovery, then full quantity-ten batch/inventory acceptance. Preserve
+the failed .112 inspections and earlier one-item Create without replay. Main and
+both source lanes are clean/published; neither current vendor tip is merged yet.
+Keep the two active worktrees through live acceptance. See
+[current installation evidence](client-update-20261014.md). Guard work remains
+out of scope.
+
+## Earlier official client alignment installed - October 14
 
 Continue on `codex/vendor-rolling-20261013`, targeting main in draft PR #174.
 The user patched the official client to manifest 1.0.25 / internal 1.3.38.19.

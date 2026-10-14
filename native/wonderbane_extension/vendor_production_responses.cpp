@@ -10,18 +10,20 @@
 namespace wonderbane::extension::vendor_production {
 namespace {
 using Decode = void(__thiscall*)(void*, void*);
+using Serialize = void(__thiscall*)(void*, void*);
 using Process = std::uint32_t(__thiscall*)(void*);
 using Destroy = void*(__thiscall*)(void*, unsigned);
 constexpr std::uintptr_t kTable = 0x115bfd8, kDecoderReturn = 0x3625bc;
-constexpr std::array<std::uintptr_t, 3> kSlots{4, 0x14, 0x1c};
-constexpr std::array<std::uintptr_t, 3> kTargets{0x20e55, 0x27dbd, 0x1f523};
-constexpr unsigned kPayload = 1, kScene = 2, kLineage = 4;
+constexpr std::array<std::uintptr_t, 4> kSlots{4, 0x14, 0x1c, 0x20};
+constexpr std::array<std::uintptr_t, 4> kTargets{0x20e55, 0x27dbd, 0x1f523, 0x1ea0b};
+constexpr unsigned kPayload = 1, kScene = 2, kLineage = 4, kRejectedPayload = 8;
 SRWLOCK lock = SRWLOCK_INIT;
 Decode decode_original = nullptr;
+Serialize serialize_original = nullptr;
 Process process_original = nullptr;
 Destroy destroy_original = nullptr;
-std::array<std::uint32_t*, 3> installed_slots{};
-std::array<std::uint32_t, 3> original_slots{};
+std::array<std::uint32_t*, 4> installed_slots{};
+std::array<std::uint32_t, 4> original_slots{};
 std::uintptr_t image_base = 0;
 HANDLE mapping = nullptr;
 Storage* storage = nullptr;
@@ -48,52 +50,65 @@ bool Snapshot(void* message, Payload& out) noexcept {
     out = {};
     const auto p = reinterpret_cast<std::uintptr_t>(message);
     std::uint32_t table = 0;
-    if (!Word(p, table) || table != image_base + kTable
-        || !Word(p + 0x70, out.action) || out.action > 11
+    const auto reject = [&](unsigned reason) { out.rejection = reason; return false; };
+    if (!Word(p, table) || table != image_base + kTable) { return reject(1); }
+    if (!Word(p + 0x70, out.action)
         || !Word(p + 0xa0, out.error)
         || !Read(p + 0x78, out.building.data(), 8)
         || !Read(p + 0x80, out.vendor.data(), 8)
         || !Read(p + 0x88, out.reference.data(), 8)
         || !Word(p + 0x90, out.quantity) || !Word(p + 0x94, out.marker)
-        || !Word(p + 0x98, out.prefix) || !Word(p + 0x9c, out.suffix)) { return false; }
+        || !Word(p + 0x98, out.prefix) || !Word(p + 0x9c, out.suffix)) { return reject(2); }
+    if (out.action > 13) { return reject(3); }
     std::uint32_t flags = 0;
-    if (!Word(p + 0x11c, flags) || (flags & 255) > 1) { return false; }
+    if (!Word(p + 0x11c, flags) || (flags & 255) > 1) { return reject(4); }
     if (flags & 255) {
-        if (!Word(p + 0x10c, out.strongbox_gold)) { return false; }
+        if (!Word(p + 0x10c, out.strongbox_gold)) { return reject(5); }
         out.fields |= 4;
     }
     if (out.action == 1) {
         out.multiple = (flags >> 8) & 255;
-        if (out.multiple > 1) { return false; }
+        if (out.multiple > 1) { return reject(6); }
         out.fields |= 8;
     }
     if (out.action == 8 && !out.error) {
-        if (!Read(p + 0xc0, out.item.data(), 8) || !out.item[0] || out.item[1] != 40
-            || !Word(p + 0xc8, out.item_template) || !out.item_template
-            || !Word(p + 0xcc, flags) || flags != 0 || !Word(p + 0xd0, out.value)
-            || !Word(p + 0xd4, out.seconds) || !Word(p + 0xd8, out.duration)
-            || !Word(p + 0xdc, out.remaining) || !out.remaining || out.remaining > 255
-            || !Word(p + 0xe0, flags)) { return false; }
-        // +0xc8/+0xcc is the typed template key, not an item count.
-        // The native receive handler passes +0xdc as the displayed count and
-        // the two low bytes at +0xe0 as active/completed flags.
-        out.in_progress = flags & 255;
-        out.complete = (flags >> 8) & 255;
-        if (out.in_progress > 1 || out.complete > 1 || out.in_progress == out.complete
-            || (out.complete && out.seconds)) { return false; }
         out.fields |= 1;
+        if (!Read(p + 0xc0, out.item.data(), 8)
+            || !Word(p + 0xc8, out.item_template)
+            || !Word(p + 0xcc, out.template_type) || !Word(p + 0xd0, out.value)
+            || !Word(p + 0xd4, out.seconds) || !Word(p + 0xd8, out.duration)
+            || !Word(p + 0xdc, out.stack_count)
+            || !Word(p + 0xe0, out.queue_flags_raw)) { return reject(7); }
+        out.queue_ignored = out.queue_flags_raw & 255;
+        out.complete = (out.queue_flags_raw >> 8) & 255;
+        // 6dc760 ignores an existing-item update when +e0 is set. +e1
+        // becomes the queue row's completion byte. Normal cooking is 0/0.
+        if (!out.item[0] || out.item[1] != 40) { return reject(8); }
+        if (!out.item_template || out.template_type) { return reject(9); }
+        if (!out.stack_count || out.stack_count > 255) { return reject(10); }
+        if (out.queue_ignored > 1 || out.complete > 1) { return reject(11); }
     }
     if (out.action == 10 && !out.error) {
         std::uint32_t instance = 0;
-        if (!Word(p + 0x100, instance)) { return false; }
+        if (!Word(p + 0x100, instance)) { return reject(12); }
         if (instance) {
             if (!Word(instance, table) || table != image_base + 0x114bb68
                 || !Read(instance + 0x10, out.deposited_template.data(), 8)
                 || !Read(instance + 0x18, out.deposited_item.data(), 8)
                 || !out.deposited_template[0] || out.deposited_template[1]
-                || !out.deposited_item[0] || out.deposited_item[1] != 40) { return false; }
+                || !out.deposited_item[0] || out.deposited_item[1] != 40) { return reject(13); }
             out.fields |= 2;
         }
+    }
+    std::array<std::uint32_t, 3> references{};
+    if (!Read(p + 0x110, references.data(), sizeof(references))) { return reject(14); }
+    const auto begin = references[0], end = references[1], capacity = references[2];
+    if (begin || end || capacity) {
+        if (begin < 0x10000 || begin % 4 || end % 4 || capacity % 4
+            || begin > end || end > capacity || capacity >= 0x80000000U
+            || (end - begin) % 8 || end - begin > sizeof(out.references)) { return reject(15); }
+        out.references_count = (end - begin) / 8;
+        if (end != begin && !Read(begin, out.references.data(), end - begin)) { return reject(16); }
     }
     return true;
 }
@@ -141,7 +156,7 @@ void __fastcall DecodeHook(void* message, void*, void* socket) {
     if (!active || !ActiveSocket(socket)) { SetLastError(native_error); return; }
     Record record{}; record.stage = 1; record.caller_rva = static_cast<std::uint32_t>(kDecoderReturn);
     const bool valid = Snapshot(message, record.payload);
-    if (valid) { record.flags |= kPayload; } else { record.payload = {}; }
+    record.flags |= valid ? kPayload : kRejectedPayload;
     Stamp(record, scene);
     AcquireSRWLockExclusive(&lock);
     if (storage) {
@@ -165,7 +180,7 @@ std::uint32_t __fastcall ProcessHook(void* message, void*) {
     movement::NativeScene scene{};
     (void)movement::ReadNativeMovementLifetime(scene);
     const bool valid = Snapshot(message, record.payload);
-    if (valid) { record.flags |= kPayload; } else { record.payload = {}; }
+    record.flags |= valid ? kPayload : kRejectedPayload;
     Stamp(record, scene);
     AcquireSRWLockExclusive(&lock);
     for (auto& ticket : tickets) {
@@ -199,15 +214,36 @@ void* __fastcall DestroyHook(void* message, void*, unsigned flags) {
     SetLastError(incoming_error);
     return destroy_original(message, flags);
 }
-std::array<std::uint32_t, 3> Hooks() noexcept {
+void __fastcall SerializeHook(void* message, void*, void* stream) {
+    const DWORD incoming_error = GetLastError();
+    const auto caller = reinterpret_cast<std::uintptr_t>(_ReturnAddress());
+    Record record{}; record.stage = 4;
+    record.caller_rva = caller >= image_base && caller - image_base < 0x16b0000
+        ? static_cast<std::uint32_t>(caller - image_base) : 0;
+    movement::NativeScene scene{};
+    (void)movement::ReadNativeMovementLifetime(scene);
+    const bool valid = Snapshot(message, record.payload);
+    record.flags |= valid ? kPayload : kRejectedPayload;
+    SetLastError(incoming_error);
+    serialize_original(message, stream);
+    const DWORD native_error = GetLastError();
+    Stamp(record, scene);
+    AcquireSRWLockExclusive(&lock);
+    // Serialization is observation only, never a server acceptance receipt.
+    if (storage && !valid) { InterlockedIncrement(&storage->rejected); }
+    (void)PublishLocked(record);
+    ReleaseSRWLockExclusive(&lock);
+    SetLastError(native_error);
+}
+std::array<std::uint32_t, 4> Hooks() noexcept {
     return {reinterpret_cast<std::uint32_t>(&DestroyHook), reinterpret_cast<std::uint32_t>(&ProcessHook),
-        reinterpret_cast<std::uint32_t>(&DecodeHook)};
+        reinterpret_cast<std::uint32_t>(&DecodeHook), reinterpret_cast<std::uint32_t>(&SerializeHook)};
 }
 bool CursorLocked(Cursor& out) noexcept {
     if (!storage || storage->stopped || storage->sequence < 0 || storage->rejected < 0
         || storage->ticket_drops < 0 || !storage->process_id || !storage->creation
-        || storage->schema != 2 || storage->record_size != sizeof(Record)
-        || storage->capacity != kCapacity || std::memcmp(storage->magic, "WBPRD2\0", 8)
+        || storage->schema != 3 || storage->record_size != sizeof(Record)
+        || storage->capacity != kCapacity || std::memcmp(storage->magic, "WBPRD3\0", 8)
         || storage->overwritten != (storage->sequence > static_cast<LONG64>(kCapacity)
             ? storage->sequence - static_cast<LONG64>(kCapacity) : 0)) { return false; }
     out = {storage->process_id, storage->creation, static_cast<std::uint64_t>(storage->sequence),
@@ -220,13 +256,13 @@ void CloseLocked() noexcept {
     if (mapping) { CloseHandle(mapping); mapping = nullptr; }
 }
 DWORD StartBound(const ProcessIdentity& identity, std::uintptr_t base,
-    const std::array<std::uint32_t*, 3>& slots, const std::array<std::uint32_t, 3>& targets) noexcept {
+    const std::array<std::uint32_t*, 4>& slots, const std::array<std::uint32_t, 4>& targets) noexcept {
     AcquireSRWLockExclusive(&lock);
     if (attempted) { ReleaseSRWLockExclusive(&lock); return ERROR_ALREADY_INITIALIZED; }
     attempted = true;
     DWORD result = ERROR_SUCCESS;
     wchar_t name[160]{};
-    if (FAILED(StringCchPrintfW(name, 160, L"Local\\ShadowbaneLab.Extension.VendorProduction.v2.%lu.%llu",
+    if (FAILED(StringCchPrintfW(name, 160, L"Local\\ShadowbaneLab.Extension.VendorProduction.v3.%lu.%llu",
         identity.process_id, identity.creation_filetime_utc))) { result = ERROR_INVALID_DATA; }
     if (!result) {
         mapping = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, sizeof(Storage), name);
@@ -238,13 +274,14 @@ DWORD StartBound(const ProcessIdentity& identity, std::uintptr_t base,
         if (!storage) { result = GetLastError(); }
     }
     if (!result) {
-        std::memcpy(storage->magic, "WBPRD2\0", 8);
-        storage->schema = 2; storage->record_size = sizeof(Record); storage->capacity = kCapacity;
+        std::memcpy(storage->magic, "WBPRD3\0", 8);
+        storage->schema = 3; storage->record_size = sizeof(Record); storage->capacity = kCapacity;
         storage->process_id = identity.process_id; storage->creation = identity.creation_filetime_utc;
         image_base = base; installed_slots = slots; original_slots = targets;
         destroy_original = reinterpret_cast<Destroy>(targets[0]);
         process_original = reinterpret_cast<Process>(targets[1]);
         decode_original = reinterpret_cast<Decode>(targets[2]);
+        serialize_original = reinterpret_cast<Serialize>(targets[3]);
         const auto hooks = Hooks();
         for (std::size_t i = 0; i < slots.size(); ++i) {
             result = ReplaceImportAddressSlot(slots[i], targets[i], hooks[i]);
@@ -270,8 +307,8 @@ DWORD Start(const ProcessIdentity& identity) noexcept {
     std::uintptr_t base = 0;
     if (!(GraphicsExecutableSha256Matches("366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a") || GraphicsExecutableSha256Matches("6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad"))
         || !movement::VerifyNativeMovementImage(base)) { return ERROR_NOT_SUPPORTED; }
-    std::array<std::uint32_t*, 3> slots{};
-    std::array<std::uint32_t, 3> targets{};
+    std::array<std::uint32_t*, 4> slots{};
+    std::array<std::uint32_t, 4> targets{};
     for (std::size_t i = 0; i < slots.size(); ++i) {
         slots[i] = reinterpret_cast<std::uint32_t*>(base + kTable + kSlots[i]);
         targets[i] = static_cast<std::uint32_t>(base + kTargets[i]);

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.71 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.72 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -1193,7 +1193,7 @@ if(BUILD_TESTING)
   target_compile_definitions(wonderbane_extension_vendor_production_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_vendor_production_test PRIVATE /W4 /WX /permissive- /utf-8)
   add_test(NAME wonderbane_extension_vendor_production COMMAND wonderbane_extension_vendor_production_test)
-  foreach(step RANGE 1 3)
+  foreach(step RANGE 1 4)
     add_test(NAME wonderbane_extension_vendor_production_install_${step} COMMAND wonderbane_extension_vendor_production_test ${step})
   endforeach()
   target_compile_features(wonderbane_extension_vendor_controller_test PRIVATE cxx_std_20)
