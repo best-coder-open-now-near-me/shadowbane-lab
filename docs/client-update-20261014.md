@@ -1,6 +1,51 @@
 # Official client alignment for vendor rolling - October 14
 
-## Current installed host and automatic batch observations
+## Current installed .116/.72 recorder
+
+Pushed graphics-preserving release `71af337ff41feceb3e63f1ac1334b44ff24b409b`
+on `codex/vendor-release-20261013` is qualified and installed. Its implementation
+through `d3b34ab7f07908c8f609d9d087d815c7bb7ce458` passes all 15 hosted checks
+and remains outside main in draft PR #174. This installs complete copied V3
+observations, including outgoing serialization, independent queue flags, raw
+terminal zero counts, rejection diagnostics and bounded typed-reference lists.
+Quantity admission/progress is not accepted; the legacy count model refuses V3.
+
+Validation passes 6,806 host tests (45 optional skips), 291 full-profile / 287
+diagnostics native tests, both IPC profiles (107 movement / 86 combat / 249 actor
+each), exact original/prepared .19 probes and seven desktop/worker startup cases.
+Independent verification seals 144 artifacts, 116 steps and 499 modules. All
+341 bound verifier/installer checks pass. Existing stretch-only transparency
+findings remain recorded; no required gate was waived.
+
+The manager gracefully closed the idle game after 45 automatic deposits and
+four terminal completions. All 429 trace records were preserved without gaps or
+dropped tickets. An unstable dispatch-permit baseline stopped the first apply
+before any client/runtime write. A fresh stopped census verifies all 9,929
+baseline records, with only the typed revoked-permit content changed. Rebinding
+the same 499-module environment required no reinstall. Final apply and activation
+verify 9,988 retained records, zero exclusions and only typed startup/permit
+changes. Only the DLL was replaced; client executable/resources were not written.
+Settings and the original review journal remain intact without replay.
+
+Vendor Test launched process 3028 / creation 134364608409050346 with exact .72.
+Event capabilities 3, readable V3 mapping and empty command queue are verified;
+initialization remains unpublished at login, without a terminal flag. The passive
+V3 capture is active. Obsolete installed .115 was retired: 2,189 files /
+49,485,503 bytes, without a fallback runtime. Active next: login/movement and
+native readiness, then actual quantity/order and inventory reconciliation.
+
+Exact SHA-256 receipts:
+
+- DLL: `6358fbd128e771f512df55969490019f307b3c7eed28b46e7eaaadd58c24353a`.
+- Wheel: `503ac6b27ce9887de1746914d5e506c3fc17b863b83bb035e843fd6cc0a9d7ba`.
+- Package: `daddbc97a5bdd71ceadf8837d9ee93abee34209c30ff8712a5fed1b5ab1f525c`.
+- Independent verification: `1f3bb131e145129da902acd92aa1b9f00f75bc3a7cebc7cbfc9013a0e48b0e88`.
+- Startup qualification: `4743eacd77c73e0272fa25a803e37fbdd7c80a40e1d14bc149db4515e2a39376`.
+- Final plan: `118458ad926d52bdd972ba7a216ddca80818d656080cd162b90ebceb1921b51e`.
+- Apply: `178dcb04b052c85758eb8f2d5ed4fd19da51189ec032e4c138a674917bc68126`.
+- Activation: `e174106d4149c2ea6139b89120e3a780a4a506e72750f4d3696756accf1809da`.
+
+## Previous .115 host and automatic batch observations
 
 Host .115/native .71 from pushed release
 `c0c464da7992484d06809c1ab70052e739eba03e` is installed. Both host-only updates

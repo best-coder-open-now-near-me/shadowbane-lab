@@ -1,8 +1,47 @@
 # Player-owned vendor rolling
 
+## V3 workflow recorder installed - October 14
+
+Host .116/native .72 is qualified and installed from pushed graphics-preserving
+release `71af337ff41feceb3e63f1ac1334b44ff24b409b`. Implementation checkpoint
+`d3b34ab7f07908c8f609d9d087d815c7bb7ce458` passes all 15 hosted checks; draft
+PR #174 still targets main and quantity automation remains unaccepted.
+
+Qualification passes 6,806 host tests (45 optional skips), 291 full-profile and
+287 diagnostics native tests, both IPC profiles and all seven real Windows
+startup cases. All 341 bound verifier/installer checks pass. Apply and activation
+verify 499 modules and 9,988 retained records with zero exclusions. Only the
+native DLL changed among client assets; executable and resources were not written.
+An unstable dispatch-permit read stopped the initial switch before any runtime
+write. A stopped baseline proved every retained file unchanged except the
+authorized revoked permit; the same prepared host was revalidated without
+reinstallation. Original failure and revalidation receipts remain private.
+
+The same Vendor Test launcher opened process 3028 / creation 134364608409050346
+with exact .72 DLL and an available V3 mapping, zero rejected/dropped records and
+zero native commands. In-world initialization is pending login and movement.
+The bounded passive V3 recorder is active and sends no commands. Obsolete .115
+software was retired after replacement verification: 2,189 reproducible files /
+49,485,503 bytes, with no rollback copy. Settings, jobs and diagnostic evidence
+remain in place.
+
+The completed .115 trace contains all 429 contiguous records and 45 positively
+correlated automatic deposits; four new items remain completed, beside the
+earlier completed item. Its uncertain Create journal remains in review forever
+unless separately reconciled; installation does not authorize replay or adopting
+its quota as accepted. The actual batch produced 49 new items / 8,134 gold.
+
+Active next: Treehugger logs into Rooty and moves once; require initialized,
+nonterminal native bindings, then inspect V3 quantity/order receipts and the
+remaining inventory. Actual server capacity, admission and completion must
+replace the legacy remaining-count assumptions before accepting automation.
+After that, qualify Tier 1-2 inventory filtering with unknowns retained, then
+town scheduling. No disposal is enabled during this acceptance work. See
+[exact runtime receipts](client-update-20261014.md).
+
 ## Native automatic quantity production confirmed - October 14
 
-Installed software is host .115/native .71 from pushed graphics-preserving
+The preceding software was host .115/native .71 from pushed graphics-preserving
 release `c0c464da7992484d06809c1ab70052e739eba03e`. Qualification passes
 6,780 host tests (46 optional skips), both real IPC profiles, seven startup
 handshakes and 157 installer checks (one privilege-dependent skip). Activation
