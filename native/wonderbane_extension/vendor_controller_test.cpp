@@ -180,6 +180,9 @@ int main(int argc, char**) {
         c.Observe(initial,true,false,102,counts);
         auto repeat=Command(c,2); repeat.reserved[0]=42; Budget(repeat);
         assert(c.Execute(w::Verb::create_orders,repeat,true,true,f,103).outcome==3 && f.calls==1);
+        ++initial.menu; c.Observe(initial,true,false,104,counts);
+        repeat=Command(c,3); repeat.reserved[0]=42; Budget(repeat);
+        assert(c.Execute(w::Verb::create_orders,repeat,true,true,f,105).outcome==3 && f.calls==1);
     }
     {
         auto s=Snapshot(); s.revision=1; s.quantity=10; s.multiple=1;

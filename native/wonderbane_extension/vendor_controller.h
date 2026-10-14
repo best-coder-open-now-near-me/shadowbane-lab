@@ -67,7 +67,7 @@ public:
         if (budget.orders != free) { return false; }
         for (const auto& [request, record] : records_) {
             (void)request;
-            if (record.verb == wire::Verb::create_orders && SameOwner(snapshot, record.command.expected)
+            if (record.verb == wire::Verb::create_orders
                 && !std::memcmp(record.command.reserved, command.reserved, 16)
                 && (&record != pending_ || record.command.request != command.request
                     || std::memcmp(&record.command, &command, sizeof(command)))) { return false; }

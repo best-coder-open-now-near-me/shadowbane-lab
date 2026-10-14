@@ -71,7 +71,10 @@ public:
             const bool orders = verb == wire::Verb::create_orders;
             vendor_production::Cursor cursor{};
             if (orders && !vendor_production::ReadCursor(cursor)) { return wire::Outcome::unavailable; }
-            if (orders) { order_admission.Begin(expected, scene_.identity, cursor); }
+            if (orders) {
+                order_admission.Begin(expected, scene_.identity, cursor);
+                if (!order_admission.Active()) { return wire::Outcome::unavailable; }
+            }
             return vendor_menu::InvokeRandomCreate(image_base, scene_, expected, &AdmitRandom, this, orders);
         }
         wire::Snapshot fresh{}; bool present = false, top = false;

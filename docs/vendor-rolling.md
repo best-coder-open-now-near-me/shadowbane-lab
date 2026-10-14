@@ -1,5 +1,42 @@
 # Player-owned vendor rolling
 
+## Host automatic-production reconciliation - October 14
+
+The source now uses schema-6 admission and schema-2 progress journals. Admission
+requires the exact first server arrivals, an exact quantity/multiple serialized
+request, and complete same-character decode/processing/return lineage. Raw queue
+counts remain diagnostic values. Later items cannot substitute for the initial
+arrivals. The old schema-5 review jobs remain preserved and are not migrated into
+accepted jobs or replayed.
+
+Progress follows distinct qualified item receipts and matching removal/deposit
+receipts, plus independent displayed inventory presence. Intermediate production
+is server-driven: the host does not Keep it. Terminal Keep requires the full
+fixed item quota and server/UI completion for every remaining batch item, with
+the Keep intent journaled before its outgoing action. A short or unaccounted
+batch remains incomplete; it cannot trigger replacement crafting. Any existing
+cooking item blocks funding another batch, irrespective of its raw count.
+
+The vendor suite passes 999 checks with two optional skips. The full task-source
+host suite passes 6,720 checks with 45 optional skips; the subsequent first-arrival
+binding refinement passes all 65 focused admission/progress/manager checks.
+The native full build passes after adding the new observer read to the isolated
+runtime test fixture. Of 292 native tests, 287 pass and three require private
+client images; the same two known stretch transparency diagnostics fail and
+remain outside vendor acceptance. Neither correction is installed yet.
+
+Private replay of the running V3 capture qualifies its causal history. The live
+job has exactly one outgoing Create, eight observed starts and seven paired
+automatic deposits at the latest read, with no rejected or dropped records.
+It currently continues in one cooking row beside an empty row. Actual batch
+size and terminal accounting are still being observed; 20 items is the funding
+reservation, not a completed production claim.
+
+Active next: finish that bounded capture and resolve actual server batch size,
+then qualify the combined native/host runtime from a fixed published revision.
+After quantity acceptance, finish Tier 1-2 filtering with unknowns retained and
+town scheduling. Preserve the active .116 recorder and both review journals.
+
 ## Quantity request and automatic turnover verified - October 14
 
 Treehugger's .116/.72 session is initialized, bound and nonterminal. Fresh

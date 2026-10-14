@@ -75,6 +75,7 @@ wire::Outcome Invoke(std::uintptr_t, const movement::NativeScene&, wire::Verb,
 }
 namespace vendor_production {
 bool ReadCursor(Cursor&) noexcept { ++other_reads; return false; }
+bool ReadAfter(const Cursor&, Batch&) noexcept { ++other_reads; return false; }
 }
 namespace city_window {
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }

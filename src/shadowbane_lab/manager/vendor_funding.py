@@ -311,8 +311,7 @@ def fund_saved_vendor(
             or len(first.remaining_counts) != len(first.snapshot.slots)
             or any(type(count) is not int or not 0 <= count <= 255
                    for count in first.remaining_counts)
-            or any(slot.item and count > 1 for slot, count in
-                   zip(first.snapshot.slots, first.remaining_counts, strict=True))
+            or any(slot.state == 1 for slot in first.snapshot.slots)
         ):
             raise VendorBatchStopped(
                 "Recover existing quantity orders before funding another batch.")
