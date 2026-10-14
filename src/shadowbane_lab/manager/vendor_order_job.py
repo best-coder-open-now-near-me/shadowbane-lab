@@ -31,7 +31,10 @@ from shadowbane_lab.client_extension.vendor_wire import (
     Snapshot,
 )
 from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
-from shadowbane_lab.client_observation.native_vendor_queue import read_native_vendor_queue
+from shadowbane_lab.client_observation.native_vendor_queue import (
+    NativeVendorObservationChanged,
+    read_native_vendor_inventory,
+)
 
 
 class _OrderJobStopped(VendorBatchStopped):
@@ -49,7 +52,7 @@ def inventory_presence(session, state, known, template):
     try:
         if memory.process_creation_filetime_utc != session.identity.creation_filetime_utc:
             raise VendorBatchStopped("quantity inventory client lifetime changed")
-        observed = read_native_vendor_queue(memory)
+        observed = read_native_vendor_inventory(memory)
     finally:
         memory.close()
     inventory = observed["inventory"]
@@ -236,7 +239,16 @@ def run_order_job(store, session, record, *, cancelled=lambda: False, clock=time
                 continue
             opened = True
             p = ledger.progress
-            present = inventory_reader(session, fresh.snapshot, set(p.items), spec.template)
+            try:
+                present = inventory_reader(session, fresh.snapshot, set(p.items), spec.template)
+            except NativeVendorObservationChanged:
+                # Automatic deposits can append while an external read is in
+                # progress. No evidence or command was emitted: drain replies,
+                # recheck the native owner/permit and take a new observation.
+                update("cooking",
+                       "Inventory changed during observation; waiting for a stable read.")
+                sleeper(0.5)
+                continue
             ledger.inventory(fresh.snapshot, present)
             ledger.observe(fresh)
             if p.complete:

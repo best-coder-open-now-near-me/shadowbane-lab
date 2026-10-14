@@ -28,6 +28,10 @@ _MAX_INVENTORY_ENTRIES = 512
 _MAX_SLOTS = 16
 
 
+class NativeVendorObservationChanged(NativeVendorDialogCaptureError):
+    """A bounded read crossed a changing value; no observation was returned."""
+
+
 class VendorQueueMemory(Protocol):
     base_address: int
     executable_name: str
@@ -56,7 +60,7 @@ class _ReadSet:
             raise NativeVendorDialogCaptureError("short vendor queue read")
         key = (address, size)
         if key in self.blocks and self.blocks[key] != block:
-            raise NativeVendorDialogCaptureError("vendor queue changed during observation")
+            raise NativeVendorObservationChanged("vendor queue changed during observation")
         self.blocks[key] = block
         return block
 
@@ -109,7 +113,66 @@ class _ReadSet:
         # same-address pointer-array replacement; never retry silently into a new menu.
         for (address, size), expected in reversed(tuple(self.blocks.items())):
             if self.memory.read_block(address, size) != expected:
-                raise NativeVendorDialogCaptureError("vendor queue changed during observation")
+                raise NativeVendorObservationChanged("vendor queue changed during observation")
+
+
+def _owned_vendor(r: _ReadSet, base: int):
+    root = r.word(base + _WINDOW_RVA)
+    r.require(root, base + _WINDOW_VTABLE, "game window type")
+    r.require(root + 0x64, 2, "in-world mode")
+    manager = r.word(root + 0xA4)
+    r.require(manager, base + _MANAGER_VTABLE, "city manager type")
+    hud = r.word(manager + 0x78)
+    r.require(hud, base + _HUD_VTABLE, "management menu type")
+    r.require(hud + 0x104, manager, "management menu owner")
+    active_huds = r.hud_stack(root)
+    if hud not in active_huds:
+        raise NativeVendorDialogCaptureError("management menu is not in the active HUD list")
+    building_id, building_type = struct.unpack("<II", r.read(manager + 0xF0, 8))
+    if not building_id or building_type != 8:
+        raise NativeVendorDialogCaptureError("invalid vendor building identity")
+    r.require(manager + 0xD8, 0, "vendor management mode")
+    selected_vendor = r.word(manager + 0x384)
+    r.require(selected_vendor, base + 0x1169518, "selected hireling type")
+    vendor_id, vendor_type = struct.unpack("<II", r.read(selected_vendor + 0x10, 8))
+    if not vendor_id or vendor_type != 42:
+        raise NativeVendorDialogCaptureError("invalid selected vendor identity")
+    if struct.unpack("<II", r.read(manager + 0xF8, 8)) != (building_id, building_type):
+        raise NativeVendorDialogCaptureError("vendor building selection mismatch")
+    return root, manager, hud, active_huds, building_id, selected_vendor, {
+        "object_id": vendor_id, "object_type": vendor_type}
+
+
+def _qualified_memory(memory):
+    if (memory.executable_name.casefold() != "sb.exe" or memory.pointer_size != 4
+            or memory.executable_sha256 not in REVIEWED_VENDOR_EXECUTABLES):
+        raise NativeVendorDialogCompatibilityError("unqualified vendor queue executable")
+    lifetime = memory.process_creation_filetime_utc
+    if type(lifetime) is not int or lifetime <= 0:
+        raise NativeVendorDialogCompatibilityError("vendor queue requires process lifetime")
+    if type(memory.pid) is not int or memory.pid <= 0:
+        raise NativeVendorDialogCompatibilityError("vendor queue requires explicit process ID")
+    return lifetime
+
+
+def read_native_vendor_inventory(memory: VendorQueueMemory) -> dict[str, object]:
+    """Prove displayed inventory membership independently of production timers.
+
+    Ownership links, list membership, instances and templates are consistency
+    checked. No production timer, queue state or absence claim is returned.
+    """
+    lifetime = _qualified_memory(memory)
+    r, base = _ReadSet(memory), memory.base_address
+    root, manager, hud, active, building, selected, vendor = _owned_vendor(r, base)
+    inventory = _inventory(r, base, active, manager)
+    r.verify()
+    return dict(schema_version=1, record_type="vendor_inventory_snapshot",
+                process_id=memory.pid, process_creation_filetime_utc=lifetime,
+                executable_sha256=memory.executable_sha256, native_window_address=root,
+                manager_address=manager, menu_address=hud,
+                building=dict(object_id=building, object_type=8), vendor=vendor,
+                selected_vendor_entry_address=selected, inventory=inventory,
+                command_admitted=False)
 
 
 def _creation_recipe(
@@ -237,48 +300,10 @@ def read_native_vendor_queue(memory: VendorQueueMemory) -> dict[str, object]:
     A returned slot is a selected-vendor menu observation only. Actual free-slot
     permission, server acceptance, and a native session fence remain separate.
     """
-    if (
-        memory.executable_name.casefold() != "sb.exe" or memory.pointer_size != 4
-        or memory.executable_sha256 not in REVIEWED_VENDOR_EXECUTABLES
-    ):
-        raise NativeVendorDialogCompatibilityError("unqualified vendor queue executable")
-    lifetime = memory.process_creation_filetime_utc
-    if type(lifetime) is not int or lifetime <= 0:
-        raise NativeVendorDialogCompatibilityError("vendor queue requires process lifetime")
-    if type(memory.pid) is not int or memory.pid <= 0:
-        raise NativeVendorDialogCompatibilityError("vendor queue requires explicit process ID")
+    lifetime = _qualified_memory(memory)
     r = _ReadSet(memory)
     base = memory.base_address
-    root = r.word(base + _WINDOW_RVA)
-    r.require(root, base + _WINDOW_VTABLE, "game window type")
-    r.require(root + 0x64, 2, "in-world mode")
-    manager = r.word(root + 0xA4)
-    r.require(manager, base + _MANAGER_VTABLE, "city manager type")
-    hud = r.word(manager + 0x78)
-    r.require(hud, base + _HUD_VTABLE, "management menu type")
-    r.require(hud + 0x104, manager, "management menu owner")
-    active_huds = r.hud_stack(root)
-    if hud not in active_huds:
-        raise NativeVendorDialogCaptureError("management menu is not in the active HUD list")
-    building_id, building_type = struct.unpack("<II", r.read(manager + 0xF0, 8))
-    if not building_id or building_type != 8:
-        raise NativeVendorDialogCaptureError("invalid vendor building identity")
-
-    # ArcCityAssetManager's selected ArcHirelingEntry is also the identity
-    # consumed by Keep at RVA 0x6D7127 -> getter RVA 0x567F90 (+0x10).
-    # Do not infer the vendor solely from an independently open recipe window.
-    r.require(manager + 0xD8, 0, "vendor management mode")
-    selected_vendor = r.word(manager + 0x384)
-    r.require(selected_vendor, base + 0x1169518, "selected hireling type")
-    vendor_id, vendor_type = struct.unpack("<II", r.read(selected_vendor + 0x10, 8))
-    if not vendor_id or vendor_type != 42:
-        raise NativeVendorDialogCaptureError("invalid selected vendor identity")
-    vendor = {"object_id": vendor_id, "object_type": vendor_type}
-    # Create and Keep consume separate building fields. A menu transition may
-    # leave one behind; a mixed observation cannot reconcile either command.
-    keep_building = struct.unpack("<II", r.read(manager + 0xF8, 8))
-    if keep_building != (building_id, building_type):
-        raise NativeVendorDialogCaptureError("vendor building selection mismatch")
+    root, manager, hud, active_huds, building_id, selected_vendor, vendor = _owned_vendor(r, base)
 
     slots = []
     seen_controls: set[int] = set()
@@ -350,7 +375,7 @@ def read_native_vendor_queue(memory: VendorQueueMemory) -> dict[str, object]:
         "process_id": memory.pid, "process_creation_filetime_utc": lifetime,
         "executable_sha256": memory.executable_sha256,
         "native_window_address": root, "manager_address": manager, "menu_address": hud,
-        "building": {"object_id": building_id, "object_type": building_type},
+        "building": {"object_id": building_id, "object_type": 8},
         "vendor": vendor, "selected_vendor_entry_address": selected_vendor,
         "production_list_address": production_list, "slots": slots, "creation_recipe": recipe,
         "inventory": inventory, "command_admitted": False,

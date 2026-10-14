@@ -1,5 +1,25 @@
 # Player-owned vendor rolling
 
+## Live collection/admission passed; inventory reader correction - October 14
+
+Treehugger's fresh .73 session is initialized and bound. Manager discovery verifies
+25 vendors across 13 nearby buildings. Start independently collects all six prior
+completed scepters with native inventory confirmations, funds seven available rows
+once and admits exactly one quantity-ten request. Schema-6 admission is accepted;
+seven new items are cooking against the unchanged seventy-item funding bound.
+
+The following inventory read crossed a production timer update and stopped the
+job in review. No Create, funding or Keep was replayed. The server batch and the
+passive V3 capture continue. Source now separates inventory membership from queue
+timers while retaining all owner/list/instance/template consistency checks. A
+typed inventory publication race emits no evidence or commands and waits for a
+fresh guarded read. Fifty focused reader/manager checks pass, including the live
+timer failure and an inventory append race without duplicate actions.
+
+Next: qualify the host-only correction and evidence-based continuation of this
+definitively admitted batch, without restarting the game or replaying spending.
+Final inventory completion, affix filtering and town scheduling remain unfinished.
+
 ## Installed .117/.73; live quantity acceptance pending - October 14
 
 Implementation `c1ed04439ac26283dcda943da2aae13c94a7b9b4` is published on
