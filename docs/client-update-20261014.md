@@ -1,6 +1,44 @@
 # Official client alignment for vendor rolling - October 14
 
-## Current installed .116/.72 recorder
+## Current installed .117/.73 automatic quantity correction
+
+Graphics-preserving release `8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f` is
+published on `codex/vendor-release-20261013` and installed. Vendor source through
+`c1ed04439ac26283dcda943da2aae13c94a7b9b4` is published on
+`codex/vendor-rolling-20261013`, targeting main in draft PR #174. Installation
+does not merge either lane. The official .19 executable and client resources
+remain unchanged; only the native DLL and deployment provenance changed.
+
+The candidate passes 6,843 host tests (46 optional skips), both native/IPC
+profiles, exact original/prepared .19 probes, seven Windows startup handshakes
+and 341 bound qualification/installer checks. Independent verification seals
+144 artifacts, 116 steps and 502 modules. The two existing stretch transparency
+findings remain separately recorded; required gates pass.
+
+Fresh census verifies 499 old modules and 9,990 records. An unstable, changing
+dispatch permit stopped the initial apply before active writes. A stopped census
+proves that only this volatile row changed, now denying dispatch; every other
+retained row matches. The same prepared environment was revalidated without
+reinstallation. Apply/activation verify 10,051 retained records with zero
+exclusions and only typed startup/permit transitions during activation.
+
+The same launcher verifies game 6936 / creation 134364730542458483, window
+1049474, exact .73 DLL, healthy worker 7016 and no active or queued operation.
+Login/movement and live quantity acceptance remain pending. Old .116 software,
+its verified DLL/wheel and spent staging copies are retired without rollback
+artifacts; settings, recipes, historical review jobs and captures remain intact.
+Private qualification/installation receipts are under `artifacts/h117`.
+
+Exact native SHA-256:
+`29afff77054c03aabcb696764aada5fed3003805c130b6e17b21398c8d3d7efa`.
+The stopped passive V3 trace has 106 records: twelve starts, eleven automatic
+deposit pairs and one terminal item from one quantity-ten Create. Its twenty-item
+reservation was an upper bound; the shorter server result's cause is unproved.
+No further Create, Keep or funding was sent during the update. Next: live
+collection and terminal inventory accounting, then Tier 1-2 exclusions with
+unknowns retained and town scheduling.
+
+## Earlier installed .116/.72 recorder
 
 Pushed graphics-preserving release `71af337ff41feceb3e63f1ac1334b44ff24b409b`
 on `codex/vendor-release-20261013` is qualified and installed. Its implementation

@@ -1,5 +1,24 @@
 # Git branch map
 
+## Vendor .117/.73 installed; acceptance remains unfinished - October 14
+
+Shared development starts from main `ef02070f`. Continue vendor acceptance in
+`codex/vendor-rolling-20261013`, whose implementation through
+`c1ed04439ac26283dcda943da2aae13c94a7b9b4` is published in draft PR #174 to main.
+Graphics-preserving release `8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f` on
+`codex/vendor-release-20261013` contains the vendor changes and is qualified and
+installed as host .117/native .73. Neither this source nor the graphics composition
+is integrated by the installation. Both worktrees remain active; the normal
+checkout stays clean on main.
+
+The exact client/DLL, healthy manager/worker, 502 modules and 10,051 retained
+records are verified. The unused .116 runtime and obsolete DLL/wheel are retired;
+review journals and diagnostic captures are preserved. Next: Treehugger login
+and movement, live completed-result collection and quantity completion, then
+affix filtering and town scheduling. Guards are outside scope. See
+[current workflow and todos](vendor-rolling.md) and
+[installation evidence](client-update-20261014.md).
+
 ## Terminal vendor accounting and preflight collection - October 14
 
 Continue vendor work on `codex/vendor-rolling-20261013`, draft PR #174 to main.

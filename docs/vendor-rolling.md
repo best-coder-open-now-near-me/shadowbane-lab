@@ -1,5 +1,30 @@
 # Player-owned vendor rolling
 
+## Installed .117/.73; live quantity acceptance pending - October 14
+
+Implementation `c1ed04439ac26283dcda943da2aae13c94a7b9b4` is published on
+`codex/vendor-rolling-20261013`. Graphics-preserving release
+`8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f` is qualified and installed as host
+.117/native .73. The same Vendor Test launcher loads the exact DLL; its manager
+and worker are healthy and idle. No crafting or gold-transfer action was issued
+during installation. Both historical review jobs remain preserved without replay.
+
+Validation passes 1,022 vendor-selected tests (two optional skips), 6,843 full
+host tests (46 optional skips), both native and IPC profiles, the exact .19 client
+image probes, seven Windows startup handshakes and all 341 bound installer/verifier
+checks. Installation verifies 502 modules and 10,051 retained records with zero
+exclusions. An unstable dispatch permit blocked the first apply before writes;
+the stopped baseline proves all other retained records unchanged. Revalidation
+reused the prepared environment. The obsolete .116 interpreter and verified
+old DLL/wheel are retired; settings, journals, receipts and captures remain.
+
+Active todo: Treehugger login/movement, then verify automatic collection of the
+existing completed results and one whole funded quantity-ten batch through the
+normal manager controls. Quantity automation is not yet live-accepted. Next:
+qualify Tier 1-2 exclusions with unknowns retained, then town scheduling. Draft
+PR #174 targets main and remains unmerged; both vendor worktrees stay active.
+See [installation evidence](client-update-20261014.md).
+
 ## Completed-result collection before whole-batch funding - October 14
 
 The normal saved-recipe Start now collects existing completed vendor results
