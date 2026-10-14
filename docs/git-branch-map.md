@@ -1,5 +1,21 @@
 # Git branch map
 
+## Qualified vendor batch recycling release - October 14
+
+Continue focused vendor work on `codex/vendor-rolling-20261013`; draft PR #174
+targets main and must remain unmerged. The separately pushed graphics-preserving
+release is `1a2a638b60e441d52a20c5a7e877b607c6722e43` on
+`codex/vendor-release-20261013`. Its .120/.74 package is independently qualified;
+installation is being prepared against the actual .119/.73 baseline. No active
+software switch or live automatic recycling is claimed yet. The release contains
+vendor source through `56b9d747` plus the version correction equivalent to task
+commit `312aa186`; its graphics composition remains outside main.
+
+Both vendor worktrees remain active for installation/live acceptance. The normal
+checkout stays clean on main `ef02070f`. Next: close the loaded game only when the
+prepared update is ready, apply once, verify a new quantity-ten batch and eligible
+Recycle, then town scheduling. See [qualification and current todos](vendor-rolling.md).
+
 ## Vendor quantity-batch exclusions integrated in candidate source - October 14
 
 Continue `codex/vendor-rolling-20261013`; its .120/.74 candidate includes the

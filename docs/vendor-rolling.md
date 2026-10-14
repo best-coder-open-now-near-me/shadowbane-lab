@@ -1,5 +1,39 @@
 # Player-owned vendor rolling
 
+## Complete .120/.74 recycling package qualified - October 14
+
+The graphics-preserving release `1a2a638b60e441d52a20c5a7e877b607c6722e43`
+on `codex/vendor-release-20261013` is independently qualified, not yet installed.
+It contains the vendor source through `56b9d747` and the same native API/resource
+version correction as focused task commit `312aa186`. The first full build caught
+that version declaration mismatch before installation; the corrected package
+passes all 7,020 host checks with 46 optional skips, Ruff, both native profiles,
+both profiles' IPC checks and all exact-client probes. Each profile executes 132
+recycling contract checks, including compiled host/native manifest agreement.
+
+Independent verification covers 151 artifact identities and 121 expected package
+stages. Two historical native transparency diagnostics remain explicitly recorded
+per profile; required gates are not waived. All 200 verifier checks, seven isolated
+desktop/worker startup handshakes and 160 bound installer checks pass. The final
+compiled receipt validator also accepts the actual seven-item manual capture,
+ending at sequence 682 with zero commands. No automatic Recycle has run live.
+
+Package SHA-256: `e066f6db72a34e57f8d12657c5c434997feeff76c727254d8eaf2efae16f0b18`.
+Native DLL SHA-256: `cd2927bf31a061ea5953aeb3fcd25614e8648d0620547e0a9121a0f633679636`.
+Wheel SHA-256: `85cd362cc5e4f0a134ebfdd846bbfc9ba087e6501134bce89c8baae4b09d1a4b`.
+The official .19 client and prepared executable remain unchanged. The deployment
+baseline verifies installed .119/.73, 503 modules, 10,065 retained records, the
+same Treehugger game lifetime and an idle healthy worker. Private captures,
+payloads, credentials and client binaries are not published.
+
+Completed: manual capture, durable schema-5 exclusions, full package qualification
+and installation preparation. Active: apply the one qualified host/native update
+after the loaded game closes, preserving settings and journals without rollback
+copies. Next: a new quantity-ten available-slot batch and live policy-qualified
+Recycle acceptance, then durable town vendor scheduling. Historical jobs and
+unrelated stock cannot acquire disposal authority. Draft PR #174 remains unmerged;
+guards are outside this workflow.
+
 ## Durable quantity-batch exclusion workflow source complete - October 14
 
 New saved-recipe worker jobs use schema 5 and prove native Recycle-profile support
