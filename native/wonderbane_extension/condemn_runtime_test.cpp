@@ -24,6 +24,12 @@ static ko::Cursor cursor{12,34,0,0,0};
 static unsigned opens = 0, adds = 0, enables = 0, other_reads = 0, other_writes = 0;
 static unsigned order = 0, drained_order = 0, captured_order = 0;
 static bool reply = false, readable = true;
+static bool vendor_active = false, production_readable = true;
+static v::wire::Snapshot vendor_state;
+static ex::vendor_production::Cursor production_cursor{12,34,0,0,0};
+static std::unique_ptr<ex::vendor_production::Batch> production_input;
+static unsigned vendor_creates = 0, production_reads = 0;
+static std::uint32_t funding_minimum = 0;
 static int failures = 0;
 static void Check(bool b, const char* why) { if (!b) { ++failures; std::cerr << why << '\n'; } }
 namespace wonderbane::extension {
@@ -61,21 +67,50 @@ Result Invoke(std::uintptr_t, const movement::NativeScene&, const Target&, Actio
 }
 }
 namespace vendor {
-bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&, std::uint32_t, bool&, bool&, wire::RemainingCounts*) noexcept { ++other_reads; return false; }
+bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot& out, std::uint32_t,
+    bool& present, bool& top, wire::RemainingCounts* counts) noexcept {
+    ++other_reads;
+    if (!vendor_active) { return false; }
+    out=vendor_state; present=false; top=true;
+    if(counts) { counts->fill(1); }
+    return true;
+}
 bool InvokeNative(std::uintptr_t, wire::Verb, const wire::Snapshot&, std::uint32_t) noexcept { ++other_writes; return false; }
 }
 namespace vendor_menu {
 bool OrderCostMatches(std::uintptr_t, const vendor::wire::Snapshot&,
-    const vendor::wire::OrderBudget&, std::uint32_t) noexcept { ++other_reads; return false; }
+    const vendor::wire::OrderBudget& budget, std::uint32_t minimum) noexcept {
+    ++other_reads; funding_minimum=minimum; return vendor_active && minimum==budget.total;
+}
 vendor::wire::Outcome InvokeRandomCreate(std::uintptr_t, const movement::NativeScene&,
-    const vendor::wire::Snapshot&, Admission, void*, bool) noexcept { ++other_writes; return vendor::wire::Outcome::unavailable; }
+    const vendor::wire::Snapshot& expected, Admission admit, void* context, bool orders) noexcept {
+    ++other_writes;
+    if(!vendor_active || !orders || !admit(context)) { return vendor::wire::Outcome::unavailable; }
+    ++vendor_creates;
+    auto& r=production_input->records[production_input->count++]; r={};
+    r.sequence=static_cast<LONG64>(++production_cursor.sequence); r.stage=4; r.flags=3;
+    r.thread_id=GetCurrentThreadId(); r.scene_epoch=expected.scene; r.local=state.local;
+    r.payload.action=1; r.payload.fields=8; r.payload.building={expected.building,8};
+    r.payload.vendor={expected.vendor,42}; r.payload.reference={expected.item_template,0};
+    r.payload.quantity=expected.quantity; r.payload.multiple=1; r.payload.marker=expected.table;
+    production_input->after=production_cursor;
+    return vendor::wire::Outcome::submitted;
+}
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }
 wire::Outcome Invoke(std::uintptr_t, const movement::NativeScene&, wire::Verb,
     const wire::Command&, Admission, void*) noexcept { ++other_writes; return wire::Outcome::unavailable; }
 }
 namespace vendor_production {
-bool ReadCursor(Cursor&) noexcept { ++other_reads; return false; }
-bool ReadAfter(const Cursor&, Batch&) noexcept { ++other_reads; return false; }
+bool ReadCursor(Cursor& out) noexcept {
+    ++other_reads; out=production_cursor; return vendor_active && production_readable;
+}
+bool ReadAfter(const Cursor& before, Batch& out) noexcept {
+    ++other_reads; ++production_reads;
+    if(!vendor_active || !production_readable || !production_input
+        || before.sequence+production_input->count!=production_cursor.sequence) { return false; }
+    out=*production_input; out.after=production_cursor; production_input->count=0;
+    return true;
+}
 }
 namespace city_window {
 bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot&) noexcept { ++other_reads; return false; }
@@ -117,6 +152,65 @@ static ko::wire::Receipt Run(const ko::wire::Command& c, ko::wire::Verb verb) {
     Check(ko::Queue(q), "queue accepted"); Frame();
     Check(q->state.load() == 2 && q->execution_thread == GetCurrentThreadId(), "receipt belongs to owner thread");
     ko::Release(q); return q->receipt;
+}
+static v::wire::Receipt VendorCommand(v::wire::Command command, v::wire::Verb verb) {
+    auto q=std::make_shared<v::QueuedCommand>(); q->command=command; q->verb=verb; Allow(q);
+    Check(v::Queue(q), "vendor command queued"); Frame();
+    Check(q->state.load()==2 && q->execution_thread==GetCurrentThreadId(), "vendor receipt on native owner");
+    v::Release(q); return q->receipt;
+}
+static void VendorReply(std::uint32_t item, unsigned first, unsigned last) {
+    namespace p=ex::vendor_production;
+    const auto decode=production_cursor.sequence+1-(first-1);
+    for(unsigned stage=first;stage<=last;++stage) {
+        auto& r=production_input->records[production_input->count++]; r={};
+        r.sequence=static_cast<LONG64>(++production_cursor.sequence); r.stage=stage;
+        r.flags=stage==1?3:7; r.decode_sequence=decode; r.thread_id=GetCurrentThreadId();
+        r.scene_epoch=vendor_state.scene; r.local=state.local;
+        r.payload.action=8; r.payload.fields=5; r.payload.building={vendor_state.building,8};
+        r.payload.vendor={vendor_state.vendor,42}; r.payload.item={item,40};
+        r.payload.item_template=vendor_state.item_template; r.payload.queue_count_raw=1;
+    }
+    production_input->after=production_cursor;
+}
+static void VerifyVendorOrders() {
+    namespace w=v::wire;
+    v::controller={}; v::menu_controller={}; v::order_admission.Reset();
+    vendor_active=true; production_input=std::make_unique<ex::vendor_production::Batch>();
+    vendor_state={}; vendor_state.scene=state.scene; vendor_state.root=state.root;
+    vendor_state.manager=200; vendor_state.menu=300; vendor_state.recipe=400; vendor_state.hireling=500;
+    vendor_state.building=20; vendor_state.vendor=777; vendor_state.item_template=26990;
+    vendor_state.prefix=vendor_state.suffix=3362971591U; vendor_state.mode=1;
+    vendor_state.table=12; vendor_state.quantity=10; vendor_state.multiple=1; vendor_state.count=2;
+    vendor_state.slots[0].entry=600; vendor_state.slots[1].entry=700;
+    Frame();
+    w::Command create{}; create.host={10,1,456}; create.window=123; create.request[0]=20;
+    create.reserved[0]=42; create.expected=v::controller.Current();
+    const w::OrderBudget budget{1,2,10,555,1660,3320};
+    std::memcpy(create.reserved+16,&budget,sizeof(budget));
+    const auto sent=VendorCommand(create,w::Verb::create_orders);
+    Check(sent.outcome==1 && sent.flags==w::in_flight && vendor_creates==1 && funding_minimum==3320,
+        "native owner sends one fully funded request");
+    vendor_state.slots[0]={600,1001,1}; vendor_state.slots[1]={700,1002,1};
+    VendorReply(1001,1,2); Frame();
+    Check(v::controller.PendingOrders(), "visible rows and incomplete callbacks cannot admit batch");
+    VendorReply(1001,3,3); VendorReply(1002,1,3); Frame();
+    w::Command inspect{}; inspect.host=create.host; inspect.window=123; inspect.request[0]=21;
+    const auto admitted=VendorCommand(inspect,w::Verb::inspect_orders);
+    Check(admitted.flags==w::ready && admitted.transition_request==create.request
+        && admitted.reserved[0]==1 && production_reads>=2 && vendor_creates==1,
+        "owner service reconciles split receive intervals without quota-count assumptions");
+    vendor_state.slots[0]={600,0,0}; vendor_state.slots[1]={700,0,0}; ++vendor_state.menu; Frame();
+    create.request[0]=22; create.expected=v::controller.Current();
+    Check(VendorCommand(create,w::Verb::create_orders).outcome==3 && vendor_creates==1,
+        "reopened menu cannot dispatch same batch again");
+    create.request[0]=23; create.reserved[0]=43; create.expected=v::controller.Current();
+    Check(VendorCommand(create,w::Verb::create_orders).outcome==1 && vendor_creates==2,
+        "new independently funded batch retains separate identity");
+    production_readable=false; Frame();
+    inspect.request[0]=24;
+    Check(VendorCommand(inspect,w::Verb::inspect_orders).flags&w::unresolved,
+        "lost production cursor makes native admission permanently unresolved");
 }
 int main() {
     state.scene = 7; state.local = {99,53}; state.root = 100; state.manager = 200;
@@ -213,5 +307,6 @@ int main() {
     fi.Transfer(ex::guard_funding::wire::Verb::open_quote, {});
     Check(!bi.Baseline(observed) && !other_reads && !other_writes,
         "menu barrier excludes spending, navigation, guards, funding and Condemn");
+    VerifyVendorOrders();
     return failures;
 }

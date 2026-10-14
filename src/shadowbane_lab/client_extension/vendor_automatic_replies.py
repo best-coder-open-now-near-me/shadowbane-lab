@@ -10,6 +10,26 @@ def _canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
+def _key(value):
+    return (type(value) in (tuple, list) and len(value) == 2
+            and all(type(word) is int and 0 <= word < 2**32 for word in value))
+
+
+def _payload(value):
+    words = ("action", "error", "fields", "quantity_raw", "marker_raw", "prefix", "suffix",
+             "template", "queue_count_raw", "value", "seconds", "duration", "queue_ignored_raw",
+             "complete", "strongbox_gold", "multiple_raw", "template_type_raw", "queue_flags_raw")
+    keys = ("building", "vendor", "reference", "item", "deposited_item", "deposited_template")
+    return (type(value) is dict
+            and all(type(value[word]) is int and 0 <= value[word] < 2**32 for word in words)
+            and all(_key(value[key]) for key in keys)
+            and value["action"] <= 13 and value["fields"] <= 15
+            and all(value[word] <= 1 for word in ("queue_ignored_raw", "complete", "multiple_raw"))
+            and type(value["reference_list_raw"]) is list
+            and len(value["reference_list_raw"]) <= 256
+            and all(_key(key) for key in value["reference_list_raw"]))
+
+
 class AutomaticReplies:
     def __init__(self, initial, specification, character, orders, sequence):
         initial.encode()
@@ -37,6 +57,8 @@ class AutomaticReplies:
         raise VendorBatchStopped(detail)
 
     def expect_keep(self, item):
+        if self.failed:
+            self._stop("automatic production evidence was already rejected")
         if (item not in self.items or not self.items[item]["complete"]
                 or item in self.keep_intents or item in self.deposited):
             self._stop("automatic batch Keep lacks a terminal item")
@@ -53,11 +75,18 @@ class AutomaticReplies:
                         or record["sequence"] != self.sequence + 1):
                     self._stop("automatic production history is discontinuous")
                 self.sequence = record["sequence"]
-                if record.get("diagnostic") is not None or record["flags"] & 8:
+                if (type(record["flags"]) is not int or not 0 <= record["flags"] <= 15
+                        or type(record["scene_epoch"]) is not int
+                        or not 0 <= record["scene_epoch"] < 2**64
+                        or not _key(record["local"])
+                        or type(record["thread_id"]) is not int or record["thread_id"] <= 0
+                        or record.get("diagnostic") is not None or record["flags"] & 8):
                     self._stop("automatic production contains a rejected observation")
                 payload = record["payload"]
                 if payload is None:
                     continue
+                if not _payload(payload):
+                    self._stop("malformed automatic production payload")
                 if (tuple(payload["building"]) != (self.initial.building, 8)
                         or tuple(payload["vendor"]) != (self.initial.vendor, 42)):
                     continue
