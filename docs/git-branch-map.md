@@ -1,5 +1,22 @@
 # Git branch map
 
+## Vendor .120/.74 installed; new batch acceptance next - October 14
+
+Continue `codex/vendor-rolling-20261013` for focused source and live acceptance;
+draft PR #174 targets main and remains unmerged. Graphics-preserving release
+`1a2a638b60e441d52a20c5a7e877b607c6722e43` on
+`codex/vendor-release-20261013` is qualified, pushed and installed as .120/.74.
+Its graphics composition remains outside main. Both vendor worktrees remain
+active; refreshed shared main is `ef02070f`, and the normal checkout stays clean
+there. All 15 hosted checks pass at the prior focused head `c411c063`.
+
+The original Vendor Test shortcut relaunch, exact DLL/client lifetime, healthy
+worker, 507 modules and 10,127 retained records are verified. Obsolete .119 and
+spent local/guest software were retired without rollback copies; evidence and
+user data remain. Next: Treehugger in Rooty, move once, then a new quantity-ten
+available-slot batch and live qualified recycling. Town scheduling follows;
+guards are outside scope. See [installed evidence and todos](vendor-rolling.md).
+
 ## Qualified vendor batch recycling release - October 14
 
 Continue focused vendor work on `codex/vendor-rolling-20261013`; draft PR #174

@@ -1,5 +1,39 @@
 # Player-owned vendor rolling
 
+## .120/.74 installed and Vendor Test relaunched - October 14
+
+The qualified graphics-preserving release
+`1a2a638b60e441d52a20c5a7e877b607c6722e43` is installed as host .120/native .74.
+The original Vendor Test shortcut launched the same prepared .19 executable
+with the exact new DLL. The new game lifetime is verified, the manager has one
+healthy exact worker, and there is no active or queued operation. All 507 host
+modules and 10,127 settings/history records passed installation and activation
+verification with zero exclusions. Only two typed startup records changed at
+activation; client executable/resources and existing job journals are preserved.
+
+The first apply stopped before replacement because the running baseline had
+unstable worker status rows. A fresh stopped census changed only four operational
+records: denied dispatch, stopped heartbeat, paused preparation and unavailable
+group-command status. Fifteen revalidation checks pass, including refusal of
+unrelated user-data changes or live authority. The same prepared environment was
+rebound without reinstalling to plan
+`f8c32a5a32b60804e9b4854c4eb6282f2d93aa35283d3c9c38aec68461ce9ed4`.
+All 15 hosted checks passed at focused source/documentation head `c411c063`.
+
+The unused .119 host and exact spent guest staging binaries were retired after
+identity/dependency checks: 72,425,847 bytes. Twenty-one inspected obsolete local
+build paths were also retired: 506,810,699 bytes. Committed source, logs, captures,
+qualification/installation receipts, current .120/.74 software, settings and jobs
+remain preserved. No deployment rollback copies were created or retained.
+
+Completed: qualified installation, preserved-data verification, same-shortcut
+relaunch and obsolete software retirement. Active: Treehugger login in Rooty and
+one movement to activate interactions, followed by a new quantity-ten available-
+slot batch and policy-qualified automatic Recycle acceptance. No vendor action
+has been sent on this new game lifetime yet. Town scheduling follows that live
+acceptance. Historical jobs cannot acquire disposal authority; guards remain
+outside scope. Draft PR #174 still targets main and must remain unmerged.
+
 ## Complete .120/.74 recycling package qualified - October 14
 
 The graphics-preserving release `1a2a638b60e441d52a20c5a7e877b607c6722e43`
