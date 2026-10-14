@@ -1,5 +1,36 @@
 # Player-owned vendor rolling
 
+## Quantity request and automatic turnover verified - October 14
+
+Treehugger's .116/.72 session is initialized, bound and nonterminal. Fresh
+native discovery verifies 25 vendors across 13 nearby buildings. Malik's
+displayed inventory positively contains all 45 deposits from the preceding
+batch. Its four new completed items and the earlier completed item remain in
+production; shop gold is unchanged at 218,276. Reopening the queue resets the
+displayed raw count to one, further disproving a remaining-roll interpretation.
+
+A separate, one-shot protocol capture reserves the two empty rows as an upper
+bound of 20 items / 3,320 gold. Exactly one outgoing request carries quantity
+10, multiple enabled, Gilded Scepter and table 12. Both rows receive qualified
+server cooking replies, charging 332 gold. The legacy native count check stops
+the manager in review as expected. Neither this job nor the earlier review job
+may retry. The first automatic turnover has two correlated removals/deposits
+and two subsequent cooking replies, with no additional outgoing Create and no
+lost/rejected records. The bounded passive recorder remains active.
+
+The source correction now gates native admission on the exact serialized
+request and complete decoded/processing/returned arrival lineage, rather than
+the raw count. It also prevents a second request for the same batch identity
+after rows become empty, and keeps the full funding minimum on every dispatch.
+The full x86 extension compiles with warnings as errors and the native admission
+regressions pass. This source checkpoint is not installed or release-qualified;
+the host's legacy admission/progress model still requires replacement.
+
+Active next: finish host tracking of server automatic production, capture the
+complete bounded batch, then qualify one coherent native/host update. Inventory
+filtering (exclude confirmed T1-2, retain unknowns) and town scheduling remain
+after quantity acceptance. No Keep or disposal has been sent in this capture.
+
 ## V3 workflow recorder installed - October 14
 
 Host .116/native .72 is qualified and installed from pushed graphics-preserving

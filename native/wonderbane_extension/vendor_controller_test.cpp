@@ -1,8 +1,10 @@
 #include "vendor_controller.h"
+#include "vendor_order_admission.h"
 #include "vendor_command_queue.h"
 #undef NDEBUG
 #include <cassert>
 #include <cstdio>
+#include <memory>
 namespace v = wonderbane::extension::vendor;
 namespace w = v::wire;
 struct Fake final : v::Invoker {
@@ -88,16 +90,19 @@ int main(int argc, char**) {
         assert(w::Valid(w::Verb::create_orders,first));
         auto sent=c.Execute(w::Verb::create_orders,first,true,true,f,100);
         assert(sent.signature==w::orders_magic && sent.outcome==1 && sent.flags==w::in_flight && f.calls==1);
-        s.slots[0]={600,123,1}; counts[0]=10; c.Observe(s,true,false,101,counts);
+        s.slots[0]={600,123,1}; counts[0]=1; c.Observe(s,true,false,101,counts);
         auto next=Command(c,2); next.reserved[0]=43; Budget(next);
         auto rejected=c.Execute(w::Verb::create_orders,next,true,true,f,102);
         assert(rejected.signature==w::orders_magic && rejected.outcome==5 && f.calls==1);
         s.count=3; s.slots[2]={800,0,0}; counts[2]=1;
-        s.slots[1]={700,124,1}; counts[1]=10; c.Observe(s,true,false,104,counts);
+        s.slots[1]={700,124,1}; counts[1]=1; c.Observe(s,true,false,104,counts);
+        auto waiting=Command(c,8); waiting.expected={};
+        assert(c.Execute(w::Verb::inspect_orders,waiting,true,true,f,104).flags==w::in_flight);
+        c.Observe(s,true,false,104,counts,v::OrderProof::verified);
         auto probe=Command(c,9); probe.expected={};
         const auto accepted=c.Execute(w::Verb::inspect_orders,probe,true,true,f,105);
         assert(accepted.flags==w::ready && accepted.transition_request==first.request
-            && accepted.transition_item==124 && accepted.snapshot.count==3 && accepted.reserved[0]==10);
+            && accepted.transition_item==124 && accepted.snapshot.count==3 && accepted.reserved[0]==1);
         assert(c.Execute(w::Verb::create_orders,first,true,true,f,106).outcome==1 && f.calls==1);
         auto extra=Command(c,3); extra.reserved[0]=42; Budget(extra);
         assert(c.Execute(w::Verb::create_orders,extra,true,true,f,106).outcome==3 && f.calls==1);
@@ -108,14 +113,73 @@ int main(int argc, char**) {
         w::RemainingCounts counts{}; counts[0]=counts[1]=1;
         c.Observe(s,true,false,100,counts); auto command=Command(c); command.reserved[0]=42; Budget(command);
         assert(c.Execute(w::Verb::create_orders,command,true,true,f,100).outcome==1);
-        s.slots[0]={600,123,1}; counts[0]=failure==0?1:10;
+        s.slots[0]={600,123,1}; counts[0]=1;
         if(failure==1) { s.slots[1]={700,124,1}; counts[1]=10; s.count=3;
             s.slots[2]={800,125,1}; counts[2]=10; }
         if(failure==2) { ++s.vendor; }
-        c.Observe(s,true,false,failure==3?5101:101,counts);
+        c.Observe(s,true,false,failure==3?5101:101,counts,
+            failure==0?v::OrderProof::invalid:v::OrderProof::waiting);
         auto probe=Command(c,9); probe.expected={};
         assert(c.Execute(w::Verb::inspect_orders,probe,true,true,f,5102).flags&w::unresolved);
         assert(c.Execute(w::Verb::create_orders,command,true,true,f,5103).outcome==1 && f.calls==1);
+    }
+    // Admission requires one exact outgoing request and full receive lineage,
+    // including when decoding and processing arrive in separate read intervals.
+    {
+        namespace p = wonderbane::extension::vendor_production;
+        auto initial=Snapshot(); initial.revision=1; initial.quantity=10; initial.multiple=1;
+        auto after=initial; after.slots[0]={600,123,1}; after.slots[1]={700,124,1};
+        const p::Cursor start{1,2,0,0,0};
+        auto batch=std::make_unique<p::Batch>(); batch->count=7; batch->after={1,2,7,0,0};
+        for(std::size_t i=0;i<7;++i) {
+            auto& r=batch->records[i]; r.sequence=static_cast<LONG64>(i+1);
+            r.thread_id=5; r.scene_epoch=initial.scene; r.local={42,53};
+            r.payload.building={initial.building,8}; r.payload.vendor={initial.vendor,42};
+        }
+        auto& send=batch->records[0]; send.stage=4; send.flags=3; send.payload.action=1;
+        send.payload.reference={initial.item_template,0}; send.payload.quantity=10;
+        send.payload.multiple=1; send.payload.marker=12;
+        for(std::size_t i=1;i<7;++i) {
+            auto& r=batch->records[i]; r.stage=static_cast<std::uint32_t>((i-1)%3+1);
+            r.flags=r.stage==1?3:7; r.decode_sequence=i<4?2:5;
+            r.payload.action=8; r.payload.item={i<4?123U:124U,40};
+            r.payload.item_template=initial.item_template; r.payload.queue_count_raw=1;
+        }
+        v::OrderAdmission admission; admission.Begin(initial,{42,53},start);
+        assert(admission.Receive(*batch) && admission.Matches(after));
+        auto partial=std::make_unique<p::Batch>(); partial->after={1,2,3,0,0}; partial->count=3;
+        for(std::size_t i=0;i<3;++i) { partial->records[i]=batch->records[i]; }
+        admission.Begin(initial,{42,53},start);
+        assert(admission.Receive(*partial) && !admission.Matches(after));
+        partial->after.sequence=7; partial->count=4;
+        for(std::size_t i=0;i<4;++i) { partial->records[i]=batch->records[i+3]; }
+        assert(admission.Receive(*partial) && admission.Matches(after));
+        for(unsigned failure=0;failure<9;++failure) {
+            auto broken=std::make_unique<p::Batch>(*batch);
+            if(failure==0) { broken->records[0].payload.quantity=9; }
+            if(failure==1) { broken->records[3].stage=2; }
+            if(failure==2) { broken->records[3].local[0]=43; }
+            if(failure==3) { ++broken->records[3].payload.item_template; }
+            if(failure==4) { ++broken->after.ticket_drops; }
+            if(failure==5) { broken->records[3].payload.error=1; }
+            if(failure==6) { ++broken->records[3].sequence; }
+            if(failure==7) { broken->records[4]=broken->records[0]; broken->records[4].sequence=5; }
+            if(failure==8) {
+                for(std::size_t i=1;i<4;++i) { broken->records[i].payload.queue_ignored=1; }
+            }
+            admission.Begin(initial,{42,53},start);
+            assert(!admission.Receive(*broken) && !admission.Matches(after));
+        }
+        // A new request key cannot spend the same batch after its items have
+        // left production, even when all of that batch's rows are empty again.
+        v::Controller c; Fake f; w::RemainingCounts counts{};
+        c.Observe(initial,true,false,100,counts);
+        auto command=Command(c); command.reserved[0]=42; Budget(command);
+        assert(c.Execute(w::Verb::create_orders,command,true,true,f,100).outcome==1);
+        c.Observe(after,true,false,101,counts,v::OrderProof::verified);
+        c.Observe(initial,true,false,102,counts);
+        auto repeat=Command(c,2); repeat.reserved[0]=42; Budget(repeat);
+        assert(c.Execute(w::Verb::create_orders,repeat,true,true,f,103).outcome==3 && f.calls==1);
     }
     {
         auto s=Snapshot(); s.revision=1; s.quantity=10; s.multiple=1;
