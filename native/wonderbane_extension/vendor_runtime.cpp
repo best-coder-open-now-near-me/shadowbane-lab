@@ -452,7 +452,8 @@ void Update(void* root, HWND window) noexcept {
         const bool ready = valid && (!wire::IsRecycle(command->verb) || vendor_recycle::Qualified(image_base))
             && !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy() && !navigation_controller.Busy() && !menu_controller.Busy() && exact_window && top && GetForegroundWindow() == window && !IsIconic(window);
         NativeInvoker invoker(command, scene, window);
-        Complete(command, controller.Execute(command->verb, command->command, live && exact_window, ready, invoker, now));
+        const bool qualified=!wire::IsRecycle(command->verb) || vendor_recycle::Qualified(image_base);
+        Complete(command, controller.Execute(command->verb, command->command, live && exact_window && qualified, ready, invoker, now));
     }
     busy = false;
 }

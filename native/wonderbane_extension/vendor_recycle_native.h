@@ -11,11 +11,12 @@ using Digest = std::array<unsigned char, 32>;
 bool Qualified(std::uintptr_t image) noexcept;
 struct Manifest {
     vendor::wire::Snapshot owner{};
-    Items items{}, entries{}, instances{};
+    Items items{}, entries{}, instances{}, native_items{};
     std::uint32_t count = 0, gold = 0, refund = 0;
     Digest digest{};
     bool operator==(const Manifest& b) const noexcept {
         return vendor::wire::Equal(owner,b.owner) && items==b.items && entries==b.entries
+            && native_items==b.native_items
             && instances==b.instances && count==b.count && gold==b.gold
             && refund==b.refund && digest==b.digest;
     }

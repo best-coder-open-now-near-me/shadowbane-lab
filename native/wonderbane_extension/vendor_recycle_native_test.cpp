@@ -2,6 +2,8 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <fstream>
+#include <vector>
 #undef NDEBUG
 #include <cassert>
 namespace r = wonderbane::extension::vendor_recycle;
@@ -13,7 +15,7 @@ std::uint32_t base=0, manager=0, tree=0;
 void Word(std::uint32_t at,std::uint32_t value){std::memcpy(reinterpret_cast<void*>(at),&value,4);}
 std::uint32_t Get(std::uint32_t at){std::uint32_t value{};std::memcpy(&value,reinterpret_cast<void*>(at),4);return value;}
 void* __fastcall Clone(void* self,void*,void** out) {
-    ++clones;*out=reinterpret_cast<void*>(Get(reinterpret_cast<std::uint32_t>(self)+0x20));return out;
+    ++clones;*out=reinterpret_cast<void*>(Get(reinterpret_cast<std::uint32_t>(self)+0x24));return out;
 }
 void __fastcall Add(void*,void*,const wonderbane::extension::vendor_production::Key* key,void* instance) {
     ++selections;
@@ -35,7 +37,82 @@ namespace movement {
 bool NativeMovementLifetimeCurrent(const NativeScene& scene) noexcept {return live && scene.epoch==1;}
 }
 }
-int main() {
+struct KeyArg {std::uint32_t id,type;};
+std::uint32_t message=0, msg_table=0, ref_table=0;
+unsigned message_clones=0,message_releases=0,reference_count=0;
+std::array<KeyArg,r::kItems> sent_references{};
+void* __cdecl Allocate(std::size_t size){assert(size==0x120);return reinterpret_cast<void*>(message);}
+void* __fastcall Construct(void* self,void*) {
+    assert(reinterpret_cast<std::uint32_t>(self)==message);
+    std::memset(self,0,0x120);Word(message,msg_table);Word(message+8,ref_table);return self;
+}
+void __cdecl Wrap(void** out,unsigned zero,void* value){assert(!zero);*out=value;}
+void* __fastcall Dereference(void** self,void*){return *self;}
+void __fastcall Reference(void* self,void*,const KeyArg* key) {
+    assert(reinterpret_cast<std::uint32_t>(self)==message && reference_count<r::kItems);
+    sent_references[reference_count++]=*key;
+}
+void __fastcall Vendor(void* self,void*,KeyArg key){assert(reinterpret_cast<std::uint32_t>(self)==message);Word(message+0x80,key.id);Word(message+0x84,key.type);}
+void __fastcall Building(void* self,void*,KeyArg key){assert(reinterpret_cast<std::uint32_t>(self)==message);Word(message+0x78,key.id);Word(message+0x7c,key.type);}
+void __fastcall RefAdd(void* self,void*,void** value) {
+    if(reinterpret_cast<std::uint32_t>(*value)==message){assert(self==*value);++message_clones;}
+    else{assert(reinterpret_cast<std::uint32_t>(self)==reinterpret_cast<std::uint32_t>(*value)+8);++clones;}
+}
+void __fastcall MsgRelease(void* self,void*,void** value){assert(reinterpret_cast<std::uint32_t>(self)==message);*value=nullptr;++message_releases;}
+void* __cdecl Network(){return reinterpret_cast<void*>(base+0x730000);}
+void __fastcall NetworkSend(void* self,void*,void* value) {
+    assert(self==Network() && reinterpret_cast<std::uint32_t>(value)==message);
+    assert(Get(message+0x70)==3 && Get(message+0x78)==2229645 && Get(message+0x7c)==8);
+    assert(Get(message+0x80)==2517204 && Get(message+0x84)==42);
+    ++sends;MsgRelease(value,nullptr,&value);
+}
+void ClientFunctions(const char* filename) {
+    std::ifstream stream(filename,std::ios::binary|std::ios::ate);assert(stream);
+    const auto size=stream.tellg();assert(size>0 && size<128*1024*1024);
+    std::vector<unsigned char> file(static_cast<std::size_t>(size));stream.seekg(0);
+    stream.read(reinterpret_cast<char*>(file.data()),size);assert(stream);
+    r::Hash hash;r::Digest digest{};assert(hash.Add(file.data(),file.size()) && hash.Finish(digest));
+    std::ostringstream hex;for(auto byte:digest){hex<<std::hex<<std::setw(2)<<std::setfill('0')<<static_cast<unsigned>(byte);}
+    assert(hex.str()=="6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad");
+    const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(file.data());assert(dos->e_magic==IMAGE_DOS_SIGNATURE);
+    assert(dos->e_lfanew>0 && static_cast<std::size_t>(dos->e_lfanew)+sizeof(IMAGE_NT_HEADERS32)<file.size());
+    const auto* pe=reinterpret_cast<const IMAGE_NT_HEADERS32*>(file.data()+dos->e_lfanew);
+    assert(pe->Signature==IMAGE_NT_SIGNATURE && pe->FileHeader.Machine==IMAGE_FILE_MACHINE_I386);
+    const auto* sections=IMAGE_FIRST_SECTION(pe);
+    auto copy=[&](std::uint32_t address,std::uint32_t bytes) {
+        bool copied=false;
+        for(unsigned i=0;i<pe->FileHeader.NumberOfSections;++i){const auto& section=sections[i];
+            if(address<section.VirtualAddress || address+bytes>section.VirtualAddress+section.SizeOfRawData){continue;}
+            const auto offset=section.PointerToRawData+address-section.VirtualAddress;assert(offset+bytes<=file.size());
+            std::memcpy(reinterpret_cast<void*>(base+address),file.data()+offset,bytes);copied=true;break;}
+        assert(copied);
+    };
+    // Execute the actual client's getter, key copy/getter, tree successor and
+    // batch builder. Heap/refcount/network endpoints are instrumented: no game,
+    // process attachment or network send is involved.
+    for(const auto [address,bytes]:std::array<std::pair<std::uint32_t,std::uint32_t>,9>{{
+        {0x26b70,5},{0x5bd150,0x36},{0x195b,5},{0x567f90,0x23},
+        {0x25581,5},{0x1117b0,0x16},{0x12cc9,5},{0x3fae0,0x3a},{0x6e4180,0x148}}}){copy(address,bytes);}
+    message=base+0x700000;msg_table=base+0x710000;ref_table=base+0x720000;
+    Word(msg_table+8,reinterpret_cast<std::uint32_t>(&MsgRelease));Word(ref_table+4,0);
+    Jump(base+0x8d88e6,reinterpret_cast<void*>(&Allocate));Jump(base+0x2569e,reinterpret_cast<void*>(&Construct));
+    Jump(base+0x27e12,reinterpret_cast<void*>(&Wrap));Jump(base+0x23e8e,reinterpret_cast<void*>(&Reference));
+    Jump(base+0x3f08,reinterpret_cast<void*>(&Dereference));Jump(base+0x387d,reinterpret_cast<void*>(&Vendor));
+    Jump(base+0x21a8f,reinterpret_cast<void*>(&Building));Jump(base+0xb2b7,reinterpret_cast<void*>(&RefAdd));
+    Jump(base+0x7dab,reinterpret_cast<void*>(&Network));Jump(base+0x5a65,reinterpret_cast<void*>(&NetworkSend));
+}
+LONG WINAPI ProbeException(EXCEPTION_POINTERS* info) {
+    if(info->ExceptionRecord->ExceptionCode==EXCEPTION_ACCESS_VIOLATION) {
+        std::cerr<<"client probe access violation rva="<<std::hex<<info->ContextRecord->Eip-base
+            <<" eip="<<info->ContextRecord->Eip<<" app="<<GetModuleHandleW(nullptr)
+            <<" at="<<info->ExceptionRecord->ExceptionInformation[1]
+            <<" ecx="<<info->ContextRecord->Ecx<<" eax="<<info->ContextRecord->Eax<<'\n';
+        ExitProcess(86);
+    }
+    return EXCEPTION_CONTINUE_SEARCH;
+}
+int main(int argc,char** argv) {
+    std::cout<<std::unitbuf;
     auto* arena=static_cast<unsigned char*>(VirtualAlloc(nullptr,0x1800000,MEM_RESERVE|MEM_COMMIT,PAGE_EXECUTE_READWRITE));
     assert(arena);base=reinterpret_cast<std::uint32_t>(arena);manager=base+0x2000;
     const auto root=base+0x1000, menu=base+0x3000, hireling=base+0x4000;
@@ -115,5 +192,14 @@ int main() {
     // Extra, cyclic, or nonreciprocal tree links cannot reach a batch send.
     Word(Get(tree+12)+12,base+0x410000);r::Reader extra;assert(!r::Selection(extra,manifest,count));
     Word(Get(tree+12)+12,0);Word(Get(tree+4)+4,0);r::Reader parent;assert(!r::Selection(parent,manifest,count));
+    if(argc==2) {
+        assert(AddVectoredExceptionHandler(1,&ProbeException));
+        ClientFunctions(argv[1]);clear();
+        for(unsigned i=0;i<count;++i){Word(manifest.native_items[i]+8,ref_table);}
+        assert(r::Invoke(base,scene,manifest,&Admit,nullptr)==v::wire::Outcome::submitted);
+        assert(sends==1 && clones==count && reference_count==count && message_clones==1 && message_releases==2);
+        for(unsigned i=0;i<count;++i){assert(sent_references[i].id==ids[i] && sent_references[i].type==40);}
+        std::cout<<"actual .19 getter/key/iterator/batch-builder passed; network endpoint instrumented\n";
+    }
     assert(VirtualFree(arena,0,MEM_RELEASE));return 0;
 }

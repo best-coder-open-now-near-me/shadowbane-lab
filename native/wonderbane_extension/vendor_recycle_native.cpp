@@ -87,7 +87,7 @@ struct SelectionTree {
         reader.Require(node+4,parent);
         if(!reader.ok || !Walk(reader.Word(node+8),node,depth+1) || ordered>=limit){return false;}
         reader.Require(node+16,manifest.items[ordered]); reader.Require(node+20,40);
-        reader.Require(node+24,manifest.instances[ordered++]);
+        reader.Require(node+24,manifest.native_items[ordered++]);
         if(!first){first=node;} last=node;
         return reader.ok && Walk(reader.Word(node+12),node,depth+1);
     }
@@ -138,13 +138,13 @@ bool CaptureInner(std::uintptr_t image, const movement::NativeScene& scene,
         const auto found=std::lower_bound(ids.begin(),ids.begin()+count,id);
         if(found==ids.begin()+count || *found!=id){continue;}
         const auto at=static_cast<std::size_t>(found-ids.begin());
-        m.entries[at]=entry; m.instances[at]=r.Word(entry+0x20);
+        m.entries[at]=entry; m.instances[at]=r.Word(entry+0x20);m.native_items[at]=r.Word(entry+0x24);
     }
     Hash hash;
     constexpr char domain[]="WBRC1";
     if(!hash.Add(domain,sizeof(domain)) || !hash.Word(count)){return false;}
     for(std::size_t i=0;i<count;++i) {
-        const auto entry=m.entries[i], instance=m.instances[i], native=r.Word(entry+0x24);
+        const auto entry=m.entries[i], instance=m.instances[i], native=m.native_items[i];
         if(!entry || !instance || !native){return false;}
         r.Require(instance,image+0x114bb68); r.Require(native,image+0x1142748);
         r.Require(instance+0x10,26990); r.Require(instance+0x14,0); r.Require(instance+0x18,ids[i]); r.Require(instance+0x1c,40);
@@ -172,16 +172,16 @@ bool Select(std::uintptr_t image, const Manifest& m, std::size_t index) noexcept
     using Getter = void* (__thiscall*)(void*,void**);
     using Add = void (__thiscall*)(void*,const vendor_production::Key*,void*);
     using Release = void (__thiscall*)(void**,void*);
-    void* instance=nullptr;
+    void* item_reference=nullptr;
     __try {
-        reinterpret_cast<Getter>(image+0x26b70)(reinterpret_cast<void*>(m.entries[index]),&instance);
-        if(reinterpret_cast<std::uintptr_t>(instance)!=m.instances[index]) {
-            if(instance){reinterpret_cast<Release>(image+0x89bd0)(&instance,nullptr);}
+        reinterpret_cast<Getter>(image+0x26b70)(reinterpret_cast<void*>(m.entries[index]),&item_reference);
+        if(reinterpret_cast<std::uintptr_t>(item_reference)!=m.native_items[index]) {
+            if(item_reference){reinterpret_cast<Release>(image+0x89bd0)(&item_reference,nullptr);}
             return false;
         }
         const vendor_production::Key key{m.items[index],40};
-        reinterpret_cast<Add>(image+0x6c9a30)(reinterpret_cast<void*>(m.owner.manager),&key,instance);
-        return true; // Add consumes the cloned InstanceInfo reference, including on native unwind.
+        reinterpret_cast<Add>(image+0x6c9a30)(reinterpret_cast<void*>(m.owner.manager),&key,item_reference);
+        return true; // Add consumes the cloned ArcItem reference, including on native unwind.
     } __except(EXCEPTION_EXECUTE_HANDLER) {return false;}
 }
 bool Send(std::uintptr_t image, std::uint32_t manager) noexcept {

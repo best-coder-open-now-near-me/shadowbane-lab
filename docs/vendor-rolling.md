@@ -1,5 +1,21 @@
 # Player-owned vendor rolling
 
+## Actual .19 recycle ABI qualification - October 14
+
+The prepared client's actual getter reads and clones the entry's native ArcItem
+at +0x24. Its selection map stores that native reference; the InstanceInfo at
++0x20 is only inventory-stat evidence. Static inspection caught this distinction
+before deployment and the manifest now carries both identities explicitly.
+
+The private exact-image test executes the actual getter, key getter/copy, tree
+successor and Recycle batch-builder bytes. Only heap, reference-count and network
+endpoints are instrumented. It verifies seven native clones, one action-3 send,
+exact building/vendor and all seven typed item references, plus reference cleanup.
+No running game or network is involved. All six affected native suites pass,
+including this new actual-byte test. The existing manual capture also passes the
+native receipt validator. This is still uninstalled .120/.74 candidate source;
+installed .119/.73 and the user's game remain unchanged.
+
 ## Native recycling channel and causal completion source - October 14
 
 Candidate host .120/native .74 connects the batch manifest to the existing
@@ -33,7 +49,7 @@ effect words into a SHA-256 manifest. The owner reconstructs that manifest befor
 selection and immediately before sending. Admission requires the exact .19 image,
 current vendor/inventory ownership, an empty production queue and no pre-existing
 manual selection. It populates the native selection map through the client's own
-InstanceInfo-copy and selection functions, then invokes its ordinary batch sender
+ArcItem-copy and selection functions, then invokes its ordinary batch sender
 once. Partial selection or failed final validation returns uncertainty, with no
 automatic clearing, replay or fallback send.
 
