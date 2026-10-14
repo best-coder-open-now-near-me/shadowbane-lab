@@ -1,5 +1,29 @@
 # Official client alignment for vendor rolling - October 14
 
+## Current installed host and automatic batch observations
+
+Host .115/native .71 from pushed release
+`c0c464da7992484d06809c1ab70052e739eba03e` is installed. Both host-only updates
+preserved the exact game lifetime and loaded DLL. The .115 qualification passes
+6,780 host checks (46 optional skips), both IPC profiles, seven startup cases
+and 157 installer checks (one privilege-dependent skip). All 499 modules and
+9,966 retained records verify, with zero exclusions or client-file writes.
+Unused installed .113 and .114 hosts were retired after replacement verification;
+the active .115 host also runs the passive batch recorder.
+
+One funded quantity-ten Create started native/server automatic production.
+No money moved because the building already held 226,410 gold. The reservation
+was 9,960 gold / 60 items, but only five initial new items appeared; subsequent
+groups automatically deposited and restarted without manager or user Keep.
+The job remains in review because V2 rejected normal 0/0 cooking flags.
+No second Create or disposal is authorized by that uncertain journal.
+
+Candidate .116/.72 corrects copied payload interpretation and records outgoing
+serialization plus bounded typed-reference lists. It is source work, not an
+installed or accepted quantity workflow. See [the active vendor todo and
+protocol findings](vendor-rolling.md). Original client and current DLL receipts
+below remain valid; the historical .113 installation section is retained.
+
 ## Corrected startup qualified and installed
 
 Host .113/native .71 is installed from graphics-preserving release

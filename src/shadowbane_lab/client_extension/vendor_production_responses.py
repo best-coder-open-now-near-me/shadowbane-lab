@@ -1,4 +1,4 @@
-"""Copied crafting receive history for an exact client lifetime; no commands."""
+"""Copied crafting send/receive history for an exact lifetime; no commands."""
 from __future__ import annotations
 
 import struct
@@ -8,8 +8,9 @@ from .vendor_wire import uint
 
 HEADER = struct.Struct("<8sIIIIQqqiiq")
 RECORD = struct.Struct("<QQIIQQIIII")
-PAYLOAD = struct.Struct("<28I")
-CAPACITY, RECORD_SIZE, SIZE = 256, 168, 43072
+PAYLOAD = struct.Struct("<32I")
+REFERENCES = struct.Struct("<II512I")
+CAPACITY, RECORD_SIZE, SIZE = 256, 2240, 573504
 
 
 class VendorProductionError(RuntimeError):
@@ -19,7 +20,7 @@ class VendorProductionError(RuntimeError):
 def mapping_name(process_id: int, creation: int) -> str:
     if not uint(process_id, 32, "process ID") or not uint(creation, 64, "creation"):
         raise ValueError("an exact client lifetime is required")
-    return f"Local\\ShadowbaneLab.Extension.VendorProduction.v2.{process_id}.{creation}"
+    return f"Local\\ShadowbaneLab.Extension.VendorProduction.v3.{process_id}.{creation}"
 
 
 def parse_snapshot(data: bytes, *, process_id: int, creation: int) -> dict:
@@ -29,7 +30,7 @@ def parse_snapshot(data: bytes, *, process_id: int, creation: int) -> dict:
     magic, schema, size, capacity, pid, born, sequence, overwritten, stopped, rejected, drops = (
         HEADER.unpack_from(data))
     if (magic, schema, size, capacity, pid, born) != (
-        b"WBPRD2\0\0", 2, RECORD_SIZE, CAPACITY, process_id, creation,
+        b"WBPRD3\0\0", 3, RECORD_SIZE, CAPACITY, process_id, creation,
     ):
         raise VendorProductionError("production mapping identity or layout mismatch")
     if (sequence < 0 or overwritten != max(0, sequence - CAPACITY)
@@ -40,44 +41,59 @@ def parse_snapshot(data: bytes, *, process_id: int, creation: int) -> dict:
         offset = HEADER.size + ((expected - 1) % CAPACITY) * RECORD_SIZE
         seq, tick, thread, stage, decode, epoch, local_id, local_type, flags, caller = (
             RECORD.unpack_from(data, offset))
-        if (seq != expected or stage not in (1, 2, 3) or not thread or flags & ~7
+        if (seq != expected or stage not in (1, 2, 3, 4) or not thread or flags & ~15
+                or flags & 1 and flags & 8
                 or bool(flags & 2) != bool(epoch) or not epoch and (local_id or local_type)
-                or flags & 4 and (flags & 3 != 3 or stage == 1 or not 0 < decode < seq)
+                or flags & 4 and (flags & 3 != 3 or stage not in (2, 3)
+                                  or not 0 < decode < seq)
                 or stage == 1 and decode != seq
                 or stage != 1 and not flags & 4 and decode):
             raise VendorProductionError("invalid or incomplete production record")
         v = PAYLOAD.unpack_from(data, offset + RECORD.size)
-        body = None
+        refs = REFERENCES.unpack_from(data, offset + RECORD.size + PAYLOAD.size)
+        body, diagnostic = None, None
         if flags & 1:
             action, error, fields = v[:3]
-            if (action > 11 or fields & ~15 or bool(fields & 1) != (action == 8 and not error)
+            if (action > 13 or fields & ~15 or bool(fields & 1) != (action == 8 and not error)
                     or fields & 2 and (action != 10 or error)
                     or bool(fields & 8) != (action == 1)
                     or not fields & 1 and any(v[13:22])
                     or not fields & 2 and any(v[22:26])
                     or not fields & 4 and v[26]
+                    or not fields & 1 and any(v[28:30])
+                    or any(v[30:])
+                    or refs[0] > 256 or refs[1] or any(refs[2 + refs[0] * 2:])
                     or (v[27] > 1 if fields & 8 else v[27] != 0)):
                 raise VendorProductionError("invalid or noncanonical production payload")
             if fields & 1 and (not v[13] or v[14] != 40 or not v[15]
                                or not 0 < v[16] <= 255
                                or v[20] not in (0, 1) or v[21] not in (0, 1)
-                               or v[20] == v[21] or v[21] and v[18]):
+                               or v[28] or v[29] & 255 != v[20]
+                               or (v[29] >> 8) & 255 != v[21]):
                 raise VendorProductionError("invalid production item")
             if fields & 2 and (not v[22] or v[23] != 40 or not v[24] or v[25]):
                 raise VendorProductionError("invalid deposited item")
             body = dict(action=action, error=error, fields=fields, building=v[3:5],
                         vendor=v[5:7], reference=v[7:9], quantity_raw=v[9], marker_raw=v[10],
                         prefix=v[11], suffix=v[12], item=v[13:15], template=v[15],
-                        remaining_count_raw=v[16], value=v[17], seconds=v[18], duration=v[19],
-                        in_progress=v[20], complete=v[21], deposited_item=v[22:24],
-                        deposited_template=v[24:26], strongbox_gold=v[26], multiple_raw=v[27])
-        elif any(v):
+                        stack_count_raw=v[16], value=v[17], seconds=v[18], duration=v[19],
+                        queue_ignored_raw=v[20], complete=v[21], deposited_item=v[22:24],
+                        deposited_template=v[24:26], strongbox_gold=v[26], multiple_raw=v[27],
+                        template_type_raw=v[28], queue_flags_raw=v[29],
+                        reference_list_raw=[refs[i:i + 2] for i in
+                                            range(2, 2 + refs[0] * 2, 2)])
+        elif flags & 8:
+            if not 1 <= v[30] <= 16 or v[31] or refs[0] > 256 or refs[1]:
+                raise VendorProductionError("invalid rejected production diagnostic")
+            diagnostic = dict(words=v, reference_words=refs, rejection=v[30], authoritative=False)
+        elif any(v) or any(refs):
             raise VendorProductionError("partial production payload published")
         records.append(dict(sequence=seq, tick_ms=tick, thread_id=thread,
-                            stage={1: "decoded", 2: "processing", 3: "returned"}[stage],
+                            stage={1: "decoded", 2: "processing", 3: "returned",
+                                   4: "serialized"}[stage],
                             decode_sequence=decode, scene_epoch=epoch,
                             local=(local_id, local_type), flags=flags,
-                            caller_rva=caller, payload=body))
+                            caller_rva=caller, payload=body, diagnostic=diagnostic))
     return dict(sequence=sequence, overwritten=overwritten, stopped=bool(stopped),
                 rejected=rejected, ticket_drops=drops, records=records)
 
@@ -87,7 +103,7 @@ def _publishing(data: bytes, process_id: int, creation: int) -> bool:
         return False
     magic, schema, size, capacity, pid, born, sequence, overwritten, *_ = HEADER.unpack_from(data)
     if (magic, schema, size, capacity, pid, born) != (
-        b"WBPRD2\0\0", 2, RECORD_SIZE, CAPACITY, process_id, creation,
+        b"WBPRD3\0\0", 3, RECORD_SIZE, CAPACITY, process_id, creation,
     ) or sequence < CAPACITY:
         return False
     slot = HEADER.size + sequence % CAPACITY * RECORD_SIZE

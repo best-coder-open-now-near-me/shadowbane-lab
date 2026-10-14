@@ -48,7 +48,7 @@ REQUIRED_VENDOR_TESTS = frozenset({
     "wonderbane_extension_vendor_menu_native",
     "wonderbane_extension_vendor_menu_channel",
     "wonderbane_extension_vendor_production",
-    *(f"wonderbane_extension_vendor_production_install_{step}" for step in range(1, 4)),
+    *(f"wonderbane_extension_vendor_production_install_{step}" for step in range(1, 5)),
 })
 
 
