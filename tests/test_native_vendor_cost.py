@@ -41,8 +41,14 @@ def memory():
     return m
 
 
-def test_owned_random_cost_includes_markup_without_spending():
-    queue, costs = read_native_vendor_cost(memory())
+@pytest.mark.parametrize("digest", [
+    "366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a",
+    "6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad",
+])
+def test_owned_random_cost_includes_markup_without_spending(digest):
+    m = memory()
+    m.executable_sha256 = digest
+    queue, costs = read_native_vendor_cost(m)
     assert queue["vendor"]["object_id"] == 2517204
     assert costs == {2308551: 166}
     assert queue["command_admitted"] is False
@@ -101,8 +107,13 @@ def test_changing_cost_is_never_adopted_by_retry():
 
 
 @pytest.mark.parametrize("multiple", [0, 1])
-def test_ten_per_slot_cost_rounds_markup_before_quantity_without_granting_actions(multiple):
+@pytest.mark.parametrize("digest", [
+    "366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a",
+    "6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad",
+])
+def test_ten_per_slot_cost_rounds_markup_before_quantity_without_granting_actions(multiple, digest):
     m = memory()
+    m.executable_sha256 = digest
     m.put(CREATION + 0x4D4, "<I", 10)
     m.put(CREATION + 0x3D8, "<I", multiple)
     m.put(COST_ENTRY + 0x48, "<I", 1660)

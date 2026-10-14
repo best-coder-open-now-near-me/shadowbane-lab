@@ -176,11 +176,13 @@ def test_bundled_nested_schema_is_exact_and_legacy_scan_profile_is_rejected():
         "a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a",
         "051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698",
         "28a745925fceb4e3f08537504a7192782afe2227758e34febdd95cc4539f8db0",
+        "2cc8f6cfc157b4b2c0f2abbc30d1b5df81daaee24363a8da884cb8a45dc3489a",
         "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
         "e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437",
         "1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c",
         "baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9",
         "366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a",
+        "6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad",
         "78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903",
     }
     raw["schema_version"] = 3

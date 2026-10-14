@@ -52,6 +52,8 @@ bool ReviewedDigest(const std::vector<unsigned char>& bytes) noexcept {
         0x05, 0x1c, 0x55, 0xeb, 0xd0, 0xf2, 0x5f, 0xf5, 0xfe, 0x9b, 0xd2, 0x7b, 0x25, 0xef, 0xbe, 0x3c, 0xde, 0x01, 0x90, 0xd1, 0xdb, 0xf1, 0xc2, 0xa3, 0x3e, 0xb9, 0x60, 0x49, 0x96, 0xc6, 0x96, 0x98};
     constexpr std::array<unsigned char, 32> october13{
         0x28, 0xa7, 0x45, 0x92, 0x5f, 0xce, 0xb4, 0xe3, 0xf0, 0x85, 0x37, 0x50, 0x4a, 0x71, 0x92, 0x78, 0x2a, 0xfe, 0x22, 0x27, 0x75, 0x8e, 0x34, 0xfe, 0xbd, 0xd9, 0x5c, 0xc4, 0x53, 0x9f, 0x8d, 0xb0};
+    constexpr std::array<unsigned char, 32> october14{
+        0x2c, 0xc8, 0xf6, 0xcf, 0xc1, 0x57, 0xb4, 0xb2, 0xc0, 0xf2, 0xab, 0xbc, 0x30, 0xd1, 0xb5, 0xdf, 0x81, 0xda, 0xae, 0xe2, 0x43, 0x63, 0xa8, 0xda, 0x88, 0x4c, 0xb8, 0xa4, 0x5d, 0xc3, 0x48, 0x9a};
     BCRYPT_ALG_HANDLE algorithm{}; BCRYPT_HASH_HANDLE hash{};
     std::array<unsigned char, 32> digest{};
     const bool ok = BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) >= 0
@@ -61,7 +63,7 @@ bool ReviewedDigest(const std::vector<unsigned char>& bytes) noexcept {
     if (hash) { BCryptDestroyHash(hash); }
     if (algorithm) { BCryptCloseAlgorithmProvider(algorithm, 0); }
     return ok && (digest == expected || digest == september15 || digest == september19
-        || digest == september22 || digest == september24 || digest == september26 || digest == september30 || digest == october4 || digest == october8 || digest == october9 || digest == october10 || digest == october13);
+        || digest == september22 || digest == september24 || digest == september26 || digest == september30 || digest == october4 || digest == october8 || digest == october9 || digest == october10 || digest == october13 || digest == october14);
 }
 template<class T> bool FileValue(const std::vector<unsigned char>& bytes, std::size_t offset, T& output) {
     if (offset > bytes.size() || sizeof(T) > bytes.size() - offset) { return false; }

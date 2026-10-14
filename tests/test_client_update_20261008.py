@@ -32,6 +32,7 @@ class ClientBuild(NamedTuple):
     prepared: str
     previous: str
     profile_id: str
+    length: int = 21143613
 
 
 @pytest.fixture(params=[
@@ -59,7 +60,14 @@ class ClientBuild(NamedTuple):
         "051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698",
         "wonderbane-1.3.38.18-28a74592",
     ),
-], ids=["client15", "client16", "client17", "client18"])
+    ClientBuild(
+        "2cc8f6cfc157b4b2c0f2abbc30d1b5df81daaee24363a8da884cb8a45dc3489a",
+        "6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad",
+        "28a745925fceb4e3f08537504a7192782afe2227758e34febdd95cc4539f8db0",
+        "wonderbane-1.3.38.19-2cc8f6cf",
+        21315584,
+    ),
+], ids=["client15", "client16", "client17", "client18", "client19"])
 def client_build(request):
     return request.param
 
@@ -68,9 +76,10 @@ def test_bootstrap_keeps_exact_unchanged_layout_and_unknown_denial(client_build)
     previous = resolve_reviewed_bootstrap_profile(client_build.previous)
     profile = resolve_reviewed_bootstrap_profile(client_build.original)
     assert profile.profile_id == client_build.profile_id
-    assert profile.source_length == 21143613
+    assert profile.source_length == client_build.length
     assert replace(profile, profile_id=previous.profile_id,
-                   source_sha256=previous.source_sha256) == previous
+                   source_sha256=previous.source_sha256,
+                   source_length=previous.source_length) == previous
     assert native_layout_is_compatible(client_build.previous, client_build.original)
     assert native_layout_is_compatible(client_build.previous, client_build.prepared)
     assert not native_layout_is_compatible(client_build.previous, "ff" * 32)
