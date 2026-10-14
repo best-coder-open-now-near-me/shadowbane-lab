@@ -338,8 +338,8 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup, m
         funding_calls.append(args)
         # The real funder returns with the saved recipe activated.
         order = kwargs["order"]
-        assert order.quantity == 10 and not order.multiple
-        session.state = replace(session.state, recipe=400, quantity=10)
+        assert order.quantity == 10 and order.multiple
+        session.state = replace(session.state, recipe=400, quantity=10, multiple=1)
         budget = VendorBatchBudget.from_snapshot(session.state, {555: 1660})
         return dict(state="funded", batch_budget=budget.as_dict(),
                     batch_budget_sha256=budget.canonical_digest,
@@ -401,7 +401,7 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup, m
         op = execute("vendor-start", dict(recipe_revision=revision))
         assert len(funding_calls) == 1
         assert op.command == "vendor start " + revision
-        assert test.store.current()["state"] == "complete" and len(session.calls) == 2
+        assert test.store.current()["state"] == "complete" and len(session.calls) == 1
         assert len(session.keeps) == 20 and test.store.current()["planned_items"] == 20
         assert session.closed_count == 3
         assert test.control.recipe_summary(CLIENT_ID, INSTANCE_ID)["saved"]["revision"] == revision
