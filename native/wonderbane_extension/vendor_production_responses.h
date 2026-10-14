@@ -11,8 +11,9 @@ struct Payload {
     Key building{}, vendor{}, reference{};
     std::uint32_t quantity = 0, marker = 0, prefix = 0, suffix = 0;
     Key item{};
-    // The displayed count is an item stack, not the outstanding roll quota.
-    std::uint32_t item_template = 0, stack_count = 0, value = 0, seconds = 0,
+    // Preserve the queue count without inventing an outstanding-roll quota.
+    // Live cooking reports one through many cycles; final completion reports zero.
+    std::uint32_t item_template = 0, queue_count_raw = 0, value = 0, seconds = 0,
         duration = 0, queue_ignored = 0, complete = 0;
     Key deposited_item{}, deposited_template{};
     std::uint32_t strongbox_gold = 0, multiple = 0;

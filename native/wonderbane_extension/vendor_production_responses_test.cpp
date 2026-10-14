@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
         if (!handle) { return 2; }
         const auto* view = static_cast<const p::Storage*>(MapViewOfFile(handle, FILE_MAP_READ, 0, 0, sizeof(p::Storage)));
         const bool valid = view && view->sequence == 3 && view->records[2].stage == 3
-            && view->records[2].decode_sequence == 1 && view->records[2].payload.stack_count == 1;
+            && view->records[2].decode_sequence == 1 && view->records[2].payload.queue_count_raw == 1;
         if (view) { UnmapViewOfFile(view); } CloseHandle(handle); return valid ? 0 : 3;
     }
     if (argc > 1) { fail_at = static_cast<unsigned>(std::strtoul(argv[1], nullptr, 10)); }
@@ -97,10 +97,10 @@ int main(int argc, char** argv) {
     Check(p::ReadAfter(baseline, *batch) && batch->count == 3, "contiguous copied stages");
     const auto& received = batch->records[2];
     Check(received.flags == 7 && received.decode_sequence == 1 && received.scene_epoch == 7, "current single-use receive lineage");
-    Check(received.payload.fields == 1 && received.payload.stack_count == 1
+    Check(received.payload.fields == 1 && received.payload.queue_count_raw == 1
         && received.payload.queue_ignored == 0 && received.payload.complete == 0
         && received.payload.quantity == 10 && received.payload.item[0] == 4294925624U
-        && received.payload.item_template == 26990, "normal cooking and independent stack/quantity preserved");
+        && received.payload.item_template == 26990, "normal cooking and independent queue count/quantity preserved");
     if (argc > 1 && !std::strcmp(argv[1], "fixture")) {
         std::array<unsigned char, 64 + 3 * sizeof(p::Record)> bytes{};
         std::memcpy(bytes.data(), p::storage, bytes.size());
@@ -139,7 +139,14 @@ int main(int argc, char** argv) {
     instance[7] = 0; Check(!p::Snapshot(message.data(), deposited), "invalid deposited item rejected"); instance[7] = 40;
     message[0x70/4] = 8; message[0x11c/4] = 0; message[0xe0/4] = 0x100;
     Check(p::Snapshot(message.data(), deposited) && deposited.complete == 1
-        && deposited.queue_ignored == 0 && deposited.stack_count == 1, "completed item flags");
+        && deposited.queue_ignored == 0 && deposited.queue_count_raw == 1, "completed item flags");
+    message[0xdc/4] = 0;
+    Check(p::Snapshot(message.data(), deposited) && deposited.queue_count_raw == 0
+        && deposited.complete == 1, "terminal zero count copied without inventing quantity");
+    message[0xdc/4] = 0xffffffff;
+    Check(p::Snapshot(message.data(), deposited) && deposited.queue_count_raw == 0xffffffff,
+        "raw count is an unmodified word, not a byte quota");
+    message[0xdc/4] = 1;
     message[0xe0/4] = 0x101;
     message[0xd4/4] = 300;
     Check(p::Snapshot(message.data(), deposited) && deposited.queue_ignored == 1

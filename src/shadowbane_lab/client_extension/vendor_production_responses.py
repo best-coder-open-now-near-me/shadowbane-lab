@@ -66,7 +66,6 @@ def parse_snapshot(data: bytes, *, process_id: int, creation: int) -> dict:
                     or (v[27] > 1 if fields & 8 else v[27] != 0)):
                 raise VendorProductionError("invalid or noncanonical production payload")
             if fields & 1 and (not v[13] or v[14] != 40 or not v[15]
-                               or not 0 < v[16] <= 255
                                or v[20] not in (0, 1) or v[21] not in (0, 1)
                                or v[28] or v[29] & 255 != v[20]
                                or (v[29] >> 8) & 255 != v[21]):
@@ -76,7 +75,7 @@ def parse_snapshot(data: bytes, *, process_id: int, creation: int) -> dict:
             body = dict(action=action, error=error, fields=fields, building=v[3:5],
                         vendor=v[5:7], reference=v[7:9], quantity_raw=v[9], marker_raw=v[10],
                         prefix=v[11], suffix=v[12], item=v[13:15], template=v[15],
-                        stack_count_raw=v[16], value=v[17], seconds=v[18], duration=v[19],
+                        queue_count_raw=v[16], value=v[17], seconds=v[18], duration=v[19],
                         queue_ignored_raw=v[20], complete=v[21], deposited_item=v[22:24],
                         deposited_template=v[24:26], strongbox_gold=v[26], multiple_raw=v[27],
                         template_type_raw=v[28], queue_flags_raw=v[29],

@@ -9,11 +9,11 @@ fixes through `3ee6dbd6cc09060c3dcb2bcbcad00552490a8564` are pushed, outside mai
 Graphics-preserving release `c0c464da7992484d06809c1ab70052e739eba03e` on
 `codex/vendor-release-20261013` is qualified and installed as .115/.71.
 
-The native server batch is cycling automatically after one Create. Its job is
+The single Create produced 45 automatic deposits and four completed items. Its job is
 preserved in review and must not replay. Candidate .116/.72 corrects the response
-recorder's stack/flag interpretation and adds copied outgoing evidence; it is
+recorder's count/flag interpretation and adds copied outgoing evidence; it is
 not installed or accepted. Retain both active worktrees and the .115 passive
-recorder through batch capture. Next: preserve the current batch, qualify V3,
+recorder through terminal evidence capture. Next: preserve the batch, qualify V3,
 then implement verified automatic capacity/completion before further Create.
 See [vendor workflow](vendor-rolling.md) and [runtime evidence](client-update-20261014.md).
 
