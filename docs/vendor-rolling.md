@@ -1,5 +1,27 @@
 # Player-owned vendor rolling
 
+## Completed-result collection before whole-batch funding - October 14
+
+The normal saved-recipe Start now collects existing completed vendor results
+before measuring available capacity or funding another batch. Each Keep has a
+separate durable intent and a correlated native inventory-membership receipt;
+this grants no Create provenance to either historical review job. Collection
+retains all results during quantity acceptance, including unknown affixes. An
+existing cooking item or uncertain menu/Keep stops before funding or Create.
+Unfinished collection journals block subsequent dispatch and are never replayed.
+
+The combined manager/dashboard test covers five existing results followed by one
+funded seven-slot quantity-ten request and verified inventory completion. It also
+covers a lost collection acknowledgement preventing funding and Create. The
+separate collector covers all sixteen supported rows, focus/cancellation, wrong
+owners and corrupt historical receipts. Full candidate qualification is pending;
+installed .116/.72 is unchanged. The passive capture has stopped at its deadline
+with 106 records and zero native commands.
+
+Active next: qualify the graphics-preserving .117/.73 package, install it and
+verify collection plus quantity completion live. Tier 1-2 filtering with unknowns
+retained, then town scheduling, remain after that acceptance.
+
 ## Server terminal short batch confirmed - October 14
 
 The complete V3 capture now has 106 contiguous records, no rejections/drops and
@@ -22,10 +44,10 @@ No replacement rolls are issued to fill a deficit.
 
 Candidate packaging was stopped before deployment when this new terminal
 evidence invalidated its exact-count completion assumption. .116/.72 remains
-installed; both review jobs and the passive recorder remain intact. Active next:
-validate this terminal settlement, add durable collection of pre-existing
-completed results before batch funding, then qualify one coherent .117/.73
-candidate. Inventory filtering and town scheduling follow quantity acceptance.
+installed; both review jobs and the stopped passive recording remain intact.
+Terminal settlement and pre-existing-result collection are now implemented;
+complete package and live qualification remain. Inventory filtering and town
+scheduling follow quantity acceptance.
 
 ## Candidate .117/.73 prepared from verified source - October 14
 
