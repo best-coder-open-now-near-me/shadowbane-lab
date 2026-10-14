@@ -57,6 +57,21 @@ funding and quantity-ten server acceptance, then every planned inventory receipt
 Seven free slots would plan 70 items; capacity and price must be read afresh.
 Raw-nine admission, disposal and town scheduling remain unqualified.
 
+### First live discovery: pre-movement window timeout
+
+Treehugger's identity and foreground state were verified in the new game. Native
+City Command returned 14 building candidates, but the first Tree of Life open
+(2201004) did not produce its server-backed management window within 60 seconds.
+Operation `operation-8801f6dab2be48e1becd31590ab81ee6` remains failed with its
+submitted intent preserved. The user reported that initial interaction needs
+movement and moved after the request. A subsequent read-only native inspection
+still reports flags 6 (in flight and unresolved), transition
+`5f53075a-3989-438d-a2c5-57d695bd9431`, initialized 0 and no building/vendor HUD.
+The controller intentionally cannot reset that uncertainty or replay the open.
+No funding, Create, Keep or disposal occurred. The user has been asked to restart
+the same client, log in and move once before discovery resumes; no reinstall is
+needed. Next: fresh-session readiness, then whole-batch quantity-ten acceptance.
+
 ### Implemented behavior
 
 The quantity-ten worker slice is implemented in installed host .110/native .68
