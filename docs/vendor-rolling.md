@@ -1,6 +1,36 @@
 # Player-owned vendor rolling
 
-## Official client alignment installed - October 14
+## In-world startup verified; queue reconciliation correction - October 14
+
+Treehugger's .113/.71 session proves initialized, bound, nonterminal native
+status (flags 151). Fresh discovery verified 25 vendor windows across 13 nearby
+buildings, and native navigation/catalog selection returned Malik's Gilded
+Scepter. The quantity-ten funding preflight stopped before any gold transfer or
+Create: UI controls enumerate the same seven queue entries in a different order
+from the native snapshot. One prior completed item remains untouched.
+
+Host .114 reconciles entry address, item identity and state independently of
+presentation order before and after funding. Duplicate, missing, additional or
+changed entries still stop the batch. The 78 focused funding/budget checks pass.
+Next: qualify and install this host-only correction with native .71 and the game
+session preserved, then one whole funded batch and inventory acceptance. No
+quantity-ten Create has been sent in this session.
+
+## Native startup correction installed - October 14
+
+Qualified release `11133fcf9a12eeb84089b94068e6f6b90f9c99b6` is installed as
+host .113/native .71. It fixes the lifetime import bound that retired the .19
+callback runtime and requires authenticated proof for the seven-section map
+layout. All 499 installed modules and 9,911 retained records passed verification
+with zero exclusions. The same Vendor Test shortcut loads the exact .71 DLL;
+event capabilities 3 and the available V2 recorder are verified, with no native
+commands sent. Active next: Treehugger login/movement, direct initialized and
+nonterminal native status, then fresh discovery and one whole funded quantity-ten
+batch with every inventory receipt. Old review journals remain preserved and no
+corrected live batch is claimed. See
+[complete qualification and installation evidence](client-update-20261014.md).
+
+## Earlier official client alignment installed - October 14
 
 The user's official patch is now aligned in Vendor Test as host .112/native .70,
 manifest 1.0.25 / internal client 1.3.38.19. Qualified graphics-preserving release

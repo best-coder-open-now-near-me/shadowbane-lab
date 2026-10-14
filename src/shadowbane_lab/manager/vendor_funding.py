@@ -51,6 +51,24 @@ def ensure_order_observer(binding):
     reader.available()
 
 
+def _queue_slots(queue):
+    # UI controls use presentation order; the native snapshot sorts entry pointers.
+    # Reconcile the same owned entries, including empty slots, without relying on
+    # either traversal order or losing duplicate entries in a dictionary.
+    rows = [(row["entry_address"], row["item"]["object_id"], row["state"])
+            for row in queue["slots"]]
+    entries = [row[0] for row in rows]
+    if (any(type(entry) is not int or entry <= 0 for entry in entries)
+            or len(set(entries)) != len(entries)):
+        raise VendorBatchStopped("Recipe queue entry identities are invalid or duplicated.")
+    return sorted(rows)
+
+
+def _snapshot_slots(snapshot):
+    return sorted((slot.entry, slot.item, ("empty", "cooking", "complete")[slot.state])
+                  for slot in snapshot.slots)
+
+
 def warehouse_target(store, binding, scene, root):
     """Choose only one freshly navigable Seneschal from verified local discovery."""
     paths = sorted(
@@ -366,11 +384,7 @@ def fund_saved_vendor(
                     record["building"],
                     record["vendor"],
                 )
-                or [(row["item"]["object_id"], row["state"]) for row in queue["slots"]]
-                != [
-                    (slot.item, ("empty", "cooking", "complete")[slot.state])
-                    for slot in fresh.snapshot.slots
-                ]
+                or _queue_slots(queue) != _snapshot_slots(fresh.snapshot)
             ):
                 raise VendorBatchStopped("Recipe cost or production ownership changed.")
             free = fresh.snapshot.free_slots
@@ -465,10 +479,8 @@ def fund_saved_vendor(
                         record["building"],
                         record["vendor"],
                     )
-                    or [row["item"]["object_id"] for row in after_queue["slots"]]
-                    != [row["item"]["object_id"] for row in queue["slots"]]
-                    or [slot.item for slot in after.snapshot.slots]
-                    != [row["item"]["object_id"] for row in after_queue["slots"]]
+                    or _queue_slots(after_queue) != _queue_slots(queue)
+                    or _snapshot_slots(after.snapshot) != _queue_slots(after_queue)
                     or after.snapshot.free_slots != free
                     or not budget.matches(after.snapshot)
                 ):
