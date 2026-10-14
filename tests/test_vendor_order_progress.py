@@ -15,7 +15,7 @@ CHARACTER = (123, 53)
 def replies(progress, item, remaining, **changes):
     body = dict(action=8, error=0, building=[progress.initial.building, 8],
                 vendor=[progress.initial.vendor, 42], item=[item, 40],
-                template=progress.spec.template, remaining_count_raw=remaining)
+                template=progress.spec.template, remaining_count_raw=remaining + 1)
     body.update(changes)
     first = progress.sequence + 1
     return [dict(sequence=first + i, stage=stage, decode_sequence=first,

@@ -18,13 +18,13 @@ from shadowbane_lab.client_extension.vendor_production_responses import (
 
 def fixture(sequence=3, *, stopped=0, rejected=0, drops=0):
     data = bytearray(SIZE)
-    HEADER.pack_into(data, 0, b"WBPRD1\0\0", 1, RECORD_SIZE, CAPACITY, 7, 11,
+    HEADER.pack_into(data, 0, b"WBPRD2\0\0", 2, RECORD_SIZE, CAPACITY, 7, 11,
                      sequence, max(0, sequence - CAPACITY), stopped, rejected, drops)
     for seq in range(max(1, sequence - CAPACITY + 1), sequence + 1):
         offset = HEADER.size + (seq - 1) % CAPACITY * RECORD_SIZE
         RECORD.pack_into(data, offset, seq, 1000, 10, 1, seq, 5, 20, 53, 3, 0x3625BC)
         PAYLOAD.pack_into(data, offset + RECORD.size, 8, 0, 1, 123, 8, 456, 42,
-                          26990, 0, 10, 0, 0, 0, 789, 40, 26990, 9, 166,
+                          26990, 0, 10, 0, 0, 0, 789, 40, 26990, 10, 166,
                           300, 336, 1, 0, 0, 0, 0, 0, 0, 0)
     return data
 
@@ -34,25 +34,32 @@ class Memory:
         self.data = data
 
     def read(self, name, size):
-        assert name == "Local\\ShadowbaneLab.Extension.VendorProduction.v1.7.11"
+        assert name == "Local\\ShadowbaneLab.Extension.VendorProduction.v2.7.11"
         assert size == SIZE
         return bytes(self.data)
 
 
 def test_cpp_layout_and_received_quantity_are_preserved():
     prefix = bytes.fromhex((Path(__file__).parent / "fixtures" /
-                            "native_vendor_production_v1.hex").read_text().strip())
+                            "native_vendor_production_v2.hex").read_text().strip())
     assert len(prefix) == HEADER.size + 3 * RECORD_SIZE
     snapshot = parse_snapshot(prefix + bytes(SIZE - len(prefix)), process_id=7, creation=11)
     received = snapshot["records"][2]
     assert received["stage"] == "returned" and received["flags"] == 7
     assert received["decode_sequence"] == 1 and received["scene_epoch"] == 7
     assert received["payload"]["item"] == (4294925624, 40)
-    assert received["payload"]["remaining_count_raw"] == 9
+    assert received["payload"]["remaining_count_raw"] == 10
+
+
+def test_old_mislabeled_protocol_is_preserved_but_cannot_be_used_as_v2_evidence():
+    prefix = bytes.fromhex((Path(__file__).parent / "fixtures" /
+                            "native_vendor_production_v1.hex").read_text().strip())
+    with pytest.raises(VendorProductionError, match="identity or layout"):
+        parse_snapshot(prefix + bytes(SIZE - len(prefix)), process_id=7, creation=11)
 
 
 @pytest.mark.parametrize("offset,value", [
-    (0, 0), (8, 2), (12, 0), (16, 32), (20, 8), (24, 12), (40, 1), (48, 2),
+    (0, 0), (8, 1), (12, 0), (16, 32), (20, 8), (24, 12), (40, 1), (48, 2),
     (64, 0), (64 + 20, 4), (64 + 24, 0), (64 + 32, 0), (64 + 48, 7),
     (64 + 56, 12), (64 + 56 + 8, 16), (64 + 56 + 8, 0),
     (64 + 56 + 14 * 4, 0), (64 + 56 + 20 * 4, 0),

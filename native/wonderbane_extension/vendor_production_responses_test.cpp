@@ -40,13 +40,13 @@ DWORD ReplaceImportAddressSlot(std::uint32_t* slot, std::uint32_t expected, std:
 int main(int argc, char** argv) {
     if (argc > 2 && !std::strcmp(argv[1], "reader")) {
         wchar_t name[160]{};
-        StringCchPrintfW(name, 160, L"Local\\ShadowbaneLab.Extension.VendorProduction.v1.%lu.123456789",
+        StringCchPrintfW(name, 160, L"Local\\ShadowbaneLab.Extension.VendorProduction.v2.%lu.123456789",
             static_cast<unsigned long>(std::strtoul(argv[2], nullptr, 10)));
         const auto handle = OpenFileMappingW(FILE_MAP_READ, FALSE, name);
         if (!handle) { return 2; }
         const auto* view = static_cast<const p::Storage*>(MapViewOfFile(handle, FILE_MAP_READ, 0, 0, sizeof(p::Storage)));
         const bool valid = view && view->sequence == 3 && view->records[2].stage == 3
-            && view->records[2].decode_sequence == 1 && view->records[2].payload.remaining == 9;
+            && view->records[2].decode_sequence == 1 && view->records[2].payload.remaining == 10;
         if (view) { UnmapViewOfFile(view); } CloseHandle(handle); return valid ? 0 : 3;
     }
     if (argc > 1) { fail_at = static_cast<unsigned>(std::strtoul(argv[1], nullptr, 10)); }
@@ -84,7 +84,8 @@ int main(int argc, char** argv) {
     message[0x70/4] = 8; message[0x78/4] = 2229645; message[0x7c/4] = 8;
     message[0x80/4] = 2517204; message[0x84/4] = 42;
     message[0xc0/4] = 4294925624U; message[0xc4/4] = 40;
-    message[0xc8/4] = 26990; message[0xcc/4] = 9; message[0xdc/4] = 1;
+    message[0xc8/4] = 26990; message[0xcc/4] = 0; message[0xdc/4] = 10;
+    message[0xe0/4] = 1;
     socket[0] = static_cast<std::uint32_t>(base + 0x116019c);
     decode(message.data(), socket.data()); Check(GetLastError() == 0x5678, "decoder error preserved");
     Check(p::ProcessHook(message.data(), nullptr) == 0x12345678, "native return preserved");
@@ -92,7 +93,7 @@ int main(int argc, char** argv) {
     Check(p::ReadAfter(baseline, *batch) && batch->count == 3, "contiguous copied stages");
     const auto& received = batch->records[2];
     Check(received.flags == 7 && received.decode_sequence == 1 && received.scene_epoch == 7, "current single-use receive lineage");
-    Check(received.payload.fields == 1 && received.payload.remaining == 9
+    Check(received.payload.fields == 1 && received.payload.remaining == 10
         && received.payload.item[0] == 4294925624U && received.payload.item_template == 26990, "raw quantity-order item preserved");
     if (argc > 1 && !std::strcmp(argv[1], "fixture")) {
         std::array<unsigned char, 64 + 3 * sizeof(p::Record)> bytes{};
@@ -117,9 +118,9 @@ int main(int argc, char** argv) {
     auto cursor = batch->after;
     p::ProcessHook(message.data(), nullptr);
     Check(!(p::storage->records[3].flags & 4), "ticket consumed once");
-    decode(message.data(), socket.data()); ++message[0xcc/4]; p::ProcessHook(message.data(), nullptr);
+    decode(message.data(), socket.data()); ++message[0xdc/4]; p::ProcessHook(message.data(), nullptr);
     Check(!(p::storage->records[6].flags & 4), "changed body cannot inherit receive identity");
-    --message[0xcc/4]; decode(message.data(), socket.data()); p::DestroyHook(message.data(), nullptr, 0);
+    --message[0xdc/4]; decode(message.data(), socket.data()); p::DestroyHook(message.data(), nullptr, 0);
     p::ProcessHook(message.data(), nullptr); Check(!(p::storage->records[9].flags & 4), "destroyed message loses lineage");
     std::array<std::uint32_t, 12> instance{};
     instance[0] = static_cast<std::uint32_t>(base + 0x114bb68);
@@ -131,7 +132,12 @@ int main(int argc, char** argv) {
         && deposited.strongbox_gold == 11620, "copied deposit identity and gold");
     instance[7] = 0; Check(!p::Snapshot(message.data(), deposited), "invalid deposited item rejected"); instance[7] = 40;
     message[0x70/4] = 8; message[0x11c/4] = 0; message[0xe0/4] = 0x100;
-    Check(!p::Snapshot(message.data(), deposited), "contradictory completion flags"); message[0xe0/4] = 0;
+    Check(p::Snapshot(message.data(), deposited) && deposited.complete == 1
+        && deposited.in_progress == 0 && deposited.remaining == 10, "completed quantity item flags");
+    message[0xe0/4] = 0x101;
+    Check(!p::Snapshot(message.data(), deposited), "contradictory completion flags"); message[0xe0/4] = 1;
+    message[0xcc/4] = 40;
+    Check(!p::Snapshot(message.data(), deposited), "template type is not a count"); message[0xcc/4] = 0;
     decode(message.data(), socket.data()); epoch = 8; p::ProcessHook(message.data(), nullptr);
     Check(!(p::storage->records[12].flags & 4), "old scene cannot qualify");
     auto wrong = cursor; ++wrong.creation; Check(!p::ReadAfter(wrong, *batch), "foreign lifetime rejected");
