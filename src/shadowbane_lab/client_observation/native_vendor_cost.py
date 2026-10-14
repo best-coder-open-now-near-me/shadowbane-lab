@@ -65,8 +65,9 @@ def random_cost(amount: int, markup: float, quantity: int = 1) -> int:
 
 
 def read_native_vendor_cost(memory):
-    if memory.executable_sha256 != (
-        "366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a"
+    if memory.executable_sha256 not in (
+        "366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a",
+        "6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad",
     ):
         raise NativeVendorDialogCompatibilityError("unqualified recipe cost executable")
     r = _ReadSet(memory)

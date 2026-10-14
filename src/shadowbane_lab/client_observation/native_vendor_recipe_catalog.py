@@ -25,6 +25,7 @@ REVIEWED_RECIPE_EXECUTABLES = frozenset({
     "1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c",
     "baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9",
     "366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a",
+    "6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad",
 })
 _PANEL_CLASSES = {0x1169EC0, 0x11657C8}
 # The extra leaf is present in all three September 24 Balanced Dagger samples
