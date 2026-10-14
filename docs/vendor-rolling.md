@@ -1,5 +1,28 @@
 # Player-owned vendor rolling
 
+## Terminal Keep callback ordering correction - October 14
+
+The admitted server batch finished with 66 items against the seventy-item
+reservation, charged 10,956 gold. The first terminal Keep reached owned inventory,
+but .118 rechecked the earlier terminal decision while a deposit callback was
+partly received. It stopped in review with 61 recorded inventory confirmations;
+an independent read proves the kept item present. The exact original native
+receipt is retained from the result ring. No Keep or Create was replayed.
+
+Candidate .119 validates Keep against the already-proven durable intent rather
+than re-running terminal selection midway through the receive stream. The actual
+native receipt is retained before validation; a rejected receipt cannot mark an
+intent observed. Proven review continuation is single-use per original progress
+hash and preserves previous receipts. The one legacy observed intent lacking a
+ledger event requires complete server Keep/removal/deposit lineage and the exact
+current native transition, which itself proves inventory presence. Pending
+commands, capture gaps and unfinished prior continuation attempts remain blocked.
+
+Active: qualify this host-only correction and finish the same batch without
+replaying the first Keep. Then retire the recorder's obsolete interpreter, qualify
+Tier 1-2 exclusions retaining unknowns, and complete town scheduling. Installed
+.118/.73 remains healthy; four terminal results remain untouched in the queue.
+
 ## Installed .118/.73; recorded batch continued - October 14
 
 Host .118 is qualified and installed from graphics-preserving release

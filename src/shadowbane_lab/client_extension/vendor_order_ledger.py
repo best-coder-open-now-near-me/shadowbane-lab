@@ -19,7 +19,7 @@ LIMIT = 4 * 1024 * 1024
 
 class OrderLedger:
     def __init__(self, path: Path, admission_raw: bytes, character: tuple[int, int],
-                 *, resume=False, review=False):
+                 *, resume=False, review=False, receipt_recovery=False):
         self.path = Path(path)
         self.progress = OrderProgress(admission_raw, character)
         if self.path.exists():
@@ -50,7 +50,13 @@ class OrderLedger:
                 raise VendorBatchStopped("quantity progress evidence exceeds its bound")
             for event in self.record["events"]:
                 self._apply(event)
-            if self._kept_requests != seen:
+            self.unreconciled_requests = seen - self._kept_requests
+            recoverable = (receipt_recovery and review and self.record["state"] == "review"
+                           and len(self.unreconciled_requests) == 1
+                           and all(r["item_id"] in self.progress.replies.keep_intents
+                                   for r in self.record["requests"]
+                                   if r["request_key"] in self.unreconciled_requests))
+            if self._kept_requests != seen and not recoverable:
                 raise VendorBatchStopped("quantity Keep evidence is missing")
             self._validate_cursor(self.record["cursor"])
             if self.record["state"] == "complete" and not self.progress.complete:
@@ -62,6 +68,7 @@ class OrderLedger:
                                cursor=self.progress.admission["production_cursor"],
                                events=[], requests=[])
             self._kept_requests, self._last_keep = set(), 0
+            self.unreconciled_requests = set()
             self.save()
 
     def _validate_cursor(self, cursor):
@@ -116,7 +123,10 @@ class OrderLedger:
                     or event["outcome"] != int(Outcome.OBSERVED)
                     or type(event["flags"]) is not int or event["flags"] not in (0, 1)
                     or event["window"] != p.admission["window"]
-                    or item not in p.items or p.keep_candidate(before) != item
+                    # The earlier keep_intent already proved terminal readiness.
+                    # A later partial deposit callback must not re-run that
+                    # decision against a different point in the receive stream.
+                    or item not in p.items or item not in p.replies.keep_intents
                     or item not in p.replies.keep_sends
                     or not before.inventory or not after.inventory
                     or _owner(before) != _owner(p.initial) or _owner(after) != _owner(p.initial)
@@ -192,10 +202,26 @@ class OrderLedger:
         return request
 
     def kept(self, request, receipt):
-        request["state"] = "observed"
-        self.append(dict(kind="kept", request_key=request["request_key"],
+        event = dict(kind="kept", request_key=request["request_key"],
                          snapshot=receipt.snapshot.encode().hex(), outcome=int(receipt.outcome),
                          window=receipt.window, flags=receipt.flags,
                          transition_item=receipt.transition_item,
-                         transition_request=receipt.transition_request))
+                         transition_request=receipt.transition_request)
+        # Preserve the actual native result before validation can fail. This
+        # grants no replay authority and cannot mark an unvalidated intent observed.
+        path = self.path.parent / "keep-receipts" / (request["request_key"] + ".json")
+        raw = (json.dumps(event, sort_keys=True, indent=2) + "\n").encode()
+        if path.exists():
+            if _read_record(path, LIMIT) != raw:
+                raise VendorBatchStopped("native Keep receipt already exists and changed")
+        else:
+            publish_atomic_record(path, raw, temporary_label="vendor-keep-receipt")
+        previous = request["state"]
+        request["state"] = "observed"
+        try:
+            self.append(event)
+        except Exception:
+            request["state"] = previous
+            raise
+        self.unreconciled_requests.discard(request["request_key"])
         self.save()

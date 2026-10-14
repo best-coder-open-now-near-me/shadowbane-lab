@@ -162,6 +162,50 @@ def test_full_seventy_item_job_uses_one_create_and_only_seven_terminal_keeps(tmp
     assert summary["queued_orders"] == 7 and summary["planned_items"] == 70
 
 
+def test_server_removal_before_native_keep_poll_completes_without_replay(tmp_path):
+    store, session, record = setup(tmp_path, 7)
+    keep = session.keep
+    drain = session.recorder.drain
+
+    def fast_server(expected, item, key):
+        submitted = keep(expected, item, key)
+        session.inspect()  # Real replies can arrive before the next host drain.
+        return submitted
+
+    session.keep = fast_server
+    def split_callbacks():
+        rows = session.recorder.records
+        if any(r["stage"] == "serialized" and r["payload"]["action"] == 4 for r in rows):
+            tail = rows[-2:]
+            session.recorder.records = rows[:-2]
+            result = drain()
+            session.recorder.records = tail
+            return result
+        return drain()
+    session.recorder.drain = split_callbacks
+    result = run(store, session, record)
+    assert result["state"] == "complete" and result["kept"] == 70
+    assert len(session.calls) == 1 and len(set(session.keeps)) == 7
+
+
+def test_rejected_native_keep_receipt_is_retained_without_marking_intent_observed(tmp_path):
+    store, session, record = setup(tmp_path, 1)
+    inspect = session.inspect
+    def invalid_observation():
+        observed = inspect()
+        return replace(observed, flags=IN_FLIGHT) if session.keeps else observed
+    session.inspect = invalid_observation
+    with pytest.raises(VendorBatchStopped, match="inventory presence"):
+        run(store, session, record)
+    directory = store.directory(record["job_id"])
+    saved = json.loads((directory / "order-progress.json").read_bytes())
+    assert saved["requests"][0]["state"] == "submitted"
+    assert not any(e["kind"] == "kept" for e in saved["events"])
+    receipt, = (directory / "keep-receipts").glob("*.json")
+    assert json.loads(receipt.read_bytes())["flags"] == IN_FLIGHT
+    assert len(session.calls) == len(session.keeps) == 1
+
+
 def test_inventory_publication_race_waits_without_replaying_create_or_keep(tmp_path):
     from shadowbane_lab.client_observation.native_vendor_queue import NativeVendorObservationChanged
 
