@@ -222,7 +222,11 @@ class ManagerVendorControl:
                         raise VendorBatchStopped("save a vendor recipe first")
                     command += " " + saved["revision"]
             else:
-                if not current or current["state"] in TERMINAL:
+                if current and current["state"] == "review" and current["schema_version"] == 4:
+                    from .vendor_review_recovery import review_job_ready
+
+                    review_job_ready(store, current)
+                elif not current or current["state"] in TERMINAL:
                     raise VendorBatchStopped("no resumable vendor job")
                 if inflight:
                     if (

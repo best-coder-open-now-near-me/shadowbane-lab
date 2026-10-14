@@ -244,7 +244,11 @@ class VendorJobStore:
             current = self.current()
             if current is None or current["job_id"] != job_id:
                 raise VendorBatchStopped("vendor job changed; refresh its controls")
-            if current["state"] in TERMINAL:
+            if current["state"] == "review" and current["schema_version"] == 4 and mode == "run":
+                from .vendor_review_recovery import review_job_ready
+
+                review_job_ready(self, current)
+            elif current["state"] in TERMINAL:
                 raise VendorBatchStopped("this vendor job is finished or needs review")
             if self.control(job_id) == "stop":
                 raise VendorBatchStopped("the vendor job has been stopped")
@@ -273,6 +277,15 @@ class VendorJobStore:
             if "server_finished" in record:
                 result.update(server_finished=record["server_finished"],
                               shortfall=record["shortfall"])
+            if record["state"] == "review":
+                from .vendor_review_recovery import review_job_ready
+
+                result["can_reconcile"] = False
+                try:
+                    review_job_ready(self, record)
+                    result["can_reconcile"] = True
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError, IndexError):
+                    pass
         return result
 
 
@@ -358,6 +371,10 @@ def run_vendor_job(
             raise VendorBatchStopped("worker dispatch is paused")
         record = (store.current() if resume
                   else store.begin(session, window, clock(), selection=selection))
+        if resume and record and record["state"] == "review" and record["schema_version"] == 4:
+            from .vendor_review_recovery import resume_review
+
+            resume_review(store, session, record)
         if record is None or record["state"] in TERMINAL:
             raise VendorBatchStopped("no resumable vendor job")
         if (
