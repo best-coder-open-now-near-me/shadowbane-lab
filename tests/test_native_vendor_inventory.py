@@ -2,7 +2,12 @@ import unittest
 
 from shadowbane_lab.client_observation.native_inventory_item import INSTANCE_INFO_BYTES
 from shadowbane_lab.client_observation.native_vendor_dialog import NativeVendorDialogCaptureError
-from shadowbane_lab.client_observation.native_vendor_queue import read_native_vendor_queue
+from shadowbane_lab.client_observation.native_vendor_queue import (
+    NativeVendorObservationChanged,
+    read_native_vendor_inventory,
+    read_native_vendor_queue,
+)
+from tests.test_native_vendor_queue import ENTRY as PRODUCTION_ENTRY
 from tests.test_native_vendor_queue import MANAGER, Memory, fixture
 
 HUD, LIST, CONTROL, ENTRY = 0x200000, 0x210000, 0x220000, 0x230000
@@ -41,6 +46,35 @@ def inventory_fixture() -> Memory:
 
 
 class NativeVendorInventoryTests(unittest.TestCase):
+    def test_membership_read_does_not_depend_on_live_production_timers(self):
+        m = inventory_fixture()
+        m.change = (PRODUCTION_ENTRY + 0x50, 8, b"\xff" * 8)
+        with self.assertRaises(NativeVendorObservationChanged):
+            read_native_vendor_queue(m)
+        m = inventory_fixture()
+        m.change = (PRODUCTION_ENTRY + 0x50, 8, b"\xff" * 8)
+        observed = read_native_vendor_inventory(m)
+        self.assertEqual(ITEM_ID, observed["inventory"]["items"][0]["item"]["object_id"])
+        self.assertNotIn("slots", observed)
+        self.assertFalse(observed["command_admitted"])
+        self.assertFalse(any(PRODUCTION_ENTRY <= address < PRODUCTION_ENTRY + 0x60
+                             for address, size in m.reads))
+
+    def test_membership_retains_owner_template_and_list_consistency_checks(self):
+        for address, value in (
+            (MANAGER + 0xF8, 999), (MANAGER + 0x384, 0), (HUD + 0x104, 0),
+            (CONTROL + 0x3BC, HUD + 4), (CONTROL + 0x458, LIST + 4),
+            (ENTRY + 0x20, 0), (INSTANCE + 0x18, ITEM_ID - 1), (ITEM + 0x10, 26991),
+        ):
+            m = inventory_fixture()
+            m.put(address, "<I", value)
+            with self.subTest(address=address), self.assertRaises(NativeVendorDialogCaptureError):
+                read_native_vendor_inventory(m)
+        m = inventory_fixture()
+        m.change = (CONTROL + 0x44C, 4, b"\xff" * 4)
+        with self.assertRaises(NativeVendorObservationChanged):
+            read_native_vendor_inventory(m)
+
     def test_displayed_list_can_prove_all_160_quantity_batch_items(self):
         m = inventory_fixture()
         vector = 0x280000

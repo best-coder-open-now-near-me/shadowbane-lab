@@ -162,6 +162,24 @@ def test_full_seventy_item_job_uses_one_create_and_only_seven_terminal_keeps(tmp
     assert summary["queued_orders"] == 7 and summary["planned_items"] == 70
 
 
+def test_inventory_publication_race_waits_without_replaying_create_or_keep(tmp_path):
+    from shadowbane_lab.client_observation.native_vendor_queue import NativeVendorObservationChanged
+
+    store, session, record = setup(tmp_path, 7)
+    observations = []
+    def inventory(native, state, known, template):
+        observations.append(1)
+        if len(observations) == 1:
+            raise NativeVendorObservationChanged("inventory list changed")
+        return sorted(session.inventory & known)
+    result = run_order_job(store, session, record, clock=lambda: session.time,
+                           sleeper=session.sleep, reader_factory=lambda *args: session.recorder,
+                           inventory_reader=inventory)
+    assert result["state"] == "complete" and result["kept"] == 70
+    assert len(session.calls) == 1 and len(session.keeps) == 7
+    assert len(observations) > 1
+
+
 def test_server_admitted_partial_batch_finishes_actual_inventory_without_refill(tmp_path):
     store, session, record = setup(tmp_path, 2)
     session.behavior = "partial"
