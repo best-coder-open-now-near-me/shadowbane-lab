@@ -1,5 +1,46 @@
 # Player-owned vendor rolling
 
+## Quantity batch accepted live on installed .119/.73 - October 14
+
+The same admitted batch finished through the normal manager with every one of
+its 66 generated Gilded Scepters positively verified in Malik's owned inventory.
+All seven production rows are empty; the inventory displays 240 items. The
+seventy-item funding reservation remained unchanged and the explicit server
+terminal result reports a four-item shortfall. Shop gold fell from 216,284 to
+205,328, exactly 66 starts at 166 gold. The reason for the server shortfall is
+unproved; no replacement rolls were issued.
+
+The complete passive trace contains 657 contiguous records with zero gaps,
+rejections or ticket drops. Exactly one quantity-ten/multiple Create occurred.
+The six pre-existing completed items were collected before that request; all
+five batch terminal Keeps are confirmed. The first Keep's original native
+transition was reconciled without repeating its send, followed by only four new
+Keeps. No funding was repeated. The original deadline and all prior journals
+remain intact. The independent terminal proof sends zero native commands.
+
+Host .119 is installed from graphics-preserving release
+`93ba59d20146dfe34936ddf0f290167640f9c445`, preserving native .73/assets source
+`8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f`. Implementation
+`9480d1d0b343ea7bbe8e7a1aa6138a77e6435ceb` passes all 15 hosted checks.
+Qualification passes 6,868 host tests (46 optional environment skips), both
+actual IPC profiles, seven startup handshakes and 253 installer/verifier checks
+(one optional symlink-privilege skip). Activation verifies 503 modules and
+10,115 retained records with zero exclusions. The same game and DLL remain live.
+
+The recorder was explicitly stopped after terminal proof, preserving the trace
+unchanged. Verified unused .117 and .118 guest hosts, their obsolete installer
+wheels, spent staging copies and obsolete local .118 build/runtime copies are
+retired. Settings, jobs, receipts and captures remain in place; no deployment
+rollback copies were created. Current native qualification fixtures are retained.
+
+Completed: live whole-batch funding, quantity admission, automatic production,
+terminal Keep/inventory accounting and proven no-replay review continuation.
+Active next: qualify current-image Tier 1-2 exclusions while keeping unknowns;
+then complete town scheduling. Disposal remains disabled and all results are
+retained. Draft PR #174 targets main and remains unmerged; both vendor worktrees
+remain active and the normal checkout stays clean on main. See
+[installation evidence](client-update-20261014.md).
+
 ## Terminal Keep callback ordering correction - October 14
 
 The admitted server batch finished with 66 items against the seventy-item

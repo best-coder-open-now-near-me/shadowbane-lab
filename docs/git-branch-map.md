@@ -1,5 +1,26 @@
 # Git branch map
 
+## Vendor .119/.73 installed; quantity batch accepted - October 14
+
+Shared development starts from refreshed main `ef02070f`. Continue the vendor
+lane in `codex/vendor-rolling-20261013`, implementation
+`9480d1d0b343ea7bbe8e7a1aa6138a77e6435ceb` with all 15 hosted checks passing.
+Draft PR #174 targets main and remains unmerged. Graphics-preserving release
+`93ba59d20146dfe34936ddf0f290167640f9c445` on
+`codex/vendor-release-20261013` is qualified and installed as host .119 with
+unchanged native .73/assets source `8c12dd4b`. Both worktrees remain active;
+the normal checkout stays clean on main. Installation is not integration.
+
+The admitted quantity-ten/multiple batch finished with all 66 server-produced
+items positively confirmed in inventory, seven empty rows and a reported
+four-item shortfall against the seventy-item reservation. Exactly one Create
+and five terminal Keeps occurred; the first Keep was reconciled without replay.
+The original deadline/funding and historical journals remain intact. Obsolete
+.117/.118 software and spent staging copies are retired; the complete trace is
+preserved. Active next: current-image Tier 1-2 exclusions retaining unknowns,
+then town scheduling. Guards remain outside scope. See [workflow](vendor-rolling.md)
+and [installation/acceptance](client-update-20261014.md).
+
 ## Vendor .118/.73 installed; same batch continuing - October 14
 
 Start shared work from refreshed main `ef02070f`. Continue this unfinished vendor

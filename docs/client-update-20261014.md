@@ -1,5 +1,51 @@
 # Official client alignment for vendor rolling - October 14
 
+## Current installed .119/.73; quantity batch accepted
+
+Graphics-preserving release `93ba59d20146dfe34936ddf0f290167640f9c445` is
+pushed and installed as host .119 with unchanged native .73/assets source
+`8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f`. Implementation
+`9480d1d0b343ea7bbe8e7a1aa6138a77e6435ceb` passes all 15 hosted checks and
+remains in draft PR #174 to main. Installation does not merge either lane.
+
+All 6,868 host tests pass with 46 optional environment skips. The additional
+skip relative to the earlier run is a Tk display check; both actual IPC profiles
+and all seven startup handshakes pass. All 253 private qualification/installer
+checks pass with one optional symlink-privilege skip. Exact identities:
+
+- Wheel: `c540be4921098cec27935aced8935b30270588da85c95eef59a861b035915dc1`.
+- Qualification: `1111ff57c29a5e751bfba77d5dbcdd93e97d51e2c1a18e24109880f3229056c2`.
+- Source archive: `2b500d24108cb2e32a71a4aa248ed7a5b0dd6a7feabb0fc6cd201edfc1155788`.
+- Host-only plan: `f9693bb8fdbf33d806220ef06de56053a7dcc7041dce7b5b663ce4a06e07844c`.
+- Unchanged native DLL: `29afff77054c03aabcb696764aada5fed3003805c130b6e17b21398c8d3d7efa`.
+
+Apply and activation verify 503 modules and 10,115 retained records with zero
+exclusions. Synchronization markers are hashed under owned read locks. The exact
+reviewed client-written DoubleFusion state is preserved in place with prior and
+current hashes recorded; engine-log history is append-verified. Settings and
+journals are byte-preserved during activation. The game remains PID 6936 /
+creation 134364730542458483, HWND 1049474. Manager 5728 / creation
+134364811362378521 and worker 2444 / creation 134364811387327725 are healthy.
+
+Normal manager continuation reconciled the first terminal Keep's original native
+transition, sent only four remaining Keeps, and completed the same accepted
+batch. The independent owned-inventory proof verifies all 66 generated items,
+seven empty rows and 240 displayed inventory items. The seventy-item reservation
+ended four short, with 10,956 gold spent and 205,328 remaining. Its cause is
+unproved. One original Create, five distinct batch Keeps and unchanged funding
+are evidenced by 657 contiguous records; no replay occurred.
+
+After terminal proof, the exact read-only recorder was stopped and its trace
+preserved unchanged. The verified unused .117/.118 guest interpreters (99,117,425
+bytes), obsolete host wheels and spent staging copies are retired. Obsolete local
+.118 build/runtime copies are also removed after exact source/archive verification.
+Current native fixtures, settings, jobs, captures and all compact version/hash
+receipts remain. No rollback copy is retained. Private evidence is under
+`artifacts/h119` and the VM's vendor diagnostics directory.
+
+Next: current-image affix exclusions retaining unknowns, then town scheduling.
+No disposal is enabled; guard work remains outside scope.
+
 ## Current installed .118/.73 host-only inventory continuation
 
 Installed host source is `2c0e2baf3e0907107e425cdb6cba7117bb3c6eed` on
