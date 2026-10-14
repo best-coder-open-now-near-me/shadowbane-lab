@@ -7,8 +7,7 @@ import pytest
 
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
 from shadowbane_lab.client_extension.vendor_completion import _read_record
-from shadowbane_lab.client_extension.vendor_order_ledger import LIMIT
-from shadowbane_lab.client_extension.vendor_order_ledger import OrderLedger
+from shadowbane_lab.client_extension.vendor_order_ledger import LIMIT, OrderLedger
 from shadowbane_lab.client_extension.vendor_wire import UNRESOLVED
 from shadowbane_lab.client_observation.native_vendor_dialog import NativeVendorDialogCaptureError
 from shadowbane_lab.manager.vendor_job import run_vendor_job
@@ -179,8 +178,9 @@ def legacy_missing_receipt(tmp_path):
             records.extend(event["records"])
     records.extend(session.recorder.records)
     old_inspect = session.inspect_orders
-    session.inspect_orders = lambda: replace(old_inspect(), transition_item=session.last_transition[0],
-                                             transition_request=session.last_transition[1])
+    session.inspect_orders = lambda: replace(
+        old_inspect(), transition_item=session.last_transition[0],
+        transition_request=session.last_transition[1])
     return store, session, capture(session, records)
 
 
@@ -203,7 +203,8 @@ def test_legacy_observed_keep_requires_exact_native_receipt_and_never_replays(tm
     assert retained["keeps"] == 0 and store.summary()["can_reconcile"]
     inspect = session.inspect_orders
     if fault == "transition":
-        session.inspect_orders = lambda: replace(inspect(), transition_request="11111111-2222-4333-8444-555555555555")
+        session.inspect_orders = lambda: replace(
+            inspect(), transition_request="11111111-2222-4333-8444-555555555555")
     elif fault == "item":
         session.inspect_orders = lambda: replace(inspect(), transition_item=999)
     elif fault == "unresolved":

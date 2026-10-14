@@ -56,14 +56,16 @@ def _review(store, record):
 
 def _observation_path(directory, progress_sha256):
     legacy = directory / "review-observation.json"
-    if legacy.exists() and json.loads(_read_record(legacy, LIMIT)).get("progress_sha256") == progress_sha256:
+    if (legacy.exists()
+            and json.loads(_read_record(legacy, LIMIT)).get("progress_sha256") == progress_sha256):
         return legacy
     return directory / "review-observations" / (progress_sha256 + ".json")
 
 
 def _continuation_path(directory, receipt):
     legacy = directory / "review-continuation.json"
-    if legacy.exists() and json.loads(_read_record(legacy, LIMIT)).get("original_progress_sha256") == receipt["progress_sha256"]:
+    if (legacy.exists() and json.loads(_read_record(legacy, LIMIT)).get("original_progress_sha256")
+            == receipt["progress_sha256"]):
         return legacy
     return directory / "review-continuations" / (receipt["progress_sha256"] + ".json")
 
@@ -171,7 +173,8 @@ def review_job_ready(store, record):
     ledger, initial = _review(store, record)
     directory = store.directory(record["job_id"])
     _prior_continuations(directory, record)
-    raw = _read_record(_observation_path(directory, _digest(_read_record(ledger.path, LIMIT))), LIMIT)
+    original_digest = _digest(_read_record(ledger.path, LIMIT))
+    raw = _read_record(_observation_path(directory, original_digest), LIMIT)
     receipt = json.loads(raw)
     if (type(receipt["schema_version"]) is not int or receipt["schema_version"] != 1
             or receipt["operation"] != "retain_review_production"
