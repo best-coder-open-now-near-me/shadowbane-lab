@@ -162,6 +162,19 @@ def test_full_seventy_item_job_uses_one_create_and_only_seven_terminal_keeps(tmp
     assert summary["queued_orders"] == 7 and summary["planned_items"] == 70
 
 
+def test_server_admitted_partial_batch_finishes_actual_inventory_without_refill(tmp_path):
+    store, session, record = setup(tmp_path, 2)
+    session.behavior = "partial"
+    result = run(store, session, record)
+    assert result["state"] == "complete" and result["planned_items"] == 20
+    assert result["queued_orders"] == 1 and result["created"] == result["kept"] == 10
+    assert result["shortfall"] == 10 and result["server_finished"]
+    assert len(session.calls) == len(session.keeps) == 1
+    assert "10/20 requested items retained" in result["detail"]
+    require_order_handoff_idle(store, session, result)
+    assert store.summary()["shortfall"] == 10
+
+
 def test_lost_keep_preserves_prepared_intent_and_never_replays(tmp_path):
     store, session, record = setup(tmp_path, 1)
     session.lost_keep = True
@@ -255,6 +268,7 @@ def test_stop_after_queue_retains_orders_and_proves_native_idle(tmp_path):
 
 @pytest.mark.parametrize("field,value", [
     ("order_sha256", "0" * 64), ("planned_items", 7), ("order_spec", SPEC.recipe.as_dict()),
+    ("server_finished", 1), ("shortfall", 0),
 ])
 def test_saved_quantity_job_cannot_change_its_intent(tmp_path, field, value):
     store, session, record = setup(tmp_path)

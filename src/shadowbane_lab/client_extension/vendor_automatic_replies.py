@@ -180,5 +180,6 @@ class AutomaticReplies:
             self._stop("automatic production returned an unqualified action")
 
     def admits(self, items):
-        return (not self.failed and self.sent is not None and len(items) == self.orders
-                and len(set(items)) == self.orders and set(items) == set(self.first_items))
+        return (not self.failed and self.sent is not None and 0 < len(items) <= self.orders
+                and len(set(items)) == len(items)
+                and set(items) == set(self.first_items[:len(items)]))

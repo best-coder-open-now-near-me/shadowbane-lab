@@ -76,19 +76,61 @@ def test_automatic_deposit_and_new_reply_allow_reallocated_queue_entries(tmp_pat
 
 def test_no_keep_races_server_automatic_rolls_even_when_ui_says_complete(tmp_path):
     session, progress = setup(tmp_path, 1)
-    terminal(session, progress)
+    session.state = replace(session.state, slots=(replace(session.state.slots[0], state=2),))
     assert progress.keep_candidate(session.state) is None
     assert not progress.complete
 
 
-def test_short_batch_stays_incomplete_without_filling_missing_items(tmp_path):
+def test_short_batch_retains_server_terminal_items_without_filling_a_deficit(tmp_path):
     session, progress = setup(tmp_path, 1)
     for _ in range(8):
         turn(session, progress)
     terminal(session, progress)
     assert len(progress.items) == 9 and not progress.complete
-    assert progress.keep_candidate(session.state) is None
+    item = session.state.slots[0].item
+    assert progress.keep_candidate(session.state) == item
+    progress.expect_keep(item)
+    progress.receive(send(progress.replies, 4, reference=[item, 40]))
+    deposit(progress.replies, item)
+    progress.confirm_inventory([item])
+    progress.observe(replace(session.state, slots=(Slot(session.state.slots[0].entry),)), (0,))
+    assert progress.complete and progress.summary()["shortfall"] == 1
     assert len(session.calls) == 1
+
+
+def test_asymmetric_twelve_item_server_batch_keeps_exact_results_and_reports_eight_short(tmp_path):
+    session, progress = setup(tmp_path, 2)
+    turn(session, progress)
+    for slot in session.state.slots:
+        deposit(progress.replies, slot.item)
+        progress.confirm_inventory([slot.item])
+    session.next_item += 1
+    progress.receive(cooking(progress.replies, session.next_item))
+    session.state = replace(session.state, revision=session.state.revision + 1,
+                            slots=(Slot(600, session.next_item, 1), Slot(700)))
+    progress.observe(session.state, (1, 1))
+    for _ in range(7):
+        old = session.state.slots[0].item
+        deposit(progress.replies, old)
+        progress.confirm_inventory([old])
+        session.next_item += 1
+        progress.receive(cooking(progress.replies, session.next_item))
+        session.state = replace(session.state, revision=session.state.revision + 1,
+                                slots=(Slot(600, session.next_item, 1), Slot(700)))
+        progress.observe(session.state, (1, 1))
+    item = session.state.slots[0].item
+    progress.receive(cooking(progress.replies, item, complete=1, queue_count_raw=0))
+    session.state = replace(session.state, revision=session.state.revision + 1,
+                            slots=(Slot(600, item, 2), Slot(700)))
+    progress.observe(session.state, (0, 1))
+    assert len(progress.items) == 12 and progress.keep_candidate(session.state) == item
+    progress.expect_keep(item)
+    progress.receive(send(progress.replies, 4, reference=[item, 40]))
+    deposit(progress.replies, item)
+    progress.confirm_inventory([item])
+    progress.observe(replace(session.state, slots=(Slot(600), Slot(700))), (0, 1))
+    assert progress.complete and progress.summary()["shortfall"] == 8
+    assert progress.admission["planned_items"] == 20 and len(session.calls) == 1
 
 
 def test_positive_inventory_does_not_replace_server_deposit_receipts(tmp_path):

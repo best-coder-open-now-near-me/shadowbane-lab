@@ -123,6 +123,20 @@ int main(int argc, char**) {
         assert(c.Execute(w::Verb::inspect_orders,probe,true,true,f,5102).flags&w::unresolved);
         assert(c.Execute(w::Verb::create_orders,command,true,true,f,5103).outcome==1 && f.calls==1);
     }
+    {
+        v::Controller c; Fake f; auto s=Snapshot(); s.quantity=10; s.multiple=1;
+        w::RemainingCounts counts{}; c.Observe(s,true,false,100,counts);
+        auto command=Command(c); command.reserved[0]=42; Budget(command);
+        assert(c.Execute(w::Verb::create_orders,command,true,true,f,100).outcome==1);
+        s.slots[0]={600,123,1}; counts[0]=1;
+        c.Observe(s,true,false,101,counts,v::OrderProof::verified);
+        auto probe=Command(c,9); probe.expected={};
+        const auto accepted=c.Execute(w::Verb::inspect_orders,probe,true,true,f,102);
+        assert(accepted.flags==w::ready && accepted.transition_request==command.request
+            && accepted.transition_item==123 && accepted.snapshot.slots[1].state==0);
+        auto extra=Command(c,2); extra.reserved[0]=42; Budget(extra,1);
+        assert(c.Execute(w::Verb::create_orders,extra,true,true,f,103).outcome==3 && f.calls==1);
+    }
     // Admission requires one exact outgoing request and full receive lineage,
     // including when decoding and processing arrive in separate read intervals.
     {
@@ -154,6 +168,11 @@ int main(int argc, char**) {
         partial->after.sequence=7; partial->count=4;
         for(std::size_t i=0;i<4;++i) { partial->records[i]=batch->records[i+3]; }
         assert(admission.Receive(*partial) && admission.Matches(after));
+        admission.Begin(initial,{42,53},start);
+        partial->after.sequence=4; partial->count=4;
+        for(std::size_t i=0;i<4;++i) { partial->records[i]=batch->records[i]; }
+        auto fewer=initial; fewer.slots[0]={600,123,1};
+        assert(admission.Receive(*partial) && admission.Matches(fewer) && !admission.Matches(after));
         for(unsigned failure=0;failure<9;++failure) {
             auto broken=std::make_unique<p::Batch>(*batch);
             if(failure==0) { broken->records[0].payload.quantity=9; }

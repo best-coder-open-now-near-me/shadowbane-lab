@@ -67,7 +67,7 @@ def test_one_send_admits_two_rows_with_count_one_and_zero():
     p = setup()
     p.receive(send(p))
     p.receive(cooking(p, 1001))
-    assert not p.admits([1001])
+    assert p.admits([1001])
     p.receive(cooking(p, 1002, queue_count_raw=0))
     assert p.admits([1001, 1002])
     assert not p.admits([1001, 9999])
