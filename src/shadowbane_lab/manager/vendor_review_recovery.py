@@ -26,8 +26,14 @@ def _digest(raw):
 
 def _review(store, record):
     directory = store.directory(record["job_id"])
-    if record["schema_version"] != 4 or record["state"] != "review":
+    if record["schema_version"] not in (4, 5) or record["state"] != "review":
         raise VendorBatchStopped("only a proven quantity review job can be reconciled")
+    if record["schema_version"] == 5:
+        from .vendor_recycling import POLICY
+
+        if (record["phase"] != "waiting" or record.get("exclusion_policy") != POLICY
+                or record["excluded"] != 0 or (directory / "recycling").exists()):
+            raise VendorBatchStopped("production review cannot reconcile recycling authority")
     raw = _read_record(directory / "create.json", LIMIT)
     admission, initial = validate_queued_orders(raw)
     if (any(admission[key] != record[key] for key in (
@@ -43,6 +49,8 @@ def _review(store, record):
                          resume=True, review=True, receipt_recovery=True)
     if ledger.record["state"] != "review":
         raise VendorBatchStopped("review job has inconsistent progress state")
+    if record["schema_version"] == 5 and ledger.progress.complete:
+        raise VendorBatchStopped("completed production cannot adopt review recycling authority")
     for path in directory.glob("order-*.json"):
         if path.name == "order-progress.json":
             continue

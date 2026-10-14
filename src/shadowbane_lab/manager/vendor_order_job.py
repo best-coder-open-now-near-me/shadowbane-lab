@@ -239,6 +239,7 @@ def run_order_job(store, session, record, *, cancelled=lambda: False, clock=time
                 continue
             opened = True
             p = ledger.progress
+            sequence = p.sequence
             try:
                 present = inventory_reader(session, fresh.snapshot, set(p.items), spec.template)
             except NativeVendorObservationChanged:
@@ -249,6 +250,20 @@ def run_order_job(store, session, record, *, cancelled=lambda: False, clock=time
                        "Inventory changed during observation; waiting for a stable read.")
                 sleeper(0.5)
                 continue
+            # Inventory is read outside the native queue observation. Automatic
+            # deposits can complete between those reads, making a valid new
+            # inventory member appear to remain in an old production snapshot.
+            # Fence both observations with a second queue read and reply drain;
+            # retry reads only until the pair belongs to one stable interval.
+            again = before_action()
+            pump()
+            if (again.snapshot != fresh.snapshot
+                    or again.remaining_counts != fresh.remaining_counts
+                    or p.sequence != sequence or p.replies.lineage):
+                update("cooking", "Production changed during observation; resampling inventory.")
+                sleeper(0.5)
+                continue
+            fresh = again
             ledger.inventory(fresh.snapshot, present)
             ledger.observe(fresh)
             if p.complete:

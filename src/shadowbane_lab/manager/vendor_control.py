@@ -222,7 +222,7 @@ class ManagerVendorControl:
                         raise VendorBatchStopped("save a vendor recipe first")
                     command += " " + saved["revision"]
             else:
-                if current and current["state"] == "review" and current["schema_version"] == 4:
+                if current and current["state"] == "review" and current["schema_version"] in (4, 5):
                     from .vendor_review_recovery import review_job_ready
 
                     review_job_ready(store, current)

@@ -1,5 +1,100 @@
 # Player-owned vendor rolling
 
+## Coherent production/inventory sampling - October 14
+
+Host .121 fences each external inventory read with native queue observations
+and a production-reply drain. If the queue, remaining counts or reply sequence
+changes, or a callback is still pending, it discards the observation pair and
+retries reads only. A stable production/inventory identity conflict still stops
+the job. Native .74 is unchanged; this correction needs no game restart.
+
+The live .120/.74 seven-slot quantity-ten batch has one positively confirmed
+Create and a whole-batch budget of 11,620 gold. It entered review at 20 generated
+items and 14 inventory confirmations because an automatic deposit completed
+during the inventory read, while its earlier queue snapshot still displayed the
+same item cooking. Independent replay validates the causal server history. A
+bounded passive reader retains the continuing history without sending commands.
+
+Production review recovery now accepts schema 5 only in its original waiting
+phase, before production is complete and before any recycling directory or
+intent exists. The exact policy, zero exclusions, original admission, owner,
+deadline and complete causal capture remain required. It cannot replay Create,
+move funding or reconcile a recycling action. Schema-4 behavior stays intact.
+
+The affected order, review, recycling, manager-control and job suites pass 112
+checks; Ruff passes. Active: qualify and install the host-only correction, then
+resume this same admitted batch using retained evidence. Automatic recycling
+acceptance and durable town scheduling remain next. Draft PR #174 targets main
+and must remain unmerged; the canonical checkout stays on main.
+
+## .120/.74 installed and Vendor Test relaunched - October 14
+
+The qualified graphics-preserving release
+`1a2a638b60e441d52a20c5a7e877b607c6722e43` is installed as host .120/native .74.
+The original Vendor Test shortcut launched the same prepared .19 executable
+with the exact new DLL. The new game lifetime is verified, the manager has one
+healthy exact worker, and there is no active or queued operation. All 507 host
+modules and 10,127 settings/history records passed installation and activation
+verification with zero exclusions. Only two typed startup records changed at
+activation; client executable/resources and existing job journals are preserved.
+
+The first apply stopped before replacement because the running baseline had
+unstable worker status rows. A fresh stopped census changed only four operational
+records: denied dispatch, stopped heartbeat, paused preparation and unavailable
+group-command status. Fifteen revalidation checks pass, including refusal of
+unrelated user-data changes or live authority. The same prepared environment was
+rebound without reinstalling to plan
+`f8c32a5a32b60804e9b4854c4eb6282f2d93aa35283d3c9c38aec68461ce9ed4`.
+All 15 hosted checks passed at focused source/documentation head `c411c063`.
+
+The unused .119 host and exact spent guest staging binaries were retired after
+identity/dependency checks: 72,425,847 bytes. Twenty-one inspected obsolete local
+build paths were also retired: 506,810,699 bytes. Committed source, logs, captures,
+qualification/installation receipts, current .120/.74 software, settings and jobs
+remain preserved. No deployment rollback copies were created or retained.
+
+Completed: qualified installation, preserved-data verification, same-shortcut
+relaunch and obsolete software retirement. Active: Treehugger login in Rooty and
+one movement to activate interactions, followed by a new quantity-ten available-
+slot batch and policy-qualified automatic Recycle acceptance. No vendor action
+has been sent on this new game lifetime yet. Town scheduling follows that live
+acceptance. Historical jobs cannot acquire disposal authority; guards remain
+outside scope. Draft PR #174 still targets main and must remain unmerged.
+
+## Complete .120/.74 recycling package qualified - October 14
+
+The graphics-preserving release `1a2a638b60e441d52a20c5a7e877b607c6722e43`
+on `codex/vendor-release-20261013` is independently qualified, not yet installed.
+It contains the vendor source through `56b9d747` and the same native API/resource
+version correction as focused task commit `312aa186`. The first full build caught
+that version declaration mismatch before installation; the corrected package
+passes all 7,020 host checks with 46 optional skips, Ruff, both native profiles,
+both profiles' IPC checks and all exact-client probes. Each profile executes 132
+recycling contract checks, including compiled host/native manifest agreement.
+
+Independent verification covers 151 artifact identities and 121 expected package
+stages. Two historical native transparency diagnostics remain explicitly recorded
+per profile; required gates are not waived. All 200 verifier checks, seven isolated
+desktop/worker startup handshakes and 160 bound installer checks pass. The final
+compiled receipt validator also accepts the actual seven-item manual capture,
+ending at sequence 682 with zero commands. No automatic Recycle has run live.
+
+Package SHA-256: `e066f6db72a34e57f8d12657c5c434997feeff76c727254d8eaf2efae16f0b18`.
+Native DLL SHA-256: `cd2927bf31a061ea5953aeb3fcd25614e8648d0620547e0a9121a0f633679636`.
+Wheel SHA-256: `85cd362cc5e4f0a134ebfdd846bbfc9ba087e6501134bce89c8baae4b09d1a4b`.
+The official .19 client and prepared executable remain unchanged. The deployment
+baseline verifies installed .119/.73, 503 modules, 10,065 retained records, the
+same Treehugger game lifetime and an idle healthy worker. Private captures,
+payloads, credentials and client binaries are not published.
+
+Completed: manual capture, durable schema-5 exclusions, full package qualification
+and installation preparation. Active: apply the one qualified host/native update
+after the loaded game closes, preserving settings and journals without rollback
+copies. Next: a new quantity-ten available-slot batch and live policy-qualified
+Recycle acceptance, then durable town vendor scheduling. Historical jobs and
+unrelated stock cannot acquire disposal authority. Draft PR #174 remains unmerged;
+guards are outside this workflow.
+
 ## Durable quantity-batch exclusion workflow source complete - October 14
 
 New saved-recipe worker jobs use schema 5 and prove native Recycle-profile support

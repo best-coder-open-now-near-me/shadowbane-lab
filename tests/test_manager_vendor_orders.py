@@ -12,6 +12,7 @@ from shadowbane_lab.client_extension.vendor_wire import (
     NativeRecycleCompletion,
     Outcome,
     Slot,
+    Snapshot,
 )
 from shadowbane_lab.manager.vendor_job import VendorJobStore
 from shadowbane_lab.manager.vendor_order_job import require_order_handoff_idle, run_order_job
@@ -190,6 +191,50 @@ def test_full_seventy_item_job_uses_one_create_and_only_seven_terminal_keeps(tmp
     require_order_handoff_idle(store, session, result)
     summary = store.summary()
     assert summary["queued_orders"] == 7 and summary["planned_items"] == 70
+
+
+def test_auto_deposit_during_inventory_read_resamples_without_replaying_create(tmp_path):
+    store, session, record = setup(tmp_path, 7, enable_exclusions=True)
+    from tests.test_vendor_recycling import unknown_observation
+
+    raced = []
+
+    def inventory_changes_after_queue_observation(native, snapshot, known, template):
+        if session.cycles < 10:
+            raced.append([slot.item for slot in snapshot.slots])
+            # The native queue was read before this automatic deposit. The
+            # returned positive inventory is newer than that earlier queue.
+            session.sleep(.5)
+        return sorted(session.inventory & known)
+
+    result = run_order_job(
+        store, session, record, clock=lambda: session.time, sleeper=session.sleep,
+        reader_factory=lambda *args: session.recorder,
+        inventory_reader=inventory_changes_after_queue_observation,
+        exclusion_reader=unknown_observation,
+    )
+    assert raced and result["state"] == "complete"
+    assert result["created"] == result["kept"] == 70 and result["excluded"] == 0
+    assert len(session.calls) == 1 and len(session.keeps) == 7
+    assert store.current()["deadline_at"] == record["deadline_at"] == 7200
+    saved = json.loads((store.directory(record["job_id"]) / "order-progress.json").read_bytes())
+    for event in saved["events"]:
+        if event["kind"] == "inventory":
+            visible = {slot.item for slot in Snapshot.decode(
+                bytes.fromhex(event["snapshot"])).slots if slot.item}
+            assert not visible.intersection(event["items"])
+
+
+def test_stable_inventory_queue_identity_conflict_still_stops_without_keep(tmp_path):
+    store, session, record = setup(tmp_path, 7)
+    with pytest.raises(VendorBatchStopped, match="earlier automatic production item reappeared"):
+        run_order_job(
+            store, session, record, clock=lambda: session.time, sleeper=session.sleep,
+            reader_factory=lambda *args: session.recorder,
+            inventory_reader=lambda native, state, known, template: sorted(known),
+        )
+    assert store.current()["state"] == "review"
+    assert len(session.calls) == 1 and not session.keeps
 
 
 def test_server_removal_before_native_keep_poll_completes_without_replay(tmp_path):

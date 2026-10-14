@@ -20,8 +20,8 @@ from shadowbane_lab.manager.vendor_review_recovery import (
 from tests.test_manager_vendor_orders import run, setup
 
 
-def fail_batch(tmp_path, capacity=7):
-    store, session, record = setup(tmp_path, capacity)
+def fail_batch(tmp_path, capacity=7, *, enable_exclusions=False):
+    store, session, record = setup(tmp_path, capacity, enable_exclusions=enable_exclusions)
     with pytest.raises(NativeVendorDialogCaptureError):
         run_order_job(store, session, record, clock=lambda: session.time, sleeper=session.sleep,
                       reader_factory=lambda *args: session.recorder,
@@ -42,8 +42,13 @@ def capture(session, records):
     return b"".join((json.dumps(r) + "\n").encode() for r in (first, last))
 
 
-def test_review_continues_same_seventy_item_batch_without_create_or_funding_replay(tmp_path):
-    store, session, record, original = fail_batch(tmp_path)
+@pytest.mark.parametrize("enable_exclusions", [False, True])
+def test_review_continues_same_seventy_item_batch_without_create_or_funding_replay(
+        tmp_path, enable_exclusions):
+    from tests.test_vendor_recycling import unknown_observation
+
+    store, session, record, original = fail_batch(tmp_path, enable_exclusions=enable_exclusions)
+    deadline = record["deadline_at"]
     assert not store.summary()["can_reconcile"]
     # The server keeps producing after the host observation failure. This
     # independent capture retains the same causal replies, never item guesses.
@@ -56,15 +61,38 @@ def test_review_continues_same_seventy_item_batch_without_create_or_funding_repl
     store.request(record["job_id"], "run")
     session.recorder.drain()  # New live reader begins at the retained archive cursor.
     def runner(store, native, current, **kwargs):
-        return run(store, native, current)
+        return run(store, native, current, exclusion_reader=unknown_observation)
     with patch("shadowbane_lab.manager.vendor_order_job.run_order_job", side_effect=runner):
         result = run_vendor_job(store, session, 1000, resume=True)
     assert result["state"] == "complete" and result["kept"] == result["created"] == 70
     assert len(session.calls) == 1 and len(session.keeps) == 7
+    assert result["deadline_at"] == deadline and result["excluded"] == 0
     path, = (store.directory(record["job_id"]) / "review-continuations").glob("*.json")
     retained = json.loads(path.read_bytes())
     assert retained["prior_job"]["state"] == "review"
     assert retained["state"] == "observations_retained" and retained["creates"] == 0
+
+
+@pytest.mark.parametrize("fault", ["phase", "policy", "excluded", "directory", "intent"])
+def test_schema_five_production_recovery_cannot_adopt_recycling(tmp_path, fault):
+    store, session, record, original = fail_batch(tmp_path, enable_exclusions=True)
+    directory = store.directory(record["job_id"])
+    before = (directory / "order-progress.json").read_bytes()
+    if fault == "phase":
+        record["phase"] = "recycling"
+    elif fault == "policy":
+        record["exclusion_policy"] = "different"
+    elif fault == "excluded":
+        record["excluded"] = 1
+    else:
+        (directory / "recycling").mkdir()
+        if fault == "intent":
+            (directory / "recycling" / "batch-00.json").write_text('{"state":"prepared"}')
+    # Direct validation must refuse even before the store's schema validator.
+    with pytest.raises(VendorBatchStopped, match="recycling authority"):
+        review_job_ready(store, record)
+    assert (directory / "order-progress.json").read_bytes() == before
+    assert len(session.calls) == 1 and not session.keeps
 
 
 @pytest.mark.parametrize("fault", ["gap", "drop", "lifetime", "counter", "extra_create"])
@@ -226,7 +254,9 @@ def test_legacy_observed_keep_requires_exact_native_receipt_and_never_replays(tm
     assert len(list((directory / "review-continuations").glob("*.json"))) == 1
 
 
-def test_manager_and_exact_worker_continue_review_without_funder_or_collector(tmp_path):
+@pytest.mark.parametrize("enable_exclusions", [False, True])
+def test_manager_and_exact_worker_continue_review_without_funder_or_collector(
+        tmp_path, enable_exclusions):
     import threading
 
     from shadowbane_lab.client_extension.vendor_budget import VendorBatchBudget
@@ -238,6 +268,7 @@ def test_manager_and_exact_worker_continue_review_without_funder_or_collector(tm
     from tests.test_manager_vendor_orders import Session
     from tests.test_manager_vendor_recipes import OWNER
     from tests.test_vendor_order_batch import SPEC
+    from tests.test_vendor_recycling import unknown_observation
 
     test = VendorControlTests()
     test.setUp()
@@ -250,7 +281,8 @@ def test_manager_and_exact_worker_continue_review_without_funder_or_collector(tm
                          admission_snapshot=session.state.encode().hex(),
                          batch_budget=budget.as_dict(), batch_budget_sha256=budget.canonical_digest,
                          order_spec=SPEC.as_dict(), order_sha256=SPEC.canonical_digest)
-        record = store.begin(session, 1000, 0, selection=selection)
+        record = store.begin(session, 1000, 0, selection=selection,
+                             enable_exclusions=enable_exclusions)
         with pytest.raises(NativeVendorDialogCaptureError):
             run_order_job(store, session, record, clock=lambda: session.time, sleeper=session.sleep,
                           reader_factory=lambda *args: session.recorder,
@@ -271,7 +303,8 @@ def test_manager_and_exact_worker_continue_review_without_funder_or_collector(tm
                                       recipe_reader=session.reader, funding_runner=forbidden,
                                       collection_runner=forbidden)
         with patch("shadowbane_lab.manager.vendor_order_job.run_order_job",
-                   side_effect=lambda store, native, record, **kwargs: run(store, native, record)):
+                   side_effect=lambda store, native, record, **kwargs: run(
+                       store, native, record, exclusion_reader=unknown_observation)):
             result = worker.execute(pending[0].operation, stop_signal=threading.Event())
         assert result.state == WorkerOperationState.SUCCEEDED
         assert len(session.calls) == 1 and len(session.keeps) == 7

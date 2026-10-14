@@ -1,5 +1,51 @@
 # Git branch map
 
+## Vendor batch observation correction - October 14
+
+Shared development starts from refreshed main `ef02070f`. Continue vendor work
+in `codex/vendor-rolling-20261013`; compose qualified runtime source in
+`codex/vendor-release-20261013` so its installed graphics source is retained.
+Draft PR #174 targets main and must remain unmerged. Installed software is
+.120/.74 from release `1a2a638b`; host-only .121 is in qualification. The live
+seven-slot quantity-ten batch is in review after a queue/inventory sampling race.
+Its one Create, whole-batch budget and original deadline remain authoritative.
+Next: qualified host-only update and passive-evidence recovery of that same job,
+then automatic recycling acceptance and town scheduling. Guards are outside
+scope. See [the current evidence](vendor-rolling.md).
+
+## Vendor .120/.74 installed; new batch acceptance next - October 14
+
+Continue `codex/vendor-rolling-20261013` for focused source and live acceptance;
+draft PR #174 targets main and remains unmerged. Graphics-preserving release
+`1a2a638b60e441d52a20c5a7e877b607c6722e43` on
+`codex/vendor-release-20261013` is qualified, pushed and installed as .120/.74.
+Its graphics composition remains outside main. Both vendor worktrees remain
+active; refreshed shared main is `ef02070f`, and the normal checkout stays clean
+there. All 15 hosted checks pass at the prior focused head `c411c063`.
+
+The original Vendor Test shortcut relaunch, exact DLL/client lifetime, healthy
+worker, 507 modules and 10,127 retained records are verified. Obsolete .119 and
+spent local/guest software were retired without rollback copies; evidence and
+user data remain. Next: Treehugger in Rooty, move once, then a new quantity-ten
+available-slot batch and live qualified recycling. Town scheduling follows;
+guards are outside scope. See [installed evidence and todos](vendor-rolling.md).
+
+## Qualified vendor batch recycling release - October 14
+
+Continue focused vendor work on `codex/vendor-rolling-20261013`; draft PR #174
+targets main and must remain unmerged. The separately pushed graphics-preserving
+release is `1a2a638b60e441d52a20c5a7e877b607c6722e43` on
+`codex/vendor-release-20261013`. Its .120/.74 package is independently qualified;
+installation is being prepared against the actual .119/.73 baseline. No active
+software switch or live automatic recycling is claimed yet. The release contains
+vendor source through `56b9d747` plus the version correction equivalent to task
+commit `312aa186`; its graphics composition remains outside main.
+
+Both vendor worktrees remain active for installation/live acceptance. The normal
+checkout stays clean on main `ef02070f`. Next: close the loaded game only when the
+prepared update is ready, apply once, verify a new quantity-ten batch and eligible
+Recycle, then town scheduling. See [qualification and current todos](vendor-rolling.md).
+
 ## Vendor quantity-batch exclusions integrated in candidate source - October 14
 
 Continue `codex/vendor-rolling-20261013`; its .120/.74 candidate includes the
