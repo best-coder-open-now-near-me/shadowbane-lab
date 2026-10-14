@@ -1,15 +1,24 @@
 # Git branch map
 
-## Official client alignment in qualification - October 14
+## Official client alignment installed - October 14
 
 Continue on `codex/vendor-rolling-20261013`, targeting main in draft PR #174.
 The user patched the official client to manifest 1.0.25 / internal 1.3.38.19.
-Source host .112/native .70 admits only its exact reviewed original/prepared
+Installed host .112/native .70 admits only its exact reviewed original/prepared
 pair while preserving the vendor quantity-ten correction. The new read-only
 `.wbfp` section and changed control flow have been inspected; pinned hooks and
-bootstrap writes remain unchanged. 358 focused host checks and ten native cases
-pass. Installed software is still .111/.69/client .18. Next: compose with the
-existing graphics release, qualify/install, then live vendor batch acceptance.
+bootstrap writes remain unchanged. Qualified graphics-preserving release
+`a7f0b65d8b9d9930a505face3b45ac660a4fcc53` is pushed on
+`codex/vendor-release-20261013`; implementation through `1d8a539b` is pushed on
+the vendor task branch. All 6,760 host tests, both native/IPC profiles, exact-image
+checks, seven Windows startup cases and 153 updater checks pass. Activation
+verifies 499 modules and 9,893 retained records with zero exclusions. Vendor Test
+loads the exact .70 DLL and the V2 recorder/worker are healthy; obsolete installed
+host .111 was retired without fallback copies. Live discovery stopped before
+opening: the startup command-pump gate still assumes six sections, and the
+lifetime import lookup uses the former image size. Active next: correct these
+consumers and add regression coverage in .113/.71 before retrying discovery and
+live quantity-ten acceptance. Neither vendor lane is merged yet.
 See [client alignment evidence](client-update-20261014.md). Main remains clean;
 keep both active vendor worktrees until delivery and live acceptance complete.
 
