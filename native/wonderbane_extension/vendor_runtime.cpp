@@ -11,6 +11,7 @@
 #include "vendor_production_responses.h"
 #include "vendor_controller.h"
 #include "vendor_order_admission.h"
+#include "vendor_recycle_evidence.h"
 #include "vendor_command_queue.h"
 #include "city_window_command_queue.h"
 #include "city_window_controller.h"
@@ -29,6 +30,7 @@ namespace {
 std::uintptr_t image_base = 0;
 Controller controller;
 OrderAdmission order_admission;
+vendor_recycle::Evidence recycle_evidence;
 std::unique_ptr<vendor_production::Batch> order_batch;
 condemn::Controller condemn_controller;
 std::unique_ptr<condemn::Batch> condemn_batch;
@@ -66,6 +68,16 @@ public:
             && vendor_menu::OrderCostMatches(image_base, fresh, budget, budget.total);
     }
     wire::Outcome Invoke(wire::Verb verb, const wire::Snapshot& expected, std::uint32_t item) noexcept override {
+        if(verb==wire::Verb::recycle) {
+            const auto batch=wire::Recycling(command_->command);
+            vendor_recycle::Manifest manifest{};vendor_production::Cursor cursor{};
+            if(!AdmitRandom(this) || !vendor_recycle::Capture(image_base,scene_,expected,batch.items,item,manifest)
+                || manifest.digest!=batch.digest || manifest.gold!=batch.gold || manifest.refund!=batch.refund){return wire::Outcome::stale;}
+            if(!vendor_production::ReadCursor(cursor)){return wire::Outcome::unavailable;}
+            recycle_evidence.Begin(manifest,scene_.identity,cursor);
+            if(!recycle_evidence.Healthy()){return wire::Outcome::unavailable;}
+            return vendor_recycle::Invoke(image_base,scene_,manifest,&AdmitRandom,this);
+        }
         if (verb == wire::Verb::create_random || verb == wire::Verb::create_orders) {
             if (item || !AdmitRandom(this)) { return wire::Outcome::stale; }
             const bool orders = verb == wire::Verb::create_orders;
@@ -306,7 +318,20 @@ void Update(void* root, HWND window) noexcept {
             || !order_admission.Receive(*order_batch)) { order_proof = OrderProof::invalid; }
         else if (valid && order_admission.Matches(snapshot)) { order_proof = OrderProof::verified; }
     }
-    controller.Observe(snapshot, valid, present, GetTickCount64(), remaining, order_proof);
+    auto recycle_proof=OrderProof::waiting;wire::RecycleCompletion recycle_completion{};
+    if(controller.PendingRecycle()) {
+        if(!order_batch || !vendor_production::ReadAfter(recycle_evidence.Cursor(),*order_batch)
+            || !recycle_evidence.Receive(*order_batch)){recycle_proof=OrderProof::invalid;}
+        else if(valid && recycle_evidence.Verified()) {
+            const auto batch=wire::Recycling(*controller.RecyclingCommand());
+            const auto gold=batch.gold+batch.refund;
+            if(vendor_recycle::Corroborate(image_base,snapshot,batch.items,controller.RecyclingCommand()->item,gold)) {
+                recycle_proof=OrderProof::verified;
+                recycle_completion={recycle_evidence.Floor(),recycle_evidence.Completion(),batch.refund,gold};
+            }
+        }
+    }
+    controller.Observe(snapshot, valid, present, GetTickCount64(), remaining, order_proof,recycle_proof,recycle_completion);
     if (!controller.PendingOrders()) { order_admission.Reset(); }
     auto menu_command = vendor_menu::Take();
     vendor_menu::wire::Snapshot menu_snapshot{};
@@ -424,9 +449,11 @@ void Update(void* root, HWND window) noexcept {
         const auto now = GetTickCount64();
         const bool live = command->lease && command->lease->Current(now) && now <= command->deadline;
         const bool exact_window = command->command.window == reinterpret_cast<std::uintptr_t>(window);
-        const bool ready = valid && !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy() && !navigation_controller.Busy() && !menu_controller.Busy() && exact_window && top && GetForegroundWindow() == window && !IsIconic(window);
+        const bool ready = valid && (!wire::IsRecycle(command->verb) || vendor_recycle::Qualified(image_base))
+            && !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy() && !navigation_controller.Busy() && !menu_controller.Busy() && exact_window && top && GetForegroundWindow() == window && !IsIconic(window);
         NativeInvoker invoker(command, scene, window);
-        Complete(command, controller.Execute(command->verb, command->command, live && exact_window, ready, invoker, now));
+        const bool qualified=!wire::IsRecycle(command->verb) || vendor_recycle::Qualified(image_base);
+        Complete(command, controller.Execute(command->verb, command->command, live && exact_window && qualified, ready, invoker, now));
     }
     busy = false;
 }

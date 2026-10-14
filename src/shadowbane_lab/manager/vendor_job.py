@@ -99,10 +99,11 @@ class VendorJobStore:
     def read(self, job_id: str) -> dict:
         record = json.loads(_read_record(self.directory(job_id) / "job.json"))
         if (
-            record.get("schema_version") not in (1, 2, 3, 4)
+            record.get("schema_version") not in (1, 2, 3, 4, 5)
             or record.get("job_id") != job_id
             or tuple(record.get("identity", ())) != self.identity
-            or record.get("phase") not in {"preparing", "filling", "waiting", "keeping"}
+            or record.get("phase") not in {
+                "preparing", "filling", "waiting", "keeping", "recycling"}
             or record.get("state")
             not in {
                 "running",
@@ -114,18 +115,20 @@ class VendorJobStore:
             }
         ):
             raise ValueError("invalid vendor job record")
-        if record["schema_version"] in (2, 3, 4):
+        if record["phase"] == "recycling" and record["schema_version"] != 5:
+            raise ValueError("historical job cannot adopt recycling")
+        if record["schema_version"] in (2, 3, 4, 5):
             spec = RandomRecipeSpec.from_dict(record["recipe_spec"])
             if (record.get("recipe_sha256") != spec.canonical_digest
                     or not _JOB.fullmatch(record.get("recipe_revision", ""))):
                 raise ValueError("saved recipe job specification changed")
-        if record["schema_version"] in (3, 4) or "batch_budget" in record:
+        if record["schema_version"] in (3, 4, 5) or "batch_budget" in record:
             budget = VendorBatchBudget.from_dict(record["batch_budget"])
             initial = Snapshot.decode(bytes.fromhex(record["initial_snapshot"]))
             if (budget.canonical_digest != record.get("batch_budget_sha256")
                     or not budget.matches(initial)):
                 raise ValueError("funded vendor batch budget changed")
-        if record["schema_version"] == 4:
+        if record["schema_version"] in (4, 5):
             order = RandomOrderSpec.from_dict(record["order_spec"])
             if (order.recipe != spec or not order.matches(initial)
                     or record["order_sha256"] != order.canonical_digest
@@ -135,8 +138,13 @@ class VendorJobStore:
                     or not 0 <= record["queued_orders"] <= budget.free_slots
                     or any(type(record[key]) is not int for key in ("created", "kept", "excluded"))
                     or not 0 <= record["kept"] <= record["created"] <= budget.total_items
-                    or record["excluded"] != 0):
+                    or not 0 <= record["excluded"] <= record["kept"]
+                    or record["schema_version"] == 4 and record["excluded"] != 0):
                 raise ValueError("quantity job order intent changed")
+            if record["schema_version"] == 5:
+                from .vendor_recycling import POLICY
+                if record.get("exclusion_policy") != POLICY:
+                    raise ValueError("quantity job exclusion policy changed")
             if "server_finished" in record or "shortfall" in record:
                 finished = record.get("server_finished")
                 shortfall = record.get("shortfall")
@@ -150,7 +158,8 @@ class VendorJobStore:
     def save(self, record: dict) -> None:
         _write(self.directory(record["job_id"]) / "job.json", record)
 
-    def begin(self, session, window: int, now: float, *, selection=None) -> dict:
+    def begin(self, session, window: int, now: float, *, selection=None,
+              enable_exclusions=False) -> dict:
         previous = self.current()
         if previous and previous["state"] not in {"complete", "stopped"}:
             raise VendorBatchStopped("resume or review the existing vendor job first")
@@ -184,6 +193,13 @@ class VendorJobStore:
                       or any(slot.item and count > 1 for slot, count in
                              zip(first.snapshot.slots, first.remaining_counts, strict=True))):
             raise VendorBatchStopped("funded quantity order support is not ready")
+        if order and enable_exclusions:
+            supported = session.inspect_recycle()
+            if (supported.outcome != Outcome.OBSERVED or supported.window != window
+                    or supported.flags & (IN_FLIGHT | UNRESOLVED)
+                    or supported.recycle_completion is None
+                    or _owner(supported.snapshot) != _owner(first.snapshot)):
+                raise VendorBatchStopped("native batch recycling support is not ready")
         # Verify menu support on this exact native runtime before spending. A
         # newer host must not create a batch and only then discover old commands.
         menus = session.menu_session()
@@ -198,7 +214,8 @@ class VendorJobStore:
         finally:
             menus.close()
         record = {
-            "schema_version": 4 if order else 3 if budget else (2 if spec else 1),
+            "schema_version": 5 if order and enable_exclusions else (
+                4 if order else 3 if budget else (2 if spec else 1)),
             "job_id": uuid.uuid4().hex,
             "identity": self.identity,
             "state": "running",
@@ -226,6 +243,9 @@ class VendorJobStore:
         if order:
             record.update(order_spec=order.as_dict(), order_sha256=order.canonical_digest,
                           planned_items=budget.total_items, queued_orders=0)
+            if enable_exclusions:
+                from .vendor_recycling import POLICY
+                record["exclusion_policy"] = POLICY
         self.save(record)
         _write(self.directory(record["job_id"]) / "control.json", {"mode": "run"})
         _write(self.root / "current.json", {"job_id": record["job_id"]})
@@ -271,12 +291,15 @@ class VendorJobStore:
             )
         }
         result["control"] = self.control(record["job_id"])
-        if record["schema_version"] == 4:
+        if record["schema_version"] in (4, 5):
             result.update(planned_items=record["planned_items"],
                           queued_orders=record["queued_orders"])
             if "server_finished" in record:
                 result.update(server_finished=record["server_finished"],
                               shortfall=record["shortfall"])
+            if record["schema_version"] == 5:
+                result.update(collected=record["kept"], kept=record["kept"] - record["excluded"],
+                              exclusion_policy=record["exclusion_policy"])
             if record["state"] == "review":
                 from .vendor_review_recovery import review_job_ready
 
@@ -302,10 +325,13 @@ def require_vendor_handoff_idle(store, session, record):
                 or record["window"] != session.window):
             raise VendorBatchStopped("vendor handback belongs to another client")
         initial = Snapshot.decode(bytes.fromhex(record["initial_snapshot"]))
-        if record["schema_version"] == 4:
+        if record["schema_version"] in (4, 5):
             from .vendor_order_job import require_order_handoff_idle
 
             require_order_handoff_idle(store, session, record)
+            if record["schema_version"] == 5:
+                from .vendor_recycling import require_recycling_idle
+                require_recycling_idle(store, session, record)
             GuardSpendingJournal(store.root).assert_idle()
             CondemnProgressStore(store.root).assert_idle()
             return
@@ -352,6 +378,8 @@ def run_vendor_job(
     *,
     resume: bool = False,
     selection=None,
+    enable_exclusions=False,
+    exclusion_reader=None,
     cancelled=lambda: False,
     clock=time.time,
     sleeper=time.sleep,
@@ -370,7 +398,8 @@ def run_vendor_job(
         if cancelled():
             raise VendorBatchStopped("worker dispatch is paused")
         record = (store.current() if resume
-                  else store.begin(session, window, clock(), selection=selection))
+                  else store.begin(session, window, clock(), selection=selection,
+                                   enable_exclusions=enable_exclusions))
         if resume and record and record["state"] == "review" and record["schema_version"] == 4:
             from .vendor_review_recovery import resume_review
 
@@ -383,11 +412,13 @@ def run_vendor_job(
             or record["window"] != window
         ):
             raise VendorBatchStopped("vendor job belongs to another client lifetime")
-        if record["schema_version"] == 4:
+        if record["schema_version"] in (4, 5):
             from .vendor_order_job import run_order_job
 
             return run_order_job(store, session, record, cancelled=cancelled,
-                                 clock=clock, sleeper=sleeper)
+                                 clock=clock, sleeper=sleeper,
+                                 **({"exclusion_reader": exclusion_reader}
+                                    if exclusion_reader is not None else {}))
         directory = store.directory(record["job_id"])
         initial = Snapshot.decode(bytes.fromhex(record["initial_snapshot"]))
         create_path, keep_path = directory / "create.json", directory / "keep.json"

@@ -1,5 +1,192 @@
 # Player-owned vendor rolling
 
+## Durable quantity-batch exclusion workflow source complete - October 14
+
+New saved-recipe worker jobs use schema 5 and prove native Recycle-profile support
+before collection or funding. After the original quantity batch finishes and every
+item reaches inventory, they assess current owned affixes and recycle only this
+job's confirmed Tier 1-2 results. Unknowns and unrelated stock remain protected.
+Historical schemas 1-4 retain their original behavior and cannot adopt disposal.
+The original production ledger, deadline and whole-batch funding remain intact.
+
+The immutable plan binds the original job, character, client lifetime, vendor
+visit and eligible IDs. Each bounded batch has a durable intent before dispatch,
+fresh policy/content revalidation, exact native/server receipts and independent
+inventory corroboration. A native completion that arrives before the host's
+receive drain waits for observation to catch up without replay. Stop reconciles
+already-sent work and releases safely between batches; uncertain intents remain
+blocked. Completion and handback revalidate the retained receipt chain.
+
+The affected workflow slice passes 1,207 host checks with two optional skips.
+After the final Stop addition, all 37 focused job/recycling checks pass. Ruff
+passes. The actual client-byte ABI check and all six affected native suites pass.
+Installed .119/.73 remains unchanged; no automatic disposal has run in the game.
+Completed: source integration of recycling, protections, pause/Stop and receipts.
+Active next: full graphics-preserving package qualification and one installation,
+then live batch acceptance and durable town scheduling. Draft PR #174 remains
+unmerged, and the normal checkout remains clean on main.
+
+## Actual .19 recycle ABI qualification - October 14
+
+The prepared client's actual getter reads and clones the entry's native ArcItem
+at +0x24. Its selection map stores that native reference; the InstanceInfo at
++0x20 is only inventory-stat evidence. Static inspection caught this distinction
+before deployment and the manifest now carries both identities explicitly.
+
+The private exact-image test executes the actual getter, key getter/copy, tree
+successor and Recycle batch-builder bytes. Only heap, reference-count and network
+endpoints are instrumented. It verifies seven native clones, one action-3 send,
+exact building/vendor and all seven typed item references, plus reference cleanup.
+No running game or network is involved. All six affected native suites pass,
+including this new actual-byte test. The existing manual capture also passes the
+native receipt validator. This is still uninstalled .120/.74 candidate source;
+installed .119/.73 and the user's game remain unchanged.
+
+## Native recycling channel and causal completion source - October 14
+
+Candidate host .120/native .74 connects the batch manifest to the existing
+leased vendor command channel. Read-only inspection and one batch Recycle use
+distinct typed profiles. Completion requires the exact serialized reference set,
+the same returned server action-7 set and refund, complete callback lineage, and
+current native inventory/selection/balance corroboration. Missing items alone
+never release the operation. Repeated request IDs return cached submissions;
+uncertainty, gaps, changed owners and deadlines block further actions. The .19
+image is required before this native feature reports readiness.
+
+The actual 25-record manual trace passes both the Python and compiled native
+validators, with zero commands. All five affected native suites pass, including
+leased channel routing, expired inspections, controller timeout/no-replay and
+cross-service arbitration. The full candidate DLL compiles with warnings as
+errors. The affected host slice passes 1,191 checks with two optional skips;
+Ruff passes. Four local HTTP failures in the sandboxed attempt were WinError
+10013 and pass with loopback access. These checks do not claim live automatic
+Recycle or final package qualification. Installed software remains .119/.73.
+
+Active next: finish and test durable post-production job integration, qualify
+the complete graphics-preserving update, then install it in one restart. Existing
+completed jobs remain intact and must not acquire disposal authority. Town
+scheduling remains after recycling; automatic disposal is currently disabled.
+
+## Native recycle manifest and selection boundary source - October 14
+
+The next source slice binds each eligible owned item's identity, inventory
+addresses, base/value/quantity, durability, custom and displayed names, and all
+effect words into a SHA-256 manifest. The owner reconstructs that manifest before
+selection and immediately before sending. Admission requires the exact .19 image,
+current vendor/inventory ownership, an empty production queue and no pre-existing
+manual selection. It populates the native selection map through the client's own
+ArcItem-copy and selection functions, then invokes its ordinary batch sender
+once. Partial selection or failed final validation returns uncertainty, with no
+automatic clearing, replay or fallback send.
+
+The command-free planner considers only this job's inventory-confirmed identities,
+retains unknowns and unrelated stock, and divides eligible results into bounded
+batches of at most 48. Whole-batch funding remains separate and unchanged. Ninety-five
+focused host checks pass, including an executed cross-language digest comparison
+against the compiled x86 native capture. The native memory/selection test passes
+with MSVC warnings as errors; it uses instrumented native-call stand-ins and is
+not a live Recycle acceptance claim. Ruff passes. The candidate is not installed
+or exposed through the command service yet. Installed .119/.73 remains unchanged.
+
+Active next: correlate native server receipts and integrate the durable command/job
+boundary, then qualify one complete update before requesting a game restart.
+Town scheduling remains after recycling. Automatic disposal remains disabled.
+
+## Manual batch Recycle captured and receipt boundary verified - October 14
+
+The user's manual workflow issued one action-3 request with seven owned scepter
+references. The server returned action 7 with exactly that set (in a different
+order), and shop gold rose from 205,328 to 206,385: seven base values of 151.
+The same owned inventory changed from 240 to 233 entries; all seven selected
+identities disappeared and every other entry remained unchanged. Twenty-five
+contiguous records, sequence 658-682, have no gaps, rejections or ticket drops.
+Seven empty action-7 updates precede the populated receipt and do not acknowledge
+recycling. Exact decode/processing/return lineage is preserved. The passive
+recorder was explicitly stopped after verification; its trace is unchanged.
+
+The new command-free `RecycleEvidence` boundary validates the qualified image,
+owner/lifetime, bounded immutable item set, base-value refund, unique request,
+complete server callback and independent inventory corroboration. Gaps, repeated
+sends, duplicate acknowledgments, changed identities, errors, unrelated stock
+changes and absence-only evidence fail closed. Eighty-nine focused recycle,
+affix and production-reply tests pass; Ruff passes across source/tests/scripts.
+The actual private capture also passes this reducer. These are observations of
+the manual operation, not authority to replay it or a claim of automatic Recycle.
+
+The fresh passive affix check protects all 132 remaining scepters, including
+20 unknowns; none qualify for automatic exclusion. Installed .119/.73 remains
+unchanged and automatic disposal remains off. Completed: full manual recycling
+capture and its causal receipt boundary. Active next: native batch admission and
+dispatch qualification, then durable exclusion integration and town scheduling.
+Draft PR #174 remains unmerged; this source is not installed.
+
+## Current-image owned affix assessment source candidate - October 14
+
+The read-only observer now binds displayed inventory membership to each native
+item's cached full name, the current parent-action registry at RVA 0x1387738,
+canonical PRE/SUF IDs and the parent's exact applied-child list. It requires
+complete effect coverage, the exact .19 prepared image and current English
+dictionary hashes. Reused/ambiguous tiers, unrecognized children, custom names,
+unsupported action classes and unresolved identities remain KEEP. A known low
+tier paired with an unknown affix remains KEEP. The observer cannot authorize
+recycling, infer stock absence or claim complete inventory capacity.
+
+Fifty-five focused ownership, registry, inventory, reference and policy checks
+pass, including owner/definition mutation, malformed maps, extra/missing effects,
+unsupported builds/dictionaries and unknown-over-low-tier protection. Conflicting
+display labels for one native parent protect every affected item. Ruff passes.
+The passive live check assesses 139 owned Gilded Scepters: 118 have confirmed
+retained tiers and 21 are unknown/protected; none qualify for exclusion. It sends
+zero commands. This source is not installed; .119/.73 and the completed batch
+remain unchanged.
+
+Active next: capture one complete manual batch-recycling workflow through the
+existing V3 recorder, then qualify the native recycling boundary and connect it
+to these fresh owned-item assessments. Production action 3 and its bounded
+reference list are already observable without a reinstall. No automatic disposal
+is enabled. Town scheduling follows the qualified exclusion/recycling slice.
+
+## Quantity batch accepted live on installed .119/.73 - October 14
+
+The same admitted batch finished through the normal manager with every one of
+its 66 generated Gilded Scepters positively verified in Malik's owned inventory.
+All seven production rows are empty; the inventory displays 240 items. The
+seventy-item funding reservation remained unchanged and the explicit server
+terminal result reports a four-item shortfall. Shop gold fell from 216,284 to
+205,328, exactly 66 starts at 166 gold. The reason for the server shortfall is
+unproved; no replacement rolls were issued.
+
+The complete passive trace contains 657 contiguous records with zero gaps,
+rejections or ticket drops. Exactly one quantity-ten/multiple Create occurred.
+The six pre-existing completed items were collected before that request; all
+five batch terminal Keeps are confirmed. The first Keep's original native
+transition was reconciled without repeating its send, followed by only four new
+Keeps. No funding was repeated. The original deadline and all prior journals
+remain intact. The independent terminal proof sends zero native commands.
+
+Host .119 is installed from graphics-preserving release
+`93ba59d20146dfe34936ddf0f290167640f9c445`, preserving native .73/assets source
+`8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f`. Implementation
+`9480d1d0b343ea7bbe8e7a1aa6138a77e6435ceb` passes all 15 hosted checks.
+Qualification passes 6,868 host tests (46 optional environment skips), both
+actual IPC profiles, seven startup handshakes and 253 installer/verifier checks
+(one optional symlink-privilege skip). Activation verifies 503 modules and
+10,115 retained records with zero exclusions. The same game and DLL remain live.
+
+The recorder was explicitly stopped after terminal proof, preserving the trace
+unchanged. Verified unused .117 and .118 guest hosts, their obsolete installer
+wheels, spent staging copies and obsolete local .118 build/runtime copies are
+retired. Settings, jobs, receipts and captures remain in place; no deployment
+rollback copies were created. Current native qualification fixtures are retained.
+
+Completed: live whole-batch funding, quantity admission, automatic production,
+terminal Keep/inventory accounting and proven no-replay review continuation.
+Active next: qualify current-image Tier 1-2 exclusions while keeping unknowns;
+then complete town scheduling. Disposal remains disabled and all results are
+retained. Draft PR #174 targets main and remains unmerged; both vendor worktrees
+remain active and the normal checkout stays clean on main. See
+[installation evidence](client-update-20261014.md).
+
 ## Terminal Keep callback ordering correction - October 14
 
 The admitted server batch finished with 66 items against the seventy-item

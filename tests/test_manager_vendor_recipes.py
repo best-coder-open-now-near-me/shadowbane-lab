@@ -349,7 +349,8 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(
                           clock=lambda: session.time, sleeper=session.sleep,
                           reader_factory=reader_factory,
                           inventory_reader=lambda native, state, known, template:
-                          sorted(set(known) & session.inventory))
+                          sorted(set(known) & session.inventory),
+                          exclusion_reader=kwargs["exclusion_reader"])
     monkeypatch.setattr(vendor_order_job, "run_order_job", run_with_native_fixtures)
     binding = ExactClientWorkerBinding(CLIENT_ID, INSTANCE_ID, 988, 1234567, 1000, WORKER_ID)
     funding_calls, steps = [], []
@@ -371,9 +372,11 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(
         return dict(state="funded", batch_budget=budget.as_dict(),
                     batch_budget_sha256=budget.canonical_digest,
                     order_spec=order.as_dict(), order_sha256=order.canonical_digest)
+    from tests.test_vendor_recycling import unknown_observation
     worker = VendorWorkerExecutor(test.root, NODE_ID, binding, session_factory=lambda _: session,
                                   recipe_reader=session.reader,
-                                  funding_runner=fund, collection_runner=collect)
+                                  funding_runner=fund, collection_runner=collect,
+                                  exclusion_reader=unknown_observation)
     lifecycle = _RecordingSession(ManagerSessionSnapshot(
         node_id=NODE_ID,
         slots=(_slot(CLIENT_ID, instance_id=INSTANCE_ID), _slot("client-02")),

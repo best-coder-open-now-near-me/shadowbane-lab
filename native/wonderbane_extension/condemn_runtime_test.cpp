@@ -77,6 +77,14 @@ bool Capture(std::uintptr_t, const movement::NativeScene&, wire::Snapshot& out, 
 }
 bool InvokeNative(std::uintptr_t, wire::Verb, const wire::Snapshot&, std::uint32_t) noexcept { ++other_writes; return false; }
 }
+namespace vendor_recycle {
+bool Qualified(std::uintptr_t) noexcept {return false;}
+bool Capture(std::uintptr_t,const movement::NativeScene&,const vendor::wire::Snapshot&,
+    const Items&,std::uint32_t,Manifest&) noexcept {++other_reads;return false;}
+bool Corroborate(std::uintptr_t,const vendor::wire::Snapshot&,const Items&,std::uint32_t,std::uint32_t) noexcept {++other_reads;return false;}
+vendor::wire::Outcome Invoke(std::uintptr_t,const movement::NativeScene&,const Manifest&,
+    Admission,void*) noexcept {++other_writes;return vendor::wire::Outcome::unavailable;}
+}
 namespace vendor_menu {
 bool OrderCostMatches(std::uintptr_t, const vendor::wire::Snapshot&,
     const vendor::wire::OrderBudget& budget, std::uint32_t minimum) noexcept {

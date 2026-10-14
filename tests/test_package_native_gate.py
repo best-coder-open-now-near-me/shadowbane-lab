@@ -576,6 +576,32 @@ def test_native_group_receive_publications_are_required():
     } <= builder.REQUIRED_COMBAT_TESTS
 
 
+@pytest.mark.parametrize("failure", [None, "missing", "failed", "duplicate", "wrong_binary",
+                                    "wrong_image"])
+def test_recycling_qualification_requires_both_profiles_and_actual_client_bytes(failure):
+    assert {"wonderbane_extension_vendor_recycle_native",
+            "wonderbane_extension_vendor_recycle_evidence"} <= builder.REQUIRED_VENDOR_TESTS
+    steps = [dict(name=f"{profile}-vendor-recycle-{suffix}", exit_code=0,
+                  command=["wonderbane_extension_vendor_recycle_native_test.exe",
+                           "movement-prepared-client.exe"] if suffix == "client" else ["pytest"])
+             for profile in ("full", "diagnostics-only") for suffix in ("contract", "client")]
+    if failure == "missing":
+        steps.pop()
+    elif failure == "failed":
+        steps[-1]["exit_code"] = 1
+    elif failure == "duplicate":
+        steps.append(dict(steps[-1]))
+    elif failure == "wrong_binary":
+        steps[-1]["command"][0] = "unrelated.exe"
+    elif failure == "wrong_image":
+        steps[-1]["command"][1] = "original.exe"
+    if failure is None:
+        assert builder.validate_vendor_recycling_steps(steps, reviewed_client=True)
+    else:
+        with pytest.raises(RuntimeError):
+            builder.validate_vendor_recycling_steps(steps, reviewed_client=True)
+
+
 @pytest.mark.parametrize("index", range(4))
 @pytest.mark.parametrize("failure", [None, "missing", "failed", "duplicate",
                                     "wrong_binary", "same_image"])

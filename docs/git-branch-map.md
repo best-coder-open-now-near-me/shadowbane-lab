@@ -1,5 +1,96 @@
 # Git branch map
 
+## Vendor quantity-batch exclusions integrated in candidate source - October 14
+
+Continue `codex/vendor-rolling-20261013`; its .120/.74 candidate includes the
+actual-client-byte recycle ABI check and durable schema-5 post-production
+exclusions. Draft PR #174 still targets main and remains unmerged. Installed
+graphics-preserving release remains `93ba59d2` (.119/.73); old completed jobs
+cannot gain disposal authority. The task and release worktrees stay active;
+the normal checkout stays clean on main `ef02070f`. Active next: qualify the
+complete graphics-preserving update, install once, verify a live batch, then
+town scheduling. See [current validation and todos](vendor-rolling.md).
+
+## Vendor batch recycling receipt source - October 14
+
+Continue the vendor lane in `codex/vendor-rolling-20261013`; draft PR #174 targets
+main and remains unmerged. Its command-free recycle receipt reducer passes the
+actual user's seven-item manual workflow and 89 focused recycle/affix/reply
+checks. Installed graphics-preserving release remains `93ba59d2` (.119/.73).
+Native batch dispatch and durable exclusions remain unfinished; no automatic
+disposal is enabled. Both vendor worktrees stay active and the normal checkout
+stays clean on main. See [workflow and next todo](vendor-rolling.md).
+
+## Uninstalled owned-affix observer draft - October 14
+
+The current `codex/vendor-rolling-20261013` tip also contains the command-free
+current-image affix observer and its tests; this source is an uninstalled draft.
+Its passive check protects all 139 observed scepters, including 21 unknowns.
+Installed software remains .119/.73 from release `93ba59d2`, whose successful
+quantity acceptance is recorded at task commit `c0950f8c`. Continue the recycling
+workflow capture/qualification next, then town scheduling. Draft PR #174 remains
+unmerged; both vendor worktrees stay active. See [current todos](vendor-rolling.md).
+
+## Vendor .119/.73 installed; quantity batch accepted - October 14
+
+Shared development starts from refreshed main `ef02070f`. Continue the vendor
+lane in `codex/vendor-rolling-20261013`, implementation
+`9480d1d0b343ea7bbe8e7a1aa6138a77e6435ceb` with all 15 hosted checks passing.
+Draft PR #174 targets main and remains unmerged. Graphics-preserving release
+`93ba59d20146dfe34936ddf0f290167640f9c445` on
+`codex/vendor-release-20261013` is qualified and installed as host .119 with
+unchanged native .73/assets source `8c12dd4b`. Both worktrees remain active;
+the normal checkout stays clean on main. Installation is not integration.
+
+The admitted quantity-ten/multiple batch finished with all 66 server-produced
+items positively confirmed in inventory, seven empty rows and a reported
+four-item shortfall against the seventy-item reservation. Exactly one Create
+and five terminal Keeps occurred; the first Keep was reconciled without replay.
+The original deadline/funding and historical journals remain intact. Obsolete
+.117/.118 software and spent staging copies are retired; the complete trace is
+preserved. Active next: current-image Tier 1-2 exclusions retaining unknowns,
+then town scheduling. Guards remain outside scope. See [workflow](vendor-rolling.md)
+and [installation/acceptance](client-update-20261014.md).
+
+## Vendor .118/.73 installed; same batch continuing - October 14
+
+Start shared work from refreshed main `ef02070f`. Continue this unfinished vendor
+lane in `codex/vendor-rolling-20261013`, implementation through `60d432de`,
+draft PR #174 to main. Graphics-preserving release
+`2c0e2baf3e0907107e425cdb6cba7117bb3c6eed` on
+`codex/vendor-release-20261013` is qualified and installed as host .118 with
+unchanged native .73/assets source `8c12dd4b`. Neither lane is merged.
+Both worktrees remain active; the normal checkout stays clean on main.
+
+The host switch verifies 503 modules and 10,106 retained records while preserving
+the running game. Normal manager Resume continues the original definitively
+admitted batch from contiguous passive evidence, with no Create/funding replay.
+At 19:28 UTC, 66 generated / 61 inventory-confirmed items remain in progress
+against a seventy-item reservation. Active next: terminal completion accounting;
+then Tier 1-2 exclusions retaining unknowns and town scheduling. Guard work is
+outside scope. Old .117 is only a live recorder dependency, pending retirement
+when that dependency ends. See [workflow/todos](vendor-rolling.md) and
+[installed evidence](client-update-20261014.md).
+
+## Vendor .117/.73 installed; acceptance remains unfinished - October 14
+
+Shared development starts from main `ef02070f`. Continue vendor acceptance in
+`codex/vendor-rolling-20261013`, whose implementation through
+`c1ed04439ac26283dcda943da2aae13c94a7b9b4` is published in draft PR #174 to main.
+Graphics-preserving release `8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f` on
+`codex/vendor-release-20261013` contains the vendor changes and is qualified and
+installed as host .117/native .73. Neither this source nor the graphics composition
+is integrated by the installation. Both worktrees remain active; the normal
+checkout stays clean on main.
+
+The exact client/DLL, healthy manager/worker, 502 modules and 10,051 retained
+records are verified. The unused .116 runtime and obsolete DLL/wheel are retired;
+review journals and diagnostic captures are preserved. Next: Treehugger login
+and movement, live completed-result collection and quantity completion, then
+affix filtering and town scheduling. Guards are outside scope. See
+[current workflow and todos](vendor-rolling.md) and
+[installation evidence](client-update-20261014.md).
+
 ## Terminal vendor accounting and preflight collection - October 14
 
 Continue vendor work on `codex/vendor-rolling-20261013`, draft PR #174 to main.

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.73 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.74 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -43,6 +43,7 @@ add_library(
   vendor_production_responses.cpp
   vendor_menu_native.cpp
   vendor_native.cpp
+  vendor_recycle_native.cpp
   guard_upgrade_native.cpp
   guard_funding_native.cpp
   city_window_native.cpp
@@ -1208,6 +1209,21 @@ if(BUILD_TESTING)
   target_compile_definitions(wonderbane_extension_vendor_native_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
   target_compile_options(wonderbane_extension_vendor_native_test PRIVATE /W4 /WX /permissive- /utf-8)
   add_test(NAME wonderbane_extension_vendor_native COMMAND wonderbane_extension_vendor_native_test)
+  add_executable(wonderbane_extension_vendor_recycle_native_test vendor_recycle_native_test.cpp vendor_native.cpp)
+  target_compile_features(wonderbane_extension_vendor_recycle_native_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_vendor_recycle_native_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_vendor_recycle_native_test PRIVATE /W4 /WX /permissive- /utf-8)
+  target_link_libraries(wonderbane_extension_vendor_recycle_native_test PRIVATE bcrypt)
+  add_test(NAME wonderbane_extension_vendor_recycle_native COMMAND wonderbane_extension_vendor_recycle_native_test)
+  set(WONDERBANE_VENDOR_RECYCLE_CLIENT "" CACHE FILEPATH "Private exact .19 prepared client for recycle ABI checks")
+  if(WONDERBANE_VENDOR_RECYCLE_CLIENT)
+    add_test(NAME wonderbane_extension_vendor_recycle_client COMMAND wonderbane_extension_vendor_recycle_native_test "${WONDERBANE_VENDOR_RECYCLE_CLIENT}")
+  endif()
+  add_executable(wonderbane_extension_vendor_recycle_evidence_test vendor_recycle_evidence_test.cpp)
+  target_compile_features(wonderbane_extension_vendor_recycle_evidence_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_vendor_recycle_evidence_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_vendor_recycle_evidence_test PRIVATE /W4 /WX /permissive- /utf-8)
+  add_test(NAME wonderbane_extension_vendor_recycle_evidence COMMAND wonderbane_extension_vendor_recycle_evidence_test)
 endif()
 
 if(BUILD_TESTING)

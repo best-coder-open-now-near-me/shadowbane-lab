@@ -8,7 +8,16 @@ from dataclasses import dataclass
 
 from . import action_channel as channel
 from .movement_wire import Host
-from .vendor_wire import UNRESOLVED, Command, NativeOrderBudget, Outcome, Receipt, Snapshot, Verb
+from .vendor_wire import (
+    UNRESOLVED,
+    Command,
+    NativeOrderBudget,
+    NativeRecycleBatch,
+    Outcome,
+    Receipt,
+    Snapshot,
+    Verb,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,6 +57,7 @@ class NativeVendorSession:
         self, verb: Verb, request_key: str, expected: Snapshot | None = None, item: int = 0,
         *, batch_key: str | None = None,
         order_budget: NativeOrderBudget | None = None,
+        recycle_batch: NativeRecycleBatch | None = None,
     ) -> Receipt:
         if self._closed:
             raise channel.NativeActionChannelUnavailable("vendor session is closed")
@@ -57,17 +67,20 @@ class NativeVendorSession:
             process.process_id, transport.host_lease_generation, process.creation_filetime_utc
         )
         command = Command(host, self.window, request_key, expected or Snapshot(), item,
-                          batch_key, order_budget)
+                          batch_key, order_budget, recycle_batch)
         result = transport.submit(
             NativeVendorCommand(next(self._ids), verb, command), timeout_ms=750
         )
         orders = verb in (Verb.INSPECT_ORDERS, Verb.CREATE_ORDERS)
+        recycling = verb in (Verb.INSPECT_RECYCLE, Verb.RECYCLE)
         expected_detail = ("native_vendor_orders_receipt_v2" if orders
+                           else "native_vendor_recycle_receipt_v1" if recycling
                            else "native_vendor_receipt_v1")
         if result.detail != expected_detail:
             error = (
                 _RetryableInspectionError
-                if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM, Verb.INSPECT_ORDERS)
+                if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM, Verb.INSPECT_ORDERS,
+                            Verb.INSPECT_RECYCLE)
                 and result.stage == channel.NativeActionResultStage.FAILED
                 and result.error_code == 13
                 and result.detail == "invalid_or_expired_vendor_lease"
@@ -78,7 +91,8 @@ class NativeVendorSession:
                 f"(stage={result.stage.name}, error={result.error_code})"
             )
         receipt = Receipt.decode(result.movement_payload)
-        if (receipt.remaining_counts is not None) != orders:
+        if ((receipt.remaining_counts is not None) != orders
+                or (receipt.recycle_completion is not None) != recycling):
             raise channel.NativeActionChannelError("vendor receipt profile mismatch")
         if (
             receipt.host != host or receipt.window != self.window
@@ -114,6 +128,13 @@ class NativeVendorSession:
     def inspect_orders(self) -> Receipt:
         """Read raw per-slot order counts; this grants no quantity-ten dispatch."""
         return self._inspect(Verb.INSPECT_ORDERS)
+
+    def inspect_recycle(self) -> Receipt:
+        return self._inspect(Verb.INSPECT_RECYCLE)
+
+    def recycle(self, expected: Snapshot, request_key: str, batch: NativeRecycleBatch) -> Receipt:
+        return self._submit(Verb.RECYCLE, request_key, expected, len(batch.items),
+                            recycle_batch=batch)
 
     def create_orders(self, expected: Snapshot, request_key: str, *, batch_key: str,
                       budget: NativeOrderBudget) -> Receipt:

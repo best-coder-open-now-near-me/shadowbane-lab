@@ -1,6 +1,174 @@
 # Official client alignment for vendor rolling - October 14
 
-## Current installed host and automatic batch observations
+## Current installed .119/.73; quantity batch accepted
+
+Graphics-preserving release `93ba59d20146dfe34936ddf0f290167640f9c445` is
+pushed and installed as host .119 with unchanged native .73/assets source
+`8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f`. Implementation
+`9480d1d0b343ea7bbe8e7a1aa6138a77e6435ceb` passes all 15 hosted checks and
+remains in draft PR #174 to main. Installation does not merge either lane.
+
+All 6,868 host tests pass with 46 optional environment skips. The additional
+skip relative to the earlier run is a Tk display check; both actual IPC profiles
+and all seven startup handshakes pass. All 253 private qualification/installer
+checks pass with one optional symlink-privilege skip. Exact identities:
+
+- Wheel: `c540be4921098cec27935aced8935b30270588da85c95eef59a861b035915dc1`.
+- Qualification: `1111ff57c29a5e751bfba77d5dbcdd93e97d51e2c1a18e24109880f3229056c2`.
+- Source archive: `2b500d24108cb2e32a71a4aa248ed7a5b0dd6a7feabb0fc6cd201edfc1155788`.
+- Host-only plan: `f9693bb8fdbf33d806220ef06de56053a7dcc7041dce7b5b663ce4a06e07844c`.
+- Unchanged native DLL: `29afff77054c03aabcb696764aada5fed3003805c130b6e17b21398c8d3d7efa`.
+
+Apply and activation verify 503 modules and 10,115 retained records with zero
+exclusions. Synchronization markers are hashed under owned read locks. The exact
+reviewed client-written DoubleFusion state is preserved in place with prior and
+current hashes recorded; engine-log history is append-verified. Settings and
+journals are byte-preserved during activation. The game remains PID 6936 /
+creation 134364730542458483, HWND 1049474. Manager 5728 / creation
+134364811362378521 and worker 2444 / creation 134364811387327725 are healthy.
+
+Normal manager continuation reconciled the first terminal Keep's original native
+transition, sent only four remaining Keeps, and completed the same accepted
+batch. The independent owned-inventory proof verifies all 66 generated items,
+seven empty rows and 240 displayed inventory items. The seventy-item reservation
+ended four short, with 10,956 gold spent and 205,328 remaining. Its cause is
+unproved. One original Create, five distinct batch Keeps and unchanged funding
+are evidenced by 657 contiguous records; no replay occurred.
+
+After terminal proof, the exact read-only recorder was stopped and its trace
+preserved unchanged. The verified unused .117/.118 guest interpreters (99,117,425
+bytes), obsolete host wheels and spent staging copies are retired. Obsolete local
+.118 build/runtime copies are also removed after exact source/archive verification.
+Current native fixtures, settings, jobs, captures and all compact version/hash
+receipts remain. No rollback copy is retained. Private evidence is under
+`artifacts/h119` and the VM's vendor diagnostics directory.
+
+Next: current-image affix exclusions retaining unknowns, then town scheduling.
+No disposal is enabled; guard work remains outside scope.
+
+## Current installed .118/.73 host-only inventory continuation
+
+Installed host source is `2c0e2baf3e0907107e425cdb6cba7117bb3c6eed` on
+`codex/vendor-release-20261013`; the unchanged native/assets source remains
+`8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f`. Implementation through
+`60d432de` is published on `codex/vendor-rolling-20261013`, draft PR #174 to
+main. Neither branch is merged. This deployment writes no client files and
+requires no game restart. The same game 6936 / creation 134364730542458483,
+window 1049474 and exact .73 DLL remain live.
+
+Qualification passes 6,862 host tests with 45 optional skips, both actual native
+IPC profiles and seven Windows startup handshakes. All 243 private deployment
+checks pass with one optional symlink-privilege skip. The wheel SHA-256 is
+`f3859c60b42a8f5b48b0a4093c3f473324c843bd228cf467d4c51110dae87514`;
+qualification receipt SHA-256 is
+`0be0a778c812c2fb4c3f191422150732853245197ce993573efa5f541a898aa6`.
+The exact host-only plan SHA-256 is
+`457e2e1643ac8a5679cc425b8a444c5d2e74bb7b915ceff6af8f05590fc3150a`.
+
+Apply and activation verify 503 modules and all 10,106 retained records with
+zero exclusions. Initial finalization diagnostics are preserved: a busy operation
+lock blocked the hash reader, followed by a change to the already-reviewed
+client-written `DoubleFusion/dfts.dat`. A separate tested verifier reads exact
+sealed markers under its own read lock and records both hashes of that one
+488-byte engine-state file without writing it. Engine.Log is append-verified;
+all settings, jobs and history remain byte-preserved. Ten additional tests pass.
+The original sealed deployment payload is unchanged. No fallback copy is made.
+
+Manager 7216 / creation 134364791587264289 and worker 8840 / creation
+134364791615073312 are healthy. The normal manager Resume continues the same
+accepted batch using its complete passive V3 evidence, without another Create,
+funding or collection. At 19:28 UTC it proves 66 generated and 61 inventory
+confirmed against a seventy-item reservation; production remains active.
+The original job deadline and admission are preserved. Old .117 software is
+an active read-only recorder dependency only; retire it when the recorder ends.
+Private qualification and repair diagnostics remain under `artifacts/h118` and
+the VM diagnostics directory. Next: terminal accounting, conservative affix
+filtering and town scheduling. Guard work remains outside scope.
+
+## Current installed .117/.73 automatic quantity correction
+
+Graphics-preserving release `8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f` is
+published on `codex/vendor-release-20261013` and installed. Vendor source through
+`c1ed04439ac26283dcda943da2aae13c94a7b9b4` is published on
+`codex/vendor-rolling-20261013`, targeting main in draft PR #174. Installation
+does not merge either lane. The official .19 executable and client resources
+remain unchanged; only the native DLL and deployment provenance changed.
+
+The candidate passes 6,843 host tests (46 optional skips), both native/IPC
+profiles, exact original/prepared .19 probes, seven Windows startup handshakes
+and 341 bound qualification/installer checks. Independent verification seals
+144 artifacts, 116 steps and 502 modules. The two existing stretch transparency
+findings remain separately recorded; required gates pass.
+
+Fresh census verifies 499 old modules and 9,990 records. An unstable, changing
+dispatch permit stopped the initial apply before active writes. A stopped census
+proves that only this volatile row changed, now denying dispatch; every other
+retained row matches. The same prepared environment was revalidated without
+reinstallation. Apply/activation verify 10,051 retained records with zero
+exclusions and only typed startup/permit transitions during activation.
+
+The same launcher verifies game 6936 / creation 134364730542458483, window
+1049474, exact .73 DLL, healthy worker 7016 and no active or queued operation.
+Login/movement and live quantity acceptance remain pending. Old .116 software,
+its verified DLL/wheel and spent staging copies are retired without rollback
+artifacts; settings, recipes, historical review jobs and captures remain intact.
+Private qualification/installation receipts are under `artifacts/h117`.
+
+Exact native SHA-256:
+`29afff77054c03aabcb696764aada5fed3003805c130b6e17b21398c8d3d7efa`.
+The stopped passive V3 trace has 106 records: twelve starts, eleven automatic
+deposit pairs and one terminal item from one quantity-ten Create. Its twenty-item
+reservation was an upper bound; the shorter server result's cause is unproved.
+No further Create, Keep or funding was sent during the update. Next: live
+collection and terminal inventory accounting, then Tier 1-2 exclusions with
+unknowns retained and town scheduling.
+
+## Earlier installed .116/.72 recorder
+
+Pushed graphics-preserving release `71af337ff41feceb3e63f1ac1334b44ff24b409b`
+on `codex/vendor-release-20261013` is qualified and installed. Its implementation
+through `d3b34ab7f07908c8f609d9d087d815c7bb7ce458` passes all 15 hosted checks
+and remains outside main in draft PR #174. This installs complete copied V3
+observations, including outgoing serialization, independent queue flags, raw
+terminal zero counts, rejection diagnostics and bounded typed-reference lists.
+Quantity admission/progress is not accepted; the legacy count model refuses V3.
+
+Validation passes 6,806 host tests (45 optional skips), 291 full-profile / 287
+diagnostics native tests, both IPC profiles (107 movement / 86 combat / 249 actor
+each), exact original/prepared .19 probes and seven desktop/worker startup cases.
+Independent verification seals 144 artifacts, 116 steps and 499 modules. All
+341 bound verifier/installer checks pass. Existing stretch-only transparency
+findings remain recorded; no required gate was waived.
+
+The manager gracefully closed the idle game after 45 automatic deposits and
+four terminal completions. All 429 trace records were preserved without gaps or
+dropped tickets. An unstable dispatch-permit baseline stopped the first apply
+before any client/runtime write. A fresh stopped census verifies all 9,929
+baseline records, with only the typed revoked-permit content changed. Rebinding
+the same 499-module environment required no reinstall. Final apply and activation
+verify 9,988 retained records, zero exclusions and only typed startup/permit
+changes. Only the DLL was replaced; client executable/resources were not written.
+Settings and the original review journal remain intact without replay.
+
+Vendor Test launched process 3028 / creation 134364608409050346 with exact .72.
+Event capabilities 3, readable V3 mapping and empty command queue are verified;
+initialization remains unpublished at login, without a terminal flag. The passive
+V3 capture is active. Obsolete installed .115 was retired: 2,189 files /
+49,485,503 bytes, without a fallback runtime. Active next: login/movement and
+native readiness, then actual quantity/order and inventory reconciliation.
+
+Exact SHA-256 receipts:
+
+- DLL: `6358fbd128e771f512df55969490019f307b3c7eed28b46e7eaaadd58c24353a`.
+- Wheel: `503ac6b27ce9887de1746914d5e506c3fc17b863b83bb035e843fd6cc0a9d7ba`.
+- Package: `daddbc97a5bdd71ceadf8837d9ee93abee34209c30ff8712a5fed1b5ab1f525c`.
+- Independent verification: `1f3bb131e145129da902acd92aa1b9f00f75bc3a7cebc7cbfc9013a0e48b0e88`.
+- Startup qualification: `4743eacd77c73e0272fa25a803e37fbdd7c80a40e1d14bc149db4515e2a39376`.
+- Final plan: `118458ad926d52bdd972ba7a216ddca80818d656080cd162b90ebceb1921b51e`.
+- Apply: `178dcb04b052c85758eb8f2d5ed4fd19da51189ec032e4c138a674917bc68126`.
+- Activation: `e174106d4149c2ea6139b89120e3a780a4a506e72750f4d3696756accf1809da`.
+
+## Previous .115 host and automatic batch observations
 
 Host .115/native .71 from pushed release
 `c0c464da7992484d06809c1ab70052e739eba03e` is installed. Both host-only updates
