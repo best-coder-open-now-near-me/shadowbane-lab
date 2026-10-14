@@ -645,7 +645,8 @@
             ["Load recipe list", "vendor-recipes", finished && slot.dispatch_enabled],
             ["Roll available slots", "vendor-start", finished && slot.dispatch_enabled && Boolean(slot.vendor_recipes?.saved)],
             ["Pause rolling", "vendor-pause", !finished && !review && vendor.control === "run"],
-            ["Resume rolling", "vendor-resume", !finished && !review && slot.dispatch_enabled],
+            [review ? "Continue recorded batch" : "Resume rolling", "vendor-resume",
+              !finished && (!review || vendor.can_reconcile === true) && slot.dispatch_enabled],
             ["Stop rolling", "vendor-stop", !finished && !review && vendor.control !== "stop"],
           ];
           for (const [label, action, enabled] of choices) {

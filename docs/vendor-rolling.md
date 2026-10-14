@@ -1,5 +1,23 @@
 # Player-owned vendor rolling
 
+## Host-only inventory and review continuation candidate - October 14
+
+Host .118/native .73 is the next candidate. Native/assets bytes remain unchanged;
+this correction needs no game restart or DLL replacement. Review continuation
+requires schema-6 accepted Create evidence, a complete existing progress chain,
+all prior Keep receipts confirmed, exact current native ownership and contiguous
+passive production history. It preserves original deadlines and funding limits.
+The continuation path cannot invoke the funder, collector or another Create.
+Pending actions, missing journals, changed owners and capture gaps remain blocked.
+
+The manager enables Continue recorded batch only after those retained receipts
+validate. Native inventory reads independently verify rooted owner/list/item
+membership while production timers advance. A typed inventory publication race
+waits with no evidence or action. Tests cover the complete manager/worker recovery
+of the same seventy-item batch with exactly one original Create, plus all unsafe
+recovery cases. Final package qualification and live continuation are next;
+installed .117/.73 and its admitted server batch remain unchanged.
+
 ## Live collection/admission passed; inventory reader correction - October 14
 
 Treehugger's fresh .73 session is initialized and bound. Manager discovery verifies

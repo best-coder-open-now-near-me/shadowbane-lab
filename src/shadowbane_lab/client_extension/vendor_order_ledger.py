@@ -19,7 +19,7 @@ LIMIT = 4 * 1024 * 1024
 
 class OrderLedger:
     def __init__(self, path: Path, admission_raw: bytes, character: tuple[int, int],
-                 *, resume=False):
+                 *, resume=False, review=False):
         self.path = Path(path)
         self.progress = OrderProgress(admission_raw, character)
         if self.path.exists():
@@ -30,7 +30,9 @@ class OrderLedger:
                     or self.record["operation"] != "reconcile_quantity_orders"
                     or self.record["admission_sha256"] != hashlib.sha256(admission_raw).hexdigest()
                     or json.dumps(self.record["character"]) != json.dumps(list(character))
-                    or self.record["state"] not in ("running", "stopped", "complete")):
+                    or self.record["state"] not in (
+                        ("running", "stopped", "complete", "review") if review
+                        else ("running", "stopped", "complete"))):
                 raise VendorBatchStopped("invalid or uncertain quantity progress journal")
             seen = set()
             if (type(self.record["requests"]) is not list
