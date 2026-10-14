@@ -272,11 +272,13 @@ class VendorWorkerExecutor:
     def __init__(self, root, node_id, binding, *, session_factory=open_vendor_session,
                  city_session_factory=open_city_session,
                  navigation_session_factory=open_navigation_session, recipe_reader=read_context,
-                 funding_runner=None, collection_runner=collect_saved_vendor_results):
+                 funding_runner=None, collection_runner=collect_saved_vendor_results,
+                 exclusion_reader=None):
         from .vendor_funding import fund_saved_vendor
 
         self.funding_runner = funding_runner or fund_saved_vendor
         self.collection_runner = collection_runner
+        self.exclusion_reader = exclusion_reader
         self.node_id = node_id
         self.recipe_reader = recipe_reader
         self.city_session_factory = city_session_factory
@@ -425,6 +427,13 @@ class VendorWorkerExecutor:
                 selection = VendorRecipeStore(store).current(operation.command.split()[2])
                 selection = require_saved_owner(
                     selection, binding, session, reader=self.recipe_reader)
+                # Prove disposal-profile support before collection or any gold
+                # movement, so an old DLL cannot start half the new workflow.
+                supported = session.inspect_recycle()
+                if (supported.outcome != Outcome.OBSERVED
+                        or supported.window != binding.game_window_handle
+                        or supported.flags & 6 or supported.recycle_completion is None):
+                    raise VendorBatchStopped("native batch recycling support is not ready")
                 self.collection_runner(store, binding, operation, session, selection,
                                        cancelled=stop_signal.is_set, reader=self.recipe_reader)
                 selection = require_saved_owner(
@@ -443,7 +452,7 @@ class VendorWorkerExecutor:
                 selection = dict(selection, batch_budget=funded["batch_budget"],
                                  batch_budget_sha256=funded["batch_budget_sha256"],
                                  order_spec=order.as_dict(), order_sha256=order.canonical_digest)
-            elif resume and current.get("schema_version") in (2, 3, 4):
+            elif resume and current.get("schema_version") in (2, 3, 4, 5):
                 from shadowbane_lab.client_extension.vendor_wire import Snapshot
 
                 initial = Snapshot.decode(bytes.fromhex(current["initial_snapshot"]))
@@ -458,6 +467,8 @@ class VendorWorkerExecutor:
                 resume=resume,
                 **({"selection": selection} if selection is not None else {}),
                 cancelled=stop_signal.is_set,
+                enable_exclusions=True,
+                exclusion_reader=self.exclusion_reader,
             )
             require_vendor_handoff_idle(store, session, record)
         finally:

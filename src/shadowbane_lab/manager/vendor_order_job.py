@@ -112,7 +112,7 @@ def require_order_handoff_idle(store, session, record):
 
 def run_order_job(store, session, record, *, cancelled=lambda: False, clock=time.time,
                   sleeper=time.sleep, reader_factory=production_reader,
-                  inventory_reader=inventory_presence):
+                  inventory_reader=inventory_presence, exclusion_reader=None):
     """Caller owns execution.lock. Never replay partial Create/menu/Keep evidence."""
     directory = store.directory(record["job_id"])
     create_path, progress_path = directory / "create.json", directory / "order-progress.json"
@@ -254,6 +254,20 @@ def run_order_job(store, session, record, *, cancelled=lambda: False, clock=time
             if p.complete:
                 ledger.record["state"] = "complete"
                 ledger.save()
+                if record["schema_version"] == 5:
+                    from .vendor_recycling import finish_exclusions
+                    record["phase"] = "recycling"
+                    update("inventory", "Batch collected. Checking affixes; unknowns stay kept.")
+                    result = finish_exclusions(
+                        store, session, record, sorted(p.inventory_confirmed),
+                        cancelled=stopped, clock=clock, sleeper=sleeper, update=update,
+                        **({"observation_reader": exclusion_reader}
+                           if exclusion_reader is not None else {}))
+                    record["excluded"] = len(result["recycled"])
+                    update(result["state"], f"Batch finished: {len(p.items)} items collected; "
+                           f"{record['excluded']} recycled, {len(result['retained'])} retained.")
+                    store.save(record)
+                    return record
                 update("complete", f"Server batch finished: {len(p.items)}/{budget.total_items} "
                        "requested items retained in inventory.")
                 return record
@@ -301,7 +315,7 @@ def run_order_job(store, session, record, *, cancelled=lambda: False, clock=time
             ledger.save()
             update("stopped", "Stopped. Existing orders and item receipts remain saved.")
             return record
-        if ledger is not None:
+        if ledger is not None and not ledger.progress.complete:
             ledger.record["state"] = "review"
             ledger.save()
         update("review", str(exc)[:240] or "Quantity job needs review; no replay sent.")

@@ -7,7 +7,12 @@ from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
 from shadowbane_lab.client_extension.vendor_budget import VendorBatchBudget
 from shadowbane_lab.client_extension.vendor_menu_wire import Receipt as MenuReceipt
 from shadowbane_lab.client_extension.vendor_order_ledger import OrderLedger
-from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, Outcome, Slot
+from shadowbane_lab.client_extension.vendor_wire import (
+    IN_FLIGHT,
+    NativeRecycleCompletion,
+    Outcome,
+    Slot,
+)
 from shadowbane_lab.manager.vendor_job import VendorJobStore
 from shadowbane_lab.manager.vendor_order_job import require_order_handoff_idle, run_order_job
 from tests.test_manager_vendor_recipes import Menus as RecipeMenus
@@ -60,6 +65,10 @@ class Session(QueueSession):
 
     def inspect_random(self):
         return self.inspect()
+
+    def inspect_recycle(self):
+        return replace(self.inspect(), transition_item=0, transition_request=None,
+                       recycle_completion=NativeRecycleCompletion(0, 0, 0, 0))
 
     def menu_session(self):
         return Menus(self)
@@ -127,7 +136,7 @@ class Session(QueueSession):
         self.after_sleep()
 
 
-def setup(tmp_path, capacity=2):
+def setup(tmp_path, capacity=2, *, enable_exclusions=False):
     store = VendorJobStore(tmp_path, "node", "client", "instance")
     session = Session(store, capacity)
     budget = VendorBatchBudget.from_snapshot(session.state, {555: 1660})
@@ -138,15 +147,36 @@ def setup(tmp_path, capacity=2):
                      admission_snapshot=session.state.encode().hex(),
                      batch_budget=budget.as_dict(), batch_budget_sha256=budget.canonical_digest,
                      order_spec=SPEC.as_dict(), order_sha256=SPEC.canonical_digest)
-    record = store.begin(session, 1000, 0, selection=selection)
+    record = store.begin(session, 1000, 0, selection=selection,
+                         enable_exclusions=enable_exclusions)
     return store, session, record
 
 
-def run(store, session, record):
+def run(store, session, record, **kwargs):
     return run_order_job(store, session, record, clock=lambda: session.time,
                          sleeper=session.sleep,
                          reader_factory=lambda *args: session.recorder,
-                         inventory_reader=lambda *args: sorted(session.inventory))
+                         inventory_reader=lambda *args: sorted(session.inventory), **kwargs)
+
+
+def test_new_job_exclusion_phase_keeps_unknowns_and_preserves_collection_ledger(tmp_path):
+    from shadowbane_lab.manager.vendor_job import require_vendor_handoff_idle
+    from tests.test_vendor_recycling import unknown_observation
+    store, session, record = setup(tmp_path, enable_exclusions=True)
+    result = run(store, session, record, exclusion_reader=unknown_observation)
+    assert result["schema_version"] == 5 and result["state"] == "complete"
+    assert result["excluded"] == 0 and result["kept"] == 20
+    assert store.read(record["job_id"])["phase"] == "recycling"
+    assert store.summary()["collected"] == store.summary()["kept"] == 20
+    require_vendor_handoff_idle(store, session, result)
+    assert len(session.calls) == 1 and len(session.keeps) == 2
+
+
+def test_old_native_profile_cannot_admit_a_disposal_job(tmp_path, monkeypatch):
+    monkeypatch.setattr(Session, "inspect_recycle", Session.inspect)
+    with pytest.raises(VendorBatchStopped, match="recycling support"):
+        setup(tmp_path, enable_exclusions=True)
+    assert not list(tmp_path.rglob("job.json"))
 
 
 def test_full_seventy_item_job_uses_one_create_and_only_seven_terminal_keeps(tmp_path):

@@ -1,5 +1,31 @@
 # Player-owned vendor rolling
 
+## Durable quantity-batch exclusion workflow source complete - October 14
+
+New saved-recipe worker jobs use schema 5 and prove native Recycle-profile support
+before collection or funding. After the original quantity batch finishes and every
+item reaches inventory, they assess current owned affixes and recycle only this
+job's confirmed Tier 1-2 results. Unknowns and unrelated stock remain protected.
+Historical schemas 1-4 retain their original behavior and cannot adopt disposal.
+The original production ledger, deadline and whole-batch funding remain intact.
+
+The immutable plan binds the original job, character, client lifetime, vendor
+visit and eligible IDs. Each bounded batch has a durable intent before dispatch,
+fresh policy/content revalidation, exact native/server receipts and independent
+inventory corroboration. A native completion that arrives before the host's
+receive drain waits for observation to catch up without replay. Stop reconciles
+already-sent work and releases safely between batches; uncertain intents remain
+blocked. Completion and handback revalidate the retained receipt chain.
+
+The affected workflow slice passes 1,207 host checks with two optional skips.
+After the final Stop addition, all 37 focused job/recycling checks pass. Ruff
+passes. The actual client-byte ABI check and all six affected native suites pass.
+Installed .119/.73 remains unchanged; no automatic disposal has run in the game.
+Completed: source integration of recycling, protections, pause/Stop and receipts.
+Active next: full graphics-preserving package qualification and one installation,
+then live batch acceptance and durable town scheduling. Draft PR #174 remains
+unmerged, and the normal checkout remains clean on main.
+
 ## Actual .19 recycle ABI qualification - October 14
 
 The prepared client's actual getter reads and clones the entry's native ArcItem

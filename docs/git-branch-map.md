@@ -1,5 +1,16 @@
 # Git branch map
 
+## Vendor quantity-batch exclusions integrated in candidate source - October 14
+
+Continue `codex/vendor-rolling-20261013`; its .120/.74 candidate includes the
+actual-client-byte recycle ABI check and durable schema-5 post-production
+exclusions. Draft PR #174 still targets main and remains unmerged. Installed
+graphics-preserving release remains `93ba59d2` (.119/.73); old completed jobs
+cannot gain disposal authority. The task and release worktrees stay active;
+the normal checkout stays clean on main `ef02070f`. Active next: qualify the
+complete graphics-preserving update, install once, verify a live batch, then
+town scheduling. See [current validation and todos](vendor-rolling.md).
+
 ## Vendor batch recycling receipt source - October 14
 
 Continue the vendor lane in `codex/vendor-rolling-20261013`; draft PR #174 targets
