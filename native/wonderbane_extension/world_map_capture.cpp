@@ -1,5 +1,6 @@
 #include "world_map_capture.h"
 #include "world_map_projection.h"
+#include "world_map_client_layout.h"
 
 #include <Windows.h>
 
@@ -15,9 +16,8 @@ namespace wonderbane::extension {
 namespace {
 
 constexpr std::uintptr_t kReviewedImageBase = 0x00400000U;
-constexpr std::uint32_t kReviewedImageSize = 0x01766000U;
+constexpr std::uint32_t kReviewedHeadersSize = 0x1000U;
 constexpr std::uint32_t kReviewedEntryPointRva = 0x008D8C4AU;
-constexpr std::uint16_t kReviewedSectionCount = 6U;
 constexpr std::uint32_t kObjectVtableRva = 0x01170BC8U;
 constexpr std::uint32_t kControlVtableRva = 0x01170B8CU;
 constexpr std::uint32_t kWorldDefinitionPointerRva = 0x016A7C3CU;
@@ -800,7 +800,7 @@ bool IsReviewedWorldMapClient() noexcept {
         dos->e_magic != IMAGE_DOS_SIGNATURE
         || dos->e_lfanew <= 0
         || static_cast<std::uint32_t>(dos->e_lfanew)
-            > kReviewedImageSize - sizeof(IMAGE_NT_HEADERS32)
+            > kReviewedHeadersSize - sizeof(IMAGE_NT_HEADERS32)
     ) {
         return false;
     }
@@ -810,14 +810,23 @@ bool IsReviewedWorldMapClient() noexcept {
     if (
         nt->Signature != IMAGE_NT_SIGNATURE
         || nt->FileHeader.Machine != IMAGE_FILE_MACHINE_I386
-        || nt->FileHeader.NumberOfSections != kReviewedSectionCount
         || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC
         || nt->OptionalHeader.ImageBase != kReviewedImageBase
-        || nt->OptionalHeader.SizeOfImage != kReviewedImageSize
         || nt->OptionalHeader.AddressOfEntryPoint != kReviewedEntryPointRva
     ) {
         return false;
     }
+    IMAGE_SECTION_HEADER added{};
+    movement::NativeMovementImageLayout authenticated{};
+    if (nt->FileHeader.NumberOfSections == 7U) {
+        std::uintptr_t verified = 0;
+        if (nt->FileHeader.SizeOfOptionalHeader != sizeof(IMAGE_OPTIONAL_HEADER32)
+            || !ReadMemory(reinterpret_cast<std::uintptr_t>(IMAGE_FIRST_SECTION(nt) + 6),
+                           &added, sizeof(added))
+            || !movement::VerifyNativeMovementImageLayout(verified, authenticated)
+            || verified != kReviewedImageBase) { return false; }
+    }
+    if (!ReviewedWorldMapLayout(*nt, &added, &authenticated)) { return false; }
     std::uint8_t entry_prefix[5]{};
     if (
         !ReadMemory(

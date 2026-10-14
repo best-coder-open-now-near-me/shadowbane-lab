@@ -31,14 +31,28 @@ sequence zero with no rejection or loss, and its exact worker is healthy with
 an empty operation queue. Treehugger subsequently logged in and moved. Fresh
 discovery `operation-daf94aea982743ed9f75e29de1eca6b8` failed during its three
 read-only city inspections, before any OPEN, funding or crafting request.
-Its review record is preserved. Inspection found `IsReviewedWorldMapClient`
-still requires six sections and SizeOfImage `0x1766000`; this disables the
-world-map capture thread that pumps native requests on the seven-section client.
-The related movement-lifetime import lookup also passes the old exact image
-size to a helper that requires equality. Passing image/hash probes and a readable
-V2 mapping did not verify these startup consumers. Active next: correct both
-boundaries and add production-path regression coverage in .113/.71, qualify the
-release, then resume discovery and the full quantity-ten inventory chain.
+Its review record is preserved. Late-reply inspection proves the IPC worker
+processed all three requests and returned expired client inspections; there is
+no unconsumed OPEN to replay. The command worker itself is running. The lifetime
+initializer passes former SizeOfImage `0x1766000` to an import reader requiring
+exact header equality. That fails initialization, retires the movement runtime
+and leaves vendor requests without their game-side update callback. Separately,
+`IsReviewedWorldMapClient` still requires six sections and disables map capture.
+Passing image/hash probes and a readable V2 mapping did not cover these startup
+consumers.
+
+Source .113/.71 now publishes the authenticated file's image size and section
+count only after matching the loaded PE header and all existing code proofs.
+Lifetime import binding uses that size. The world-map gate accepts the exact
+seven-section shape only with that authenticated proof and the exact read-only
+`.wbfp` header. Legacy layouts retain their earlier admission. Unknown images,
+altered headers and other section shapes remain rejected. Forty-four native
+layout/lifetime cases and the actual original/prepared movement probe pass. The
+real-image probe exercises both startup-layout admission and the free import
+binding, proves the former constant fails on .19 and rejects loaded-header drift
+with all proof outputs cleared. The new layout test is a mandatory package gate.
+Active next: qualify/install .113/.71, then resume fresh discovery and the complete
+quantity-ten inventory chain. Installed software remains .112/.70 for now.
 
 Exact SHA-256 receipts:
 
