@@ -1,5 +1,21 @@
 # Player-owned vendor rolling
 
+## In-world startup verified; queue reconciliation correction - October 14
+
+Treehugger's .113/.71 session proves initialized, bound, nonterminal native
+status (flags 151). Fresh discovery verified 25 vendor windows across 13 nearby
+buildings, and native navigation/catalog selection returned Malik's Gilded
+Scepter. The quantity-ten funding preflight stopped before any gold transfer or
+Create: UI controls enumerate the same seven queue entries in a different order
+from the native snapshot. One prior completed item remains untouched.
+
+Host .114 reconciles entry address, item identity and state independently of
+presentation order before and after funding. Duplicate, missing, additional or
+changed entries still stop the batch. The 78 focused funding/budget checks pass.
+Next: qualify and install this host-only correction with native .71 and the game
+session preserved, then one whole funded batch and inventory acceptance. No
+quantity-ten Create has been sent in this session.
+
 ## Native startup correction installed - October 14
 
 Qualified release `11133fcf9a12eeb84089b94068e6f6b90f9c99b6` is installed as

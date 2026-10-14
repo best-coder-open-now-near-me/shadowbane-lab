@@ -105,7 +105,9 @@ def setup(tmp_path, monkeypatch):
             building={"object_id": 123},
             vendor={"object_id": 888},
             recipe_resource_costs={"555": {"label": "Gold", "amount": 166}},
-            slots=[{"item": {"object_id": 0}, "state": "empty"}] * len(parent.snapshot.slots),
+            slots=[{"entry_address": slot.entry, "item": {"object_id": slot.item},
+                    "state": ("empty", "cooking", "complete")[slot.state]}
+                   for slot in parent.snapshot.slots],
         ), {555: 166}
 
     tick = [0]
@@ -185,6 +187,67 @@ def test_quantity_ten_funds_all_seventy_items_with_one_withdrawal_and_deposit(se
     assert setup.world.calls.count("withdraw") == setup.world.calls.count("deposit") == 1
     assert (result["withdrawn"], result["deposited"]) == (11590, 11610)
     assert setup.world.funds == 11620
+
+
+@pytest.mark.parametrize("quantity", [1, 10])
+def test_funding_matches_occupied_and_empty_entries_across_ui_reordering(
+    setup, monkeypatch, quantity
+):
+    setup.world.gold = 10000
+    setup.parent.snapshot = replace(setup.parent.snapshot, slots=(
+        vendor.Slot(1100), vendor.Slot(1200, 4321, 2), vendor.Slot(1300)))
+    order = None
+    if quantity == 10:
+        order = RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True)
+        monkeypatch.setattr(module, "ensure_order_observer", lambda _: None)
+        def prepare(*args, **kwargs):
+            setup.parent.snapshot = replace(setup.parent.snapshot, quantity=10, multiple=1)
+        monkeypatch.setattr(module, "prepare_order", prepare)
+        setup.parent.inspect_orders = lambda: replace(
+            setup.parent.inspect_random(), remaining_counts=(1, 1, 1))
+    def costs(binding):
+        queue, _ = setup.reader(binding)
+        # The occupied control leads the first traversal; the second traversal
+        # has yet another order after navigating back from the gold transfer.
+        rows = queue["slots"]
+        queue["slots"] = ([rows[1], rows[2], rows[0]] if len(setup.calls) == 1
+                          else list(reversed(rows)))
+        queue["recipe_resource_costs"]["555"]["amount"] = 166 * quantity
+        return queue, {555: 166 * quantity}
+    result = setup.run(order=order, cost_reader=costs)
+    assert result["state"] == "funded" and result["free_slots"] == 2
+    assert result["required"] == 332 * quantity
+    assert setup.world.calls.count("withdraw") == setup.world.calls.count("deposit") == 1
+
+
+@pytest.mark.parametrize("after_transfer", [False, True])
+@pytest.mark.parametrize("change", ["entry", "item", "state", "duplicate", "missing", "extra"])
+def test_entry_reconciliation_rejects_real_queue_changes(setup, change, after_transfer):
+    setup.parent.snapshot = replace(setup.parent.snapshot, slots=(
+        vendor.Slot(1100), vendor.Slot(1200, 4321, 2), vendor.Slot(1300)))
+    def costs(binding):
+        queue, cost = setup.reader(binding)
+        if after_transfer != (len(setup.calls) > 1):
+            return queue, cost
+        rows = queue["slots"]
+        if change == "entry":
+            rows[0]["entry_address"] = 9999
+        elif change == "item":
+            rows[1]["item"]["object_id"] = 4322
+        elif change == "state":
+            rows[1]["state"] = "cooking"
+        elif change == "duplicate":
+            rows[0]["entry_address"] = rows[2]["entry_address"]
+        elif change == "missing":
+            rows.pop()
+        else:
+            rows.append({"entry_address": 1400, "item": {"object_id": 0}, "state": "empty"})
+        return queue, cost
+    with pytest.raises(VendorBatchStopped, match="changed|identities"):
+        setup.run(cost_reader=costs)
+    assert json.loads(setup.path.read_text())["state"] == "review"
+    assert setup.world.calls.count("deposit") == int(after_transfer)
+    assert setup.world.calls.count("withdraw") == int(after_transfer)
 
 
 def test_missing_production_observer_stops_before_gold_or_menu_actions(setup, monkeypatch):
@@ -282,7 +345,8 @@ def test_unqualified_material_is_never_treated_as_gold(setup):
             building={"object_id": 123},
             vendor={"object_id": 888},
             recipe_resource_costs={"555": {"label": "Gold", "amount": 166}},
-            slots=[{"item": {"object_id": 0}, "state": "empty"}] * 2,
+            slots=[{"entry_address": entry, "item": {"object_id": 0}, "state": "empty"}
+                   for entry in (1100, 1200)],
         )
         return queue, {555: 166, 777: 20}
 
@@ -331,7 +395,8 @@ def test_cost_change_after_transfer_stops_before_crafting(setup):
             vendor={"object_id": 888},
             recipe_resource_costs={"555": {"label": "Gold", "amount":
                                           166 if len(setup.calls) == 1 else 200}},
-            slots=[{"item": {"object_id": 0}, "state": "empty"}] * 2,
+            slots=[{"entry_address": entry, "item": {"object_id": 0}, "state": "empty"}
+                   for entry in (1100, 1200)],
         ), {555: 166 if len(setup.calls) == 1 else 200}
 
     with pytest.raises(VendorBatchStopped, match="changed during funding"):
