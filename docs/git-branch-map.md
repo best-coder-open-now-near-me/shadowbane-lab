@@ -1,5 +1,18 @@
 # Git branch map
 
+## Vendor batch observation correction - October 14
+
+Shared development starts from refreshed main `ef02070f`. Continue vendor work
+in `codex/vendor-rolling-20261013`; compose qualified runtime source in
+`codex/vendor-release-20261013` so its installed graphics source is retained.
+Draft PR #174 targets main and must remain unmerged. Installed software is
+.120/.74 from release `1a2a638b`; host-only .121 is in qualification. The live
+seven-slot quantity-ten batch is in review after a queue/inventory sampling race.
+Its one Create, whole-batch budget and original deadline remain authoritative.
+Next: qualified host-only update and passive-evidence recovery of that same job,
+then automatic recycling acceptance and town scheduling. Guards are outside
+scope. See [the current evidence](vendor-rolling.md).
+
 ## Vendor .120/.74 installed; new batch acceptance next - October 14
 
 Continue `codex/vendor-rolling-20261013` for focused source and live acceptance;

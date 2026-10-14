@@ -1,5 +1,32 @@
 # Player-owned vendor rolling
 
+## Coherent production/inventory sampling - October 14
+
+Host .121 fences each external inventory read with native queue observations
+and a production-reply drain. If the queue, remaining counts or reply sequence
+changes, or a callback is still pending, it discards the observation pair and
+retries reads only. A stable production/inventory identity conflict still stops
+the job. Native .74 is unchanged; this correction needs no game restart.
+
+The live .120/.74 seven-slot quantity-ten batch has one positively confirmed
+Create and a whole-batch budget of 11,620 gold. It entered review at 20 generated
+items and 14 inventory confirmations because an automatic deposit completed
+during the inventory read, while its earlier queue snapshot still displayed the
+same item cooking. Independent replay validates the causal server history. A
+bounded passive reader retains the continuing history without sending commands.
+
+Production review recovery now accepts schema 5 only in its original waiting
+phase, before production is complete and before any recycling directory or
+intent exists. The exact policy, zero exclusions, original admission, owner,
+deadline and complete causal capture remain required. It cannot replay Create,
+move funding or reconcile a recycling action. Schema-4 behavior stays intact.
+
+The affected order, review, recycling, manager-control and job suites pass 112
+checks; Ruff passes. Active: qualify and install the host-only correction, then
+resume this same admitted batch using retained evidence. Automatic recycling
+acceptance and durable town scheduling remain next. Draft PR #174 targets main
+and must remain unmerged; the canonical checkout stays on main.
+
 ## .120/.74 installed and Vendor Test relaunched - October 14
 
 The qualified graphics-preserving release

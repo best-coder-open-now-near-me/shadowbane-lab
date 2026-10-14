@@ -264,7 +264,8 @@ class VendorJobStore:
             current = self.current()
             if current is None or current["job_id"] != job_id:
                 raise VendorBatchStopped("vendor job changed; refresh its controls")
-            if current["state"] == "review" and current["schema_version"] == 4 and mode == "run":
+            if (current["state"] == "review" and current["schema_version"] in (4, 5)
+                    and mode == "run"):
                 from .vendor_review_recovery import review_job_ready
 
                 review_job_ready(self, current)
@@ -400,7 +401,8 @@ def run_vendor_job(
         record = (store.current() if resume
                   else store.begin(session, window, clock(), selection=selection,
                                    enable_exclusions=enable_exclusions))
-        if resume and record and record["state"] == "review" and record["schema_version"] == 4:
+        if (resume and record and record["state"] == "review"
+                and record["schema_version"] in (4, 5)):
             from .vendor_review_recovery import resume_review
 
             resume_review(store, session, record)
