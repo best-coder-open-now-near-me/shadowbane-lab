@@ -1,5 +1,51 @@
 # Git branch map
 
+## Automatic vendor batch source correction - October 14
+
+Continue the unfinished vendor workflow in `codex/vendor-rolling-20261013`.
+Published implementation `e9befe0b170abc38a280cd71f577142d483ab213` includes
+native causal admission, global duplicate-batch fencing and host automatic
+item/deposit reconciliation. Its fixed source passes 6,726 host tests (45 optional
+skips), the required native gate and all three private original/prepared image
+probes. Compiled native admission also verifies the seven exact private live
+records and rejects a changed outgoing quantity. The two historical transparency
+stretch diagnostics remain separately recorded; they are outside vendor changes.
+
+Host .117/native .73 is the next candidate, not the installed runtime. Compose
+it into the existing graphics-preserving `codex/vendor-release-20261013` lane
+before package qualification. Installed .116/.72 still owns the running passive
+capture. Do not retire that host, interrupt the capture or replay either review
+job. Actual server batch size/terminal inventory remains under observation.
+
+Shared development starts from refreshed main `ef02070f`; draft vendor PR #174
+targets main and remains unmerged. Both vendor worktrees remain active. Next:
+complete batch evidence and qualify the combined candidate, then inventory
+filtering and town scheduling. See [workflow and todos](vendor-rolling.md).
+
+## V3 vendor observations installed - October 14
+
+Shared development still starts from refreshed main at
+`ef02070f3fccbb0636da8c313737fd19814a88a6`. Vendor implementation through
+`d3b34ab7f07908c8f609d9d087d815c7bb7ce458` is pushed on
+`codex/vendor-rolling-20261013`, with all 15 hosted checks passing at that head.
+Draft PR #174 targets main; neither current vendor source nor the graphics
+composition is integrated by this installation.
+
+Graphics-preserving release `71af337ff41feceb3e63f1ac1334b44ff24b409b` is pushed
+on `codex/vendor-release-20261013` and qualified/installed as .116/.72. Both
+native/IPC profiles, exact .19 probes, seven Windows handshakes and 341 bound
+installer/verifier checks pass; activation verifies 499 modules and 9,988
+retained records, with zero exclusions. The same Vendor Test launcher loads
+the exact DLL and V3 recorder. Old .115 is retired; preserve the active .116
+passive recorder and both task worktrees through live acceptance.
+
+Next: Treehugger login/movement and initialized, nonterminal bindings, then
+verified automatic quantity capacity/admission/completion before inventory
+filtering and town scheduling. The earlier 49-item batch and review journal are
+preserved without replay. Quantity automation remains unaccepted. Main is clean;
+continue the unfinished work in the vendor worktree. See
+[workflow and todos](vendor-rolling.md) and [installation receipts](client-update-20261014.md).
+
 ## Vendor automatic quantity workflow investigation - October 14
 
 Start shared development from refreshed `main` at `ef02070f3fccbb0636da8c313737fd19814a88a6`.
