@@ -13,29 +13,38 @@ Treehugger's single quantity-ten Create reached Malik in the Feudal Magic Shop.
 The funding reservation was 60 items / 9,960 gold against 226,410 already in
 the building; no withdrawal or deposit occurred. The visible seven-row queue
 started five new cooking items beside the prior completed item and one empty
-row. At least 35 new items subsequently started, with successive groups moving
-to inventory through correlated removal/deposit replies. The user confirmed
+row. The terminal observation shows 49 new items: 45 moved to inventory through
+correlated removal/deposit replies and four remain completed in production.
+The shop holds 218,276 gold, an 8,134 charge matching 49 starts at 166 gold.
+The earlier completed item remains untouched. The user confirmed
 using Create Multiple Items and making no manual Create or Keep actions.
 The manager sent exactly one Create, then stopped in review when V2 rejected
 the cooking replies. Never replay that job or infer usable capacity from the
 remaining empty row. The original reservation is an upper bound, not proof of
 60 accepted rolls.
 
-The exact .19 client decoder and queue handler establish that message +0xdc
-is the displayed stack count; +0xe0 suppresses an existing queue update and
+The exact .19 client decoder and queue handler copy message +0xdc into the
+queue row's count field; +0xe0 suppresses an existing queue update and
 +0xe1 is its completion byte. Normal cooking uses 0/0. V2 incorrectly enforced
 opposite flags and discarded those bodies. Quantity admission/progress also
-incorrectly treated stack count as the remaining roll quota; that architecture
+incorrectly treated this count as the remaining roll quota; that architecture
 is not qualified for this automatic server workflow.
 
+Final live completion reports count zero after count one persisted through
+many automatic cycles. It cannot safely be labeled a stack or remaining quota.
+Preserve the full raw word, including zero, without deriving future production
+from it. This final observation invalidated the candidate's first positive-count
+assumption before installation; the complete package is being rebuilt and
+qualified from the corrected source. No extra game restart occurred.
+
 Candidate .116/.72 introduces V3 copied send/receive observations: separate
-stack/quantity fields, independent queue flags, rejected-body reason codes,
+raw queue-count/quantity fields, independent queue flags, rejected-body reason codes,
 bounded typed-reference vectors, and a serialization stage which grants no
 receive lineage or server acceptance. Its native fixture is generated from the
-compiled test. Legacy quantity progress explicitly refuses V3 stack evidence.
+compiled test. Legacy quantity progress explicitly refuses V3 queue-count evidence.
 This candidate is not installed and quantity automation is not accepted.
 
-Active next: finish preserving the current server batch, qualify the complete
+Active next: preserve the terminal batch evidence, qualify the complete
 recorder package, then use its outgoing quantity and incoming order/deposit
 evidence to implement actual capacity and completion reconciliation before any
 further automatic Create. The passive .115 recorder remains an active runtime

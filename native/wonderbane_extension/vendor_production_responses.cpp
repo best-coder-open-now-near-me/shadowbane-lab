@@ -77,7 +77,7 @@ bool Snapshot(void* message, Payload& out) noexcept {
             || !Word(p + 0xc8, out.item_template)
             || !Word(p + 0xcc, out.template_type) || !Word(p + 0xd0, out.value)
             || !Word(p + 0xd4, out.seconds) || !Word(p + 0xd8, out.duration)
-            || !Word(p + 0xdc, out.stack_count)
+            || !Word(p + 0xdc, out.queue_count_raw)
             || !Word(p + 0xe0, out.queue_flags_raw)) { return reject(7); }
         out.queue_ignored = out.queue_flags_raw & 255;
         out.complete = (out.queue_flags_raw >> 8) & 255;
@@ -85,7 +85,6 @@ bool Snapshot(void* message, Payload& out) noexcept {
         // becomes the queue row's completion byte. Normal cooking is 0/0.
         if (!out.item[0] || out.item[1] != 40) { return reject(8); }
         if (!out.item_template || out.template_type) { return reject(9); }
-        if (!out.stack_count || out.stack_count > 255) { return reject(10); }
         if (out.queue_ignored > 1 || out.complete > 1) { return reject(11); }
     }
     if (out.action == 10 && !out.error) {

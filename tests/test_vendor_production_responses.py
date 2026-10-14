@@ -40,7 +40,7 @@ class Memory:
         return bytes(self.data)
 
 
-def test_cpp_layout_keeps_stack_separate_from_requested_quantity():
+def test_cpp_layout_keeps_queue_count_separate_from_requested_quantity():
     prefix = bytes.fromhex((Path(__file__).parent / "fixtures" /
                             "native_vendor_production_v3.hex").read_text().strip())
     assert len(prefix) == HEADER.size + 3 * RECORD_SIZE
@@ -49,7 +49,7 @@ def test_cpp_layout_keeps_stack_separate_from_requested_quantity():
     assert received["stage"] == "returned" and received["flags"] == 7
     assert received["decode_sequence"] == 1 and received["scene_epoch"] == 7
     assert received["payload"]["item"] == (4294925624, 40)
-    assert received["payload"]["stack_count_raw"] == 1
+    assert received["payload"]["queue_count_raw"] == 1
     assert received["payload"]["quantity_raw"] == 10
     assert received["payload"]["queue_ignored_raw"] == received["payload"]["complete"] == 0
     assert "remaining_count_raw" not in received["payload"]
@@ -87,7 +87,7 @@ def test_queue_flags_are_independent_and_do_not_invent_a_roll_counter(ignored, c
     struct.pack_into("<II", data, offset + 20 * 4, ignored, complete)
     struct.pack_into("<I", data, offset + 29 * 4, ignored | complete << 8)
     body = parse_snapshot(data, process_id=7, creation=11)["records"][0]["payload"]
-    assert body["stack_count_raw"] == 1 and body["seconds"] == 300
+    assert body["queue_count_raw"] == 1 and body["seconds"] == 300
     assert body["complete"] == complete and body["queue_ignored_raw"] == ignored
 
 
@@ -205,3 +205,16 @@ def test_read_failure_is_preserved_in_saved_cursor(tmp_path):
     memory.data = fixture(6)
     restored = VendorProductionReader(7, 11, memory, resume_cursor=reader.cursor)
     assert restored.drain()["capture_incomplete"]
+
+
+@pytest.mark.parametrize("count", (0, 1, 256, 2**32 - 1))
+def test_queue_count_is_preserved_without_inventing_a_quantity_limit(count):
+    data = fixture(1)
+    offset = HEADER.size + RECORD.size
+    struct.pack_into("<I", data, offset + 16 * 4, count)
+    if count == 0:
+        struct.pack_into("<I", data, offset + 21 * 4, 1)
+        struct.pack_into("<I", data, offset + 29 * 4, 0x100)
+    body = parse_snapshot(data, process_id=7, creation=11)["records"][0]["payload"]
+    assert body["queue_count_raw"] == count
+    assert "remaining_count_raw" not in body

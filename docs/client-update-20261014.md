@@ -15,10 +15,14 @@ One funded quantity-ten Create started native/server automatic production.
 No money moved because the building already held 226,410 gold. The reservation
 was 9,960 gold / 60 items, but only five initial new items appeared; subsequent
 groups automatically deposited and restarted without manager or user Keep.
-The job remains in review because V2 rejected normal 0/0 cooking flags.
+The final observation shows 45 automatic deposits and four completed items,
+49 new starts charged 8,134 gold, and the earlier completed item untouched.
+The job remains in review because V2 rejected normal 0/0 cooking flags and
+the terminal zero count. The meaning of that raw count remains unqualified.
 No second Create or disposal is authorized by that uncertain journal.
 
-Candidate .116/.72 corrects copied payload interpretation and records outgoing
+Candidate .116/.72 preserves the raw count without a guessed quantity limit,
+corrects copied flags and records outgoing
 serialization plus bounded typed-reference lists. It is source work, not an
 installed or accepted quantity workflow. See [the active vendor todo and
 protocol findings](vendor-rolling.md). Original client and current DLL receipts
