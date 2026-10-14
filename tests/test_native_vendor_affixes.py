@@ -10,10 +10,14 @@ from shadowbane_lab.client_observation.native_vendor_dialog import (
 from shadowbane_lab.client_observation.native_vendor_queue import NativeVendorObservationChanged
 from shadowbane_lab.equipment.crafting_assessment import compact_affix_token
 from tests.test_native_vendor_inventory import (
+    CONTROL,
     EFFECT,
+    ENTRY,
+    HUD,
     INSTANCE,
     ITEM,
     ITEM_ID,
+    LIST,
     VECTOR,
     inventory_fixture,
 )
@@ -102,6 +106,30 @@ def test_unknown_prefix_overrides_known_tier_two_suffix(observed, prefix, expect
     row, = read(observed)["items"]
     assert row["assessment"]["disposition"] == expected
     assert row["assessment"]["suffix_tier"] == 2
+
+
+def test_conflicting_labels_for_one_native_parent_protect_every_affected_item(observed):
+    m = observed[0]
+    control, entry, instance, item = (
+        CONTROL + 0x1000, ENTRY + 0x1000, INSTANCE + 0x1000, ITEM + 0x1000)
+    for address, value in ((control, 0x156AEBC), (control + 0x3BC, HUD),
+                           (control + 0x458, LIST), (control + 0x44C, entry),
+                           (entry, 0x15696C8), (entry + 0x20, instance), (entry + 0x24, item),
+                           (instance, 0x154BB68), (item, 0x1542748)):
+        m.put(address, "<I", value)
+    m.put(entry + 0x10, "<II", ITEM_ID + 1, 40)
+    m.put(instance + 0x10, "<IIII", 26990, 0, ITEM_ID + 1, 40)
+    m.put(item + 0x10, "<IIII", 26990, 0, ITEM_ID + 1, 40)
+    m.put(instance + 8, "<BBBB", 0, 1, 0, 0)
+    m.put(instance + 0xB4, "<III", VECTOR + 0x200, VECTOR + 0x208, VECTOR + 0x210)
+    text(m, item + 0xD8, LABEL + 0x2000, "Gilded Scepter of Genius")
+    m.put(VECTOR + 0x104, "<I", control)
+    m.put(LIST + 0x408, "<III", VECTOR + 0x100, VECTOR + 0x108, VECTOR + 0x110)
+    rows = read(observed)["items"]
+    assert len(rows) == 2
+    assert all(row["assessment"]["disposition"] == "keep" for row in rows)
+    assert all(row["assessment"]["suffix_tier"] is None for row in rows)
+    assert all(row["assessment"]["reason"] == "conflicting_parent_labels_preserved" for row in rows)
 
 
 @pytest.mark.parametrize("fault", ["extra_effect", "missing_child", "trained", "source",

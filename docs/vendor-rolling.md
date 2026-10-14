@@ -11,9 +11,10 @@ unsupported action classes and unresolved identities remain KEEP. A known low
 tier paired with an unknown affix remains KEEP. The observer cannot authorize
 recycling, infer stock absence or claim complete inventory capacity.
 
-Fifty-four focused ownership, registry, inventory, reference and policy checks
+Fifty-five focused ownership, registry, inventory, reference and policy checks
 pass, including owner/definition mutation, malformed maps, extra/missing effects,
-unsupported builds/dictionaries and unknown-over-low-tier protection. Ruff passes.
+unsupported builds/dictionaries and unknown-over-low-tier protection. Conflicting
+display labels for one native parent protect every affected item. Ruff passes.
 The passive live check assesses 139 owned Gilded Scepters: 118 have confirmed
 retained tiers and 21 are unknown/protected; none qualify for exclusion. It sends
 zero commands. This source is not installed; .119/.73 and the completed batch

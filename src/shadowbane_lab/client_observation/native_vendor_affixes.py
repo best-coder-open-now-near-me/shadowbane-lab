@@ -174,6 +174,21 @@ def _assess(row, label, parents, names, base_name, reference):
                 prefix=identities["prefix"], suffix=identities["suffix"], command_admitted=False)
 
 
+def _protect_conflicting_labels(items):
+    bindings = {}
+    for row in items:
+        for role in ("prefix", "suffix"):
+            parent = row["assessment"].get(role)
+            if parent:
+                bindings.setdefault((role, parent["identifier"]), set()).add(parent["display_name"])
+    ambiguous = {key for key, labels in bindings.items() if len(labels) != 1}
+    for row in items:
+        if any((role, parent["identifier"]) in ambiguous for role in ("prefix", "suffix")
+               if (parent := row["assessment"].get(role))):
+            row["assessment"].update(disposition="keep", prefix_tier=None, suffix_tier=None,
+                                     reason="conflicting_parent_labels_preserved")
+
+
 def read_native_vendor_affixes(memory, *, building, vendor, effects_dictionary, item_dictionary):
     """Assess displayed owned scepters using current labels, parents and child coverage.
 
@@ -201,6 +216,7 @@ def read_native_vendor_affixes(memory, *, building, vendor, effects_dictionary, 
         assessment = _assess(row, label, definitions, names, base_name, reference)
         items.append(dict(item=row["item"], template=row["template"], display_name=label,
                           effects=row.get("effects"), assessment=assessment))
+    _protect_conflicting_labels(items)
     r.verify()
     return dict(schema_version=1, record_type="owned_vendor_affix_assessment",
                 process_id=memory.pid, process_creation_filetime_utc=lifetime,
