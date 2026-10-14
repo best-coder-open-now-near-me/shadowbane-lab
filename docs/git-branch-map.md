@@ -1,5 +1,25 @@
 # Git branch map
 
+## Vendor .118/.73 installed; same batch continuing - October 14
+
+Start shared work from refreshed main `ef02070f`. Continue this unfinished vendor
+lane in `codex/vendor-rolling-20261013`, implementation through `60d432de`,
+draft PR #174 to main. Graphics-preserving release
+`2c0e2baf3e0907107e425cdb6cba7117bb3c6eed` on
+`codex/vendor-release-20261013` is qualified and installed as host .118 with
+unchanged native .73/assets source `8c12dd4b`. Neither lane is merged.
+Both worktrees remain active; the normal checkout stays clean on main.
+
+The host switch verifies 503 modules and 10,106 retained records while preserving
+the running game. Normal manager Resume continues the original definitively
+admitted batch from contiguous passive evidence, with no Create/funding replay.
+At 19:28 UTC, 66 generated / 61 inventory-confirmed items remain in progress
+against a seventy-item reservation. Active next: terminal completion accounting;
+then Tier 1-2 exclusions retaining unknowns and town scheduling. Guard work is
+outside scope. Old .117 is only a live recorder dependency, pending retirement
+when that dependency ends. See [workflow/todos](vendor-rolling.md) and
+[installed evidence](client-update-20261014.md).
+
 ## Vendor .117/.73 installed; acceptance remains unfinished - October 14
 
 Shared development starts from main `ef02070f`. Continue vendor acceptance in

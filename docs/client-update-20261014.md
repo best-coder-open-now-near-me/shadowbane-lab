@@ -1,5 +1,44 @@
 # Official client alignment for vendor rolling - October 14
 
+## Current installed .118/.73 host-only inventory continuation
+
+Installed host source is `2c0e2baf3e0907107e425cdb6cba7117bb3c6eed` on
+`codex/vendor-release-20261013`; the unchanged native/assets source remains
+`8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f`. Implementation through
+`60d432de` is published on `codex/vendor-rolling-20261013`, draft PR #174 to
+main. Neither branch is merged. This deployment writes no client files and
+requires no game restart. The same game 6936 / creation 134364730542458483,
+window 1049474 and exact .73 DLL remain live.
+
+Qualification passes 6,862 host tests with 45 optional skips, both actual native
+IPC profiles and seven Windows startup handshakes. All 243 private deployment
+checks pass with one optional symlink-privilege skip. The wheel SHA-256 is
+`f3859c60b42a8f5b48b0a4093c3f473324c843bd228cf467d4c51110dae87514`;
+qualification receipt SHA-256 is
+`0be0a778c812c2fb4c3f191422150732853245197ce993573efa5f541a898aa6`.
+The exact host-only plan SHA-256 is
+`457e2e1643ac8a5679cc425b8a444c5d2e74bb7b915ceff6af8f05590fc3150a`.
+
+Apply and activation verify 503 modules and all 10,106 retained records with
+zero exclusions. Initial finalization diagnostics are preserved: a busy operation
+lock blocked the hash reader, followed by a change to the already-reviewed
+client-written `DoubleFusion/dfts.dat`. A separate tested verifier reads exact
+sealed markers under its own read lock and records both hashes of that one
+488-byte engine-state file without writing it. Engine.Log is append-verified;
+all settings, jobs and history remain byte-preserved. Ten additional tests pass.
+The original sealed deployment payload is unchanged. No fallback copy is made.
+
+Manager 7216 / creation 134364791587264289 and worker 8840 / creation
+134364791615073312 are healthy. The normal manager Resume continues the same
+accepted batch using its complete passive V3 evidence, without another Create,
+funding or collection. At 19:28 UTC it proves 66 generated and 61 inventory
+confirmed against a seventy-item reservation; production remains active.
+The original job deadline and admission are preserved. Old .117 software is
+an active read-only recorder dependency only; retire it when the recorder ends.
+Private qualification and repair diagnostics remain under `artifacts/h118` and
+the VM diagnostics directory. Next: terminal accounting, conservative affix
+filtering and town scheduling. Guard work remains outside scope.
+
 ## Current installed .117/.73 automatic quantity correction
 
 Graphics-preserving release `8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f` is
