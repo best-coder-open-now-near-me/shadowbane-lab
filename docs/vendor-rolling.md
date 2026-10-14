@@ -1,5 +1,59 @@
 # Player-owned vendor rolling
 
+## Terminal Keep callback ordering correction - October 14
+
+The admitted server batch finished with 66 items against the seventy-item
+reservation, charged 10,956 gold. The first terminal Keep reached owned inventory,
+but .118 rechecked the earlier terminal decision while a deposit callback was
+partly received. It stopped in review with 61 recorded inventory confirmations;
+an independent read proves the kept item present. The exact original native
+receipt is retained from the result ring. No Keep or Create was replayed.
+
+Candidate .119 validates Keep against the already-proven durable intent rather
+than re-running terminal selection midway through the receive stream. The actual
+native receipt is retained before validation; a rejected receipt cannot mark an
+intent observed. Proven review continuation is single-use per original progress
+hash and preserves previous receipts. The one legacy observed intent lacking a
+ledger event requires complete server Keep/removal/deposit lineage and the exact
+current native transition, which itself proves inventory presence. Pending
+commands, capture gaps and unfinished prior continuation attempts remain blocked.
+
+Active: qualify this host-only correction and finish the same batch without
+replaying the first Keep. Then retire the recorder's obsolete interpreter, qualify
+Tier 1-2 exclusions retaining unknowns, and complete town scheduling. Installed
+.118/.73 remains healthy; four terminal results remain untouched in the queue.
+
+## Installed .118/.73; recorded batch continued - October 14
+
+Host .118 is qualified and installed from graphics-preserving release
+`2c0e2baf3e0907107e425cdb6cba7117bb3c6eed`; native .73 remains at
+`8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f`. Implementation through
+`60d432de` is pushed in draft PR #174 to main. The host-only switch preserves
+the exact running game, DLL and 10,106 retained records, verifying 503 modules.
+All 6,862 host tests pass (45 optional skips), both actual IPC profiles and seven
+startup handshakes pass, and 243 installer checks pass (one optional privilege
+skip). Ten additional verifier tests cover owned lock reads and the exact
+already-reviewed client-written DoubleFusion state file. Its prior/current
+hashes are recorded; settings and historical journals retain byte equality.
+
+The same admitted batch `6783803e157f4bfea17674e598a463e2` continued through
+normal manager Resume after importing 543 contiguous passive records through
+sequence 607. No new Create, funding or collector action was issued. The
+original deadline remains unchanged. At 19:28 UTC, 66 of 70 reserved items are
+accounted for and 61 have positive inventory proof; production is still running.
+One original quantity-ten/multiple Create remains the only crafting request.
+No batch terminal Keep or disposal has occurred. These are interim counts,
+not completion or a guarantee of seventy server-produced items.
+
+Completed: qualification, host-only installation and proven review continuation.
+Active: finish this batch with server terminal and positive inventory evidence.
+Next: current-image Tier 1-2 filtering while retaining unknowns, then town
+scheduling. All results remain retained during quantity acceptance. The old
+.117 interpreter is used only by the live read-only recorder and must be retired
+after that dependency exits; no runtime is retained for rollback. Both vendor
+worktrees remain active, PR #174 stays draft/unmerged, and the normal checkout
+remains clean on main. See [installation evidence](client-update-20261014.md).
+
 ## Host-only inventory and review continuation candidate - October 14
 
 Host .118/native .73 is the next candidate. Native/assets bytes remain unchanged;

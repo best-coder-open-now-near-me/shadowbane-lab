@@ -39,7 +39,8 @@ def _review(store, record):
     path = directory / "order-progress.json"
     if not path.is_file():
         raise VendorBatchStopped("review progress is missing; no reconstruction can invent it")
-    ledger = OrderLedger(path, raw, tuple(record["recipe_owner"]["key"]), resume=True, review=True)
+    ledger = OrderLedger(path, raw, tuple(record["recipe_owner"]["key"]),
+                         resume=True, review=True, receipt_recovery=True)
     if ledger.record["state"] != "review":
         raise VendorBatchStopped("review job has inconsistent progress state")
     for path in directory.glob("order-*.json"):
@@ -51,6 +52,45 @@ def _review(store, record):
                 or before.owner != _owner(initial)):
             raise VendorBatchStopped("review contains an unfinished or unrelated menu")
     return ledger, initial
+
+
+def _observation_path(directory, progress_sha256):
+    legacy = directory / "review-observation.json"
+    if legacy.exists() and json.loads(_read_record(legacy, LIMIT)).get("progress_sha256") == progress_sha256:
+        return legacy
+    return directory / "review-observations" / (progress_sha256 + ".json")
+
+
+def _continuation_path(directory, receipt):
+    legacy = directory / "review-continuation.json"
+    if legacy.exists() and json.loads(_read_record(legacy, LIMIT)).get("original_progress_sha256") == receipt["progress_sha256"]:
+        return legacy
+    return directory / "review-continuations" / (receipt["progress_sha256"] + ".json")
+
+
+def _prior_continuations(directory, record):
+    paths = list((directory / "review-continuations").glob("*.json"))
+    legacy = directory / "review-continuation.json"
+    if legacy.exists():
+        paths.append(legacy)
+    if len(paths) > 64:
+        raise VendorBatchStopped("review continuation history exceeds its bound")
+    for path in paths:
+        value = json.loads(_read_record(path, LIMIT))
+        if (value.get("state") != "observations_retained" or value.get("job_id") != record["job_id"]
+                or value.get("identity") != record["identity"]
+                or value.get("creates") != 0 or value.get("funds_moved") != 0):
+            raise VendorBatchStopped("a prior review continuation remains unfinished")
+
+
+def _orphan_receipt_ready(ledger):
+    p = ledger.progress
+    for request in ledger.record["requests"]:
+        if request["request_key"] in ledger.unreconciled_requests:
+            item = request["item_id"]
+            if (p.replies.lineage or item not in p.replies.keep_sends
+                    or item not in p.replies.removed & p.replies.deposited):
+                raise VendorBatchStopped("unreconciled native Keep lacks complete server receipts")
 
 
 def _capture(ledger, raw):
@@ -110,11 +150,13 @@ def retain_review_capture(store, job_id, raw):
             raise VendorBatchStopped("review job is no longer current")
         ledger, _ = _review(store, record)
         directory = store.directory(job_id)
-        path = directory / "review-observation.json"
+        _prior_continuations(directory, record)
+        original = _read_record(ledger.path, LIMIT)
+        path = _observation_path(directory, _digest(original))
         if path.exists():
             raise VendorBatchStopped("review observations exist; never silently replace them")
-        original = _read_record(ledger.path, LIMIT)
         received, cursor = _capture(ledger, raw)
+        _orphan_receipt_ready(ledger)
         result = dict(schema_version=1, operation="retain_review_production", job_id=job_id,
                       identity=list(store.identity),
                       admission_sha256=ledger.record["admission_sha256"],
@@ -128,7 +170,8 @@ def retain_review_capture(store, job_id, raw):
 def review_job_ready(store, record):
     ledger, initial = _review(store, record)
     directory = store.directory(record["job_id"])
-    raw = _read_record(directory / "review-observation.json", LIMIT)
+    _prior_continuations(directory, record)
+    raw = _read_record(_observation_path(directory, _digest(_read_record(ledger.path, LIMIT))), LIMIT)
     receipt = json.loads(raw)
     if (type(receipt["schema_version"]) is not int or receipt["schema_version"] != 1
             or receipt["operation"] != "retain_review_production"
@@ -142,6 +185,7 @@ def review_job_ready(store, record):
         raise VendorBatchStopped("review observations changed the original batch")
     ledger.progress.receive(receipt["records"])
     ledger._validate_cursor(receipt["cursor"])
+    _orphan_receipt_ready(ledger)
     return ledger, initial, receipt
 
 
@@ -165,18 +209,25 @@ def resume_review(store, session, record):
     finally:
         menus.close()
     directory = store.directory(record["job_id"])
-    intent = directory / "review-continuation.json"
+    intent = _continuation_path(directory, receipt)
     if intent.exists():
         raise VendorBatchStopped("review continuation was attempted; inspect without replay")
     recovery = dict(state="prepared", job_id=record["job_id"], identity=list(store.identity),
                     prior_job=json.loads(json.dumps(record)),
                     observation_sha256=_digest(_read_record(
-                        directory / "review-observation.json", LIMIT)),
+                        _observation_path(directory, receipt["progress_sha256"]), LIMIT)),
                     original_progress_sha256=receipt["progress_sha256"], creates=0, funds_moved=0)
     _write(intent, recovery)
     # Reconstruct again so adding the receipt event does not double-apply it.
     ledger, _ = _review(store, record)
     ledger.append(dict(kind="received", records=receipt["records"]))
+    ledger.record["cursor"] = receipt["cursor"]
+    ledger._validate_cursor(ledger.record["cursor"])
+    for request in ledger.record["requests"]:
+        if request["request_key"] in ledger.unreconciled_requests:
+            # Inspect returns the original native controller transition only
+            # after positive inventory membership. Never send this Keep again.
+            ledger.kept(request, observed)
     ledger.record.update(cursor=receipt["cursor"], state="running")
     ledger._validate_cursor(ledger.record["cursor"])
     ledger.save()

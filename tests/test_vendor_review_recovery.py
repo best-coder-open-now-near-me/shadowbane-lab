@@ -8,6 +8,7 @@ import pytest
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
 from shadowbane_lab.client_extension.vendor_completion import _read_record
 from shadowbane_lab.client_extension.vendor_order_ledger import LIMIT
+from shadowbane_lab.client_extension.vendor_order_ledger import OrderLedger
 from shadowbane_lab.client_extension.vendor_wire import UNRESOLVED
 from shadowbane_lab.client_observation.native_vendor_dialog import NativeVendorDialogCaptureError
 from shadowbane_lab.manager.vendor_job import run_vendor_job
@@ -61,7 +62,7 @@ def test_review_continues_same_seventy_item_batch_without_create_or_funding_repl
         result = run_vendor_job(store, session, 1000, resume=True)
     assert result["state"] == "complete" and result["kept"] == result["created"] == 70
     assert len(session.calls) == 1 and len(session.keeps) == 7
-    path = store.directory(record["job_id"]) / "review-continuation.json"
+    path, = (store.directory(record["job_id"]) / "review-continuations").glob("*.json")
     retained = json.loads(path.read_bytes())
     assert retained["prior_job"]["state"] == "review"
     assert retained["state"] == "observations_retained" and retained["creates"] == 0
@@ -152,6 +153,76 @@ def test_missing_progress_never_creates_a_new_journal_during_summary_or_recovery
     with pytest.raises(VendorBatchStopped, match="missing"):
         retain_review_capture(store, record["job_id"], capture(session, original))
     assert not path.exists() and len(session.calls) == 1 and not session.keeps
+
+
+def legacy_missing_receipt(tmp_path):
+    store, session, record, original = fail_batch(tmp_path, 2)
+    retain_review_capture(store, record["job_id"], capture(session, original))
+    resume_review(store, session, record)
+    directory = store.directory(record["job_id"])
+    # The installed .118 layout used one fixed filename. Preserve and read it.
+    for folder, legacy in (("review-observations", "review-observation.json"),
+                           ("review-continuations", "review-continuation.json")):
+        source, = (directory / folder).glob("*.json")
+        source.rename(directory / legacy)
+
+    def old_failure(ledger, request, observed):
+        request["state"] = "observed"
+        raise VendorBatchStopped("native quantity Keep did not prove inventory presence")
+    with patch.object(OrderLedger, "kept", old_failure):
+        with pytest.raises(VendorBatchStopped, match="inventory presence"):
+            run(store, session, store.current())
+    progress = json.loads((directory / "order-progress.json").read_bytes())
+    records = list(original)
+    for event in progress["events"]:
+        if event["kind"] == "received":
+            records.extend(event["records"])
+    records.extend(session.recorder.records)
+    old_inspect = session.inspect_orders
+    session.inspect_orders = lambda: replace(old_inspect(), transition_item=session.last_transition[0],
+                                             transition_request=session.last_transition[1])
+    return store, session, capture(session, records)
+
+
+@pytest.mark.parametrize("fault", [None, "transition", "item", "unresolved", "unfinished_prior"])
+def test_legacy_observed_keep_requires_exact_native_receipt_and_never_replays(tmp_path, fault):
+    store, session, raw = legacy_missing_receipt(tmp_path)
+    record = store.current()
+    directory = store.directory(record["job_id"])
+    before = (directory / "order-progress.json").read_bytes()
+    if fault == "unfinished_prior":
+        path = directory / "review-continuation.json"
+        prior = json.loads(path.read_bytes())
+        prior["state"] = "prepared"
+        path.write_text(json.dumps(prior))
+        with pytest.raises(VendorBatchStopped, match="unfinished"):
+            retain_review_capture(store, record["job_id"], raw)
+        assert (directory / "order-progress.json").read_bytes() == before
+        return
+    retained = retain_review_capture(store, record["job_id"], raw)
+    assert retained["keeps"] == 0 and store.summary()["can_reconcile"]
+    inspect = session.inspect_orders
+    if fault == "transition":
+        session.inspect_orders = lambda: replace(inspect(), transition_request="11111111-2222-4333-8444-555555555555")
+    elif fault == "item":
+        session.inspect_orders = lambda: replace(inspect(), transition_item=999)
+    elif fault == "unresolved":
+        session.inspect_orders = lambda: replace(inspect(), flags=UNRESOLVED)
+    if fault:
+        with pytest.raises(VendorBatchStopped):
+            resume_review(store, session, record)
+        assert (directory / "order-progress.json").read_bytes() == before
+        assert len(session.keeps) == 1 and len(session.calls) == 1
+        return
+    deadline = record["deadline_at"]
+    resume_review(store, session, record)
+    session.recorder.drain()
+    result = run(store, session, store.current())
+    assert result["state"] == "complete" and result["kept"] == 20
+    assert len(session.keeps) == len(set(session.keeps)) == 2 and len(session.calls) == 1
+    assert result["deadline_at"] == deadline
+    assert (directory / "review-continuation.json").exists()
+    assert len(list((directory / "review-continuations").glob("*.json"))) == 1
 
 
 def test_manager_and_exact_worker_continue_review_without_funder_or_collector(tmp_path):
