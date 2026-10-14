@@ -1,5 +1,29 @@
 # Player-owned vendor rolling
 
+## Candidate .117/.73 prepared from verified source - October 14
+
+Published source `e9befe0b170abc38a280cd71f577142d483ab213` passes the full
+fixed-revision host suite: 6,726 checks and 45 optional skips. The required native
+gate passes all available tests; all three private client-image cases pass
+separately. Existing stretch transparency failures remain recorded and untouched.
+The owner-service integration test executes Create through the native command
+queue, checks the full funding minimum, waits for split receive lineage, rejects
+the same batch after reopening its menu and fails closed on a lost cursor.
+Historical numeric coercion cannot authorize admission or Keep.
+
+A compiled private replay verifies native admission against the exact seven
+live outgoing/receive records and independently captured before/after queue
+snapshots. Altering the outgoing quantity invalidates that proof. The source
+versions now identify the forthcoming combined host .117/native .73 candidate;
+it still needs graphics composition and complete package qualification.
+Installed .116/.72 and its passive recorder remain active. The original capture
+has exceeded ten starts from one request; actual terminal batch size remains
+unproved. No further Create, Keep, disposal or funding action has been sent.
+
+Active next: finish terminal capture and prepare the graphics-preserving
+candidate without interrupting production. After quantity acceptance, qualify
+Tier 1-2 filtering with unknowns retained and town scheduling.
+
 ## Host automatic-production reconciliation - October 14
 
 The source now uses schema-6 admission and schema-2 progress journals. Admission

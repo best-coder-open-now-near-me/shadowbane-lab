@@ -1,5 +1,27 @@
 # Git branch map
 
+## Automatic vendor batch source correction - October 14
+
+Continue the unfinished vendor workflow in `codex/vendor-rolling-20261013`.
+Published implementation `e9befe0b170abc38a280cd71f577142d483ab213` includes
+native causal admission, global duplicate-batch fencing and host automatic
+item/deposit reconciliation. Its fixed source passes 6,726 host tests (45 optional
+skips), the required native gate and all three private original/prepared image
+probes. Compiled native admission also verifies the seven exact private live
+records and rejects a changed outgoing quantity. The two historical transparency
+stretch diagnostics remain separately recorded; they are outside vendor changes.
+
+Host .117/native .73 is the next candidate, not the installed runtime. Compose
+it into the existing graphics-preserving `codex/vendor-release-20261013` lane
+before package qualification. Installed .116/.72 still owns the running passive
+capture. Do not retire that host, interrupt the capture or replay either review
+job. Actual server batch size/terminal inventory remains under observation.
+
+Shared development starts from refreshed main `ef02070f`; draft vendor PR #174
+targets main and remains unmerged. Both vendor worktrees remain active. Next:
+complete batch evidence and qualify the combined candidate, then inventory
+filtering and town scheduling. See [workflow and todos](vendor-rolling.md).
+
 ## V3 vendor observations installed - October 14
 
 Shared development still starts from refreshed main at
