@@ -1,6 +1,29 @@
 # Git branch map
 
-## Vendor live correction in qualification - October 13
+## Vendor corrected batch update installed - October 14
+
+Start shared development from clean `main` at
+`ef02070f3fccbb0636da8c313737fd19814a88a6` (PR #173). Continue vendor work on
+`codex/vendor-rolling-20261013`, targeting main through draft PR #174. Its source
+through `d2588b918ac96f06271bc62f2cf500121a9beb3a` is composed with preserved
+graphics in pushed release `f0546c0434a8cf967bb0d588fb56aceee35022b5` on
+`codex/vendor-release-20261013`; neither lane is merged into main yet.
+
+Host .111/native .69/client .18 is installed and verified. Qualification passes
+6,740 host tests, both native/IPC profiles, exact client bindings, seven Windows
+startup cases and 147 updater checks. Activation verifies 499 installed modules
+and 9,884 retained records with zero exclusions. The same Vendor Test shortcut
+loads the exact .69 DLL, its V2 production recorder is available, and the new
+worker is healthy with an empty operation queue. Unused installed host .110 was
+retired without rollback copies; historical jobs/settings are preserved.
+
+Active next: login and movement, fresh vendor discovery, then one whole funded
+quantity-ten batch and complete inventory acceptance. The earlier one-item
+review job must never replay. Keep both active worktrees through live acceptance;
+PR #174 stays draft and main remains the integration destination. Guard work is
+out of scope. See [vendor delivery evidence](vendor-rolling.md).
+
+## Vendor live correction history - October 13
 
 Continue on `codex/vendor-rolling-20261013`, targeting main through draft PR #174.
 Installed .110/.68 completed fresh discovery and proved the whole 70-item batch

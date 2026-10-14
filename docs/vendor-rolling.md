@@ -2,7 +2,52 @@
 
 ## Current continuation - October 13, 2026
 
-### Live quantity correction: source .111/.69, not installed
+### Corrected .111/.69 installed - October 14
+
+The graphics-preserving release `f0546c0434a8cf967bb0d588fb56aceee35022b5`
+is pushed on `codex/vendor-release-20261013`, fully qualified and installed in
+the test VM. Qualification passes 6,740 host tests (45 optional skips), all
+required native tests in both profiles (284 full / 280 diagnostics), native/host
+IPC, exact original/prepared .18 bindings and all seven Windows startup cases.
+Independent verification seals 144 artifacts, 116 steps and 499 wheel modules;
+147 native-only updater checks also pass. Existing stretch-only transparency
+findings remain recorded; no required gate was waived.
+
+After the user requested closure, the game window disappeared but its exact
+process remained. Only that verified windowless lifetime and the idle, unbound
+.110 manager were stopped. A stable closed census captured 9,828 retained
+records. Apply and activation verify all 499 installed modules and 9,884 retained
+records, with zero exclusions and only typed startup/dispatch changes. The sole
+client binary replacement is the .69 DLL; executable and resources were not
+written. Settings, the earlier one-item roll and its interrupted journal remain
+in place. No funding, Create, Keep or disposal was sent during installation.
+
+The unchanged Vendor Test shortcut launched PID 1712 / creation
+134364443669883415 with the exact DLL. The V2 production mapping is readable,
+sequence zero, without rejected or dropped records. Its exact worker is healthy
+and the operation queue is empty. Unused installed host .110 was retired:
+2,189 reproducible files / 49,477,069 bytes, without a retained rollback copy.
+Earlier uninstalled qualification packages remain private audit artifacts after
+automatic approval review rejected their broader deletion; they are not active
+runtime dependencies and must not be used for this installation.
+
+Exact SHA-256 receipts:
+
+- DLL: `d1e856514aa8e45a7bcf203f4718859a436b77ef07432d6b104cd7135234d027`.
+- Wheel: `108e94dda0f7ee97efccf53cc18bb036dca944ed2f796a87ce08f60c62221faf`.
+- Package verification: `a97d339ef7e42f148d4c5ad176302973ece3c0681c96ecaabe185832f25d19c6`.
+- Startup qualification: `d5a1c827e23f4b128486c622c8644fe6ee7a93cb4fc22f8ef7bfd54ae2845d07`.
+- Sealed update plan: `80726e3b0184a93521fd33befae33b58cc27fc8dc80701eae4158a0159acbcbf`.
+- Apply: `7dc1a99a0d9c43a56161189946b422457feaf8f69d6468452d51eaa3febd8f3f`.
+- Activation: `b56523407c7d2c6eaf0cfb4aa4f4ebf0d25bf9823880798c83f9e16e68cd9de4`.
+
+Active next: Treehugger logs into Rooty and moves once before fresh discovery;
+then verify one full-capacity quantity-ten request and every resulting inventory
+receipt. Do not replay the earlier review job. Client .18 disposal remains
+disabled and unknowns are retained. Draft PR #174 targets main; implementation
+and graphics-preserving release remain outside main pending live acceptance.
+
+### Live quantity correction and preserved .110 history
 
 After restart and movement, discovery succeeded: 25 vendor windows across 13
 buildings. The existing hooks returned to Malik and activated saved Gilded Scepter
@@ -38,9 +83,9 @@ Validation: 140 focused host checks, four affected native suites, repository Ruf
 and diff whitespace checks pass. The V2 correction additionally passes 83 host
 checks and all four recorder/install-failure native cases, including ten-item
 active and completed messages, typed-template rejection and V1 refusal.
-Installed software remains .110/.68. Active next:
-qualify a graphics-preserving .111/.69 release, then install and verify a fresh
-full-capacity request plus the complete inventory chain. The one live item remains
+The resulting .111/.69 release is now qualified and installed as recorded above.
+Active next: verify a fresh full-capacity request plus the complete inventory
+chain. The one earlier item remains
 untouched; unknowns are retained and client .18 disposal remains disabled.
 
 ### Installed update; quantity-ten live acceptance pending
