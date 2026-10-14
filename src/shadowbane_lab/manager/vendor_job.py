@@ -127,7 +127,7 @@ class VendorJobStore:
                 raise ValueError("funded vendor batch budget changed")
         if record["schema_version"] == 4:
             order = RandomOrderSpec.from_dict(record["order_spec"])
-            if (order.recipe != spec or order.multiple or not order.matches(initial)
+            if (order.recipe != spec or not order.matches(initial)
                     or record["order_sha256"] != order.canonical_digest
                     or type(record["planned_items"]) is not int
                     or record["planned_items"] != budget.total_items
@@ -149,7 +149,7 @@ class VendorJobStore:
         spec = RandomRecipeSpec.from_dict(selection["recipe_spec"]) if selection else None
         order = (RandomOrderSpec.from_dict(selection["order_spec"])
                  if selection and "order_spec" in selection else None)
-        if order and (order.recipe != spec or order.multiple
+        if order and (order.recipe != spec or not order.multiple
                       or selection.get("order_sha256") != order.canonical_digest):
             raise ValueError("quantity job requires exact saved recipe order intent")
         first = (session.inspect_orders() if order else session.inspect_random()
@@ -173,7 +173,7 @@ class VendorJobStore:
             raise VendorBatchStopped("the saved vendor or random recipe is not ready")
         if order and (budget is None or not order.matches(first.snapshot)
                       or first.remaining_counts is None
-                      or any(slot.item and count for slot, count in
+                      or any(slot.item and count > 1 for slot, count in
                              zip(first.snapshot.slots, first.remaining_counts, strict=True))):
             raise VendorBatchStopped("funded quantity order support is not ready")
         # Verify menu support on this exact native runtime before spending. A

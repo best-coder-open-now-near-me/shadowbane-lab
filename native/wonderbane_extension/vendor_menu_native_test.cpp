@@ -266,11 +266,14 @@ int main() {
     Reset(); Prepare(); command.reserved[0]=1; assert(Invoke(V::random_mode)==O::invalid && !calls);
     Reset(); Prepare(); live=false; assert(Invoke(V::random_mode)==O::stale && !calls);
     RandomReady(); assert(RandomCreate()==O::submitted && calls==1 && random_expected.item_template==5051080);
-    RandomReady(); Put(RECIPE+0x4d4,10); Put(PAGES+0x40c,3); random_expected.quantity=10;
+    RandomReady(); Put(RECIPE+0x4d4,10); Put(RECIPE+0x3d8,1); Put(PAGES+0x40c,3);
+    random_expected.quantity=10; random_expected.multiple=1;
     assert(n::InvokeRandomCreate(base,scene,random_expected,&Admit,nullptr,true)==O::submitted && calls==1);
-    RandomReady(); Put(RECIPE+0x4d4,10); Put(RECIPE+0x540,0x100); random_expected.quantity=10;
+    RandomReady(); Put(RECIPE+0x4d4,10); Put(RECIPE+0x3d8,1); Put(RECIPE+0x540,0x100);
+    random_expected.quantity=10; random_expected.multiple=1;
     assert(n::InvokeRandomCreate(base,scene,random_expected,&Admit,nullptr,true)==O::stale && !calls);
-    RandomReady(); Put(RECIPE+0x4d4,10); random_expected.quantity=10;
+    RandomReady(); Put(RECIPE+0x4d4,10); Put(RECIPE+0x3d8,1);
+    random_expected.quantity=10; random_expected.multiple=1;
     Control(COSTLIST,0x116acf0,RECIPE,L"ResourceCostList");
     Control(COSTCONTROL,0x116aebc,RECIPE); Put(COSTCONTROL+0x458,P(COSTLIST)); Put(COSTCONTROL+0x44c,P(COSTENTRY));
     Put(COSTENTRY,P(0x116f258)); Put(COSTENTRY+0x20,2308551); Put(COSTENTRY+0x48,1660); Text(COSTENTRY+0x30,L"Gold");

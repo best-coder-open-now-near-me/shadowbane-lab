@@ -158,7 +158,7 @@ def test_warehouse_funds_only_shortfall_then_returns_to_exact_vendor(setup):
 
 
 def test_quantity_ten_funds_all_seventy_items_with_one_withdrawal_and_deposit(setup, monkeypatch):
-    order = RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=False)
+    order = RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True)
     setup.world.gold = 100000
     setup.parent.snapshot = replace(setup.parent.snapshot,
                                     slots=tuple(vendor.Slot(1100 + i * 100) for i in range(7)))
@@ -167,7 +167,7 @@ def test_quantity_ten_funds_all_seventy_items_with_one_withdrawal_and_deposit(se
     monkeypatch.setattr(module, "ensure_order_observer", lambda binding: observed.append(binding))
     def prepare(*args, **kwargs):
         prepared.append(args[3])
-        setup.parent.snapshot = replace(setup.parent.snapshot, quantity=10, multiple=0)
+        setup.parent.snapshot = replace(setup.parent.snapshot, quantity=10, multiple=1)
     monkeypatch.setattr(module, "prepare_order", prepare)
     def inspect():
         before = setup.parent.inspect_random()
@@ -192,7 +192,7 @@ def test_missing_production_observer_stops_before_gold_or_menu_actions(setup, mo
         raise VendorBatchStopped("recorder unavailable")
     monkeypatch.setattr(module, "ensure_order_observer", missing)
     with pytest.raises(VendorBatchStopped, match="recorder unavailable"):
-        setup.run(order=RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=False))
+        setup.run(order=RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True))
     assert not setup.world.calls and not setup.path.exists()
 
 
@@ -203,7 +203,7 @@ def test_prior_quantity_order_is_not_adopted_by_another_funding_batch(setup, mon
     setup.parent.inspect_orders = lambda: replace(setup.parent.inspect_random(),
                                                   remaining_counts=(9, 1))
     with pytest.raises(VendorBatchStopped, match="Recover existing quantity orders"):
-        setup.run(order=RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=False))
+        setup.run(order=RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True))
     assert not setup.world.calls and not setup.path.exists()
 
 

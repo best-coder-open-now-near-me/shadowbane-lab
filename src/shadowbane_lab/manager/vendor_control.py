@@ -419,7 +419,7 @@ class VendorWorkerExecutor:
                 selection = require_saved_owner(
                     selection, binding, session, reader=self.recipe_reader)
                 order = RandomOrderSpec(RandomRecipeSpec.from_dict(selection["recipe_spec"]),
-                                        10, multiple=False)
+                                        10, multiple=True)
                 funded = self.funding_runner(store, binding, operation, session, selection,
                                              cancelled=stop_signal.is_set, order=order)
                 if (not isinstance(funded, dict) or funded.get("state") != "funded"

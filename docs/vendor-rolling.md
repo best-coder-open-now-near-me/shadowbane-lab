@@ -2,6 +2,40 @@
 
 ## Current continuation - October 13, 2026
 
+### Live quantity correction: source .111/.69, not installed
+
+After restart and movement, discovery succeeded: 25 vendor windows across 13
+buildings. The existing hooks returned to Malik and activated saved Gilded Scepter
+revision `b5842713e2884a1e80224ee664326bf1`. Whole-batch funding proved seven free
+slots, 70 items, 1,660 Gold per slot / 11,620 total and 228,070 already in the shop.
+No withdrawal or deposit was necessary.
+
+Operation `operation-1277ec27520c48c88637a2f7e100c54a` submitted one Create and then
+stopped safely. Its preserved schema-4 job `cf07ca42dcde43309837f467b009d392` and
+Create journal remain in review and must never replay. Read-only evidence proves
+one cooking item `4294853691`, a slot count of 1, server future count 0 and a
+strongbox balance of 227,904: only 166 Gold was charged. The recipe displayed ten
+but the request used ordinary single-item mode. The copied decoded/processing/
+returned reply has exact lineage and no capture losses, with decode and processing
+on different threads. No Keep or disposal was sent.
+
+Source .111/.69 corrects admission to one native Create Multiple Items request
+for all initially funded slots. Schema-5 admission binds every initial item to
+that one request, refuses capacity growth before submission, and requires each
+occupied slot's physical count to equal ten. A server response counts future
+items, while the displayed slot includes the current item; reconciliation now
+normalizes that boundary explicitly. Decode may hand off to another thread;
+processing and returned must remain on the same thread. The native quota still
+rejects excess arrivals and repeat requests; no uncertain request is replayed.
+Historical job records remain preserved. The last native observation is now
+saved with admission failures to avoid losing the evidence needed for diagnosis.
+
+Validation: 140 focused host checks, four affected native suites, repository Ruff
+and diff whitespace checks pass. Installed software remains .110/.68. Active next:
+qualify a graphics-preserving .111/.69 release, then install and verify a fresh
+full-capacity request plus the complete inventory chain. The one live item remains
+untouched; unknowns are retained and client .18 disposal remains disabled.
+
 ### Installed update; quantity-ten live acceptance pending
 
 Host .110/native .68 is fully packaged from graphics-preserving release

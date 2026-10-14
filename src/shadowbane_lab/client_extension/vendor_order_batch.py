@@ -25,36 +25,35 @@ def _counts(values, state):
 def queue_quantity_orders(
     session, journal: Path, specification: RandomOrderSpec, budget: VendorBatchBudget,
     preparation_raw: bytes, production_reader, *, before_action=lambda: None,
-    prepare_next=None,
     await_authority=None,
     cancelled=lambda: False, clock=time.monotonic, sleeper=time.sleep,
     acceptance_timeout: float = 15.0,
 ) -> dict:
-    """Queue one quantity order per funded slot, journal first, verify each count.
+    """Submit one full-capacity quantity request and verify every funded slot.
 
     The initial item ID represents one order, not all its future generated items.
     This finishes queue admission only; inventory completion is a separate phase.
     Rank growth cannot increase this batch's quota or cause another funding pass.
     """
-    if (type(specification) is not RandomOrderSpec or specification.multiple
+    if (type(specification) is not RandomOrderSpec or not specification.multiple
             or type(budget) is not VendorBatchBudget or not 0 < acceptance_timeout <= 60):
-        raise ValueError("a bounded single-slot order and immutable batch budget are required")
+        raise ValueError("a full-capacity order and immutable batch budget are required")
     if (production_reader.process_id, production_reader.creation) != (
         session.identity.process_id, session.identity.creation_filetime_utc,
     ):
         raise ValueError("production recorder belongs to another client lifetime")
-    native_budget = budget.native_budget
-    native_budget.encode(specification.quantity)
     journal = Path(journal)
     with exclusive_record_lock(journal.with_suffix(journal.suffix + ".lock")):
         if journal.exists():
             raise VendorBatchStopped("quantity journal exists; never replay its requests")
+        native_budget = budget.native_budget
+        native_budget.encode(specification.quantity)
         first = session.inspect_orders()
         initial = first.snapshot
         if (first.outcome != Outcome.OBSERVED or first.flags != READY
                 or not specification.matches(initial) or not budget.matches(initial)
                 or not _counts(first.remaining_counts, initial)
-                or any(slot.item and count for slot, count in
+                or any(slot.item and count > 1 for slot, count in
                        zip(initial.slots, first.remaining_counts, strict=True))):
             raise VendorBatchStopped("the exact funded quantity recipe is not ready")
         validate_recipe_preparation(
@@ -63,7 +62,7 @@ def queue_quantity_orders(
             window=first.window,
         )
         bookmark = production_reader.bookmark()
-        record = dict(schema_version=4, operation="queue_quantity_orders", state="running",
+        record = dict(schema_version=5, operation="queue_quantity_orders", state="running",
                       batch_id=str(uuid.uuid4()), process_id=session.identity.process_id,
                       process_creation_filetime_utc=session.identity.creation_filetime_utc,
                       window=first.window, initial_snapshot=initial.encode().hex(),
@@ -111,78 +110,86 @@ def queue_quantity_orders(
 
         save()
         try:
-            for index in range(budget.free_slots):
-                if await_authority is None:
-                    before_action()
-                else:
-                    # Long focus/pause waits must keep the permanent ring drained
-                    # into this same journal, never a second observation owner.
-                    await_authority(drain)
+            if await_authority is None:
+                before_action()
+            else:
+                # Long focus/pause waits must keep the permanent ring drained
+                # into this same journal, never a second observation owner.
+                await_authority(drain)
+            drain()
+            if cancelled():
+                record["state"] = "stopped"
+                save()
+                return record
+            order_preparation = preparation_raw
+            fresh_receipt = session.inspect_orders()
+            fresh = current(fresh_receipt)
+            if len(fresh.slots) != budget.capacity:
+                raise VendorBatchStopped("capacity changed before batch submission; replan funding")
+            validate_recipe_preparation(
+                order_preparation, specification, fresh,
+                process_id=session.identity.process_id,
+                process_creation_filetime_utc=session.identity.creation_filetime_utc,
+                window=first.window,
+            )
+            expected_items = _items(initial) | set(record["initial_items"])
+            if _items(fresh) != expected_items:
+                raise VendorBatchStopped("production changed during quantity-order filling")
+            key = str(uuid.uuid4())
+            attempt = dict(request_key=key, state="prepared",
+                           expected_snapshot=fresh.encode().hex(),
+                           expected_counts=list(fresh_receipt.remaining_counts),
+                           preparation_journal_utf8=order_preparation.decode(),
+                           preparation_sha256=hashlib.sha256(order_preparation).hexdigest())
+            record["requests"].append(attempt)
+            save()
+            submitted = session.create_orders(fresh, key, batch_key=record["batch_id"],
+                                               budget=native_budget)
+            if (submitted.request_key != key or submitted.window != first.window
+                    or submitted.outcome != Outcome.SUBMITTED or submitted.flags != IN_FLIGHT
+                    or submitted.snapshot != fresh
+                    or submitted.remaining_counts != fresh_receipt.remaining_counts):
+                attempt["state"] = "uncertain"
+                raise VendorBatchStopped("quantity Create submission was not confirmed")
+            attempt["state"] = "submitted"
+            save()
+            deadline = clock() + acceptance_timeout
+            while True:
                 drain()
-                if cancelled():
-                    record["state"] = "stopped"
-                    save()
-                    return record
-                order_preparation = preparation_raw
-                if index and prepare_next is not None:
-                    order_preparation = prepare_next(index)
-                    drain()
-                fresh_receipt = session.inspect_orders()
-                fresh = current(fresh_receipt)
-                validate_recipe_preparation(
-                    order_preparation, specification, fresh,
-                    process_id=session.identity.process_id,
-                    process_creation_filetime_utc=session.identity.creation_filetime_utc,
-                    window=first.window,
+                observed = session.inspect_orders()
+                record["last_observation"] = dict(
+                    outcome=observed.outcome.name, flags=observed.flags,
+                    snapshot=observed.snapshot.encode().hex(),
+                    counts=(list(observed.remaining_counts)
+                            if observed.remaining_counts is not None else None),
+                    transition_request=observed.transition_request,
+                    transition_item=observed.transition_item,
                 )
-                expected_items = _items(initial) | set(record["initial_items"])
-                if _items(fresh) != expected_items:
-                    raise VendorBatchStopped("production changed during quantity-order filling")
-                key = str(uuid.uuid4())
-                attempt = dict(request_key=key, state="prepared",
-                               expected_snapshot=fresh.encode().hex(),
-                               expected_counts=list(fresh_receipt.remaining_counts),
-                               preparation_journal_utf8=order_preparation.decode(),
-                               preparation_sha256=hashlib.sha256(order_preparation).hexdigest())
-                record["requests"].append(attempt)
                 save()
-                submitted = session.create_orders(fresh, key, batch_key=record["batch_id"],
-                                                   budget=native_budget)
-                if (submitted.request_key != key or submitted.window != first.window
-                        or submitted.outcome != Outcome.SUBMITTED or submitted.flags != IN_FLIGHT
-                        or submitted.snapshot != fresh
-                        or submitted.remaining_counts != fresh_receipt.remaining_counts):
-                    attempt["state"] = "uncertain"
-                    raise VendorBatchStopped("quantity Create submission was not confirmed")
-                attempt["state"] = "submitted"
-                save()
-                deadline = clock() + acceptance_timeout
-                while True:
-                    drain()
-                    observed = session.inspect_orders()
-                    state = current(observed, pending=True)
-                    additions = _items(state) - expected_items
-                    if (not expected_items <= _items(state) or len(additions) > 1
-                            or state.revision < fresh.revision):
-                        raise VendorBatchStopped("ambiguous quantity-order arrival")
-                    if observed.transition_request == key:
-                        item = observed.transition_item
-                        if (observed.flags & (IN_FLIGHT | UNRESOLVED) or additions != {item}
-                                or any(count != specification.quantity - 1
-                                       for slot, count in zip(
-                                           state.slots, observed.remaining_counts, strict=True)
-                                       if slot.item == item)):
-                            raise VendorBatchStopped("native order count does not match its quota")
-                        attempt.update(state="observed", item_id=item,
-                                       observed_snapshot=state.encode().hex(),
-                                       observed_counts=list(observed.remaining_counts),
-                                       transition_request=observed.transition_request)
-                        record["initial_items"].append(item)
-                        save()
-                        break
-                    if not observed.flags & IN_FLIGHT or clock() >= deadline:
-                        raise VendorBatchStopped("quantity Create is unconfirmed; never replay")
-                    sleeper(0.1)
+                state = current(observed, pending=True)
+                additions = _items(state) - expected_items
+                if (not expected_items <= _items(state) or len(additions) > budget.free_slots
+                        or state.revision < fresh.revision):
+                    raise VendorBatchStopped("ambiguous quantity-order arrival")
+                if observed.transition_request == key:
+                    if (observed.flags & (IN_FLIGHT | UNRESOLVED)
+                            or len(additions) != budget.free_slots
+                            or observed.transition_item not in additions
+                            or any(count != specification.quantity
+                                   for slot, count in zip(
+                                       state.slots, observed.remaining_counts, strict=True)
+                                   if slot.item in additions)):
+                        raise VendorBatchStopped("native order count does not match its quota")
+                    attempt.update(state="observed", item_ids=sorted(additions),
+                                   observed_snapshot=state.encode().hex(),
+                                   observed_counts=list(observed.remaining_counts),
+                                   transition_request=observed.transition_request)
+                    record["initial_items"].extend(sorted(additions))
+                    save()
+                    break
+                if not observed.flags & IN_FLIGHT or clock() >= deadline:
+                    raise VendorBatchStopped("quantity Create is unconfirmed; never replay")
+                sleeper(0.1)
             drain()
             record["state"] = "queued"
             save()
@@ -227,7 +234,7 @@ def validate_queued_orders(raw: bytes) -> tuple[dict, Snapshot]:
                 or any(record["production_cursor"][key] != bookmark["cursor"][key]
                        for key in ("rejected", "ticket_drops"))
                 or not _counts(record["initial_counts"], initial)
-                or any(slot.item and count for slot, count in
+                or any(slot.item and count > 1 for slot, count in
                        zip(initial.slots, record["initial_counts"], strict=True))):
             raise ValueError("invalid initial production observation")
         validate_recipe_preparation(
@@ -235,15 +242,15 @@ def validate_queued_orders(raw: bytes) -> tuple[dict, Snapshot]:
             process_creation_filetime_utc=record["process_creation_filetime_utc"],
             window=record["window"],
         )
-        if (type(record["schema_version"]) is not int or record["schema_version"] != 4
+        if (type(record["schema_version"]) is not int or record["schema_version"] != 5
                 or record["operation"] != "queue_quantity_orders" or record["state"] != "queued"
-                or spec.multiple or not spec.matches(initial) or not budget.matches(initial)
+                or not spec.multiple or not spec.matches(initial) or not budget.matches(initial)
                 or record["recipe_sha256"] != spec.canonical_digest
                 or record["batch_budget_sha256"] != budget.canonical_digest
                 or record["preparation_sha256"] != hashlib.sha256(prep).hexdigest()
                 or record["planned_orders"] != budget.free_slots
                 or record["planned_items"] != budget.total_items
-                or len(record["requests"]) != budget.free_slots
+                or len(record["requests"]) != 1
                 or len(record["initial_items"]) != budget.free_slots
                 or not len(initial.slots) <= record["capacity"] <= 16
                 or record["capacity_history"] != sorted(set(record["capacity_history"]))
@@ -251,7 +258,8 @@ def validate_queued_orders(raw: bytes) -> tuple[dict, Snapshot]:
                 or record["capacity_history"][-1] != record["capacity"]):
             raise ValueError("inconsistent quantity batch admission")
         seen, keys, previous = _items(initial), set(), initial
-        for request, item in zip(record["requests"], record["initial_items"], strict=True):
+        for request in record["requests"]:
+            items = request["item_ids"]
             key = request["request_key"]
             request_bytes(key)
             before = Snapshot.decode(bytes.fromhex(request["expected_snapshot"]))
@@ -266,22 +274,26 @@ def validate_queued_orders(raw: bytes) -> tuple[dict, Snapshot]:
             Command(Host(1, 1, 1), record["window"], key, before, batch_key=record["batch_id"],
                     order_budget=budget.native_budget).encode(Verb.CREATE_ORDERS)
             if (key in keys or request["state"] != "observed"
-                    or request["transition_request"] != key or request["item_id"] != item
-                    or type(item) is not int or not 0 < item < 2**32
+                    or request["transition_request"] != key
+                    or type(items) is not list or items != record["initial_items"]
+                    or len(set(items)) != budget.free_slots or items != sorted(items)
+                    or any(type(item) is not int or not 0 < item < 2**32 for item in items)
                     or _owner(before) != _owner(initial) or _owner(after) != _owner(initial)
                     or not spec.matches(before)
                     or request["preparation_sha256"] != hashlib.sha256(order_prep).hexdigest()
                     or not len(previous.slots) <= len(before.slots) <= len(after.slots)
                     <= record["capacity"]
                     or not previous.revision <= before.revision <= after.revision
-                    or _items(before) != seen or _items(after) != seen | {item} or item in seen
+                    or len(before.slots) != budget.capacity
+                    or _items(before) != seen or _items(after) != seen | set(items)
+                    or seen & set(items)
                     or not _counts(request["expected_counts"], before)
                     or not _counts(counts, after)
-                    or any(count != spec.quantity - 1 for slot, count in
-                           zip(after.slots, counts, strict=True) if slot.item == item)):
+                    or any(count != spec.quantity for slot, count in
+                           zip(after.slots, counts, strict=True) if slot.item in items)):
                 raise ValueError("unconfirmed quantity order transition")
             keys.add(key)
-            seen.add(item)
+            seen.update(items)
             previous = after
         return record, initial
     except (KeyError, TypeError, ValueError, AttributeError, IndexError) as exc:

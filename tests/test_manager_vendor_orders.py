@@ -94,7 +94,9 @@ class Session(QueueSession):
         pending = self.pending
         observed = super().inspect_orders()
         if pending:
-            self.recorder.append(self.next_item, 9)
+            for slot in self.state.slots:
+                if slot.item:
+                    self.recorder.append(slot.item, 9)
         return observed if self.focused else replace(observed, flags=0)
 
     def inspect(self):
@@ -105,11 +107,11 @@ class Session(QueueSession):
             index = next(i for i, slot in enumerate(self.state.slots) if slot.item == item)
             count = self.counts[index]
             slots, counts = list(self.state.slots), list(self.counts)
-            if count:
+            if count > 1:
                 self.next_item += 1
                 slots[index] = Slot(slots[index].entry, self.next_item, 1)
                 counts[index] -= 1
-                self.recorder.append(self.next_item, counts[index])
+                self.recorder.append(self.next_item, counts[index] - 1)
             else:
                 slots[index], counts[index] = Slot(slots[index].entry), 0
             self.state = replace(self.state, slots=tuple(slots), revision=self.state.revision + 1)
@@ -158,13 +160,13 @@ def run(store, session, record):
                          inventory_reader=lambda *args: sorted(session.inventory))
 
 
-def test_full_seventy_item_manager_job_uses_seven_creates_and_seventy_keeps(tmp_path):
+def test_full_seventy_item_manager_job_uses_one_batch_create_and_seventy_keeps(tmp_path):
     store, session, record = setup(tmp_path, 7)
     result = run(store, session, record)
     assert result["schema_version"] == 4 and result["state"] == "complete"
     assert (result["queued_orders"], result["planned_items"], result["created"], result["kept"]
             ) == (7, 70, 70, 70)
-    assert len(session.calls) == 7 and len(set(session.keeps)) == 70
+    assert len(session.calls) == 1 and len(set(session.keeps)) == 70
     assert result["excluded"] == 0 and session.inventory == set(session.keeps)
     require_order_handoff_idle(store, session, result)
     summary = store.summary()
@@ -197,7 +199,7 @@ def test_focus_wait_keeps_recorder_drained_and_sends_no_keep(tmp_path):
             assert not session.keeps
             if count[0] > 1:
                 assert not session.recorder.records
-            session.recorder.append(session.state.slots[0].item, session.counts[0])
+            session.recorder.append(session.state.slots[0].item, session.counts[0] - 1)
     session.after_sleep = focus_wait
     assert run(store, session, record)["state"] == "complete"
 
@@ -245,7 +247,7 @@ def test_paused_job_drains_observation_before_resuming(tmp_path):
         count[0] += 1
         if count[0] == 1:
             store.request(record["job_id"], "pause")
-            session.recorder.append(session.state.slots[0].item, session.counts[0])
+            session.recorder.append(session.state.slots[0].item, session.counts[0] - 1)
         elif count[0] == 2:
             assert not session.recorder.records and not session.keeps
             store.request(record["job_id"], "run")
@@ -259,7 +261,7 @@ def test_stop_after_queue_retains_orders_and_proves_native_idle(tmp_path):
     session.after_sleep = lambda: store.request(record["job_id"], "stop")
     result = run(store, session, record)
     assert result["state"] == "stopped" and len(session.calls) == 1 and not session.keeps
-    assert session.state.slots[0].item and session.counts == (9,)
+    assert session.state.slots[0].item and session.counts == (10,)
     require_order_handoff_idle(store, session, result)
 
 

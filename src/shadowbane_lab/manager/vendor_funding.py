@@ -269,8 +269,8 @@ def fund_saved_vendor(
             raise VendorBatchStopped("This vendor funding was already attempted; no replay sent.")
         base_recipe = RandomRecipeSpec.from_dict(selection["recipe_spec"])
         if (order is not None and (type(order) is not RandomOrderSpec
-                                   or order.recipe != base_recipe or order.multiple)):
-            raise ValueError("funding requires the saved recipe's bounded single-slot order")
+                                   or order.recipe != base_recipe or not order.multiple)):
+            raise ValueError("funding requires the saved recipe's full-capacity order")
         if order is not None:
             ensure_order_observer(binding)
         inspect = parent.inspect_orders if order is not None else parent.inspect_random
@@ -287,7 +287,7 @@ def fund_saved_vendor(
             or len(first.remaining_counts) != len(first.snapshot.slots)
             or any(type(count) is not int or not 0 <= count <= 255
                    for count in first.remaining_counts)
-            or any(slot.item and count for slot, count in
+            or any(slot.item and count > 1 for slot, count in
                    zip(first.snapshot.slots, first.remaining_counts, strict=True))
         ):
             raise VendorBatchStopped(

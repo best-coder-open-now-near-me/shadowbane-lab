@@ -75,7 +75,7 @@ inline bool RandomSingle(const Snapshot& s) noexcept {
 }
 inline bool RandomOrder(const Snapshot& s) noexcept {
     return s.recipe && s.item_template && s.table && s.mode == 1 && s.prefix == 3362971591U
-        && s.suffix == s.prefix && s.quantity >= 2 && s.quantity <= 10 && s.multiple == 0;
+        && s.suffix == s.prefix && s.quantity >= 2 && s.quantity <= 10 && s.multiple == 1;
 }
 inline OrderBudget Budget(const Command& command) noexcept {
     OrderBudget result{}; std::memcpy(&result, command.reserved + 16, sizeof(result)); return result;

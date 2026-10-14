@@ -16,7 +16,7 @@ from tests.test_vendor_batch import Session as BaseSession
 from tests.test_vendor_batch import receipt, snapshot
 from tests.test_vendor_random_recipe import preparation_for
 
-SPEC = RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, False)
+SPEC = RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, True)
 
 
 def preparation(session):
@@ -48,7 +48,7 @@ class Session(BaseSession):
     def __init__(self, path, behavior="normal", capacity=7):
         super().__init__(path)
         self.state = replace(snapshot(tuple(Slot(600 + i * 100) for i in range(capacity))),
-                             quantity=10)
+                             quantity=10, multiple=1)
         self.behavior, self.counts = behavior, (0,) * capacity
         self.pending = None
 
@@ -56,12 +56,17 @@ class Session(BaseSession):
         if self.pending:
             key = self.pending
             self.pending = None
-            index = next(i for i, slot in enumerate(self.state.slots) if not slot.item)
-            self.next_item += 1
             slots = list(self.state.slots)
-            slots[index] = replace(slots[index], item=self.next_item, state=1)
             counts = list(self.counts)
-            counts[index] = 10 if self.behavior == "wrong_count" else 9
+            for index, slot in enumerate(slots):
+                if slot.item:
+                    continue
+                self.next_item += 1
+                slots[index] = replace(slot, item=self.next_item, state=1)
+                counts[index] = 1 if self.behavior == "wrong_count" else 10
+            if self.behavior == "grows":
+                slots.append(Slot(9999))
+                counts.append(0)
             self.counts = tuple(counts)
             self.state = replace(self.state, revision=self.state.revision + 1, slots=tuple(slots))
             if self.behavior == "closes":
@@ -92,36 +97,38 @@ def run(session, reader=None, **kwargs):
     )
 
 
-def test_seven_slots_are_seventy_items_with_seven_journaled_quantity_creates(tmp_path):
+def test_seven_slots_are_seventy_items_with_one_journaled_batch_create(tmp_path):
     session = Session(tmp_path / "create.json")
     result = run(session)
     assert result["state"] == "queued" and result["planned_items"] == 70
-    assert len(session.calls) == len(result["initial_items"]) == 7
+    assert len(session.calls) == 1 and len(result["initial_items"]) == 7
     assert result["batch_budget"]["total_costs"] == {"555": 11620}
     assert validate_queued_orders(session.path.read_bytes())[0] == result
 
 
 def test_growth_defers_extra_slot_to_next_batch(tmp_path):
-    session = Session(tmp_path / "create.json", capacity=2)
-    def grow():
-        if len(session.calls) == 1 and len(session.state.slots) == 2:
-            session.state = replace(session.state, slots=(*session.state.slots, Slot(999)))
-            session.counts += (0,)
-    result = run(session, before_action=grow)
-    assert len(session.calls) == 2 and result["planned_items"] == 20
+    session = Session(tmp_path / "create.json", behavior="grows", capacity=2)
+    result = run(session)
+    assert len(session.calls) == 1 and result["planned_items"] == 20
     assert result["capacity_history"] == [2, 3]
     validate_queued_orders(session.path.read_bytes())
 
 
-def test_each_closed_recipe_is_reopened_with_separate_completed_proof(tmp_path):
+def test_multiple_create_can_close_recipe_after_single_batch_submission(tmp_path):
     session = Session(tmp_path / "create.json", behavior="closes", capacity=2)
-    def reopen(index):
-        assert index == 1 and not session.state.recipe
-        session.state = replace(session.state, recipe=401, quantity=10,
-                                revision=session.state.revision + 1)
-        return preparation(session)
-    assert run(session, prepare_next=reopen)["state"] == "queued"
+    assert run(session)["state"] == "queued"
     validate_queued_orders(session.path.read_bytes())
+
+
+def test_capacity_growth_before_submission_requires_fresh_batch_funding(tmp_path):
+    session = Session(tmp_path / "create.json", capacity=2)
+    def grow():
+        session.state = replace(session.state, slots=(*session.state.slots, Slot(999)))
+        session.counts += (0,)
+    with pytest.raises(VendorBatchStopped, match="replan funding"):
+        run(session, before_action=grow)
+    assert not session.calls
+    assert json.loads(session.path.read_bytes())["requests"] == []
 
 
 @pytest.mark.parametrize("behavior", ["wrong_count", "lost"])
@@ -163,7 +170,7 @@ def test_historical_validation_rejects_changed_budget_or_identity(tmp_path, fiel
 @pytest.mark.parametrize("field,value", [
     ("observed_counts", [0] * 7), ("expected_counts", None),
     ("preparation_sha256", "0" * 64), ("state", "submitted"),
-    ("item_id", True), ("transition_request", None),
+    ("item_ids", [True]), ("transition_request", None),
 ])
 def test_historical_validation_requires_every_observed_transition(tmp_path, field, value):
     session = Session(tmp_path / "create.json")

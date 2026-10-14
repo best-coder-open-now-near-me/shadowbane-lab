@@ -108,7 +108,7 @@ class Snapshot:
     def random_order(self) -> bool:
         return bool(self.recipe and self.item_template and self.table and self.mode == 1
                     and self.prefix == self.suffix == 3362971591
-                    and 2 <= self.quantity <= 10 and self.multiple == 0)
+                    and 2 <= self.quantity <= 10 and self.multiple == 1)
 
     def encode(self) -> bytes:
         if type(self.slots) is not tuple or any(type(s) is not Slot for s in self.slots):

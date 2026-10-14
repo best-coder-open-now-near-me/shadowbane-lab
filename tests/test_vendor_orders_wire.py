@@ -65,7 +65,7 @@ def test_orders_inspection_carries_no_mutation_and_ten_item_create_stays_rejecte
 
 def test_quantity_create_requires_a_distinct_batch_identity_without_legacy_fallback():
     command = Command(Host(1, 1, 1), 1000, KEY,
-                      replace(Receipt.decode(raw_receipt()).snapshot, multiple=0))
+                      Receipt.decode(raw_receipt()).snapshot)
     with pytest.raises(ValueError):
         command.encode(Verb.CREATE_ORDERS)
     grouped = replace(command, batch_key="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
@@ -78,6 +78,8 @@ def test_quantity_create_requires_a_distinct_batch_identity_without_legacy_fallb
             grouped.encode(verb)
     with pytest.raises(ValueError):
         replace(grouped, expected=replace(command.expected, quantity=1)).encode(Verb.CREATE_ORDERS)
+    with pytest.raises(ValueError):
+        replace(grouped, expected=replace(command.expected, multiple=0)).encode(Verb.CREATE_ORDERS)
 
 
 @pytest.mark.parametrize("budget", [NativeOrderBudget(0, 1, 1), NativeOrderBudget(17, 1, 1),
