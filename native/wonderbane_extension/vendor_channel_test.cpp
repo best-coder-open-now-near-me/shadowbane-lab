@@ -35,7 +35,7 @@ int main() {
             s.table=16; s.mode=1; s.prefix=s.suffix=3362971591U; s.quantity=1; s.multiple=multiple;
             s.count=1; s.slots[0].entry=800;
             if(kind==61) {
-                s.quantity=10; payload.reserved[0]=42;
+                s.quantity=10; s.multiple=1; payload.reserved[0]=42;
                 const v::wire::OrderBudget budget{1,1,10,2308551,1660,1660};
                 std::memcpy(payload.reserved+16,&budget,sizeof(budget));
             }

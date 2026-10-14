@@ -2,7 +2,113 @@
 
 ## Current continuation - October 13, 2026
 
-The quantity-ten worker slice is implemented in uninstalled host .110/native .68
+### Live quantity correction: source .111/.69, not installed
+
+After restart and movement, discovery succeeded: 25 vendor windows across 13
+buildings. The existing hooks returned to Malik and activated saved Gilded Scepter
+revision `b5842713e2884a1e80224ee664326bf1`. Whole-batch funding proved seven free
+slots, 70 items, 1,660 Gold per slot / 11,620 total and 228,070 already in the shop.
+No withdrawal or deposit was necessary.
+
+Operation `operation-1277ec27520c48c88637a2f7e100c54a` submitted one Create and then
+stopped safely. Its preserved schema-4 job `cf07ca42dcde43309837f467b009d392` and
+Create journal remain in review and must never replay. Read-only evidence proves
+one cooking item `4294853691`, a slot count of 1, server future count 0 and a
+strongbox balance of 227,904: only 166 Gold was charged. The recipe displayed ten
+but the request used ordinary single-item mode. The copied decoded/processing/
+returned reply has exact lineage and no capture losses, with decode and processing
+on different threads. No Keep or disposal was sent.
+
+Source .111/.69 corrects admission to one native Create Multiple Items request
+for all initially funded slots. Schema-5 admission binds every initial item to
+that one request, refuses capacity growth before submission, and requires each
+occupied slot's physical count to equal ten. A server response counts future
+items, while the displayed slot includes the current item; reconciliation now
+normalizes that boundary explicitly. Decode may hand off to another thread;
+processing and returned must remain on the same thread. The native quota still
+rejects excess arrivals and repeat requests; no uncertain request is replayed.
+Historical job records remain preserved. The last native observation is now
+saved with admission failures to avoid losing the evidence needed for diagnosis.
+
+Validation: 140 focused host checks, four affected native suites, repository Ruff
+and diff whitespace checks pass. Installed software remains .110/.68. Active next:
+qualify a graphics-preserving .111/.69 release, then install and verify a fresh
+full-capacity request plus the complete inventory chain. The one live item remains
+untouched; unknowns are retained and client .18 disposal remains disabled.
+
+### Installed update; quantity-ten live acceptance pending
+
+Host .110/native .68 is fully packaged from graphics-preserving release
+`65692cefd433bf28a21b21f3e5d374dcc6a5f2fd`, pushed on
+`codex/vendor-release-20261013`. Implementation is pushed on
+`codex/vendor-rolling-20261013` through `725a1e63`, targeting main in draft PR #174.
+The normal checkout remains on clean main; neither vendor branch is merged there.
+
+Qualification passed 6,737 host tests with 45 optional skips, all required native
+tests in both profiles (284 full / 280 diagnostics), both sets of native/host IPC,
+exact original/prepared client bindings and all seven Windows startup cases.
+Independent verification seals 144 artifacts, 116 build steps and 499 installed
+wheel modules. The existing two stretch-only transparency findings remain recorded
+for each profile; they are unchanged and do not waive any required vendor gate.
+The native-only updater passes 147 isolated preservation/refusal checks.
+
+Exact package identities:
+
+- Full DLL: `94df2c23308e5e531dbf87eee7feb7aa1b48fefb9d9617c339d5ece187f570b7`.
+- Host wheel: `96c788bc549475fb2e72948b6b193d5d592b4ab51ad305dadad1426e602e99c4`.
+- Independent verification: `855c7ec79f8e9773051e3e1da73cfee8e1815e633d41f60933ac95062692f7fd`.
+- Supplemental startup verification: `48cd4732cb4dd8879db86912da0da634dc00781f0dcda0e3605bee39729216c7`.
+
+After the user confirmed game closure, the idle, unbound .109 manager was stopped
+and a stable census sealed 9,765 retained records. Host .110/native .68 is now
+installed and activated in the test VM. All 499 module files and 9,819 retained
+records passed verification with zero exclusions; only typed manager startup and
+dispatch-permit changes were accepted. The client executable and resources were
+not written. The sole client binary replacement is the qualified extension DLL.
+The same Vendor Test launcher started PID 5744 / creation 134364054554569645 with
+that exact DLL. Its permanent production recorder is available, sequence zero,
+without admitting a command. Obsolete host .109 was retired: 2,177 reproducible
+files / 49,260,976 bytes, with no retained rollback copy. Settings and historical
+journals remain in place. No funds, Create, Keep or disposal were sent.
+Subsequent read-only status confirms one healthy exact worker, an empty operation
+queue and character identity unavailable at login. Obsolete local .109 package,
+source-mirror and dependency outputs were retired (4,306 files / 96,098,527 bytes),
+as were 22 obsolete guest payload binaries (40,695,787 bytes). Original logs,
+hash inventories and receipts remain; current software and user data are preserved.
+
+Compact private receipt identities (SHA-256):
+
+- Sealed update plan: `322f90c589c18463e98a750557de94600edc9498a956630df88be4f173427a8b`.
+- Apply: `59063258f079ffbb05d1049c9501984111c7e1286d4218723007748c5d25b19e`.
+- Activation: `b42d8186bfbf9bb29418bc3523d57035a2ae00c35c6d87d2f1bfdab4c6f23844`.
+- Launch: `18490091f4d522f402c00cd2ead6b2d8b67213add34a5bc65120805d73651f65`.
+- Retirement: `f61c96de2b21b19169eca85b40bd08d8d2dfd401848e19dbada8707883f7ee07`.
+
+Evidence remains private under `artifacts/h110/installed` and the VM's
+`diagnostics/vendor-resume-20261013`; no captures or binaries are published.
+Active next: Treehugger's login to Rooty, fresh vendor discovery, whole-batch
+funding and quantity-ten server acceptance, then every planned inventory receipt.
+Seven free slots would plan 70 items; capacity and price must be read afresh.
+Raw-nine admission, disposal and town scheduling remain unqualified.
+
+### First live discovery: pre-movement window timeout
+
+Treehugger's identity and foreground state were verified in the new game. Native
+City Command returned 14 building candidates, but the first Tree of Life open
+(2201004) did not produce its server-backed management window within 60 seconds.
+Operation `operation-8801f6dab2be48e1becd31590ab81ee6` remains failed with its
+submitted intent preserved. The user reported that initial interaction needs
+movement and moved after the request. A subsequent read-only native inspection
+still reports flags 6 (in flight and unresolved), transition
+`5f53075a-3989-438d-a2c5-57d695bd9431`, initialized 0 and no building/vendor HUD.
+The controller intentionally cannot reset that uncertainty or replay the open.
+No funding, Create, Keep or disposal occurred. The user has been asked to restart
+the same client, log in and move once before discovery resumes; no reinstall is
+needed. Next: fresh-session readiness, then whole-batch quantity-ten acceptance.
+
+### Implemented behavior
+
+The quantity-ten worker slice is implemented in installed host .110/native .68
 source on `codex/vendor-rolling-20261013`, targeting main through draft PR #174.
 New saved-recipe starts derive separate quantity-ten, single-slot order intent,
 fund the whole initial batch once, queue one order per funded slot, and reconcile
@@ -32,10 +138,10 @@ The combined worker, recipe/HTTP, funding, queue and progress suite passes 148
 tests; Ruff and diff whitespace checks pass. These are local fixture checks,
 not a connected server acceptance receipt.
 
-Installed software remains host .109/native .67, client 1.3.38.18. Nothing from
-this source candidate has been installed or invoked. Next: qualify the complete
-graphics-preserving release, install once after game closure, then verify native
-quantity-ten server acceptance and the complete live inventory chain. The native
+Installed software is host .110/native .68, client 1.3.38.18, from the complete
+qualified release above. Native production observation is available; no quantity
+order has been dispatched. Next: verify native quantity-ten server acceptance
+and the complete live inventory chain. The native
 raw-nine admission rule is deliberately fail-closed and still awaits live proof.
 Town scheduling and affix disposal qualification follow that batch; guard work
 is outside this task. Existing failed funding evidence remains preserved.

@@ -34,9 +34,9 @@ class OrderProgress:
         self.visible = set(self.admission["initial_items"])
         self.sequence = self.admission["production_bookmark"]["cursor"]["sequence"]
         self.bookmark = self.sequence
-        for request in self.admission["requests"]:
-            state = Snapshot.decode(bytes.fromhex(request["observed_snapshot"]))
-            item = request["item_id"]
+        request = self.admission["requests"][0]
+        state = Snapshot.decode(bytes.fromhex(request["observed_snapshot"]))
+        for item in self.admission["initial_items"]:
             entry = next(slot.entry for slot in state.slots if slot.item == item)
             order = dict(entry=entry, current=item, remaining=self.spec.quantity - 1,
                          path=[item], finished=False)
@@ -78,8 +78,10 @@ class OrderProgress:
                     or stage not in ("processing", "returned")
                     or previous[1] != ("decoded" if stage == "processing" else "processing")
                     or any(_canonical(record[key]) != _canonical(previous[0][key])
-                           for key in ("payload", "scene_epoch", "local", "thread_id"))):
+                           for key in ("payload", "scene_epoch", "local"))
+                    or stage == "returned" and record["thread_id"] != previous[0]["thread_id"]):
                 raise VendorBatchStopped("production reply lacks exact single-use lineage")
+            previous[0] = record
             previous[1] = stage
             if stage != "returned":
                 continue
@@ -111,7 +113,11 @@ class OrderProgress:
                 or state.revision < self.revision or not _counts(counts, state)
                 or not self.baseline <= _items(state)):
             raise VendorBatchStopped("quantity production ownership or capacity changed")
-        slots = {slot.item: (slot, count) for slot, count in
+        if any(slot.item and count < 1 for slot, count in zip(state.slots, counts, strict=True)):
+            raise VendorBatchStopped("occupied production slot lacks its current item count")
+        # The displayed slot includes the current item; copied server replies
+        # count only future items. Preserve both representations at their boundary.
+        slots = {slot.item: (slot, count - 1) for slot, count in
                  zip(state.slots, counts, strict=True) if slot.item}
         if any(item in slots for order in self.orders for item in order["path"][:-1]):
             raise VendorBatchStopped("an earlier quantity item reappeared in production")

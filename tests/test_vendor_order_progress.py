@@ -20,7 +20,8 @@ def replies(progress, item, remaining, **changes):
     first = progress.sequence + 1
     return [dict(sequence=first + i, stage=stage, decode_sequence=first,
                  flags=3 if i == 0 else 7, scene_epoch=progress.initial.scene,
-                 local=list(CHARACTER), thread_id=10, payload=copy.deepcopy(body))
+                 local=list(CHARACTER), thread_id=20 if i == 0 else 10,
+                 payload=copy.deepcopy(body))
             for i, stage in enumerate(("decoded", "processing", "returned"))]
 
 
@@ -45,7 +46,7 @@ def test_full_seventy_item_batch_needs_every_distinct_id_in_inventory(tmp_path):
             slots.append(replace(slot, item=session.next_item))
         session.state = replace(session.state, revision=session.state.revision + 1,
                                 slots=tuple(slots))
-        progress.observe(session.state, (remaining,) * 7)
+        progress.observe(session.state, (remaining + 1,) * 7)
     assert len(progress.items) == 70 and not progress.complete
     last = [slot.item for slot in session.state.slots]
     progress.confirm_inventory(last[:-1])
@@ -66,7 +67,7 @@ def test_keep_transition_can_prove_one_reallocated_slot_successor(tmp_path):
     progress.receive(replies(progress, new, 8))
     state = replace(session.state, revision=session.state.revision + 1,
                     slots=(Slot(999, new, 1),))
-    progress.observe(state, (8,), kept_item=old)
+    progress.observe(state, (9,), kept_item=old)
     assert progress.orders[0]["path"] == [old, new]
 
 
@@ -81,7 +82,7 @@ def test_unexplained_quantity_transition_cannot_adopt_an_item(tmp_path, change):
     with pytest.raises(VendorBatchStopped):
         if change != "no_reply":
             progress.receive(replies(progress, item, count))
-        progress.observe(state, (count,))
+        progress.observe(state, (count + 1,))
     assert len(progress.items) == 1
 
 
@@ -110,6 +111,15 @@ def test_other_vendor_replies_are_recorded_but_cannot_claim_batch_items(tmp_path
     assert len(progress.rolls) == 1 and progress.sequence == raw[-1]["sequence"]
 
 
+def test_decode_can_handoff_threads_but_processing_and_return_must_match(tmp_path):
+    session, progress = setup(tmp_path, 1)
+    raw = replies(progress, session.next_item + 1, 8)
+    assert raw[0]["thread_id"] != raw[1]["thread_id"]
+    raw[2]["thread_id"] += 1
+    with pytest.raises(VendorBatchStopped, match="lineage"):
+        progress.receive(raw)
+
+
 def test_positive_inventory_presence_cannot_adopt_unknowns_or_complete_queue(tmp_path):
     session, progress = setup(tmp_path, 1)
     progress.confirm_inventory([session.next_item, 999])
@@ -125,9 +135,9 @@ def test_old_item_cannot_reappear_after_successor_was_observed(tmp_path):
     progress.receive(replies(progress, old.item + 1, 8))
     state = replace(session.state, revision=session.state.revision + 1,
                     slots=(replace(old, item=old.item + 1),))
-    progress.observe(state, (8,))
+    progress.observe(state, (9,))
     with pytest.raises(VendorBatchStopped, match="reappeared"):
-        progress.observe(replace(state, slots=(old,)), (9,))
+        progress.observe(replace(state, slots=(old,)), (10,))
 
 
 def test_admission_cursor_cannot_claim_missing_receive_records(tmp_path):

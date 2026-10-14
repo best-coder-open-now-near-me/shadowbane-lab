@@ -83,7 +83,7 @@ public:
         }
         for (std::size_t i = 0; i < snapshot.count; ++i) {
             if (remaining[i] > UINT8_MAX) { return false; }
-            if (!snapshot.slots[i].item || !remaining[i]) { continue; }
+            if (!snapshot.slots[i].item || remaining[i] <= 1) { continue; }
             bool owned = false;
             for (const auto& [request, record] : records_) {
                 (void)request;
@@ -138,7 +138,7 @@ public:
                 const auto item = current_.slots[i].item;
                 if (item && !Contains(before, item)) {
                     if (pending_->verb == wire::Verb::create_orders
-                        && remaining_[i] != before.quantity - 1) { uncertain_ = true; return; }
+                        && remaining_[i] != before.quantity) { uncertain_ = true; return; }
                     ++additions; new_item = item;
                 }
             }
