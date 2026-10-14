@@ -32,7 +32,7 @@ class Recorder(BaseRecorder):
         first = self.cursor["sequence"] + len(self.records) + 1
         body = dict(action=8, error=0, building=[self.parent.state.building, 8],
                     vendor=[self.parent.state.vendor, 42], item=[item, 40],
-                    template=self.parent.state.item_template, remaining_count_raw=count)
+                    template=self.parent.state.item_template, remaining_count_raw=count + 1)
         self.records.extend(dict(sequence=first + i, stage=stage, decode_sequence=first,
                                  flags=3 if i == 0 else 7, scene_epoch=1,
                                  local=list(CHARACTER), thread_id=10, payload=copy.deepcopy(body))

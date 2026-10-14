@@ -93,15 +93,17 @@ class OrderProgress:
             item, kind = payload["item"]
             if item in self.baseline:
                 continue
-            remaining = payload["remaining_count_raw"]
+            physical_count = payload["remaining_count_raw"]
             if (type(item) is not int or not 0 < item < 2**32 or kind != 40
                     or payload["template"] != self.spec.template
-                    or type(remaining) is not int or not 0 <= remaining < self.spec.quantity):
+                    or type(physical_count) is not int
+                    or not 0 < physical_count <= self.spec.quantity):
                 raise VendorBatchStopped("production reply changed the item or quantity")
+            remaining = physical_count - 1
             old = self.rolls.get(item)
-            if old and old["remaining_count_raw"] != remaining:
+            if old and old["future_items"] != remaining:
                 raise VendorBatchStopped("a produced item changed its remaining count")
-            self.rolls[item] = payload
+            self.rolls[item] = dict(payload, future_items=remaining)
             if len(self.rolls) > self.admission["planned_items"]:
                 raise VendorBatchStopped("production exceeded the funded item quota")
         if len(self.lineage) > 64:
@@ -115,8 +117,8 @@ class OrderProgress:
             raise VendorBatchStopped("quantity production ownership or capacity changed")
         if any(slot.item and count < 1 for slot, count in zip(state.slots, counts, strict=True)):
             raise VendorBatchStopped("occupied production slot lacks its current item count")
-        # The displayed slot includes the current item; copied server replies
-        # count only future items. Preserve both representations at their boundary.
+        # Both the slot and V2 reply count include the current item. Internal
+        # ancestry tracks future items; retain the raw evidence unchanged.
         slots = {slot.item: (slot, count - 1) for slot, count in
                  zip(state.slots, counts, strict=True) if slot.item}
         if any(item in slots for order in self.orders for item in order["path"][:-1]):
@@ -134,7 +136,7 @@ class OrderProgress:
                           and (order["entry"] == slot.entry
                                or kept_item == order["current"] and len(missing) == 1)]
             if (len(candidates) != 1 or roll is None
-                    or roll["remaining_count_raw"] != count):
+                    or roll["future_items"] != count):
                 raise VendorBatchStopped("a new order item lacks observed batch ancestry")
             order = candidates[0]
             if any(assigned is order for assigned, _, _, _ in assignments):
@@ -154,7 +156,7 @@ class OrderProgress:
                     raise VendorBatchStopped("remaining count changed without a new item")
                 order["entry"] = slot.entry
                 roll = self.rolls.get(item)
-                if roll is not None and roll["remaining_count_raw"] != count:
+                if roll is not None and roll["future_items"] != count:
                     raise VendorBatchStopped("queue and received order counts disagree")
             elif order["remaining"] == 0 and item in self.inventory_confirmed:
                 order["finished"] = True

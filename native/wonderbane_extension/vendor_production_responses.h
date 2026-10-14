@@ -11,6 +11,7 @@ struct Payload {
     Key building{}, vendor{}, reference{};
     std::uint32_t quantity = 0, marker = 0, prefix = 0, suffix = 0;
     Key item{};
+    // V2 remaining includes the current item, matching the displayed slot.
     std::uint32_t item_template = 0, remaining = 0, value = 0, seconds = 0,
         duration = 0, in_progress = 0, complete = 0;
     Key deposited_item{}, deposited_template{};

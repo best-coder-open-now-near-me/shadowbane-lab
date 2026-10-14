@@ -13,7 +13,7 @@ No withdrawal or deposit was necessary.
 Operation `operation-1277ec27520c48c88637a2f7e100c54a` submitted one Create and then
 stopped safely. Its preserved schema-4 job `cf07ca42dcde43309837f467b009d392` and
 Create journal remain in review and must never replay. Read-only evidence proves
-one cooking item `4294853691`, a slot count of 1, server future count 0 and a
+one cooking item `4294853691`, a slot count of 1, template type 0 and a
 strongbox balance of 227,904: only 166 Gold was charged. The recipe displayed ten
 but the request used ordinary single-item mode. The copied decoded/processing/
 returned reply has exact lineage and no capture losses, with decode and processing
@@ -22,16 +22,23 @@ on different threads. No Keep or disposal was sent.
 Source .111/.69 corrects admission to one native Create Multiple Items request
 for all initially funded slots. Schema-5 admission binds every initial item to
 that one request, refuses capacity growth before submission, and requires each
-occupied slot's physical count to equal ten. A server response counts future
-items, while the displayed slot includes the current item; reconciliation now
-normalizes that boundary explicitly. Decode may hand off to another thread;
+occupied slot's physical count to equal ten. The client receive handler proves
+the template key is at message +0xc8/+0xcc, physical count at +0xdc and active/
+completed bytes at +0xe0/+0xe1. V1 had mislabeled the template type as a future
+count and the physical count as the active flag. The corrected V2 mapping and
+payload schema reject V1 evidence. Both slot and copied reply counts include the
+current item; internal ancestry derives future items by subtracting one while
+preserving raw records. Decode may hand off to another thread;
 processing and returned must remain on the same thread. The native quota still
 rejects excess arrivals and repeat requests; no uncertain request is replayed.
 Historical job records remain preserved. The last native observation is now
 saved with admission failures to avoid losing the evidence needed for diagnosis.
 
 Validation: 140 focused host checks, four affected native suites, repository Ruff
-and diff whitespace checks pass. Installed software remains .110/.68. Active next:
+and diff whitespace checks pass. The V2 correction additionally passes 83 host
+checks and all four recorder/install-failure native cases, including ten-item
+active and completed messages, typed-template rejection and V1 refusal.
+Installed software remains .110/.68. Active next:
 qualify a graphics-preserving .111/.69 release, then install and verify a fresh
 full-capacity request plus the complete inventory chain. The one live item remains
 untouched; unknowns are retained and client .18 disposal remains disabled.
@@ -142,7 +149,7 @@ Installed software is host .110/native .68, client 1.3.38.18, from the complete
 qualified release above. Native production observation is available; no quantity
 order has been dispatched. Next: verify native quantity-ten server acceptance
 and the complete live inventory chain. The native
-raw-nine admission rule is deliberately fail-closed and still awaits live proof.
+physical-ten admission rule is deliberately fail-closed and still awaits live proof.
 Town scheduling and affix disposal qualification follow that batch; guard work
 is outside this task. Existing failed funding evidence remains preserved.
 

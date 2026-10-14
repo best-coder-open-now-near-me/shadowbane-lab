@@ -7,8 +7,9 @@ Installed .110/.68 completed fresh discovery and proved the whole 70-item batch
 funded by existing shop gold. Its first ordinary-mode Create produced one item
 and charged 166 Gold despite displaying quantity ten; the failed job and request
 remain preserved without replay. Source .111/.69 now uses one full-capacity
-Create Multiple Items request, reconciles physical versus future counts, and
-accepts the verified decode-thread handoff. 140 focused host checks, four affected
+Create Multiple Items request, corrects the recorder's message field offsets in
+a V2 mapping/schema, and accepts the verified decode-thread handoff. V1 replies
+cannot qualify a new batch. 140 focused host checks, four affected
 native suites, Ruff and diff checks pass. Next: full graphics-preserving release
 qualification, installation and live batch/inventory acceptance. Main remains
 clean and these changes remain outside it. Guard work stays out of scope.

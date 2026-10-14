@@ -19,7 +19,7 @@ class VendorProductionError(RuntimeError):
 def mapping_name(process_id: int, creation: int) -> str:
     if not uint(process_id, 32, "process ID") or not uint(creation, 64, "creation"):
         raise ValueError("an exact client lifetime is required")
-    return f"Local\\ShadowbaneLab.Extension.VendorProduction.v1.{process_id}.{creation}"
+    return f"Local\\ShadowbaneLab.Extension.VendorProduction.v2.{process_id}.{creation}"
 
 
 def parse_snapshot(data: bytes, *, process_id: int, creation: int) -> dict:
@@ -29,7 +29,7 @@ def parse_snapshot(data: bytes, *, process_id: int, creation: int) -> dict:
     magic, schema, size, capacity, pid, born, sequence, overwritten, stopped, rejected, drops = (
         HEADER.unpack_from(data))
     if (magic, schema, size, capacity, pid, born) != (
-        b"WBPRD1\0\0", 1, RECORD_SIZE, CAPACITY, process_id, creation,
+        b"WBPRD2\0\0", 2, RECORD_SIZE, CAPACITY, process_id, creation,
     ):
         raise VendorProductionError("production mapping identity or layout mismatch")
     if (sequence < 0 or overwritten != max(0, sequence - CAPACITY)
@@ -59,6 +59,7 @@ def parse_snapshot(data: bytes, *, process_id: int, creation: int) -> dict:
                     or (v[27] > 1 if fields & 8 else v[27] != 0)):
                 raise VendorProductionError("invalid or noncanonical production payload")
             if fields & 1 and (not v[13] or v[14] != 40 or not v[15]
+                               or not 0 < v[16] <= 255
                                or v[20] not in (0, 1) or v[21] not in (0, 1)
                                or v[20] == v[21] or v[21] and v[18]):
                 raise VendorProductionError("invalid production item")
@@ -86,7 +87,7 @@ def _publishing(data: bytes, process_id: int, creation: int) -> bool:
         return False
     magic, schema, size, capacity, pid, born, sequence, overwritten, *_ = HEADER.unpack_from(data)
     if (magic, schema, size, capacity, pid, born) != (
-        b"WBPRD1\0\0", 1, RECORD_SIZE, CAPACITY, process_id, creation,
+        b"WBPRD2\0\0", 2, RECORD_SIZE, CAPACITY, process_id, creation,
     ) or sequence < CAPACITY:
         return False
     slot = HEADER.size + sequence % CAPACITY * RECORD_SIZE

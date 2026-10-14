@@ -70,9 +70,14 @@ bool Snapshot(void* message, Payload& out) noexcept {
     if (out.action == 8 && !out.error) {
         if (!Read(p + 0xc0, out.item.data(), 8) || !out.item[0] || out.item[1] != 40
             || !Word(p + 0xc8, out.item_template) || !out.item_template
-            || !Word(p + 0xcc, out.remaining) || !Word(p + 0xd0, out.value)
+            || !Word(p + 0xcc, flags) || flags != 0 || !Word(p + 0xd0, out.value)
             || !Word(p + 0xd4, out.seconds) || !Word(p + 0xd8, out.duration)
-            || !Word(p + 0xdc, out.in_progress) || !Word(p + 0xe0, flags)) { return false; }
+            || !Word(p + 0xdc, out.remaining) || !out.remaining || out.remaining > 255
+            || !Word(p + 0xe0, flags)) { return false; }
+        // +0xc8/+0xcc is the typed template key, not an item count.
+        // The native receive handler passes +0xdc as the displayed count and
+        // the two low bytes at +0xe0 as active/completed flags.
+        out.in_progress = flags & 255;
         out.complete = (flags >> 8) & 255;
         if (out.in_progress > 1 || out.complete > 1 || out.in_progress == out.complete
             || (out.complete && out.seconds)) { return false; }
@@ -201,8 +206,8 @@ std::array<std::uint32_t, 3> Hooks() noexcept {
 bool CursorLocked(Cursor& out) noexcept {
     if (!storage || storage->stopped || storage->sequence < 0 || storage->rejected < 0
         || storage->ticket_drops < 0 || !storage->process_id || !storage->creation
-        || storage->schema != 1 || storage->record_size != sizeof(Record)
-        || storage->capacity != kCapacity || std::memcmp(storage->magic, "WBPRD1\0", 8)
+        || storage->schema != 2 || storage->record_size != sizeof(Record)
+        || storage->capacity != kCapacity || std::memcmp(storage->magic, "WBPRD2\0", 8)
         || storage->overwritten != (storage->sequence > static_cast<LONG64>(kCapacity)
             ? storage->sequence - static_cast<LONG64>(kCapacity) : 0)) { return false; }
     out = {storage->process_id, storage->creation, static_cast<std::uint64_t>(storage->sequence),
@@ -221,7 +226,7 @@ DWORD StartBound(const ProcessIdentity& identity, std::uintptr_t base,
     attempted = true;
     DWORD result = ERROR_SUCCESS;
     wchar_t name[160]{};
-    if (FAILED(StringCchPrintfW(name, 160, L"Local\\ShadowbaneLab.Extension.VendorProduction.v1.%lu.%llu",
+    if (FAILED(StringCchPrintfW(name, 160, L"Local\\ShadowbaneLab.Extension.VendorProduction.v2.%lu.%llu",
         identity.process_id, identity.creation_filetime_utc))) { result = ERROR_INVALID_DATA; }
     if (!result) {
         mapping = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE, 0, sizeof(Storage), name);
@@ -233,8 +238,8 @@ DWORD StartBound(const ProcessIdentity& identity, std::uintptr_t base,
         if (!storage) { result = GetLastError(); }
     }
     if (!result) {
-        std::memcpy(storage->magic, "WBPRD1\0", 8);
-        storage->schema = 1; storage->record_size = sizeof(Record); storage->capacity = kCapacity;
+        std::memcpy(storage->magic, "WBPRD2\0", 8);
+        storage->schema = 2; storage->record_size = sizeof(Record); storage->capacity = kCapacity;
         storage->process_id = identity.process_id; storage->creation = identity.creation_filetime_utc;
         image_base = base; installed_slots = slots; original_slots = targets;
         destroy_original = reinterpret_cast<Destroy>(targets[0]);
