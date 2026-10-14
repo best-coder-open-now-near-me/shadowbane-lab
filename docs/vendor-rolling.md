@@ -1,5 +1,26 @@
 # Player-owned vendor rolling
 
+## Navigation allocation lifetime correction - October 14
+
+Host .114/native .71 was qualified and installed without restarting the game:
+6,779 host checks (46 optional skips), both real IPC profiles, six installed-wheel
+desktop cases and 157 installer checks pass. Activation verified all 499 modules
+and 9,951 retained records with zero exclusions and zero client-file writes.
+
+The corrected first comparison passed. Whole-batch planning confirmed six free
+slots / 60 items, 1,660 gold per slot / 9,960 total, and 226,410 already in the
+shop; no gold moved. Returning from the building rebuilt the queue entries and
+recipe window. Comparing those temporary addresses across visits was too strict,
+so the operation stopped before Create and its journal remains preserved.
+
+Host .115 binds entry addresses only between independent views of the same
+current window. Across navigation it reconciles item identities, states and
+empty-slot count; the immutable owner/recipe/capacity/cost budget still applies.
+A full funding-return regression rebuilds the entries and recipe window while
+retaining the existing completed item. All 79 focused checks pass. Next: qualify
+and install .115 with the existing game/native lifetime, then verify quantity-ten
+server admission and every inventory receipt. No corrected Create is claimed.
+
 ## In-world startup verified; queue reconciliation correction - October 14
 
 Treehugger's .113/.71 session proves initialized, bound, nonterminal native
