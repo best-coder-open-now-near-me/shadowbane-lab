@@ -10,6 +10,7 @@ from pathlib import Path
 from shadowbane_lab.record_store import exclusive_record_lock, publish_atomic_record
 
 from .movement_wire import request_bytes
+from .vendor_automatic_replies import AutomaticReplies
 from .vendor_batch import VendorBatchStopped, _items, _owner
 from .vendor_budget import VendorBatchBudget
 from .vendor_production_responses import VendorProductionReader
@@ -24,7 +25,7 @@ def _counts(values, state):
 
 def queue_quantity_orders(
     session, journal: Path, specification: RandomOrderSpec, budget: VendorBatchBudget,
-    preparation_raw: bytes, production_reader, *, before_action=lambda: None,
+    preparation_raw: bytes, production_reader, *, character, before_action=lambda: None,
     await_authority=None,
     cancelled=lambda: False, clock=time.monotonic, sleeper=time.sleep,
     acceptance_timeout: float = 15.0,
@@ -53,8 +54,7 @@ def queue_quantity_orders(
         if (first.outcome != Outcome.OBSERVED or first.flags != READY
                 or not specification.matches(initial) or not budget.matches(initial)
                 or not _counts(first.remaining_counts, initial)
-                or any(slot.item and count > 1 for slot, count in
-                       zip(initial.slots, first.remaining_counts, strict=True))):
+                or any(slot.state == 1 for slot in initial.slots)):
             raise VendorBatchStopped("the exact funded quantity recipe is not ready")
         validate_recipe_preparation(
             preparation_raw, specification, initial, process_id=session.identity.process_id,
@@ -62,7 +62,10 @@ def queue_quantity_orders(
             window=first.window,
         )
         bookmark = production_reader.bookmark()
-        record = dict(schema_version=5, operation="queue_quantity_orders", state="running",
+        proof = AutomaticReplies(initial, specification, character, budget.free_slots,
+                                 bookmark["cursor"]["sequence"])
+        record = dict(schema_version=6, operation="queue_quantity_orders", state="running",
+                      character=list(character),
                       batch_id=str(uuid.uuid4()), process_id=session.identity.process_id,
                       process_creation_filetime_utc=session.identity.creation_filetime_utc,
                       window=first.window, initial_snapshot=initial.encode().hex(),
@@ -88,6 +91,7 @@ def queue_quantity_orders(
             save()
             if result["capture_incomplete"] or len(record["production_records"]) > 4096:
                 raise VendorBatchStopped("production observation is incomplete; no retry sent")
+            proof.receive(result["records"])
 
         def current(receipt, *, pending=False):
             state = receipt.snapshot
@@ -157,6 +161,7 @@ def queue_quantity_orders(
             while True:
                 drain()
                 observed = session.inspect_orders()
+                drain()  # Include callbacks processed by this independent native view.
                 record["last_observation"] = dict(
                     outcome=observed.outcome.name, flags=observed.flags,
                     snapshot=observed.snapshot.encode().hex(),
@@ -175,11 +180,8 @@ def queue_quantity_orders(
                     if (observed.flags & (IN_FLIGHT | UNRESOLVED)
                             or len(additions) != budget.free_slots
                             or observed.transition_item not in additions
-                            or any(count != specification.quantity
-                                   for slot, count in zip(
-                                       state.slots, observed.remaining_counts, strict=True)
-                                   if slot.item in additions)):
-                        raise VendorBatchStopped("native order count does not match its quota")
+                            or not proof.admits(sorted(additions))):
+                        raise VendorBatchStopped("native order admission lacks qualified replies")
                     attempt.update(state="observed", item_ids=sorted(additions),
                                    observed_snapshot=state.encode().hex(),
                                    observed_counts=list(observed.remaining_counts),
@@ -234,15 +236,14 @@ def validate_queued_orders(raw: bytes) -> tuple[dict, Snapshot]:
                 or any(record["production_cursor"][key] != bookmark["cursor"][key]
                        for key in ("rejected", "ticket_drops"))
                 or not _counts(record["initial_counts"], initial)
-                or any(slot.item and count > 1 for slot, count in
-                       zip(initial.slots, record["initial_counts"], strict=True))):
+                or any(slot.state == 1 for slot in initial.slots)):
             raise ValueError("invalid initial production observation")
         validate_recipe_preparation(
             prep, spec, initial, process_id=record["process_id"],
             process_creation_filetime_utc=record["process_creation_filetime_utc"],
             window=record["window"],
         )
-        if (type(record["schema_version"]) is not int or record["schema_version"] != 5
+        if (type(record["schema_version"]) is not int or record["schema_version"] != 6
                 or record["operation"] != "queue_quantity_orders" or record["state"] != "queued"
                 or not spec.multiple or not spec.matches(initial) or not budget.matches(initial)
                 or record["recipe_sha256"] != spec.canonical_digest
@@ -288,13 +289,17 @@ def validate_queued_orders(raw: bytes) -> tuple[dict, Snapshot]:
                     or _items(before) != seen or _items(after) != seen | set(items)
                     or seen & set(items)
                     or not _counts(request["expected_counts"], before)
-                    or not _counts(counts, after)
-                    or any(count != spec.quantity for slot, count in
-                           zip(after.slots, counts, strict=True) if slot.item in items)):
+                    or not _counts(counts, after)):
                 raise ValueError("unconfirmed quantity order transition")
             keys.add(key)
             seen.update(items)
             previous = after
+        proof = AutomaticReplies(initial, spec, tuple(record["character"]), budget.free_slots,
+                                 bookmark["cursor"]["sequence"])
+        proof.receive(record["production_records"])
+        if (proof.sequence != record["production_cursor"]["sequence"]
+                or not proof.admits(record["initial_items"])):
+            raise ValueError("quantity admission lacks complete server arrival evidence")
         return record, initial
-    except (KeyError, TypeError, ValueError, AttributeError, IndexError) as exc:
+    except (KeyError, TypeError, ValueError, AttributeError, IndexError, VendorBatchStopped) as exc:
         raise ValueError("expected a complete observed quantity-order admission journal") from exc

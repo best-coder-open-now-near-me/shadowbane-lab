@@ -289,12 +289,15 @@ def test_missing_production_observer_stops_before_gold_or_menu_actions(setup, mo
     assert not setup.world.calls and not setup.path.exists()
 
 
-def test_prior_quantity_order_is_not_adopted_by_another_funding_batch(setup, monkeypatch):
+@pytest.mark.parametrize("raw_count", [0, 1, 9])
+def test_prior_quantity_order_is_not_adopted_by_another_funding_batch(
+    setup, monkeypatch, raw_count,
+):
     monkeypatch.setattr(module, "ensure_order_observer", lambda _: None)
     setup.parent.snapshot = replace(setup.parent.snapshot,
                                     slots=(vendor.Slot(1100, 123, 1), vendor.Slot(1200)))
     setup.parent.inspect_orders = lambda: replace(setup.parent.inspect_random(),
-                                                  remaining_counts=(9, 1))
+                                                  remaining_counts=(raw_count, 1))
     with pytest.raises(VendorBatchStopped, match="Recover existing quantity orders"):
         setup.run(order=RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True))
     assert not setup.world.calls and not setup.path.exists()

@@ -196,6 +196,7 @@ def run_order_job(store, session, record, *, cancelled=lambda: False, clock=time
             record["phase"] = "filling"
             update("running", f"Queuing {budget.free_slots} orders of {spec.quantity} items.")
             queue_quantity_orders(session, create_path, spec, budget, prep, reader,
+                                  character=tuple(record["recipe_owner"]["key"]),
                                   await_authority=queue_gate,
                                   cancelled=stopped)
             queue_tick = None

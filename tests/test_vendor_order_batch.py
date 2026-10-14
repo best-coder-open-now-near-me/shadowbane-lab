@@ -1,6 +1,7 @@
 import copy
 import json
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,6 +13,7 @@ from shadowbane_lab.client_extension.vendor_order_batch import (
 )
 from shadowbane_lab.client_extension.vendor_recipe import RandomOrderSpec, RandomRecipeSpec
 from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, Outcome, Slot
+from tests.test_vendor_automatic_replies import cooking, send
 from tests.test_vendor_batch import Session as BaseSession
 from tests.test_vendor_batch import receipt, snapshot
 from tests.test_vendor_random_recipe import preparation_for
@@ -29,7 +31,8 @@ class Recorder:
     process_id = BaseSession.identity.process_id
     creation = BaseSession.identity.creation_filetime_utc
 
-    def __init__(self):
+    def __init__(self, parent=None):
+        self.parent, self.records = parent, []
         self.incomplete = False
         self.cursor = dict(process_id=self.process_id, creation=self.creation, sequence=0,
                            overwritten=0, rejected=0, ticket_drops=0,
@@ -39,9 +42,34 @@ class Recorder:
         return dict(cursor=dict(self.cursor), history_discarded=0, history_missing=0,
                     command_admitted=False)
 
+    def available(self):
+        return {}
+
+    def context(self):
+        return SimpleNamespace(initial=self.parent.state,
+                               sequence=self.cursor["sequence"] + len(self.records))
+
+    def append(self, item, *, complete=0, raw_count=1, template=None):
+        self.records.extend(cooking(self.context(), item, complete=complete,
+                                    queue_count_raw=raw_count,
+                                    template=self.parent.state.item_template
+                                    if template is None else template))
+
+    def serialized(self, action=1, **changes):
+        if action == 1:
+            changes.update(reference=[self.parent.state.item_template, 0],
+                           marker_raw=self.parent.state.table,
+                           quantity_raw=self.parent.state.quantity,
+                           multiple_raw=self.parent.state.multiple)
+        self.records.extend(send(self.context(), action, **changes))
+
     def drain(self):
+        if self.records:
+            self.cursor["sequence"] = self.records[-1]["sequence"]
+            self.cursor["overwritten"] = max(0, self.cursor["sequence"] - 256)
+        records, self.records = self.records, []
         return dict(cursor=dict(self.cursor, capture_incomplete=self.incomplete),
-                    records=[], capture_incomplete=self.incomplete)
+                    records=records, capture_incomplete=self.incomplete)
 
 
 class Session(BaseSession):
@@ -51,6 +79,7 @@ class Session(BaseSession):
                              quantity=10, multiple=1)
         self.behavior, self.counts = behavior, (0,) * capacity
         self.pending = None
+        self.recorder = Recorder(self)
 
     def inspect_orders(self):
         if self.pending:
@@ -63,7 +92,9 @@ class Session(BaseSession):
                     continue
                 self.next_item += 1
                 slots[index] = replace(slot, item=self.next_item, state=1)
-                counts[index] = 1 if self.behavior == "wrong_count" else 10
+                counts[index] = 1
+                self.recorder.append(self.next_item, template=self.state.item_template
+                                     + int(self.behavior == "wrong_template"))
             if self.behavior == "grows":
                 slots.append(Slot(9999))
                 counts.append(0)
@@ -85,15 +116,19 @@ class Session(BaseSession):
         self.calls.append(key)
         if self.behavior == "lost":
             raise TimeoutError("lost Create acknowledgement")
+        self.recorder.serialized()
         self.pending = key
         return replace(receipt(expected, key, Outcome.SUBMITTED, IN_FLIGHT),
                        remaining_counts=self.counts)
 
 
 def run(session, reader=None, **kwargs):
+    reader = reader or session.recorder
+    reader.parent = session
+    session.recorder = reader
     return queue_quantity_orders(
         session, session.path, SPEC, VendorBatchBudget.from_snapshot(session.state, {555: 1660}),
-        preparation(session), reader or Recorder(), sleeper=lambda _: None, **kwargs,
+        preparation(session), reader, character=(123, 53), sleeper=lambda _: None, **kwargs,
     )
 
 
@@ -131,7 +166,7 @@ def test_capacity_growth_before_submission_requires_fresh_batch_funding(tmp_path
     assert json.loads(session.path.read_bytes())["requests"] == []
 
 
-@pytest.mark.parametrize("behavior", ["wrong_count", "lost"])
+@pytest.mark.parametrize("behavior", ["wrong_template", "lost"])
 def test_uncertain_create_stops_without_replay(tmp_path, behavior):
     session = Session(tmp_path / "create.json", behavior)
     with pytest.raises((VendorBatchStopped, TimeoutError)):
@@ -168,7 +203,7 @@ def test_historical_validation_rejects_changed_budget_or_identity(tmp_path, fiel
 
 
 @pytest.mark.parametrize("field,value", [
-    ("observed_counts", [0] * 7), ("expected_counts", None),
+    ("observed_counts", [False] * 7), ("expected_counts", None),
     ("preparation_sha256", "0" * 64), ("state", "submitted"),
     ("item_ids", [True]), ("transition_request", None),
 ])

@@ -402,7 +402,8 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup, m
         assert len(funding_calls) == 1
         assert op.command == "vendor start " + revision
         assert test.store.current()["state"] == "complete" and len(session.calls) == 1
-        assert len(session.keeps) == 20 and test.store.current()["planned_items"] == 20
+        assert len(session.keeps) == 2 and test.store.current()["planned_items"] == 20
+        assert len(session.inventory) == 20
         assert session.closed_count == 3
         assert test.control.recipe_summary(CLIENT_ID, INSTANCE_ID)["saved"]["revision"] == revision
         completed = test.operations.inspect_slot(CLIENT_ID)

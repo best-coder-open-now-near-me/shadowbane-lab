@@ -26,7 +26,7 @@ class OrderLedger:
             if not resume:
                 raise VendorBatchStopped("quantity progress exists; explicit recovery is required")
             self.record = json.loads(_read_record(self.path, LIMIT))
-            if (type(self.record["schema_version"]) is not int or self.record["schema_version"] != 1
+            if (type(self.record["schema_version"]) is not int or self.record["schema_version"] != 2
                     or self.record["operation"] != "reconcile_quantity_orders"
                     or self.record["admission_sha256"] != hashlib.sha256(admission_raw).hexdigest()
                     or json.dumps(self.record["character"]) != json.dumps(list(character))
@@ -54,7 +54,7 @@ class OrderLedger:
             if self.record["state"] == "complete" and not self.progress.complete:
                 raise VendorBatchStopped("quantity progress cannot prove completion")
         else:
-            self.record = dict(schema_version=1, operation="reconcile_quantity_orders",
+            self.record = dict(schema_version=2, operation="reconcile_quantity_orders",
                                state="running", admission_sha256=hashlib.sha256(
                                    admission_raw).hexdigest(), character=list(character),
                                cursor=self.progress.admission["production_cursor"],
@@ -83,9 +83,17 @@ class OrderLedger:
                 raise VendorBatchStopped("quantity successor lacks a correlated Keep")
             p.observe(Snapshot.decode(bytes.fromhex(event["snapshot"])), event["counts"],
                       kept_item=kept)
-            self._last_keep = (kept if any(order["current"] == kept
-                                          and not order["finished"] and order["remaining"] > 0
-                                          for order in p.orders) else 0)
+            self._last_keep = 0
+        elif kind == "keep_intent":
+            request = next((r for r in self.record["requests"]
+                            if r["request_key"] == event["request_key"]), None)
+            if request is None or request["item_id"] != event["item_id"]:
+                raise VendorBatchStopped("automatic Keep intent changed request")
+            before = Snapshot.decode(bytes.fromhex(request["expected_snapshot"]))
+            if (_owner(before) != _owner(p.initial)
+                    or p.keep_candidate(before) != request["item_id"]):
+                raise VendorBatchStopped("automatic Keep intent lacks a completed batch")
+            p.expect_keep(request["item_id"])
         elif kind == "inventory":
             state = Snapshot.decode(bytes.fromhex(event["snapshot"]))
             if (_owner(state) != _owner(p.initial) or not state.inventory
@@ -107,6 +115,7 @@ class OrderLedger:
                     or type(event["flags"]) is not int or event["flags"] not in (0, 1)
                     or event["window"] != p.admission["window"]
                     or item not in p.items or p.keep_candidate(before) != item
+                    or item not in p.replies.keep_sends
                     or not before.inventory or not after.inventory
                     or _owner(before) != _owner(p.initial) or _owner(after) != _owner(p.initial)
                     or item in _items(after) or after.revision < before.revision):
@@ -176,6 +185,7 @@ class OrderLedger:
         request = dict(request_key=key, item_id=item, state="prepared",
                        expected_snapshot=state.encode().hex())
         self.record["requests"].append(request)
+        self.append(dict(kind="keep_intent", request_key=key, item_id=item))
         self.save()
         return request
 
