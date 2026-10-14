@@ -67,7 +67,7 @@ class OrderProgress:
         # workflow with Keep; finish only after the full fixed quota is observed
         # and every remaining batch item has both UI and server terminal proof.
         current = [slot for slot in state.slots if slot.item in self.items]
-        if (len(self.items) != self.admission["planned_items"] or not current
+        if (self.replies.failed or len(self.items) != self.admission["planned_items"] or not current
                 or any(slot.state != 2 or not self.items[slot.item]["complete"]
                        for slot in current)):
             return None

@@ -173,3 +173,21 @@ def test_unrelated_outgoing_action_stops_the_batch():
     p.receive(send(p))
     with pytest.raises(VendorBatchStopped, match="unrelated outgoing"):
         p.receive(send(p, 13))
+
+
+@pytest.mark.parametrize("field,value", [
+    ("local", [123.0, 53]), ("thread_id", True), ("scene_epoch", 1.0),
+    ("complete", True), ("queue_count_raw", 1.0), ("quantity_raw", False),
+])
+def test_historical_numeric_coercion_cannot_grant_authority(field, value):
+    p = setup(1)
+    p.receive(send(p))
+    records = cooking(p, 1001)
+    if field in ("local", "thread_id", "scene_epoch"):
+        records[0][field] = value
+    else:
+        records[0]["payload"][field] = value
+    with pytest.raises(VendorBatchStopped):
+        p.receive(records)
+    with pytest.raises(VendorBatchStopped, match="already rejected"):
+        p.expect_keep(1001)
