@@ -1,5 +1,30 @@
 # Player-owned vendor rolling
 
+## Native recycling channel and causal completion source - October 14
+
+Candidate host .120/native .74 connects the batch manifest to the existing
+leased vendor command channel. Read-only inspection and one batch Recycle use
+distinct typed profiles. Completion requires the exact serialized reference set,
+the same returned server action-7 set and refund, complete callback lineage, and
+current native inventory/selection/balance corroboration. Missing items alone
+never release the operation. Repeated request IDs return cached submissions;
+uncertainty, gaps, changed owners and deadlines block further actions. The .19
+image is required before this native feature reports readiness.
+
+The actual 25-record manual trace passes both the Python and compiled native
+validators, with zero commands. All five affected native suites pass, including
+leased channel routing, expired inspections, controller timeout/no-replay and
+cross-service arbitration. The full candidate DLL compiles with warnings as
+errors. The affected host slice passes 1,191 checks with two optional skips;
+Ruff passes. Four local HTTP failures in the sandboxed attempt were WinError
+10013 and pass with loopback access. These checks do not claim live automatic
+Recycle or final package qualification. Installed software remains .119/.73.
+
+Active next: finish and test durable post-production job integration, qualify
+the complete graphics-preserving update, then install it in one restart. Existing
+completed jobs remain intact and must not acquire disposal authority. Town
+scheduling remains after recycling; automatic disposal is currently disabled.
+
 ## Native recycle manifest and selection boundary source - October 14
 
 The next source slice binds each eligible owned item's identity, inventory

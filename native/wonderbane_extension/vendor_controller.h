@@ -21,6 +21,9 @@ class Controller {
     bool uncertain_ = false;
     std::array<std::uint8_t, 16> transition_request_{};
     std::uint32_t transition_item_ = 0;
+    std::array<std::uint8_t,16> recycle_request_{};
+    std::uint32_t recycle_count_ = 0;
+    wire::RecycleCompletion recycle_completion_{};
     static bool Contains(const wire::Snapshot& s, std::uint32_t item) noexcept {
         for (std::size_t i = 0; i < s.count; ++i) { if (s.slots[i].item == item) { return true; } }
         return false;
@@ -31,13 +34,18 @@ class Controller {
             && a.vendor == b.vendor;
     }
     wire::Receipt Receipt(const wire::Command& command, wire::Outcome outcome, bool ready,
-        bool orders = false) const noexcept {
+        bool orders = false, bool recycling = false) const noexcept {
         wire::Receipt result{};
         result.request = command.request; result.host = command.host; result.window = command.window;
         result.snapshot = current_; result.outcome = static_cast<std::uint32_t>(outcome);
         result.flags = (ready && current_.scene && !uncertain_ && !pending_ ? wire::ready : 0)
             | (pending_ ? wire::in_flight : 0) | (uncertain_ ? wire::unresolved : 0);
         result.transition_request = transition_request_; result.transition_item = transition_item_;
+        if(recycling) {
+            result.signature=wire::recycle_magic;result.transition_request=recycle_request_;
+            result.transition_item=recycle_count_;
+            std::memcpy(result.reserved,&recycle_completion_,sizeof(recycle_completion_));
+        }
         if (orders) {
             result.signature = wire::orders_magic;
             for (std::size_t i = 0; i < current_.count; ++i) {
@@ -57,6 +65,8 @@ public:
     bool Busy() const noexcept { return pending_ || uncertain_; }
     const wire::Snapshot& Current() const noexcept { return current_; }
     bool PendingOrders() const noexcept { return pending_ && pending_->verb == wire::Verb::create_orders; }
+    bool PendingRecycle() const noexcept {return pending_ && pending_->verb==wire::Verb::recycle;}
+    const wire::Command* RecyclingCommand() const noexcept {return PendingRecycle()?&pending_->command:nullptr;}
     bool OrderItemsOwned(const wire::Snapshot& snapshot, const wire::RemainingCounts& remaining,
         const wire::Command& command) const noexcept {
         if (snapshot.count > snapshot.slots.size() || !SameOwner(snapshot, command.expected)
@@ -83,7 +93,8 @@ public:
     // Called only on the owning thread, after fresh native ownership validation.
     // A displayed inventory item proves presence; its absence never proves failure.
     void Observe(wire::Snapshot snapshot, bool valid, bool kept_in_inventory, std::uint64_t now = 0,
-        wire::RemainingCounts remaining = {}, OrderProof order_proof = OrderProof::waiting) noexcept {
+        wire::RemainingCounts remaining = {}, OrderProof order_proof = OrderProof::waiting,
+        OrderProof recycle_proof = OrderProof::waiting, wire::RecycleCompletion completion = {}) noexcept {
         snapshot.revision = current_.revision;
         if (!valid || !wire::Equal(snapshot, current_) || remaining != remaining_) {
             if (revision_ == UINT64_MAX) { uncertain_ = true; current_ = {}; return; }
@@ -94,12 +105,22 @@ public:
         remaining_ = valid ? remaining : wire::RemainingCounts{};
         if (!pending_ || uncertain_) { return; }
         if (PendingOrders() && order_proof == OrderProof::invalid) { uncertain_ = true; return; }
+        if (PendingRecycle() && recycle_proof==OrderProof::invalid) {uncertain_=true;return;}
         // The ordinary generalized Create may show a native rejection dialog.
         // Absence of a correlated addition becomes uncertainty, never a retry.
-        if ((pending_->verb == wire::Verb::create_random || pending_->verb == wire::Verb::create_orders)
+        if ((pending_->verb == wire::Verb::create_random || pending_->verb == wire::Verb::create_orders || PendingRecycle())
             && now > random_deadline_) { uncertain_ = true; return; }
         const auto& before = pending_->command.expected;
         if (!valid || !SameOwner(before, current_) || current_.count < before.count) { uncertain_ = true; return; }
+        if(PendingRecycle()) {
+            const auto batch=wire::Recycling(pending_->command);
+            if(!current_.inventory || current_.inventory!=before.inventory || !wire::EmptyProduction(current_)) {uncertain_=true;return;}
+            if(recycle_proof!=OrderProof::verified){return;}
+            if(!completion.sequence || completion.sequence>=INT64_MAX || completion.sequence<=completion.floor
+                || completion.refund!=batch.refund || completion.gold!=batch.gold+batch.refund){uncertain_=true;return;}
+            recycle_request_=pending_->command.request;recycle_count_=pending_->command.item;
+            recycle_completion_=completion;pending_=nullptr;return;
+        }
         std::uint32_t new_item = 0;
         if (wire::IsCreate(pending_->verb)) {
             std::size_t additions = 0, expected = before.multiple ? 0 : 1;
@@ -136,26 +157,27 @@ public:
         bool live, bool ready, Invoker& invoker, std::uint64_t now = 0) noexcept {
         using O = wire::Outcome;
         const bool orders = verb == wire::Verb::inspect_orders || verb == wire::Verb::create_orders;
-        if (!wire::Valid(verb, command)) { return Receipt(command, O::invalid, ready, orders); }
-        if (!live) { return Receipt(command, O::stale, false, orders); }
-        if (wire::IsInspect(verb)) { return Receipt(command, O::observed, ready, orders); }
+        const bool recycling=wire::IsRecycle(verb);
+        if (!wire::Valid(verb, command)) { return Receipt(command, O::invalid, ready, orders, recycling); }
+        if (!live) { return Receipt(command, O::stale, false, orders, recycling); }
+        if (wire::IsInspect(verb)) { return Receipt(command, O::observed, ready, orders, recycling); }
         const auto previous = records_.find(command.request);
         if (previous != records_.end()) {
             if (previous->second.verb != verb
                 || std::memcmp(&previous->second.command, &command, sizeof(command))) {
-                return Receipt(command, O::invalid, ready, orders);
+                return Receipt(command, O::invalid, ready, orders, recycling);
             }
             // Cached local submission, not a new invocation or server acceptance.
             return previous->second.receipt;
         }
-        if (uncertain_) { return Receipt(command, O::uncertain, false, orders); }
-        if (pending_) { return Receipt(command, O::pending, false, orders); }
-        if (!ready || !wire::ValidSnapshot(current_)) { return Receipt(command, O::unavailable, false, orders); }
-        if (!wire::Equal(current_, command.expected)) { return Receipt(command, O::stale, ready, orders); }
+        if (uncertain_) { return Receipt(command, O::uncertain, false, orders, recycling); }
+        if (pending_) { return Receipt(command, O::pending, false, orders, recycling); }
+        if (!ready || !wire::ValidSnapshot(current_)) { return Receipt(command, O::unavailable, false, orders, recycling); }
+        if (!wire::Equal(current_, command.expected)) { return Receipt(command, O::stale, ready, orders, recycling); }
         if (verb == wire::Verb::create_orders && !OrderItemsOwned(current_, remaining_, command)) {
             return Receipt(command, O::unavailable, ready, true);
         }
-        bool eligible = false;
+        bool eligible = verb==wire::Verb::recycle;
         for (std::size_t i = 0; i < current_.count; ++i) {
             const auto& slot = current_.slots[i];
             eligible |= wire::IsCreate(verb) ? slot.state == 0
@@ -164,26 +186,26 @@ public:
         if (!eligible || (verb == wire::Verb::create && !wire::RandomScepter(current_))
             || (verb == wire::Verb::create_random && !wire::RandomSingle(current_))
             || (verb == wire::Verb::create_orders && !wire::RandomOrder(current_))) {
-            return Receipt(command, O::invalid, ready, orders);
+            return Receipt(command, O::invalid, ready, orders, recycling);
         }
         // Never evict action receipts and permit an old request to be replayed.
         // Exhaustion disables new actions until a fresh client process starts.
-        const bool timed_create = verb == wire::Verb::create_random || verb == wire::Verb::create_orders;
+        const bool timed_create = verb == wire::Verb::create_random || verb == wire::Verb::create_orders || verb==wire::Verb::recycle;
         if (records_.size() >= 4096 || (timed_create && now > UINT64_MAX - 5000)) {
-            return Receipt(command, O::exhausted, false, orders);
+            return Receipt(command, O::exhausted, false, orders, recycling);
         }
         try {
             auto [entry, inserted] = records_.emplace(command.request,
-                Record{verb, command, Receipt(command, O::uncertain, false, orders)});
-            if (!inserted) { return Receipt(command, O::invalid, ready, orders); }
+                Record{verb, command, Receipt(command, O::uncertain, false, orders, recycling)});
+            if (!inserted) { return Receipt(command, O::invalid, ready, orders, recycling); }
             pending_ = &entry->second;
             if (timed_create) { random_deadline_ = now + 5000; }
             const auto outcome = invoker.Invoke(verb, current_, command.item);
             if (outcome == O::stale || outcome == O::unavailable) { pending_ = nullptr; }
             else if (outcome != O::submitted) { uncertain_ = true; }
-            entry->second.receipt = Receipt(command, outcome, false, orders);
+            entry->second.receipt = Receipt(command, outcome, false, orders, recycling);
             return entry->second.receipt;
-        } catch (...) { return Receipt(command, O::unavailable, false, orders); }
+        } catch (...) { return Receipt(command, O::unavailable, false, orders, recycling); }
     }
 };
 }

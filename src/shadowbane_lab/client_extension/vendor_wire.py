@@ -10,12 +10,15 @@ from .movement_wire import Host, request_bytes
 
 MAGIC = 0x57425631
 ORDERS_MAGIC = 0x57425632
+RECYCLE_MAGIC = 0x57425231
 READY, IN_FLIGHT, UNRESOLVED = 1, 2, 4
 _SNAPSHOT = struct.Struct("<QQ16I")
 _SLOT = struct.Struct("<III")
 _COMMAND = struct.Struct("<16sQ16s288sI244s")
 _RECEIPT = struct.Struct("<16s16sQII288sII16s24s")
 _ORDER_BUDGET = struct.Struct("<6I")
+_RECYCLE_BATCH = struct.Struct("<32sII48I12s")
+_RECYCLE_COMPLETION = struct.Struct("<QQII")
 
 
 class Verb(IntEnum):
@@ -26,6 +29,8 @@ class Verb(IntEnum):
     INSPECT_RANDOM = 33
     INSPECT_ORDERS = 56
     CREATE_ORDERS = 61
+    INSPECT_RECYCLE = 62
+    RECYCLE = 63
 
 
 class Outcome(IntEnum):
@@ -166,6 +171,37 @@ class NativeOrderBudget:
 
 
 @dataclass(frozen=True, slots=True)
+class NativeRecycleBatch:
+    items: tuple[int, ...]
+    fingerprint: str
+    gold_before: int
+    refund: int
+
+    def encode(self) -> bytes:
+        if (type(self.items) is not tuple or not 0 < len(self.items) <= 48
+                or any(type(item) is not int or not 0 < item < 2**32 for item in self.items)
+                or tuple(sorted(set(self.items))) != self.items
+                or type(self.fingerprint) is not str or len(self.fingerprint) != 64
+                or type(self.gold_before) is not int or not 0 <= self.gold_before <= 2**31 - 1
+                or type(self.refund) is not int or not 0 < self.refund <= 2**31 - 1
+                or self.gold_before + self.refund > 2**31 - 1):
+            raise ValueError("invalid native recycle batch")
+        digest = bytes.fromhex(self.fingerprint)
+        if len(digest) != 32 or not any(digest) or digest.hex() != self.fingerprint:
+            raise ValueError("recycle fingerprint must be a canonical nonzero SHA-256")
+        return _RECYCLE_BATCH.pack(digest, self.gold_before, self.refund,
+                                   *self.items, *([0] * (48 - len(self.items))), bytes(12))
+
+
+@dataclass(frozen=True, slots=True)
+class NativeRecycleCompletion:
+    floor: int
+    sequence: int
+    refund: int
+    gold_after: int
+
+
+@dataclass(frozen=True, slots=True)
 class Command:
     host: Host
     window: int
@@ -174,13 +210,14 @@ class Command:
     item: int = 0
     batch_key: str | None = None
     order_budget: NativeOrderBudget | None = None
+    recycle_batch: NativeRecycleBatch | None = None
 
     def encode(self, verb: Verb) -> bytes:
         verb = Verb(verb)
         if not uint(self.window, 32, "window"):
             raise ValueError("window is required")
         uint(self.item, 32, "item")
-        if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM, Verb.INSPECT_ORDERS):
+        if verb in (Verb.INSPECT, Verb.INSPECT_RANDOM, Verb.INSPECT_ORDERS, Verb.INSPECT_RECYCLE):
             if not self.expected.empty or self.item:
                 raise ValueError("inspect cannot carry action arguments")
         elif self.expected.empty or (
@@ -189,16 +226,28 @@ class Command:
             verb == Verb.CREATE_RANDOM and (self.item or not self.expected.random_single)
         ) or (
             verb == Verb.CREATE_ORDERS and (self.item or not self.expected.random_order)
-        ) or (verb == Verb.KEEP and not self.item):
+        ) or (verb == Verb.KEEP and not self.item) or (
+            verb == Verb.RECYCLE and (
+                not self.expected.inventory
+                or any(slot.item or slot.state for slot in self.expected.slots))
+        ):
             raise ValueError("invalid vendor action arguments")
         if verb == Verb.CREATE_ORDERS:
-            if type(self.batch_key) is not str or type(self.order_budget) is not NativeOrderBudget:
+            if (type(self.batch_key) is not str or type(self.order_budget) is not NativeOrderBudget
+                    or self.recycle_batch is not None):
                 raise ValueError("quantity-order Create requires a canonical batch identity")
             padding = (request_bytes(self.batch_key)
                        + self.order_budget.encode(self.expected.quantity)
                        + bytes(204))
+        elif verb == Verb.RECYCLE:
+            if (type(self.recycle_batch) is not NativeRecycleBatch
+                    or self.batch_key is not None or self.order_budget is not None
+                    or self.item != len(self.recycle_batch.items)):
+                raise ValueError("Recycle requires one exact native batch")
+            padding = self.recycle_batch.encode()
         else:
-            if self.batch_key is not None or self.order_budget is not None:
+            if (self.batch_key is not None or self.order_budget is not None
+                    or self.recycle_batch is not None):
                 raise ValueError("batch identity is only valid for quantity-order Create")
             padding = bytes(244)
         return _COMMAND.pack(
@@ -219,13 +268,15 @@ class Receipt:
     transition_request: str | None = None
     # None identifies a historical v1 receipt; zero raw counts are real values.
     remaining_counts: tuple[int, ...] | None = None
+    recycle_completion: NativeRecycleCompletion | None = None
 
     @classmethod
     def decode(cls, data: bytes) -> Receipt:
         request, host, window, outcome, flags, snapshot, magic, item, transition, pad = (
             _RECEIPT.unpack(data)
         )
-        if magic not in (MAGIC, ORDERS_MAGIC) or flags & ~7 or not window or window >= 2**32:
+        if (magic not in (MAGIC, ORDERS_MAGIC, RECYCLE_MAGIC)
+                or flags & ~7 or not window or window >= 2**32):
             raise ValueError("invalid vendor receipt")
         key = str(uuid.UUID(bytes=request))
         request_bytes(key)
@@ -239,5 +290,14 @@ class Receipt:
         transition_key = str(uuid.UUID(bytes=transition)) if any(transition) else None
         if bool(item) != bool(transition_key):
             raise ValueError("incomplete vendor transition identity")
+        recycling = NativeRecycleCompletion(*_RECYCLE_COMPLETION.unpack(pad)) if (
+            magic == RECYCLE_MAGIC) else None
+        if recycling is not None:
+            if transition_key is None:
+                if any(_RECYCLE_COMPLETION.unpack(pad)):
+                    raise ValueError("recycle completion lacks a request identity")
+            elif (not 0 < item <= 48 or not recycling.floor < recycling.sequence < 2**63
+                    or not 0 < recycling.refund <= recycling.gold_after <= 2**31 - 1):
+                raise ValueError("invalid native recycle completion")
         return cls(key, Host.decode(host), window, Outcome(outcome), flags, state,
-                   item, transition_key, counts)
+                   item, transition_key, counts, recycling)

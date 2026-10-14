@@ -106,7 +106,7 @@ bool CaptureInner(std::uintptr_t image, const movement::NativeScene& scene,
     Manifest& out, bool selected) {
     using namespace vendor;
     if (!image || image>UINT32_MAX
-        || !GraphicsExecutableSha256Matches("6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad")
+        || !Qualified(image)
         || !wire::ValidSnapshot(expected) || !expected.inventory
         || !count || count>kItems || scene.epoch!=expected.scene
         || std::any_of(expected.slots.begin(),expected.slots.end(),[](const auto& slot){return slot.item || slot.state;})) { return false; }
@@ -190,9 +190,33 @@ bool Send(std::uintptr_t image, std::uint32_t manager) noexcept {
     __except(EXCEPTION_EXECUTE_HANDLER) {return false;}
 }
 }
+bool Qualified(std::uintptr_t image) noexcept {
+    return image && image<=UINT32_MAX
+        && GraphicsExecutableSha256Matches("6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad");
+}
 bool Capture(std::uintptr_t image, const movement::NativeScene& scene,
     const vendor::wire::Snapshot& expected, const Items& ids, std::uint32_t count, Manifest& out) noexcept {
     out={}; try {return CaptureInner(image,scene,expected,ids,count,out,false);} catch(...){return false;}
+}
+bool Corroborate(std::uintptr_t image,const vendor::wire::Snapshot& s,
+    const Items& ids,std::uint32_t count,std::uint32_t gold) noexcept {
+    if(!vendor::wire::ValidSnapshot(s) || !s.inventory || !count || count>kItems
+        || !vendor::wire::EmptyProduction(s)){return false;}
+    Reader r;r.Require(s.manager+0x1cc,gold);
+    if(!EmptySelection(r,s.manager)){return false;}
+    const auto list=r.Word(s.inventory+0x3f0);
+    r.Require(list,image+0x116acf0);r.Require(list+0x3bc,s.inventory);
+    std::array<std::uint32_t,512> controls{},seen{};
+    const auto total=r.Vector(list+0x408,controls);
+    for(std::size_t i=0;i<total;++i) {
+        const auto c=controls[i],entry=r.Word(c+0x44c),id=r.Word(entry+0x10);
+        r.Require(c,image+0x116aebc);r.Require(c+0x3bc,s.inventory);r.Require(c+0x458,list);
+        r.Require(entry,image+0x11696c8);r.Require(entry+0x14,40);
+        if(!id || std::find(ids.begin(),ids.begin()+count,id)!=ids.begin()+count
+            || std::find(seen.begin(),seen.begin()+i,id)!=seen.begin()+i){return false;}
+        seen[i]=id;
+    }
+    return r.ok;
 }
 vendor::wire::Outcome Invoke(std::uintptr_t image, const movement::NativeScene& scene,
     const Manifest& expected, Admission admit, void* context) noexcept {
