@@ -106,7 +106,10 @@ DWORD ReplaceImportAddressSlot(std::uint32_t* slot, std::uint32_t expected, std:
     }
     return ERROR_SUCCESS;
 }
-namespace movement { bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { return false; } }
+namespace movement {
+bool VerifyNativeMovementImage(std::uintptr_t&) noexcept { return false; }
+bool VerifyNativeMovementImageLayout(std::uintptr_t&, NativeMovementImageLayout&) noexcept { return false; }
+}
 }
 namespace wonderbane::extension::movement {
 struct NativeDoorCollectionTestAccess {

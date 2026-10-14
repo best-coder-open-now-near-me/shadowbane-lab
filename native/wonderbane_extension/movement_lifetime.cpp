@@ -354,13 +354,14 @@ bool StartNativeMovementLifetime(HWND window) noexcept {
     if (!thread || thread != GetCurrentThreadId() || pid != GetCurrentProcessId()
         || state.started || state.terminal) { return false; }
     state.started = true; state.window = window; state.thread = thread;
-    if (!VerifyNativeMovementImage(state.base)) { Fail(); return false; }
+    NativeMovementImageLayout image_layout{};
+    if (!VerifyNativeMovementImageLayout(state.base, image_layout)) { Fail(); return false; }
     HMODULE pinned = nullptr;
     if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
         reinterpret_cast<LPCWSTR>(&StartNativeMovementLifetime), &pinned)) { Fail(); return false; }
     const auto crt = GetModuleHandleW(L"MSVCRT.dll");
     const auto original = crt ? GetProcAddress(crt, "free") : nullptr;
-    auto* slot = FindImportAddressSlot(reinterpret_cast<std::uint8_t*>(state.base), 0x1766000, "MSVCRT.dll", "free");
+    auto* slot = FindImportAddressSlot(reinterpret_cast<std::uint8_t*>(state.base), image_layout.image_size, "MSVCRT.dll", "free");
     if (!original || reinterpret_cast<std::uintptr_t>(slot) != state.base + 0x16b0504) { Fail(); return false; }
     state.free_slot = {slot, reinterpret_cast<std::uint32_t>(original), reinterpret_cast<std::uint32_t>(&Deallocate)};
     if (ReplaceImportAddressSlot(slot, state.free_slot.original, state.free_slot.hook) != ERROR_SUCCESS) { Fail(); return false; }

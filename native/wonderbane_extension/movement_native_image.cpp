@@ -1,5 +1,6 @@
 #include "movement_native_image.h"
 #include "movement_bootstrap_patches.h"
+#include "movement_native_image.h"
 #include "terrain_mask_refresh.h"
 #include "combat_power_observer.h"
 #include "combat_item_entry.h"
@@ -80,13 +81,24 @@ bool ReviewedImage(const std::vector<unsigned char>& bytes) {
     }
     return ReviewedDigest(original);
 }
-bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base) {
+bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base,
+    NativeMovementImageLayout* layout = nullptr) {
     if (!ReviewedImage(bytes)) { return false; }
     IMAGE_DOS_HEADER dos{}; IMAGE_NT_HEADERS32 nt{};
     if (!FileValue(bytes, 0, dos) || dos.e_magic != IMAGE_DOS_SIGNATURE || dos.e_lfanew < 0
         || !FileValue(bytes, static_cast<std::size_t>(dos.e_lfanew), nt)
         || nt.Signature != IMAGE_NT_SIGNATURE || nt.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC
         || nt.OptionalHeader.ImageBase != 0x400000 || nt.FileHeader.NumberOfSections > 96) { return false; }
+    IMAGE_DOS_HEADER loaded_dos{}; IMAGE_NT_HEADERS32 loaded_nt{};
+    if (!base || !ReadLoaded(&loaded_dos, reinterpret_cast<const void*>(base), sizeof(loaded_dos))
+        || loaded_dos.e_magic != dos.e_magic || loaded_dos.e_lfanew != dos.e_lfanew
+        || !ReadLoaded(&loaded_nt, reinterpret_cast<const void*>(base + dos.e_lfanew), sizeof(loaded_nt))
+        || loaded_nt.Signature != nt.Signature || loaded_nt.FileHeader.Machine != nt.FileHeader.Machine
+        || loaded_nt.FileHeader.NumberOfSections != nt.FileHeader.NumberOfSections
+        || loaded_nt.FileHeader.SizeOfOptionalHeader != nt.FileHeader.SizeOfOptionalHeader
+        || loaded_nt.OptionalHeader.Magic != nt.OptionalHeader.Magic
+        || loaded_nt.OptionalHeader.SizeOfImage != nt.OptionalHeader.SizeOfImage
+        || loaded_nt.OptionalHeader.AddressOfEntryPoint != nt.OptionalHeader.AddressOfEntryPoint) { return false; }
     IMAGE_SECTION_HEADER text{}, reloc{};
     const std::size_t first = static_cast<std::size_t>(dos.e_lfanew) + 24 + nt.FileHeader.SizeOfOptionalHeader;
     for (std::size_t i = 0; i < nt.FileHeader.NumberOfSections; ++i) {
@@ -135,9 +147,10 @@ bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base) {
     if (!actor_effects::NormalizeOwnedCode(base, text.VirtualAddress, loaded,
         std::span<const unsigned char>(bytes.data() + text.PointerToRawData, loaded.size()))) { return false; }
     if (std::memcmp(loaded.data(), bytes.data() + text.PointerToRawData, loaded.size()) != 0) { return false; }
+    if (layout) { *layout = {nt.OptionalHeader.SizeOfImage, nt.FileHeader.NumberOfSections}; }
     return true;
 }
-bool Verify(std::uintptr_t& output) {
+bool Verify(std::uintptr_t& output, NativeMovementImageLayout* layout = nullptr) {
     std::array<wchar_t, 32768> path{};
     const auto path_size = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
     if (!path_size || path_size >= path.size()) { return false; }
@@ -149,12 +162,17 @@ bool Verify(std::uintptr_t& output) {
     file.seekg(0);
     if (!file.read(reinterpret_cast<char*>(bytes.data()), size)) { return false; }
     const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
-    if (!VerifyImage(bytes, base)) { return false; }
+    if (!VerifyImage(bytes, base, layout)) { return false; }
     output = base; return true;
 }
 }
 bool VerifyNativeMovementImage(std::uintptr_t& base) noexcept {
     base = 0;
     try { return Verify(base); } catch (...) { return false; }
+}
+bool VerifyNativeMovementImageLayout(
+    std::uintptr_t& base, NativeMovementImageLayout& layout) noexcept {
+    base = 0; layout = {};
+    try { return Verify(base, &layout); } catch (...) { base = 0; layout = {}; return false; }
 }
 }

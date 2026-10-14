@@ -65,6 +65,7 @@ def validate_graphics_source_members(names: list[str]) -> None:
 
 
 REQUIRED_VENDOR_TESTS = frozenset({
+    "wonderbane_extension_world_map_client_layout",
     "wonderbane_extension_building_target",
     "wonderbane_extension_vendor_navigation_controller",
     "wonderbane_extension_vendor_navigation_native",

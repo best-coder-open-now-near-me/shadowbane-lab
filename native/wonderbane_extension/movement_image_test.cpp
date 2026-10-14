@@ -7,6 +7,8 @@
 #include <cmath>
 #include "movement_controls.h"
 #include "door_lifetime_bindings.h"
+#include "world_map_client_layout.h"
+#include "import_hook.h"
 namespace {
 std::wstring tested_path;
 void* tested_image=nullptr;
@@ -121,6 +123,31 @@ int wmain(int argc,wchar_t** argv){
   if(!authenticated) {
    VirtualFree(tested_image,0,MEM_RELEASE);tested_image=nullptr;return 1;
   }
+  wm::NativeMovementImageLayout layout{};
+  Check(wm::VerifyNativeMovementImageLayout(base,layout),"production verifier publishes authenticated image layout");
+  auto* mapped=static_cast<unsigned char*>(tested_image);
+  const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(mapped);
+  auto* nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(mapped+dos->e_lfanew);
+  Check(layout.image_size==nt->OptionalHeader.SizeOfImage
+   && layout.section_count==nt->FileHeader.NumberOfSections,"published layout matches mapped exact image");
+  Check(we::ReviewedWorldMapLayout(*nt,IMAGE_FIRST_SECTION(nt)+nt->FileHeader.NumberOfSections-1,&layout),
+   "production world map startup layout accepts authenticated original/prepared image");
+  const auto free_slot=we::FindImportAddressSlot(mapped,layout.image_size,"MSVCRT.dll","free");
+  Check(reinterpret_cast<std::uintptr_t>(free_slot)==base+0x16b0504,
+   "lifetime import binding uses authenticated size for the real image");
+  if(layout.image_size!=0x1766000U){
+   Check(we::FindImportAddressSlot(mapped,0x1766000U,"MSVCRT.dll","free")==nullptr,
+    "former hardcoded lifetime bound is rejected on expanded image");
+   Check(!we::ReviewedWorldMapLayout(*nt,IMAGE_FIRST_SECTION(nt)+6,nullptr),
+    "expanded world map layout requires authenticated file identity");
+  }
+  const auto image_size=nt->OptionalHeader.SizeOfImage;
+  nt->OptionalHeader.SizeOfImage^=0x1000U;
+  wm::NativeMovementImageLayout refused{123,9};std::uintptr_t refused_base=123;
+  Check(!wm::VerifyNativeMovementImageLayout(refused_base,refused)
+   && !refused_base && !refused.image_size && !refused.section_count,
+   "changed loaded header revokes the entire layout proof");
+  nt->OptionalHeader.SizeOfImage=image_size;
   NativeDoorCollectionBindings();
   NativeDoorTriangleContract();
   we::image_base=0;Check(we::VerifyBinding(identity)==ERROR_SUCCESS,"production update gate accepts reviewed prepared bootstrap");

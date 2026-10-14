@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(wonderbane_extension VERSION 1.8.70 LANGUAGES CXX RC)
+project(wonderbane_extension VERSION 1.8.71 LANGUAGES CXX RC)
 
 set(WONDERBANE_EXTENSION_PROFILE "full" CACHE STRING "Extension runtime profile")
 set_property(
@@ -310,6 +310,14 @@ if(BUILD_TESTING)
   set_property(TARGET wonderbane_extension_scene_boundary_test
     PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
   add_test(NAME wonderbane_extension_scene_boundary COMMAND wonderbane_extension_scene_boundary_test)
+  add_executable(wonderbane_extension_world_map_client_layout_test world_map_client_layout_test.cpp)
+  target_compile_features(wonderbane_extension_world_map_client_layout_test PRIVATE cxx_std_20)
+  target_compile_definitions(wonderbane_extension_world_map_client_layout_test PRIVATE
+    UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX STRICT)
+  target_compile_options(wonderbane_extension_world_map_client_layout_test PRIVATE
+    /W4 /WX /permissive- /sdl /GS /utf-8)
+  set_property(TARGET wonderbane_extension_world_map_client_layout_test PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded")
+  add_test(NAME wonderbane_extension_world_map_client_layout COMMAND wonderbane_extension_world_map_client_layout_test)
 
   add_executable(
     wonderbane_extension_scene_frame_test
