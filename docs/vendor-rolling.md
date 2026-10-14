@@ -1,5 +1,21 @@
 # Player-owned vendor rolling
 
+## Official client alignment installed - October 14
+
+The user's official patch is now aligned in Vendor Test as host .112/native .70,
+manifest 1.0.25 / internal client 1.3.38.19. Qualified graphics-preserving release
+`a7f0b65d8b9d9930a505face3b45ac660a4fcc53` is installed and pushed; all 499 modules
+and 9,893 retained records passed verification with zero exclusions. Settings,
+the earlier roll and its interrupted journal remain preserved. The same shortcut
+loads the exact .70 DLL and the V2 recorder is available. Treehugger has logged
+in and moved; fresh discovery stopped during read-only inspection because a
+startup consumer still requires the old six-section image. No window OPEN,
+funding or crafting was sent. The operation is preserved in review. Active next:
+correct the command-pump and lifetime import image boundaries in .113/.71, then
+resume discovery and a whole funded quantity-ten batch. No corrected live batch
+is claimed yet. See
+[qualification and installation evidence](client-update-20261014.md).
+
 ## Current continuation - October 13, 2026
 
 ### Live quantity correction: source .111/.69, not installed

@@ -1,5 +1,58 @@
 # Official client alignment for vendor rolling - October 14
 
+## Qualified and installed
+
+Host .112/native .70/client .19 is installed from graphics-preserving release
+`a7f0b65d8b9d9930a505face3b45ac660a4fcc53`, pushed on
+`codex/vendor-release-20261013`. Implementation is pushed through
+`1d8a539b0526db0e9d3950fb625db426e8f549b3` on
+`codex/vendor-rolling-20261013`, targeting main in draft PR #174. Main remains
+clean; neither current vendor lane is merged there yet.
+
+Full qualification passes 6,760 host tests (45 optional skips), 289 full-profile
+and 285 diagnostics native tests, both sets of movement/combat/actor IPC
+(107/86/249 cases), exact original/prepared image probes and all seven real
+Windows startup/stop cases. Independent verification seals 144 artifacts,
+116 steps and 499 wheel modules. The adapted full-client updater passes 153
+preservation/refusal checks. The prior two stretch-only transparency findings
+remain recorded per profile; no required gate was waived.
+
+A fresh closed baseline captured 9,836 retained records. Apply replaced exactly
+the four reviewed official files plus the DLL. Activation verified all 499
+installed modules and 9,893 retained records with zero exclusions; only typed
+manager startup/dispatch changes were accepted. Settings, mutable DoubleFusion
+files and historical roll journals remain in place. No funds, Create, Keep or
+disposal were sent during installation. Unused installed host .111 was retired:
+2,189 reproducible files / 49,479,921 bytes, with no retained rollback copy.
+
+The unchanged Vendor Test shortcut launched PID 2664 / creation
+134364516441118144 with the exact .70 DLL. Its V2 production mapping is available,
+sequence zero with no rejection or loss, and its exact worker is healthy with
+an empty operation queue. Treehugger subsequently logged in and moved. Fresh
+discovery `operation-daf94aea982743ed9f75e29de1eca6b8` failed during its three
+read-only city inspections, before any OPEN, funding or crafting request.
+Its review record is preserved. Inspection found `IsReviewedWorldMapClient`
+still requires six sections and SizeOfImage `0x1766000`; this disables the
+world-map capture thread that pumps native requests on the seven-section client.
+The related movement-lifetime import lookup also passes the old exact image
+size to a helper that requires equality. Passing image/hash probes and a readable
+V2 mapping did not verify these startup consumers. Active next: correct both
+boundaries and add production-path regression coverage in .113/.71, qualify the
+release, then resume discovery and the full quantity-ten inventory chain.
+
+Exact SHA-256 receipts:
+
+- DLL: `5d67b58f47030012aa04264765ac6306a03f9758688c698f0204061052f85af3`.
+- Wheel: `903e2567bafe94a1c69ad8ff6ff2172f430f7083e47885680ee229d620382b52`.
+- Package: `81e14987193f27b15755fa3d0da6f1d72e1d83fa2cba7fb141b09c4a328ed9bc`.
+- Package verification: `44c12a14cf7a484ce9023c76fd5c56c04bd936f3702515331bfb7fc26372bc60`.
+- Startup qualification: `8b8200c1c5f005268e18505ee2b6b3e6a71562e9748729172e52a2c1f6d03f4c`.
+- Update plan: `b3962a6757be527f85dfba5385d7975859a62789cf2899d934e8d0ac2b1d8010`.
+- Apply: `8b9e4a55fe27ebfe31d70d759803fc76d3ac0702afc601659a9c01e3fa8a303b`.
+- Activation: `a99203f1590ce5029eb8ff4e81d3c9bdcd1510f30cf2dc21a1c980fe729abeab`.
+
+## Alignment review and earlier state
+
 The user patched the official client and requested alignment before continuing
 quantity-ten rolling. The official patch manifest reports gameVersion `1.0.25`;
 the exact executable contains version string `1.3.38.19`. Treat the hashes as the
@@ -48,11 +101,9 @@ Private images, comparison reports, disassembly and captures remain local.
 A read-only 211-file asset census verifies all four changed official files:
 `sb.exe`, `Config/Config.wpak`, `cache/Visual.cache`, `cache/CObjects.cache`.
 The runtime's three resource files still match .18. The two DoubleFusion user
-files are runtime-written and must remain in place. Installed software remains
-host .111/native .69/client .18 until full graphics-preserving .112/.70 package
-qualification and installation finish. No vendor action was dispatched.
+files are runtime-written and remain in place. The qualified .112/.70/client .19
+installation is recorded above. No vendor action was dispatched during alignment.
 
-Next: qualify and install the exact release under the
-[no-retained-rollback policy](deployment-policy.md), verify launch, then resume
-Treehugger in Rooty with movement, discovery and one whole funded quantity-ten
-batch. Draft PR #174 targets main; this alignment stays on the active vendor lane.
+The [no-retained-rollback policy](deployment-policy.md) applies. Next: finish
+fresh discovery and one whole funded quantity-ten batch. Draft PR #174 targets
+main; this alignment stays on the active vendor lane.
