@@ -32,13 +32,18 @@ recipe acceptance and town vendor scheduling. See [current evidence](client-upda
 
 ## Local refinement guidance - October 12
 
-Shared development starts from `main` at `4b69decc`. The focused host-routing
-correction on `codex/travel-refinement-guidance-20261012` in the managed
-`travel-refinement-guidance` checkout targets `main`; it is not installed yet.
-It preserves the coarse detour's next mandatory bend during local fine recovery.
-See [evidence and validation scope](travel-refinement-guidance.md). Existing
-native movement authority and learned obstacles are unchanged; the candidate is
-host .104 with native .66.
+Shared development starts from `main` at PR #170 merge
+`420deb91f4c9579239d73b4133bb3ff4ed3a63f2`; all 15 hosted checks passed at
+`cd3f341b143118e7e50930cf898335661e2e65e4`. The focused source is included.
+Graphics-preserving release `590d36007eeb16dd1430ce324f13818e0e8741af` is
+pushed and qualified as host .104/native .66. The native/assets trees are unchanged
+from `dc6cbbb4`. Host .104 is now installed and activated: 491 modules, 9,657 stopped records,
+zero exclusions and zero client-file writes. The same game/native .66 remains open. Delivery records are on
+`codex/travel-refinement-delivery-20261012` in `bot-runtime`, targeting `main`.
+Normal Resume and upkeep/listener readiness passed. A fresh .104 `/come`
+arrived within range, with three backtracks/six replans and an initial stall;
+finer initial routing remains next. One obsolete local .103 wheel is retired.
+Guest retirement is pending; finer initial routing proceeds as a separate slice. See [evidence and qualification](travel-refinement-guidance.md).
 
 
 ## Qualified coordinate travel update - October 11
