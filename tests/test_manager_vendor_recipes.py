@@ -300,14 +300,20 @@ def control_setup():
         test.doCleanups()
 
 
-def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup):
+@pytest.mark.parametrize("existing, lost_collection", [(0, False), (5, False), (5, True)])
+def test_http_live_manager_saves_recipe_and_starts_exact_worker(
+    control_setup, monkeypatch, existing, lost_collection,
+):
     import http.client
     import threading
 
+    from shadowbane_lab.client_extension.vendor_wire import Slot
+    from shadowbane_lab.manager import vendor_order_job
     from shadowbane_lab.manager.dashboard import DashboardError, DashboardServer
     from shadowbane_lab.manager.live_configuration import LiveConfiguredManagerApplication
     from shadowbane_lab.manager.operation import WorkerOperationReceipt, WorkerOperationState
     from shadowbane_lab.manager.session import ManagerSessionSnapshot
+    from shadowbane_lab.manager.vendor_collection import collect_saved_vendor_results
     from shadowbane_lab.manager.vendor_control import VendorWorkerExecutor
     from shadowbane_lab.manager.worker_runtime import ExactClientWorkerBinding
     from tests.test_manager_application import (
@@ -318,19 +324,59 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup):
         _slot,
     )
     from tests.test_manager_operation import CLIENT_ID, INSTANCE_ID, NODE_ID, WORKER_ID
+    from tests.test_manager_vendor_orders import Session as OrderSession
+    from tests.test_vendor_collection import Session as CollectionSession
     test = control_setup
-    session = Session(test.store)
-    original_inspect = session.inspect
-    def complete_observation():
-        observed = original_inspect()
-        if not session.state.free_slots:
-            session.cook(0)
-            observed = replace(observed, snapshot=session.state)
-        return observed
-    session.inspect = complete_observation
+    class BatchSession(CollectionSession):
+        def keep(self, expected, item, key):
+            if self.store.current():
+                return OrderSession.keep(self, expected, item, key)
+            return super().keep(expected, item, key)
+
+    capacity = 7 if existing else 2
+    session = BatchSession(test.store, capacity)
+    session.state = replace(session.state, slots=tuple(Slot(s.entry) for s in session.state.slots))
+    session.state = replace(session.state, quantity=1)
+    run_orders = vendor_order_job.run_order_job
+    def reader_factory(*args):
+        if len(args) == 1:
+            # Match the real reader's new-job bookmark: earlier collection
+            # replies are historical evidence, never this Create's production.
+            session.recorder.drain()
+        return session.recorder
+    def run_with_native_fixtures(store, native, record, **kwargs):
+        return run_orders(store, native, record, cancelled=kwargs["cancelled"],
+                          clock=lambda: session.time, sleeper=session.sleep,
+                          reader_factory=reader_factory,
+                          inventory_reader=lambda native, state, known, template:
+                          sorted(set(known) & session.inventory),
+                          exclusion_reader=kwargs["exclusion_reader"])
+    monkeypatch.setattr(vendor_order_job, "run_order_job", run_with_native_fixtures)
     binding = ExactClientWorkerBinding(CLIENT_ID, INSTANCE_ID, 988, 1234567, 1000, WORKER_ID)
+    funding_calls, steps = [], []
+    def collect(store, binding, operation, native, selection, **kwargs):
+        steps.append("collect")
+        session.path = store.root / "collections" / operation.operation_id / "collection.json"
+        return collect_saved_vendor_results(store, binding, operation, native, selection, **kwargs)
+    def fund(*args, **kwargs):
+        from shadowbane_lab.client_extension.vendor_budget import VendorBatchBudget
+
+        funding_calls.append(args)
+        steps.append("fund")
+        assert len(session.keeps) == existing and session.state.free_slots == capacity
+        # The real funder returns with the saved recipe activated.
+        order = kwargs["order"]
+        assert order.quantity == 10 and order.multiple
+        session.state = replace(session.state, recipe=400, inventory=0, quantity=10, multiple=1)
+        budget = VendorBatchBudget.from_snapshot(session.state, {555: 1660})
+        return dict(state="funded", batch_budget=budget.as_dict(),
+                    batch_budget_sha256=budget.canonical_digest,
+                    order_spec=order.as_dict(), order_sha256=order.canonical_digest)
+    from tests.test_vendor_recycling import unknown_observation
     worker = VendorWorkerExecutor(test.root, NODE_ID, binding, session_factory=lambda _: session,
-                                  recipe_reader=session.reader)
+                                  recipe_reader=session.reader,
+                                  funding_runner=fund, collection_runner=collect,
+                                  exclusion_reader=unknown_observation)
     lifecycle = _RecordingSession(ManagerSessionSnapshot(
         node_id=NODE_ID,
         slots=(_slot(CLIENT_ID, instance_id=INSTANCE_ID), _slot("client-02")),
@@ -382,9 +428,25 @@ def test_http_live_manager_saves_recipe_and_starts_exact_worker(control_setup):
         op = execute("vendor-recipe-save", dict(catalog_id=catalog_id, template=25860))
         assert op.command == f"vendor recipe {catalog_id} 25860"
         revision = recipes.current()["revision"]
+        if existing:
+            session.state = replace(session.state, slots=tuple(
+                Slot(s.entry, 10000 + index, 2) if index < existing else s
+                for index, s in enumerate(session.state.slots)))
+        if lost_collection:
+            session.behavior = "lost"
+            with pytest.raises(OSError, match="lost Keep"):
+                execute("vendor-start", dict(recipe_revision=revision))
+            assert steps == ["collect"] and not funding_calls and not session.calls
+            assert test.store.current() is None and len(session.keeps) == 1
+            assert json.loads(session.path.read_bytes())["state"] == "review"
+            return
         op = execute("vendor-start", dict(recipe_revision=revision))
+        assert len(funding_calls) == 1 and steps == ["collect", "fund"]
         assert op.command == "vendor start " + revision
-        assert test.store.current()["state"] == "complete" and len(session.calls) == 2
+        assert test.store.current()["state"] == "complete" and len(session.calls) == 1
+        assert len(session.keeps) == existing + capacity
+        assert test.store.current()["planned_items"] == capacity * 10
+        assert len(session.inventory) == existing + capacity * 10
         assert session.closed_count == 3
         assert test.control.recipe_summary(CLIENT_ID, INSTANCE_ID)["saved"]["revision"] == revision
         completed = test.operations.inspect_slot(CLIENT_ID)

@@ -1,5 +1,6 @@
 #include "movement_native_image.h"
 #include "movement_bootstrap_patches.h"
+#include "movement_native_image.h"
 #include "terrain_mask_refresh.h"
 #include "combat_power_observer.h"
 #include "combat_item_entry.h"
@@ -17,7 +18,8 @@ bool ReadLoaded(void* output, const void* input, std::size_t size) noexcept {
     __try { std::memcpy(output, input, size); return true; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
 }
-bool ReviewedDigest(const std::vector<unsigned char>& bytes) noexcept {
+bool ReviewedDigest(const std::vector<unsigned char>& bytes, bool* title_menu_patch = nullptr) noexcept {
+    if (title_menu_patch) { *title_menu_patch = false; }
     constexpr std::array<unsigned char, 32> expected{
         0xfe,0xb3,0x51,0xf0,0xfa,0xe8,0x7d,0x47,0x54,0x9f,0xa4,0x3c,0x37,0x83,0x64,0x05,
         0xa7,0x53,0xd7,0x6f,0xbc,0xd0,0xb0,0x22,0x32,0xfc,0x1c,0x07,0x33,0x55,0x0d,0xff};
@@ -52,6 +54,12 @@ bool ReviewedDigest(const std::vector<unsigned char>& bytes) noexcept {
         0x05, 0x1c, 0x55, 0xeb, 0xd0, 0xf2, 0x5f, 0xf5, 0xfe, 0x9b, 0xd2, 0x7b, 0x25, 0xef, 0xbe, 0x3c, 0xde, 0x01, 0x90, 0xd1, 0xdb, 0xf1, 0xc2, 0xa3, 0x3e, 0xb9, 0x60, 0x49, 0x96, 0xc6, 0x96, 0x98};
     constexpr std::array<unsigned char, 32> october13{
         0x28, 0xa7, 0x45, 0x92, 0x5f, 0xce, 0xb4, 0xe3, 0xf0, 0x85, 0x37, 0x50, 0x4a, 0x71, 0x92, 0x78, 0x2a, 0xfe, 0x22, 0x27, 0x75, 0x8e, 0x34, 0xfe, 0xbd, 0xd9, 0x5c, 0xc4, 0x53, 0x9f, 0x8d, 0xb0};
+    constexpr std::array<unsigned char, 32> october14{
+        0x2c, 0xc8, 0xf6, 0xcf, 0xc1, 0x57, 0xb4, 0xb2, 0xc0, 0xf2, 0xab, 0xbc, 0x30, 0xd1, 0xb5, 0xdf, 0x81, 0xda, 0xae, 0xe2, 0x43, 0x63, 0xa8, 0xda, 0x88, 0x4c, 0xb8, 0xa4, 0x5d, 0xc3, 0x48, 0x9a};
+    constexpr std::array<unsigned char, 32> october16{
+        0xcb, 0x33, 0xe6, 0x75, 0x9c, 0x61, 0x9b, 0x04, 0xa5, 0xdd, 0x8c, 0xdc, 0x7b, 0xc3, 0x75, 0xaf, 0x8b, 0xa3, 0xb4, 0xdc, 0x99, 0xd9, 0xe8, 0xce, 0x7b, 0x43, 0x15, 0x33, 0xef, 0x11, 0xdb, 0x5c};
+    constexpr std::array<unsigned char, 32> october16Reset{
+        0x7e, 0x49, 0x7f, 0x93, 0x81, 0xbc, 0x35, 0xca, 0x35, 0x0d, 0xfb, 0x9e, 0xcc, 0x85, 0xee, 0x6b, 0x1e, 0xaf, 0x9e, 0x1f, 0x1a, 0x76, 0x78, 0x72, 0x4b, 0x9c, 0xb8, 0xc9, 0x26, 0xbe, 0x76, 0x36};
     BCRYPT_ALG_HANDLE algorithm{}; BCRYPT_HASH_HANDLE hash{};
     std::array<unsigned char, 32> digest{};
     const bool ok = BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) >= 0
@@ -60,15 +68,16 @@ bool ReviewedDigest(const std::vector<unsigned char>& bytes) noexcept {
         && BCryptFinishHash(hash, digest.data(), static_cast<ULONG>(digest.size()), 0) >= 0;
     if (hash) { BCryptDestroyHash(hash); }
     if (algorithm) { BCryptCloseAlgorithmProvider(algorithm, 0); }
+    if (title_menu_patch) { *title_menu_patch = ok && digest == october16Reset; }
     return ok && (digest == expected || digest == september15 || digest == september19
-        || digest == september22 || digest == september24 || digest == september26 || digest == september30 || digest == october4 || digest == october8 || digest == october9 || digest == october10 || digest == october13);
+        || digest == september22 || digest == september24 || digest == september26 || digest == september30 || digest == october4 || digest == october8 || digest == october9 || digest == october10 || digest == october13 || digest == october14 || digest == october16 || digest == october16Reset);
 }
 template<class T> bool FileValue(const std::vector<unsigned char>& bytes, std::size_t offset, T& output) {
     if (offset > bytes.size() || sizeof(T) > bytes.size() - offset) { return false; }
     std::memcpy(&output, bytes.data() + offset, sizeof(T)); return true;
 }
-bool ReviewedImage(const std::vector<unsigned char>& bytes) {
-    if (ReviewedDigest(bytes)) { return true; }
+bool ReviewedImage(const std::vector<unsigned char>& bytes, bool* title_menu_patch = nullptr) {
+    if (ReviewedDigest(bytes, title_menu_patch)) { return true; }
     auto original = bytes;
     for (const auto& patch : bootstrap_patches) {
         if (patch.offset > bytes.size() || patch.replacement.size() > bytes.size() - patch.offset
@@ -76,15 +85,27 @@ bool ReviewedImage(const std::vector<unsigned char>& bytes) {
             || std::memcmp(bytes.data() + patch.offset, patch.replacement.data(), patch.replacement.size())) { return false; }
         std::memcpy(original.data() + patch.offset, patch.original.data(), patch.original.size());
     }
-    return ReviewedDigest(original);
+    return ReviewedDigest(original, title_menu_patch);
 }
-bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base) {
-    if (!ReviewedImage(bytes)) { return false; }
+bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base,
+    NativeMovementImageLayout* layout = nullptr) {
+    bool title_menu_patch = false;
+    if (!ReviewedImage(bytes, &title_menu_patch)) { return false; }
     IMAGE_DOS_HEADER dos{}; IMAGE_NT_HEADERS32 nt{};
     if (!FileValue(bytes, 0, dos) || dos.e_magic != IMAGE_DOS_SIGNATURE || dos.e_lfanew < 0
         || !FileValue(bytes, static_cast<std::size_t>(dos.e_lfanew), nt)
         || nt.Signature != IMAGE_NT_SIGNATURE || nt.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC
         || nt.OptionalHeader.ImageBase != 0x400000 || nt.FileHeader.NumberOfSections > 96) { return false; }
+    IMAGE_DOS_HEADER loaded_dos{}; IMAGE_NT_HEADERS32 loaded_nt{};
+    if (!base || !ReadLoaded(&loaded_dos, reinterpret_cast<const void*>(base), sizeof(loaded_dos))
+        || loaded_dos.e_magic != dos.e_magic || loaded_dos.e_lfanew != dos.e_lfanew
+        || !ReadLoaded(&loaded_nt, reinterpret_cast<const void*>(base + dos.e_lfanew), sizeof(loaded_nt))
+        || loaded_nt.Signature != nt.Signature || loaded_nt.FileHeader.Machine != nt.FileHeader.Machine
+        || loaded_nt.FileHeader.NumberOfSections != nt.FileHeader.NumberOfSections
+        || loaded_nt.FileHeader.SizeOfOptionalHeader != nt.FileHeader.SizeOfOptionalHeader
+        || loaded_nt.OptionalHeader.Magic != nt.OptionalHeader.Magic
+        || loaded_nt.OptionalHeader.SizeOfImage != nt.OptionalHeader.SizeOfImage
+        || loaded_nt.OptionalHeader.AddressOfEntryPoint != nt.OptionalHeader.AddressOfEntryPoint) { return false; }
     IMAGE_SECTION_HEADER text{}, reloc{};
     const std::size_t first = static_cast<std::size_t>(dos.e_lfanew) + 24 + nt.FileHeader.SizeOfOptionalHeader;
     for (std::size_t i = 0; i < nt.FileHeader.NumberOfSections; ++i) {
@@ -92,6 +113,40 @@ bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base) {
         if (!FileValue(bytes, first + i * sizeof(section), section)) { return false; }
         if (std::memcmp(section.Name, ".text", 6) == 0) { text = section; }
         if (std::memcmp(section.Name, ".reloc", 7) == 0) { reloc = section; }
+    }
+    // The exact .22/.23 files add executable .wbmr/.wbtm sections. Authenticate
+    // their loaded headers and code too: sealing .text alone would leave the
+    // shared message dispatcher's new jump destination outside the proof.
+    const bool added_patch_sections = nt.FileHeader.NumberOfSections == 9U;
+    if (added_patch_sections) {
+        for (std::size_t index = 7; index != 9; ++index) {
+            IMAGE_SECTION_HEADER section{}, loaded_section{};
+            const auto offset = first + index * sizeof(section);
+            if (!FileValue(bytes, offset, section)
+                || !ReadLoaded(&loaded_section, reinterpret_cast<const void*>(base + offset), sizeof(section))
+                || std::memcmp(&section, &loaded_section, sizeof(section))
+                || section.SizeOfRawData != 0x1000U
+                || section.PointerToRawData > bytes.size()
+                || section.SizeOfRawData > bytes.size() - section.PointerToRawData
+                || section.VirtualAddress != (index == 7 ? 0x178f000U : 0x1790000U)
+                || std::memcmp(section.Name, index == 7 ? ".wbmr\0\0" : ".wbtm\0\0",
+                               IMAGE_SIZEOF_SHORT_NAME)) { return false; }
+            std::array<unsigned char, 0x1000> loaded_patch{};
+            if (!ReadLoaded(loaded_patch.data(), reinterpret_cast<const void*>(base + section.VirtualAddress),
+                            loaded_patch.size())) { return false; }
+            for (std::size_t at = 0; at < loaded_patch.size(); ++at) {
+                // Reviewed .wbtm writes only these title hex digits, server
+                // value and three temporary transform floats. Code, tables,
+                // constants and all remaining padding must match the file.
+                const bool mutable_data = index == 8 && (at == 0x10a || at == 0x10b
+                    || at == 0x122 || at == 0x123 || (at >= 0x150 && at < 0x154)
+                    || (at >= 0x800 && at < 0x80c)
+                    // Only the exact .23 original/prepared pair owns this
+                    // title-menu row counter. Older images keep it sealed.
+                    || (title_menu_patch && at >= 0xc20 && at < 0xc24));
+                if (!mutable_data && loaded_patch[at] != bytes[section.PointerToRawData + at]) { return false; }
+            }
+        }
     }
     if (text.VirtualAddress != 0x1000 || text.PointerToRawData != 0x1000 || text.SizeOfRawData != 0x1140000
         || text.PointerToRawData + text.SizeOfRawData > bytes.size()) { return false; }
@@ -133,9 +188,11 @@ bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base) {
     if (!actor_effects::NormalizeOwnedCode(base, text.VirtualAddress, loaded,
         std::span<const unsigned char>(bytes.data() + text.PointerToRawData, loaded.size()))) { return false; }
     if (std::memcmp(loaded.data(), bytes.data() + text.PointerToRawData, loaded.size()) != 0) { return false; }
+    if (layout) { *layout = {nt.OptionalHeader.SizeOfImage, nt.FileHeader.NumberOfSections,
+                            added_patch_sections}; }
     return true;
 }
-bool Verify(std::uintptr_t& output) {
+bool Verify(std::uintptr_t& output, NativeMovementImageLayout* layout = nullptr) {
     std::array<wchar_t, 32768> path{};
     const auto path_size = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
     if (!path_size || path_size >= path.size()) { return false; }
@@ -147,12 +204,17 @@ bool Verify(std::uintptr_t& output) {
     file.seekg(0);
     if (!file.read(reinterpret_cast<char*>(bytes.data()), size)) { return false; }
     const auto base = reinterpret_cast<std::uintptr_t>(GetModuleHandleW(nullptr));
-    if (!VerifyImage(bytes, base)) { return false; }
+    if (!VerifyImage(bytes, base, layout)) { return false; }
     output = base; return true;
 }
 }
 bool VerifyNativeMovementImage(std::uintptr_t& base) noexcept {
     base = 0;
     try { return Verify(base); } catch (...) { return false; }
+}
+bool VerifyNativeMovementImageLayout(
+    std::uintptr_t& base, NativeMovementImageLayout& layout) noexcept {
+    base = 0; layout = {};
+    try { return Verify(base, &layout); } catch (...) { base = 0; layout = {}; return false; }
 }
 }

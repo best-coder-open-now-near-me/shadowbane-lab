@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from . import action_channel as channel
 from .guard_spending_journal import GuardSpendingJournal
 from .movement_wire import Host
-from .vendor_navigation_wire import Command, Outcome, Receipt, Snapshot, Verb
+from .vendor_navigation_wire import UNRESOLVED, Command, Outcome, Receipt, Snapshot, Verb
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +62,18 @@ class NativeVendorNavigationSession:
         self._transport = channel.WindowsNativeActionCommandTransport(identity)
         self._ids = itertools.count(1)
         self._closed = False
+        self._parent = None
+
+    @classmethod
+    def borrow(cls, parent, *, journal):
+        """Navigate under the active worker producer without a lease handoff."""
+        if parent._closed:
+            raise channel.NativeActionChannelUnavailable("parent session is closed")
+        adapter = cls.__new__(cls)
+        adapter.identity, adapter.window = parent.identity, parent.window
+        adapter._transport, adapter._ids = parent._transport, parent._ids
+        adapter._journal, adapter._closed, adapter._parent = journal, False, parent
+        return adapter
 
     def _submit(
         self,
@@ -71,7 +83,7 @@ class NativeVendorNavigationSession:
         building_id: int = 0,
         vendor_id: int = 0,
     ) -> Receipt:
-        if self._closed:
+        if self._closed or (self._parent is not None and self._parent._closed):
             raise channel.NativeActionChannelUnavailable("vendor_navigation session is closed")
         transport = self._transport
         process = transport.host_process_identity
@@ -130,11 +142,13 @@ class NativeVendorNavigationSession:
         # identity and still passes the native lifetime/lease/receipt checks.
         for attempt in range(3):
             try:
-                return self._submit(Verb.INSPECT, str(uuid.uuid4()))
+                receipt = self._submit(Verb.INSPECT, str(uuid.uuid4()))
+                if receipt.outcome != Outcome.STALE or receipt.flags & UNRESOLVED or attempt == 2:
+                    return receipt
             except (_RetryableInspectionError, channel.NativeActionChannelTimeout):
                 if attempt == 2:
                     raise
-                time.sleep(0.05)
+            time.sleep(0.05)
         raise AssertionError("unreachable inspection retry")
 
     def open_building(self, expected: Snapshot, building_id: int, request_key: str) -> Receipt:
@@ -156,9 +170,12 @@ class NativeVendorNavigationSession:
         return self._submit(Verb.WAREHOUSE, request_key, expected, building_id, source_id)
 
     def renew_lease(self) -> None:
+        if self._closed or (self._parent is not None and self._parent._closed):
+            raise channel.NativeActionChannelUnavailable("navigation session is closed")
         self._transport.renew_lease()
 
     def close(self) -> None:
         if not self._closed:
             self._closed = True
-            self._transport.close()
+            if self._parent is None:
+                self._transport.close()

@@ -446,6 +446,9 @@ inline DWORD FinishVendorPending(Runtime& runtime, ULONGLONG now) noexcept {
             receipt.host = pending->command.host; receipt.request = pending->command.request;
             receipt.window = pending->command.window;
             receipt.outcome = static_cast<unsigned>(vendor::wire::Outcome::stale);
+            if (pending->verb == vendor::wire::Verb::inspect_orders
+                || pending->verb == vendor::wire::Verb::create_orders) { receipt.signature = vendor::wire::orders_magic; }
+            if(vendor::wire::IsRecycle(pending->verb)){receipt.signature=vendor::wire::recycle_magic;}
             vendor::Complete(pending, receipt);
         }
     }
@@ -455,10 +458,12 @@ inline DWORD FinishVendorPending(Runtime& runtime, ULONGLONG now) noexcept {
     movement::wire::Receipt wire_bytes{};
     static_assert(sizeof(wire_bytes) == sizeof(pending->receipt));
     std::memcpy(&wire_bytes, &pending->receipt, sizeof(wire_bytes));
-    constexpr char detail[] = "native_vendor_receipt_v1";
+    const char* detail = (pending->verb == vendor::wire::Verb::inspect_orders || pending->verb == vendor::wire::Verb::create_orders)
+        ? "native_vendor_orders_receipt_v2" : vendor::wire::IsRecycle(pending->verb)
+        ? "native_vendor_recycle_receipt_v1" : "native_vendor_receipt_v1";
     if (!TryPublishResult(*runtime.storage, runtime.result_signal, static_cast<LONG64>(pending->sequence), pending->id,
         accepted ? ClientActionResultStage::submitted_to_client : ClientActionResultStage::rejected_by_client,
-        accepted ? ERROR_SUCCESS : ERROR_REQUEST_ABORTED, detail, sizeof(detail) - 1, now,
+        accepted ? ERROR_SUCCESS : ERROR_REQUEST_ABORTED, detail, std::strlen(detail), now,
         &wire_bytes, pending->execution_thread)) { return ERROR_NOT_ENOUGH_QUOTA; }
     InterlockedExchange64(&runtime.storage->header.command_read_sequence, static_cast<LONG64>(pending->sequence));
     vendor::Release(pending); runtime.vendor_pending.reset(); return ERROR_SUCCESS;
@@ -952,7 +957,7 @@ inline DWORD DrainCommands(
             }
             InterlockedExchange64(&storage.header.command_read_sequence, expected_sequence); continue;
         }
-        if (snapshot.kind >= 25U && snapshot.kind <= 31U) {
+        if ((snapshot.kind >= 25U && snapshot.kind <= 31U) || (snapshot.kind >= 57U && snapshot.kind <= 60U)) {
             const auto verb = static_cast<vendor_menu::wire::Verb>(snapshot.kind);
             vendor_menu::wire::Command payload{};
             std::memcpy(&payload, &snapshot.movement, sizeof(payload));
@@ -1016,7 +1021,8 @@ inline DWORD DrainCommands(
             }
             InterlockedExchange64(&storage.header.command_read_sequence, expected_sequence); continue;
         }
-        if ((snapshot.kind >= 8U && snapshot.kind <= 10U) || snapshot.kind == 32U || snapshot.kind == 33U) {
+        if ((snapshot.kind >= 8U && snapshot.kind <= 10U) || snapshot.kind == 32U || snapshot.kind == 33U
+            || snapshot.kind == 56U || snapshot.kind == 61U || snapshot.kind==62U || snapshot.kind==63U) {
             const auto verb = static_cast<vendor::wire::Verb>(snapshot.kind);
             vendor::wire::Command payload{};
             std::memcpy(&payload, &snapshot.movement, sizeof(payload));

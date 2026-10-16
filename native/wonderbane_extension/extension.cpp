@@ -6,6 +6,7 @@
 #include "group_updates.h"
 #include "native_owner_services.h"
 #include "item_application_trace.h"
+#include "vendor_production_responses.h"
 #include "combat_runtime.h"
 #include "actor_effects_native.h"
 #include "movement_runtime.h"
@@ -39,7 +40,7 @@ constexpr std::size_t kPathCapacity = WONDERBANE_EXTENSION_HEARTBEAT_PATH_CAPACI
 constexpr std::size_t kJsonCapacity = 768;
 constexpr LONG kMaximumInitializationPolls = 500;
 constexpr DWORD kInitializationPollMilliseconds = 10;
-constexpr char kExtensionVersion[] = "1.8.67";
+constexpr char kExtensionVersion[] = "1.8.76";
 constexpr wchar_t kClientExecutableName[] = L"sb.exe";
 constexpr wchar_t kPerformanceProfileEnvironment[] = L"WONDERBANE_PERFORMANCE_PROFILE";
 constexpr std::size_t kPerformanceProfileCapacity = 16U;
@@ -443,6 +444,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
             (void)wonderbane::extension::group_messages::Start(identity);
             (void)wonderbane::extension::group_updates::Start(identity);
             (void)wonderbane::extension::item_trace::Start(identity);
+            (void)wonderbane::extension::vendor_production::Start(identity);
             const DWORD trace_result = wonderbane::extension::StartMovementBoundaryTrace(identity);
             movement_trace_started = trace_result == ERROR_SUCCESS;
             if (!movement_trace_started) { wonderbane::extension::StopMovementBoundaryTrace(); }
@@ -503,6 +505,7 @@ extern "C" DWORD WINAPI WonderBaneExtensionInitialize() noexcept {
         if (result != ERROR_SUCCESS) {
             wonderbane::extension::StopTargetedActionTrace();
             wonderbane::extension::condemn::Stop();
+            wonderbane::extension::vendor_production::Stop();
             wonderbane::extension::tracking::Stop();
             wonderbane::extension::group_messages::Stop();
             wonderbane::extension::group_updates::Stop();

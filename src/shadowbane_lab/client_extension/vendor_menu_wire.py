@@ -25,6 +25,10 @@ class Verb(IntEnum):
     CLOSE_RECIPE = 29
     OPEN_INVENTORY = 30
     CLOSE_INVENTORY = 31
+    OPEN_ORDER_RECIPE = 57
+    SELECT_ORDER_RECIPE = 58
+    RANDOM_ORDER_MODE = 59
+    ORDER_QUANTITY = 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +76,14 @@ class Snapshot:
                     and self.prefix == self.suffix == self.sentinel == RANDOM_SENTINEL
                     and self.quantity == 1 and self.multiple == 0)
 
+    def random_order(self, template: int, table: int | None = None,
+                     quantity: int | None = None, multiple: bool = True) -> bool:
+        return bool(self.selected(template) and self.mode == 1 and self.table
+                    and (table is None or self.table == table)
+                    and self.prefix == self.suffix == self.sentinel == RANDOM_SENTINEL
+                    and self.multiple == int(multiple)
+                    and (quantity is None or self.quantity == quantity))
+
     def encode(self) -> bytes:
         values = [getattr(self, f.name) for f in fields(self)]
         for index, value in enumerate(values):
@@ -110,7 +122,9 @@ class Command:
         if verb == Verb.INSPECT:
             if not self.expected.empty or self.template:
                 raise ValueError("inspect cannot carry action arguments")
-        elif self.expected.empty or bool(self.template) != (verb == Verb.SELECT_RECIPE):
+        elif self.expected.empty or bool(self.template) != (verb in (
+            Verb.SELECT_RECIPE, Verb.SELECT_ORDER_RECIPE, Verb.ORDER_QUANTITY,
+        )):
             raise ValueError("invalid vendor menu action arguments")
         if verb != Verb.INSPECT:
             s = self.expected
@@ -126,6 +140,12 @@ class Command:
                     s.front_hud == s.menu or inventory_front),
                 Verb.CLOSE_INVENTORY: not s.recipe and (
                     s.front_hud == s.menu or inventory_front),
+                Verb.OPEN_ORDER_RECIPE: not s.inventory and (
+                    s.front_hud == s.menu or recipe_front and s.multiple == 1),
+                Verb.SELECT_ORDER_RECIPE: recipe_front and s.multiple == 1,
+                Verb.RANDOM_ORDER_MODE: s.selected(s.item_template) and s.multiple == 1,
+                Verb.ORDER_QUANTITY: (s.selected(s.item_template)
+                                      and 1 <= self.template <= 10),
             }
             if not allowed[verb]:
                 raise ValueError("vendor menu action is not owned or ready")

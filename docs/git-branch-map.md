@@ -1,5 +1,512 @@
 # Git branch map
 
+## Official reset patch .23 - October 16
+
+Continue `codex/vendor-rolling-20261013` and compose into
+`codex/vendor-release-20261013`; shared destination remains main through draft
+PR #174. Release .123/.76 supports the reviewed .23 original/prepared pair,
+with exact loaded title-counter boundaries and ordinary-dispatch tests.
+Graphics-preserving source `7dc7678f` is qualified, pushed and installed on
+`codex/vendor-release-20261013`; the separate official client is also aligned.
+All 508 modules and 10,207 retained records verify with zero exclusions, and the
+original shortcut starts the exact client/DLL with a healthy idle worker.
+The six-worker launcher and combat-text candidate from draft PR #175 are preserved.
+Neither draft is merged. Next: in-world FPS/text acceptance, then a fresh vendor
+batch, live recycling acceptance and town scheduling. Guards are outside scope.
+See [reset-patch evidence](client-update-20261016-reset.md).
+
+## Vendor client .22 continuation - October 16
+
+Refreshed main remains `ef02070f`. Continue the active
+`codex/vendor-rolling-20261013` worktree and preserve the graphics composition
+on `codex/vendor-release-20261013`. Draft PR #174 targets main and remains
+unmerged. Installed state is .122/.75/.22, independently qualified from the exact
+release below. The original Vendor Test shortcut has relaunched with a healthy
+worker and preserved data. The .22 pair seals its added loaded executable sections.
+Graphics-preserving release source is `cae3008549b7f4d00b45fed1dd28a83941d844b8`.
+Authorized C: cleanup is complete: the separate official client is on S: with its
+original launch path preserved, and unused .121 software has been retired.
+Obsolete .120 software is also retired after verified activation. Next: login,
+fresh-server batch/recycling acceptance and town scheduling. Historical batch deadlines and journals remain
+unchanged. See [current patch evidence](client-update-20261016.md).
+
+## Vendor batch observation correction - October 14
+
+Shared development starts from refreshed main `ef02070f`. Continue vendor work
+in `codex/vendor-rolling-20261013`; compose qualified runtime source in
+`codex/vendor-release-20261013` so its installed graphics source is retained.
+Draft PR #174 targets main and must remain unmerged. Installed software is
+.120/.74 from release `1a2a638b`; host-only .121 is in qualification. The live
+seven-slot quantity-ten batch is in review after a queue/inventory sampling race.
+Its one Create, whole-batch budget and original deadline remain authoritative.
+Next: qualified host-only update and passive-evidence recovery of that same job,
+then automatic recycling acceptance and town scheduling. Guards are outside
+scope. See [the current evidence](vendor-rolling.md).
+
+## Vendor .120/.74 installed; new batch acceptance next - October 14
+
+Continue `codex/vendor-rolling-20261013` for focused source and live acceptance;
+draft PR #174 targets main and remains unmerged. Graphics-preserving release
+`1a2a638b60e441d52a20c5a7e877b607c6722e43` on
+`codex/vendor-release-20261013` is qualified, pushed and installed as .120/.74.
+Its graphics composition remains outside main. Both vendor worktrees remain
+active; refreshed shared main is `ef02070f`, and the normal checkout stays clean
+there. All 15 hosted checks pass at the prior focused head `c411c063`.
+
+The original Vendor Test shortcut relaunch, exact DLL/client lifetime, healthy
+worker, 507 modules and 10,127 retained records are verified. Obsolete .119 and
+spent local/guest software were retired without rollback copies; evidence and
+user data remain. Next: Treehugger in Rooty, move once, then a new quantity-ten
+available-slot batch and live qualified recycling. Town scheduling follows;
+guards are outside scope. See [installed evidence and todos](vendor-rolling.md).
+
+## Qualified vendor batch recycling release - October 14
+
+Continue focused vendor work on `codex/vendor-rolling-20261013`; draft PR #174
+targets main and must remain unmerged. The separately pushed graphics-preserving
+release is `1a2a638b60e441d52a20c5a7e877b607c6722e43` on
+`codex/vendor-release-20261013`. Its .120/.74 package is independently qualified;
+installation is being prepared against the actual .119/.73 baseline. No active
+software switch or live automatic recycling is claimed yet. The release contains
+vendor source through `56b9d747` plus the version correction equivalent to task
+commit `312aa186`; its graphics composition remains outside main.
+
+Both vendor worktrees remain active for installation/live acceptance. The normal
+checkout stays clean on main `ef02070f`. Next: close the loaded game only when the
+prepared update is ready, apply once, verify a new quantity-ten batch and eligible
+Recycle, then town scheduling. See [qualification and current todos](vendor-rolling.md).
+
+## Vendor quantity-batch exclusions integrated in candidate source - October 14
+
+Continue `codex/vendor-rolling-20261013`; its .120/.74 candidate includes the
+actual-client-byte recycle ABI check and durable schema-5 post-production
+exclusions. Draft PR #174 still targets main and remains unmerged. Installed
+graphics-preserving release remains `93ba59d2` (.119/.73); old completed jobs
+cannot gain disposal authority. The task and release worktrees stay active;
+the normal checkout stays clean on main `ef02070f`. Active next: qualify the
+complete graphics-preserving update, install once, verify a live batch, then
+town scheduling. See [current validation and todos](vendor-rolling.md).
+
+## Vendor batch recycling receipt source - October 14
+
+Continue the vendor lane in `codex/vendor-rolling-20261013`; draft PR #174 targets
+main and remains unmerged. Its command-free recycle receipt reducer passes the
+actual user's seven-item manual workflow and 89 focused recycle/affix/reply
+checks. Installed graphics-preserving release remains `93ba59d2` (.119/.73).
+Native batch dispatch and durable exclusions remain unfinished; no automatic
+disposal is enabled. Both vendor worktrees stay active and the normal checkout
+stays clean on main. See [workflow and next todo](vendor-rolling.md).
+
+## Uninstalled owned-affix observer draft - October 14
+
+The current `codex/vendor-rolling-20261013` tip also contains the command-free
+current-image affix observer and its tests; this source is an uninstalled draft.
+Its passive check protects all 139 observed scepters, including 21 unknowns.
+Installed software remains .119/.73 from release `93ba59d2`, whose successful
+quantity acceptance is recorded at task commit `c0950f8c`. Continue the recycling
+workflow capture/qualification next, then town scheduling. Draft PR #174 remains
+unmerged; both vendor worktrees stay active. See [current todos](vendor-rolling.md).
+
+## Vendor .119/.73 installed; quantity batch accepted - October 14
+
+Shared development starts from refreshed main `ef02070f`. Continue the vendor
+lane in `codex/vendor-rolling-20261013`, implementation
+`9480d1d0b343ea7bbe8e7a1aa6138a77e6435ceb` with all 15 hosted checks passing.
+Draft PR #174 targets main and remains unmerged. Graphics-preserving release
+`93ba59d20146dfe34936ddf0f290167640f9c445` on
+`codex/vendor-release-20261013` is qualified and installed as host .119 with
+unchanged native .73/assets source `8c12dd4b`. Both worktrees remain active;
+the normal checkout stays clean on main. Installation is not integration.
+
+The admitted quantity-ten/multiple batch finished with all 66 server-produced
+items positively confirmed in inventory, seven empty rows and a reported
+four-item shortfall against the seventy-item reservation. Exactly one Create
+and five terminal Keeps occurred; the first Keep was reconciled without replay.
+The original deadline/funding and historical journals remain intact. Obsolete
+.117/.118 software and spent staging copies are retired; the complete trace is
+preserved. Active next: current-image Tier 1-2 exclusions retaining unknowns,
+then town scheduling. Guards remain outside scope. See [workflow](vendor-rolling.md)
+and [installation/acceptance](client-update-20261014.md).
+
+## Vendor .118/.73 installed; same batch continuing - October 14
+
+Start shared work from refreshed main `ef02070f`. Continue this unfinished vendor
+lane in `codex/vendor-rolling-20261013`, implementation through `60d432de`,
+draft PR #174 to main. Graphics-preserving release
+`2c0e2baf3e0907107e425cdb6cba7117bb3c6eed` on
+`codex/vendor-release-20261013` is qualified and installed as host .118 with
+unchanged native .73/assets source `8c12dd4b`. Neither lane is merged.
+Both worktrees remain active; the normal checkout stays clean on main.
+
+The host switch verifies 503 modules and 10,106 retained records while preserving
+the running game. Normal manager Resume continues the original definitively
+admitted batch from contiguous passive evidence, with no Create/funding replay.
+At 19:28 UTC, 66 generated / 61 inventory-confirmed items remain in progress
+against a seventy-item reservation. Active next: terminal completion accounting;
+then Tier 1-2 exclusions retaining unknowns and town scheduling. Guard work is
+outside scope. Old .117 is only a live recorder dependency, pending retirement
+when that dependency ends. See [workflow/todos](vendor-rolling.md) and
+[installed evidence](client-update-20261014.md).
+
+## Vendor .117/.73 installed; acceptance remains unfinished - October 14
+
+Shared development starts from main `ef02070f`. Continue vendor acceptance in
+`codex/vendor-rolling-20261013`, whose implementation through
+`c1ed04439ac26283dcda943da2aae13c94a7b9b4` is published in draft PR #174 to main.
+Graphics-preserving release `8c12dd4b76d7ba9377fad97ca4e80afb6127cb5f` on
+`codex/vendor-release-20261013` contains the vendor changes and is qualified and
+installed as host .117/native .73. Neither this source nor the graphics composition
+is integrated by the installation. Both worktrees remain active; the normal
+checkout stays clean on main.
+
+The exact client/DLL, healthy manager/worker, 502 modules and 10,051 retained
+records are verified. The unused .116 runtime and obsolete DLL/wheel are retired;
+review journals and diagnostic captures are preserved. Next: Treehugger login
+and movement, live completed-result collection and quantity completion, then
+affix filtering and town scheduling. Guards are outside scope. See
+[current workflow and todos](vendor-rolling.md) and
+[installation evidence](client-update-20261014.md).
+
+## Terminal vendor accounting and preflight collection - October 14
+
+Continue vendor work on `codex/vendor-rolling-20261013`, draft PR #174 to main.
+`3708247b` replaces the exact-quota completion assumption with explicit server
+terminal accounting: the controlled request produced twelve items against a
+twenty-item funding bound, without automatic replacement. Completed-result
+collection now precedes batch planning/funding and retains unknowns. Its
+independent journals cannot replay or adopt historical Create jobs. Compose these
+changes into `codex/vendor-release-20261013` before qualifying .117/.73.
+Installed .116/.72 is unchanged; the passive capture stopped at 106 records with
+zero commands. Both worktrees remain active. Shared main remains `ef02070f`.
+Next: package qualification and live collection/quantity acceptance, then affix
+filtering and town scheduling. Guard work is outside scope; PR #174 stays draft.
+
+## Automatic vendor batch source correction - October 14
+
+Continue the unfinished vendor workflow in `codex/vendor-rolling-20261013`.
+Published implementation `e9befe0b170abc38a280cd71f577142d483ab213` includes
+native causal admission, global duplicate-batch fencing and host automatic
+item/deposit reconciliation. Its fixed source passes 6,726 host tests (45 optional
+skips), the required native gate and all three private original/prepared image
+probes. Compiled native admission also verifies the seven exact private live
+records and rejects a changed outgoing quantity. The two historical transparency
+stretch diagnostics remain separately recorded; they are outside vendor changes.
+
+Host .117/native .73 is the next candidate, not the installed runtime. Compose
+it into the existing graphics-preserving `codex/vendor-release-20261013` lane
+before package qualification. Installed .116/.72 still owns the running passive
+capture. Do not retire that host, interrupt the capture or replay either review
+job. Actual server batch size/terminal inventory remains under observation.
+
+Shared development starts from refreshed main `ef02070f`; draft vendor PR #174
+targets main and remains unmerged. Both vendor worktrees remain active. Next:
+complete batch evidence and qualify the combined candidate, then inventory
+filtering and town scheduling. See [workflow and todos](vendor-rolling.md).
+
+## V3 vendor observations installed - October 14
+
+Shared development still starts from refreshed main at
+`ef02070f3fccbb0636da8c313737fd19814a88a6`. Vendor implementation through
+`d3b34ab7f07908c8f609d9d087d815c7bb7ce458` is pushed on
+`codex/vendor-rolling-20261013`, with all 15 hosted checks passing at that head.
+Draft PR #174 targets main; neither current vendor source nor the graphics
+composition is integrated by this installation.
+
+Graphics-preserving release `71af337ff41feceb3e63f1ac1334b44ff24b409b` is pushed
+on `codex/vendor-release-20261013` and qualified/installed as .116/.72. Both
+native/IPC profiles, exact .19 probes, seven Windows handshakes and 341 bound
+installer/verifier checks pass; activation verifies 499 modules and 9,988
+retained records, with zero exclusions. The same Vendor Test launcher loads
+the exact DLL and V3 recorder. Old .115 is retired; preserve the active .116
+passive recorder and both task worktrees through live acceptance.
+
+Next: Treehugger login/movement and initialized, nonterminal bindings, then
+verified automatic quantity capacity/admission/completion before inventory
+filtering and town scheduling. The earlier 49-item batch and review journal are
+preserved without replay. Quantity automation remains unaccepted. Main is clean;
+continue the unfinished work in the vendor worktree. See
+[workflow and todos](vendor-rolling.md) and [installation receipts](client-update-20261014.md).
+
+## Vendor automatic quantity workflow investigation - October 14
+
+Start shared development from refreshed `main` at `ef02070f3fccbb0636da8c313737fd19814a88a6`.
+Vendor continuation remains in the matching worktree on
+`codex/vendor-rolling-20261013`, targeting main through draft PR #174. Funding
+fixes through `3ee6dbd6cc09060c3dcb2bcbcad00552490a8564` are pushed, outside main.
+Graphics-preserving release `c0c464da7992484d06809c1ab70052e739eba03e` on
+`codex/vendor-release-20261013` is qualified and installed as .115/.71.
+
+The single Create produced 45 automatic deposits and four completed items. Its job is
+preserved in review and must not replay. Candidate .116/.72 corrects the response
+recorder's count/flag interpretation and adds copied outgoing evidence; it is
+not installed or accepted. Retain both active worktrees and the .115 passive
+recorder through terminal evidence capture. Next: preserve the batch, qualify V3,
+then implement verified automatic capacity/completion before further Create.
+See [vendor workflow](vendor-rolling.md) and [runtime evidence](client-update-20261014.md).
+
+## Native client .19 startup correction installed - October 14
+
+Continue vendor work on `codex/vendor-rolling-20261013` through source
+`85874dcb7ca46cb07f0a5e1e48697c919fe17217`, targeting main in draft PR #174.
+Pushed graphics-preserving release `11133fcf9a12eeb84089b94068e6f6b90f9c99b6`
+on `codex/vendor-release-20261013` is qualified and installed as .113/.71.
+Authenticated image extent now reaches the lifetime import binding and the
+seven-section world-map gate requires the exact authenticated layout.
+
+All 6,766 host checks, both native/IPC profiles, real image probes, seven Windows
+startup cases and 147 updater checks pass. Activation verifies 499 modules and
+9,911 retained records with zero exclusions. Vendor Test loads the exact .71 DLL;
+event capabilities 3 prove its expanded startup gate enabled, and the V2 recorder
+and empty command queue are verified. Old installed host .112 is retired.
+Active next: login/movement and a direct initialized/nonterminal native snapshot
+before discovery, then full quantity-ten batch/inventory acceptance. Preserve
+the failed .112 inspections and earlier one-item Create without replay. Main and
+both source lanes are clean/published; neither current vendor tip is merged yet.
+Keep the two active worktrees through live acceptance. See
+[current installation evidence](client-update-20261014.md). Guard work remains
+out of scope.
+
+## Earlier official client alignment installed - October 14
+
+Continue on `codex/vendor-rolling-20261013`, targeting main in draft PR #174.
+The user patched the official client to manifest 1.0.25 / internal 1.3.38.19.
+Installed host .112/native .70 admits only its exact reviewed original/prepared
+pair while preserving the vendor quantity-ten correction. The new read-only
+`.wbfp` section and changed control flow have been inspected; pinned hooks and
+bootstrap writes remain unchanged. Qualified graphics-preserving release
+`a7f0b65d8b9d9930a505face3b45ac660a4fcc53` is pushed on
+`codex/vendor-release-20261013`; implementation through `1d8a539b` is pushed on
+the vendor task branch. All 6,760 host tests, both native/IPC profiles, exact-image
+checks, seven Windows startup cases and 153 updater checks pass. Activation
+verifies 499 modules and 9,893 retained records with zero exclusions. Vendor Test
+loads the exact .70 DLL and the V2 recorder/worker are healthy; obsolete installed
+host .111 was retired without fallback copies. Live discovery stopped before
+opening: the startup command-pump gate still assumes six sections, and the
+lifetime import lookup uses the former image size. Active next: correct these
+consumers and add regression coverage in .113/.71 before retrying discovery and
+live quantity-ten acceptance. Neither vendor lane is merged yet.
+See [client alignment evidence](client-update-20261014.md). Main remains clean;
+keep both active vendor worktrees until delivery and live acceptance complete.
+
+## Vendor corrected batch update installed - October 14
+
+Start shared development from clean `main` at
+`ef02070f3fccbb0636da8c313737fd19814a88a6` (PR #173). Continue vendor work on
+`codex/vendor-rolling-20261013`, targeting main through draft PR #174. Its source
+through `d2588b918ac96f06271bc62f2cf500121a9beb3a` is composed with preserved
+graphics in pushed release `f0546c0434a8cf967bb0d588fb56aceee35022b5` on
+`codex/vendor-release-20261013`; neither lane is merged into main yet.
+
+Host .111/native .69/client .18 is installed and verified. Qualification passes
+6,740 host tests, both native/IPC profiles, exact client bindings, seven Windows
+startup cases and 147 updater checks. Activation verifies 499 installed modules
+and 9,884 retained records with zero exclusions. The same Vendor Test shortcut
+loads the exact .69 DLL, its V2 production recorder is available, and the new
+worker is healthy with an empty operation queue. Unused installed host .110 was
+retired without rollback copies; historical jobs/settings are preserved.
+
+Active next: login and movement, fresh vendor discovery, then one whole funded
+quantity-ten batch and complete inventory acceptance. The earlier one-item
+review job must never replay. Keep both active worktrees through live acceptance;
+PR #174 stays draft and main remains the integration destination. Guard work is
+out of scope. See [vendor delivery evidence](vendor-rolling.md).
+
+## Vendor live correction history - October 13
+
+Continue on `codex/vendor-rolling-20261013`, targeting main through draft PR #174.
+Installed .110/.68 completed fresh discovery and proved the whole 70-item batch
+funded by existing shop gold. Its first ordinary-mode Create produced one item
+and charged 166 Gold despite displaying quantity ten; the failed job and request
+remain preserved without replay. Source .111/.69 now uses one full-capacity
+Create Multiple Items request, corrects the recorder's message field offsets in
+a V2 mapping/schema, and accepts the verified decode-thread handoff. V1 replies
+cannot qualify a new batch. 140 focused host checks, four affected
+native suites, Ruff and diff checks pass. Next: full graphics-preserving release
+qualification, installation and live batch/inventory acceptance. Main remains
+clean and these changes remain outside it. Guard work stays out of scope.
+
+## Vendor quantity-ten update installed - October 13
+
+Qualified release `65692cefd433bf28a21b21f3e5d374dcc6a5f2fd` is pushed on
+`codex/vendor-release-20261013`, preserving installed graphics. Implementation
+through `725a1e63` is pushed on `codex/vendor-rolling-20261013`, targeting main in
+draft PR #174. Qualification passes 6,737 host tests, both native/IPC profiles,
+seven Windows startup cases and 499 exact installed modules; 147 updater checks
+pass. Host .110/native .68/client .18 is now installed and its manager is healthy.
+Activation verifies 499 modules and 9,819 retained records with zero exclusions;
+the executable/resources are unchanged. The same Vendor Test launcher started
+the exact .68 DLL and its production recorder is available. Obsolete host .109
+was retired without rollback copies. No funding, Create, Keep or disposal was
+sent. Next: Treehugger in Rooty, fresh discovery, whole-batch funding, then complete
+quantity-ten server/inventory acceptance. A live batch is not yet qualified.
+Main and both delivery branches are clean and published. Keep the two active
+worktrees until installation/live acceptance; do not retire their unmerged source.
+
+The worker now implements the complete bounded quantity-ten job in installed
+host .110/native .68 source: one batch funding pass, one ten-item order per initial
+free slot, permanent observation during pause/focus waits, distinct generated-ID
+reconciliation and existing native Keep with inventory proof. Schema-4 jobs and
+progress journals never replay uncertain actions and preserve old job schemas.
+The dashboard separates queued orders from produced/kept counts. Next: verify
+the whole live batch. Raw-nine server admission and .18 disposal remain unqualified; retain
+unknowns and do not resume guard work. PR #174 remains draft for main integration.
+
+Earlier checkpoints:
+
+Latest quantity work remains on `codex/vendor-rolling-20261013` for draft PR #174.
+Pure item reconciliation now binds decreasing counts to observed slot ancestry
+and exact copied reply lineage; all 70 IDs need positive inventory proof. Native
+and host inventory readers cover a full 160-item batch without claiming server
+capacity. Twenty-four focused host checks, the native inventory executable and
+the extension rebuild pass. Worker/progress journal integration remains active;
+this source is uninstalled and quantity-ten server acceptance is unverified.
+The latest checkpoint adds quantity-aware whole-batch funding and schema-4 queue
+admission journals. Native Create binds the initial quota, resource and price,
+requires the full batch balance before its first order, and refuses extra orders
+after rank growth. Lost replies or existing journals cannot replay Create.
+Focused host validation passes 133 tests; four affected native suites pass.
+This is uninstalled source. Active next: worker integration and full produced-item
+inventory reconciliation, then coherent release qualification and live testing.
+Explicit native quantity Create now carries a batch UUID and checks both order
+count and per-order remaining count. Active quantity items must belong to that
+same accepted batch. Automatic filling will use one ten-item single-slot order
+per funded slot to avoid the server-side rank-up race of an all-slots request.
+Both native recipe modes are supported without changing old saved intent.
+This is locally validated, uninstalled source; worker filling/progress and the
+connected quantity-ten acceptance test remain unfinished.
+The uninstalled source now includes permanent crafting receive observation with
+durable, non-resettable host cursors, so the first ten-item batch can be observed
+beyond the old five-minute diagnostic limit. Exact .18 callbacks, copied payload
+layout, lifecycle and loss handling are locally verified. Continue quantity-aware
+Create acceptance and full item/inventory reconciliation, then qualify one update.
+Non-spending multiple-order preparation is also implemented and locally validated:
+the existing native menu channel can restore quantity ten using the ordinary
+native setter, with distinct immutable order intent and correlated schema-2 menu
+journals. The fourth-tab observation failure is corrected. This is uninstalled
+source; quantity-ten Create and whole-workflow reconciliation remain next.
+Source .110/native .68 adds a separately identified, read-only per-slot remaining
+count receipt through the existing vendor channel; legacy encodings and
+quantity-one spending admission are preserved. It is not installed. Continue
+quantity-aware planning/progress and dispatch qualification before deploying a
+coherent end-to-end update. The ordinary checkout remains clean on main.
+Whole-batch funding now carries a canonical quantity/capacity budget into schema-3
+funded jobs. New fills stay within their initial funded work even if the vendor
+ranks up; new capacity is picked up by the next batch. Historical growing-batch
+journals are preserved and remain readable. Quantity-ten dispatch/completion,
+funding handback and live batch acceptance are still active todos.
+
+Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
+through draft PR #174. Installed software remains host .109/native .67 from
+release `fdc07896`; source candidate .110 is not packaged or installed.
+The user clarified ten items per slot, so seven free slots represent up to 70
+items. Read-only cost support now includes quantity 1–10 with native double
+rounding; command dispatch still accepts quantity one only. Focused cost/funding
+checks passed 57 cases, plus 77 existing recipe/HTTP worker checks. The attempted
+funding stopped on an uninitialized
+warehouse View Resources reference, before any gold or crafting action; its
+rejected journal remains preserved and the worker's cleanup block remains.
+Active next: observe the quantity-ten recipe/queue lifecycle, then implement
+matching production receipts and funding recovery, and verify a whole batch.
+The user has been asked to leave the quantity-ten menu before Create; the bounded
+read-only observer timed out without seeing it. See
+[current evidence and exact pending work](vendor-rolling.md).
+
+The quantity-ten recipe is now observed live in multiple-slot mode with seven
+empty slots. Native transfer automation already exists; .110 source corrects
+vendor routing to check shop/carried gold before resolving warehouse access.
+The owned recipe resource list proves the Gold identity and current price, so
+sufficient carried gold no longer depends on an initialized warehouse HUD.
+The corrected cost/funding/worker suite passed 86 tests. This source is not
+installed; the existing failed handback block and quantity-ten command lifecycle
+still require completion. Optional Computer Use is stopped after Escape; native
+workflow work continues without GUI actions.
+Pushed correction `ad1b02206cfde970359a17b65561b7f41fd31148` also passed a live
+read-only quantity-ten cost check (1,660 Gold per slot / 11,620 for seven slots).
+No runtime modules, funds or production changed; .110 remains uninstalled.
+
+## Vendor discovery recovery candidate - October 13
+
+Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
+through open PR #174. Installed .108 funding has not moved gold or crafted yet.
+Treehugger is in Rooty; a non-spending scan verified 23 vendor windows before
+typed STALE observations stopped it. The missing cleanup receipt then blocked
+worker handoff. Pushed implementation `d3e0964c` and graphics-preserving release
+`fdc078966d1404310d8a326d1dbab2a9b64230bb` qualify host .109: 6,512 host tests,
+both IPC profiles, seven startup cases and 493 exact modules. Native/assets are
+unchanged. Host .109 adds bounded read-only retries and exact journal/native
+proof for failed-scan cleanup, preserving every mutation's no-retry rule.
+Fresh live proof confirms all 49 window transitions observed and native idle.
+Host .109 is installed and activated online with 493 exact modules, 9,795
+preserved records, zero exclusions and no client writes. The same game lifetime
+remains running. Fresh discovery succeeded with 25 vendor windows across 13
+buildings, including Malik and the warehouse Seneschal; full town coverage is
+unverified. The new worker returned idle without the previous cleanup block.
+Next: activate Malik's saved recipe and verify one whole funded batch and Keep;
+the user has been asked to open his management menu. No new gold/Create ran.
+All 15 hosted checks passed at implementation `d3e0964c`. Verified obsolete
+.108 runtime/build/payload copies and the .109 temporary staging payload were
+retired; user data and diagnostic receipts remain intact. The task and release
+branches are pushed and clean, with PR #174 still open for main integration.
+Main remains the clean shared checkout; graphics composition and PR #174 are
+outside main. See [current evidence](vendor-rolling.md).
+
+## Vendor whole-batch funding candidate - October 13
+
+Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting main
+through open PR #174. Host .108 source adds one warehouse withdrawal and one shop
+deposit for an entire available-capacity batch, with native reserve/quote checks
+and return to the saved recipe. Implementation `f4945955` is pushed; release
+`0061a5ae5c3997742675a1a2d0ac49291e709c2b` on `codex/vendor-release-20261013`
+is qualified and installed: 6,461 host tests passed with 46 optional skips, both
+IPC profiles and seven startup handshakes passed, and 493 modules match.
+Activation preserved 9,772 records with zero exclusions and no client writes.
+The obsolete .107 host was retired; fresh game 9652 loads unchanged native .67
+with client .18, and the .108 manager/worker are healthy. All 15 hosted checks
+passed at `cb0da1e6` before installation. PR #174 remains open outside main;
+the normal checkout remains clean on main. The user reported keeping both
+completed scepters before the restart. The third Create's old journal is
+preserved and unreplayed. No automatic gold movement or recycling has run.
+Next: Treehugger login in Rooty, fresh discovery, then one funded batch and Keep.
+Guard work remains outside scope. See [installation evidence](vendor-rolling.md).
+
+## Vendor menu transport installed; funding next - October 13
+
+Shared development starts from main at `ef02070f`; the normal checkout is clean.
+Continue vendor work on `codex/vendor-rolling-20261013` in its matching worktree.
+Source `6a2c50260d0a54417140f2889dc7a2a87e8b8a7c` passed all 15 hosted checks in
+[PR #174](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/174),
+targeting main and still open. Graphics-preserving release
+`d9d579d2f70a7ea265f9ecabfbe6551e029440d7` on `codex/vendor-release-20261013`
+is installed as host .107 with unchanged native .67/client .18. The graphics
+composition remains outside main. The same game lifetime was preserved.
+
+Saved Gilded Scepter selection passed live. Of seven free slots, two Creates
+were confirmed; the third is unresolved and must never be replayed. Both
+confirmed items are complete but uncollected. The user directed warehouse or
+recycling funding; use warehouse gold while unknown affixes remain retained.
+Next: qualify vendor funding and return navigation, then a funded batch/Keep.
+Partial progress reporting, exclusion qualification and town scheduling remain.
+Guard work is outside scope. See [current evidence](vendor-rolling.md).
+
+## Vendor parent-roster correction installed - October 13
+
+Shared development starts from main at PR #173 merge `ef02070f`.
+`codex/vendor-rolling-20261013` contains implementation `b9088ded`, which passed
+all 15 hosted checks in [PR #174](https://github.com/best-coder-open-now-near-me/shadowbane-lab/pull/174)
+and targets main; it is not merged yet. The normal checkout stays clean on main.
+Pushed graphics-preserving release `e72b8703d2367cd2cf677675ca0fe02cccbfcc64`
+on `codex/vendor-release-20261013` is qualified and installed as host .106.
+Native .67 remains from `68163f32139cc1923a37a4763521d5c7990229e7`; the live
+Treehugger game was not restarted. Qualification passed 6,411 host tests with
+45 optional skips, both IPC profiles and all seven startup handshakes.
+Installation verified 491 modules and preserved 9,738 records with zero exclusions.
+
+Live discovery verified 24 vendor windows across 12 of 14 nearby buildings,
+including the Irekei and Lizardman sages. Two buildings had no populated rows;
+full town coverage remains unverified. Next: saved recipe and one capacity batch,
+then selected-vendor dashboard controls and durable town scheduling. No crafting
+or disposal ran during discovery. See [current vendor evidence](vendor-rolling.md).
+
 ## Vendor startup repaired - October 13
 
 Start shared development from `main` at PR #172 merge

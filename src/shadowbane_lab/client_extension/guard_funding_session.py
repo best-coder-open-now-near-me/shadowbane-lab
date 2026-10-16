@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass
 
 from . import action_channel as channel
-from .guard_funding_wire import Command, Direction, Outcome, Receipt, Snapshot, Verb
+from .guard_funding_wire import UNRESOLVED, Command, Direction, Outcome, Receipt, Snapshot, Verb
 from .guard_spending_journal import GuardSpendingJournal, GuardSpendingStopped
 from .movement_wire import Host
 
@@ -65,6 +65,18 @@ class NativeGuardFundingSession:
         self._transport = channel.WindowsNativeActionCommandTransport(identity)
         self._ids = itertools.count(1)
         self._closed = False
+        self._parent = None
+
+    @classmethod
+    def borrow(cls, parent, *, journal):
+        """Share the worker's existing producer and sequence for gold transfers."""
+        if parent._closed:
+            raise channel.NativeActionChannelUnavailable("parent session is closed")
+        adapter = cls.__new__(cls)
+        adapter.identity, adapter.window = parent.identity, parent.window
+        adapter._transport, adapter._ids = parent._transport, parent._ids
+        adapter._journal, adapter._closed, adapter._parent = journal, False, parent
+        return adapter
 
     def _submit(
         self,
@@ -75,7 +87,7 @@ class NativeGuardFundingSession:
         direction: int,
         amount: int = 0,
     ) -> Receipt:
-        if self._closed:
+        if self._closed or (self._parent is not None and self._parent._closed):
             raise channel.NativeActionChannelUnavailable("guard_funding session is closed")
         transport = self._transport
         process = transport.host_process_identity
@@ -131,11 +143,13 @@ class NativeGuardFundingSession:
         # identity and still passes the native lifetime/lease/receipt checks.
         for attempt in range(3):
             try:
-                return self._submit(Verb.INSPECT, str(uuid.uuid4()), direction=int(direction))
+                receipt = self._submit(Verb.INSPECT, str(uuid.uuid4()), direction=int(direction))
+                if receipt.outcome != Outcome.STALE or receipt.flags & UNRESOLVED or attempt == 2:
+                    return receipt
             except (_RetryableInspectionError, channel.NativeActionChannelTimeout):
                 if attempt == 2:
                     raise
-                time.sleep(0.05)
+            time.sleep(0.05)
         raise AssertionError("unreachable inspection retry")
 
     def open_quote(self, expected: Snapshot, request_key: str) -> Receipt:
@@ -147,9 +161,12 @@ class NativeGuardFundingSession:
         )
 
     def renew_lease(self) -> None:
+        if self._closed or (self._parent is not None and self._parent._closed):
+            raise channel.NativeActionChannelUnavailable("funding session is closed")
         self._transport.renew_lease()
 
     def close(self) -> None:
         if not self._closed:
             self._closed = True
-            self._transport.close()
+            if self._parent is None:
+                self._transport.close()

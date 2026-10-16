@@ -624,7 +624,9 @@
           const progress = document.createElement("p");
           progress.className = "detail";
           progress.textContent = vendor
-            ? `${vendor.created} started · ${vendor.kept} kept · ${vendor.capacity} production slots`
+            ? vendor.planned_items !== undefined
+              ? `${vendor.queued_orders} orders queued · ${vendor.created}/${vendor.planned_items} produced · ${vendor.kept} kept`
+              : `${vendor.created} started · ${vendor.kept} kept · ${vendor.capacity} production slots`
             : "One batch. Unknown affixes are kept. No items are discarded.";
           if (vendor?.excluded) {
             progress.textContent += ` · ${vendor.excluded} excluded items remain in production`;
@@ -643,7 +645,8 @@
             ["Load recipe list", "vendor-recipes", finished && slot.dispatch_enabled],
             ["Roll available slots", "vendor-start", finished && slot.dispatch_enabled && Boolean(slot.vendor_recipes?.saved)],
             ["Pause rolling", "vendor-pause", !finished && !review && vendor.control === "run"],
-            ["Resume rolling", "vendor-resume", !finished && !review && slot.dispatch_enabled],
+            [review ? "Continue recorded batch" : "Resume rolling", "vendor-resume",
+              !finished && (!review || vendor.can_reconcile === true) && slot.dispatch_enabled],
             ["Stop rolling", "vendor-stop", !finished && !review && vendor.control !== "stop"],
           ];
           for (const [label, action, enabled] of choices) {

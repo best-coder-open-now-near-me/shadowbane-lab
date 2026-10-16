@@ -43,7 +43,8 @@ int main() {
     word(control + 0x458, listing); word(control + 0x44C, entry); word(entry, base + 0x1169560);
     m::NativeScene scene{}; scene.epoch = 1; scene.window = root;
     w::Snapshot s{}; bool inventory = false, top = false;
-    auto capture = [&]() { return v::Capture(base, scene, s, 0, inventory, top); };
+    w::RemainingCounts remaining{};
+    auto capture = [&]() { return v::Capture(base, scene, s, 0, inventory, top, &remaining); };
     assert(capture() && top && !inventory && w::RandomScepter(s));
     const auto channel = base + 0x80000, channel_node = base + 0x81000;
     word(channel, base + 0x11659d8); word(channel_node + 8, channel);
@@ -58,6 +59,10 @@ int main() {
     assert(s.count == 1 && s.slots[0].state == 0 && s.vendor == 2517204);
     word(entry + 0x10, 4294925624U); word(entry + 0x14, 40); word(entry + 0x58, 0x10101);
     assert(capture() && s.slots[0].state == 2);
+    word(entry + 0x44, 9); assert(capture() && remaining[0] == 9);
+    word(entry + 0x44, 0); assert(capture() && remaining[0] == 0);
+    word(entry + 0x44, 256); assert(capture() && remaining[0] == 256); // Never truncate native data.
+    word(entry + 0x44, 0);
     word(control + 0x458, listing + 4); assert(!capture()); word(control + 0x458, listing);
     word(recipe + 0x3C0, 2517205); assert(!capture()); word(recipe + 0x3C0, 2517204);
     word(manager + 0xF8, 2229646); assert(!capture()); word(manager + 0xF8, 2229645);
@@ -67,5 +72,40 @@ int main() {
     live = false; assert(!capture()); live = true;
     word(root + 0x64, 0); assert(!capture()); word(root + 0x64, 2);
     assert(capture());
+    // Counts must follow sorted entry identities, not the UI control order.
+    const auto control2 = base + 0x12000, entry2 = base + 0x13000;
+    word(control2, base + 0x116AEBC); word(control2 + 0x3BC, hud);
+    word(control2 + 0x458, listing); word(control2 + 0x44C, entry2);
+    word(entry2, base + 0x1169560); word(entry2 + 0x10, 123); word(entry2 + 0x14, 40);
+    word(entry2 + 0x58, 0x100); word(entry2 + 0x44, 3); word(entry + 0x44, 9);
+    word(controls, control2); word(controls + 4, control); word(listing + 0x40C, controls + 8);
+    assert(capture() && s.count == 2 && s.slots[0].entry == entry && s.slots[1].entry == entry2);
+    assert(remaining[0] == 9 && remaining[1] == 3 && !remaining[2]);
+    // A full sixteen-by-ten batch exceeds the old 128-item displayed-list bound.
+    const auto inv = base + 0x14000, inv_list = base + 0x15000, inv_node = base + 0x16000;
+    const auto inv_children = base + 0x17000, inv_controls = base + 0x18000;
+    word(manager + 0x7c, inv); word(inv, base + 0x116c64c); word(inv + 0x104, manager);
+    word(inv + 0x3f4, manager); word(inv + 0x3f0, inv_list);
+    word(inv + 0x54, inv_children); word(inv + 0x58, inv_children + 4); word(inv + 0x5c, inv_children + 4);
+    word(inv_children, inv_list); word(inv_list, base + 0x116acf0); word(inv_list + 0x3bc, inv);
+    word(inv_list + 0x408, inv_controls); word(inv_list + 0x40c, inv_controls + 160 * 4);
+    word(inv_list + 0x410, inv_controls + 160 * 4);
+    word(head, inv_node); word(inv_node, node); word(inv_node + 4, head); word(inv_node + 8, inv);
+    word(node + 4, inv_node);
+    for (std::uint32_t i = 0; i < 160; ++i) {
+        const auto c = base + 0x100000 + i * 0x1000, e = c + 0x500, instance = c + 0x600, native = c + 0x800;
+        word(inv_controls + i * 4, c); word(c, base + 0x116aebc); word(c + 0x3bc, inv);
+        word(c + 0x458, inv_list); word(c + 0x44c, e); word(e, base + 0x11696c8);
+        word(e + 0x10, i + 1); word(e + 0x14, 40); word(e + 0x20, instance); word(e + 0x24, native);
+        word(instance, base + 0x114bb68); word(native, base + 0x1142748);
+        for (const auto p : {instance, native}) {
+            word(p + 0x10, 26990); word(p + 0x14, 0); word(p + 0x18, i + 1); word(p + 0x1c, 40);
+        }
+    }
+    assert(v::Capture(base, scene, s, 160, inventory, top, &remaining) && top && inventory);
+    word(base + 0x100000 + 0x500 + 0x10, 160);
+    word(base + 0x100000 + 0x600 + 0x18, 160);
+    word(base + 0x100000 + 0x800 + 0x18, 160);
+    assert(!v::Capture(base, scene, s, 160, inventory, top, &remaining)); // Duplicate IDs fail closed.
     assert(VirtualFree(allocation, 0, MEM_RELEASE));
 }

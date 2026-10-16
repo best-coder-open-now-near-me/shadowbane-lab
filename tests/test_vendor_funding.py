@@ -1,0 +1,506 @@
+import json
+import uuid
+from dataclasses import replace
+from types import SimpleNamespace
+
+import pytest
+
+from shadowbane_lab.client_extension import vendor_navigation_wire as nav
+from shadowbane_lab.client_extension import vendor_wire as vendor
+from shadowbane_lab.client_extension.guard_spending_journal import (
+    GuardSpendingJournal,
+    GuardSpendingStopped,
+)
+from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
+from shadowbane_lab.client_extension.vendor_recipe import RandomOrderSpec, RandomRecipeSpec
+from shadowbane_lab.manager import vendor_funding as module
+from shadowbane_lab.manager.vendor_job import VendorJobStore
+from tests.test_guard_funding_cycle import IDENTITY, Session, World
+
+
+class Navigation(Session):
+    def open_vendor(self, before, building, target, key):
+        def mutate():
+            self.world.navigation = replace(
+                before,
+                vendor_id=target,
+                vendor_type=42,
+                vendor_hud=400,
+                front_hud=400,
+                selected_entry=500,
+                visible=3,
+            )
+
+        return self.action(
+            nav.Verb.VENDOR, before, key, "vendor", mutate, building=building, target=target
+        )
+
+
+@pytest.fixture
+def setup(tmp_path, monkeypatch):
+    store = VendorJobStore(tmp_path, "node", "client", "instance")
+    binding = SimpleNamespace(
+        game_process_id=988, game_process_started_at_100ns=123, game_window_handle=1000
+    )
+    operation = SimpleNamespace(operation_id="operation-" + "a" * 32)
+    world = World()
+    world.gold, world.reserve, world.purse, world.funds = 1000, 100, 20, 10
+    world.open_sessions = 2
+    journal = GuardSpendingJournal(store.root)
+    host = nav.Host(1, 2, 3)
+    navigation = Navigation(world, "navigation", journal, host)
+    funding = Session(world, "funding", journal, host)
+    monkeypatch.setattr(
+        module.NativeVendorNavigationSession, "borrow", lambda *args, **kwargs: navigation
+    )
+    monkeypatch.setattr(module.NativeGuardFundingSession, "borrow", lambda *args, **kwargs: funding)
+    monkeypatch.setattr(module, "prepare_recipe", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "close_recipe", lambda *args, **kwargs: None)
+    spec = RandomRecipeSpec(26990, 12)
+    snapshot = vendor.Snapshot(
+        scene=1,
+        revision=1,
+        root=100,
+        manager=200,
+        menu=400,
+        recipe=700,
+        hireling=500,
+        building=123,
+        vendor=888,
+        item_template=26990,
+        prefix=3362971591,
+        suffix=3362971591,
+        mode=1,
+        table=12,
+        quantity=1,
+        slots=(vendor.Slot(1100), vendor.Slot(1200)),
+    )
+    parent = SimpleNamespace(
+        identity=IDENTITY,
+        window=1000,
+        snapshot=snapshot,
+        renew_lease=lambda: None,
+        inspect_random=lambda: vendor.Receipt(
+            str(uuid.uuid4()), host, 1000, vendor.Outcome.OBSERVED, vendor.READY, parent.snapshot
+        ),
+        menu_session=lambda: SimpleNamespace(
+            inspect=lambda: SimpleNamespace(snapshot=None), close=lambda: None
+        ),
+    )
+    selection = dict(
+        building={"object_id": 123},
+        vendor={"object_id": 888},
+        recipe_spec=spec.as_dict(),
+        revision="b" * 32,
+    )
+    calls = []
+
+    def cost_reader(_):
+        calls.append("cost")
+        return dict(
+            process_id=988,
+            process_creation_filetime_utc=123,
+            manager_address=200,
+            creation_recipe={"window_address": 700},
+            building={"object_id": 123},
+            vendor={"object_id": 888},
+            recipe_resource_costs={"555": {"label": "Gold", "amount": 166}},
+            slots=[{"entry_address": slot.entry, "item": {"object_id": slot.item},
+                    "state": ("empty", "cooking", "complete")[slot.state]}
+                   for slot in parent.snapshot.slots],
+        ), {555: 166}
+
+    tick = [0]
+
+    def clock():
+        tick[0] += 0.01
+        return tick[0]
+
+    def run(**changes):
+        return module.fund_saved_vendor(
+            store,
+            binding,
+            operation,
+            parent,
+            selection,
+            cancelled=changes.get("cancelled", lambda: False),
+            cost_reader=changes.get("cost_reader", cost_reader),
+            target_reader=changes.get("target_reader", lambda *args: (999, 999)),
+            clock=clock,
+            sleep=lambda _: None,
+            order=changes.get("order"),
+        )
+
+    return SimpleNamespace(
+        store=store,
+        world=world,
+        run=run,
+        parent=parent,
+        calls=calls,
+        reader=cost_reader,
+        binding=binding,
+        path=store.root / "funding" / operation.operation_id / "funding.json",
+    )
+
+
+def test_warehouse_funds_only_shortfall_then_returns_to_exact_vendor(setup):
+    result = setup.run()
+    assert result["state"] == "funded"
+    assert result["required"] == 332 and result["free_slots"] == 2
+    assert (result["withdrawn"], result["deposited"]) == (302, 322)
+    assert (setup.world.gold, setup.world.purse, setup.world.funds) == (698, 0, 332)
+    assert setup.world.navigation.opened(123, 888)
+    assert all(row["state"] == "confirmed" for row in result["actions"])
+    assert "upgrade" not in setup.world.calls
+    GuardSpendingJournal(setup.store.root).assert_idle()
+    previous = setup.world.calls[:]
+    with pytest.raises(VendorBatchStopped, match="already attempted"):
+        setup.run()
+    assert setup.world.calls == previous
+
+
+def test_quantity_ten_funds_all_seventy_items_with_one_withdrawal_and_deposit(setup, monkeypatch):
+    order = RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True)
+    setup.world.gold = 100000
+    setup.parent.snapshot = replace(setup.parent.snapshot,
+                                    slots=tuple(vendor.Slot(1100 + i * 100) for i in range(7)))
+    observed = []
+    prepared = []
+    monkeypatch.setattr(module, "ensure_order_observer", lambda binding: observed.append(binding))
+    def prepare(*args, **kwargs):
+        prepared.append(args[3])
+        setup.parent.snapshot = replace(setup.parent.snapshot, quantity=10, multiple=1)
+    monkeypatch.setattr(module, "prepare_order", prepare)
+    def inspect():
+        before = setup.parent.inspect_random()
+        return replace(before, remaining_counts=tuple(1 for _ in before.snapshot.slots))
+    setup.parent.inspect_orders = inspect
+    def costs(binding):
+        queue, _ = setup.reader(binding)
+        queue["recipe_resource_costs"] = {"555": {"label": "Gold", "amount": 1660}}
+        return queue, {555: 1660}
+    result = setup.run(order=order, cost_reader=costs)
+    assert len(observed) == 1 and prepared == [order, order]
+    assert result["schema_version"] == 2 and result["state"] == "funded"
+    assert result["required"] == 11620 and result["batch_budget"]["total_items"] == 70
+    assert result["order_spec"] == order.as_dict()
+    assert setup.world.calls.count("withdraw") == setup.world.calls.count("deposit") == 1
+    assert (result["withdrawn"], result["deposited"]) == (11590, 11610)
+    assert setup.world.funds == 11620
+
+
+@pytest.mark.parametrize("quantity", [1, 10])
+def test_funding_matches_occupied_and_empty_entries_across_ui_reordering(
+    setup, monkeypatch, quantity
+):
+    setup.world.gold = 10000
+    setup.parent.snapshot = replace(setup.parent.snapshot, slots=(
+        vendor.Slot(1100), vendor.Slot(1200, 4321, 2), vendor.Slot(1300)))
+    order = None
+    if quantity == 10:
+        order = RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True)
+        monkeypatch.setattr(module, "ensure_order_observer", lambda _: None)
+        def prepare(*args, **kwargs):
+            setup.parent.snapshot = replace(setup.parent.snapshot, quantity=10, multiple=1)
+        monkeypatch.setattr(module, "prepare_order", prepare)
+        setup.parent.inspect_orders = lambda: replace(
+            setup.parent.inspect_random(), remaining_counts=(1, 1, 1))
+    def costs(binding):
+        queue, _ = setup.reader(binding)
+        # The occupied control leads the first traversal; the second traversal
+        # has yet another order after navigating back from the gold transfer.
+        rows = queue["slots"]
+        queue["slots"] = ([rows[1], rows[2], rows[0]] if len(setup.calls) == 1
+                          else list(reversed(rows)))
+        queue["recipe_resource_costs"]["555"]["amount"] = 166 * quantity
+        return queue, {555: 166 * quantity}
+    result = setup.run(order=order, cost_reader=costs)
+    assert result["state"] == "funded" and result["free_slots"] == 2
+    assert result["required"] == 332 * quantity
+    assert setup.world.calls.count("withdraw") == setup.world.calls.count("deposit") == 1
+
+
+@pytest.mark.parametrize("after_transfer", [False, True])
+@pytest.mark.parametrize("change", ["entry", "item", "state", "duplicate", "missing", "extra"])
+def test_entry_reconciliation_rejects_real_queue_changes(setup, change, after_transfer):
+    setup.parent.snapshot = replace(setup.parent.snapshot, slots=(
+        vendor.Slot(1100), vendor.Slot(1200, 4321, 2), vendor.Slot(1300)))
+    def costs(binding):
+        queue, cost = setup.reader(binding)
+        if after_transfer != (len(setup.calls) > 1):
+            return queue, cost
+        rows = queue["slots"]
+        if change == "entry":
+            rows[0]["entry_address"] = 9999
+        elif change == "item":
+            rows[1]["item"]["object_id"] = 4322
+        elif change == "state":
+            rows[1]["state"] = "cooking"
+        elif change == "duplicate":
+            rows[0]["entry_address"] = rows[2]["entry_address"]
+        elif change == "missing":
+            rows.pop()
+        else:
+            rows.append({"entry_address": 1400, "item": {"object_id": 0}, "state": "empty"})
+        return queue, cost
+    with pytest.raises(VendorBatchStopped, match="changed|identities"):
+        setup.run(cost_reader=costs)
+    assert json.loads(setup.path.read_text())["state"] == "review"
+    assert setup.world.calls.count("deposit") == int(after_transfer)
+    assert setup.world.calls.count("withdraw") == int(after_transfer)
+
+
+def test_quantity_ten_reopening_rebuilds_entries_without_changing_funded_production(
+    setup, monkeypatch
+):
+    order = RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True)
+    setup.world.funds = 10000
+    setup.parent.snapshot = replace(setup.parent.snapshot, slots=(
+        vendor.Slot(1100), vendor.Slot(1200, 4321, 2), vendor.Slot(1300)))
+    monkeypatch.setattr(module, "ensure_order_observer", lambda _: None)
+    def prepare(*args, **kwargs):
+        setup.parent.snapshot = replace(setup.parent.snapshot, quantity=10, multiple=1)
+    monkeypatch.setattr(module, "prepare_order", prepare)
+    setup.parent.inspect_orders = lambda: replace(
+        setup.parent.inspect_random(), remaining_counts=(1, 1, 1))
+    def costs(binding):
+        if setup.calls:
+            # A real return visit allocates new entries and changes their order;
+            # both independently read views must agree on the new allocation.
+            setup.parent.snapshot = replace(setup.parent.snapshot, recipe=701, slots=(
+                vendor.Slot(2100, 4321, 2), vendor.Slot(2300), vendor.Slot(2200)))
+        queue, _ = setup.reader(binding)
+        queue["creation_recipe"]["window_address"] = setup.parent.snapshot.recipe
+        queue["slots"].reverse()
+        queue["recipe_resource_costs"]["555"]["amount"] = 1660
+        return queue, {555: 1660}
+    result = setup.run(order=order, cost_reader=costs)
+    assert result["state"] == "funded" and result["required"] == 3320
+    assert result["batch_budget"]["occupied"] == [4321]
+    assert result["withdrawn"] == result["deposited"] == 0
+
+
+def test_missing_production_observer_stops_before_gold_or_menu_actions(setup, monkeypatch):
+    def missing(_):
+        raise VendorBatchStopped("recorder unavailable")
+    monkeypatch.setattr(module, "ensure_order_observer", missing)
+    with pytest.raises(VendorBatchStopped, match="recorder unavailable"):
+        setup.run(order=RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True))
+    assert not setup.world.calls and not setup.path.exists()
+
+
+@pytest.mark.parametrize("raw_count", [0, 1, 9])
+def test_prior_quantity_order_is_not_adopted_by_another_funding_batch(
+    setup, monkeypatch, raw_count,
+):
+    monkeypatch.setattr(module, "ensure_order_observer", lambda _: None)
+    setup.parent.snapshot = replace(setup.parent.snapshot,
+                                    slots=(vendor.Slot(1100, 123, 1), vendor.Slot(1200)))
+    setup.parent.inspect_orders = lambda: replace(setup.parent.inspect_random(),
+                                                  remaining_counts=(raw_count, 1))
+    with pytest.raises(VendorBatchStopped, match="Recover existing quantity orders"):
+        setup.run(order=RandomOrderSpec(RandomRecipeSpec(26990, 12), 10, multiple=True))
+    assert not setup.world.calls and not setup.path.exists()
+
+
+@pytest.mark.parametrize("size", [1, 2, 7, 16])
+def test_one_funding_transaction_covers_entire_available_batch(setup, size):
+    setup.world.gold = 10000
+    setup.parent.snapshot = replace(
+        setup.parent.snapshot, slots=tuple(vendor.Slot(1100 + index * 100) for index in range(size))
+    )
+    result = setup.run()
+    assert result["required"] == 166 * size
+    assert result["free_slots"] == size
+    assert setup.world.calls.count("withdraw") == 1
+    assert setup.world.calls.count("deposit") == 1
+    assert result["deposited"] == 166 * size - 10
+    assert result["withdrawn"] == 166 * size - 10 - 20
+    assert setup.world.funds == 166 * size
+
+
+@pytest.mark.parametrize("funds,purse,withdrawn,deposited", [(400, 0, 0, 0), (10, 500, 0, 322)])
+def test_existing_gold_avoids_unnecessary_money_movements(
+    setup, funds, purse, withdrawn, deposited
+):
+    setup.world.funds, setup.world.purse = funds, purse
+    def warehouse_unavailable(*args):
+        raise AssertionError("Existing shop/carried gold must not require warehouse access")
+
+    result = setup.run(target_reader=warehouse_unavailable)
+    assert (result["withdrawn"], result["deposited"]) == (withdrawn, deposited)
+    assert "withdraw" not in setup.world.calls
+    assert "warehouse" not in setup.world.calls
+
+
+def test_reserve_prevents_withdrawal_or_deposit(setup):
+    setup.world.reserve = 999
+    with pytest.raises(VendorBatchStopped, match="above reserve"):
+        setup.run()
+    assert not {"withdraw", "deposit"} & set(setup.world.calls)
+    assert (setup.world.gold, setup.world.purse, setup.world.funds) == (1000, 20, 10)
+
+
+@pytest.mark.parametrize(
+    "failure", ["building", "vendor", "warehouse", "quote", "withdraw", "deposit"]
+)
+def test_lost_reply_blocks_later_phases_and_never_replays(setup, failure):
+    setup.world.fail = failure
+    with pytest.raises(TimeoutError, match="lost"):
+        setup.run()
+    assert setup.world.calls[-1] == failure
+    assert setup.world.calls.count(failure) == 1
+    assert json.loads(setup.path.read_text())["state"] == "review"
+    with pytest.raises(GuardSpendingStopped):
+        GuardSpendingJournal(setup.store.root).assert_idle()
+
+
+def test_character_change_at_quote_stops_before_transfer(setup):
+    setup.world.foreign_actor = True
+    with pytest.raises(VendorBatchStopped, match="character"):
+        setup.run()
+    assert not {"withdraw", "deposit"} & set(setup.world.calls)
+
+
+def test_cancelled_funding_moves_no_gold(setup):
+    with pytest.raises(VendorBatchStopped, match="stopped"):
+        setup.run(cancelled=lambda: True)
+    assert not setup.world.calls
+
+
+def test_unqualified_material_is_never_treated_as_gold(setup):
+    def cost_reader(_):
+        queue = dict(
+            process_id=988,
+            process_creation_filetime_utc=123,
+            manager_address=200,
+            creation_recipe={"window_address": 700},
+            building={"object_id": 123},
+            vendor={"object_id": 888},
+            recipe_resource_costs={"555": {"label": "Gold", "amount": 166}},
+            slots=[{"entry_address": entry, "item": {"object_id": 0}, "state": "empty"}
+                   for entry in (1100, 1200)],
+        )
+        return queue, {555: 166, 777: 20}
+
+    with pytest.raises(VendorBatchStopped, match="non-gold"):
+        setup.run(cost_reader=cost_reader)
+    assert not {"withdraw", "deposit"} & set(setup.world.calls)
+
+
+def test_unresolved_create_stops_funding_before_menu_or_transfer(setup):
+    inspect = setup.parent.inspect_random
+    setup.parent.inspect_random = lambda: replace(inspect(), flags=vendor.UNRESOLVED)
+    with pytest.raises(VendorBatchStopped, match="not ready"):
+        setup.run()
+    assert not setup.path.exists() and not setup.world.calls and not setup.calls
+
+
+def test_dashboard_focus_waits_before_navigation_and_spending(setup):
+    inspect = setup.parent.inspect_random
+    count = [0]
+
+    def observe():
+        count[0] += 1
+        return replace(inspect(), flags=0 if count[0] < 4 else vendor.READY)
+
+    setup.parent.inspect_random = observe
+    assert setup.run()["state"] == "funded"
+    assert count[0] >= 4
+
+
+def test_existing_review_job_prevents_even_funding(setup, monkeypatch):
+    monkeypatch.setattr(setup.store, "current", lambda: {"state": "review"})
+    with pytest.raises(VendorBatchStopped, match="existing vendor job"):
+        setup.run()
+    assert not setup.path.exists() and not setup.world.calls
+
+
+def test_cost_change_after_transfer_stops_before_crafting(setup):
+    def read(_):
+        setup.calls.append("cost")
+        return dict(
+            process_id=988,
+            process_creation_filetime_utc=123,
+            manager_address=200,
+            creation_recipe={"window_address": 700},
+            building={"object_id": 123},
+            vendor={"object_id": 888},
+            recipe_resource_costs={"555": {"label": "Gold", "amount":
+                                          166 if len(setup.calls) == 1 else 200}},
+            slots=[{"entry_address": entry, "item": {"object_id": 0}, "state": "empty"}
+                   for entry in (1100, 1200)],
+        ), {555: 166 if len(setup.calls) == 1 else 200}
+
+    with pytest.raises(VendorBatchStopped, match="changed during funding"):
+        setup.run(cost_reader=read)
+    assert setup.world.funds == 332
+    assert json.loads(setup.path.read_text())["state"] == "review"
+
+
+def test_changed_gold_label_after_transfer_stops_before_crafting(setup):
+    def read(binding):
+        queue, costs = setup.reader(binding)
+        if len(setup.calls) > 1:
+            queue["recipe_resource_costs"]["555"]["label"] = "Iron"
+        return queue, costs
+
+    with pytest.raises(VendorBatchStopped, match="changed during funding"):
+        setup.run(cost_reader=read)
+    assert setup.world.funds == 332
+    assert json.loads(setup.path.read_text())["state"] == "review"
+
+
+def test_non_gold_display_stops_before_any_navigation_or_transfer(setup):
+    def read(binding):
+        queue, costs = setup.reader(binding)
+        queue["recipe_resource_costs"]["555"]["label"] = "Iron"
+        return queue, costs
+
+    with pytest.raises(VendorBatchStopped, match="non-gold"):
+        setup.run(cost_reader=read)
+    assert setup.world.calls == []
+
+
+@pytest.mark.parametrize(
+    "change", ["none", "ambiguous", "scene", "lifetime", "unverified", "valid"]
+)
+def test_warehouse_selection_uses_exact_current_verified_roster(setup, change):
+    row = dict(
+        state="verified",
+        building={"object_id": 999, "object_type": 8},
+        vendors=[
+            dict(
+                window_verified=True,
+                state="verified",
+                service_label="Seneschal",
+                vendor={"object_id": 999, "object_type": 42},
+            )
+        ],
+    )
+    record = dict(
+        schema_version=1,
+        state="complete",
+        identity=list(setup.store.identity),
+        game_process_id=988,
+        game_creation_filetime=123,
+        scene=1,
+        root=100,
+        roster=[row],
+    )
+    if change == "none":
+        record["roster"] = []
+    elif change == "ambiguous":
+        record["roster"].append(row)
+    elif change == "scene":
+        record["scene"] = 2
+    elif change == "lifetime":
+        record["game_creation_filetime"] = 124
+    elif change == "unverified":
+        row["vendors"][0]["window_verified"] = False
+    module._write(setup.store.root / "navigation" / ("operation-" + "c" * 32 + ".json"), record)
+    if change == "valid":
+        assert module.warehouse_target(setup.store, setup.binding, 1, 100) == (999, 999)
+    else:
+        with pytest.raises(VendorBatchStopped):
+            module.warehouse_target(setup.store, setup.binding, 1, 100)

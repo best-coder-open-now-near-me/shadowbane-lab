@@ -8,6 +8,7 @@ from shadowbane_lab.client_extension.action_channel import NativeClientProcessId
 from shadowbane_lab.client_extension.movement_wire import Host
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
 from shadowbane_lab.client_extension.vendor_menu import (
+    close_recipe,
     open_inventory,
     prepare_recipe,
     validate_completed_menu,
@@ -22,6 +23,16 @@ from shadowbane_lab.client_extension.vendor_menu_wire import (
 
 HOST = Host(123, 7, 456)
 KEY = "11111111-2222-4333-8444-555555555555"
+
+
+def test_close_recipe_for_treasury_has_validated_durable_evidence(tmp_path):
+    path = tmp_path / 'close.json'
+    session = Session(path, initial=recipe())
+    close_recipe(session, path, session.snapshot)
+    record, _, final = validate_completed_menu(path.read_bytes())
+    assert record['operation'] == 'close_recipe'
+    assert session.calls == ['close_recipe']
+    assert not final.recipe and final.front_hud == final.menu
 
 
 def state(**kwargs):

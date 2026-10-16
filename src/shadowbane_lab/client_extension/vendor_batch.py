@@ -1,4 +1,4 @@
-"""Durable batch filling of available and newly unlocked vendor slots."""
+"""Durable batch filling bounded by initially observed production capacity."""
 from __future__ import annotations
 
 import hashlib
@@ -50,7 +50,7 @@ def fill_available_slots(
     sleeper: Callable[[float], None] = time.sleep,
     acceptance_timeout: float = 15.0,
 ) -> dict:
-    """Fill free slots and newly unlocked capacity, persisting before each send.
+    """Fill the initial free-slot budget, persisting before each send.
 
     Existing journals are never replayed. A timeout is uncertain, not evidence
     that Create failed. A completed batch means queue transitions were observed,
@@ -82,6 +82,7 @@ def fill_available_slots(
         if expected_owner is not None and (
             _owner(initial) != _owner(expected_owner)
             or _items(initial) != _items(expected_owner)
+            or len(initial.slots) != len(expected_owner.slots)
         ):
             raise VendorBatchStopped("vendor ownership or production changed before filling")
         if recipe is not None:
@@ -100,6 +101,7 @@ def fill_available_slots(
             "process_creation_filetime_utc": session.identity.creation_filetime_utc,
             "initial_snapshot": initial.encode().hex(),
             "planned_rolls": initial.free_slots, "capacity": len(initial.slots),
+            "capacity_policy": "initial",
             "capacity_history": [len(initial.slots)], "requests": [], "items": [],
         }
 
@@ -133,7 +135,6 @@ def fill_available_slots(
             if len(s.slots) > record["capacity"]:
                 record["capacity"] = len(s.slots)
                 record["capacity_history"].append(len(s.slots))
-                record["planned_rolls"] = len(s.slots) - len(baseline)
                 save()
             return s
 
@@ -149,11 +150,15 @@ def fill_available_slots(
                 expected_items = baseline | set(record["items"])
                 if (
                     _items(fresh) != expected_items
-                    or fresh.free_slots != record["planned_rolls"] - len(record["items"])
+                    or fresh.free_slots != len(fresh.slots) - len(expected_items)
                 ):
                     raise VendorBatchStopped("production changed outside this batch")
-                if not fresh.free_slots:
+                remaining = record["planned_rolls"] - len(record["items"])
+                if not remaining:
                     break
+                if fresh.multiple and fresh.free_slots > remaining:
+                    raise VendorBatchStopped(
+                        "capacity grew; fund a new batch before multiple Create")
                 request_key = str(uuid.uuid4())
                 request = {
                     "request_key": request_key, "state": "prepared",
@@ -203,7 +208,8 @@ def fill_available_slots(
                             len(new_items) != expected_count
                             or receipt.transition_item not in new_items
                             or observed.free_slots != (
-                                record["planned_rolls"] - len(record["items"]) - expected_count
+                                len(observed.slots) - len(baseline)
+                                - len(record["items"]) - expected_count
                             )
                             or receipt.flags & (IN_FLIGHT | UNRESOLVED)
                         ):
@@ -221,7 +227,7 @@ def fill_available_slots(
                     sleeper(0.1)
                 # Multiple Create may close its recipe. A full correlated queue
                 # completes this capacity batch without demanding another recipe.
-                if initial.multiple and not observed.free_slots:
+                if len(record["items"]) == record["planned_rolls"]:
                     break
             record["state"] = "complete"
             save()

@@ -29,11 +29,21 @@ int main() {
         v::wire::Command payload{};
         payload.host = {identity.process_id, wrong_lease ? 8U : 7U, identity.creation_filetime_utc};
         payload.window = 123; payload.request[0] = static_cast<unsigned char>(sequence);
-        if(kind==32) {
+        if(kind==32 || kind==61 || kind==63) {
             auto& s=payload.expected; s.scene=s.revision=1; s.root=100; s.manager=200; s.menu=300;
             s.recipe=400; s.hireling=500; s.building=600; s.vendor=700; s.item_template=5051080;
             s.table=16; s.mode=1; s.prefix=s.suffix=3362971591U; s.quantity=1; s.multiple=multiple;
             s.count=1; s.slots[0].entry=800;
+            if(kind==61) {
+                s.quantity=10; s.multiple=1; payload.reserved[0]=42;
+                const v::wire::OrderBudget budget{1,1,10,2308551,1660,1660};
+                std::memcpy(payload.reserved+16,&budget,sizeof(budget));
+            }
+            if(kind==63) {
+                s.inventory=900;payload.item=2;
+                v::wire::RecycleBatch batch{};batch.digest.fill(1);batch.gold=1000;batch.refund=302;
+                batch.items[0]=1001;batch.items[1]=1002;std::memcpy(payload.reserved,&batch,sizeof(batch));
+            }
         }
         std::memcpy(&slot.movement, &payload, sizeof(payload));
         InterlockedExchange64(&slot.committed_sequence, static_cast<LONG64>(sequence));
@@ -76,6 +86,45 @@ int main() {
     publish(6,false,32,true);
     assert(d::DrainCommands(storage,runtime.result_signal,now)==ERROR_SUCCESS);
     assert(!v::Take() && storage.results[5].stage==static_cast<unsigned>(ClientActionResultStage::failed));
+    publish(7, false, 56);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
+    auto orders = v::Take(); assert(orders && orders->verb == v::wire::Verb::inspect_orders);
+    receipt = {}; receipt.signature = v::wire::orders_magic;
+    receipt.host = orders->command.host; receipt.request = orders->command.request;
+    receipt.window = orders->command.window; v::Complete(orders, receipt);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_SUCCESS);
+    assert(!std::strcmp(storage.results[6].detail, "native_vendor_orders_receipt_v2"));
+    std::memcpy(&returned, &storage.results[6].movement, sizeof(returned));
+    assert(returned.signature == v::wire::orders_magic);
+    publish(8, false, 56);
+    assert(d::DrainCommands(storage, runtime.result_signal, now) == ERROR_IO_PENDING);
+    assert(d::DrainCommands(storage, runtime.result_signal, now + 101) == ERROR_SUCCESS);
+    std::memcpy(&returned, &storage.results[7].movement, sizeof(returned));
+    assert(returned.signature == v::wire::orders_magic
+        && returned.outcome == static_cast<unsigned>(v::wire::Outcome::stale) && !v::Take());
+    publish(9,false,61);
+    assert(d::DrainCommands(storage,runtime.result_signal,now)==ERROR_IO_PENDING);
+    auto ordered=v::Take(); assert(ordered && ordered->verb==v::wire::Verb::create_orders);
+    receipt={}; receipt.signature=v::wire::orders_magic; receipt.host=ordered->command.host;
+    receipt.request=ordered->command.request; receipt.window=ordered->command.window; receipt.outcome=1;
+    v::Complete(ordered,receipt);
+    assert(d::DrainCommands(storage,runtime.result_signal,now)==ERROR_SUCCESS);
+    assert(!std::strcmp(storage.results[8].detail,"native_vendor_orders_receipt_v2"));
+    for(unsigned kind:{62U,63U}) {
+        const std::uint64_t sequence=kind==62?10:11;publish(sequence,false,kind);
+        assert(d::DrainCommands(storage,runtime.result_signal,now)==ERROR_IO_PENDING);
+        auto recycled=v::Take();assert(recycled && v::wire::IsRecycle(recycled->verb));
+        receipt={};receipt.signature=v::wire::recycle_magic;receipt.host=recycled->command.host;
+        receipt.request=recycled->command.request;receipt.window=recycled->command.window;receipt.outcome=kind==62?0U:1U;
+        v::Complete(recycled,receipt);
+        assert(d::DrainCommands(storage,runtime.result_signal,now)==ERROR_SUCCESS);
+        assert(!std::strcmp(storage.results[sequence-1].detail,"native_vendor_recycle_receipt_v1"));
+    }
+    publish(12,false,62);
+    assert(d::DrainCommands(storage,runtime.result_signal,now)==ERROR_IO_PENDING);
+    assert(d::DrainCommands(storage,runtime.result_signal,now+101)==ERROR_SUCCESS);
+    std::memcpy(&returned,&storage.results[11].movement,sizeof(returned));
+    assert(returned.signature==v::wire::recycle_magic && returned.outcome==2 && !v::Take());
     SetEvent(release_worker);
     StopClientActionCommandChannel();
     CloseHandle(entered); CloseHandle(release_worker);

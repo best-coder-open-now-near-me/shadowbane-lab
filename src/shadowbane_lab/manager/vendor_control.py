@@ -13,6 +13,7 @@ from shadowbane_lab.client_extension.vendor_completion import _read_record
 from shadowbane_lab.client_extension.vendor_menu import validate_completed_menu
 from shadowbane_lab.client_extension.vendor_menu_wire import Receipt as MenuReceipt
 from shadowbane_lab.client_extension.vendor_navigation_wire import Receipt as NavigationReceipt
+from shadowbane_lab.client_extension.vendor_recipe import RandomOrderSpec, RandomRecipeSpec
 from shadowbane_lab.client_extension.vendor_session import NativeVendorSession
 from shadowbane_lab.client_extension.vendor_wire import IN_FLIGHT, UNRESOLVED, Outcome
 from shadowbane_lab.client_observation.native_health import WindowsReadOnlyProcessMemory
@@ -25,6 +26,7 @@ from .operation import (
     WorkerOperationState,
     new_worker_operation,
 )
+from .vendor_collection import collect_saved_vendor_results, require_collections_idle
 from .vendor_discovery import discovery_summary, open_city_session, run_discovery
 from .vendor_job import (
     TERMINAL,
@@ -33,7 +35,11 @@ from .vendor_job import (
     require_vendor_handoff_idle,
     run_vendor_job,
 )
-from .vendor_navigation import open_navigation_session, run_building_discovery
+from .vendor_navigation import (
+    open_navigation_session,
+    require_failed_discovery_idle,
+    run_building_discovery,
+)
 from .vendor_recipes import (
     VendorRecipeStore,
     read_context,
@@ -117,6 +123,7 @@ class ManagerVendorControl:
             if action not in {"vendor-start", "vendor-resume", "vendor-discover",
                               "vendor-recipes", "vendor-recipe-save"}:
                 raise ValueError("unknown vendor action")
+            require_collections_idle(store)
             from .condemn_job import CondemnJobStore
 
             condemn = CondemnJobStore(store).current()
@@ -215,7 +222,11 @@ class ManagerVendorControl:
                         raise VendorBatchStopped("save a vendor recipe first")
                     command += " " + saved["revision"]
             else:
-                if not current or current["state"] in TERMINAL:
+                if current and current["state"] == "review" and current["schema_version"] in (4, 5):
+                    from .vendor_review_recovery import review_job_ready
+
+                    review_job_ready(store, current)
+                elif not current or current["state"] in TERMINAL:
                     raise VendorBatchStopped("no resumable vendor job")
                 if inflight:
                     if (
@@ -260,7 +271,14 @@ def open_vendor_session(binding):
 class VendorWorkerExecutor:
     def __init__(self, root, node_id, binding, *, session_factory=open_vendor_session,
                  city_session_factory=open_city_session,
-                 navigation_session_factory=open_navigation_session, recipe_reader=read_context):
+                 navigation_session_factory=open_navigation_session, recipe_reader=read_context,
+                 funding_runner=None, collection_runner=collect_saved_vendor_results,
+                 exclusion_reader=None):
+        from .vendor_funding import fund_saved_vendor
+
+        self.funding_runner = funding_runner or fund_saved_vendor
+        self.collection_runner = collection_runner
+        self.exclusion_reader = exclusion_reader
         self.node_id = node_id
         self.recipe_reader = recipe_reader
         self.city_session_factory = city_session_factory
@@ -351,6 +369,13 @@ class VendorWorkerExecutor:
                     store, binding, operation, navigation, record, cancelled=stop_signal.is_set,
                 )
                 _require_local_idle(navigation, binding, NavigationReceipt)
+            except (OSError, RuntimeError, ValueError) as exc:
+                try:
+                    require_failed_discovery_idle(store, binding, operation, navigation)
+                except (OSError, RuntimeError, ValueError, KeyError, TypeError):
+                    raise exc from None
+                return WorkerOperationExecution(
+                    WorkerOperationState.FAILED, str(exc), native_cleanup_confirmed=True)
             finally:
                 navigation.close()
             return WorkerOperationExecution(WorkerOperationState.SUCCEEDED, record["detail"],
@@ -402,7 +427,32 @@ class VendorWorkerExecutor:
                 selection = VendorRecipeStore(store).current(operation.command.split()[2])
                 selection = require_saved_owner(
                     selection, binding, session, reader=self.recipe_reader)
-            elif resume and current.get("schema_version") == 2:
+                # Prove disposal-profile support before collection or any gold
+                # movement, so an old DLL cannot start half the new workflow.
+                supported = session.inspect_recycle()
+                if (supported.outcome != Outcome.OBSERVED
+                        or supported.window != binding.game_window_handle
+                        or supported.flags & 6 or supported.recycle_completion is None):
+                    raise VendorBatchStopped("native batch recycling support is not ready")
+                self.collection_runner(store, binding, operation, session, selection,
+                                       cancelled=stop_signal.is_set, reader=self.recipe_reader)
+                selection = require_saved_owner(
+                    selection, binding, session, reader=self.recipe_reader)
+                order = RandomOrderSpec(RandomRecipeSpec.from_dict(selection["recipe_spec"]),
+                                        10, multiple=True)
+                funded = self.funding_runner(store, binding, operation, session, selection,
+                                             cancelled=stop_signal.is_set, order=order)
+                if (not isinstance(funded, dict) or funded.get("state") != "funded"
+                        or "batch_budget" not in funded or "batch_budget_sha256" not in funded
+                        or funded.get("order_spec") != order.as_dict()
+                        or funded.get("order_sha256") != order.canonical_digest):
+                    raise VendorBatchStopped("whole-batch funding evidence is missing")
+                selection = require_saved_owner(
+                    selection, binding, session, reader=self.recipe_reader)
+                selection = dict(selection, batch_budget=funded["batch_budget"],
+                                 batch_budget_sha256=funded["batch_budget_sha256"],
+                                 order_spec=order.as_dict(), order_sha256=order.canonical_digest)
+            elif resume and current.get("schema_version") in (2, 3, 4, 5):
                 from shadowbane_lab.client_extension.vendor_wire import Snapshot
 
                 initial = Snapshot.decode(bytes.fromhex(current["initial_snapshot"]))
@@ -417,6 +467,8 @@ class VendorWorkerExecutor:
                 resume=resume,
                 **({"selection": selection} if selection is not None else {}),
                 cancelled=stop_signal.is_set,
+                enable_exclusions=True,
+                exclusion_reader=self.exclusion_reader,
             )
             require_vendor_handoff_idle(store, session, record)
         finally:

@@ -36,7 +36,7 @@ constexpr std::array<std::size_t, 90U> kSceneDisplayRelocations{
     0x935U, 0x944U, 0x94fU,
 };
 
-constexpr std::array<const char*, 26U> kReviewedSceneExecutableHashes{
+constexpr std::array<const char*, 32U> kReviewedSceneExecutableHashes{
     "55fbad5f0110cd99b4085af72d1e8fddb782ccdec1491478492c18158f5c61bc",
     "a9a59004b36f9331bb85f85e7853a02a5d5f07bda9acb9ea4a8affbf169a54b8",
     "feb351f0fae87d47549fa43c37836405a753d76fbcd0b02232fc1c0733550dff",
@@ -63,6 +63,12 @@ constexpr std::array<const char*, 26U> kReviewedSceneExecutableHashes{
     "baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9",
     "28a745925fceb4e3f08537504a7192782afe2227758e34febdd95cc4539f8db0",
     "366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a",
+    "2cc8f6cfc157b4b2c0f2abbc30d1b5df81daaee24363a8da884cb8a45dc3489a",
+    "6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad",
+    "cb33e6759c619b04a5dd8cdc7bc375af8ba3b4dc99d9e8ce7b431533ef11db5c",
+    "346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747",
+    "7e497f9381bc35ca350dfb9ecc85ee6b1eaf9e1f1a7678724b9cb8c926be7636",
+    "4bf1a24a268d0ed13227d766105f3595cdc264e930436ca08748a10b04293ffa",
 };
 
 inline bool IsReviewedSceneExecutable(const char* const sha256) noexcept {

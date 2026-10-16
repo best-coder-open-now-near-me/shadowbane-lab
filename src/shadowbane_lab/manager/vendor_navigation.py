@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 
 from shadowbane_lab.client_extension.action_channel import NativeClientProcessIdentity
 from shadowbane_lab.client_extension.condemn_progress import CondemnProgressStore
+from shadowbane_lab.client_extension.guard_spending_journal import GuardSpendingJournal
 from shadowbane_lab.client_extension.vendor_batch import VendorBatchStopped
+from shadowbane_lab.client_extension.vendor_completion import _read_record
 from shadowbane_lab.client_extension.vendor_navigation_session import NativeVendorNavigationSession
 from shadowbane_lab.client_extension.vendor_navigation_wire import (
     IN_FLIGHT,
@@ -15,6 +18,8 @@ from shadowbane_lab.client_extension.vendor_navigation_wire import (
     RESPONSE_WAIT_SECONDS,
     UNRESOLVED,
     Outcome,
+    Receipt,
+    Snapshot,
 )
 from shadowbane_lab.client_observation.native_building_hirelings import BuildingHirelingsUnavailable
 from shadowbane_lab.client_observation.native_vendor_roster import read_native_vendor_roster
@@ -33,15 +38,78 @@ def open_navigation_session(binding, *, journal=None):
 
 
 def read_roster(binding, *, window):
+    if window not in ("building", "vendor"):
+        raise ValueError("roster window must be vendor or building")
     memory = _memory(binding)
     try:
-        return read_native_vendor_roster(memory, window=window)
+        # Hireling membership belongs to the still-active parent building HUD.
+        # The personal vendor HUD contains services/production, not that roster.
+        # Navigation receipts independently fence the selected vendor and HUD.
+        return read_native_vendor_roster(memory, window="building")
     finally:
         memory.close()
 
 
 class _NotSubmitted(VendorBatchStopped):
     """The native receipt proves this attempt never entered its window action."""
+
+
+def require_failed_discovery_idle(store, binding, operation, session):
+    """Release a failed non-spending scan only with durable and fresh native proof."""
+    with exclusive_record_lock(store.root / "execution.lock", timeout_seconds=0.1):
+        current = store.current()
+        if current and current["state"] not in {"complete", "stopped"}:
+            raise VendorBatchStopped("a vendor job still requires reconciliation")
+        GuardSpendingJournal(store.root).assert_idle()
+        CondemnProgressStore(store.root).assert_idle()
+        path = store.root / "navigation" / (operation.operation_id + ".json")
+        record = json.loads(_read_record(path, 32 * 1024 * 1024))
+        if (
+            record.get("schema_version") != 1
+            or record.get("identity") != list(store.identity)
+            or record.get("operation_id") != operation.operation_id
+            or record.get("game_process_id") != binding.game_process_id
+            or record.get("game_creation_filetime") != binding.game_process_started_at_100ns
+            or record.get("state") not in {"review", "cancelled"}
+            or not isinstance(record.get("attempts"), list)
+            or not 0 < len(record["attempts"]) <= 512 * 257
+        ):
+            raise VendorBatchStopped("failed discovery evidence does not own this operation")
+        keys, owner = set(), None
+        for attempt in record["attempts"]:
+            key = attempt["request_key"]
+            parsed = uuid.UUID(key)
+            before = Snapshot.decode(bytes.fromhex(attempt["expected"]))
+            identity = before.scene, before.root, before.manager
+            if (
+                str(parsed) != key or not parsed.int or key in keys
+                or attempt["state"] != "observed"
+                or attempt["outcome"] not in {"OBSERVED", "SUBMITTED"}
+                or before.empty or before.offline
+                or identity[:2] != (record.get("scene"), record.get("root"))
+                or owner is not None and identity != owner
+                or type(attempt["building_id"]) is not int
+                or not 0 < attempt["building_id"] < 2**32
+                or type(attempt["vendor_id"]) is not int
+                or not 0 <= attempt["vendor_id"] < 2**32
+            ):
+                raise VendorBatchStopped("a discovery transition remains unconfirmed")
+            keys.add(key)
+            owner = identity
+        receipt = session.inspect()
+        last = record["attempts"][-1]
+        if (
+            session.identity != NativeClientProcessIdentity(
+                binding.game_process_id, binding.game_process_started_at_100ns)
+            or not isinstance(receipt, Receipt)
+            or receipt.window != binding.game_window_handle
+            or receipt.outcome is not Outcome.OBSERVED
+            or receipt.flags & (IN_FLIGHT | UNRESOLVED)
+            or receipt.transition_request != last["request_key"]
+            or (receipt.snapshot.scene, receipt.snapshot.root, receipt.snapshot.manager) != owner
+            or not receipt.snapshot.opened(last["building_id"], last["vendor_id"])
+        ):
+            raise VendorBatchStopped("failed discovery native handback remains unresolved")
 
 
 def run_building_discovery(
@@ -346,14 +414,14 @@ def _run_building_discovery(
                     detail = verify_roster(
                         state, building_id, window=noun, vendor_id=vendor_id,
                     )
+                    def keys(observation):
+                        return {
+                            (r[row_key]["object_id"], r[row_key]["object_type"])
+                            for r in observation[rows_key]
+                        }
+                    if keys(detail) != keys(roster):
+                        raise VendorBatchStopped("The building hireling membership changed.")
                     if guard:
-                        def keys(observation):
-                            return {
-                                (r["hireling"]["object_id"], r["hireling"]["object_type"])
-                                for r in observation["hirelings"]
-                            }
-                        if keys(detail) != keys(roster):
-                            raise VendorBatchStopped("The building hireling membership changed.")
                         row["observation"] = detail
                     row.update(state="verified", window_verified=True)
                     record[plural] += 1

@@ -36,6 +36,9 @@ DIAGNOSTIC_TRANSPARENCY_FAILURES = frozenset({
 
 
 REQUIRED_VENDOR_TESTS = frozenset({
+    "wonderbane_extension_vendor_recycle_native",
+    "wonderbane_extension_vendor_recycle_evidence",
+    "wonderbane_extension_world_map_client_layout",
     "wonderbane_extension_building_target",
     "wonderbane_extension_vendor_navigation_controller",
     "wonderbane_extension_vendor_navigation_native",
@@ -43,6 +46,11 @@ REQUIRED_VENDOR_TESTS = frozenset({
     "wonderbane_extension_vendor_controller",
     "wonderbane_extension_vendor_native",
     "wonderbane_extension_vendor_channel",
+    "wonderbane_extension_vendor_menu_controller",
+    "wonderbane_extension_vendor_menu_native",
+    "wonderbane_extension_vendor_menu_channel",
+    "wonderbane_extension_vendor_production",
+    *(f"wonderbane_extension_vendor_production_install_{step}" for step in range(1, 5)),
 })
 
 
@@ -87,6 +95,12 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_combat_image_original17",
     "wonderbane_extension_combat_image_prepared18",
     "wonderbane_extension_combat_image_original18",
+    "wonderbane_extension_combat_image_prepared19",
+    "wonderbane_extension_combat_image_original19",
+    "wonderbane_extension_combat_image_prepared22",
+    "wonderbane_extension_combat_image_original22",
+    "wonderbane_extension_combat_image_prepared23",
+    "wonderbane_extension_combat_image_original23",
     "wonderbane_extension_movement_runtime_owner-service",
     "wonderbane_extension_movement_windows_input_mouse",
     "wonderbane_extension_combat_group_chat",
@@ -99,7 +113,8 @@ REQUIRED_COMBAT_TESTS = frozenset({
       for case in ("prepared12", "original12", "prepared13", "original13",
                    "prepared14", "original14", "prepared15", "original15",
                    "prepared16", "original16", "prepared17", "original17",
-                   "prepared18", "original18", "unknown")),
+                   "prepared18", "original18", "prepared19", "original19",
+                   "prepared22", "original22", "prepared23", "original23", "unknown")),
     "wonderbane_extension_combat_target_policy",
     "wonderbane_extension_combat_v2_wire",
     "wonderbane_extension_combat_v2_controller",
@@ -129,6 +144,9 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_actor_effects_native_prepared16",
     "wonderbane_extension_actor_effects_native_prepared17",
     "wonderbane_extension_actor_effects_native_prepared18",
+    "wonderbane_extension_actor_effects_native_prepared19",
+    "wonderbane_extension_actor_effects_native_prepared22",
+    "wonderbane_extension_actor_effects_native_prepared23",
     *(f"wonderbane_extension_actor_effects_native_{mode}"
       for mode in ("partial", "cpp", "saturation")),
 })
@@ -273,6 +291,25 @@ def validate_item_trace_probe_steps(steps, *, reviewed_client):
 def validate_group_chat_probe_steps(steps, *, reviewed_client):
     return _validate_actor_probe_steps(steps, reviewed_client=reviewed_client,
                                        features=("combat_group_chat",))
+
+
+def validate_vendor_recycling_steps(steps, *, reviewed_client):
+    for profile in ("full", "diagnostics-only"):
+        required = [f"{profile}-vendor-recycle-contract"]
+        if reviewed_client:
+            required.append(f"{profile}-vendor-recycle-client")
+        for name in required:
+            matching = [step for step in steps if step.get("name") == name]
+            if len(matching) != 1 or matching[0].get("exit_code") != 0:
+                raise RuntimeError("required vendor recycling qualification did not pass: " + name)
+            command = matching[0].get("command", [])
+            if name.endswith("-client") and (
+                    len(command) != 2
+                    or Path(command[0]).name
+                    != "wonderbane_extension_vendor_recycle_native_test.exe"
+                    or Path(command[1]).name != "movement-prepared-client.exe"):
+                raise RuntimeError("vendor recycling qualification used an unrelated image/binary")
+    return bool(reviewed_client)
 
 
 def validate_tracking_presentation_steps(steps, *, reviewed_client):
@@ -499,6 +536,7 @@ def main() -> int:
         # The native consumer registers after successful startup and defaults disabled.
         # Membership does not certify complete settings/transport capability.
         for movement_source in (
+            "vendor_recycle_native.cpp",
             "movement_boundary_trace.cpp",
             "movement_controls.cpp",
             "movement_native_image.cpp",
@@ -523,6 +561,12 @@ def main() -> int:
                 raise RuntimeError(f"{profile}: {condemn_source} must have one owner")
             if included_sources.count(condemn_source + "_test.cpp"):
                 raise RuntimeError(f"{profile}: Condemn test entered runtime")
+        for vendor_source in ("vendor_runtime", "vendor_native", "vendor_menu_native",
+                              "vendor_production_responses"):
+            if included_sources.count(vendor_source + ".cpp") != 1:
+                raise RuntimeError(f"{profile}: {vendor_source} must have one owner")
+            if included_sources.count(vendor_source + "_test.cpp"):
+                raise RuntimeError(f"{profile}: vendor test entered runtime")
         if included_sources.count("targeted_action_trace.cpp") != 1:
             raise RuntimeError(f"{profile}: targeted-action observer must have one owner")
         for combat_source in ("combat_group_chat.cpp", "combat_submission.cpp",
@@ -540,6 +584,8 @@ def main() -> int:
             if included_sources.count(combat_source) != 1:
                 raise RuntimeError(f"{profile}: combat source must have one owner: {combat_source}")
         for developer_source in ("combat_group_chat_probe.cpp", "combat_group_chat_test.cpp",
+                                 "vendor_recycle_native_test.cpp",
+                                 "vendor_recycle_evidence_test.cpp",
                                  "combat_native.cpp",
                                  "combat_runtime.cpp",
                                  "combat_v2_native.cpp", "combat_v2_runtime.cpp",
@@ -686,6 +732,21 @@ def main() -> int:
             native_results, required_native_tests,
             diagnostic=False, exit_code=native_exit,
         )
+        recycle_tests = logs / f"{profile}-vendor-recycle-contract.xml"
+        environment["SHADOWBANE_RECYCLE_NATIVE_TEST"] = str(
+            build / "Release/wonderbane_extension_vendor_recycle_native_test.exe")
+        try:
+            run(f"{profile}-vendor-recycle-contract", [sys.executable, "-m", "pytest", "-q",
+                "tests/test_vendor_recycle_manifest.py", "tests/test_vendor_recycle_wire.py",
+                "tests/test_vendor_recycle_evidence.py", "tests/test_vendor_recycling.py",
+                "tests/test_native_vendor_affixes.py", f"--junitxml={recycle_tests}"])
+        finally:
+            environment.pop("SHADOWBANE_RECYCLE_NATIVE_TEST", None)
+        cases = list(ET.parse(recycle_tests).getroot().iter("testcase"))
+        if (sum(case.get("name") == "test_host_digest_matches_actual_compiled_x86_native_capture"
+                for case in cases) != 1 or any(case.find(tag) is not None for case in cases
+                                             for tag in ("skipped", "failure", "error"))):
+            raise RuntimeError(f"{profile}: vendor recycling contract did not execute completely")
         if profile_failures:
             raise RuntimeError("required native gates cannot contain diagnostic failures")
         stretch_results = logs / f"{profile}-stretch-diagnostics.xml"
@@ -871,6 +932,9 @@ print(json.dumps(authored.as_dict(), sort_keys=True))
                 [build / "Release/wonderbane_extension_movement_image_test.exe",
                  arguments.reviewed_client.resolve(), prepared_client],
             )
+            run(f"{profile}-vendor-recycle-client", [
+                build / "Release/wonderbane_extension_vendor_recycle_native_test.exe",
+                prepared_client])
             run(
                 f"{profile}-combat-registry-prepared-binding",
                 [build / "Release/wonderbane_extension_combat_registry_probe.exe", prepared_client],
@@ -1159,6 +1223,22 @@ assert s.empty and s.free_slots == 0
 assert len(vendor_wire.Command(vendor_wire.Host(1, 1, 1), 1,
     "12345678-1234-5678-9abc-def0123456f0").encode(vendor_wire.Verb.INSPECT)) == 576
 """], cwd=output)
+    run("installed-vendor-recycling-contract", [python, "-c", """
+import pathlib, sys
+from shadowbane_lab.client_extension import vendor_recycle_evidence as evidence
+from shadowbane_lab.client_extension import vendor_recycle_manifest as manifest
+from shadowbane_lab.client_extension import vendor_wire as wire
+from shadowbane_lab.client_observation import native_vendor_affixes as affixes
+from shadowbane_lab.manager import vendor_recycling as jobs
+for module in (evidence, manifest, wire, affixes, jobs):
+    origin = pathlib.Path(module.__file__).resolve()
+    assert origin.is_relative_to(pathlib.Path(sys.prefix).resolve())
+assert manifest.MAX_ITEMS == 48 and evidence.MAX_ITEMS == 256
+assert jobs.POLICY == 'confirmed_tier_1_2_exclude_unknown_keep_v1'
+batch = wire.NativeRecycleBatch((1001, 1002), 'a' * 64, 1000, 302)
+assert len(batch.encode()) == 244
+assert wire.Verb.INSPECT_RECYCLE == 62 and wire.Verb.RECYCLE == 63
+"""], cwd=output)
     run("installed-vendor-navigation-contract", [python, "-c", """
 import pathlib, subprocess, sys
 from shadowbane_lab.client_extension import vendor_navigation_wire as wire
@@ -1303,6 +1383,8 @@ else:
             steps, reviewed_client=bool(arguments.reviewed_client),
         ),
         "source_identity": metadata,
+        "vendor_batch_recycling_verified": validate_vendor_recycling_steps(
+            steps, reviewed_client=bool(arguments.reviewed_client)),
         "steps": steps,
         "files": [
             {

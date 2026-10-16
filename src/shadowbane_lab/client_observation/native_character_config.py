@@ -74,6 +74,12 @@ REVIEWED_CHARACTER_CONFIG_LAYOUTS += (
             executable_sha256="baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9"),
     replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
             executable_sha256="366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a"),
+    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
+            executable_sha256="6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad"),
+    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
+            executable_sha256="346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747"),
+    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
+            executable_sha256="4bf1a24a268d0ed13227d766105f3595cdc264e930436ca08748a10b04293ffa"),
 )
 
 

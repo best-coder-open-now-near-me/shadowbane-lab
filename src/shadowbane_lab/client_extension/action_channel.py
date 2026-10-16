@@ -718,13 +718,15 @@ class WindowsNativeActionCommandTransport:
         from .condemn_session import NativeCondemnCommand
         from .guard_funding_session import NativeGuardFundingCommand
         from .guard_upgrade_session import NativeGuardUpgradeCommand
+        from .vendor_menu_session import NativeVendorMenuCommand
         from .vendor_navigation_session import NativeVendorNavigationCommand
         from .vendor_session import NativeVendorCommand
 
         if not isinstance(
             command, (
                 NativeActionCommand, NativeMovementCommand, NativeCombatCommand, NativeActorCommand,
-                NativeVendorCommand, NativeCityWindowCommand, NativeVendorNavigationCommand,
+                NativeVendorCommand, NativeVendorMenuCommand, NativeCityWindowCommand,
+                NativeVendorNavigationCommand,
                 NativeGuardUpgradeCommand, NativeGuardFundingCommand, NativeCondemnCommand,
             )
         ):

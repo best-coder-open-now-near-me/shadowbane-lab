@@ -316,7 +316,7 @@ def test_generalized_capacity_growth_remains_bounded_and_recoverable(tmp_path):
 
     batch = run(created, preparation=preparation, before_action=grow)
     assert batch["capacity_history"] == [2, 3]
-    assert len(batch["items"]) == created.general_creates == 3
+    assert len(batch["items"]) == created.general_creates == 2
     assert validate_completed_batch(created.path.read_bytes())[0] == batch
 
 

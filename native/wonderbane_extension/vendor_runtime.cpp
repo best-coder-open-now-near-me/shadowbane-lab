@@ -8,7 +8,10 @@
 #include "guard_upgrade_controller.h"
 #include "guard_upgrade_command_queue.h"
 #include "vendor_native.h"
+#include "vendor_production_responses.h"
 #include "vendor_controller.h"
+#include "vendor_order_admission.h"
+#include "vendor_recycle_evidence.h"
 #include "vendor_command_queue.h"
 #include "city_window_command_queue.h"
 #include "city_window_controller.h"
@@ -26,6 +29,9 @@ namespace wonderbane::extension::vendor {
 namespace {
 std::uintptr_t image_base = 0;
 Controller controller;
+OrderAdmission order_admission;
+vendor_recycle::Evidence recycle_evidence;
+std::unique_ptr<vendor_production::Batch> order_batch;
 condemn::Controller condemn_controller;
 std::unique_ptr<condemn::Batch> condemn_batch;
 guard_upgrade::Controller guard_controller;
@@ -46,17 +52,42 @@ public:
     static bool AdmitRandom(void* context) noexcept {
         auto& self = *static_cast<NativeInvoker*>(context);
         const auto now = GetTickCount64();
-        return !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy()
+        const bool live = !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy()
             && !navigation_controller.Busy() && !menu_controller.Busy()
             && self.command_->lease && self.command_->lease->Current(now) && now <= self.command_->deadline
             && self.command_->command.window == reinterpret_cast<std::uintptr_t>(self.window_)
             && GetForegroundWindow() == self.window_ && !IsIconic(self.window_)
             && movement::NativeMovementLifetimeCurrent(self.scene_);
+        if (!live || self.command_->verb != wire::Verb::create_orders) { return live; }
+        wire::Snapshot fresh{}; wire::RemainingCounts remaining{}; bool present = false, top = false;
+        if (!Capture(image_base, self.scene_, fresh, 0, present, top, &remaining) || !top) { return false; }
+        fresh.revision = self.command_->command.expected.revision;
+        const auto budget = wire::Budget(self.command_->command);
+        return wire::Equal(fresh, self.command_->command.expected)
+            && controller.OrderItemsOwned(fresh, remaining, self.command_->command)
+            && vendor_menu::OrderCostMatches(image_base, fresh, budget, budget.total);
     }
     wire::Outcome Invoke(wire::Verb verb, const wire::Snapshot& expected, std::uint32_t item) noexcept override {
-        if (verb == wire::Verb::create_random) {
+        if(verb==wire::Verb::recycle) {
+            const auto batch=wire::Recycling(command_->command);
+            vendor_recycle::Manifest manifest{};vendor_production::Cursor cursor{};
+            if(!AdmitRandom(this) || !vendor_recycle::Capture(image_base,scene_,expected,batch.items,item,manifest)
+                || manifest.digest!=batch.digest || manifest.gold!=batch.gold || manifest.refund!=batch.refund){return wire::Outcome::stale;}
+            if(!vendor_production::ReadCursor(cursor)){return wire::Outcome::unavailable;}
+            recycle_evidence.Begin(manifest,scene_.identity,cursor);
+            if(!recycle_evidence.Healthy()){return wire::Outcome::unavailable;}
+            return vendor_recycle::Invoke(image_base,scene_,manifest,&AdmitRandom,this);
+        }
+        if (verb == wire::Verb::create_random || verb == wire::Verb::create_orders) {
             if (item || !AdmitRandom(this)) { return wire::Outcome::stale; }
-            return vendor_menu::InvokeRandomCreate(image_base, scene_, expected, &AdmitRandom, this);
+            const bool orders = verb == wire::Verb::create_orders;
+            vendor_production::Cursor cursor{};
+            if (orders && !vendor_production::ReadCursor(cursor)) { return wire::Outcome::unavailable; }
+            if (orders) {
+                order_admission.Begin(expected, scene_.identity, cursor);
+                if (!order_admission.Active()) { return wire::Outcome::unavailable; }
+            }
+            return vendor_menu::InvokeRandomCreate(image_base, scene_, expected, &AdmitRandom, this, orders);
         }
         wire::Snapshot fresh{}; bool present = false, top = false;
         const auto now = GetTickCount64();
@@ -277,10 +308,31 @@ void Update(void* root, HWND window) noexcept {
     if (GetWindowThreadProcessId(window, &pid) != GetCurrentThreadId() || pid != GetCurrentProcessId()) { return; }
     busy = true;
     movement::NativeScene scene{};
-    wire::Snapshot snapshot{}; bool present = false, top = false;
+    wire::Snapshot snapshot{}; wire::RemainingCounts remaining{}; bool present = false, top = false;
     const bool valid = movement::ReadNativeMovementLifetime(scene) && scene.window == reinterpret_cast<std::uintptr_t>(root)
-        && Capture(image_base, scene, snapshot, controller.PendingKeep(), present, top);
-    controller.Observe(snapshot, valid, present, GetTickCount64());
+        && Capture(image_base, scene, snapshot, controller.PendingKeep(), present, top, &remaining);
+    auto order_proof = OrderProof::waiting;
+    if (controller.PendingOrders()) {
+        if (!order_admission.Active() || !order_batch
+            || !vendor_production::ReadAfter(order_admission.Cursor(), *order_batch)
+            || !order_admission.Receive(*order_batch)) { order_proof = OrderProof::invalid; }
+        else if (valid && order_admission.Matches(snapshot)) { order_proof = OrderProof::verified; }
+    }
+    auto recycle_proof=OrderProof::waiting;wire::RecycleCompletion recycle_completion{};
+    if(controller.PendingRecycle()) {
+        if(!order_batch || !vendor_production::ReadAfter(recycle_evidence.Cursor(),*order_batch)
+            || !recycle_evidence.Receive(*order_batch)){recycle_proof=OrderProof::invalid;}
+        else if(valid && recycle_evidence.Verified()) {
+            const auto batch=wire::Recycling(*controller.RecyclingCommand());
+            const auto gold=batch.gold+batch.refund;
+            if(vendor_recycle::Corroborate(image_base,snapshot,batch.items,controller.RecyclingCommand()->item,gold)) {
+                recycle_proof=OrderProof::verified;
+                recycle_completion={recycle_evidence.Floor(),recycle_evidence.Completion(),batch.refund,gold};
+            }
+        }
+    }
+    controller.Observe(snapshot, valid, present, GetTickCount64(), remaining, order_proof,recycle_proof,recycle_completion);
+    if (!controller.PendingOrders()) { order_admission.Reset(); }
     auto menu_command = vendor_menu::Take();
     vendor_menu::wire::Snapshot menu_snapshot{};
     bool menu_valid = false;
@@ -397,9 +449,11 @@ void Update(void* root, HWND window) noexcept {
         const auto now = GetTickCount64();
         const bool live = command->lease && command->lease->Current(now) && now <= command->deadline;
         const bool exact_window = command->command.window == reinterpret_cast<std::uintptr_t>(window);
-        const bool ready = valid && !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy() && !navigation_controller.Busy() && !menu_controller.Busy() && exact_window && top && GetForegroundWindow() == window && !IsIconic(window);
+        const bool ready = valid && (!wire::IsRecycle(command->verb) || vendor_recycle::Qualified(image_base))
+            && !condemn_controller.Busy() && !funding_controller.Busy() && !guard_controller.Busy() && !navigation_controller.Busy() && !menu_controller.Busy() && exact_window && top && GetForegroundWindow() == window && !IsIconic(window);
         NativeInvoker invoker(command, scene, window);
-        Complete(command, controller.Execute(command->verb, command->command, live && exact_window, ready, invoker, now));
+        const bool qualified=!wire::IsRecycle(command->verb) || vendor_recycle::Qualified(image_base);
+        Complete(command, controller.Execute(command->verb, command->command, live && exact_window && qualified, ready, invoker, now));
     }
     busy = false;
 }
@@ -407,7 +461,10 @@ void Update(void* root, HWND window) noexcept {
 bool Start() noexcept {
     std::uintptr_t base = 0;
     if (!movement::VerifyNativeMovementImage(base)) { return false; }
-    try { if (!condemn_batch) { condemn_batch = std::make_unique<condemn::Batch>(); } }
+    try {
+        if (!condemn_batch) { condemn_batch = std::make_unique<condemn::Batch>(); }
+        if (!order_batch) { order_batch = std::make_unique<vendor_production::Batch>(); }
+    }
     catch (...) { return false; }
     image_base = base;
     vendor_owner_service.store(&Update, std::memory_order_release);

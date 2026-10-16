@@ -89,11 +89,13 @@ class NativeCityWindowSession:
         # identity and still passes the native lifetime/lease/receipt checks.
         for attempt in range(3):
             try:
-                return self._submit(Verb.INSPECT, str(uuid.uuid4()))
+                receipt = self._submit(Verb.INSPECT, str(uuid.uuid4()))
+                if receipt.outcome != Outcome.STALE or attempt == 2:
+                    return receipt
             except (_RetryableInspectionError, channel.NativeActionChannelTimeout):
                 if attempt == 2:
                     raise
-                time.sleep(0.05)
+            time.sleep(0.05)
         raise AssertionError("unreachable inspection retry")
 
     def open(self, expected: Snapshot, request_key: str) -> Receipt:
