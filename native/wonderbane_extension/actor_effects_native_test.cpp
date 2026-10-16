@@ -114,6 +114,7 @@ int main(int argc,char** argv) {
     if(argc==2 && std::strcmp(argv[1],"prepared17")==0){bootstrap_fixture::digest="baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9";}
     if(argc==2 && std::strcmp(argv[1],"prepared18")==0){bootstrap_fixture::digest="366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a";}
     if(argc==2 && std::strcmp(argv[1],"prepared19")==0){bootstrap_fixture::digest="6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad";}
+    if(argc==2 && std::strcmp(argv[1],"prepared22")==0){bootstrap_fixture::digest="346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747";}
     Prepare();if(!image){return 1;}
     Check(e::StartupCurrent(context.image,context.image+0x1140e9e),"exact bootstrap path accepted");
     Check(!e::StartupCurrent(context.image,context.image+0x1140e9d),"late/arbitrary caller rejected");
@@ -142,6 +143,7 @@ int main(int argc,char** argv) {
                             "051c55ebd0f25ff5fe9bd27b25efbe3cde0190d1dbf1c2a33eb9604996c69698",
                             "28a745925fceb4e3f08537504a7192782afe2227758e34febdd95cc4539f8db0",
                             "2cc8f6cfc157b4b2c0f2abbc30d1b5df81daaee24363a8da884cb8a45dc3489a",
+                            "cb33e6759c619b04a5dd8cdc7bc375af8ba3b4dc99d9e8ce7b431533ef11db5c",
                             "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}){
         bootstrap_fixture::digest=denied;
         Check(!e::StartAtBootstrap(context.image,context.image+0x1140e9e)

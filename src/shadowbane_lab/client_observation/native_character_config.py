@@ -76,6 +76,8 @@ REVIEWED_CHARACTER_CONFIG_LAYOUTS += (
             executable_sha256="366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a"),
     replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
             executable_sha256="6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad"),
+    replace(REVIEWED_CHARACTER_CONFIG_LAYOUTS[-1],
+            executable_sha256="346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747"),
 )
 
 

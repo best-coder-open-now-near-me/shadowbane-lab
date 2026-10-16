@@ -36,5 +36,13 @@ int main() {
     check(!ReviewedWorldMapLayout(nt, &added, &proof), "unknown section rejected");
     added = exact; ++added.SizeOfRawData;
     check(!ReviewedWorldMapLayout(nt, &added, &proof), "changed section extent rejected");
+    added = exact; nt.FileHeader.NumberOfSections = 9;
+    nt.OptionalHeader.SizeOfImage = 0x1791000U;
+    proof = {0x1791000U, 9, true};
+    check(ReviewedWorldMapLayout(nt, &added, &proof), "authenticated .22 patch sections supported");
+    proof.added_patch_sections_verified = false;
+    check(!ReviewedWorldMapLayout(nt, &added, &proof), "unsealed added dispatcher code rejected");
+    proof.added_patch_sections_verified = true; proof.section_count = 7;
+    check(!ReviewedWorldMapLayout(nt, &added, &proof), "older table proof cannot authorize .22");
     return failures ? 1 : 0;
 }

@@ -558,7 +558,8 @@ class Reader:
                 "1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c",
                 "baa6c84e5f28aab01d516f12257354b42375d11e8e8e98930cfcf754aeec24e9",
                 "366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a",
-                "6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad"),
+                "6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad",
+                "346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747"),
             "unqualified publication session",
         )
         header, payload = _copy_mapping(mapping_name(self.manifest))

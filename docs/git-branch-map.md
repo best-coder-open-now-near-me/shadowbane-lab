@@ -1,5 +1,17 @@
 # Git branch map
 
+## Vendor client .22 continuation - October 16
+
+Refreshed main remains `ef02070f`. Continue the active
+`codex/vendor-rolling-20261013` worktree and preserve the graphics composition
+on `codex/vendor-release-20261013`. Draft PR #174 targets main and remains
+unmerged. Installed state is .120/.74/.19; the interrupted .121 preparation
+stopped the manager but never switched software. Candidate .122/.75 admits the
+exact official/prepared .22 pair and seals its added loaded executable sections.
+Next: full qualification and one combined patch installation, fresh-server batch
+acceptance and town scheduling. Historical batch deadlines and journals remain
+unchanged. See [current patch evidence](client-update-20261016.md).
+
 ## Vendor batch observation correction - October 14
 
 Shared development starts from refreshed main `ef02070f`. Continue vendor work

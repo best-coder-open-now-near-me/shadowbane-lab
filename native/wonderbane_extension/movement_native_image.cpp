@@ -55,6 +55,8 @@ bool ReviewedDigest(const std::vector<unsigned char>& bytes) noexcept {
         0x28, 0xa7, 0x45, 0x92, 0x5f, 0xce, 0xb4, 0xe3, 0xf0, 0x85, 0x37, 0x50, 0x4a, 0x71, 0x92, 0x78, 0x2a, 0xfe, 0x22, 0x27, 0x75, 0x8e, 0x34, 0xfe, 0xbd, 0xd9, 0x5c, 0xc4, 0x53, 0x9f, 0x8d, 0xb0};
     constexpr std::array<unsigned char, 32> october14{
         0x2c, 0xc8, 0xf6, 0xcf, 0xc1, 0x57, 0xb4, 0xb2, 0xc0, 0xf2, 0xab, 0xbc, 0x30, 0xd1, 0xb5, 0xdf, 0x81, 0xda, 0xae, 0xe2, 0x43, 0x63, 0xa8, 0xda, 0x88, 0x4c, 0xb8, 0xa4, 0x5d, 0xc3, 0x48, 0x9a};
+    constexpr std::array<unsigned char, 32> october16{
+        0xcb, 0x33, 0xe6, 0x75, 0x9c, 0x61, 0x9b, 0x04, 0xa5, 0xdd, 0x8c, 0xdc, 0x7b, 0xc3, 0x75, 0xaf, 0x8b, 0xa3, 0xb4, 0xdc, 0x99, 0xd9, 0xe8, 0xce, 0x7b, 0x43, 0x15, 0x33, 0xef, 0x11, 0xdb, 0x5c};
     BCRYPT_ALG_HANDLE algorithm{}; BCRYPT_HASH_HANDLE hash{};
     std::array<unsigned char, 32> digest{};
     const bool ok = BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) >= 0
@@ -64,7 +66,7 @@ bool ReviewedDigest(const std::vector<unsigned char>& bytes) noexcept {
     if (hash) { BCryptDestroyHash(hash); }
     if (algorithm) { BCryptCloseAlgorithmProvider(algorithm, 0); }
     return ok && (digest == expected || digest == september15 || digest == september19
-        || digest == september22 || digest == september24 || digest == september26 || digest == september30 || digest == october4 || digest == october8 || digest == october9 || digest == october10 || digest == october13 || digest == october14);
+        || digest == september22 || digest == september24 || digest == september26 || digest == september30 || digest == october4 || digest == october8 || digest == october9 || digest == october10 || digest == october13 || digest == october14 || digest == october16);
 }
 template<class T> bool FileValue(const std::vector<unsigned char>& bytes, std::size_t offset, T& output) {
     if (offset > bytes.size() || sizeof(T) > bytes.size() - offset) { return false; }
@@ -107,6 +109,37 @@ bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base,
         if (std::memcmp(section.Name, ".text", 6) == 0) { text = section; }
         if (std::memcmp(section.Name, ".reloc", 7) == 0) { reloc = section; }
     }
+    // The exact .22 file adds executable .wbmr/.wbtm sections. Authenticate
+    // their loaded headers and code too: sealing .text alone would leave the
+    // shared message dispatcher's new jump destination outside the proof.
+    const bool added_patch_sections = nt.FileHeader.NumberOfSections == 9U;
+    if (added_patch_sections) {
+        for (std::size_t index = 7; index != 9; ++index) {
+            IMAGE_SECTION_HEADER section{}, loaded_section{};
+            const auto offset = first + index * sizeof(section);
+            if (!FileValue(bytes, offset, section)
+                || !ReadLoaded(&loaded_section, reinterpret_cast<const void*>(base + offset), sizeof(section))
+                || std::memcmp(&section, &loaded_section, sizeof(section))
+                || section.SizeOfRawData != 0x1000U
+                || section.PointerToRawData > bytes.size()
+                || section.SizeOfRawData > bytes.size() - section.PointerToRawData
+                || section.VirtualAddress != (index == 7 ? 0x178f000U : 0x1790000U)
+                || std::memcmp(section.Name, index == 7 ? ".wbmr\0\0" : ".wbtm\0\0",
+                               IMAGE_SIZEOF_SHORT_NAME)) { return false; }
+            std::array<unsigned char, 0x1000> loaded_patch{};
+            if (!ReadLoaded(loaded_patch.data(), reinterpret_cast<const void*>(base + section.VirtualAddress),
+                            loaded_patch.size())) { return false; }
+            for (std::size_t at = 0; at < loaded_patch.size(); ++at) {
+                // Reviewed .wbtm writes only these title hex digits, server
+                // value and three temporary transform floats. Code, tables,
+                // constants and all remaining padding must match the file.
+                const bool mutable_data = index == 8 && (at == 0x10a || at == 0x10b
+                    || at == 0x122 || at == 0x123 || (at >= 0x150 && at < 0x154)
+                    || (at >= 0x800 && at < 0x80c));
+                if (!mutable_data && loaded_patch[at] != bytes[section.PointerToRawData + at]) { return false; }
+            }
+        }
+    }
     if (text.VirtualAddress != 0x1000 || text.PointerToRawData != 0x1000 || text.SizeOfRawData != 0x1140000
         || text.PointerToRawData + text.SizeOfRawData > bytes.size()) { return false; }
     std::vector<unsigned char> loaded(text.SizeOfRawData);
@@ -147,7 +180,8 @@ bool VerifyImage(const std::vector<unsigned char>& bytes, std::uintptr_t base,
     if (!actor_effects::NormalizeOwnedCode(base, text.VirtualAddress, loaded,
         std::span<const unsigned char>(bytes.data() + text.PointerToRawData, loaded.size()))) { return false; }
     if (std::memcmp(loaded.data(), bytes.data() + text.PointerToRawData, loaded.size()) != 0) { return false; }
-    if (layout) { *layout = {nt.OptionalHeader.SizeOfImage, nt.FileHeader.NumberOfSections}; }
+    if (layout) { *layout = {nt.OptionalHeader.SizeOfImage, nt.FileHeader.NumberOfSections,
+                            added_patch_sections}; }
     return true;
 }
 bool Verify(std::uintptr_t& output, NativeMovementImageLayout* layout = nullptr) {
