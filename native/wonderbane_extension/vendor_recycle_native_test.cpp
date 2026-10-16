@@ -11,7 +11,8 @@ namespace v = wonderbane::extension::vendor;
 namespace m = wonderbane::extension::movement;
 bool live=true, qualified=true, allowed=true;
 constexpr const char* previous_prepared="6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad";
-constexpr const char* current_prepared="346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747";
+constexpr const char* prepared22="346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747";
+constexpr const char* current_prepared="4bf1a24a268d0ed13227d766105f3595cdc264e930436ca08748a10b04293ffa";
 const char* selected_prepared=current_prepared;
 unsigned clones=0, selections=0, sends=0, fail_selection=0, fail_gate=0, gate_calls=0;
 std::uint32_t base=0, manager=0, tree=0;
@@ -34,7 +35,7 @@ bool Admit(void*) noexcept {return allowed && ++gate_calls!=fail_gate;}
 void Jump(std::uint32_t at,void* target){auto* p=reinterpret_cast<unsigned char*>(at);p[0]=0xe9;Word(at+1,reinterpret_cast<std::uint32_t>(target)-at-5);}
 namespace wonderbane::extension {
 bool GraphicsExecutableSha256Matches(const char* sha) noexcept {
-    assert(!std::strcmp(sha,previous_prepared)||!std::strcmp(sha,current_prepared));
+    assert(!std::strcmp(sha,previous_prepared)||!std::strcmp(sha,prepared22)||!std::strcmp(sha,current_prepared));
     return qualified&&!std::strcmp(sha,selected_prepared);
 }
 namespace movement {
@@ -77,7 +78,7 @@ void ClientFunctions(const char* filename) {
     stream.read(reinterpret_cast<char*>(file.data()),size);assert(stream);
     r::Hash hash;r::Digest digest{};assert(hash.Add(file.data(),file.size()) && hash.Finish(digest));
     std::ostringstream hex;for(auto byte:digest){hex<<std::hex<<std::setw(2)<<std::setfill('0')<<static_cast<unsigned>(byte);}
-    assert(hex.str()==previous_prepared||hex.str()==current_prepared);
+    assert(hex.str()==previous_prepared||hex.str()==prepared22||hex.str()==current_prepared);
     const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(file.data());assert(dos->e_magic==IMAGE_DOS_SIGNATURE);
     assert(dos->e_lfanew>0 && static_cast<std::size_t>(dos->e_lfanew)+sizeof(IMAGE_NT_HEADERS32)<file.size());
     const auto* pe=reinterpret_cast<const IMAGE_NT_HEADERS32*>(file.data()+dos->e_lfanew);
@@ -167,8 +168,11 @@ int main(int argc,char** argv) {
     assert(v::Capture(base,scene,owner,0,present,top) && top);owner.revision=1;
     r::Manifest manifest{};assert(r::Capture(base,scene,owner,ids,count,manifest));
     assert(manifest.count==7 && manifest.gold==205328 && manifest.refund==1057);
-    r::Manifest prior_identity{};selected_prepared=previous_prepared;
-    assert(r::Capture(base,scene,owner,ids,count,prior_identity)&&prior_identity.digest==manifest.digest);
+    r::Manifest prior_identity{};
+    for(const auto* digest:{previous_prepared,prepared22,current_prepared}) {
+        selected_prepared=digest;
+        assert(r::Capture(base,scene,owner,ids,count,prior_identity)&&prior_identity.digest==manifest.digest);
+    }
     selected_prepared="unreviewed";
     assert(!r::Capture(base,scene,owner,ids,count,prior_identity));
     selected_prepared=current_prepared;
