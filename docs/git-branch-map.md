@@ -6,7 +6,11 @@
 and targets main. It restores the existing three-thread Mesa limit in the
 reviewed launcher without removing the text fix or changing client/native files.
 Vendor rolling is paused for the user's framerate priority. Source validation
-passes; fresh-launch performance acceptance is pending. Installed vendor release
+passes; the installed launcher preserves readable text and the user reports the
+recent slowdown recovered. The fresh in-world sample is still only 6.64 FPS.
+Maximum graphics quality is mandatory; no lower-detail settings were applied.
+Next is VM CPU/acceleration evaluation with text and mod-pack visual verification.
+Installed vendor release
 `cae3008549b7f4d00b45fed1dd28a83941d844b8` remains separate and unchanged.
 See [current findings and next check](vm-renderer-performance.md).
 
