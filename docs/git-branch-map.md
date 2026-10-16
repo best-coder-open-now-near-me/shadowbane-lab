@@ -4,11 +4,15 @@
 
 Continue `codex/vendor-rolling-20261013` and compose into
 `codex/vendor-release-20261013`; shared destination remains main through draft
-PR #174. The new .23 original/prepared pair is reviewed as a .123/.76 source
-candidate, with exact loaded title-counter boundaries and ordinary-dispatch tests.
-Nothing from .23 is installed yet. Preserve the graphics composition, six-worker
-launcher and combined combat-text candidate from draft PR #175. Next is full
-qualification and in-place alignment, then FPS/text and vendor batch acceptance.
+PR #174. Release .123/.76 supports the reviewed .23 original/prepared pair,
+with exact loaded title-counter boundaries and ordinary-dispatch tests.
+Graphics-preserving source `7dc7678f` is qualified, pushed and installed on
+`codex/vendor-release-20261013`; the separate official client is also aligned.
+All 508 modules and 10,207 retained records verify with zero exclusions, and the
+original shortcut starts the exact client/DLL with a healthy idle worker.
+The six-worker launcher and combat-text candidate from draft PR #175 are preserved.
+Neither draft is merged. Next: in-world FPS/text acceptance, then a fresh vendor
+batch, live recycling acceptance and town scheduling. Guards are outside scope.
 See [reset-patch evidence](client-update-20261016-reset.md).
 
 ## Combat channel text investigation â€” October 16
