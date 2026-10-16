@@ -97,6 +97,8 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_combat_image_original18",
     "wonderbane_extension_combat_image_prepared19",
     "wonderbane_extension_combat_image_original19",
+    "wonderbane_extension_combat_image_prepared22",
+    "wonderbane_extension_combat_image_original22",
     "wonderbane_extension_movement_runtime_owner-service",
     "wonderbane_extension_movement_windows_input_mouse",
     "wonderbane_extension_combat_group_chat",
@@ -109,7 +111,7 @@ REQUIRED_COMBAT_TESTS = frozenset({
       for case in ("prepared12", "original12", "prepared13", "original13",
                    "prepared14", "original14", "prepared15", "original15",
                    "prepared16", "original16", "prepared17", "original17",
-                   "prepared18", "original18", "prepared19", "original19", "unknown")),
+                   "prepared18", "original18", "prepared19", "original19", "prepared22", "original22", "unknown")),
     "wonderbane_extension_combat_target_policy",
     "wonderbane_extension_combat_v2_wire",
     "wonderbane_extension_combat_v2_controller",
@@ -140,6 +142,7 @@ REQUIRED_COMBAT_TESTS = frozenset({
     "wonderbane_extension_actor_effects_native_prepared17",
     "wonderbane_extension_actor_effects_native_prepared18",
     "wonderbane_extension_actor_effects_native_prepared19",
+    "wonderbane_extension_actor_effects_native_prepared22",
     *(f"wonderbane_extension_actor_effects_native_{mode}"
       for mode in ("partial", "cpp", "saturation")),
 })

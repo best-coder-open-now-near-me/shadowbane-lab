@@ -1,5 +1,18 @@
 # Player-owned vendor rolling
 
+## Server reset and current patch alignment - October 16
+
+Continue vendor work only. The official client is now .22 and requires explicit
+support for its added executable sections and dispatcher trampoline. Candidate
+host .122/native .75 combines this alignment with the qualified sampling fix;
+installation follows full graphics-preserving qualification. Installed .120/.74
+is unchanged and its manager is stopped. The old batch's original deadline has
+passed; preserve that evidence without replay or fresh disposal authority.
+Active: current patch qualification and one installation. Next: a newly admitted
+batch and automatic recycling acceptance, then durable town scheduling for the
+fresh server. Recheck the manifest for the later reset patch. See
+[exact identities and validation](client-update-20261016.md).
+
 ## Coherent production/inventory sampling - October 14
 
 Host .121 fences each external inventory read with native queue observations

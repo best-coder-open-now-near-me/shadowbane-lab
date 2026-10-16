@@ -81,6 +81,36 @@ void NativeDoorTriangleContract() {
   && std::abs(distance-2)<.00001F,"native leaf distance preserves common-frame translation");
  Check(VirtualProtect(code,0x1a4,protection,&protection)!=0,"restore native triangle page protection");
 }
+void NativeDispatcherContract() {
+ // Execute the actual .22 default branch and reconstructed original stack
+ // frame, replacing only its legacy handler continuation in this owned arena.
+ // No client imports, world, UI, network or message handlers are invoked.
+ auto* base=static_cast<unsigned char*>(tested_image);
+ auto* continuation=base+0x7ca9c6;
+ std::array<unsigned char,6> original{};
+ std::memcpy(original.data(),continuation,original.size());
+ const std::array<unsigned char,6> returned{0xb0,0x01,0x8b,0xe5,0x5d,0xc3};
+ std::memcpy(continuation,returned.data(),returned.size());
+ DWORD text_protection=0,patch_protection=0,discard=0;
+ const bool text=VirtualProtect(continuation,returned.size(),PAGE_EXECUTE_READ,&text_protection)!=0;
+ const bool patch=VirtualProtect(base+0x1790000,0x1000,PAGE_EXECUTE_READ,&patch_protection)!=0;
+ Check(text&&patch,"owned dispatcher executable protections");
+ if(text&&patch){
+  FlushInstructionCache(GetCurrentProcess(),continuation,returned.size());
+  FlushInstructionCache(GetCurrentProcess(),base+0x1790000,0x1000);
+  using Dispatch=bool (__cdecl*)(const void*,void*);
+  const auto dispatch=reinterpret_cast<Dispatch>(base+0x7ca9c0);
+  for(const auto action:{0U,0xeaU,0x334U,0x1000U,0x12c9U,0x12d5U,0xffffffffU}){
+   const std::array<std::uint32_t,9> message{action};
+   Check(dispatch(message.data(),base),"actual .22 dispatcher retains ordinary cdecl action frame");
+  }
+ }
+ if(text){Check(VirtualProtect(continuation,returned.size(),text_protection,&discard)!=0,
+                "restore dispatcher continuation protection");}
+ if(patch){Check(VirtualProtect(base+0x1790000,0x1000,patch_protection,&discard)!=0,
+                 "restore added dispatcher protection");}
+ std::memcpy(continuation,original.data(),original.size());
+}
 void Mapped(const std::vector<unsigned char>& bytes){
  const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(bytes.data());
  const auto* nt=reinterpret_cast<const IMAGE_NT_HEADERS32*>(bytes.data()+dos->e_lfanew);
@@ -130,7 +160,7 @@ int wmain(int argc,wchar_t** argv){
   auto* nt=reinterpret_cast<IMAGE_NT_HEADERS32*>(mapped+dos->e_lfanew);
   Check(layout.image_size==nt->OptionalHeader.SizeOfImage
    && layout.section_count==nt->FileHeader.NumberOfSections,"published layout matches mapped exact image");
-  Check(we::ReviewedWorldMapLayout(*nt,IMAGE_FIRST_SECTION(nt)+nt->FileHeader.NumberOfSections-1,&layout),
+  Check(we::ReviewedWorldMapLayout(*nt,IMAGE_FIRST_SECTION(nt)+6,&layout),
    "production world map startup layout accepts authenticated original/prepared image");
   const auto free_slot=we::FindImportAddressSlot(mapped,layout.image_size,"MSVCRT.dll","free");
   Check(reinterpret_cast<std::uintptr_t>(free_slot)==base+0x16b0504,
@@ -148,6 +178,26 @@ int wmain(int argc,wchar_t** argv){
    && !refused_base && !refused.image_size && !refused.section_count,
    "changed loaded header revokes the entire layout proof");
   nt->OptionalHeader.SizeOfImage=image_size;
+  if(layout.section_count==9){
+   Check(layout.added_patch_sections_verified,".22 publishes sealed loaded patch sections");
+   for(const auto rva:{0x178f010U,0x1790180U,0x1790140U,0x1790154U,0x179080cU}){
+    mapped[rva]^=1;
+    Check(!wm::VerifyNativeMovementImage(base),"added code/constants/padding mutations rejected");
+    mapped[rva]^=1;
+   }
+   for(const auto rva:{0x179010aU,0x179010bU,0x1790122U,0x1790123U,0x1790150U,0x1790153U,
+                       0x1790800U,0x179080bU}){
+    mapped[rva]^=1;
+    Check(wm::VerifyNativeMovementImage(base),"reviewed mutable patch data remains usable");
+    mapped[rva]^=1;
+   }
+   auto* section=IMAGE_FIRST_SECTION(nt)+8;
+   section->Characteristics^=IMAGE_SCN_MEM_WRITE;
+   Check(!wm::VerifyNativeMovementImage(base),"added loaded section header drift rejected");
+   section->Characteristics^=IMAGE_SCN_MEM_WRITE;
+   NativeDispatcherContract();
+   Check(wm::VerifyNativeMovementImage(base),"owned dispatcher fixture restores exact loaded code");
+  }
   NativeDoorCollectionBindings();
   NativeDoorTriangleContract();
   we::image_base=0;Check(we::VerifyBinding(identity)==ERROR_SUCCESS,"production update gate accepts reviewed prepared bootstrap");

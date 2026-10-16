@@ -818,7 +818,7 @@ bool IsReviewedWorldMapClient() noexcept {
     }
     IMAGE_SECTION_HEADER added{};
     movement::NativeMovementImageLayout authenticated{};
-    if (nt->FileHeader.NumberOfSections == 7U) {
+    if (nt->FileHeader.NumberOfSections == 7U || nt->FileHeader.NumberOfSections == 9U) {
         std::uintptr_t verified = 0;
         if (nt->FileHeader.SizeOfOptionalHeader != sizeof(IMAGE_OPTIONAL_HEADER32)
             || !ReadMemory(reinterpret_cast<std::uintptr_t>(IMAGE_FIRST_SECTION(nt) + 6),

@@ -4,16 +4,20 @@
 #include "movement_native_image.h"
 
 namespace wonderbane::extension {
-// The added read-only table is accepted only with the authenticated file/loaded
-// header proof. Matching a larger size or a seventh section alone is insufficient.
+// Expanded layouts require authenticated file/loaded-header proof. The .22
+// dispatcher additionally requires its new loaded executable sections sealed.
 inline bool ReviewedWorldMapLayout(const IMAGE_NT_HEADERS32& nt,
     const IMAGE_SECTION_HEADER* added,
     const movement::NativeMovementImageLayout* authenticated) noexcept {
     if (nt.FileHeader.NumberOfSections == 6U
         && nt.OptionalHeader.SizeOfImage == 0x1766000U) { return true; }
-    return nt.FileHeader.NumberOfSections == 7U
-        && nt.OptionalHeader.SizeOfImage == 0x178F000U
-        && authenticated && authenticated->section_count == 7U
+    const bool table_only = nt.FileHeader.NumberOfSections == 7U
+        && nt.OptionalHeader.SizeOfImage == 0x178F000U;
+    const bool dispatcher_patch = nt.FileHeader.NumberOfSections == 9U
+        && nt.OptionalHeader.SizeOfImage == 0x1791000U
+        && authenticated && authenticated->added_patch_sections_verified;
+    return (table_only || dispatcher_patch)
+        && authenticated && authenticated->section_count == nt.FileHeader.NumberOfSections
         && authenticated->image_size == nt.OptionalHeader.SizeOfImage
         && added && std::memcmp(added->Name, ".wbfp\0\0", IMAGE_SIZEOF_SHORT_NAME) == 0
         && added->VirtualAddress == 0x1766000U

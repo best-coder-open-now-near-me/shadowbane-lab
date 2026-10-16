@@ -37,6 +37,8 @@ int wmain(int argc, wchar_t** argv) {
         || !IsReviewedSceneExecutable("366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a")
         || !IsReviewedSceneExecutable("2cc8f6cfc157b4b2c0f2abbc30d1b5df81daaee24363a8da884cb8a45dc3489a")
         || !IsReviewedSceneExecutable("6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad")
+        || !IsReviewedSceneExecutable("cb33e6759c619b04a5dd8cdc7bc375af8ba3b4dc99d9e8ce7b431533ef11db5c")
+        || !IsReviewedSceneExecutable("346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747")
         || !IsReviewedSceneExecutable("6347b420c6c151995f168f16fd1624408dd8911698d11a4a74b26d211fb49f19")
         || !IsReviewedSceneExecutable("7f283cdbeb691d65ef3073d32e4ea7bc0cfcb31e1bb205e460573f23d0a7758f")
         || !IsReviewedSceneExecutable("cae5311b5b6134bf25155b16c70b1743c1216c0bd0c88f1240d7e92388211d26")
