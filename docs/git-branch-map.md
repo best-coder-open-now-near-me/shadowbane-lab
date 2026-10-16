@@ -1,5 +1,13 @@
 # Git branch map
 
+## Combat channel text investigation — October 16
+
+`codex/combat-channel-text-20261016` starts from refreshed `main` at `ef02070f`
+and targets reviewed `main`. Its offline candidate changes nine combat display
+translations while preserving lookup keys. Nothing is installed or live-qualified.
+Numeric substitution, self-drain event direction, emphasis and remaining message
+families are unfinished. See [findings and active todos](combat-channel-text.md).
+
 ## Text-fixed VM framerate investigation - October 16
 
 `codex/vm-renderer-cpu-budget-20261016` starts from refreshed main `ef02070f`
