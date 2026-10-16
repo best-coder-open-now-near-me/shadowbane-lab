@@ -8,6 +8,9 @@ on `codex/vendor-release-20261013`. Draft PR #174 targets main and remains
 unmerged. Installed state is .120/.74/.19; the interrupted .121 preparation
 stopped the manager but never switched software. Candidate .122/.75 admits the
 exact official/prepared .22 pair and seals its added loaded executable sections.
+Graphics-preserving release source is `cae3008549b7f4d00b45fed1dd28a83941d844b8`.
+Authorized C: cleanup is complete: the separate official client is on S: with its
+original launch path preserved, and unused .121 software has been retired.
 Next: full qualification and one combined patch installation, fresh-server batch
 acceptance and town scheduling. Historical batch deadlines and journals remain
 unchanged. See [current patch evidence](client-update-20261016.md).

@@ -44,3 +44,37 @@ The canonical checkout stays clean on refreshed main `ef02070f`. Next: complete
 one combined .122/.75 patch installation, fresh-server batch/recycling acceptance,
 and durable town vendor scheduling. Recheck the official manifest before applying
 an update; a later reset patch requires a new exact-client alignment.
+
+## VM cleanup and release checkpoint
+
+The user authorized retiring the unused .121 software, moving the separate
+official client to S:, and Windows cleanup. All three actions completed.
+`C:\Users\tester\Downloads\WonderbaneClient` now resolves through a junction to
+`S:\WonderbaneClient`. All 329 files (2,436,049,929 bytes) were verified before
+the source copy was removed; desktop shortcuts remained byte-identical. Vendor
+Test, settings, saved jobs and historical journals stayed in place.
+
+Windows Disk Cleanup ran only Temporary Files and Update Cleanup, using normal
+administrator elevation. The task-specific selection flags were removed.
+C: had approximately 3.3 GiB free immediately afterward; background Windows
+activity can change this. The unused .121 host, candidate wheels and archive
+were retired at 22 inspected paths, preserving metadata and diagnostic evidence.
+No deployment rollback copies were created; the [deployment policy](deployment-policy.md)
+continues to apply.
+
+Private receipts remain under `S:\ShadowbaneLab-Staging\retirement-20261016`:
+
+| Receipt | SHA-256 |
+| --- | --- |
+| unused-host121-retirement.json | 9c81ada14e104976465241d7c9133b78c119c9a73c362c962af48d170e4e2278 |
+| official-client-relocation.json | 6192f13b100a4d48fd645e91a9a661729407bc55f71fdabed9c8c14cd1e642c8 |
+| windows-cleanup.json | 88a445f8d46c86853599b28df834972607720cccf469cd5e25b4b1430f70aa42 |
+
+The published graphics-preserving release source is
+`cae3008549b7f4d00b45fed1dd28a83941d844b8`. Recycling actual-client fixtures,
+the required actor-effects registration and tracking's exact-image fixture list
+are corrected. All remaining actual-image tracking, activation, special-power
+and sky probes pass. Full qualification of this exact source is running, with
+135 installer tests passing. The fresh stopped-runtime baseline verifies 507
+installed modules, 244 immutable client files and 10,112 retained records.
+This is not an installation or fresh-server rolling acceptance claim.
