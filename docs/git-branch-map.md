@@ -1,5 +1,36 @@
 # Git branch map
 
+## Combat channel text investigation — October 16
+
+`codex/combat-channel-text-20261016` starts from refreshed `main` at `ef02070f`
+and targets reviewed `main`. Its candidate changes nine combat display
+translations while preserving lookup keys. The user requested combined vendor
+testing; the compiler is included by `6a4eb314` on
+`codex/vm-renderer-cpu-budget-20261016` (draft PR #175). The nine values are now
+installed alongside the six-worker launcher, but are not live-qualified.
+Numeric substitution, self-drain event direction, emphasis and remaining message
+families are unfinished. See [findings and active todos](combat-channel-text.md).
+
+## Text-fixed VM framerate investigation - October 16
+
+`codex/vm-renderer-cpu-budget-20261016` starts from refreshed main `ef02070f`
+and targets main through draft PR #175. The reviewed launcher preserves three
+Mesa workers on four vCPUs and uses six on the enlarged eight-core VM, retaining
+the text fix and maximum graphics. The only changed client asset is the nine-value
+combat translation candidate; client executable, native DLL and host are unchanged.
+Vendor rolling is paused for the user's framerate priority. Source validation
+passes; the installed launcher preserves readable text and the user reports the
+recent slowdown recovered. The fresh in-world sample is still only 6.64 FPS.
+Maximum graphics quality is mandatory; no lower-detail settings were applied.
+Virtual 3D is enabled, but its rendering path failed three of five mod-pack graphics
+checks and is not qualified. The game retains software rendering. Next: in-world
+six-worker FPS, numeric weapon-drain and newline rendering acceptance, followed
+by the fresh vendor batch/recycling workflow. No newer official patch was published
+when the cache-bypassed feed and normal client were checked.
+Installed vendor release
+`cae3008549b7f4d00b45fed1dd28a83941d844b8` remains separate and unchanged.
+See [current findings and next check](vm-renderer-performance.md).
+
 ## Vendor startup repaired - October 13
 
 Start shared development from `main` at PR #172 merge

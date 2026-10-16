@@ -46,6 +46,10 @@ function Get-LiveLaunchProcess {
 $script:testRoot = [IO.Path]::GetFullPath((Join-Path ([IO.Path]::GetTempPath()) ('reviewed-launch-tests-' + [Guid]::NewGuid().ToString('N'))))
 [void][IO.Directory]::CreateDirectory($script:testRoot)
 try {
+    foreach ($case in @(@(1,1), @(2,1), @(4,3), @(8,6), @(20,6))) {
+        Assert-True ((Get-ReviewedMesaThreadLimit -ProcessorCount $case[0]) -eq $case[1]) 'Mesa worker budget does not preserve CPU capacity'
+    }
+    Assert-Rejected { Get-ReviewedMesaThreadLimit -ProcessorCount 0 } 'Invalid CPU count accepted'
     $config = [pscustomobject]@{source_revision=('a'*40);extension_sha256=('b'*64)}
     $status = [pscustomobject]@{state='prepared_verified';source_revision=('a'*40)}
     Assert-ReviewedLaunchSource -Config $config -Status $status
