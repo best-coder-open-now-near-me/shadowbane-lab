@@ -1,5 +1,15 @@
 # Git branch map
 
+## Text-fixed VM framerate investigation - October 16
+
+`codex/vm-renderer-cpu-budget-20261016` starts from refreshed main `ef02070f`
+and targets main. It restores the existing three-thread Mesa limit in the
+reviewed launcher without removing the text fix or changing client/native files.
+Vendor rolling is paused for the user's framerate priority. Source validation
+passes; fresh-launch performance acceptance is pending. Installed vendor release
+`cae3008549b7f4d00b45fed1dd28a83941d844b8` remains separate and unchanged.
+See [current findings and next check](vm-renderer-performance.md).
+
 ## Vendor startup repaired - October 13
 
 Start shared development from `main` at PR #172 merge
