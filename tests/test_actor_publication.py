@@ -513,6 +513,7 @@ def test_stationary_item_readiness_does_not_make_retained_id_power_ready():
     ("366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a", True),
     ("6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad", True),
     ("346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747", True),
+    ("4bf1a24a268d0ed13227d766105f3595cdc264e930436ca08748a10b04293ffa", True),
     ("78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903", True),
     ("381e67586b3c36b8ce1dcdb824439010d373d455aa6b460b02cf44f7d58fe9e5", False),
     ("a145ef491341e5107ec064de876d97f0e9c6ebbde2520d6509b4a3b47a7d825a", False),
@@ -520,6 +521,7 @@ def test_stationary_item_readiness_does_not_make_retained_id_power_ready():
     ("28a745925fceb4e3f08537504a7192782afe2227758e34febdd95cc4539f8db0", False),
     ("2cc8f6cfc157b4b2c0f2abbc30d1b5df81daaee24363a8da884cb8a45dc3489a", False),
     ("cb33e6759c619b04a5dd8cdc7bc375af8ba3b4dc99d9e8ce7b431533ef11db5c", False),
+    ("7e497f9381bc35ca350dfb9ecc85ee6b1eaf9e1f1a7678724b9cb8c926be7636", False),
     ("e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e", False),
     ("ff" * 32, False),
 ])

@@ -192,7 +192,7 @@ bool Send(std::uintptr_t image, std::uint32_t manager) noexcept {
 }
 bool Qualified(std::uintptr_t image) noexcept {
     return image && image<=UINT32_MAX
-        && (GraphicsExecutableSha256Matches("6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad") || GraphicsExecutableSha256Matches("346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747"));
+        && (GraphicsExecutableSha256Matches("6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad") || (GraphicsExecutableSha256Matches("346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747") || GraphicsExecutableSha256Matches("4bf1a24a268d0ed13227d766105f3595cdc264e930436ca08748a10b04293ffa")));
 }
 bool Capture(std::uintptr_t image, const movement::NativeScene& scene,
     const vendor::wire::Snapshot& expected, const Items& ids, std::uint32_t count, Manifest& out) noexcept {

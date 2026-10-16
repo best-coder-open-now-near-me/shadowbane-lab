@@ -178,6 +178,7 @@ def test_bundled_nested_schema_is_exact_and_legacy_scan_profile_is_rejected():
         "28a745925fceb4e3f08537504a7192782afe2227758e34febdd95cc4539f8db0",
         "2cc8f6cfc157b4b2c0f2abbc30d1b5df81daaee24363a8da884cb8a45dc3489a",
         "cb33e6759c619b04a5dd8cdc7bc375af8ba3b4dc99d9e8ce7b431533ef11db5c",
+        "7e497f9381bc35ca350dfb9ecc85ee6b1eaf9e1f1a7678724b9cb8c926be7636",
         "e703e7cf5ba7edc04e6851336343fb69ab119672ae5e5409846e8760a0e73a2e",
         "e75ba188142c95a8f69a27ff8d6e83ecfcecf641cc462e0889600b5a759d7437",
         "1a5a9fd59da8255a3c98e16e1e8ff9a415c0921b4189583158c559ad2594360c",
@@ -185,6 +186,7 @@ def test_bundled_nested_schema_is_exact_and_legacy_scan_profile_is_rejected():
         "366ea471a47bf6f6cdc1da91ea415f5b202d307e4ec6e8272b349f39e63d142a",
         "6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad",
         "346122811441e01437d572b32916aef29de78a088d5f328874d5c759097e8747",
+        "4bf1a24a268d0ed13227d766105f3595cdc264e930436ca08748a10b04293ffa",
         "78199b9ffc012b2de3bd2901204d87ee4ceb91acc1c4800f3d4437ad4c2be903",
     }
     raw["schema_version"] = 3
