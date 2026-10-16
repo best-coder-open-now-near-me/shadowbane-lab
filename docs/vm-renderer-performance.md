@@ -64,6 +64,31 @@ capacity before changing that limit. Interactive Windows sign-in, fresh-game FPS
 and separate system-OpenGL capability probing remain pending. No acceleration or
 performance benefit from the new VM settings is claimed yet.
 
+The fresh eight-core game is verified with a healthy idle manager/worker. Its
+thirty-second sample measured 3.92 FPS, median 195.47 ms and 95th-percentile
+473.47 ms. Windows/VirtualBox automatically changed the desktop after reboot and
+the fullscreen viewport is now 1920x976 rather than 1280x960, about 53% more
+pixels. No game detail settings were lowered or manual resolution change made.
+The samples therefore cannot establish a CPU-count performance regression or
+improvement. Preserve the current window size for subsequent comparisons.
+
+The x86 system-OpenGL probe succeeds on the virtual GPU: SVGA3D, OpenGL 4.1
+compatibility profile, Mesa 24.0.2. Its initial invalid-pixel-format error was
+resolved by loading OpenGL before selecting the pixel format. The current
+qualified native graphics executables were then run separately on that driver:
+banded-lighting and depth-edge checks passed; sky, moon-fire and selected-cue
+visible-pixel checks failed. Those failures are retained and not waived. They
+do not distinguish virtual-driver limitations from hidden-window test behavior,
+and this hardware rendering profile is not qualified for mod-pack testing.
+The real game remains on Mesa 26.1.7 software rendering with the working text fix.
+
+The next launcher candidate scales the software-worker limit with available
+CPUs: three on four vCPUs and six on eight or more, with a minimum of one worker
+and maximum of six. It preserves the established four-core limit while using
+more of the enlarged VM and leaving capacity for the game and observers. All
+41 executable launcher assertions pass. Fresh-launch maximum-quality FPS
+acceptance for six workers remains pending and no benefit is claimed yet.
+
 The user also authorized combining the combat-channel translation candidate from
 `eb871ae8d8a1968254717a14afc4316f10a951fa` with the next vendor test composition.
 Its nine display-value changes remain uninstalled and require numeric substitution

@@ -85,6 +85,13 @@ function Assert-ReviewedLaunchSource {
     if ($status.state -ne 'prepared_verified' -or $status.source_revision -ne $preparedSource) { throw 'Runtime differs from reviewed launch configuration' }
 }
 
+function Get-ReviewedMesaThreadLimit {
+    param([ValidateRange(1, 1024)][int] $ProcessorCount = [Environment]::ProcessorCount)
+    # Three workers on the original four-vCPU VM; at most six on larger VMs.
+    # Leave capacity for the game, native observers, manager and Windows.
+    return [Math]::Max(1, [Math]::Min(6, $ProcessorCount - 1))
+}
+
 function Invoke-ReviewedClientLaunch {
     param([string] $RuntimeRoot)
     $ErrorActionPreference = 'Stop'
@@ -133,9 +140,7 @@ function Invoke-ReviewedClientLaunch {
         finally { $ErrorActionPreference='Stop' }
         if ($verifyExit -ne 0) { throw "Launch verification failed; see $verify" }
         $env:LIBGL_ALWAYS_SOFTWARE='true'; $env:GALLIUM_DRIVER='llvmpipe'; $env:MESA_EXTENSION_MAX_YEAR='2001'
-        # Keep the Mesa text fix while reserving a vCPU for the game and manager
-        # on the reviewed four-vCPU VM, as in the graphics baseline launcher.
-        $env:LP_NUM_THREADS='3'
+        $env:LP_NUM_THREADS=[string](Get-ReviewedMesaThreadLimit)
         $env:MESA_GL_VERSION_OVERRIDE=$null; $env:MESA_GLSL_VERSION_OVERRIDE=$null; $env:WONDERBANE_TERRAIN_TRACE=$null
         $env:WONDERBANE_TARGETED_ACTION_TRACE='1'; $env:WONDERBANE_MOVEMENT_TRACE='1'
         $game = Start-Process -FilePath $exe -WorkingDirectory $client -WindowStyle Normal -PassThru
