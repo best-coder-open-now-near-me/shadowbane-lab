@@ -54,6 +54,16 @@ visual verification before replacing the working text fix. Historical cel-profil
 environment documentation is not evidence of a supported switch in the installed
 renderer; the current native renderer does not read that variable.
 
+After the user shut the test VM down normally, its exact identity and powered-off
+state were checked. CPU count was raised from four to eight and virtual 3D enabled.
+The VM restarted successfully; Windows detects eight logical processors and Guest
+Additions remains 7.2.4. RAM (8,954 MB), VRAM (128 MB), VBoxSVGA and all verified
+maximum-detail preferences are unchanged. The launcher still has the proven
+three-worker Mesa limit, so the first measurement will isolate additional VM
+capacity before changing that limit. Interactive Windows sign-in, fresh-game FPS
+and separate system-OpenGL capability probing remain pending. No acceleration or
+performance benefit from the new VM settings is claimed yet.
+
 The user also authorized combining the combat-channel translation candidate from
 `eb871ae8d8a1968254717a14afc4316f10a951fa` with the next vendor test composition.
 Its nine display-value changes remain uninstalled and require numeric substitution
