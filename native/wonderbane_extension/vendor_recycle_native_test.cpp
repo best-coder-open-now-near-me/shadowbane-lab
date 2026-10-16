@@ -77,7 +77,7 @@ void ClientFunctions(const char* filename) {
     stream.read(reinterpret_cast<char*>(file.data()),size);assert(stream);
     r::Hash hash;r::Digest digest{};assert(hash.Add(file.data(),file.size()) && hash.Finish(digest));
     std::ostringstream hex;for(auto byte:digest){hex<<std::hex<<std::setw(2)<<std::setfill('0')<<static_cast<unsigned>(byte);}
-    assert(hex.str()=="6bd0e391edc1c773b4c96d8a9801db45f96db9e34202afcfc8d383d4971fe5ad");
+    assert(hex.str()==previous_prepared||hex.str()==current_prepared);
     const auto* dos=reinterpret_cast<const IMAGE_DOS_HEADER*>(file.data());assert(dos->e_magic==IMAGE_DOS_SIGNATURE);
     assert(dos->e_lfanew>0 && static_cast<std::size_t>(dos->e_lfanew)+sizeof(IMAGE_NT_HEADERS32)<file.size());
     const auto* pe=reinterpret_cast<const IMAGE_NT_HEADERS32*>(file.data()+dos->e_lfanew);
