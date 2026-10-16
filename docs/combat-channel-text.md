@@ -1,9 +1,10 @@
 # Combat channel text — October 16, 2026
 
 Source branch: `codex/combat-channel-text-20261016`, based on refreshed shared
-`main` at `ef02070f`. Integration destination: reviewed `main`. This is an
-offline translation candidate; no installed client change or live acceptance
-is claimed. The active request includes compact two-line formatting, numeric
+`main` at `ef02070f`. Integration destination: reviewed `main`. The user requested
+combining this translation candidate with vendor testing; it is now installed
+in the test VM alongside the six-worker launcher, with numeric/newline acceptance
+still pending. No live acceptance is claimed. The active request includes compact two-line formatting, numeric
 weapon drains, and incorrect self-drain wording.
 
 ## Confirmed findings
@@ -46,16 +47,20 @@ Three regressions cover source rejection, preservation of lookup keys/encoding
 and unrelated content, and missing expected records. Compilation against the
 actual official resource succeeded, producing 2,843,486 bytes with SHA-256
 `4b21d60fc382d4b5047561a60bcdcdf088b46a750a2f10b533faefa6db01a9aa`.
-No original assets or live runtime were written, and no candidate binary is
-published with source.
+Original lookup keys and unrelated translations are preserved. The separate
+official client is unchanged, and no candidate binary is published with source.
+The vendor test installation updates its one translation resource and package
+inventory in place, preserves 17 settings/layout files and leaves host/native
+software unchanged. See [combined test evidence](vm-renderer-performance.md).
 
 ## Active todos
 
 - [x] Find and verify the shared weapon-drain translations.
 - [x] Prepare and test the hash-pinned two-line translation candidate.
-- [ ] **Active:** trace weapon-drain event substitution and signed health changes
-  in the current native client. Verify `%DAMAGEVAL%` receives the correct number
-  on loss and recovery events before qualifying or installing these values.
+- [ ] **Active:** verify weapon-drain numeric substitution and two-line rendering
+  in the installed combined test. Trace signed health changes before broadening
+  classification; the installed values remain a test candidate, not a qualified
+  repair of loss/recovery semantics.
 - [ ] Correct the self-drain wording using actual event direction. The available
   emulator reference sends separate source-to-target loss and source-to-source
   recovery messages; it does not prove current WonderBane behavior. Do not hide

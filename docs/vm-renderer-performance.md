@@ -1,5 +1,11 @@
 # Text-fixed VM rendering performance
 
+Current state: the test VM has eight vCPUs and virtual 3D enabled. The game still
+uses its working Mesa software text fix with a six-worker limit and maximum
+graphics. The requested combat translation candidate is installed in the same
+client. Next are fresh in-world FPS and numeric/newline acceptance; the accelerated
+driver failed three visual checks and is not approved for the real game.
+
 The October 16 investigation keeps the Mesa invisible-text compatibility path:
 `LIBGL_ALWAYS_SOFTWARE=true`, `GALLIUM_DRIVER=llvmpipe`, extension ceiling 2001,
 and no GL/GLSL version overrides. Do not remove those settings as a performance
@@ -86,11 +92,36 @@ The next launcher candidate scales the software-worker limit with available
 CPUs: three on four vCPUs and six on eight or more, with a minimum of one worker
 and maximum of six. It preserves the established four-core limit while using
 more of the enlarged VM and leaving capacity for the game and observers. All
-41 executable launcher assertions pass. Fresh-launch maximum-quality FPS
-acceptance for six workers remains pending and no benefit is claimed yet.
+41 executable launcher assertions pass. The six-worker launcher and nine combat
+translation values were installed together after the game was already closed.
+The public runtime-copy verifier passed; exactly one immutable client asset
+changed, its package inventory was refreshed, and all 17 settings/layout files
+were preserved. Host .122, native .75 and the prepared .22 executable are unchanged.
+Fresh-launch maximum-quality FPS acceptance for six workers remains pending and
+no benefit is claimed yet.
 
 The user also authorized combining the combat-channel translation candidate from
 `eb871ae8d8a1968254717a14afc4316f10a951fa` with the next vendor test composition.
-Its nine display-value changes remain uninstalled and require numeric substitution
-and newline rendering acceptance. That candidate does not fix self-drain semantics
-or implement bold/underline. Keep one owner for the combined runtime installation.
+Its nine display-value changes are now installed for the requested combined test,
+and still require numeric substitution and newline rendering acceptance. The
+compiler is included in this branch by cherry-pick `6a4eb314`. That candidate does
+not fix self-drain semantics or implement bold/underline. Keep one owner for the
+combined runtime installation.
+
+The source components are recorded separately: native/host
+`cae3008549b7f4d00b45fed1dd28a83941d844b8`, launcher
+`36e17977cea88d51dc08f6cd146e21ed664c60a5`, and translation compiler
+`eb871ae8d8a1968254717a14afc4316f10a951fa`. The base native package provenance is
+unchanged; the separate installation receipt records the compiled translation
+component. Launcher SHA-256 is
+`5ce6ea08fdd5d0353a50d4a04152fcd8f002383257e7abc5f2c19468b6366ba9` and
+translation SHA-256 is
+`4b21d60fc382d4b5047561a60bcdcdf088b46a750a2f10b533faefa6db01a9aa`.
+The pinned installation plan is
+`46682253736366dcde5b169ac22452cfc77d4fdf39e9124d567803a95a10b12a`.
+
+The user's official-patch reminder was checked before installation. A fresh
+cache-bypassed October 16 14:54 UTC feed response still has manifest SHA-256
+`e8d285a29d0f9a8f9ac7d96378b2f50d4a873073030ce01eda5f6d51e92e4939`,
+the same exact .22 executable and zero changed assets. The separate official
+client matches; no unnecessary official-client rewrite was performed.
