@@ -11,6 +11,37 @@ launcher and combined combat-text candidate from draft PR #175. Next is full
 qualification and in-place alignment, then FPS/text and vendor batch acceptance.
 See [reset-patch evidence](client-update-20261016-reset.md).
 
+## Combat channel text investigation â€” October 16
+
+`codex/combat-channel-text-20261016` starts from refreshed `main` at `ef02070f`
+and targets reviewed `main`. Its candidate changes nine combat display
+translations while preserving lookup keys. The user requested combined vendor
+testing; the compiler is included by `6a4eb314` on
+`codex/vm-renderer-cpu-budget-20261016` (draft PR #175). The nine values are now
+installed alongside the six-worker launcher, but are not live-qualified.
+Numeric substitution, self-drain event direction, emphasis and remaining message
+families are unfinished. See [findings and active todos](combat-channel-text.md).
+
+## Text-fixed VM framerate investigation - October 16
+
+`codex/vm-renderer-cpu-budget-20261016` starts from refreshed main `ef02070f`
+and targets main through draft PR #175. The reviewed launcher preserves three
+Mesa workers on four vCPUs and uses six on the enlarged eight-core VM, retaining
+the text fix and maximum graphics. The only changed client asset is the nine-value
+combat translation candidate; client executable, native DLL and host are unchanged.
+Vendor rolling is paused for the user's framerate priority. Source validation
+passes; the installed launcher preserves readable text and the user reports the
+recent slowdown recovered. The fresh in-world sample is still only 6.64 FPS.
+Maximum graphics quality is mandatory; no lower-detail settings were applied.
+Virtual 3D is enabled, but its rendering path failed three of five mod-pack graphics
+checks and is not qualified. The game retains software rendering. Next: in-world
+six-worker FPS, numeric weapon-drain and newline rendering acceptance, followed
+by the fresh vendor batch/recycling workflow. No newer official patch was published
+when the cache-bypassed feed and normal client were checked.
+Installed vendor release
+`cae3008549b7f4d00b45fed1dd28a83941d844b8` remains separate and unchanged.
+See [current findings and next check](vm-renderer-performance.md).
+
 ## Vendor client .22 continuation - October 16
 
 Refreshed main remains `ef02070f`. Continue the active
@@ -392,7 +423,7 @@ Continue `codex/vendor-rolling-20261013` in its matching worktree, targeting mai
 through draft PR #174. Installed software remains host .109/native .67 from
 release `fdc07896`; source candidate .110 is not packaged or installed.
 The user clarified ten items per slot, so seven free slots represent up to 70
-items. Read-only cost support now includes quantity 1–10 with native double
+items. Read-only cost support now includes quantity 1â€“10 with native double
 rounding; command dispatch still accepts quantity one only. Focused cost/funding
 checks passed 57 cases, plus 77 existing recipe/HTTP worker checks. The attempted
 funding stopped on an uninitialized
@@ -1445,7 +1476,7 @@ This receipt branch targets `main` through the upcoming combined recovery review
 installation remain pending; the VM still runs qualified host .78 plus the
 separately recorded cosmetic overlay.
 
-## Current Wonderbane client update — October 8
+## Current Wonderbane client update â€” October 8
 
 Start new bot work from refreshed `origin/main`. PR #105 merged exact client
 1.3.38.15 support at `500fe40`, retaining qualified source `6c8ea10`. Host .78 /
@@ -1541,7 +1572,7 @@ Start from freshly fetched `origin/main`, now
 `a84f010a752d91f61aa4366921729f3af3dc8074` after PRs #83 and #84 merged the deployment
 and provenance records. PR #81 integrated the combined release.
 Exact source `733b5fecb862c6d9421b8c2d20f8b8aee5c6db18` is installed
-as host .75/native .52; .14 executable and official cache `08c115…` remain unchanged.
+as host .75/native .52; .14 executable and official cache `08c115â€¦` remain unchanged.
 The release includes reviewed cleanup ownership repair and optional item-response
 diagnostics. Their source branches remain retained pending safe branch cleanup;
 no current checkout is repurposed by this documentation task.
@@ -2085,7 +2116,7 @@ Snapshot: 2026-09-04, updated after the approved remote and local retirement.
 This is a source and review map; it does not certify deployment or live gameplay
 acceptance.
 
-## Current delivery status — September 12
+## Current delivery status â€” September 12
 
 Active priority: [PvE/PvP attack-list delivery](pve-pvp-attack-list-plan.md).
 Blacklist means attack list, populated by commands or attributed responses.
@@ -2220,7 +2251,7 @@ the diagnostic package does not claim visual or live Condemn acceptance.
 See the September 22 handoff for scope and recovery limits.
 Automatic aggression remains unavailable, with no additional deployment implied.
 
-## Guard-upgrade detour — September 17
+## Guard-upgrade detour â€” September 17
 
 `codex/guard-upgrades` starts at vendor checkpoint `61e6fd8` in its own worktree.
 The user wants guards upgraded toward maximum rank as available gold permits.
@@ -2341,7 +2372,7 @@ destination and main.
 See [guard-upgrade source, qualification and todos](handoffs/guard-upgrades.md).
 The normal main checkout and unfinished vendor branch remain untouched.
 
-## Vendor overlay — September 14
+## Vendor overlay â€” September 14
 
 September 15: the correct full native 1.8.8 / host 0.3.17 is installed and its
 action mapping is verified. A live scan confirmed the selected-vacancy fix and
@@ -2636,7 +2667,7 @@ Blacklist means the attack list, populated manually or through attributed respon
 The plan retains applicable review follow-ups without making broad cleanup or unfinished
 visual/door features prerequisites. Identity changes through 8552552 are integrated; attack-list storage and chat editing are integrated. Durable player identity and command completion are active; response attribution and combat transitions remain pending.
 
-## Official client refresh — September 19
+## Official client refresh â€” September 19
 
 The guard lane now reviews official client 1.3.38.9 with native 1.8.21 / host
 0.3.31. [Exact client review and deployment todo](client-update-20260919.md).
@@ -2652,7 +2683,7 @@ and continue rank checks; outer coverage and maximum-rank completion remain open
 Keep the current carried-gold guard journals, including unresolved requests.
 This work remains outside the shared integration branch and main.
 
-## Guard travel controls — September 19
+## Guard travel controls â€” September 19
 
 The active `codex/guard-upgrades` worktree now owns the
 [dashboard Travel / Continue here feature](handoffs/guard-travel.md).
@@ -2666,11 +2697,11 @@ are verified. Fresh discovery retains 174 guards; Travel has live-paused safely
 after an active cycle with no spending or pending request. Next: user repositioning
 and Continue here to verify saved progress and new-area merging.
 Integration remains
-`codex/guard-upgrades` → `codex/vendor-rolling` →
-`codex/native-lifecycle-hardening` → reviewed `main`.
+`codex/guard-upgrades` â†’ `codex/vendor-rolling` â†’
+`codex/native-lifecycle-hardening` â†’ reviewed `main`.
 
 
-### Guard Travel host continuation — September 19
+### Guard Travel host continuation â€” September 19
 
 The active guard lane now contains host 0.3.33's same-character area continuation
 fix. Historical scenes stay immutable; only guards in fresh owned rosters gain
