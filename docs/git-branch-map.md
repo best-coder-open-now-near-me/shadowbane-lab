@@ -5,14 +5,14 @@
 Refreshed main remains `ef02070f`. Continue the active
 `codex/vendor-rolling-20261013` worktree and preserve the graphics composition
 on `codex/vendor-release-20261013`. Draft PR #174 targets main and remains
-unmerged. Installed state is .120/.74/.19; the interrupted .121 preparation
-stopped the manager but never switched software. Candidate .122/.75 admits the
-exact official/prepared .22 pair and seals its added loaded executable sections.
+unmerged. Installed state is .122/.75/.22, independently qualified from the exact
+release below. The original Vendor Test shortcut has relaunched with a healthy
+worker and preserved data. The .22 pair seals its added loaded executable sections.
 Graphics-preserving release source is `cae3008549b7f4d00b45fed1dd28a83941d844b8`.
 Authorized C: cleanup is complete: the separate official client is on S: with its
 original launch path preserved, and unused .121 software has been retired.
-Next: full qualification and one combined patch installation, fresh-server batch
-acceptance and town scheduling. Historical batch deadlines and journals remain
+Obsolete .120 software is also retired after verified activation. Next: login,
+fresh-server batch/recycling acceptance and town scheduling. Historical batch deadlines and journals remain
 unchanged. See [current patch evidence](client-update-20261016.md).
 
 ## Vendor batch observation correction - October 14

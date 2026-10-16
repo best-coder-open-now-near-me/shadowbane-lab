@@ -1,5 +1,49 @@
 # Vendor client .22 alignment - October 16
 
+## Installed .122/.75 and completed cleanup
+
+Release `cae3008549b7f4d00b45fed1dd28a83941d844b8` is qualified and installed as
+host .122/native .75 with official/prepared client .22. The original Vendor Test
+shortcut relaunched the exact DLL with one healthy worker and no active or queued
+operation. Login and fresh-server vendor acceptance remain pending. Guard work
+remains outside scope; draft PR #174 targets main and must remain unmerged.
+
+Qualification passed 7,039 host checks with 46 environment skips, both required
+native profiles, IPC and actual-client probes, 206 bound verifier checks, seven
+desktop/worker startup cases and 135 bound installer checks. Independent review
+verifies 151 artifacts and 121 stages. The two historical transparency diagnostics
+remain recorded per profile; required gates were not waived. All 15 hosted checks
+passed at focused head `d8bd756217da17fb2b7ba9218953ceca6567d493`.
+
+Installation verifies all 507 modules and 10,175 retained records with zero
+exclusions. Twenty-two immutable Vendor Test files changed. The normal official
+client on S: also received its 21 official file updates, preserving its other 223
+files. Two PowerShell argument failures stopped before any client replacement;
+both receipts were preserved, the corrected calls were tested, and the already
+prepared host was reused. No game action was replayed.
+
+Package SHA-256: `cc175300c1d3238cabe880b769ec3a45e7ff65360aed33628d842968bbc08e58`.
+DLL SHA-256: `b8383c7b16d13835f595fbead9ccbc63cef0cb0fadcc7c8e9ab0023f8f1c4a5a`.
+Wheel SHA-256: `a12e15f33b3e6bbc0892358006f2ad192c6f4124d1ec5e31b89627bd8a2f90a8`.
+Plan SHA-256: `88c0b6856dc7d174df1f928dfe9309ea6b2adfb6a8b32e6c48686393b8f573ab`.
+Activation receipt SHA-256: `3d086c4afda4f9f2e81864ff0d5f1a3c619ae3aa2b9907b9287b0e147acda17b`.
+Live startup receipt SHA-256: `a3c7292c93f887ee58e39877843c75910e1399bbbe41c50d36f70c94b3c3cbcf`.
+
+After verified activation, obsolete .120 software was retired at 12 inspected
+paths (60,234,443 bytes), preserving data and receipts. The obsolete OneDrive
+temporary installer was removed (147,194,768 bytes); its receipt SHA-256 is
+`86ebaaaa4c70fe16a43fa2f9b1037eae571fa0f38099610b965c63483ae53705`.
+Windows update downloads fell from 827,440,825 to 58,696,786 bytes. C: has about
+3 GiB free after installation and retirement; Windows activity may change this.
+No retained deployment rollback copies were created.
+
+Next: Treehugger in Rooty (or the new target after reset), one movement to activate
+interactions, then fresh quantity-ten batch and automatic recycling acceptance.
+Preserve unknown affixes and exclude only confirmed Tier 1–2 results. Town
+scheduling follows core acceptance. The expired .120 job remains historical.
+
+## Alignment investigation before installation
+
 The current official manifest identifies executable `1.3.38.22`, SHA-256
 `cb33e6759c619b04a5dd8cdc7bc375af8ba3b4dc99d9e8ce7b431533ef11db5c`.
 Its exact prepared loader result is

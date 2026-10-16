@@ -3,13 +3,14 @@
 ## Server reset and current patch alignment - October 16
 
 Continue vendor work only. The official client is now .22 and requires explicit
-support for its added executable sections and dispatcher trampoline. Candidate
-host .122/native .75 combines this alignment with the qualified sampling fix;
-installation follows full graphics-preserving qualification. Installed .120/.74
-is unchanged and its manager is stopped. The old batch's original deadline has
-passed; preserve that evidence without replay or fresh disposal authority.
-Active: current patch qualification and one installation. Next: a newly admitted
-batch and automatic recycling acceptance, then durable town scheduling for the
+support for its added executable sections and dispatcher trampoline. Qualified
+host .122/native .75 combines this alignment with the sampling fix and is now
+installed from release `cae3008549b7f4d00b45fed1dd28a83941d844b8`. The same shortcut
+has relaunched with the exact DLL, a healthy worker and no active/queued operation.
+All 507 modules and 10,175 retained records pass with zero exclusions. The old
+batch's original deadline has passed; preserve it without replay or new disposal
+authority. Active: login and a newly admitted quantity-ten batch. Next:
+automatic recycling acceptance, then durable town scheduling for the
 fresh server. Recheck the manifest for the later reset patch. See
 [exact identities and validation](client-update-20261016.md).
 
