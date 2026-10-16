@@ -1,5 +1,16 @@
 # Git branch map
 
+## Official reset patch .23 - October 16
+
+Continue `codex/vendor-rolling-20261013` and compose into
+`codex/vendor-release-20261013`; shared destination remains main through draft
+PR #174. The new .23 original/prepared pair is reviewed as a .123/.76 source
+candidate, with exact loaded title-counter boundaries and ordinary-dispatch tests.
+Nothing from .23 is installed yet. Preserve the graphics composition, six-worker
+launcher and combined combat-text candidate from draft PR #175. Next is full
+qualification and in-place alignment, then FPS/text and vendor batch acceptance.
+See [reset-patch evidence](client-update-20261016-reset.md).
+
 ## Vendor client .22 continuation - October 16
 
 Refreshed main remains `ef02070f`. Continue the active

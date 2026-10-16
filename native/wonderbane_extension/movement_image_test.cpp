@@ -82,7 +82,7 @@ void NativeDoorTriangleContract() {
  Check(VirtualProtect(code,0x1a4,protection,&protection)!=0,"restore native triangle page protection");
 }
 void NativeDispatcherContract() {
- // Execute the actual .22 default branch and reconstructed original stack
+ // Execute the actual .22/.23 default branch and reconstructed original stack
  // frame, replacing only its legacy handler continuation in this owned arena.
  // No client imports, world, UI, network or message handlers are invoked.
  auto* base=static_cast<unsigned char*>(tested_image);
@@ -100,9 +100,11 @@ void NativeDispatcherContract() {
   FlushInstructionCache(GetCurrentProcess(),base+0x1790000,0x1000);
   using Dispatch=bool (__cdecl*)(const void*,void*);
   const auto dispatch=reinterpret_cast<Dispatch>(base+0x7ca9c0);
-  for(const auto action:{0U,0xeaU,0x334U,0x1000U,0x12c9U,0x12d5U,0xffffffffU}){
+  // .23 reserves 0x12f2..0x1311 for title commands; execute both ordinary
+  // neighbors while leaving that real UI/network path uninvoked.
+  for(const auto action:{0U,0xeaU,0x334U,0x1000U,0x12c9U,0x12d5U,0x12f1U,0x1312U,0xffffffffU}){
    const std::array<std::uint32_t,9> message{action};
-   Check(dispatch(message.data(),base),"actual .22 dispatcher retains ordinary cdecl action frame");
+   Check(dispatch(message.data(),base),"actual dispatcher retains ordinary cdecl action frame");
   }
  }
  if(text){Check(VirtualProtect(continuation,returned.size(),text_protection,&discard)!=0,
@@ -179,6 +181,8 @@ int wmain(int argc,wchar_t** argv){
    "changed loaded header revokes the entire layout proof");
   nt->OptionalHeader.SizeOfImage=image_size;
   if(layout.section_count==9){
+   bool title_menu_patch=false;
+   Check(wm::ReviewedImage(bytes,&title_menu_patch),"exact file selects its mutable-data profile");
    Check(layout.added_patch_sections_verified,".22 publishes sealed loaded patch sections");
    for(const auto rva:{0x178f010U,0x1790180U,0x1790140U,0x1790154U,0x179080cU}){
     mapped[rva]^=1;
@@ -189,6 +193,17 @@ int wmain(int argc,wchar_t** argv){
                        0x1790800U,0x179080bU}){
     mapped[rva]^=1;
     Check(wm::VerifyNativeMovementImage(base),"reviewed mutable patch data remains usable");
+    mapped[rva]^=1;
+   }
+   for(const auto rva:{0x1790c20U,0x1790c21U,0x1790c22U,0x1790c23U}){
+    mapped[rva]^=1;
+    Check(wm::VerifyNativeMovementImage(base)==title_menu_patch,
+     "title row counter is mutable only for the exact .23 original/prepared pair");
+    mapped[rva]^=1;
+   }
+   for(const auto rva:{0x1790c1fU,0x1790c24U,0x1790e40U,0x1790e82U}){
+    mapped[rva]^=1;
+    Check(!wm::VerifyNativeMovementImage(base),"title counter neighbors and dispatcher code remain sealed");
     mapped[rva]^=1;
    }
    auto* section=IMAGE_FIRST_SECTION(nt)+8;
